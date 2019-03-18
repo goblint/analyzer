@@ -75,7 +75,13 @@ struct
     Expp.is_bot e || Expp.is_top e
 
   let join_of_all_parts (_,(xl, xm, xr)) =
-    Val.join (Val.join xl xm) xr
+    let result = Val.join (Val.join xl xm) xr
+    in 
+    if Val.is_bot result then
+      (Messages.report "Array bot!!!!!!!!!";
+      Val.top())
+    else
+      result
 
   let short w ((e,(xl, xm, xr)) as x) = 
     if is_not_partitioned x then 
@@ -118,7 +124,6 @@ struct
 
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) i =
     Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
-    Printf.printf "Array get@%s (partitioned by %s)\n"  (Expp.short 20 i) (Expp.short 20 e);
     match e, i with
       | `Lifted e', `Lifted i' ->
         begin
@@ -194,21 +199,18 @@ struct
     f (f (f a xl yl) xm ym) xr yr 
        
   let move_if_affected ?(length=None) (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
-    let move (i:int option) =     (* TODO: Maybe it would be nicer to switch to some kind of enum here *)
+    let move (i:int option) =
       match i with
       | Some 0   -> 
         (e, (xl, xm, xr))
       | Some 1   -> 
-        begin
-          Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^" , new is "^(short 20 (e, (Val.join xl xm, xr, xr)))^"\n") ; 
-          (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
-        end
+        (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
       | Some -1  -> 
         (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
       | Some x when x > 1 -> 
         (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
-      | Some x when x < -1
-        -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
+      | Some x when x < -1 -> 
+        (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
       | _ ->
         begin
           Messages.report "Destructive assignment to expression, not covering entire array.";
@@ -254,7 +256,7 @@ struct
               (* If we can not drop partitioning, move *)
               move (movement_for_exp exp)
           end
-    | _ -> x (* If the array is not actually partitioned, there is nothing to do *)
+    | _ -> x (* If the array is not partitioned, nothing to do *)
 
   let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) i a =
     begin
@@ -262,7 +264,7 @@ struct
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       if is_not_partitioned (e, (xl, xm, xr)) then
         if not_allowed_for_part i then
-          let result = if Val.is_bot (join_of_all_parts x) then Val.top () else Val.join a (join_of_all_parts x) in
+          let result = Val.join a (join_of_all_parts x) in
           (e, (result, result, result))
         else
           begin (* this should be solved via the must equal *)
@@ -282,55 +284,51 @@ struct
                   BatOption.map_default (Int64.equal (Int64.sub l Int64.one)) false exp_value
               | _ -> false
             in
-            let top_if_bot_lub_otherwise = if Val.is_bot (join_of_all_parts x) then Val.top () else (join_of_all_parts x) in
-            let l = if e_equals_zero then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
-            let r = if e_equals_maxIndex then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
+            let l = if e_equals_zero then Val.bot () else join_of_all_parts x in
+            let r = if e_equals_maxIndex then Val.bot () else join_of_all_parts x in
             Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) );
             (i, (l, a, r))
           end
       else
-        begin
-          Messages.warn ("e is " ^ (Expp.short 20 e) ^ ", i is " ^ (Expp.short 20 i));
-          match e, i with
-          | `Lifted e', `Lifted i' -> begin
-              let default =
-                begin
-                  let left = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-                  | `Bool false -> xl
-                  | _ -> lubIfNotBot xl in
-                  let middle = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-                  | `Bool false -> xm
-                  | _ -> Val.join xm a in
-                  let right =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-                  | `Bool false -> xr
-                  | _ -> lubIfNotBot xr in
-                  (e, (left, middle, right))
-                end
-              in
-              let isEqual = match ask (Q.MustBeEqual (e',i')) with
-                | `Bool true -> true
-                | _ -> false in
-              if isEqual then
-                begin
-                  Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (e, (xl, a, xr)) );
-                  (e, (xl, a, xr))
-                end
-              else if Cil.isConstant e' && Cil.isConstant i' then
-                match Cil.isInteger e', Cil.isInteger i' with
-                  | Some e'', Some i'' ->
-                    if i'' = Int64.add e'' Int64.one then
-                      (i, (Val.join xl xm, a, xr))
-                    else
-                      default
-                  | _ ->
+        match e, i with
+        | `Lifted e', `Lifted i' -> begin
+            let default =
+              begin
+                let left = match ask (Q.MayBeLess (i', e')) with       (* (may i < e) ? xl : bot *)
+                | `Bool false -> xl
+                | _ -> lubIfNotBot xl in
+                let middle = match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
+                | `Bool false -> xm
+                | _ -> Val.join xm a in
+                let right =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
+                | `Bool false -> xr
+                | _ -> lubIfNotBot xr in
+                (e, (left, middle, right))
+              end
+            in
+            let isEqual = match ask (Q.MustBeEqual (e',i')) with
+              | `Bool true -> true
+              | _ -> false
+            in
+            if isEqual then
+              (* update strongly *)
+              (e, (xl, a, xr))
+            else if Cil.isConstant e' && Cil.isConstant i' then
+              match Cil.isInteger e', Cil.isInteger i' with
+                | Some e'', Some i'' ->
+                  if i'' = Int64.add e'' Int64.one then
+                    (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
+                    (i, (Val.join xl xm, a, xr))
+                  else
                     default
-              else
-                default
-            end
-          | _ -> 
-            (* If the expression used to write is not known, all segements except the empty ones will be affected *)
-            (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
-        end
+                | _ ->
+                  default
+            else
+              default
+          end
+        | _ -> 
+          (* If the expression used to write is not known, all segements except the empty ones will be affected *)
+          (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
     end
 
   let join ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) =
@@ -349,7 +347,6 @@ struct
     else  (Expp.top(), (v, v, v))
   (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
   (* TODO: What about the cases where this is called with v != \bot, are we still sound in those *)
-  (* TODO: Interaction with get and the catch all *)
 
   let length _ = None
 

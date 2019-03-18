@@ -187,7 +187,7 @@ struct
           let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_paritioning in
           (st, fl, dep_new)
         end
-      (* TODO:other cases *)
+      (* `List and `Blob cannot contain arrays *)
       | _ ->  (st, fl, dep)
 
 
@@ -244,66 +244,71 @@ struct
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
-        let affected_arrays =
+        let rec effect_on_arrays st =
+          let affected_arrays =
             let set = try BaseDomain.VarMap.find x dep
               with Not_found -> BaseDomain.VarSet.empty () in 
             BaseDomain.VarSet.elements set
-        in
-        let movement_for_expr l' r' currentE' =
-          let are_equal e1 e2 =
-            match a (Q.MustBeEqual (e1, e2)) with
-              | `Bool t ->
-                begin
-                  match Q.BD.to_bool t with
-                  | Some true -> true
-                  | _ -> false
-                end
-              | _ -> false 
           in
-          let newE = Basetype.CilExp.replace l' r' currentE' in
-          let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in 
-          if are_equal newE currentEPlusOne then Some 1 else
-            begin
-              let currentEMinusOne = BinOp (MinusA, currentE', Cil.integer 1, Cil.intType) in
-              if are_equal newE currentEMinusOne then Some (-1) else
-             (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; None)
-            end
-        in
-        let effect_on_array actually_moved arr (st,fl, dep):store =
-          let v = CPA.find arr st in
-          let nval = 
-            match lval_raw, rval_raw with
-              | Some (Lval(Var l',NoOffset)), Some r' -> 
-                begin
-                  let moved_by = 
-                    if actually_moved then
-                      movement_for_expr l' r' 
-                    else
-                      fun x -> Some 0
-                  in
-                  VD.affect_move a v x moved_by
-                end
-              | _,_  -> 
-                if actually_moved then
+          let movement_for_expr l' r' currentE' =
+            let are_equal e1 e2 =
+              match a (Q.MustBeEqual (e1, e2)) with
+                | `Bool t ->
                   begin
-                    Messages.warn "Problematic debug::: Write access was not to an lval or no rval provided.";
-                    VD.affect_move a v x (fun x -> None)
+                    match Q.BD.to_bool t with
+                    | Some true -> true
+                    | _ -> false
                   end
+                | _ -> false 
+            in
+            let newE = Basetype.CilExp.replace l' r' currentE' in
+            let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in 
+            if are_equal newE currentEPlusOne then 
+              Some 1 
+            else
+              begin
+                let currentEMinusOne = BinOp (MinusA, currentE', Cil.integer 1, Cil.intType) in
+                if are_equal newE currentEMinusOne then 
+                  Some (-1)
                 else
-                  let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
-                  VD.affect_move a v x moved_by     (* was a set call caused e.g. by a guard *)
-                in
-          (M.warn ("effect on "^arr.vname); update_variable arr nval st), fl, dep
-        in
-        (* change_array is false if a change to the way arrays are partitioned is not neccessary *)
-        (* for now, this is only the case when guards are evaluated *)
-        let rec effect_on_arrays arrs st = List.fold_left (fun x y -> effect_on_array change_array y x) st arrs
+                  None
+              end
+          in
+          let effect_on_array actually_moved arr (st,fl,dep):store =
+            let v = CPA.find arr st in
+            let nval = 
+              match lval_raw, rval_raw with
+                | Some (Lval(Var l',NoOffset)), Some r' -> 
+                  begin
+                    let moved_by = 
+                      if actually_moved then
+                        movement_for_expr l' r' 
+                      else
+                        fun x -> Some 0
+                    in
+                    VD.affect_move a v x moved_by
+                  end
+                | _,_  -> 
+                  if actually_moved then
+                    begin
+                      Messages.warn "Problematic debug::: Write access was not to an lval or no rval provided.";
+                      VD.affect_move a v x (fun x -> None)
+                    end
+                  else
+                    let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
+                    VD.affect_move a v x moved_by     (* was a set call caused e.g. by a guard *)
+                  in
+            update_variable arr nval st, fl, dep
+          in
+          (* change_array is false if a change to the way arrays are partitioned is not neccessary *)
+          (* for now, this is only the case when guards are evaluated *)
+          List.fold_left (fun x y -> effect_on_array change_array y x) st affected_arrays
         in
         let x_updated = update_variable x new_value nst
         in
           begin
-            let with_dep = add_partitioning_dependencies x new_value (x_updated, fl, dep) in (* TODO: Maybe only call this if the expression changed *)
-            effect_on_arrays affected_arrays with_dep
+            let with_dep = add_partitioning_dependencies x new_value (x_updated, fl, dep) in (* Maybe only call this if sth changed? *)
+            effect_on_arrays with_dep
           end
       end
     in
