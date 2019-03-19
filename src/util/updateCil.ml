@@ -67,10 +67,10 @@ let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * Ver
       List.iter (fun (s, o_s) -> s.sid <- o_s.sid) (List.combine f.sallstmts old_f.sallstmts);
       List.iter (fun s -> store_node_location (Statement s) (location_of_statement s)) f.sallstmts;
 
+      override_fundec f old_f;
       List.iter (fun l -> update_vid_max l.vid) f.slocals;
       List.iter (fun f -> update_vid_max f.vid) f.sformals;
       List.iter (fun s -> update_sid_max s.sid) f.sallstmts;
-      override_fundec f old_f;
       update_vid_max f.svar.vid;
   in
   let reset_var (v: varinfo) (old_v: varinfo)=
