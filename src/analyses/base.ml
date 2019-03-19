@@ -195,7 +195,7 @@ struct
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining precise information
   * available about arrays.
   *)
-  let set a ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl,dep: store) (lval: AD.t) (value: value) (lval_raw:lval option) (rval_raw: exp option): store =
+  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl,dep: store) (lval: AD.t) (value: value) (lval_raw:lval option) (rval_raw: exp option): store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x y z in (* refers to defintion that is outside of set *)
@@ -244,7 +244,7 @@ struct
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
-        let rec effect_on_arrays st =
+        let rec effect_on_arrays a (st, fl, dep)=
           let affected_arrays =
             let set = try BaseDomain.VarMap.find x dep
               with Not_found -> BaseDomain.VarSet.empty () in 
@@ -276,39 +276,44 @@ struct
           in
           let effect_on_array actually_moved arr (st,fl,dep):store =
             let v = CPA.find arr st in
-            let nval = 
-              match lval_raw, rval_raw with
-                | Some (Lval(Var l',NoOffset)), Some r' -> 
-                  begin
-                    let moved_by = 
-                      if actually_moved then
-                        movement_for_expr l' r' 
-                      else
-                        fun x -> Some 0
-                    in
-                    VD.affect_move a v x moved_by
-                  end
-                | _,_  -> 
-                  if actually_moved then
+            let nval =
+              if actually_moved then
+                match lval_raw, rval_raw with
+                  | Some (Lval(Var l',NoOffset)), Some r' -> 
+                    begin
+                      let moved_by = movement_for_expr l' r' in
+                      VD.affect_move a v x moved_by
+                    end
+                  | _,_  -> 
                     begin
                       Messages.warn "Problematic debug::: Write access was not to an lval or no rval provided.";
                       VD.affect_move a v x (fun x -> None)
                     end
-                  else
-                    let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
-                    VD.affect_move a v x moved_by     (* was a set call caused e.g. by a guard *)
-                  in
-            update_variable arr nval st, fl, dep
+              else
+                let patched_ask =
+                match ctx with
+                | Some ctx ->
+                  begin
+                    Printf.printf "using patched!!!!";
+                    let patched = swap_st ctx (st,fl,dep) in
+                    patched.ask (* query patched *)
+                   end
+                | _ -> a
+                in
+                let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
+                VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
+          in
+            update_variable arr nval st,fl, dep
           in
           (* change_array is false if a change to the way arrays are partitioned is not neccessary *)
           (* for now, this is only the case when guards are evaluated *)
-          List.fold_left (fun x y -> effect_on_array change_array y x) st affected_arrays
+          List.fold_left (fun x y -> effect_on_array change_array y x) (st,fl,dep) affected_arrays
         in
         let x_updated = update_variable x new_value nst
         in
           begin
             let with_dep = add_partitioning_dependencies x new_value (x_updated, fl, dep) in (* Maybe only call this if sth changed? *)
-            effect_on_arrays with_dep
+            effect_on_arrays a with_dep
           end
       end
     in
@@ -799,7 +804,7 @@ struct
     | TNamed ({ttype=t}, _) -> top_value a gs st t
     | _ -> `Top
 
-  let invariant a (gs:glob_fun) st exp tv =
+  let invariant ctx a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
     let rec helper (op: binop) (lval: lval) (value: value) (tv: bool) =
@@ -938,8 +943,8 @@ struct
           raise Analyses.Deadcode
         )
         else if VD.is_bot new_val
-        then set a gs st addr value None None ~effect:false ~change_array:false (* None None because this is not a real assignment *)
-        else set a gs st addr new_val None None ~effect:false ~change_array:false (* None None because this is not a real assignment *)
+        then set a gs st addr value None None ~effect:false ~change_array:false ~ctx:(Some ctx) (* None None because this is not a real assignment *)
+        else set a gs st addr new_val None None ~effect:false ~change_array:false ~ctx:(Some ctx) (* None None because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
@@ -1080,7 +1085,7 @@ struct
     | _ ->
       if !GU.in_verifying_stage then
         Locmap.replace (dead_branches tv) !Tracing.next_loc false;
-      let res = invariant ctx.ask ctx.global ctx.local exp tv in
+      let res = invariant ctx ctx.ask ctx.global ctx.local exp tv in
       if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.EqualSet exp));
       if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.CondVars exp));
       if M.tracing then M.traceu "branch" "Invariant enforced!\n";
@@ -1088,7 +1093,7 @@ struct
       | `ExprSet s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
         M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint d_exp e;
-        invariant ctx.ask ctx.global res e tv
+        invariant ctx ctx.ask ctx.global res e tv
       | _ -> res
 
   let body ctx f =
@@ -1394,6 +1399,7 @@ struct
     !collected
 
   let query ctx (q:Q.t) =
+    Printf.printf "Called query \n\n";
     match q with
     (* | Q.IsPublic _ ->
        `Bool (BaseDomain.Flag.is_multi (snd ctx.local)) *)
@@ -1524,19 +1530,22 @@ struct
         | _ -> Q.Result.top ()
       end
     | Q.MayBeLess (e1, e2) -> begin
-        (* Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+        Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
         let e1_val = eval_rv ctx.ask ctx.global ctx.local e1 in
         let e2_val = eval_rv ctx.ask ctx.global ctx.local e2 in
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match (ID.minimal i1), (ID.maximal i2) with
             | Some i1', Some i2' ->
+              (Printf.printf "-------------> min(i1) = %s min(i2) = %s\n" (Int64.to_string i1') (Int64.to_string i2');
+ 
               if i1' >= i2' then 
                 begin
-                  (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
-                  `Bool(false)
+                  (Printf.printf "\n-------------> min(i1) = %s min(i2) = %s\n" (Int64.to_string i1') (Int64.to_string i2');
+                  Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
+                  `Bool(false))
                 end
-                else Q.Result.top ()
+                else Q.Result.top ())
             | _ -> Q.Result.top ()
           end
         | _ -> Q.Result.top ()
@@ -1679,7 +1688,7 @@ struct
       warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
-        let newst = invariant ctx.ask ctx.global ctx.local e true in
+        let newst = invariant ctx ctx.ask ctx.global ctx.local e true in
         (* if check_assert e newst <> `True then
             M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
         newst
@@ -1767,7 +1776,7 @@ struct
     | `Unknown "__builtin" ->
       begin match args with
         | Const (CStr "invariant") :: args when List.length args > 0 ->
-          List.fold_left (fun d e -> invariant ctx.ask ctx.global d e true) ctx.local args
+          List.fold_left (fun d e -> invariant ctx ctx.ask ctx.global d e true) ctx.local args
         | _ -> failwith "Unknown __builtin."
       end
     | `Unknown "exit" ->  raise Deadcode
