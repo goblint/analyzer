@@ -871,7 +871,7 @@ struct
                 (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
                 `Bool(false)
               end
-              else Q.Result.top ()
+            else Q.Result.top ()
           end
         | _ -> Q.Result.top ()
       end
@@ -888,7 +888,7 @@ struct
                   (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
                   `Bool(false)
                 end
-                else Q.Result.top ()
+              else Q.Result.top ()
             | _ -> Q.Result.top ()
           end
         | _ -> Q.Result.top ()
@@ -905,27 +905,26 @@ struct
   let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st,fl,dep:store):store =
     let add_one_dep (array:varinfo) (var:varinfo) dep = 
       let vMap = try BaseDomain.VarMap.find var dep
-          with Not_found -> BaseDomain.VarSet.empty () in
+        with Not_found -> BaseDomain.VarSet.empty () in
       let vMapNew = BaseDomain.VarSet.add array vMap in
       BaseDomain.VarMap.add var vMapNew dep
     in
     match value with
-      | `Array _ 
-      | `Struct _ 
-      | `Union _ ->
-        begin
-          let vars_in_paritioning = VD.affecting_vars value in
-          let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_paritioning in
-          (st, fl, dep_new)
-        end
-      (* `List and `Blob cannot contain arrays *)
-      | _ ->  (st, fl, dep)
+    | `Array _ 
+    | `Struct _ 
+    | `Union _ ->
+      begin
+        let vars_in_paritioning = VD.affecting_vars value in
+        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_paritioning in
+        (st, fl, dep_new)
+      end
+    (* `List and `Blob cannot contain arrays *)
+    | _ ->  (st, fl, dep)
 
 
   (** [set st addr val] returns a state where [addr] is set to [val] 
-  * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining precise information
-  * available about arrays.
-  *)
+  * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
+  * precise information about arrays. *)
   let set a ?(ctx=None) ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl,dep: store) (lval: AD.t) (value: value) (lval_raw:lval option) (rval_raw: exp option): store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
@@ -984,26 +983,24 @@ struct
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
               match a (Q.MustBeEqual (e1, e2)) with
-                | `Bool t ->
-                  begin
-                    match Q.BD.to_bool t with
-                    | Some true -> true
-                    | _ -> false
-                  end
-                | _ -> false 
+              | `Bool t ->
+                begin
+                  match Q.BD.to_bool t with
+                  | Some true -> true
+                  | _ -> false
+                end
+              | _ -> false 
             in
             let newE = Basetype.CilExp.replace l' r' currentE' in
             let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in 
             if are_equal newE currentEPlusOne then 
               Some 1 
             else
-              begin
-                let currentEMinusOne = BinOp (MinusA, currentE', Cil.integer 1, Cil.intType) in
-                if are_equal newE currentEMinusOne then 
-                  Some (-1)
-                else
-                  None
-              end
+              let currentEMinusOne = BinOp (MinusA, currentE', Cil.integer 1, Cil.intType) in
+              if are_equal newE currentEMinusOne then 
+                Some (-1)
+              else
+                None
           in
           let effect_on_array actually_moved arr (st,fl,dep):store =
             let v = CPA.find arr st in
@@ -1031,19 +1028,16 @@ struct
                 in
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
                 VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
-          in
+            in
             update_variable arr nval st,fl, dep
           in
           (* change_array is false if a change to the way arrays are partitioned is not neccessary *)
           (* for now, this is only the case when guards are evaluated *)
           List.fold_left (fun x y -> effect_on_array change_array y x) (st,fl,dep) affected_arrays
         in
-        let x_updated = update_variable x new_value nst
-        in
-          begin
-            let with_dep = add_partitioning_dependencies x new_value (x_updated, fl, dep) in (* Maybe only call this if sth changed? *)
-            effect_on_arrays a with_dep
-          end
+        let x_updated = update_variable x new_value nst in
+        let with_dep = add_partitioning_dependencies x new_value (x_updated, fl, dep) in
+        effect_on_arrays a with_dep
       end
     in
     let update_one x store =
