@@ -83,31 +83,12 @@ void interesting(void) {
   assert(kalas[0].a[0] == 8); 
 
 
- /** 
-  int *ip;
-  int top;
-  
-  // And finally array of structs
-  struct kala x;
-  ip = x.a;
-  x.a[0] = 7;
-  assert(*ip == 7);
-  
-  // (typeless) Top index
-  // this assert was in here from the previous array domain, but actually asserts
-  // sth that is unsound, therefore the UNKNOWN was added
-  assert(x.a[top] == 7); // UNKNOWN
-
-  assert(x.a[0] == 7);
-
   struct kala xnn;
   for(int l=0; l < 5; l++) {
     xnn.a[l] = 42;
   }
 
   assert(xnn.a[3] == 42);
-
-
 
 
   struct kala xn;
@@ -122,13 +103,11 @@ void interesting(void) {
     }
   }
 
-  ip = &xs[3].a[0];
+  int* ip = &xs[3].a[0];
 
   int i = *ip;
   assert(*ip == 7);
-
   assert(xs[3].a[0] == 7);
-**/
 
 }
 
@@ -159,29 +138,31 @@ void ptrToArray() {
 
 void unionWeirdness() {
   // --------------- TEST 3 -------------------
+  // This exmaple is a bit contrived to show that splitting and moving works for
+  // unions
   union uArray ua;
   int i3=0;
+  int top;
+  int *i = &top;
 
-  (ua.b)[2] = 1;
-  (ua.a)[2] = 1;
+  ua.a[*i] = 1;
 
   while(i3< 5) {
-    (ua.a)[i3] = 42;
+    ua.a[i3] = 42;
     i3++;
   } 
 
   assert(ua.a[i3-1] == 42);
+
+  ua.b[0] = 3;
+  assert(ua.b[0] == 3);
 
   // --------------- TEST 4 ----------------
   union uStruct us;
   int i4=0;
 
   us.b = 4;
-  us.k.a[0] = 0; // (k, { a -> [0,0] }) is the result here, 
-                // which is obviously unsound as it is not an array, leads to
-                // errors trying to update an array when there is none
-  //us.k.a[1] = 42;
-
+  us.k.a[0] = 0;
   assert(us.k.a[3] == 0); // UNKOWN
 
 
@@ -189,6 +170,7 @@ void unionWeirdness() {
     us.k.a[i4] = 42;
     i4++;
   }
+  assert(us.k.a[0] == 0); // UNKOWN
 }
 
 void failing_example() {
@@ -230,13 +212,13 @@ void struct_in_subscript() {
 }
 
 int main () {
-  failing_example();
+  //failing_example();
   // return 0;
 
   // interesting();
   // array_access_in_subscript();
   // struct_in_subscript();
-  // unionWeirdness();
+  unionWeirdness();
   // ptrToArray();
   return 0;
 
