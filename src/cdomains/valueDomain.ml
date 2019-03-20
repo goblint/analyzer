@@ -696,9 +696,9 @@ struct
                   prev_val, offs
                 else begin
                   match offs with
-                  | `Field (fld, _) when fld.fcomp.cstruct ->
-                    `Struct (Structs.top ()), offs
-                  | `Field (fld, _) -> `Union (Unions.top ()), offs
+                  | `Field (fldi, _) when fldi.fcomp.cstruct ->
+                    (top_value fld.ftype), offs
+                  | `Field (fldi, _) -> `Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
                   | `Index (idx, _) when Cil.isArrayType fld.ftype ->
                     begin
