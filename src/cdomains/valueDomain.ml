@@ -99,7 +99,12 @@ struct
     | (`Struct x, `Struct y) ->
       let pred = (fun (x:t) (y:t) -> array_should_join x y x_eval_int y_eval_int) in
       Structs.for_all_common_bindings pred x y 
-    | (`Union x, `Union y) -> true (* TODO: Fix this *)
+    | (`Union (xf, xv), `Union (yf, yv)) ->
+      (* Structural equality fails here! *)
+      if UnionDomain.Field.equal xf  yf && not (UnionDomain.Field.is_top x) then 
+        array_should_join xv yv x_eval_int y_eval_int
+      else
+        true
     | (`Array x, `Array y) -> 
       CArrays.array_should_join x y x_eval_int y_eval_int &&
       CArrays.fold_left2 (fun a (x:t) (y:t)  -> a && array_should_join x y x_eval_int y_eval_int) true x y
@@ -749,7 +754,7 @@ struct
         `Array (new_val)
       end
     | `Struct s -> `Struct (Structs.map (move_fun) s)
-    (* TODO: Union *)
+    | `Union (f, v) -> `Union(f, move_fun v)
     (* `Blob / `List can not contain Array *) 
     | x -> x
 
