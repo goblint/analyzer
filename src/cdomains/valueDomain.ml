@@ -91,7 +91,8 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
-  let rec array_should_join x y (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) = match (x,y) with    
+  let rec array_should_join x y (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) = 
+    match (x,y) with    
     | (`Top, `Top) -> true
     | (`Bot, `Bot) -> true
     | (`Int x, `Int y) -> true
@@ -730,7 +731,7 @@ struct
               let new_array_value = CArrays.set ask x' e new_value_at_index in
               `Array new_array_value
             | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v
-            | `Bot ->  M.warn_each("encountered array bot, made length 42"); `Array (CArrays.make 42 (do_update_offset ask `Bot offs value exp l' o' v)); (* TODO: why 42? *)
+            | `Bot ->  M.warn_each("encountered array bot, made array top"); `Array (CArrays.top ());
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
