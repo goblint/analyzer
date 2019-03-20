@@ -695,6 +695,15 @@ struct
                     `Struct (Structs.top ()), offs
                   | `Field (fld, _) -> `Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
+                  | `Index (idx, _) when Cil.isArrayType fld.ftype ->
+                    begin
+                      match fld.ftype with
+                      | TArray(_, l, _) ->
+                        let len = try Cil.lenOfArray l 
+                          with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
+                        `Array(CArrays.make len `Top), offs
+                      | _ -> top (), offs (* will not happen*)
+                    end
                   | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int 0L) ->
                     (* Why does cil index unions? We'll just pick the first field. *)
                     top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
