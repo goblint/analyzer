@@ -241,8 +241,8 @@ struct
   let off_pry_with_flag : (string,(Flags.t*int) list) Hashtbl.t = Hashtbl.create 16
 
   (* task resource handling *)
-  let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType
-  let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" voidType
+  let dummy_release f = Goblintutil.create_var (makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType)
+  let dummy_get f = Goblintutil.create_var (makeLocalVar f ?insert:(Some false) "GetResource" voidType)
   let is_task_res' lock = is_task_res (names lock)
   let partition = D.ReverseAddrSet.partition is_task_res'
   let lockset_to_task lockset =
