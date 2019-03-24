@@ -136,18 +136,7 @@ let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * Ver
     | GVarDecl (v, _ ) -> print_endline (v.vname ^ ": " ^ string_of_int v.vid);
     | _ -> ()
   in
-   
-(* 
-  print_endline "Global IDs!!";
-  iterGlobals new_file print_globals;
-  print_endline "After :"; *)
   List.iter reset_globals changes.unchanged;
   List.iter reset_changed_globals changes.changed;
   List.iter update_globals changes.added;
-(*   iterGlobals new_file print_globals;
- *)
-  print_endline "globinit";
-  match new_file.globinit with
-  | Some f -> print_endline f.svar.vname;
-  | None -> print_endline "Nix";  
   

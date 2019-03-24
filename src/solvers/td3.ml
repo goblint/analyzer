@@ -172,8 +172,6 @@ module WP =
       in
       let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.I.changes.changed in
       let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.I.changes.removed in
-
-      List.iter (fun a -> print_endline @@ "Destabilizing " ^ a.Cil.svar.vname ) obsolete_funs;
       let obsolete = Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs) in
       
       let add_nodes_of_fun (functions: fundec list) (nodes)=
@@ -188,8 +186,7 @@ module WP =
       add_nodes_of_fun removed_funs marked_for_deletion;
       
       Set.iter (fun k  -> print_endline k) obsolete;
-      print_endline @@ "Obsolete: " ^ string_of_int (Set.cardinal obsolete);
-      HM.iter (fun k v -> print_endline @@ "Checking: " ^(S.Var.var_id k); if Set.mem (S.Var.var_id k) obsolete then (print_endline ("destabilizing " ^ S.Var.var_id k); destabilize k)) stable;
+      HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then (print_endline ("Destabilizing: " ^ S.Var.var_id k); destabilize k)) stable;
       let delete_marked = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       let delete_marked1 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       let delete_marked2 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in

@@ -234,12 +234,9 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
         let oldFunction =  StringMap.find name map in
         (* Do a (recursive) equal comparision ignoring location information *)
         let identical = eq_glob oldFunction global in
-        print_endline (name ^ " " ^ string_of_bool identical);
         if identical 
           then changes.unchanged <- global :: changes.unchanged
           else changes.changed <- {current = global; old = oldFunction} :: changes.changed
-          (*         Some (identical, global, if not identical then 
-        Some oldFunction else None) *)
       with Not_found -> ())
     with e -> () (* Global was no variable or function, it does not belong into the map *)
   in

@@ -423,7 +423,6 @@ struct
     end getl sidel getg sideg d
 
   let tf var getl sidel getg sideg (_,edge) d (f,t) =
-    print_endline @@ "Node: " ^ (node_to_string (fst var));
     let old_node = !Tracing.current_node in
     let old_loc  = !Tracing.current_loc in
     let old_loc2 = !Tracing.next_loc in

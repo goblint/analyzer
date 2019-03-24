@@ -38,7 +38,6 @@ let restoreMap (folder: string) (old_commit: commitID) (new_commit: commitID) (o
    (* let astFile = Filename.concat commitFolder Serialize.cilFileName in
     let oldAST = Cil.loadBinaryFile astFile in *)
     let (updated, changes) = updateMap oldFile newFile new_commit oldMap in
-    Hashtbl.iter print_mapping updated;
     (updated, changes)
 
 let restore_map (src_files: string list) (folder: string) (old_file: Cil.file) (new_file: Cil.file) =
