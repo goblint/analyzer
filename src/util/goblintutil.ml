@@ -75,7 +75,11 @@ let out = ref stdout
 let tempDirName = ref "goblint_temp"
 
 (** Command for assigning an id to a varinfo. All varinfos directly created by Goblint should be modified by this method *)
-let create_var (var: varinfo) = { var with vid = 1000000 + Hashtbl.hash { var with vid = 0 } }
+let create_var (var: varinfo) =
+  let start_id = 10_000_000_000 in
+  let hash = Hashtbl.hash { var with vid = 0 } in
+  let hash = if hash < start_id then hash + start_id else hash in
+  { var with vid = hash }
 
 (* Type invariant variables. *)
 let type_inv_tbl = Hashtbl.create 13
