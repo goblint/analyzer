@@ -132,7 +132,7 @@ struct
 
       (* Adding the state at each system variable to the final result *)
       let add_local_var (n,es) state =
-        let loc = MyCFG.getLoc n in
+        let loc = Tracing.getLoc n in
         if loc <> locUnknown then try
             let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
             if Result.mem res p then
