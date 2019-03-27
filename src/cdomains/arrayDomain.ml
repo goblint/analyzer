@@ -123,7 +123,7 @@ struct
     else true
 
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) i =
-    Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
+    (* Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")"); *)
     match e, i with
       | `Lifted e', `Lifted i' ->
         begin
@@ -213,7 +213,7 @@ struct
         (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
       | _ ->
         begin
-          Messages.report "Destructive assignment to expression, not covering entire array.";
+          (* Messages.report "Destructive assignment to expression, not covering entire array."; *)
           let nval = join_of_all_parts x in
           (Expp.top (), (nval, nval, nval))
         end
@@ -244,12 +244,12 @@ struct
             in
             if e_must_bigger_max_index then
               begin
-                Messages.report "Entire array is covered by left value, dropping partitioning.";
+                (* Messages.report "Entire array is covered by left value, dropping partitioning."; *)
                 Expp.top(),(xl, xl, xl)
               end
             else if e_must_less_zero then
               begin
-                Messages.report "Entire array is covered by right value, dropping partitioning.";
+                (* Messages.report "Entire array is covered by right value, dropping partitioning."; *)
                 Expp.top(),(xr, xr, xr)
               end
             else
@@ -260,7 +260,7 @@ struct
 
   let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) i a =
     begin
-      Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
+      (* Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")"); *)
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       if is_not_partitioned (e, (xl, xm, xr)) then
         if not_allowed_for_part i then
@@ -286,7 +286,7 @@ struct
             in
             let l = if e_equals_zero then Val.bot () else join_of_all_parts x in
             let r = if e_equals_maxIndex then Val.bot () else join_of_all_parts x in
-            Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) );
+            (* Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) ); *)
             (i, (l, a, r))
           end
       else
@@ -319,6 +319,8 @@ struct
                   if i'' = Int64.add e'' Int64.one then
                     (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
                     (i, (Val.join xl xm, a, xr))
+                  else if e'' = Int64.add i'' Int64.one then
+                    (i, (xl, a, Val.join xm xr))
                   else
                     default
                 | _ ->

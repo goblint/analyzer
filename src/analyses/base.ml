@@ -745,7 +745,6 @@ struct
   (* interpreter end *)
 
   let query ctx (q:Q.t) =
-    Printf.printf "Called query \n\n";
     match q with
     (* | Q.IsPublic _ ->
        `Bool (BaseDomain.Flag.is_multi (snd ctx.local)) *)
@@ -1398,7 +1397,30 @@ struct
           List.iter (fun x -> ctx.spawn x (threadstate x)) funs
         | _ -> ()
       end;
-      set_savetop ctx.ask ctx.global ctx.local lval_val rval_val (Some lval) (Some rval) (* Idea: Carry lval and rval here *)
+      match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
+      | (Var v, _) when AD.is_definite lval_val ->  
+        begin
+        let current_val = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
+        in
+        match current_val with
+        | `Bot -> (* current value is VD `Bot *)
+          begin
+            match Addr.to_var_offset (AD.choose lval_val) with
+            | [(x,offs)] -> 
+              begin
+                let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
+                let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
+                set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv None None (* set top-level variable to updated value *)
+              end
+            | _ ->  
+              set_savetop ctx.ask ctx.global ctx.local lval_val rval_val (Some lval) (Some rval)
+          end
+        | _ ->
+          set_savetop ctx.ask ctx.global ctx.local lval_val rval_val (Some lval) (Some rval)
+        end
+      | _ ->
+        set_savetop ctx.ask ctx.global ctx.local lval_val rval_val (Some lval) (Some rval)
+
 
   module Locmap = Deadcode.Locmap
 
