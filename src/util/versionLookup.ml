@@ -34,11 +34,11 @@ let print_mapping (function_name: string) (dec, commit: Cil.global * commitID) =
 let restoreMap (folder: string) (old_commit: commitID) (new_commit: commitID) (oldFile: Cil.file) (newFile: Cil.file)= 
     let commitFolder = Filename.concat folder old_commit in
     let versionFile = Filename.concat commitFolder versionMapFilename in
-    let oldMap = Serialize.unmarshall versionFile in
+    let (oldMap, max_ids) = Serialize.unmarshall versionFile in
    (* let astFile = Filename.concat commitFolder Serialize.cilFileName in
     let oldAST = Cil.loadBinaryFile astFile in *)
     let (updated, changes) = updateMap oldFile newFile new_commit oldMap in
-    (updated, changes)
+    (updated, changes, max_ids)
 
 let restore_map (src_files: string list) (folder: string) (old_file: Cil.file) (new_file: Cil.file) =
     match Serialize.current_commit src_files with 

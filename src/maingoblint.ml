@@ -350,11 +350,11 @@ let update_map old_file new_file =
     let dir = Serialize.gob_directory !cFileNames in
     VersionLookup.restore_map !cFileNames dir old_file new_file
 
-let store_map updated_map =    (* Creates the directory for the commit *)
+let store_map updated_map max_ids =    (* Creates the directory for the commit *)
   match Serialize.current_commit_dir !cFileNames with 
   | Some commit_dir ->
     let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-    Serialize.marshall updated_map map_file_name
+    Serialize.marshall (updated_map, max_ids) map_file_name
   | None -> ()
 
 (** the main function *)
@@ -390,10 +390,10 @@ let main =
         let current_commit = (match Serialize.current_commit !cFileNames with Some commit -> commit | _ -> "dirty") in
         let last_analyzed_commit = (match Serialize.last_analyzed_commit !cFileNames with Some commit -> commit | _ -> "-none-") in
         let (name_map, changes) = (match Serialize.load_latest_cil !cFileNames with
-          | Some file2 -> let (function_name_map, changes) = update_map file2 file in
+          | Some file2 -> let (function_name_map, changes, max_ids) = update_map file2 file in
                           let already_analyzed = (String.equal current_commit last_analyzed_commit) in
-                          UpdateCil.update_ids file2 file function_name_map current_commit already_analyzed changes;
-                          store_map function_name_map;
+                          let max_ids = UpdateCil.update_ids file2 max_ids file function_name_map current_commit already_analyzed changes in
+                          store_map function_name_map max_ids;
                           (function_name_map, changes)
           | None -> match Serialize.current_commit !cFileNames with
               Some commit ->
@@ -401,8 +401,9 @@ let main =
                 (match Serialize.current_commit_dir !cFileNames with 
                   | Some commit_dir ->
                       let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-(* TODO: fix, needs changes parameter                       UpdateCil.update_ids file file function_name_map current_commit false ;
- *)                      Serialize.marshall function_name_map map_file_name;
+                      let max_ids = UpdateCil.update_ids file UpdateCil.zero_ids file function_name_map current_commit false (CompareAST.empty_change_info ()) in
+                      Serialize.marshall function_name_map map_file_name;
+                      store_map function_name_map max_ids;
                       (function_name_map, CompareAST.empty_change_info ())
                   | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
           | None -> exit 5;

@@ -30,10 +30,18 @@ let rec location_of_statement (s: stmt) = match s.skind with
   | TryFinally (_,_,l) -> l
   | TryExcept (_,_,_,l) -> l
 
-let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (already_analyzed: bool) (changes: change_info) =
-  let vid_max = ref (Cil.newVID ()) in
-  let sid_max = ref (-1) in
+type max_ids = {
+  max_sid: int;
+  max_vid: int;
+}
 
+let zero_ids = {max_sid = 0; max_vid = 0}
+
+let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (string, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (already_analyzed: bool) (changes: change_info) =
+  let vid_max = ref ids.max_vid in
+  let sid_max = ref ids.max_sid in
+
+  
   let update_vid_max vid =
     if vid > !vid_max then vid_max := vid
   in
@@ -136,7 +144,29 @@ let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * Ver
     | GVarDecl (v, _ ) -> print_endline (v.vname ^ ": " ^ string_of_int v.vid);
     | _ -> ()
   in
+
+  let update_sids (glob: global) = match glob with
+    | GFun (fn, loc) -> List.iter (fun s -> update_sid_max s.sid) fn.sallstmts
+    | _ -> ()
+  in
+
+  let update_vids (glob: global) = match glob with
+    | GFun (fn, loc) -> List.iter (List.iter (fun v -> update_vid_max v.vid)) [fn.slocals; fn.sformals]
+    | GVar (v,_,_) -> update_vid_max v.vid
+    | GVarDecl (v,_) -> update_vid_max v.vid
+    | _ -> ()
+  in
+  let update_ids (glob: global) =
+    update_vids glob; update_sids glob;
+  in
   List.iter reset_globals changes.unchanged;
   List.iter reset_changed_globals changes.changed;
   List.iter update_globals changes.added;
+
+  Cil.iterGlobals old_file update_ids;
+
+  while !sid_max > Cil.new_sid () do
+  ()
+  done;
+  {max_sid = !sid_max; max_vid = !vid_max}
   
