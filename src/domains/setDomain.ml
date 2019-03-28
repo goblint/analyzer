@@ -524,7 +524,14 @@ struct
   (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
   let equal x y = leq x y && leq y x
   let hash = Hashtbl.hash
-  let compare = compare
+  let compare x y = 
+    if equal x y 
+      then 0
+      else 
+        let caridnality_comp = compare (cardinal x) (cardinal y) in
+        if caridnality_comp <> 0 
+          then caridnality_comp
+          else Map.compare (List.compare E.compare) x y
   let isSimple _ = false
   let short w x : string =
     let usable_length = w - 5 in
