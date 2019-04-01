@@ -1,6 +1,8 @@
 int main(void) {
   simple();
   simple2();
+  simple3();
+  exampleEnter();
 /**
   int i = 0;
   int a;
@@ -41,6 +43,32 @@ int main(void) {
 
   int x = array1[i] + 7;
   int y = array1[0]; **/
+}
+
+void exampleEnter(void) {
+  int arr[20];
+
+  for(int i = 0; i < 20; i++)
+  {
+    arr[i] = 42;
+    callee(arr);
+  }
+}
+
+void callee(int* arr) {
+  arr[0] = 7;
+}
+
+void simple3(void) {
+  int array1[5];
+  int *ptr = &array1;
+
+  for(int i =0; i <5; i++) {
+    *ptr = 42;
+    ptr++;
+  }
+
+  int y = 7;
 }
 
 void simple2(void) {

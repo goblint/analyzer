@@ -1398,7 +1398,7 @@ struct
         | _ -> ()
       end;
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, _) when AD.is_definite lval_val ->  
+      | (Var v, _) when AD.is_definite lval_val && v.vglob ->  
         begin
         let current_val = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
         in

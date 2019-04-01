@@ -215,12 +215,12 @@ int main () {
   //failing_example();
   // return 0;
 
-  // interesting();
-  // array_access_in_subscript();
-  // struct_in_subscript();
+  interesting();
+  array_access_in_subscript();
+  struct_in_subscript();
   unionWeirdness();
-  // ptrToArray();
-  return 0;
+  ptrToArray();
+
 
   int i,t, k1,k2,top;
 
