@@ -1,12 +1,5 @@
 open Cil
 
-let name_of_global glob =
-  match glob with
-  | GFun (fundec, l) -> fundec.svar.vname
-  | GVar (var, init, l) -> var.vname
-  | GVarDecl (var, l) -> var.vname
-  | _ -> raise (Failure "No variable or function") 
-
 type changed_global = {
   old: global;
   current: global
@@ -21,7 +14,27 @@ type change_info = {
 
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
-module StringMap = Map.Make(String)
+
+type global_type = Fun | Decl | Var | Other
+
+type global_identifier = {name: string ; global_t: global_type}
+
+let identifier_of_global glob =
+  match glob with
+  | GFun (fundec, l) -> {name = fundec.svar.vname; global_t = Fun}
+  | GVar (var, init, l) -> {name = var.vname; global_t = Var}
+  | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
+  | _ -> raise (Failure "No variable or function") 
+
+
+module GlobalMap = Map.Make(struct
+  type t = global_identifier
+  let compare a b =
+    let c = compare a.name b.name in
+    if c <> 0
+      then c
+      else compare a.global_t b.global_t
+end)
 
 let eq_list eq xs ys = 
     try
@@ -212,7 +225,8 @@ let eq_glob (a: global) (b: global) = match a, b with
   | GFun (f,_), GFun (g,_) -> eqF f g
   | GVar (x, _, _), GVar (y,_, _) -> eq_varinfo x y
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y
-  | _ -> false
+  | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false
+
 
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
@@ -222,31 +236,33 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   in
   let addGlobal map global  = 
     try
-      StringMap.add (name_of_global global) global map
+      GlobalMap.add (identifier_of_global global) global map
     with
       e -> map
   in
   let changes = empty_change_info () in
   let checkUnchanged map global = 
     try 
-      let name = name_of_global global in
+      let ident = identifier_of_global global in
       (try
-        let oldFunction =  StringMap.find name map in
+        let old_global = GlobalMap.find ident map in
         (* Do a (recursive) equal comparision ignoring location information *)
-        let identical = eq_glob oldFunction global in
+        let identical = eq_glob old_global global in
+        if not identical then
+          print_endline @@ "Changed: " ^ (identifier_of_global old_global).name;
         if identical 
           then changes.unchanged <- global :: changes.unchanged
-          else changes.changed <- {current = global; old = oldFunction} :: changes.changed
+          else changes.changed <- {current = global; old = old_global} :: changes.changed
       with Not_found -> ())
     with e -> () (* Global was no variable or function, it does not belong into the map *)
   in
   let checkExists map global =
-    let name = name_of_global global in
-    StringMap.mem name map
+    let name = identifier_of_global global in
+    GlobalMap.mem name map
   in
   (* Store a map from functionNames in the old file to the function definition*)
-  let oldMap = Cil.foldGlobals oldAST addGlobal StringMap.empty in
-  let newMap = Cil.foldGlobals newAST addGlobal StringMap.empty in
+  let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
+  let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
   (*  For each function in the new file, check whether a function with the same name 
       already existed in the old version, and whether it is the same function. *)
   let module StringSet = Set.Make (String) in

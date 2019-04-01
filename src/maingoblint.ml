@@ -6,6 +6,8 @@ open Defaults
 open Printf
 open Json
 open Goblintutil
+open Analyses
+
 
 let writeconf = ref false
 let writeconffile = ref ""
@@ -410,8 +412,8 @@ let main =
         ) in
         let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
         let current_commit_dir = Filename.concat (data_path ()) current_commit in
-        let module I = struct let changes = changes let analyzed_commit_dir = analyzed_commit_dir let current_commit_dir = current_commit_dir end in
-        let changeInfo = (module struct let map = name_map module I = I end : IncrConstraints.FunctionMap) in
+        let increment  = { changes = changes; analyzed_commit_dir = analyzed_commit_dir; current_commit_dir = current_commit_dir }   in
+        let changeInfo = (module struct let increment = increment end : Constraints.FunctionMap) in
         file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();

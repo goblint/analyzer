@@ -16,7 +16,7 @@ struct
 
   module Var = S.Var
   module Dom = S.Dom
-  module I = S.I
+  let increment = S.increment
 
   let box = S.box
 
@@ -63,7 +63,7 @@ struct
 
   module Var = ExtendInt (S.Var)
   module Dom = S.Dom
-  module I = S.I
+  let increment = S.increment
 
   let box (x,n) = S.box x
   let conv x = (x,-1)

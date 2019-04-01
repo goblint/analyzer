@@ -37,7 +37,7 @@ type max_ids = {
 
 let zero_ids = {max_sid = 0; max_vid = 0}
 
-let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (string, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (already_analyzed: bool) (changes: change_info) =
+let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (already_analyzed: bool) (changes: change_info) =
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 
@@ -90,7 +90,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (string, C
   in
   let reset_globals (glob: global) =
     try
-      let (old_glob, commit) = Hashtbl.find map (CompareAST.name_of_global glob) in
+      let (old_glob, commit) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
       if already_analyzed || not (String.equal commit current_commit) then (
       match (glob, old_glob) with 
       | GFun (nw, _), GFun (old, _) -> reset_fun nw old
@@ -123,7 +123,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (string, C
   in
   let update_globals (glob: global) = 
     try
-      let (old_glob, commit) = Hashtbl.find map (CompareAST.name_of_global glob) in
+      let (old_glob, commit) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
       if (String.equal commit current_commit) then (
         match (glob, old_glob) with 
         | GFun (nw, _), GFun (old, _) -> update_fun nw old

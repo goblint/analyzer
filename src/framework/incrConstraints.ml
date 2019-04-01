@@ -11,6 +11,8 @@ let node_to_string (n: node) = match n with
 | FunctionEntry f -> f.vname
 | Statement s -> "s.sid" ^ string_of_int s.sid
 
+
+(*
 type commitID = string
 
 module Node :
@@ -96,7 +98,10 @@ struct
   let equal ((n1, a),d1) ((n2, a2),d2) = (* print_endline ("equal:?" ^ (Pretty.sprint ~width: 100 (MyCFG.pretty_node () n1)) ^ " " ^ (Pretty.sprint ~width: 100 (MyCFG.pretty_node () n2)));
    if node_to_string n1 = "s.sid51" then
    print_string "dbg"; *)
-   let res = MyCFG.Node.equal n1 n2 && String.equal a a2 && LD.equal d1 d2 in
+   let res = MyCFG.Node.equal n1 n2 && LD.equal d1 d2 in
+(*    let r2 =  String.equal a a2 in
+   if res && not r2 then 
+   print_endline "Whops"; *)
    (* print_endline (string_of_bool res); *) res
 
   let getLocation (n,d) = MyCFG.getLoc n
@@ -122,11 +127,12 @@ struct
       | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
       | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
     in
+    let node_to_string n = (Pretty.sprint ~width:100 (MyCFG.pretty_node () n)) in
     if comp == 0 then
     let comp2=
       if !Td3.debug_now then
         print_endline "node eq";
-      LD.compare d1 d2 in if comp2 == 0 then String.compare c1 c2 else comp2 else comp
+      LD.compare d1 d2 in (* if comp2 == 0 then String.compare c1 c2 else *) comp2 else comp
 
   let printXml f ((n,_),c) =
     Var.printXml f n;
@@ -258,7 +264,7 @@ struct
 
 end
 
-
+*
 
 
 (** A side-effecting system with globals. *)
@@ -274,12 +280,12 @@ sig
   val system : (LVar.t) -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 
+
 module type FunctionMap =
 sig
-  val map: (string, Cil.global * string) Hashtbl.t
   module I: IncrementalData
-end
-
+end*)
+(*
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FromSpec (S:Spec) (Cfg:CfgBackward) (Fm: FunctionMap)(* Possibly have to remove the signature *)
    : sig
@@ -321,9 +327,9 @@ struct
       ; postsub = []
       ; spawn   = (fun f d -> let c = S.context d in
                     print_endline ("Looking up: " ^ f.vname);
-                    let commit = Hashtbl.find Fm.map f.vname in
-                    if not full_context then sidel ((FunctionEntry f, snd commit), c) d;
-                    ignore (getl ((Function f, snd commit), c)))
+                    let commit = "asdf" in
+                    if not full_context then sidel ((FunctionEntry f, commit), c) d;
+                    ignore (getl ((Function f, commit), c)))
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
@@ -462,3 +468,4 @@ struct
       [fun _ _ _ _ -> S.val_of c]
     | _ ->  List.map (tf ((v,i),c)) (add_commit (Cfg.prev v) i)  
   end
+  *)

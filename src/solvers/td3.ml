@@ -170,10 +170,12 @@ module WP =
       let filter_map f l =
         List.fold_left (fun acc el -> match f el with Some x -> x::acc | _ -> acc) [] l
       in
-      let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.I.changes.changed in
-      let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.I.changes.removed in
+      let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.increment.changes.changed in
+      let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
       let obsolete = Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs) in
       
+      List.iter (fun a -> print_endline ("Obsolete: " ^ a.svar.vname) ) obsolete_funs;
+
       let add_nodes_of_fun (functions: fundec list) (nodes)=
         let add_stmts (f: fundec) =
           List.iter (fun s -> Hashtbl.replace nodes (string_of_int s.sid) ()) (f.sallstmts)
@@ -185,9 +187,8 @@ module WP =
       add_nodes_of_fun obsolete_funs marked_for_deletion;
       add_nodes_of_fun removed_funs marked_for_deletion;
       
-      Set.iter (fun k  -> print_endline k) obsolete;
       HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then (print_endline ("Destabilizing: " ^ S.Var.var_id k); destabilize k)) stable;
-      let delete_marked = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
+      let delete_marked = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then (print_endline @@ "deleting node:" ^ S.Var.var_id k; HM.remove rho k) ) in
       let delete_marked1 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       let delete_marked2 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       
@@ -315,7 +316,7 @@ module WP =
       (infl, rho, called, wpoint, stable)
 
       let solve box st vs =
-        let file_in = Filename.concat S.I.analyzed_commit_dir result_file_name in
+        let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
         let (infl, rho, called, wpoint, stable) as input_data =  if Sys.file_exists file_in
                                             then Serialize.unmarshall file_in
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
@@ -323,9 +324,9 @@ module WP =
         let (infl, rho1, called, wpoint, stable) = solve box st vs infl rho called (HM.create 10) stable in
         let varCountAfter = HM.length rho1 in
 
-        let path = Goblintutil.create_dir S.I.current_commit_dir in
+        let path = Goblintutil.create_dir S.increment.current_commit_dir in
         if Sys.file_exists path then (
-          let file_out = Filename.concat S.I.current_commit_dir result_file_name in
+          let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
           Serialize.marshall (infl, rho1, called, wpoint, stable) file_out;
         );
         print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));

@@ -4,22 +4,22 @@ open Serialize
 
 type commitID = string
 
-let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (string, Cil.global * commitID) Hashtbl.t) = 
+let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (global_identifier, Cil.global * commitID) Hashtbl.t) = 
   let changes = compareCilFiles oldFile newFile in  
   (* TODO: For updateCIL, we have to show whether the new data is from an changed or added functiong  *)
-  List.iter (fun (glob: global) ->  Hashtbl.replace ht (name_of_global glob) (glob, newCommitID)) (List.map (fun a -> a.current) changes.changed);
-  List.iter (fun (glob: global) ->  Hashtbl.replace ht (name_of_global glob) (glob, newCommitID)) changes.added;
+  List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) (glob, newCommitID)) (List.map (fun a -> a.current) changes.changed);
+  List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) (glob, newCommitID)) changes.added;
   (ht, changes)
 
 let create_map (new_file: Cil.file) (commit: commitID) =
     let add_to_hashtbl tbl (global: Cil.global) =
         match global with
-            | GFun (fund, loc) as f -> Hashtbl.replace tbl fund.svar.vname (f, commit)
-            | GVar (var, _, _) as v -> Hashtbl.replace tbl var.vname (v, commit)
-            | GVarDecl (var, _) as v -> Hashtbl.replace tbl var.vname (v, commit)
+            | GFun (fund, loc) as f -> Hashtbl.replace tbl (identifier_of_global f) (f, commit)
+            | GVar (var, _, _) as v -> Hashtbl.replace tbl (identifier_of_global v) (v, commit)
+            | GVarDecl (var, _) as v -> Hashtbl.replace tbl (identifier_of_global v) (v, commit)
             | other -> ()
     in
-    let tbl : (string, Cil.global * commitID) Hashtbl.t = Hashtbl.create 1000 in
+    let tbl : (global_identifier, Cil.global * commitID) Hashtbl.t = Hashtbl.create 1000 in
     Cil.iterGlobals new_file (add_to_hashtbl tbl);
     tbl
 

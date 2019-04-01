@@ -353,8 +353,13 @@ struct
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
+module type FunctionMap =
+sig
+  val increment: increment_data
+end
+
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward)
+module FromSpec (S:Spec) (Cfg:CfgBackward) (Fm: FunctionMap)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = Basetype.Variables
@@ -375,11 +380,7 @@ struct
 
   let full_context = get_bool "exp.full-context"
   (* Dummy module. No incremental analysis supported here*)
-  module I = struct
-    let analyzed_commit_dir = ""
-    let current_commit_dir = ""
-    let changes = CompareAST.empty_change_info ()
-  end 
+  let increment = Fm.increment
   let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
@@ -594,7 +595,7 @@ struct
       | `Left  a -> S.G.printXml f a
       | `Right a -> S.D.printXml f a
   end
-  module I = S.I
+  let increment = S.increment
   type v = Var.t
   type d = Dom.t
 

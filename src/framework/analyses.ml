@@ -476,11 +476,11 @@ sig
   val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
-module type IncrementalData = sig 
-  val analyzed_commit_dir: string
-  val current_commit_dir: string
-  val changes: CompareAST.change_info
-end
+type increment_data = { 
+  analyzed_commit_dir: string;
+  current_commit_dir: string;
+  changes: CompareAST.change_info
+}
 
 (** A side-effecting system. *)
 module type MonSystem =
@@ -488,8 +488,6 @@ sig
   type v    (** variables *)
   type d    (** values    *)
   type 'a m (** basically a monad carrier *)
-  (** Data used for incremental analysis*)
-  module I : IncrementalData
   (** Variables must be hashable, comparable, etc.  *)
   module Var : VarType with type t = v
   (** Values must form a lattice. *)
@@ -498,6 +496,8 @@ sig
   val box : v -> d -> d -> d
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
+  (** Data used for incremental analysis *)
+  val increment : increment_data
 end
 
 (** Any system of side-effecting inequations over lattices. *)
@@ -514,7 +514,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-  module I : IncrementalData
+  val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 
