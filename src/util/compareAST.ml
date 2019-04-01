@@ -221,15 +221,35 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) =
        a.slocals == b.slocals && eqB a.sbody b.sbody && 
        List.for_all (fun (a,b) -> eqS a b) (List.combine a.sallstmts b.sallstmts)*)
 
+let rec eq_init (a: init) (b: init) = match a, b with
+  | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
+  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 &&  eq_list (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 && eq_init i1 i2) l1 l2
+  | _, _ -> false
+
+let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
+  | (Some init_a), (Some init_b) -> eq_init init_a init_b
+  | None, None -> true
+  | _, _ -> false
+
 let eq_glob (a: global) (b: global) = match a, b with
   | GFun (f,_), GFun (g,_) -> eqF f g
-  | GVar (x, _, _), GVar (y,_, _) -> eq_varinfo x y
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y && eq_initinfo init_x init_y
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y
   | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false
 
 
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
+  let print_globals (f: Cil.file) =
+    let print_global g = match g with
+    | GVar (v,i,l) -> print_endline v.vname;
+    | GVarDecl (v,i) -> print_endline v.vname;
+    | _ -> ()
+    in
+    Cil.iterGlobals f print_global
+  in
+  print_endline "globals:";
+  print_globals newAST;
   let string_of_glob (glob: global) = match glob with
     | GFun (v, l) ->  "fun" ^ (string_of_int v.svar.vid)
     | _ -> raise (Failure "No Function")

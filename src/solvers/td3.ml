@@ -317,10 +317,14 @@ module WP =
 
       let solve box st vs =
         let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-        let (infl, rho, called, wpoint, stable) as input_data =  if Sys.file_exists file_in
+        let check_global_var_unchanged (globals: global list) =
+          List.for_all (fun g -> match g with GVar _ -> false | GVarDecl (v,_) -> not (isFunctionType v.vtype) | _ -> true) globals        
+        in
+        let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed)] in  
+        let (infl, rho, called, wpoint, stable) as input_data =  if Sys.file_exists file_in && global_var_unchanged
                                             then Serialize.unmarshall file_in
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
-        let varCountBefore = HM.length rho in                                            
+        let varCountBefore = HM.length rho in
         let (infl, rho1, called, wpoint, stable) = solve box st vs infl rho called (HM.create 10) stable in
         let varCountAfter = HM.length rho1 in
 
