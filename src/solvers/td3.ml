@@ -188,7 +188,7 @@ module WP =
       add_nodes_of_fun removed_funs marked_for_deletion;
       
       HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then (print_endline ("Destabilizing: " ^ S.Var.var_id k); destabilize k)) stable;
-      let delete_marked = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then (print_endline @@ "deleting node:" ^ S.Var.var_id k; HM.remove rho k) ) in
+      let delete_marked = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       let delete_marked1 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       let delete_marked2 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       
@@ -316,26 +316,36 @@ module WP =
       (infl, rho, called, wpoint, stable)
 
       let solve box st vs =
-        let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-        let check_global_var_unchanged (globals: global list) =
-          List.for_all (fun g -> match g with GVar _ -> false | GVarDecl (v,_) -> not (isFunctionType v.vtype) | _ -> true) globals        
-        in
-        let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed)] in  
-        let (infl, rho, called, wpoint, stable) as input_data =  if Sys.file_exists file_in && global_var_unchanged
-                                            then Serialize.unmarshall file_in
-                                            else (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
-        let varCountBefore = HM.length rho in
-        let (infl, rho1, called, wpoint, stable) = solve box st vs infl rho called (HM.create 10) stable in
-        let varCountAfter = HM.length rho1 in
+        let create_empty () = (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
+        let rho_of (_,r,_,_,_) = r in
+        let incremental_mode = GobConfig.get_string "exp.incremental.mode" in
+        if incremental_mode <> "off" then begin
+          let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
+          let check_global_var_unchanged (globals: global list) =
+            List.for_all (fun g -> match g with GVar _ -> false | GVarDecl (v,_) -> not (isFunctionType v.vtype) | _ -> true) globals        
+          in
+          let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed)] in  
+          let (infl, rho, called, wpoint, stable) =  if Sys.file_exists file_in && global_var_unchanged && incremental_mode <> "complete"
+                                                      then Serialize.unmarshall file_in
+                                                      else create_empty () in
+          let stable = if incremental_mode = "destabilize_all" then (print_endline "Destabilizing everything!"; HM.create 10) else stable in 
+          let varCountBefore = HM.length rho in
+          let solver_result = solve box st vs infl rho called wpoint stable in
+          let varCountAfter = HM.length rho in
 
-        let path = Goblintutil.create_dir S.increment.current_commit_dir in
-        if Sys.file_exists path then (
-          let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
-          Serialize.marshall (infl, rho1, called, wpoint, stable) file_out;
-        );
-        print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
-        rho1
-
+          let path = Goblintutil.create_dir S.increment.current_commit_dir in
+          if Sys.file_exists path then (
+            let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
+            print_endline @@ "Saving solver results to " ^ file_out;
+            Serialize.marshall solver_result file_out;
+          );
+          print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
+          rho_of solver_result
+          end
+        else begin
+          let (infl, rho, called, wpoint, stable) = create_empty () in
+          rho_of @@ solve box st vs infl rho called wpoint stable
+        end
 
   end
 

@@ -17,8 +17,12 @@
             "space_cache": false
          },
          "wp": {
-            "restore": true
+            "restore": false
          }
+      },
+      "incremental":{
+         "mode": "complete",
+         "repo": "/home/julian/Entwicklung/Masterarbeit/gitTest"
       },
       "addr-context": false
    },
@@ -26,10 +30,11 @@
       "verbose": true,
       "trace": {
          "context": true
-      }
+      },
+      "debug": true
    },
-   "printstats ": true,
-   "result ": "html",
+   "printstats": true,
+   "result": "fast_xml",
    "solver": "td3",
    "noverify": true
 }

@@ -173,6 +173,8 @@ let _ = ()
       ; reg Experimental "exp.fast_global_inits" "true" "Only generate 'a[0] = 0' for a zero-initialized array a[n]. This is only sound for our flat array domain! TODO change this once we use others!"
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitizalized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
+      ; reg Experimental "exp.incremental.mode" "'off'" "Use incremental analysis in the TD3 solver"
+      ; reg Experimental "exp.incremental.repo" "'/'" "Path of git repository to be analyzed"
 
 (* {4 category [Debugging]} *)
 let _ = ()
