@@ -240,20 +240,6 @@ let eq_glob (a: global) (b: global) = match a, b with
 
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
-  let print_globals (f: Cil.file) =
-    let print_global g = match g with
-    | GVar (v,i,l) -> print_endline v.vname;
-    | GVarDecl (v,i) -> print_endline v.vname;
-    | _ -> ()
-    in
-    Cil.iterGlobals f print_global
-  in
-  print_endline "globals:";
-  print_globals newAST;
-  let string_of_glob (glob: global) = match glob with
-    | GFun (v, l) ->  "fun" ^ (string_of_int v.svar.vid)
-    | _ -> raise (Failure "No Function")
-  in
   let addGlobal map global  = 
     try
       GlobalMap.add (identifier_of_global global) global map
