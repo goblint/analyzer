@@ -345,6 +345,8 @@ struct
   (* leq needs not be given explictly, leq from product domain works here *)
 
   let make i v =
+    if i = 1 then (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ())) 
+    else
     if Val.is_bot v then (Expp.top(), (Val.top(), Val.top(), Val.top()))
     else  (Expp.top(), (v, v, v))
   (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
