@@ -449,6 +449,7 @@ sig
 
   val init : unit -> unit
   val finalize : unit -> unit
+  (* val finalize : G.t -> unit *)
 
   val startstate : varinfo -> D.t
   val morphstate : varinfo -> D.t -> D.t
