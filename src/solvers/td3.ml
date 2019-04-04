@@ -33,23 +33,18 @@ module WP =
 
     let solve_count = ref 0
 
-    let solve box st vs infl rho called wpoint stable =
+    let solve box st vs infl rho  wpoint stable =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
-
+      let called = HM.create  10 in
       print_endline ("Start solve with infl="^string_of_int (HM.length infl)^"
        rho="^string_of_int (HM.length rho)^"
        called="^string_of_int (HM.length called)^"
        wpoint="^string_of_int (HM.length wpoint)
         );
 
-(*       let stable = HM.create  10 in
- *)(*       let infl   = HM.create  10 in (* y -> xs *) *)
-(*       let called = HM.create  10 in
- *)(*       let rho    = HM.create  10 in*)
-(*       let wpoint = HM.create  10 in
- *)      let cache_sizes = ref [] in
+      let cache_sizes = ref [] in
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
@@ -275,7 +270,7 @@ module WP =
    (*    let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
       if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
  *)
-      (* let reachability xs =
+      let reachability xs =
         let reachable = HM.create (HM.length rho) in
         let rec one_var x =
           if not (HM.mem reachable x) then (
@@ -288,9 +283,9 @@ module WP =
           ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
         in
         List.iter one_var xs;
-        HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
+        HM.iter (fun x v -> if not (HM.mem reachable x) then (print_endline @@ "Removing unreachable: " ^ (Pretty.sprint ~width:100 (S.Var.pretty_trace () x));HM.remove rho x)) rho;
       in
-      reachability vs; *)
+      reachability vs;
 
       stop_event ();
 
@@ -313,24 +308,25 @@ module WP =
       solve_count := 0;
 (*       HM.clear infl  ;
  *)
-      (infl, rho, called, wpoint, stable)
+      (infl, rho, wpoint, stable)
 
       let solve box st vs =
+        print_endline (Pretty.sprint ~width:100 (S.Var.pretty_trace () (List.first vs)));
         let create_empty () = (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
-        let rho_of (_,r,_,_,_) = r in
+        let rho_of (_,r,_,_) = r in
         let incremental_mode = GobConfig.get_string "exp.incremental.mode" in
         if incremental_mode <> "off" then begin
           let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
           let check_global_var_unchanged (globals: global list) =
             List.for_all (fun g -> match g with GVar _ -> false | GVarDecl (v,_) -> not (isFunctionType v.vtype) | _ -> true) globals        
           in
-          let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed)] in  
+          let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed (*; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed) *)] in  
           let (infl, rho, called, wpoint, stable) =  if Sys.file_exists file_in && global_var_unchanged && incremental_mode <> "complete"
                                                       then Serialize.unmarshall file_in
                                                       else create_empty () in
           let stable = if incremental_mode = "destabilize_all" then (print_endline "Destabilizing everything!"; HM.create 10) else stable in 
           let varCountBefore = HM.length rho in
-          let solver_result = solve box st vs infl rho called wpoint stable in
+          let solver_result = solve box st vs infl rho wpoint stable in
           let varCountAfter = HM.length rho in
 
           let path = Goblintutil.create_dir S.increment.current_commit_dir in
@@ -344,7 +340,7 @@ module WP =
           end
         else begin
           let (infl, rho, called, wpoint, stable) = create_empty () in
-          rho_of @@ solve box st vs infl rho called wpoint stable
+          rho_of @@ solve box st vs infl rho wpoint stable
         end
 
   end
