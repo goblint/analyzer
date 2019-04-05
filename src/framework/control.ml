@@ -348,7 +348,7 @@ struct
       local_xml := solver2source_result lh;
       global_xml := gh;
 
-      if (get_bool "dbg.uncalled") then
+      if get_bool "dbg.uncalled" || get_bool "ana.sv-comp" then
         begin
           let out = M.get_out "uncalled" Legacy.stdout in
           let insrt k _ s = match k with
@@ -363,21 +363,27 @@ struct
             not (Str.last_chars loc.file 2 = ".h") &&
             not (LibraryFunctions.is_safe_uncalled fn.vname)
           in
-          let print_uncalled = function
-            | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
-              begin
-                let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
-                ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
-              end
-            | _ -> ()
-          in
-          List.iter print_uncalled file.globals;
-          let dead_verifier_error acc global = match global with
-            | GFun (fn, loc) when is_bad_uncalled fn.svar loc && fn.svar.vname = "__VERIFIER_error" ->
-              true
-            | _ -> acc
-          in
-          Printf.printf "__VERIFIER_error unreach2: %B\n" (List.fold_left dead_verifier_error false file.globals)
+
+          if get_bool "dbg.uncalled" then begin
+            let print_uncalled = function
+              | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+                begin
+                  let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                  ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+                end
+              | _ -> ()
+            in
+            List.iter print_uncalled file.globals
+          end;
+
+          if get_bool "ana.sv-comp" then begin
+            let dead_verifier_error acc global = match global with
+              | GFun (fn, loc) when is_bad_uncalled fn.svar loc && fn.svar.vname = "__VERIFIER_error" ->
+                true
+              | _ -> acc
+            in
+            Printf.printf "__VERIFIER_error unreach2: %B\n" (List.fold_left dead_verifier_error false file.globals)
+          end
         end;
 
       (* check for dead code at the last state: *)
