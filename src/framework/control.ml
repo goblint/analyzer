@@ -66,15 +66,25 @@ struct
       let add_one (l,n,f) v =
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-        if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v then begin
+        let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
+        if is_dead then begin
           dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines;
-          Deadcode.Locmap.add dead_locations l ()
+          Deadcode.Locmap.add dead_locations l ();
         end else begin
           live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
           NH.add live_nodes n ()
         end;
       in
       Result.iter add_one xs;
+      let dead_verifier_error (l, n, f) v acc =
+        match n with
+        (* FunctionEntry isn't used for extern __VERIFIER_error... *)
+        | FunctionEntry f when f.vname = "__VERIFIER_error" ->
+          let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
+          acc && is_dead
+        | _ -> acc
+      in
+      Printf.printf "__VERIFIER_error unreach: %B\n" (Result.fold dead_verifier_error xs true);
       let live file fn =
         try StringMap.find fn (StringMap.find file !live_lines)
         with Not_found -> BatISet.empty
