@@ -1,8 +1,5 @@
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
-// void __VERIFIER_error() { abort(); }
-
-// extern int __VERIFIER_nondet_int();
-int __VERIFIER_nondet_int() { int val; return val; }
+extern int __VERIFIER_nondet_int();
 
 int main()
 {

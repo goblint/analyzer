@@ -1,5 +1,4 @@
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
-// void __VERIFIER_error() { abort(); }
 
 int main()
 {
