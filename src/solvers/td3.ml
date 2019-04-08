@@ -183,14 +183,12 @@ module WP =
       add_nodes_of_fun removed_funs marked_for_deletion;
       
       HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then (print_endline ("Destabilizing: " ^ S.Var.var_id k); destabilize k)) stable;
-      let delete_marked = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
-      let delete_marked1 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
-      let delete_marked2 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
+      let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in
       
       print_endline ("rho, infl, wpoint: " ^ string_of_int (HM.length rho) ^ ", "^ string_of_int (HM.length infl) ^ ", " ^ string_of_int (HM.length wpoint) ^ ", " );
       delete_marked rho;
-      delete_marked1 infl;
-      delete_marked2 wpoint;
+      delete_marked infl;
+      delete_marked wpoint;
       print_endline ("rho, infl, wpoint: " ^ string_of_int (HM.length rho) ^ ", "^ string_of_int (HM.length infl) ^ ", " ^ string_of_int (HM.length wpoint) ^ ", " );
 
       List.iter set_start st;
@@ -283,7 +281,7 @@ module WP =
           ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
         in
         List.iter one_var xs;
-        HM.iter (fun x v -> if not (HM.mem reachable x) then (print_endline @@ "Removing unreachable: " ^ (Pretty.sprint ~width:100 (S.Var.pretty_trace () x));HM.remove rho x)) rho;
+        HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
       in
       reachability vs;
 
@@ -312,7 +310,7 @@ module WP =
 
       let solve box st vs =
         print_endline (Pretty.sprint ~width:100 (S.Var.pretty_trace () (List.first vs)));
-        let create_empty () = (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
+        let create_empty () = (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         let rho_of (_,r,_,_) = r in
         let incremental_mode = GobConfig.get_string "exp.incremental.mode" in
         if incremental_mode <> "off" then begin
@@ -320,13 +318,13 @@ module WP =
           let check_global_var_unchanged (globals: global list) =
             List.for_all (fun g -> match g with GVar _ -> false | GVarDecl (v,_) -> not (isFunctionType v.vtype) | _ -> true) globals        
           in
-          let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed (*; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed) *)] in  
-          let (infl, rho, called, wpoint, stable) =  if Sys.file_exists file_in && global_var_unchanged && incremental_mode <> "complete"
+          let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed)] in  
+          let (infl, rho, wpoint, stable) =  if Sys.file_exists file_in && global_var_unchanged && incremental_mode <> "complete"
                                                       then Serialize.unmarshall file_in
                                                       else create_empty () in
           let stable = if incremental_mode = "destabilize_all" then (print_endline "Destabilizing everything!"; HM.create 10) else stable in 
           let varCountBefore = HM.length rho in
-          let solver_result = solve box st vs infl rho wpoint stable in
+          let solver_result = solve box st vs infl rho (HM.create 10) stable in
           let varCountAfter = HM.length rho in
 
           let path = Goblintutil.create_dir S.increment.current_commit_dir in
@@ -339,7 +337,7 @@ module WP =
           rho_of solver_result
           end
         else begin
-          let (infl, rho, called, wpoint, stable) = create_empty () in
+          let (infl, rho, wpoint, stable) = create_empty () in
           rho_of @@ solve box st vs infl rho wpoint stable
         end
 
