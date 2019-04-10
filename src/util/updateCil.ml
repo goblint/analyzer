@@ -13,7 +13,7 @@ let loaction_of_instruction (inst: instr) =
   | Asm (_,_,_,_,_,l) -> l
 
 let location_of_instructions (instrs: instr list): location = match instrs with
-  | [] -> raise (Failure "Empty list")
+  | [] -> Cil.locUnknown (* TODO: fix this; raise (Failure "Empty list")*)
   | (h::t) -> loaction_of_instruction h 
     
 let rec location_of_statement (s: stmt) = match s.skind with
@@ -77,7 +77,6 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
 
       store_node_location (Function f.svar) f.svar.vdecl;
       store_node_location (FunctionEntry f.svar) f.svar.vdecl;
-
       override_fundec f old_f;
       List.iter (fun l -> update_vid_max l.vid) f.slocals;
       List.iter (fun f -> update_vid_max f.vid) f.sformals;
@@ -91,12 +90,11 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   let reset_globals (glob: global) =
     try
       let (old_glob, commit) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
-      if already_analyzed || not (String.equal commit current_commit) then (
       match (glob, old_glob) with 
       | GFun (nw, _), GFun (old, _) -> reset_fun nw old
       | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
       | GVarDecl (nw, _), GVarDecl (old, _) -> reset_var nw old
-      | _ -> ())
+      | _ -> ()
     with Failure m -> ()  
   in
   let reset_changed_fun (f: fundec) (old_f: fundec) =
