@@ -224,11 +224,12 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
   let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
-  (*  For each function in the new file, check whether a function with the same name 
-      already existed in the old version, and whether it is the same function. *)
+  (*  For each function in the new file, check whether it remained unchanged. *)
   let module StringSet = Set.Make (String) in
   Cil.iterGlobals newAST
     (fun glob -> checkUnchanged oldMap glob);
+  
+  (* We check whether functions have been added or removed *)
   Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with e -> ());
   Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with e -> ());
   changes
