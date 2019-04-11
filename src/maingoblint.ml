@@ -345,19 +345,63 @@ let handle_extraspecials () =
   let funs = List.fold_left f [] (get_list "exp.extraspecials") in
   LibraryFunctions.add_lib_funs funs
 
-let src_path () = Filename.dirname @@ List.first (!cFileNames)
+let src_path () = Git.git_directory (List.first !cFileNames)
 let data_path () = Filename.concat (src_path ()) ".gob"
 
 let update_map old_file new_file = 
-    let dir = Serialize.gob_directory !cFileNames in
-    VersionLookup.restore_map !cFileNames dir old_file new_file
+    let dir = Serialize.gob_directory () in
+    VersionLookup.restore_map dir old_file new_file
 
 let store_map updated_map max_ids =    (* Creates the directory for the commit *)
-  match Serialize.current_commit_dir !cFileNames with 
+  match Serialize.current_commit_dir () with 
   | Some commit_dir ->
     let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
     Serialize.marshall (updated_map, max_ids) map_file_name
   | None -> ()
+
+let obtain_changes file =
+  Serialize.src_direcotry := src_path ();
+  if Serialize.results_exist ()  then (
+    let commit = Serialize.last_analyzed_commit () in
+    (match commit with
+      | Some c -> print_endline ("Last analyzed commit is: " ^ c )
+      | None -> ());
+  ) else (
+    match Serialize.current_commit () with
+    Some commit ->
+    let functionNameMap = VersionLookup.create_map file commit  in
+    (match Serialize.current_commit_dir () with 
+      | Some commit_dir ->
+          let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+          Serialize.marshall functionNameMap map_file_name;
+      | None -> ());
+    | None -> ();
+  );
+  let current_commit = (match Serialize.current_commit () with Some commit -> commit | _ -> "dirty") in
+  let last_analyzed_commit = (match Serialize.last_analyzed_commit () with Some commit -> commit | _ -> "-none-") in
+  let (name_map, changes) = (match Serialize.load_latest_cil !cFileNames with
+    | Some file2 -> let (function_name_map, changes, max_ids) = update_map file2 file in
+                    let already_analyzed = (String.equal current_commit last_analyzed_commit) in
+                    let max_ids = UpdateCil.update_ids file2 max_ids file function_name_map current_commit already_analyzed changes in
+                    store_map function_name_map max_ids;
+                    (function_name_map, changes)
+    | None -> match Serialize.current_commit () with
+        Some commit ->
+          let function_name_map = VersionLookup.create_map file commit  in
+          (match Serialize.current_commit_dir () with 
+            | Some commit_dir ->
+                let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+                let max_ids = UpdateCil.update_ids file UpdateCil.zero_ids file function_name_map current_commit false (CompareAST.empty_change_info ()) in
+                Serialize.marshall function_name_map map_file_name;
+                store_map function_name_map max_ids;
+                (function_name_map, CompareAST.empty_change_info ())
+            | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
+    | None -> exit 5;
+  ) in
+  let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
+  let current_commit_dir = Filename.concat (data_path ()) current_commit in
+  Serialize.save_cil file;
+  { changes = changes; analyzed_commit_dir = analyzed_commit_dir; current_commit_dir = current_commit_dir }
 
 (** the main function *)
 let main =
@@ -373,53 +417,12 @@ let main =
         create_temp_dir ();
         handle_flags ();
         let file = preprocess_files () |> merge_preprocessed in
-        if Serialize.results_exist !cFileNames  then (
-          let commit = Serialize.last_analyzed_commit !cFileNames in
-          (match commit with
-            | Some c -> print_endline ("Last analyzed commit is: " ^ c )
-            | None -> ());
-        ) else (
-          match Serialize.current_commit !cFileNames with
-          Some commit ->
-          let functionNameMap = VersionLookup.create_map file commit  in
-          (match Serialize.current_commit_dir !cFileNames with 
-            | Some commit_dir ->
-                let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-                Serialize.marshall functionNameMap map_file_name;
-            | None -> ());
-          | None -> ();
-        );
-        let current_commit = (match Serialize.current_commit !cFileNames with Some commit -> commit | _ -> "dirty") in
-        let last_analyzed_commit = (match Serialize.last_analyzed_commit !cFileNames with Some commit -> commit | _ -> "-none-") in
-        let (name_map, changes) = (match Serialize.load_latest_cil !cFileNames with
-          | Some file2 -> let (function_name_map, changes, max_ids) = update_map file2 file in
-                          let already_analyzed = (String.equal current_commit last_analyzed_commit) in
-                          let max_ids = UpdateCil.update_ids file2 max_ids file function_name_map current_commit already_analyzed changes in
-                          store_map function_name_map max_ids;
-                          (function_name_map, changes)
-          | None -> match Serialize.current_commit !cFileNames with
-              Some commit ->
-                let function_name_map = VersionLookup.create_map file commit  in
-                (match Serialize.current_commit_dir !cFileNames with 
-                  | Some commit_dir ->
-                      let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-                      let max_ids = UpdateCil.update_ids file UpdateCil.zero_ids file function_name_map current_commit false (CompareAST.empty_change_info ()) in
-                      Serialize.marshall function_name_map map_file_name;
-                      store_map function_name_map max_ids;
-                      (function_name_map, CompareAST.empty_change_info ())
-                  | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
-          | None -> exit 5;
-        ) in
-        let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
-        let current_commit_dir = Filename.concat (data_path ()) current_commit in
-        let increment  = { changes = changes; analyzed_commit_dir = analyzed_commit_dir; current_commit_dir = current_commit_dir }   in
-        let changeInfo = (module struct let increment = increment end : Constraints.FunctionMap) in
+        let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else obtain_changes file in
         file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
         if !Messages.worldStopped then exit 124; (* timeout! *)
-        Serialize.save_cil file !cFileNames;
       with Exit -> ())
     
 

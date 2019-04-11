@@ -29,12 +29,13 @@ let get_spec () : (module Spec) =
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
-  (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) (module Fm : Constraints.FunctionMap) =
-    
-(*     let module Fm = struct let map = function_map let obsolete = [12] end in
- *)    (** The Equation system *)
-    let module EQSys = Constraints.FromSpec (Spec) (Cfg) (Fm) in
+    (** The main function to preform the selected analyses. *)
+    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) (increment: increment_data) =
+  
+    let module Inc = struct let increment = increment end in
+
+    (** The Equation system *)
+    let module EQSys = Constraints.FromSpec (Spec) (Cfg) (Inc) in
 
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in

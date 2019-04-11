@@ -233,7 +233,7 @@ let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
 
 let eq_glob (a: global) (b: global) = match a, b with
   | GFun (f,_), GFun (g,_) -> eqF f g
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y && eq_initinfo init_x init_y
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y
   | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false
 

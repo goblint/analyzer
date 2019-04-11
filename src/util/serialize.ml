@@ -10,15 +10,13 @@ let versionMapFilename = "version.data"
 
 let cilFileName = "ast.data"
 
-let src_direcotry src_files =  let firstFile = List.first src_files in
-                               Filename.dirname firstFile
+let src_direcotry =  ref ""
 
-let gob_directory src_files = let src_dir = src_direcotry src_files in
-                              Filename.concat src_dir goblint_dirname
-
+let gob_directory () = let src_dir = !src_direcotry in
+                       Filename.concat src_dir goblint_dirname
 
 let current_commit src_files =
-                        Git.current_commit (src_direcotry src_files) (* TODO: change to file path of analyzed src *)
+                        Git.current_commit (!src_direcotry) (* TODO: change to file path of analyzed src *)
 
 let commit_dir src_files commit = 
   let gob_dir = gob_directory src_files in
@@ -43,12 +41,12 @@ let get_analyzed_commits src_files =
   let src_dir = gob_directory src_files in
   Sys.readdir src_dir
 
-let last_analyzed_commit src_files =
+let last_analyzed_commit () =
   try
-    let src_dir = src_direcotry src_files in
+    let src_dir = !src_direcotry in
     let commits = Git.git_log src_dir in
     let commitList = String.split_on_char '\n' commits in 
-    let analyzed = get_analyzed_commits src_files in
+    let analyzed = get_analyzed_commits () in
     let analyzed_set = Set.of_array analyzed in
     Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
   with e -> None
@@ -64,26 +62,26 @@ let unmarshall fileName =
   let marshalled = input_file fileName in
   Marshal.from_string marshalled 0
 
-let save_cil (file: Cil.file) (fileList: string list)= match current_commit_dir fileList with
+let save_cil (file: Cil.file) = match current_commit_dir () with
   |Some dir ->
     let cilFile = Filename.concat dir cilFileName in
     marshall file cilFile
   | None -> print_endline "Failure when saving cil: working directory is dirty"
  
-let loadCil (fileList: string list) = 
+let loadCil () = 
   (* TODO: Use the previous commit, or more specifally, the last analyzed commit *)
-  match current_commit_dir fileList with
+  match current_commit_dir () with
   |Some dir ->
     let cilFile = Filename.concat dir cilFileName in
     unmarshall cilFile
   | None -> None
 
-let results_exist (src_files: string list) =
-  last_analyzed_commit src_files <> None
+let results_exist () =
+  last_analyzed_commit () <> None
 
 let last_analyzed_commit_dir (src_files: string list) =
-  match last_analyzed_commit src_files with
-    | Some commit -> commit_dir src_files commit
+  match last_analyzed_commit () with
+    | Some commit -> commit_dir () commit
     | None -> raise (Failure "No previous analysis results")
 
 let load_latest_cil (src_files: string list) = 

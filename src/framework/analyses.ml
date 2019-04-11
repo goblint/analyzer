@@ -482,6 +482,12 @@ type increment_data = {
   changes: CompareAST.change_info
 }
 
+let empty_increment_data () = {
+  analyzed_commit_dir = "";
+  current_commit_dir = "";
+  changes = CompareAST.empty_change_info ()
+}
+
 (** A side-effecting system. *)
 module type MonSystem =
 sig

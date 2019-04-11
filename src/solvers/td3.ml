@@ -316,7 +316,7 @@ module WP =
         if incremental_mode <> "off" then begin
           let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
           let check_global_var_unchanged (globals: global list) =
-            List.for_all (fun g -> match g with GVar _ -> false | GVarDecl (v,_) -> not (isFunctionType v.vtype) | _ -> true) globals        
+            List.for_all (fun g -> match g with GVar _ -> false | GVarDecl (v,_) -> print_endline @@ "testin: " ^ v.vname; let r = isFunctionType v.vtype in print_endline @@ string_of_bool r; r | _ -> true) globals        
           in
           let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed)] in  
           let (infl, rho, wpoint, stable) =  if Sys.file_exists file_in && global_var_unchanged && incremental_mode <> "complete"

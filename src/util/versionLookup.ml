@@ -40,10 +40,10 @@ let restoreMap (folder: string) (old_commit: commitID) (new_commit: commitID) (o
     let (updated, changes) = updateMap oldFile newFile new_commit oldMap in
     (updated, changes, max_ids)
 
-let restore_map (src_files: string list) (folder: string) (old_file: Cil.file) (new_file: Cil.file) =
-    match Serialize.current_commit src_files with 
+let restore_map (folder: string) (old_file: Cil.file) (new_file: Cil.file) =
+    match Serialize.current_commit () with 
     |Some new_commit -> 
-      (match Serialize.last_analyzed_commit src_files with
+      (match (Serialize.last_analyzed_commit ()) with
         |Some old_commit -> restoreMap folder old_commit new_commit old_file new_file 
         |None -> raise (Failure "No commit has been analyzed yet. Restore map failed."))
     |None -> raise (Failure "Working directory is dirty. Restore map failed.")
