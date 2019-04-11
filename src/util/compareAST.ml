@@ -14,7 +14,6 @@ type change_info = {
 
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
-
 type global_type = Fun | Decl | Var | Other
 
 type global_identifier = {name: string ; global_t: global_type}
