@@ -68,12 +68,19 @@ let current_commit (directory: string) =
     else None
 
 let may f opt = match opt with
-    Some x -> f x |
-    None -> ()
+    | Some x -> f x
+    | None -> ()
 
 let git_log dir = 
     let args = [|"git"; "-C"; dir ; "log"; "--pretty=format:%H" |] in
     execGit args
+
+let git_directory path = 
+    let dir = if Sys.is_directory path then path else Filename.dirname path in 
+    let args = [|"git"; "-C"; dir; "rev-parse";  "--show-toplevel" |] in
+    let git_output = execGit args in
+    let git_path = Batteries.String.strip git_output in
+    if Sys.file_exists git_path then git_path else raise (Failure ("File " ^ path ^ " is not contained in a git repository."))
 
 let run () = 
     let gitOutput = runGitDiff () in 
