@@ -41,6 +41,8 @@ let eq_list eq xs ys =
         List.for_all (fun (a,b) -> eq a b) (List.combine xs ys)
     with Invalid_argument _ -> false
 
+let eq_typ (a: typ) (b: typ) = typeSig a = typeSig b 
+
 let eqB (a: Cil.block) (b: Cil.block) =
     a.Cil.battrs = b.Cil.battrs && a.bstmts = b.bstmts
 
@@ -74,34 +76,6 @@ and eq_lhost (a: lhost) (b: lhost) = match a, b with
     Var v1, Var v2 -> eq_varinfo v1 v2 
     | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
     | _, _ -> false
-
-and eq_typinfo (a: typeinfo) (b: typeinfo) = a.tname = b.tname && eq_typ a.ttype b.ttype (* Ignore the treferenced field *)
-
-and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) = 
-  if( List.exists (fun x-> match x with (x,y)-> a==x && b == y) acc) 
-    then true 
-    else (let acc = List.cons (a,b) acc in
-          match a, b with
-          | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
-          | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
-          | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
-          | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2) 
-                      ->  eq_typ_acc typ1 typ2 acc && eq_list eq_args list1 list2 && varArg1 = varArg2 &&
-                          eq_list eq_attribute attr1 attr2
-          | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2) 
-                      ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
-                          eq_list eq_attribute attr1 attr2
-          | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typinfo typinfo1 typeinfo2 && eq_list eq_attribute attr1 attr2
-          | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->  eq_compinfo compinfo1 compinfo2 acc &&  eq_list eq_attribute attr1 attr2 
-          | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2
-          | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
-          | _, _ -> a = b)
-
-and eq_typ (a: typ) (b: typ) = 
-  (* We compare the typsigs: so TNameds, i.e. typedefs, are unrolled *)
-  let a' = typeSig a in
-  let b' = typeSig b in
-  eq_typsig a' b'
  
 and eq_eitems (a: string * exp * location) (b: string * exp * location) = match a, b with
   (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2
@@ -114,25 +88,14 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) = a.ename = b.ename && eq_list eq_at
 and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
   (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ typ1 typ2 && eq_list eq_attribute attr1 attr2
 
-and eq_typsig (a: typsig) (b: typsig) = 
-  match a, b with
-  | TSArray (ts1, i1, attr1), TSArray (ts2, i2, attr2) -> eq_typsig ts1 ts2 && i1 = i2 && eq_list eq_attribute attr1 attr2
-  | TSPtr (ts1, attr1), TSPtr (ts2, attr2) -> eq_typsig ts1 ts2 && eq_list eq_attribute attr1 attr2
-  | TSComp (b1, str1, attr1), TSComp (b2, str2, attr2) -> b1 = b2 && str1 = str2 && eq_list eq_attribute attr1 attr2
-  | TSFun (ts1, Some tsList1, b1, attr1), TSFun (ts2, Some tsList2, b2, attr2) -> eq_typsig ts1 ts2 && eq_list eq_typsig tsList1 tsList2 && b1 = b2 && eq_list eq_attribute attr1 attr2
-  | TSFun (ts1, None, b1, attr1), TSFun (ts2, None, b2, attr2) -> eq_typsig ts1 ts2 && b1 = b2 && eq_list eq_attribute attr1 attr2
-  | TSEnum (str1, attr1), TSEnum (str2, attr2) -> str1 = str2 && eq_list eq_attribute attr1 attr2
-  | TSBase typ1, TSBase typ2 -> eq_typ_acc typ1 typ2 []
-  | _, _ -> false
-
 and eq_attrparam (a: attrparam) (b: attrparam) = match a, b with
   | ACons (str1, attrparams1), ACons (str2, attrparams2) -> str1 = str2 && eq_list eq_attrparam attrparams1 attrparams2
   | ASizeOf typ1, ASizeOf typ2 -> eq_typ typ1 typ2
   | ASizeOfE attrparam1, ASizeOfE attrparam2 -> eq_attrparam attrparam1 attrparam2
-  | ASizeOfS typsig1, ASizeOfS typsig2 -> eq_typsig typsig1 typsig2
+  | ASizeOfS typsig1, ASizeOfS typsig2 -> typsig1 = typsig2
   | AAlignOf typ1, AAlignOf typ2 -> eq_typ typ1 typ2
   | AAlignOfE attrparam1, AAlignOfE attrparam2 -> eq_attrparam attrparam1 attrparam2
-  | AAlignOfS typsig1, AAlignOfS typsig2 -> eq_typsig typsig1 typsig2
+  | AAlignOfS typsig1, AAlignOfS typsig2 -> typsig1 = typsig2
   | AUnOp (op1, attrparam1), AUnOp (op2, attrparam2) -> op1 = op2 && eq_attrparam attrparam1 attrparam2
   | ABinOp (op1, left1, right1), ABinOp (op2, left2, right2) -> op1 = op2 && eq_attrparam left1 left2 && eq_attrparam right1 right2
   | ADot (attrparam1, str1), ADot (attrparam2, str2) -> eq_attrparam attrparam1 attrparam2 && str1 = str2
@@ -150,15 +113,15 @@ and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b
   (* Ignore the location, vid, vreferenced, vdescr, vdescrpure *)
 
 (* Accumulator is needed because of recursive types: we have to assume that two types we already encountered in a previous step of the recursion are equivalent *)
- and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) = a.cstruct = b.cstruct && a.cname = b.cname && eq_list (fun a b-> eq_fieldinfo a b acc) a.cfields b.cfields 
+ and eq_compinfo (a: compinfo) (b: compinfo)  = a.cstruct = b.cstruct && a.cname = b.cname && eq_list (fun a b-> eq_fieldinfo a b) a.cfields b.cfields 
   && eq_list eq_attribute a.cattr b.cattr && a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
-and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list)=
-    a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr
+and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) =
+    a.fname = b.fname && eq_typ a.ftype b.ftype && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr
 
 and eq_offset (a: offset) (b: offset) = match a, b with
     NoOffset, NoOffset -> true 
-    | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 [] && eq_offset offset1 offset2 
+    | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 && eq_offset offset1 offset2 
     | Index (exp1, offset1), Index (exp2, offset2) -> eq_exp exp1 exp2 && eq_offset offset1 offset2
     | _, _ -> false 
 
@@ -217,9 +180,6 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) =
        eq_block (a.sbody, a) (b.sbody, b)
     with Invalid_argument _ -> (* One of the combines failed because the lists have differend length *)
                             false
-       (*&& a.sformals == b.sformals &&
-       a.slocals == b.slocals && eqB a.sbody b.sbody && 
-       List.for_all (fun (a,b) -> eqS a b) (List.combine a.sallstmts b.sallstmts)*)
 
 let rec eq_init (a: init) (b: init) = match a, b with
   | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
@@ -237,7 +197,6 @@ let eq_glob (a: global) (b: global) = match a, b with
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y
   | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false
 
-
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   let addGlobal map global  = 
@@ -254,8 +213,6 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
         let old_global = GlobalMap.find ident map in
         (* Do a (recursive) equal comparision ignoring location information *)
         let identical = eq_glob old_global global in
-        if not identical then
-          print_endline @@ "Changed: " ^ (identifier_of_global old_global).name;
         if identical 
           then changes.unchanged <- global :: changes.unchanged
           else changes.changed <- {current = global; old = old_global} :: changes.changed
