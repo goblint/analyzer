@@ -181,7 +181,7 @@ module WP =
       let marked_for_deletion = Hashtbl.create 103 in
       add_nodes_of_fun obsolete_funs marked_for_deletion;
       add_nodes_of_fun removed_funs marked_for_deletion;
-      
+
       HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then (print_endline ("Destabilizing: " ^ S.Var.var_id k); destabilize k)) stable;
       let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in
       
@@ -315,11 +315,7 @@ module WP =
         let incremental_mode = GobConfig.get_string "exp.incremental.mode" in
         if incremental_mode <> "off" then begin
           let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-          let check_global_var_unchanged (globals: global list) =
-            List.for_all (fun g -> match g with GVar _ -> false | GVarDecl (v,_) -> print_endline @@ "testin: " ^ v.vname; let r = isFunctionType v.vtype in print_endline @@ string_of_bool r; r | _ -> true) globals        
-          in
-          let global_var_unchanged = List.for_all check_global_var_unchanged [S.increment.changes.added; S.increment.changes.removed; (List.map (fun c -> c.current) S.increment.changes.changed); (List.map (fun c -> c.old) S.increment.changes.changed)] in  
-          let (infl, rho, wpoint, stable) =  if Sys.file_exists file_in && global_var_unchanged && incremental_mode <> "complete"
+          let (infl, rho, wpoint, stable) =  if Sys.file_exists file_in && incremental_mode <> "complete"
                                                       then Serialize.unmarshall file_in
                                                       else create_empty () in
           let stable = if incremental_mode = "destabilize_all" then (print_endline "Destabilizing everything!"; HM.create 10) else stable in 
