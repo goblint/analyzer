@@ -18,7 +18,6 @@ sig
   val length: t -> int option
 
   val array_should_join: ?length:(int64 option) -> t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> bool 
-
   val move_if_affected: ?length:(int64 option) -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
@@ -43,19 +42,11 @@ struct
   let length _ = None
 
   let array_should_join ?(length = None) _ _ _ _ = true
-
   let move_if_affected ?(length = None) _ x _ _ = x
-
   let get_vars_in_e _ = []
-
-  let map f x =
-    f x 
-
-  let fold_left f a x =
-    f a x
-
-  let fold_left2 f a x y =
-    f a x y
+  let map f x = f x 
+  let fold_left f a x = f a x
+  let fold_left2 f a x y = f a x y
 
   let set_inplace = set
   let copy a = a
@@ -64,6 +55,10 @@ end
 
 module Partitioned (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
 struct
+  (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
+  (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
+  (* values from Val are identical *)
+
   let name () = "partitioned arrays"
   module Expp = ExpDomain
   module Base = Lattice.Prod3 (Val) (Val) (Val)
@@ -84,42 +79,38 @@ struct
 
   let short w ((e,(xl, xm, xr)) as x) = 
     if is_not_partitioned x then 
-      "Array (no part.): " ^ Val.short (w - 7) xl
+      "Array (no part.): " ^ Val.short (w - 18) xl
     else
       "Array (part. by " ^ Expp.short (w-7) e ^ "): (" ^
-        Val.short (w - 7) xl ^ " -- " ^
-        Val.short (w - 7) xm ^ " -- " ^
-        Val.short (w - 7) xr ^ ")"
-        (* TODO: w-7 needs to be replaced here *)
+        Val.short ((w - 7)/3) xl ^ " -- " ^
+        Val.short ((w - 7)/3) xm ^ " -- " ^
+        Val.short ((w - 7)/3) xr ^ ")"
 
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
 
-
-  let array_should_join ?(length=None) ((e1, _) as x1) ((e2, _) as x2) (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) =
-    let one_not_partitioned = (is_not_partitioned x1) <> (is_not_partitioned x2) in  
-    if one_not_partitioned then
-      begin
-        let partitioning_exp = if is_not_partitioned x1 then e2 else e1 in
-        let other_eval = if is_not_partitioned x1 then x_eval_int else y_eval_int in
-        match partitioning_exp with
-        | `Top -> true
-        | `Bot -> true (* does not happen *)
-        | `Lifted exp -> 
-          begin
-            (* ask in the state of the other one for the value of the expression *)
-            match other_eval exp with
-            | Some x when Int64.equal x Int64.zero -> false
-            | Some x ->
-              begin 
-                match length with
-                | Some y when Int64.equal x (Int64.sub y Int64.one) -> false
-                | _ -> true
-              end 
-            | _ -> true
-          end 
-      end
+  let array_should_join ?(length=None) ((e1, _) as x1) ((e2, _) as x2) x_eval_int y_eval_int =
+    let exactly_one_not_part = (is_not_partitioned x1) <> (is_not_partitioned x2) in  
+    if exactly_one_not_part then
+      let partitioning_exp = if is_not_partitioned x1 then e2 else e1 in
+      let other_eval = if is_not_partitioned x1 then x_eval_int else y_eval_int in
+      match partitioning_exp with
+      | `Top -> true
+      | `Bot -> true (* does not happen *)
+      | `Lifted exp -> 
+        begin
+          (* ask in the state of the other one for the value of the expression *)
+          match other_eval exp with
+          | Some x when Int64.equal x Int64.zero -> false
+          | Some x ->
+            begin 
+              match length with
+              | Some y when Int64.equal x (Int64.sub y Int64.one) -> false
+              | _ -> true
+            end 
+          | _ -> true
+        end 
     else true
 
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) i =
@@ -144,11 +135,10 @@ struct
             Val.join (Val.join contributionLess contributionEqual) contributionGreater
           end
       end
-    | _ -> join_of_all_parts x (* The case in which we don't know anything *)
-
+    | _ -> join_of_all_parts x
 
   let get_vars_in_e (e, _) =
-  match e with
+    match e with
     | `Top
     | `Bot -> []
     | `Lifted exp -> Basetype.CilExp.get_vars exp
@@ -174,8 +164,8 @@ struct
         |	CastE(_, e)
         |	UnOp(_, e , _) -> contains_array_access e
         |	BinOp(_, e1, e2, _) -> contains_array_access e1 || contains_array_access e2
-        | AddrOf _ -> false
-        | AddrOfLabel _ -> false
+        | AddrOf _
+        | AddrOfLabel _
         | StartOf _ -> false
         | Lval(Mem e, o) -> offset_contains_array_access o || contains_array_access e
         | Lval(Var _, o) -> offset_contains_array_access o
@@ -212,7 +202,6 @@ struct
         (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
       | _ ->
         begin
-          (* Messages.report "Destructive assignment to expression, not covering entire array."; *)
           let nval = join_of_all_parts x in
           (Expp.top (), (nval, nval, nval))
         end
@@ -223,9 +212,8 @@ struct
         if not is_affected then
           x
         else
-          (* check if one covers the entire array, so we can drop partitioning *)
+          (* check if one part covers the entire array, so we can drop partitioning *)
           begin
-            Messages.warn "Checking if one partition covers entire array";
             let e_must_bigger_max_index =
               match length with
               | Some l -> 
@@ -242,15 +230,11 @@ struct
               | _ -> false
             in
             if e_must_bigger_max_index then
-              begin
-                (* Messages.report "Entire array is covered by left value, dropping partitioning."; *)
-                Expp.top(),(xl, xl, xl)
-              end
+              (* Entire array is covered by left part, dropping partitioning. *)
+              Expp.top(),(xl, xl, xl)
             else if e_must_less_zero then
-              begin
-                (* Messages.report "Entire array is covered by right value, dropping partitioning."; *)
-                Expp.top(),(xr, xr, xr)
-              end
+              (* Entire array is covered by right value, dropping partitioning. *)
+              Expp.top(),(xr, xr, xr)
             else
               (* If we can not drop partitioning, move *)
               move (movement_for_exp exp)
@@ -291,15 +275,18 @@ struct
         | `Lifted e', `Lifted i' -> begin
             let default =
               begin
-                let left = match ask (Q.MayBeLess (i', e')) with       (* (may i < e) ? xl : bot *)
-                | `Bool false -> xl
-                | _ -> lubIfNotBot xl in
-                let middle = match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
-                | `Bool false -> xm
-                | _ -> Val.join xm a in
-                let right =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-                | `Bool false -> xr
-                | _ -> lubIfNotBot xr in
+                let left = 
+                  match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
+                  | `Bool false -> xl
+                  | _ -> lubIfNotBot xl in
+                let middle = 
+                  match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
+                  | `Bool false -> xm
+                  | _ -> Val.join xm a in
+                let right = 
+                  match ask (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
+                  | `Bool false -> xr
+                  | _ -> lubIfNotBot xr in
                 (e, (left, middle, right))
               end
             in
@@ -308,7 +295,7 @@ struct
               | _ -> false
             in
             if isEqual then
-              (* update strongly *)
+              (*  e = _{must} i => update strongly *)
               (e, (xl, a, xr))
             else if Cil.isConstant e' && Cil.isConstant i' then
               match Cil.isInteger e', Cil.isInteger i' with
@@ -351,7 +338,9 @@ struct
 
   let set_inplace = set
   let copy a = a
-  let printXml f (e, (xl, xm, xr)) = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml xl
+  let printXml f (e, (xl, xm, xr)) =
+    let join_over_all = Val.join (Val.join xl xm) xr in
+    BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml join_over_all
 end
 
 
@@ -365,19 +354,12 @@ struct
   let set ?(length=None) (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
+
   let array_should_join ?(length =None) _ _ _ _ = true
-
   let move_if_affected ?(length = None) _ x _ _ = x
-
-  let map f (x, l):t =
-    (Base.map f x, l)
-
-  let fold_left f a (x, l) =
-    Base.fold_left f a x
-
-  let fold_left2 f a (x, l) (y, l) =
-    Base.fold_left2 f a x y
-
+  let map f (x, l):t = (Base.map f x, l)
+  let fold_left f a (x, l) = Base.fold_left f a x
+  let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e _ = []
 end
 
@@ -404,15 +386,8 @@ struct
     let new_l = Length.to_int l in
     (Base.move_if_affected ~length:new_l ask x v i), l
 
-  let map f (x, l):t =
-    (Base.map f x, l)
-
-  let fold_left f a (x, l) =
-    Base.fold_left f a x  
-
-  let fold_left2 f a (x, l) (y, l) =
-    Base.fold_left2 f a x y
-
-
+  let map f (x, l):t = (Base.map f x, l)
+  let fold_left f a (x, l) = Base.fold_left f a x  
+  let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 end
