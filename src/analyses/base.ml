@@ -184,20 +184,20 @@ struct
         | _ -> `Address AD.top_ptr
       end
     (* If both are pointer values, we can subtract them and well, we don't
-     * bother to find the result, but it's an integer. *)
+     * bother to find the result in most cases, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
         let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.Addr.equal (AD.choose x) (AD.choose y)) else None in
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
         | MinusPP ->
-          (* when substracting pointers to arrays, per 6.5.6 of C-standard if we substract two pointers to the same array, the difference between them is the difference in subscript *)
-          (* TODO: This could be extended to handle more cases in the future. Also check what happens with more involved date structures *)
+          (* when subsracting pointers to arrays, per 6.5.6 of C-standard if we substract two pointers to the same array, the difference *)
+          (* between them is the difference in subscript *)
           begin
             let rec calculateDiffFromOffset x y =
               match x, y with
               | `Field (xf, xo), `Field(yf, yo) when xf == yf -> 
                 calculateDiffFromOffset xo yo
-              | `Index (i, `NoOffset), `Index(j, `NoOffset) -> (* `Index is only used for arrays in CIL *)
+              | `Index (i, `NoOffset), `Index(j, `NoOffset) ->
                 begin
                   let diff = ValueDomain.IndexDomain.sub i j in
                   match ValueDomain.IndexDomain.to_int diff with
