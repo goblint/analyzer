@@ -258,7 +258,7 @@ struct
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
     | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2)
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
-    | _ -> Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
+    | _ -> Goblintutil.create_var @@ Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
 
   let keys_from_lval lval ask = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)
