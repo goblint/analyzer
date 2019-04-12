@@ -41,9 +41,9 @@ module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value 
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
 
-module TrivialFragmented (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
+module Partitioned (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
 (* Comments are TODO *)
 
-module TrivialFragmentedWithLength (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
+module PartitionedWithLength (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
 (* Comments are TODO *)
 <<<<<<< HEAD

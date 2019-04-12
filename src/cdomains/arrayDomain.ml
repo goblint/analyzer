@@ -62,9 +62,9 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
 end
 
-module TrivialFragmented (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
+module Partitioned (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
 struct
-  let name () = "trivial fragmented arrays"
+  let name () = "partitioned arrays"
   module Expp = ExpDomain
   module Base = Lattice.Prod3 (Val) (Val) (Val)
   include Lattice.ProdSimple(Expp) (Base)
@@ -78,8 +78,7 @@ struct
     let result = Val.join (Val.join xl xm) xr
     in 
     if Val.is_bot result then
-      (Messages.report "Array bot!!!!!!!!!";
-      Val.top())
+      Val.top()
     else
       result
 
@@ -112,40 +111,40 @@ struct
             (* ask in the state of the other one for the value of the expression *)
             match other_eval exp with
             | Some x when Int64.equal x Int64.zero -> false
-            | Some x -> begin 
-                  match length with
-                    | Some y when Int64.equal x (Int64.sub y Int64.one) -> false
-                    | _ -> true
-                  end 
+            | Some x ->
+              begin 
+                match length with
+                | Some y when Int64.equal x (Int64.sub y Int64.one) -> false
+                | _ -> true
+              end 
             | _ -> true
           end 
       end
     else true
 
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) i =
-    (* Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")"); *)
     match e, i with
-      | `Lifted e', `Lifted i' ->
-        begin
-          let isEqual = match ask (Q.MustBeEqual (e',i')) with
-            | `Bool true -> true
-            | _ -> false in
-          if isEqual then xm
-          else
-            begin
-              let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-              | `Bool false -> Val.bot ()
-              | _ -> xl in
-              let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-              | `Bool false -> Val.bot ()
-              | _ -> xm in
-              let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-              | `Bool false -> Val.bot ()
-              | _ -> xr in
-              Val.join (Val.join contributionLess contributionEqual) contributionGreater
-            end
-        end
-      | _ -> join_of_all_parts x (* The case in which we don't know anything *)
+    | `Lifted e', `Lifted i' ->
+      begin
+        let isEqual = match ask (Q.MustBeEqual (e',i')) with
+          | `Bool true -> true
+          | _ -> false in
+        if isEqual then xm
+        else
+          begin
+            let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
+            | `Bool false -> Val.bot ()
+            | _ -> xl in
+            let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
+            | `Bool false -> Val.bot ()
+            | _ -> xm in
+            let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
+            | `Bool false -> Val.bot ()
+            | _ -> xr in
+            Val.join (Val.join contributionLess contributionEqual) contributionGreater
+          end
+      end
+    | _ -> join_of_all_parts x (* The case in which we don't know anything *)
 
 
   let get_vars_in_e (e, _) =
@@ -260,14 +259,13 @@ struct
 
   let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) i a =
     begin
-      (* Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")"); *)
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       if is_not_partitioned (e, (xl, xm, xr)) then
         if not_allowed_for_part i then
           let result = Val.join a (join_of_all_parts x) in
           (e, (result, result, result))
         else
-          begin (* this should be solved via the must equal *)
+          begin
             let exp_value = 
               match i with
               | `Lifted i' -> 
@@ -286,7 +284,6 @@ struct
             in
             let l = if e_equals_zero then Val.bot () else join_of_all_parts x in
             let r = if e_equals_maxIndex then Val.bot () else join_of_all_parts x in
-            (* Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) ); *)
             (i, (l, a, r))
           end
       else
@@ -349,8 +346,6 @@ struct
     else
     if Val.is_bot v then (Expp.top(), (Val.top(), Val.top(), Val.top()))
     else  (Expp.top(), (v, v, v))
-  (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
-  (* TODO: What about the cases where this is called with v != \bot, are we still sound in those *)
 
   let length _ = None
 
@@ -387,9 +382,9 @@ struct
 end
 
 
-module TrivialFragmentedWithLength (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
+module PartitionedWithLength (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
 struct
-  module Base = TrivialFragmented (Val)
+  module Base = Partitioned (Val)
   module Length = IntDomain.Flattened (* We only keep one exact value or top/bot here *)
   include Lattice.Prod (Base) (Length)
   type idx = ExpDomain.t
