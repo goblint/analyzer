@@ -67,7 +67,6 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     target.smaxstmtid <- src.smaxstmtid;
     target.svar <- src.svar;  
   in
-  print_endline @@ "Commit has already been analyzed? : " ^ string_of_bool already_analyzed;
   let reset_fun (f: fundec) (old_f: fundec) =
       f.svar.vid <- old_f.svar.vid;
       List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
@@ -110,7 +109,6 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     | _ -> () 
   in
   let update_fun (f: fundec) (old_f: fundec) =
-      print_endline @@ "updating " ^ old_f.svar.vname;
       f.svar.vid <- make_vid ();
       List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
       List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
