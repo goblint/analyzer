@@ -23,7 +23,7 @@ let identifier_of_global glob =
   | GFun (fundec, l) -> {name = fundec.svar.vname; global_t = Fun}
   | GVar (var, init, l) -> {name = var.vname; global_t = Var}
   | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
-  | _ -> raise (Failure "No variable or function") 
+  | _ -> raise (Failure "Not a variable or function")
 
 
 module GlobalMap = Map.Make(struct
@@ -40,7 +40,7 @@ let eq_list eq xs ys =
         List.for_all (fun (a,b) -> eq a b) (List.combine xs ys)
     with Invalid_argument _ -> false
 
-let eq_typ (a: typ) (b: typ) = typeSig a = typeSig b 
+let eq_typ (a: typ) (b: typ) = typeSig a = typeSig b
 
 let eqB (a: Cil.block) (b: Cil.block) =
     a.Cil.battrs = b.Cil.battrs && a.bstmts = b.bstmts
