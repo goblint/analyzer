@@ -130,19 +130,6 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
         | _ -> ())
     with Failure m -> ()
   in
-  let print_fun_ids (f: fundec) =
-      print_endline (f.svar.vname ^ ": " ^ string_of_int f.svar.vid);
-      List.iter (fun l -> print_endline @@ "local: " ^string_of_int l.vid) f.slocals;
-      List.iter (fun f -> print_endline @@ "formal: " ^string_of_int  f.vid) f.sformals;
-      List.iter (fun s -> print_endline @@ "stmt_id: " ^string_of_int  s.sid) f.sallstmts;
-  in
-  let print_globals (glob: global) = match glob with
-    | GFun (fn, loc) -> print_fun_ids fn
-    | GVar (v, _, _) -> print_endline (v.vname ^ ": " ^ string_of_int v.vid);
-    | GVarDecl (v, _ ) -> print_endline (v.vname ^ ": " ^ string_of_int v.vid);
-    | _ -> ()
-  in
-
   let update_sids (glob: global) = match glob with
     | GFun (fn, loc) -> List.iter (fun s -> update_sid_max s.sid) fn.sallstmts
     | _ -> ()
@@ -160,9 +147,10 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   List.iter reset_globals changes.unchanged;
   List.iter reset_changed_globals changes.changed;
   List.iter update_globals changes.added;
-
-  Cil.iterGlobals old_file update_ids;
-
+  
+  (* Update the sid_max and vid_max *)
+  Cil.iterGlobals new_file update_ids;
+  (* increment the sid so that the *unreachable* nodes that are introduced afterwards get unique sids *)
   while !sid_max > Cil.new_sid () do
   ()
   done;
