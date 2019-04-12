@@ -84,7 +84,7 @@ struct
 
   let short w ((e,(xl, xm, xr)) as x) = 
     if is_not_partitioned x then 
-      "Array (no part.) : " ^ Val.short (w - 7) xl
+      "Array (no part.): " ^ Val.short (w - 7) xl
     else
       "Array (part. by " ^ Expp.short (w-7) e ^ "): (" ^
         Val.short (w - 7) xl ^ " -- " ^
