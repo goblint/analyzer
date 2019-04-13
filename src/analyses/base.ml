@@ -417,7 +417,7 @@ struct
       | `Union (t,e) -> reachable_from_value e
       (* For arrays, we ask to read from an unknown index, this will cause it
        * join all its values. *)
-      | `Array a -> reachable_from_value (ValueDomain.CArrays.get ask a (ValueDomain.Expp.top ()))
+      | `Array a -> reachable_from_value (ValueDomain.CArrays.get ask a (ValueDomain.ArrIdxDomain.top ()))
       | `Blob (e,_) -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
@@ -545,7 +545,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get ctx.ask a (ValueDomain.Expp.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get ctx.ask a (ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_) -> reachable_from_value e
         | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
         | `Struct s ->

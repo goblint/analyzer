@@ -10,7 +10,7 @@ module GU = Goblintutil
 module Expp = ExpDomain
 module Q = Queries
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
-
+module ArrIdxDomain = ExpDomain (* IndexDomain *)
 
 module type S =
 sig
@@ -110,8 +110,6 @@ struct
       CArrays.array_should_join x y x_eval_int y_eval_int &&
       CArrays.fold_left2 (fun a (x:t) (y:t)  -> a && array_should_join x y x_eval_int y_eval_int) true x y
     | _ -> true (* `Blob and `List cannot contain arrays *)
-
-  module ArrIdxDomain = ExpDomain
 
   let equal x y =
     match (x, y) with
@@ -548,7 +546,7 @@ struct
         if not (contains_pointer exp) then
           `Lifted exp 
         else
-          Expp.top ()
+          ExpDomain.top ()
       | Some((Mem(ptr), NoOffset)), Some(NoOffset) ->
         begin
           match v with
@@ -568,14 +566,14 @@ struct
                 else
                   (* If types do not agree here, this means that we were looking at pointers that *)
                   (* contain more than one array access. Those are not supported. *)
-                  Expp.top ()
+                  ExpDomain.top ()
               else
-                Expp.top ()
+                ExpDomain.top ()
             end
           | _ ->
-            Expp.top ()
+            ExpDomain.top ()
         end
-      | _, _ ->  Expp.top()
+      | _, _ ->  ExpDomain.top()
         
 
 
@@ -631,6 +629,7 @@ struct
             | `Array x ->
               let e = determine_offset l o exp v in
               do_eval_offset ask f (CArrays.get ask x e) offs exp l' o' v
+              (* do_eval_offset ask f (CArrays.get ask x idx) offs exp l' o' v *)
             | `Address _ -> 
               begin  
                 do_eval_offset ask f x offs exp l' o' v (* this used to be `blob `address -> we ignore the index *)
@@ -728,7 +727,9 @@ struct
             | `Array x' ->
               let e = determine_offset l o exp (Some v) in
               let new_value_at_index = do_update_offset ask (CArrays.get ask x' e) offs value exp l' o' v in
+              (* let new_value_at_index = do_update_offset ask (CArrays.get ask x' idx) offs value exp l' o' v in *)
               let new_array_value = CArrays.set ask x' e new_value_at_index in
+              (* let new_array_value = CArrays.set ask x' idx new_value_at_index in *)
               `Array new_array_value
             | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v
             | `Bot ->  M.warn_each("encountered array bot, made array top"); `Array (CArrays.top ());
@@ -795,8 +796,14 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)
 
+(* and CArrays: ArrayDomain.S with type value = Compound.t and type idx = IndexDomain.t =
+  ArrayDomain.TrivialWithLength(Compound) (IndexDomain) *)
+
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ExpDomain.t =
   ArrayDomain.PartitionedWithLength(Compound)
+
+(* when changing this, also change the ArrIdxDomain and the third argument of CArrays.set and
+  CArrays.get calls *)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
 
