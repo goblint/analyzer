@@ -1011,11 +1011,8 @@ struct
                     let moved_by = movement_for_expr l' r' in
                     VD.affect_move a v x moved_by
                   end
-                | _,_  -> 
-                  begin
-                    Messages.warn "Problematic debug::: Write access was not to an lval or no rval provided.";
-                    VD.affect_move a v x (fun x -> None)
-                  end
+                | _  ->
+                  VD.affect_move a v x (fun x -> None)
               else
                 let patched_ask =
                 match ctx with
