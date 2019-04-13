@@ -254,7 +254,7 @@ struct
     | AddrOfLabel _
     | SizeOfStr _
     | AlignOf _
-    | Question _ (* TODO: is this correct? *)
+    | Question _
     | AddrOf _
     | StartOf _ -> []
     | UnOp (_, e, _ )

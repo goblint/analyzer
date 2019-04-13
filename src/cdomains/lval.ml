@@ -127,8 +127,7 @@ struct
     match x with
     | `NoOffset -> NoOffset
     | `Field(f,o) -> Field(f, to_cil_offset o)
-    | `Index(i,o) -> NoOffset (* TODO:This is wrong for sure *)
-
+    | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
 
   let join x y = merge `Join x y
   let meet x y = merge `Meet x y

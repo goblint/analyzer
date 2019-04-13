@@ -628,7 +628,7 @@ struct
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in 
             match x with
-            | `Array x ->   (* TODO: This is a very bad idea *)
+            | `Array x ->
               let e = determine_offset l o exp v in
               do_eval_offset ask f (CArrays.get ask x e) offs exp l' o' v
             | `Address _ -> 
