@@ -318,7 +318,7 @@ module WP =
           let (infl, rho, wpoint, stable) =  if Sys.file_exists file_in && incremental_mode <> "complete"
                                                       then Serialize.unmarshall file_in
                                                       else create_empty () in
-          let stable = if incremental_mode = "destabilize_all" then (print_endline "Destabilizing everything!"; HM.create 10) else stable in 
+          let (stable, infl) = if incremental_mode = "destabilize_all" then (print_endline "Destabilizing everything!"; (HM.create 10,HM.create 10)) else (stable, infl) in 
           let varCountBefore = HM.length rho in
           let solver_result = solve box st vs infl rho (HM.create 10) stable in
           let varCountAfter = HM.length rho in

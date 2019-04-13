@@ -40,7 +40,9 @@ let eq_list eq xs ys =
         List.for_all (fun (a,b) -> eq a b) (List.combine xs ys)
     with Invalid_argument _ -> false
 
-let eq_typ (a: typ) (b: typ) = typeSig a = typeSig b
+let eq_typ (a: typ) (b: typ) =
+  let ignoreAttrs = fun _ -> [] in
+  typeSigWithAttrs ignoreAttrs a = typeSigWithAttrs ignoreAttrs b
 
 let eqB (a: Cil.block) (b: Cil.block) =
     a.Cil.battrs = b.Cil.battrs && a.bstmts = b.bstmts

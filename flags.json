@@ -3,8 +3,8 @@
       "activated": [
          "base"
       ],
-      "int ": {
-         "interval ": true,
+      "int": {
+         "interval": true,
          "trier ": false
       },
       "hashcons": false
@@ -21,10 +21,8 @@
          }
       },
       "incremental":{
-         "mode": "complete",
-         "repo": "/home/julian/Entwicklung/Masterarbeit/gitTest"
-      },
-      "addr-context": false
+         "mode": "complete"
+      }
    },
    "dbg": {
       "verbose": true,
@@ -36,5 +34,5 @@
    "printstats": true,
    "result": "fast_xml",
    "solver": "td3",
-   "noverify": true
+   "noverify": false
 }
