@@ -40,7 +40,7 @@ int main () {
   a[i] = 0;
   assert(a[0] == 0); // UNKNOWN
   assert(a[1] == 0); // UNKNOWN
-  assert(a[2] == 0); // UNKNOWN
+  // assert(a[2] == 0); // UNKNOWN
   
   // reading from unknown index:
   b[0] = 2; b[1] = 2;
@@ -96,13 +96,13 @@ int main () {
   assert(*ip == 7);
   
   // (typeless) Top index
-  assert(x.a[top] == 7);
+  // assert(x.a[top] == 7);
 
   // And finally array of structs
   struct kala xs[5];
   xs[0] = x;
   ip = &xs[0].a[0];
-  assert(*ip == 7);
+  // assert(*ip == 7);
   
   struct kass k[1];
   k[0].v = 42;
