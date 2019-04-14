@@ -31,8 +31,6 @@ module WP =
 
     type phase = Widen | Narrow
 
-    let solve_count = ref 0
-
     let solve box st vs infl rho  wpoint stable =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
@@ -56,7 +54,6 @@ module WP =
         HM.replace infl x VS.empty;
         VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) w
       and solve x phase =
-        solve_count := !solve_count + 1;
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
@@ -300,10 +297,7 @@ module WP =
       print_newline ();
 (*       HM.clear stable;
  *)   
-      print_string "Called solve: ";
-      print_int !solve_count;
-      print_endline " times";
-      solve_count := 0;
+
 (*       HM.clear infl  ;
  *)
       (infl, rho, wpoint, stable)
