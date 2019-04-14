@@ -40,7 +40,7 @@ module WP =
        rho="^string_of_int (HM.length rho)^"
        called="^string_of_int (HM.length called)^"
        wpoint="^string_of_int (HM.length wpoint)
-        );
+      );
 
       let cache_sizes = ref [] in
 
@@ -205,12 +205,6 @@ module WP =
       in
       solve_sidevs ();
 
-      (* print_endline ("End solve before reach with infl="^string_of_int (HM.length infl)^"
-       rho="^string_of_int (HM.length rho)^"
-       called="^string_of_int (HM.length called)^"
-       wpoint="^string_of_int (HM.length wpoint)
-        ); *)
-
       (* verifies values at widening points and adds values for variables in-between *)
       let visited = HM.create 10 in
       let rec get x =
@@ -288,18 +282,9 @@ module WP =
        rho="^string_of_int (HM.length rho)^"
        called="^string_of_int (HM.length called)^"
        wpoint="^string_of_int (HM.length wpoint)
-        );
+      );
 
-(*       HM.iter (fun key vl ->  (print_int (S.Var.line_nr key); print_string " "; print_string (S.Var.file_name key); print_string ((S.Var.var_id key)^ " "));  print_newline ()) rho;
- *)      let sum = HM.fold (fun key vl acc -> acc +1 ) rho 0 in
-      print_string "Number of elemnts in rho: ";
-      print_int sum;
-      print_newline ();
-(*       HM.clear stable;
- *)   
 
-(*       HM.clear infl  ;
- *)
       (infl, rho, wpoint, stable)
 
       let solve box st vs =
