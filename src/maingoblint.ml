@@ -395,8 +395,8 @@ let obtain_changes file =
                 Serialize.marshall function_name_map map_file_name;
                 store_map function_name_map max_ids;
                 (function_name_map, CompareAST.empty_change_info ())
-            | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
-    | None -> exit 5;
+            | None -> print_endline "Failure! Working directory is not clean"; exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
+    | None -> print_endline "Failure! Current commit could not be red.";  exit 5;
   ) in
   let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
   let current_commit_dir = Filename.concat (data_path ()) current_commit in

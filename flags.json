@@ -21,7 +21,7 @@
          }
       },
       "incremental":{
-         "mode": "complete"
+         "mode": "off"
       }
    },
    "dbg": {
