@@ -284,7 +284,6 @@ module WP =
        wpoint="^string_of_int (HM.length wpoint)
       );
 
-
       (infl, rho, wpoint, stable)
 
       let solve box st vs =
@@ -292,15 +291,17 @@ module WP =
         let create_empty () = (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         let rho_of (_,r,_,_) = r in
         let incremental_mode = GobConfig.get_string "exp.incremental.mode" in
-        if incremental_mode <> "off" then begin
+        let reuse_stable = GobConfig.get_bool "exp.incremental.stable" in
+        let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
+
+        if incremental_mode <> "off" then begin          
           let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
           let (infl, rho, wpoint, stable) =  if Sys.file_exists file_in && incremental_mode <> "complete"
                                                       then Serialize.unmarshall file_in
                                                       else create_empty () in
-          let (stable, infl) = if incremental_mode = "destabilize_all" then (print_endline "Destabilizing everything!"; (HM.create 10,HM.create 10)) else (stable, infl) in 
-          let varCountBefore = HM.length rho in
-          let solver_result = solve box st vs infl rho (HM.create 10) stable in
-          let varCountAfter = HM.length rho in
+          let (stable, infl) = if reuse_stable then (stable, infl) else  (print_endline "Destabilizing everything!"; (HM.create 10,HM.create 10))in 
+          let wpoint = if reuse_wpoint then wpoint else HM.create 10 in
+          let solver_result = solve box st vs infl rho wpoint stable in
 
           let path = Goblintutil.create_dir S.increment.current_commit_dir in
           if Sys.file_exists path then (
@@ -308,7 +309,6 @@ module WP =
             print_endline @@ "Saving solver results to " ^ file_out;
             Serialize.marshall solver_result file_out;
           );
-          print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
           rho_of solver_result
           end
         else begin
