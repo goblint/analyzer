@@ -359,7 +359,11 @@ let store_map updated_map max_ids =    (* Creates the directory for the commit *
     Serialize.marshall (updated_map, max_ids) map_file_name
   | None -> ()
 
-let obtain_changes file =
+(* Detects changes and renames vids and sids. *)
+let diff_and_rename file =
+  (* Hashconsing is not supported in incremental mode *)
+  if GobConfig.get_bool "ana.hashcons" = true then (print_endline "Incremental mode is only supported when ana.hashcons is turned off.";exit 1);
+
   Serialize.src_direcotry := src_path ();
   if Serialize.results_exist ()  then (
     let commit = Serialize.last_analyzed_commit () in
@@ -417,7 +421,7 @@ let main =
         create_temp_dir ();
         handle_flags ();
         let file = preprocess_files () |> merge_preprocessed in
-        let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else obtain_changes file in
+        let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
         file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();
