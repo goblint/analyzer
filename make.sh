@@ -22,7 +22,6 @@ opam_build() {
   # opam install camlp4 mongo # camlp4 needed for mongo
   # opam's cil is too old
   opam pin -y add cil "https://github.com/goblint/cil.git"
-  opam update && opam upgrade
 }
 
 rule() {
