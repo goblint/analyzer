@@ -143,6 +143,13 @@ struct
     BatPrintf.fprintf f "<value>\n<set>\n";
     iter (Base.printXml f) xs;
     BatPrintf.fprintf f "</set>\n</value>\n"
+
+  let invariant s = fold (fun x a ->
+      match a, Base.invariant x with
+      | Some a, Some i -> Some (a ^ " SET? " ^ i)
+      | Some a, None | None, Some a -> Some a
+      | None, None -> None
+    ) s None
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base
@@ -341,6 +348,10 @@ struct
       BatPrintf.fprintf f "<value><set>\n" ;
       S.iter (Base.printXml f) s;
       BatPrintf.fprintf f "</set></value>\n"
+
+  let invariant = function
+    | All -> None
+    | Set s -> S.invariant s
 end
 
 (* superseded by Hoare *)
@@ -451,7 +462,7 @@ struct
         | None, Some x when op = `Join -> Some x
         | _ -> None
       ) x y
-  
+
   let merge_meet f x y =
     Map.merge (fun i a b -> match a, b with
         | Some a, Some b ->

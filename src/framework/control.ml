@@ -394,6 +394,16 @@ struct
       if get_bool "dump_globs" then
         print_globals gh;
 
+      let print_invariant k v =
+        (* some nodes duplicated for different contexts *)
+        Printf.printf "FOO %s: %s: %s\n" (EQSys.LVar.description k) (EQSys.D.short 800 v) (Option.default "None" (EQSys.D.invariant v))
+      in
+      LHT.iter print_invariant lh;
+
+      (* let print_invariant2 (l, n, f) v =
+         in
+         Result.iter print_invariant2 !local_xml; *)
+
       (* run activated transformations with the analysis result *)
       let ask loc =
         let open Batteries in let open Enum in

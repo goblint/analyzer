@@ -64,6 +64,8 @@ module DomListPrintable (DLSpec : DomainListPrintableSpec)
   (*  : Printable.S with type t = (string * unknown) list *)
 =
 struct
+  include Printable.Std (* for property-based testing *)
+
   open DLSpec
   open List
   open Obj
@@ -137,6 +139,12 @@ struct
     in
     unop_fold print_one () xs
 
+  let invariant = unop_fold (fun a n (module S : Printable.S) x ->
+      match a, S.invariant (obj x) with
+      | Some a, Some i -> Some (a ^ " && " ^ i)
+      | Some a, None | None, Some a -> Some a
+      | None, None -> None
+    ) None
 end
 
 let _ =

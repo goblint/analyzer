@@ -27,6 +27,35 @@ struct
       | x -> x
 
     let toXML s  = toXML_f short s
+
+    let invariant ss =
+      let rec exp_contains_tmp = function
+        | Lval (Var {vdescrpure}, _) -> not vdescrpure
+        | UnOp (_, e, _) -> exp_contains_tmp e
+        | BinOp (_, e1, e2, _) -> exp_contains_tmp e1 || exp_contains_tmp e2
+        | _ -> false
+      in
+      let string_of_exp e = Exp.short 100 e in
+      fold (fun s a ->
+          let module B_prod = BatSet.Make2 (Exp) (Exp) in
+          let s_prod = B_prod.cartesian_product s s in
+          let i = B_prod.Product.fold (fun (x, y) a ->
+              if Exp.compare x y < 0 && not (exp_contains_tmp x) && not (exp_contains_tmp y) then (* each equality only one way, no self-equalities *)
+                let xname = string_of_exp x in
+                let yname = string_of_exp y in
+                let eq = xname ^ " == " ^ yname in
+                match a with
+                | Some a -> Some (a ^ " && " ^ eq)
+                | None -> Some eq
+              else
+                a
+            ) s_prod None
+          in
+          match a, Option.map (fun i -> "(" ^ i ^ ")") i with
+          | Some a, Some i -> Some (a ^ " && " ^ i)
+          | Some a, None | None, Some a -> Some a
+          | None, None -> None
+        ) ss None
   end
 
   module C = D

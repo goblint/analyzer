@@ -101,6 +101,8 @@ end
 
 module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit ints *)
 struct
+  include Printable.Std (* for property-based testing *)
+
   open Int64
 
   type t = (int64 * int64) option [@@deriving to_yojson]
@@ -916,16 +918,16 @@ struct
   (* Debug Helpers *)
   let wrap_debug1 n f =
     fun a ->
-      let r = f a in
-      if get_bool "ana.int.cdebug" then print_endline (n^": "^(I.to_string a)^" = "^(I.to_string r));
-      r
+    let r = f a in
+    if get_bool "ana.int.cdebug" then print_endline (n^": "^(I.to_string a)^" = "^(I.to_string r));
+    r
 
   let wrap_debug2 n f =
     fun a b ->
-      let r = f a b in
-      if get_bool "ana.int.cdebug"
-      then print_endline (n^": "^(I.to_string a)^" .. "^(I.to_string b)^" = "^(I.to_string r));
-      r
+    let r = f a b in
+    if get_bool "ana.int.cdebug"
+    then print_endline (n^": "^(I.to_string a)^" .. "^(I.to_string b)^" = "^(I.to_string r));
+    r
 
   (* Arithmetic *)
   let neg = wrap_debug1 "neg" I.neg
@@ -1215,6 +1217,8 @@ module Booleans = MakeBooleans (
   end)
 
 module Enums : S = struct
+  include Printable.Std (* for property-based testing *)
+
   open Batteries
   module I = Integers
   module R = Interval32 (* range for exclusion *)
@@ -1406,6 +1410,8 @@ end
 
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
 module IntDomTuple = struct
+  include Printable.Std (* for property-based testing *)
+
   open Batteries
   module I1 = Trier
   module I2 = Interval32
@@ -1458,7 +1464,7 @@ module IntDomTuple = struct
     let xs = mapp { fp = fun (type a) (module I:S with type t = a) -> I.equal_to i } x |> Tuple4.enum |> List.of_enum |> List.filter_map identity in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
-    `Top
+      `Top
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (

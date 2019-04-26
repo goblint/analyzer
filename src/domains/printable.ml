@@ -24,6 +24,8 @@ sig
   (* This is for debugging *)
   val name: unit -> string
   val to_yojson : t -> json
+
+  val invariant: t -> string option
 end
 
 module Std =
@@ -35,6 +37,8 @@ struct
   let class_name _ = "None"
   let name () = "std"
   let trace_enabled = false
+
+  let invariant _ = None
 end
 
 module Blank =
@@ -107,6 +111,8 @@ end
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
 module HConsed (Base:S) =
 struct
+  include Std (* for property-based testing *)
+
   module HC = BatHashcons.MakeTable (Base)
   let htable = HC.create 100000
 
@@ -127,6 +133,7 @@ struct
   let isSimple = lift_f Base.isSimple
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
+  let invariant = lift_f (Base.invariant)
 end
 
 module Lift (Base: S) (N: LiftingNames) =
@@ -179,6 +186,10 @@ struct
     | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
     | `Lifted x -> Base.printXml f x
+
+  let invariant = function
+    | `Lifted x -> Base.invariant x
+    | `Top | `Bot -> None
 end
 
 module Either (Base1: S) (Base2: S) =

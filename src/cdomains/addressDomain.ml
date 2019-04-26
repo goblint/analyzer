@@ -21,6 +21,8 @@ end
 
 module AddressSet (Idx: IntDomain.S) =
 struct
+  include Printable.Std (* for property-based testing *)
+
   module Addr = Lval.NormalLat (Idx)
   include SetDomain.HoarePO (Addr)
 
