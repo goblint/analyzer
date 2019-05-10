@@ -299,3 +299,10 @@ and typeOffset basetyp =
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
     | _ -> raise Not_found
+
+let var_is_tmp {vdescrpure} = not vdescrpure
+let rec exp_contains_tmp = function
+  | Lval (Var vi, _) -> var_is_tmp vi
+  | UnOp (_, e, _) -> exp_contains_tmp e
+  | BinOp (_, e1, e2, _) -> exp_contains_tmp e1 || exp_contains_tmp e2
+  | _ -> false

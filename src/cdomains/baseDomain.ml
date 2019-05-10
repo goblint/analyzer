@@ -11,8 +11,11 @@ struct
 
   let invariant c (m:t) =
     fold (fun k v a ->
-        let i = VD.invariant k.vname v in
-        Invariant.(a && i)
+        if not (Cilfacade.var_is_tmp k) then
+          let i = VD.invariant k.vname v in
+          Invariant.(a && i)
+        else
+          a
       ) m Invariant.none
 end
 
