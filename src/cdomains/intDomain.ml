@@ -331,6 +331,18 @@ struct
       if Int64.compare x2 y1 < 0 then of_bool true
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top ()
+
+  let invariant c = function
+    | Some (x1, x2) ->
+      begin
+        let i1 = if Int64.compare min_int x1 <> 0 then Some (Int64.to_string x1 ^ " <= " ^ c) else None in
+        let i2 = if Int64.compare x2 max_int <> 0 then Some (c ^ " <=" ^ Int64.to_string x2) else None in
+        match i1, i2 with
+        | Some i1, Some i2 -> Some (i1 ^ " && " ^ i2)
+        | Some i, None | None, Some i -> Some i
+        | None, None -> None
+      end
+    | None -> None
 end
 
 
