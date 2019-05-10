@@ -334,14 +334,10 @@ struct
 
   let invariant c = function
     | Some (x1, x2) ->
-      begin
-        let i1 = if Int64.compare min_int x1 <> 0 then Some (Int64.to_string x1 ^ " <= " ^ c) else None in
-        let i2 = if Int64.compare x2 max_int <> 0 then Some (c ^ " <=" ^ Int64.to_string x2) else None in
-        match i1, i2 with
-        | Some i1, Some i2 -> Some (i1 ^ " && " ^ i2)
-        | Some i, None | None, Some i -> Some i
-        | None, None -> None
-      end
+      let open Invariant in
+      let i1 = if Int64.compare min_int x1 <> 0 then of_string (Int64.to_string x1 ^ " <= " ^ c) else none in
+      let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <=" ^ Int64.to_string x2) else none in
+      i1 && i2
     | None -> None
 end
 
@@ -821,9 +817,9 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c (x:t) = match x with
-    | `Definite x -> Some (c ^ " == " ^ Int64.to_string x)
-    | `Excluded (_, _) -> None (* TODO *)
-    | `Bot -> None
+    | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
+    | `Excluded (_, _) -> Invariant.none (* TODO *)
+    | `Bot -> Invariant.none
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -1549,9 +1545,6 @@ module IntDomTuple = struct
   let invariant c x =
     let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
     in List.fold_left (fun a i ->
-        match a, i with
-        | Some a, Some i -> Some (a ^ " && " ^ i)
-        | Some a, None | None, Some a -> Some a
-        | None, None -> None
-      ) None is
+        Invariant.(a && i)
+      ) Invariant.none is
 end

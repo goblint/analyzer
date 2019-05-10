@@ -12,11 +12,8 @@ struct
   let invariant c (m:t) =
     fold (fun k v a ->
         let i = VD.invariant k.vname v in
-        match a, i with
-        | Some a, Some i -> Some (a ^ " && " ^ i)
-        | Some a, None | None, Some a -> Some a
-        | None, None -> None
-      ) m None
+        Invariant.(a && i)
+      ) m Invariant.none
 end
 
 module Flag =

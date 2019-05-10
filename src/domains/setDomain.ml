@@ -143,13 +143,6 @@ struct
     BatPrintf.fprintf f "<value>\n<set>\n";
     iter (Base.printXml f) xs;
     BatPrintf.fprintf f "</set>\n</value>\n"
-
-  let invariant c s = fold (fun x a ->
-      match a, Base.invariant c x with
-      | Some a, Some i -> Some (a ^ " SET? " ^ i)
-      | Some a, None | None, Some a -> Some a
-      | None, None -> None
-    ) s None
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base
@@ -350,7 +343,7 @@ struct
       BatPrintf.fprintf f "</set></value>\n"
 
   let invariant c = function
-    | All -> None
+    | All -> Invariant.none
     | Set s -> S.invariant c s
 end
 

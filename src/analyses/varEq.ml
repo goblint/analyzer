@@ -44,18 +44,13 @@ struct
                 let xname = string_of_exp x in
                 let yname = string_of_exp y in
                 let eq = xname ^ " == " ^ yname in
-                match a with
-                | Some a -> Some (a ^ " && " ^ eq)
-                | None -> Some eq
+                Invariant.(a && of_string eq)
               else
                 a
-            ) s_prod None
+            ) s_prod Invariant.none
           in
-          match a, Option.map (fun i -> "(" ^ i ^ ")") i with
-          | Some a, Some i -> Some (a ^ " && " ^ i)
-          | Some a, None | None, Some a -> Some a
-          | None, None -> None
-        ) ss None
+          Invariant.(a && i)
+        ) ss Invariant.none
   end
 
   module C = D

@@ -5,8 +5,6 @@ open Pretty
 type json = Yojson.Safe.json
 let json_to_yojson x = x
 
-type invariantCtx = string
-
 module type S =
 sig
   type t
@@ -27,7 +25,7 @@ sig
   val name: unit -> string
   val to_yojson : t -> json
 
-  val invariant: invariantCtx -> t -> string option
+  val invariant: Invariant.context -> t -> Invariant.t
 end
 
 module Std =
@@ -40,7 +38,7 @@ struct
   let name () = "std"
   let trace_enabled = false
 
-  let invariant _ _ = None
+  let invariant _ _ = Invariant.none
 end
 
 module Blank =
@@ -191,7 +189,7 @@ struct
 
   let invariant c = function
     | `Lifted x -> Base.invariant c x
-    | `Top | `Bot -> None
+    | `Top | `Bot -> Invariant.none
 end
 
 module Either (Base1: S) (Base2: S) =
@@ -377,11 +375,7 @@ struct
     else
       Base1.pretty_diff () (x1,y1)
 
-  let invariant c (x, y) =
-    match Base1.invariant c x, Base2.invariant c y with
-    | Some i1, Some i2 -> Some (i1 ^ " &&" ^ i2)
-    | Some i, None | None, Some i -> Some i
-    | None, None -> None
+  let invariant c (x, y) = Invariant.(Base1.invariant c x && Base2.invariant c y)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)

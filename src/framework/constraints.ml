@@ -202,7 +202,7 @@ struct
     H.modify_def 1 k (fun v ->
         if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint MyCFG.pretty_short_node (Option.get !MyCFG.current_node));
         v+1
-    ) h;
+      ) h;
   module D = struct
     include S.D
     let widen x y = Option.may incr !MyCFG.current_node; widen x y (* when is this None? *)
@@ -753,6 +753,10 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
+
+    let invariant c s = fold (fun x a ->
+        Invariant.(a || Spec.D.invariant c x) (* TODO: || correct? *)
+      ) s Invariant.none
   end
 
   module G = Spec.G
@@ -916,21 +920,21 @@ struct
     let f_uk () = incr uk in
     let f k v1 =
       if not (LH.mem h2 k) then incr n2 else
-      let v2 = LH.find h2 k in
-      let b1 = D.leq v1 v2 in
-      let b2 = D.leq v2 v1 in
-      if b1 && b2 then
-        f_eq ()
-      else if b1 then begin
-        (* if get_bool "solverdiffs" then *)
-        (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2)); *)
-        f_le ()
-      end else if b2 then begin
-        (* if get_bool "solverdiffs" then *)
-        (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2)); *)
-        f_gr ()
-      end else
-        f_uk ()
+        let v2 = LH.find h2 k in
+        let b1 = D.leq v1 v2 in
+        let b2 = D.leq v2 v1 in
+        if b1 && b2 then
+          f_eq ()
+        else if b1 then begin
+          (* if get_bool "solverdiffs" then *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2)); *)
+          f_le ()
+        end else if b2 then begin
+          (* if get_bool "solverdiffs" then *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2)); *)
+          f_gr ()
+        end else
+          f_uk ()
     in
     LH.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in *)

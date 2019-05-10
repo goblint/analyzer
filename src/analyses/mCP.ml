@@ -140,11 +140,8 @@ struct
     unop_fold print_one () xs
 
   let invariant c = unop_fold (fun a n (module S : Printable.S) x ->
-      match a, S.invariant c (obj x) with
-      | Some a, Some i -> Some (a ^ " && " ^ i)
-      | Some a, None | None, Some a -> Some a
-      | None, None -> None
-    ) None
+      Invariant.(a && S.invariant c (obj x))
+    ) Invariant.none
 end
 
 let _ =
