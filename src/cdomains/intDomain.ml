@@ -336,7 +336,7 @@ struct
     | Some (x1, x2) ->
       let open Invariant in
       let i1 = if Int64.compare min_int x1 <> 0 then of_string (Int64.to_string x1 ^ " <= " ^ c) else none in
-      let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <=" ^ Int64.to_string x2) else none in
+      let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <= " ^ Int64.to_string x2) else none in
       i1 && i2
     | None -> None
 end
