@@ -28,7 +28,7 @@ struct
 
     let toXML s  = toXML_f short s
 
-    let invariant ss =
+    let invariant c ss =
       let rec exp_contains_tmp = function
         | Lval (Var {vdescrpure}, _) -> not vdescrpure
         | UnOp (_, e, _) -> exp_contains_tmp e

@@ -807,6 +807,11 @@ struct
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  let invariant c (x:t) = match x with
+    | `Definite x -> Some (c ^ " == " ^ Int64.to_string x)
+    | `Excluded (_, _) -> None (* TODO *)
+    | `Bot -> None
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -1528,4 +1533,13 @@ module IntDomTuple = struct
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  let invariant c x =
+    let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
+    in List.fold_left (fun a i ->
+        match a, i with
+        | Some a, Some i -> Some (a ^ " && " ^ i)
+        | Some a, None | None, Some a -> Some a
+        | None, None -> None
+      ) None is
 end

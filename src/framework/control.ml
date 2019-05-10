@@ -396,7 +396,7 @@ struct
 
       let print_invariant k v =
         (* some nodes duplicated for different contexts *)
-        Printf.printf "FOO %s: %s: %s\n" (EQSys.LVar.description k) (EQSys.D.short 800 v) (Option.default "None" (EQSys.D.invariant v))
+        Printf.printf "INVARIANT %s: %s: %s\n" (EQSys.LVar.description k) (EQSys.D.short 800 v) (Option.default "None" (EQSys.D.invariant "" v))
       in
       LHT.iter print_invariant lh;
 

@@ -5,6 +5,8 @@ open Pretty
 type json = Yojson.Safe.json
 let json_to_yojson x = x
 
+type invariantCtx = string
+
 module type S =
 sig
   type t
@@ -25,7 +27,7 @@ sig
   val name: unit -> string
   val to_yojson : t -> json
 
-  val invariant: t -> string option
+  val invariant: invariantCtx -> t -> string option
 end
 
 module Std =
@@ -38,7 +40,7 @@ struct
   let name () = "std"
   let trace_enabled = false
 
-  let invariant _ = None
+  let invariant _ _ = None
 end
 
 module Blank =
@@ -133,7 +135,7 @@ struct
   let isSimple = lift_f Base.isSimple
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
-  let invariant = lift_f (Base.invariant)
+  let invariant c = lift_f (Base.invariant c)
 end
 
 module Lift (Base: S) (N: LiftingNames) =
@@ -187,8 +189,8 @@ struct
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
     | `Lifted x -> Base.printXml f x
 
-  let invariant = function
-    | `Lifted x -> Base.invariant x
+  let invariant c = function
+    | `Lifted x -> Base.invariant c x
     | `Top | `Bot -> None
 end
 
@@ -374,6 +376,12 @@ struct
       Base2.pretty_diff () (x2,y2)
     else
       Base1.pretty_diff () (x1,y1)
+
+  let invariant c (x, y) =
+    match Base1.invariant c x, Base2.invariant c y with
+    | Some i1, Some i2 -> Some (i1 ^ " &&" ^ i2)
+    | Some i, None | None, Some i -> Some i
+    | None, None -> None
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)

@@ -599,6 +599,10 @@ struct
     | `List n ->  Lists.printXml f n
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
+
+  let invariant c = function
+    | `Int n -> ID.invariant c n
+    | _ -> None (* TODO *)
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =

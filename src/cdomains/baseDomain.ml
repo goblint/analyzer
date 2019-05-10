@@ -8,6 +8,15 @@ module CPA =
 struct
   include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
   let name () = "value domain"
+
+  let invariant c (m:t) =
+    fold (fun k v a ->
+        let i = VD.invariant k.vname v in
+        match a, i with
+        | Some a, Some i -> Some (a ^ " && " ^ i)
+        | Some a, None | None, Some a -> Some a
+        | None, None -> None
+      ) m None
 end
 
 module Flag =
