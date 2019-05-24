@@ -300,7 +300,10 @@ and typeOffset basetyp =
       blendAttributes baseAttrs fieldType
     | _ -> raise Not_found
 
-let var_is_tmp {vdescrpure} = not vdescrpure
+(* TODO: detect temporaries created by Cil? *)
+(* let var_is_tmp {vdescrpure} = not vdescrpure (* doesn't exclude tmp___0 *) *)
+let tmp_var_regexp = Str.regexp "^tmp\\(___[0-9]+\\)?\\|cond$"
+let var_is_tmp {vname} = Str.string_match tmp_var_regexp vname 0
 let rec exp_contains_tmp = function
   | Lval (Var vi, _) -> var_is_tmp vi
   | UnOp (_, e, _) -> exp_contains_tmp e
