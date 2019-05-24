@@ -818,7 +818,11 @@ struct
 
   let invariant c (x:t) = match x with
     | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
-    | `Excluded (_, _) -> Invariant.none (* TODO *)
+    | `Excluded (s, _) ->
+      S.fold (fun x a ->
+          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          Invariant.(a && i)
+        ) s Invariant.none
     | `Bot -> Invariant.none
 end
 
