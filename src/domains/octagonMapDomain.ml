@@ -570,10 +570,10 @@ module MapOctagon : S
     let get i j = Array.get (Array.get matrix i) j in
 
     let rec matrix_iter i j oct =
-      if j >= Array.length matrix
-      then matrix_iter (i + 2) 0 oct
-      else if i >= Array.length matrix
+      if i >= Array.length matrix
       then oct
+      else if j >= Array.length matrix
+      then matrix_iter (i + 2) 0 oct
       else
         let var1 = Hashtbl.find inv_vars i in
         let var2 = Hashtbl.find inv_vars j in
