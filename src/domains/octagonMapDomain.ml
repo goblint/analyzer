@@ -303,12 +303,15 @@ module MapOctagon : S
     | Some (sign, var2) ->
       let cmp = (BV.compare var1 var2) in
       if cmp = -1 then
-        let (_, consts) = find var1 oct in
-        let first, second = find_constraints var2 consts in
-        let candidate = if sign then first else second in
-        match candidate with
-        | Some inv -> inv
-        | None -> INV.top ()
+        try
+          let (_, consts) = find var1 oct in
+          let first, second = find_constraints var2 consts in
+          let candidate = if sign then first else second in
+          match candidate with
+          | Some inv -> inv
+          | None -> INV.top ()
+        with Not_found ->
+          INV.top ()
       else if cmp = 1 then
         if sign = true then
           projection var2 (Some (true, var1)) oct
