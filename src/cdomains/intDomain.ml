@@ -333,6 +333,8 @@ struct
       else top ()
 
   let invariant c = function
+    | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
+      Invariant.of_string (c ^ " == " ^ Int64.to_string x1)
     | Some (x1, x2) ->
       let open Invariant in
       let i1 = if Int64.compare min_int x1 <> 0 then of_string (Int64.to_string x1 ^ " <= " ^ c) else none in
