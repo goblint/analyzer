@@ -1,4 +1,4 @@
-# goblint &nbsp; [![Travis-CI](https://travis-ci.org/goblint/analyzer.png)](https://travis-ci.org/goblint/analyzer/branches) [![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer) [![In Progress](https://badge.waffle.io/goblint/analyzer.svg?label=In%20Progress&title=In%20Progress)](https://waffle.io/goblint/analyzer) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/goblint)
+# goblint &nbsp; [![Travis-CI](https://travis-ci.com/goblint/analyzer.png)](https://travis-ci.com/goblint/analyzer/branches) [![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer) [![In Progress](https://badge.waffle.io/goblint/analyzer.svg?label=In%20Progress&title=In%20Progress)](https://waffle.io/goblint/analyzer) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/goblint)
 
 ## Setup
 [Install opam](http://opam.ocaml.org/doc/Install.html), and then do `opam install goblint` to install the latest release.
