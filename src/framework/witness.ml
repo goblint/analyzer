@@ -4,7 +4,7 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
   let module NH = Hashtbl.Make (Node) in
 
   let node_name = function
-    | Statement stmt  -> Printf.sprintf "%d" stmt.sid
+    | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
     | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
     | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
   in
@@ -18,7 +18,7 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
           | _ -> []
         end;
         begin match invariant node with
-          | Some i -> [xml_data "invariant" i]
+          | Some i -> [xml_data "invariant" i; xml_data "invariant.scope" (getFun node).svar.vname]
           | _ -> []
         end;
         begin match node with
@@ -75,7 +75,12 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
 
   let xml =
     Xml.Element ("graphml", [], [
-        Xml.Element ("graph", [], List.rev !graph_children)
+        Xml.Element ("graph", [("edgedefault", "directed")], List.append [
+            xml_data "witness-type" "correctness_witness";
+            xml_data "sourcecodelang" "C";
+            xml_data "producer" "Goblint";
+            xml_data "specification" "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+          ] (List.rev !graph_children))
       ])
   in
   let out = open_out "witness.graphml" in
