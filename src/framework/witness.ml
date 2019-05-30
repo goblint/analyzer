@@ -28,12 +28,18 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
         end
       ])
   in
-  let xml_edge from_node ((loc, edge):Cil.location * edge) to_node =
+  let xml_edge ~to_loop_head from_node ((loc, edge):Cil.location * edge) to_node =
     Xml.Element ("edge", [("source", node_name from_node); ("target", node_name to_node)], List.concat [
-        if loc.line <> -1 then
-          [xml_data "startline" (string_of_int loc.line); xml_data "endline" (string_of_int loc.line)]
-        else
-          []
+        begin if loc.line <> -1 then
+            [xml_data "startline" (string_of_int loc.line); xml_data "endline" (string_of_int loc.line)]
+          else
+            []
+        end;
+        begin if to_loop_head then
+            [xml_data "enterLoopHead" "true"]
+          else
+            []
+        end
       ])
   in
 
@@ -49,11 +55,11 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
       add_graph_child (xml_node node)
     end
   in
-  let add_edge from_node locedge to_node =
-    add_graph_child (xml_edge from_node locedge to_node)
+  let add_edge ~to_loop_head from_node locedge to_node =
+    add_graph_child (xml_edge ~to_loop_head from_node locedge to_node)
   in
-  let add_edges from_node locedges to_node =
-    List.iter (fun locedge -> add_edge from_node locedge to_node) locedges
+  let add_edges ~to_loop_head from_node locedges to_node =
+    List.iter (fun locedge -> add_edge ~to_loop_head from_node locedge to_node) locedges
   in
 
   let itered_nodes = NH.create 100 in
@@ -62,8 +68,9 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
       NH.add itered_nodes node ();
       add_node node;
       List.iter (fun (locedges, to_node) ->
+          let to_loop_head = NH.mem added_nodes to_node in (* TODO: not exactly correct *)
           add_node to_node;
-          add_edges node locedges to_node
+          add_edges ~to_loop_head node locedges to_node
         ) (Cfg.next node);
       List.iter (fun (locedges, to_node) ->
           iter_node to_node
