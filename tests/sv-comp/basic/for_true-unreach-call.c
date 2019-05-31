@@ -9,7 +9,8 @@ void __VERIFIER_assert(int cond) {
 
 int main()
 {
-    for (int i = 0; i < 1000; i++)
+    int i; // Ultimate can't handle i declared in for
+    for (i = 0; i < 1000; i++)
     {
         __VERIFIER_assert(i < 2000);
     }

@@ -17,9 +17,13 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
             [xml_data "entry" "true"]
           | _ -> []
         end;
-        begin match invariant node with
-          | Some i -> [xml_data "invariant" i; xml_data "invariant.scope" (getFun node).svar.vname]
-          | _ -> []
+        begin match node, invariant node with
+          | Statement _, Some i ->
+            [xml_data "invariant" i; xml_data "invariant.scope" (getFun node).svar.vname]
+          | _ ->
+            (* ignore entry and return invariants, variables of wrong scopes *)
+            (* TODO: don't? fix scopes? *)
+            []
         end;
         begin match node with
           | Statement s ->
@@ -28,7 +32,7 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
         end
       ])
   in
-  let xml_edge ~to_loop_head from_node ((loc, edge):Cil.location * edge) to_node =
+  let xml_edge ?(to_loop_head=false) from_node ((loc, edge):Cil.location * edge) to_node =
     Xml.Element ("edge", [("source", node_name from_node); ("target", node_name to_node)], List.concat [
         begin if loc.line <> -1 then
             [xml_data "startline" (string_of_int loc.line); xml_data "endline" (string_of_int loc.line)]
@@ -39,6 +43,13 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
             [xml_data "enterLoopHead" "true"]
           else
             []
+        end;
+        begin match from_node, to_node with
+          | _, FunctionEntry f ->
+            [xml_data "enterFunction" f.vname]
+          | Function f, _ ->
+            [xml_data "returnFromFunction" f.vname]
+          | _, _ -> []
         end
       ])
   in
@@ -55,15 +66,24 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
       add_graph_child (xml_node node)
     end
   in
-  let add_edge ~to_loop_head from_node locedge to_node =
-    add_graph_child (xml_edge ~to_loop_head from_node locedge to_node)
-  in
-  let add_edges ~to_loop_head from_node locedges to_node =
-    List.iter (fun locedge -> add_edge ~to_loop_head from_node locedge to_node) locedges
-  in
 
   let itered_nodes = NH.create 100 in
-  let rec iter_node node =
+  let rec add_edge ~to_loop_head from_node (loc, edge) to_node = match edge with
+    | Proc (_, Lval (Var f, _), _) -> (* TODO: doesn't cover all cases? *)
+      (* splice in function body *)
+      let entry_node = FunctionEntry f in
+      let return_node = Function f in
+      iter_node entry_node;
+      add_graph_child (xml_edge from_node (loc, edge) entry_node);
+      if NH.mem added_nodes return_node then
+        add_graph_child (xml_edge return_node (loc, edge) to_node)
+      else
+        () (* return node missing, function never returns *)
+    | _ ->
+      add_graph_child (xml_edge ~to_loop_head from_node (loc, edge) to_node)
+  and add_edges ~to_loop_head from_node locedges to_node =
+    List.iter (fun locedge -> add_edge ~to_loop_head from_node locedge to_node) locedges
+  and iter_node node =
     if not (NH.mem itered_nodes node) then begin
       NH.add itered_nodes node ();
       add_node node;
