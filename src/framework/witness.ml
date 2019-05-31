@@ -100,13 +100,20 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
 
   List.iter (fun ((n, _), _) -> iter_node n) entrystates;
 
+  let ((main_entry, _), _) = List.find (fun ((n, _), _) -> match n with
+      | FunctionEntry f -> f.vname = "main"
+      | _ -> false
+    ) entrystates
+  in
+
   let xml =
     Xml.Element ("graphml", [], [
         Xml.Element ("graph", [("edgedefault", "directed")], List.append [
             xml_data "witness-type" "correctness_witness";
             xml_data "sourcecodelang" "C";
             xml_data "producer" "Goblint";
-            xml_data "specification" "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+            xml_data "specification" "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )";
+            xml_data "programfile" (getLoc main_entry).file
           ] (List.rev !graph_children))
       ])
   in
