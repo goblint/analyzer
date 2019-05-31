@@ -10,12 +10,12 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
   in
 
   let xml_data key value = Xml.Element ("data", [("key", key)], [Xml.PCData value]) in
-  let xml_node node =
+  let xml_node ~entry node =
     Xml.Element ("node", [("id", node_name node)], List.concat [
-        begin match node with
-          | FunctionEntry f when f.vname = "main" ->
+        begin if entry then
             [xml_data "entry" "true"]
-          | _ -> []
+          else
+            []
         end;
         begin match node, invariant node with
           | Statement _, Some i ->
@@ -60,10 +60,10 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
   in
 
   let added_nodes = NH.create 100 in
-  let add_node node =
+  let add_node ?(entry=false) node =
     if not (NH.mem added_nodes node) then begin
       NH.add added_nodes node ();
-      add_graph_child (xml_node node)
+      add_graph_child (xml_node ~entry node)
     end
   in
 
@@ -98,13 +98,23 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
     end
   in
 
-  List.iter (fun ((n, _), _) -> iter_node n) entrystates;
-
-  let ((main_entry, _), _) = List.find (fun ((n, _), _) -> match n with
-      | FunctionEntry f -> f.vname = "main"
-      | _ -> false
-    ) entrystates
+  let (main_entry_nodes, other_entry_nodes) =
+    entrystates
+    |> List.map (fun ((n, _), _) -> n)
+    |> List.partition (function
+        | FunctionEntry f -> f.vname = "main"
+        | _ -> false
+      )
   in
+  let main_entry = match main_entry_nodes, other_entry_nodes with
+    | [], _ -> failwith "no main_entry_nodes"
+    | _ :: _ :: _, _ -> failwith "multiple main_entry_nodes"
+    | _, _ :: _ -> failwith "some other_entry_nodes"
+    | [main_entry], [] -> main_entry
+  in
+
+  add_node ~entry:true main_entry;
+  iter_node main_entry;
 
   let xml =
     Xml.Element ("graphml", [], [
