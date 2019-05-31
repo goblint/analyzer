@@ -1,7 +1,44 @@
 open MyCFG
 
+module NH = Hashtbl.Make (Node)
+module NS = Set.Make (Node)
+
+let find_loop_heads (module Cfg:CfgBidir) (entry_node:node): unit NH.t =
+  let loop_heads = NH.create 100 in
+
+  (* DFS *)
+  let rec iter_node visited_nodes node =
+    if NS.mem node visited_nodes then
+      NH.add loop_heads node ()
+    else begin
+      let new_visited_nodes = NS.add node visited_nodes in
+      List.iter (fun (_, to_node) ->
+          iter_node new_visited_nodes to_node
+        ) (Cfg.next node)
+    end
+  in
+
+  iter_node NS.empty entry_node;
+  loop_heads
+
 let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t): unit =
-  let module NH = Hashtbl.Make (Node) in
+  let (main_entry_nodes, other_entry_nodes) =
+    entrystates
+    |> List.map (fun ((n, _), _) -> n)
+    |> List.partition (function
+        | FunctionEntry f -> f.vname = "main"
+        | _ -> false
+      )
+  in
+  let main_entry = match main_entry_nodes, other_entry_nodes with
+    | [], _ -> failwith "no main_entry_nodes"
+    | _ :: _ :: _, _ -> failwith "multiple main_entry_nodes"
+    | _, _ :: _ -> failwith "some other_entry_nodes"
+    | [main_entry], [] -> main_entry
+  in
+
+  let loop_heads = find_loop_heads (module Cfg) main_entry in
+
 
   let node_name = function
     | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
@@ -32,14 +69,14 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
         end
       ])
   in
-  let xml_edge ~to_loop_head from_node ((loc, edge):Cil.location * edge) to_node =
+  let xml_edge from_node ((loc, edge):Cil.location * edge) to_node =
     Xml.Element ("edge", [("source", node_name from_node); ("target", node_name to_node)], List.concat [
         begin if loc.line <> -1 then
             [xml_data "startline" (string_of_int loc.line); xml_data "endline" (string_of_int loc.line)]
           else
             []
         end;
-        begin if to_loop_head then
+        begin if NH.mem loop_heads to_node then
             [xml_data "enterLoopHead" "true"]
           else
             []
@@ -67,50 +104,35 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
     end
   in
 
+  (* BFS, just for nicer ordering of witness graph children *)
   let itered_nodes = NH.create 100 in
-  let rec add_edge ~to_loop_head from_node (loc, edge) to_node = match edge with
+  let rec add_edge from_node (loc, edge) to_node = match edge with
     | Proc (_, Lval (Var f, _), _) -> (* TODO: doesn't cover all cases? *)
       (* splice in function body *)
       let entry_node = FunctionEntry f in
       let return_node = Function f in
       iter_node entry_node;
-      add_graph_child (xml_edge ~to_loop_head:false from_node (loc, edge) entry_node);
+      add_graph_child (xml_edge from_node (loc, edge) entry_node);
       if NH.mem added_nodes return_node then
-        add_graph_child (xml_edge ~to_loop_head return_node (loc, edge) to_node)
+        add_graph_child (xml_edge return_node (loc, edge) to_node)
       else
         () (* return node missing, function never returns *)
     | _ ->
-      add_graph_child (xml_edge ~to_loop_head from_node (loc, edge) to_node)
-  and add_edges ~to_loop_head from_node locedges to_node =
-    List.iter (fun locedge -> add_edge ~to_loop_head from_node locedge to_node) locedges
+      add_graph_child (xml_edge from_node (loc, edge) to_node)
+  and add_edges from_node locedges to_node =
+    List.iter (fun locedge -> add_edge from_node locedge to_node) locedges
   and iter_node node =
     if not (NH.mem itered_nodes node) then begin
       NH.add itered_nodes node ();
       add_node node;
       List.iter (fun (locedges, to_node) ->
-          let to_loop_head = NH.mem added_nodes to_node in (* TODO: not exactly correct *)
           add_node to_node;
-          add_edges ~to_loop_head node locedges to_node
+          add_edges node locedges to_node
         ) (Cfg.next node);
       List.iter (fun (locedges, to_node) ->
           iter_node to_node
         ) (Cfg.next node)
     end
-  in
-
-  let (main_entry_nodes, other_entry_nodes) =
-    entrystates
-    |> List.map (fun ((n, _), _) -> n)
-    |> List.partition (function
-        | FunctionEntry f -> f.vname = "main"
-        | _ -> false
-      )
-  in
-  let main_entry = match main_entry_nodes, other_entry_nodes with
-    | [], _ -> failwith "no main_entry_nodes"
-    | _ :: _ :: _, _ -> failwith "multiple main_entry_nodes"
-    | _, _ :: _ -> failwith "some other_entry_nodes"
-    | [main_entry], [] -> main_entry
   in
 
   add_node ~entry:true main_entry;
