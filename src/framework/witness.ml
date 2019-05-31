@@ -32,7 +32,7 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
         end
       ])
   in
-  let xml_edge ?(to_loop_head=false) from_node ((loc, edge):Cil.location * edge) to_node =
+  let xml_edge ~to_loop_head from_node ((loc, edge):Cil.location * edge) to_node =
     Xml.Element ("edge", [("source", node_name from_node); ("target", node_name to_node)], List.concat [
         begin if loc.line <> -1 then
             [xml_data "startline" (string_of_int loc.line); xml_data "endline" (string_of_int loc.line)]
@@ -74,9 +74,9 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
       let entry_node = FunctionEntry f in
       let return_node = Function f in
       iter_node entry_node;
-      add_graph_child (xml_edge from_node (loc, edge) entry_node);
+      add_graph_child (xml_edge ~to_loop_head:false from_node (loc, edge) entry_node);
       if NH.mem added_nodes return_node then
-        add_graph_child (xml_edge return_node (loc, edge) to_node)
+        add_graph_child (xml_edge ~to_loop_head return_node (loc, edge) to_node)
       else
         () (* return node missing, function never returns *)
     | _ ->
