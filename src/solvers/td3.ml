@@ -17,9 +17,24 @@ module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
   struct
-
     include Generic.SolverStats (S)
     module VS = Set.Make (S.Var)
+
+    type solver_data = {
+      mutable infl: VS.t HM.t;
+      mutable rho: S.Dom.t HM.t;
+      mutable wpoint: unit HM.t;
+      mutable stable: unit HM.t
+    }
+
+    let create_empty_data () = {
+      infl = HM.create 10;
+      rho = HM.create 10;
+      wpoint = HM.create 10;
+      stable = HM.create 10
+    }
+
+    let clear_data (r: solver_data) = HM.clear r.infl; HM.clear r.stable
 
     module P =
     struct
@@ -30,14 +45,20 @@ module WP =
 
     type phase = Widen | Narrow
 
-    let solve box st vs infl rho  wpoint stable =
+    let solve box st vs data =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
       let called = HM.create  10 in
+
+      let infl = data.infl in
+      let rho = data.rho in
+      let wpoint = data.wpoint in
+      let stable = data.stable in
+
       print_endline ("Start solve with infl="^string_of_int (HM.length infl)^"
+       stable="^string_of_int (HM.length stable)^"
        rho="^string_of_int (HM.length rho)^"
-       called="^string_of_int (HM.length called)^"
        wpoint="^string_of_int (HM.length wpoint)
       );
 
@@ -270,44 +291,47 @@ module WP =
 
       stop_event ();
 
-      print_endline ("End solve & reach with infl="^string_of_int (HM.length infl)^"
+      print_endline ("Start solve with infl="^string_of_int (HM.length infl)^"
+       stable="^string_of_int (HM.length stable)^"
        rho="^string_of_int (HM.length rho)^"
-       called="^string_of_int (HM.length called)^"
        wpoint="^string_of_int (HM.length wpoint)
       );
 
-      (infl, rho, wpoint, stable)
+      {infl; rho; wpoint; stable}
 
       let solve box st vs =
         print_endline (Pretty.sprint ~width:100 (S.Var.pretty_trace () (List.first vs)));
-        let create_empty () = (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
-        let rho_of (_,r,_,_) = r in
         let incremental_mode = GobConfig.get_string "exp.incremental.mode" in
         let reuse_stable = GobConfig.get_bool "exp.incremental.stable" in
         let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
 
         if incremental_mode <> "off" then begin          
           let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-          let (infl, rho, wpoint, stable) =  if Sys.file_exists file_in && incremental_mode <> "complete"
-                                                      then Serialize.unmarshall file_in
-                                                      else create_empty () in
-          let (stable, infl) = if reuse_stable then (stable, infl) else  (print_endline "Destabilizing everything!"; (HM.create 10,HM.create 10))in 
-          let wpoint = if reuse_wpoint then wpoint else HM.create 10 in
-          let solver_result = solve box st vs infl rho wpoint stable in
-
+          let data =  if Sys.file_exists file_in && incremental_mode <> "complete"
+                        then Serialize.unmarshall file_in
+                        else create_empty_data () in
+          if not reuse_stable then (
+            print_endline "Destabilizing everything!";
+            data.stable <- HM.create 10;
+            data.infl <- HM.create 10
+          ); 
+          if not reuse_wpoint then data.wpoint <- HM.create 10;
+          let result = solve box st vs data in
           let path = Goblintutil.create_dir S.increment.current_commit_dir in
           if Sys.file_exists path then (
             let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
             print_endline @@ "Saving solver results to " ^ file_out;
-            Serialize.marshall solver_result file_out;
+            Serialize.marshall result file_out;
           );
-          rho_of solver_result
+          clear_data result;
+          result.rho
           end
         else begin
-          let (infl, rho, wpoint, stable) = create_empty () in
-          rho_of @@ solve box st vs infl rho wpoint stable
+          let data = create_empty_data () in
+          let result = solve box st vs data in
+          clear_data result;
+          result.rho
         end
-
   end
 
 let _ =
