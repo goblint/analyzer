@@ -117,7 +117,7 @@ struct
     | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
 
   let pretty_trace () (n,c as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a)" pretty x LD.pretty c
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
     else dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare (n1,d1) (n2,d2) =
@@ -449,6 +449,7 @@ sig
 
   val init : unit -> unit
   val finalize : unit -> unit
+  (* val finalize : G.t -> unit *)
 
   val startstate : varinfo -> D.t
   val morphstate : varinfo -> D.t -> D.t

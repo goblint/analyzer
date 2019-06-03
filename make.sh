@@ -99,6 +99,7 @@ rule() {
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc7.h
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc8.h
+             cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc9.h
              ;;
     test)    ./scripts/update_suite.rb;; # run regression tests
     testci)  ruby scripts/update_suite.rb -s -d;;

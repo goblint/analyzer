@@ -116,8 +116,7 @@ struct
   let description n = sprint 80 (pretty_trace () n)
   let context () _ = Pretty.nil
   let loopSep _ = true
-  (* let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x)) *)
-  let printXml f x = BatPrintf.fprintf f "%s\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec.svar
 end
