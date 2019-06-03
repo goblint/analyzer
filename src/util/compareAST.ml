@@ -25,7 +25,6 @@ let identifier_of_global glob =
   | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
   | _ -> raise (Failure "Not a variable or function")
 
-
 module GlobalMap = Map.Make(struct
   type t = global_identifier
   let compare a b =
@@ -37,25 +36,17 @@ end)
 
 let eq_list eq xs ys = 
     try
-        List.for_all (fun (a,b) -> eq a b) (List.combine xs ys)
+      List.for_all (fun (a,b) -> eq a b) (List.combine xs ys)
     with Invalid_argument _ -> false
 
 let eq_typ (a: typ) (b: typ) =
   let ignoreAttrs = fun _ -> [] in
   typeSigWithAttrs ignoreAttrs a = typeSigWithAttrs ignoreAttrs b
 
-let eqB (a: Cil.block) (b: Cil.block) =
-    a.Cil.battrs = b.Cil.battrs && a.bstmts = b.bstmts
-
-let eqS (a: Cil.stmt) (b: Cil.stmt) =
-  a.Cil.skind = b.Cil.skind
-
-let print (a: Pretty.doc)  =
-  print_endline @@ Pretty.sprint 100 a
-
 let rec eq_constant (a: constant) (b: constant) = match a, b with
-  CInt64 (val1, kind1, str1), CInt64 (val2, kind2, str2) -> val1 = val2 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
-  | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 (* Ignore name and enuminfo  *)
+  | CInt64 (val1, kind1, str1), CInt64 (val2, kind2, str2) -> val1 = val2 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
+  | CReal (val1, kind1, str1), CReal (val2, kind2, str2) -> val1 = val2 && kind1 = kind2 (* Ignore string representation *)
+  | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 && eq_enuminfo enuminfo1 enuminfo2(* Ignore name and enuminfo *)
   | a, b -> a = b
 
 and eq_exp (a: exp) (b: exp) = match a,b with
@@ -66,15 +57,15 @@ and eq_exp (a: exp) (b: exp) = match a,b with
   | SizeOfStr str1, SizeOfStr str2 -> str1 = str2 (* possibly, having the same length would suffice *)
   | AlignOf typ1, AlignOf typ2 -> eq_typ typ1 typ2 
   | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2
-  | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) -> op1 == op2 && eq_exp exp1 exp2 && eq_typ typ1 typ2
-  | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  op1 = op2 && eq_exp left1 left2 && eq_exp right1 right2 && eq_typ typ1 typ2
-  | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 &&  eq_exp exp1 exp2 
+  | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) -> op1 = op2 && eq_exp exp1 exp2 && eq_typ typ1 typ2
+  | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) -> op1 = op2 && eq_exp left1 left2 && eq_exp right1 right2 && eq_typ typ1 typ2
+  | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 && eq_exp exp1 exp2 
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 
   | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2
   | _, _ -> false
 
 and eq_lhost (a: lhost) (b: lhost) = match a, b with 
-  Var v1, Var v2 -> eq_varinfo v1 v2 
+  | Var v1, Var v2 -> eq_varinfo v1 v2 
   | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
   | _, _ -> false
  
@@ -82,46 +73,22 @@ and eq_eitems (a: string * exp * location) (b: string * exp * location) = match 
   (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2
   (* Ignore location *)
 
-and eq_enuminfo (a: enuminfo) (b: enuminfo) = a.ename = b.ename && eq_list eq_attribute a.eattr b.eattr &&
-  eq_list eq_eitems a.eitems b.eitems
-  (* Ignore ereferenced *)
+and eq_enuminfo (a: enuminfo) (b: enuminfo) = a.ename = b.ename && a.ekind = b.ekind && eq_list eq_eitems a.eitems b.eitems
+  (* Ignore ereferenced, eattr *)
 
-and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
-  (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ typ1 typ2 && eq_list eq_attribute attr1 attr2
-
-and eq_attrparam (a: attrparam) (b: attrparam) = match a, b with
-  | ACons (str1, attrparams1), ACons (str2, attrparams2) -> str1 = str2 && eq_list eq_attrparam attrparams1 attrparams2
-  | ASizeOf typ1, ASizeOf typ2 -> eq_typ typ1 typ2
-  | ASizeOfE attrparam1, ASizeOfE attrparam2 -> eq_attrparam attrparam1 attrparam2
-  | ASizeOfS typsig1, ASizeOfS typsig2 -> typsig1 = typsig2
-  | AAlignOf typ1, AAlignOf typ2 -> eq_typ typ1 typ2
-  | AAlignOfE attrparam1, AAlignOfE attrparam2 -> eq_attrparam attrparam1 attrparam2
-  | AAlignOfS typsig1, AAlignOfS typsig2 -> typsig1 = typsig2
-  | AUnOp (op1, attrparam1), AUnOp (op2, attrparam2) -> op1 = op2 && eq_attrparam attrparam1 attrparam2
-  | ABinOp (op1, left1, right1), ABinOp (op2, left2, right2) -> op1 = op2 && eq_attrparam left1 left2 && eq_attrparam right1 right2
-  | ADot (attrparam1, str1), ADot (attrparam2, str2) -> eq_attrparam attrparam1 attrparam2 && str1 = str2
-  | AStar attrparam1, AStar attrparam2 -> eq_attrparam attrparam1 attrparam2 
-  | AAddrOf attrparam1, AAddrOf attrparam2 -> eq_attrparam attrparam1 attrparam2
-  | AIndex (left1, right1), AIndex (left2, right2) -> eq_attrparam left1 left2 && eq_attrparam right1 right2
-  | AQuestion (left1, middle1, right1), AQuestion (left2, middle2, right2) -> eq_attrparam left1 left2 && eq_attrparam middle1 middle2 && eq_attrparam right1 right2
-  | a, b -> a = b
-
-and eq_attribute (a: attribute) (b: attribute) = match a, b with
-  Attr (name1, params1), Attr (name2, params2) -> name1 = name2 && eq_list eq_attrparam params1 params2
-
-and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b.vtype && eq_list eq_attribute a.vattr b.vattr &&
+and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b.vtype &&
   a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline && a.vaddrof = b.vaddrof
-  (* Ignore the location, vid, vreferenced, vdescr, vdescrpure *)
+  (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vattr *)
 
-(* Accumulator is needed because of recursive types: we have to assume that two types we already encountered in a previous step of the recursion are equivalent *)
- and eq_compinfo (a: compinfo) (b: compinfo)  = a.cstruct = b.cstruct && a.cname = b.cname && eq_list (fun a b-> eq_fieldinfo a b) a.cfields b.cfields 
-  && eq_list eq_attribute a.cattr b.cattr && a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
+and eq_compinfo (a: compinfo) (b: compinfo) = a.cstruct = b.cstruct && a.cname = b.cname && eq_list eq_fieldinfo a.cfields b.cfields && a.cdefined = b.cdefined 
+  (* Ignore ckey, creferenced and cattr *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) =
-  a.fname = b.fname && eq_typ a.ftype b.ftype && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr
-
+  a.fname = b.fname && eq_typ a.ftype b.ftype && a.fbitfield = b.fbitfield
+  (* Ignore fcomp, fattr, floc *)
+ 
 and eq_offset (a: offset) (b: offset) = match a, b with
-  NoOffset, NoOffset -> true 
+  | NoOffset, NoOffset -> true 
   | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 && eq_offset offset1 offset2 
   | Index (exp1, offset1), Index (exp2, offset2) -> eq_exp exp1 exp2 && eq_offset offset1 offset2
   | _, _ -> false 
@@ -133,7 +100,7 @@ let eq_instr (a: instr) (b: instr) = match a, b with
   | Set (lv1, exp1, _l1), Set (lv2, exp2, _l2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
   | Call (Some lv1, f1, args1, _l1), Call (Some lv2, f2, args2, _l2) -> eq_lval lv1 lv2 && eq_exp f1 f2 && eq_list eq_exp args1 args2
   | Call (None, f1, args1, _l1), Call (None, f2, args2, _l2) -> eq_exp f1 f2 && eq_list eq_exp args1 args2
-  | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) -> eq_list String.equal tmp1 tmp2 && eq_list(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval z1 z2) ci1 ci2 && eq_list(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp z1 z2) dj1 dj2 && eq_list String.equal rk1 rk2(* ignore attributes and locations *)
+  | Asm (attr1, tmp1, ci1, dj1, rk1, _l1), Asm (attr2, tmp2, ci2, dj2, rk2, _l2) -> eq_list String.equal tmp1 tmp2 && eq_list(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval z1 z2) ci1 ci2 && eq_list(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp z1 z2) dj1 dj2 && eq_list String.equal rk1 rk2(* ignore attributes and locations *)
   | _, _ -> false
 
 let eq_label (a: label) (b: label) = match a, b with
@@ -155,7 +122,7 @@ let rec eq_stmtkind ((a, af): stmtkind * fundec) ((b, bf): stmtkind * fundec) =
     | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp exp1 exp2
     | Return (None, _l1), Return (None, _l2) -> true
     | Return _, Return _ -> false
-    | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location (!st1, af) (!st2, bf)
+    | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location (!st1, af) (!st2, bf) (* Consider checking equality of the label instead *)
     | Break _, Break _ -> true
     | Continue _, Continue _ -> true
     | If (exp1, then1, else1, _l1), If (exp2, then2, else2, _l2) -> eq_exp exp1 exp2 && eq_block' then1 then2 && eq_block' else1 else2
@@ -173,7 +140,7 @@ and eq_stmt ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
 and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
     a.battrs = b.battrs && List.for_all (fun (x,y) -> eq_stmt (x, af) (y, bf)) (List.combine a.bstmts b.bstmts)
 
-let eqF (a: Cil.fundec) (b: Cil.fundec) =
+let eq_fundec (a: Cil.fundec) (b: Cil.fundec) =
   try
     eq_varinfo a.svar b.svar && 
     List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals) && 
@@ -183,7 +150,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) =
 
 let rec eq_init (a: init) (b: init) = match a, b with
   | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
-  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 &&  eq_list (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 && eq_init i1 i2) l1 l2
+  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 && eq_list (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 && eq_init i1 i2) l1 l2
   | _, _ -> false
 
 let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
@@ -191,13 +158,13 @@ let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
   | None, None -> true
   | _, _ -> false
 
-let eq_glob (a: global) (b: global) = match a, b with
-  | GFun (f,_), GFun (g,_) -> eqF f g
+let eq_global (a: global) (b: global) = match a, b with
+  | GFun (f,_), GFun (g,_) -> eq_fundec f g
   | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y
   | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false
 
-(* Returns a list of changed functions *)
+(* Returns a record with changed, unchanged, added and removed globals *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   let addGlobal map global  = 
     try
@@ -212,7 +179,7 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
       (try
         let old_global = GlobalMap.find ident map in
         (* Do a (recursive) equal comparision ignoring location information *)
-        let identical = eq_glob old_global global in
+        let identical = eq_global old_global global in
         if identical 
           then changes.unchanged <- global :: changes.unchanged
           else changes.changed <- {current = global; old = old_global} :: changes.changed
