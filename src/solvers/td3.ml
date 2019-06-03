@@ -9,8 +9,6 @@ open CompareAST
 open Cil
 open Batteries
 
-let debug_now = ref false
-
 let result_file_name = "td3.data" 
 
 module WP =
@@ -49,7 +47,7 @@ module WP =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
-      let called = HM.create  10 in
+      let called = HM.create 10 in
 
       let infl = data.infl in
       let rho = data.rho in
@@ -300,7 +298,6 @@ module WP =
       {infl; rho; wpoint; stable}
 
       let solve box st vs =
-        print_endline (Pretty.sprint ~width:100 (S.Var.pretty_trace () (List.first vs)));
         let incremental_mode = GobConfig.get_string "exp.incremental.mode" in
         let reuse_stable = GobConfig.get_bool "exp.incremental.stable" in
         let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
@@ -320,7 +317,7 @@ module WP =
           let path = Goblintutil.create_dir S.increment.current_commit_dir in
           if Sys.file_exists path then (
             let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
-            print_endline @@ "Saving solver results to " ^ file_out;
+            print_endline @@ "Saving solver result to " ^ file_out;
             Serialize.marshall result file_out;
           );
           clear_data result;
