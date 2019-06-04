@@ -6,8 +6,6 @@ open Defaults
 open Printf
 open Json
 open Goblintutil
-open Analyses
-
 
 let writeconf = ref false
 let writeconffile = ref ""
@@ -349,10 +347,10 @@ let src_path () = Git.git_directory (List.first !cFileNames)
 let data_path () = Filename.concat (src_path ()) ".gob"
 
 let update_map old_file new_file = 
-    let dir = Serialize.gob_directory () in
-    VersionLookup.restore_map dir old_file new_file
+  let dir = Serialize.gob_directory () in
+  VersionLookup.restore_map dir old_file new_file
 
-let store_map updated_map max_ids =    (* Creates the directory for the commit *)
+let store_map updated_map max_ids = (* Creates the directory for the commit *)
   match Serialize.current_commit_dir () with 
   | Some commit_dir ->
     let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
@@ -362,50 +360,50 @@ let store_map updated_map max_ids =    (* Creates the directory for the commit *
 (* Detects changes and renames vids and sids. *)
 let diff_and_rename file =
   (* Hashconsing is not supported in incremental mode *)
-  if GobConfig.get_bool "ana.hashcons" = true then (print_endline "Incremental mode is only supported when ana.hashcons is turned off.";exit 1);
+  if GobConfig.get_bool "ana.hashcons" = true then (print_endline "Incremental mode is only supported when ana.hashcons is turned off."; exit 1);
 
   Serialize.src_direcotry := src_path ();
   if Serialize.results_exist ()  then (
     let commit = Serialize.last_analyzed_commit () in
     (match commit with
-      | Some c -> print_endline ("Last analyzed commit is: " ^ c )
-      | None -> ());
+     | Some c -> print_endline ("Last analyzed commit is: " ^ c )
+     | None -> ());
   ) else (
     match Serialize.current_commit () with
-    Some commit ->
-    let functionNameMap = VersionLookup.create_map file commit  in
-    (match Serialize.current_commit_dir () with 
-      | Some commit_dir ->
-          let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-          Serialize.marshall functionNameMap map_file_name;
-      | None -> ());
+      Some commit ->
+      let functionNameMap = VersionLookup.create_map file commit  in
+      (match Serialize.current_commit_dir () with 
+       | Some commit_dir ->
+         let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+         Serialize.marshall functionNameMap map_file_name;
+       | None -> ());
     | None -> ();
   );
   let current_commit = (match Serialize.current_commit () with Some commit -> commit | _ -> "dirty") in
   let last_analyzed_commit = (match Serialize.last_analyzed_commit () with Some commit -> commit | _ -> "-none-") in
   let (name_map, changes) = (match Serialize.load_latest_cil !cFileNames with
-    | Some file2 -> let (function_name_map, changes, max_ids) = update_map file2 file in
-                    let already_analyzed = (String.equal current_commit last_analyzed_commit) in
-                    let max_ids = UpdateCil.update_ids file2 max_ids file function_name_map current_commit already_analyzed changes in
-                    store_map function_name_map max_ids;
-                    (function_name_map, changes)
-    | None -> match Serialize.current_commit () with
-        Some commit ->
+      | Some file2 -> let (function_name_map, changes, max_ids) = update_map file2 file in
+        let already_analyzed = (String.equal current_commit last_analyzed_commit) in
+        let max_ids = UpdateCil.update_ids file2 max_ids file function_name_map current_commit already_analyzed changes in
+        store_map function_name_map max_ids;
+        (function_name_map, changes)
+      | None -> match Serialize.current_commit () with
+          Some commit ->
           let function_name_map = VersionLookup.create_map file commit  in
           (match Serialize.current_commit_dir () with 
-            | Some commit_dir ->
-                let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-                let max_ids = UpdateCil.update_ids file UpdateCil.zero_ids file function_name_map current_commit false (CompareAST.empty_change_info ()) in
-                Serialize.marshall function_name_map map_file_name;
-                store_map function_name_map max_ids;
-                (function_name_map, CompareAST.empty_change_info ())
-            | None -> print_endline "Failure! Working directory is not clean"; exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
-    | None -> print_endline "Failure! Current commit could not be red.";  exit 5;
-  ) in
+           | Some commit_dir ->
+             let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+             let max_ids = UpdateCil.update_ids file UpdateCil.zero_ids file function_name_map current_commit false (CompareAST.empty_change_info ()) in
+             Serialize.marshall function_name_map map_file_name;
+             store_map function_name_map max_ids;
+             (function_name_map, CompareAST.empty_change_info ())
+           | None -> print_endline "Failure! Working directory is not clean"; exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
+        | None -> print_endline "Failure! Current commit could not be red.";  exit 5;
+    ) in
   let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
   let current_commit_dir = Filename.concat (data_path ()) current_commit in
   Serialize.save_cil file;
-  { changes = changes; analyzed_commit_dir = analyzed_commit_dir; current_commit_dir = current_commit_dir }
+  { Analyses.changes = changes; analyzed_commit_dir = analyzed_commit_dir; current_commit_dir = current_commit_dir }
 
 (** the main function *)
 let main =
@@ -426,9 +424,9 @@ let main =
         Report.do_stats !cFileNames;
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
-        if !Messages.worldStopped then exit 124; (* timeout! *)
-      with Exit -> ())
-    
+        if !Messages.worldStopped then exit 124 (* timeout! *)
+      with Exit -> ()
+    )
 
 let _ =
   at_exit main
