@@ -13,28 +13,28 @@ let cilFileName = "ast.data"
 let src_direcotry =  ref ""
 
 let gob_directory () = let src_dir = !src_direcotry in
-                       Filename.concat src_dir goblint_dirname
+  Filename.concat src_dir goblint_dirname
 
 let current_commit src_files =
-                        Git.current_commit (!src_direcotry) (* TODO: change to file path of analyzed src *)
+  Git.current_commit (!src_direcotry) (* TODO: change to file path of analyzed src *)
 
 let commit_dir src_files commit = 
   let gob_dir = gob_directory src_files in
   Filename.concat gob_dir commit
 
-let current_commit_dir src_files = match current_commit src_files with 
-    | Some commit -> (
+let current_commit_dir src_files = match current_commit src_files with
+  | Some commit -> (
       try
         let gob_dir = gob_directory src_files in
         let _path  = Goblintutil.create_dir gob_dir in
         let dir = Filename.concat gob_dir commit in
         Some (Goblintutil.create_dir dir)
       with e -> let error_message = (Printexc.to_string e) in
-                print_newline ();
-                print_string "The following error occured while creating a directory: " ;
-                print_endline error_message;
-                None)
-    | None -> None (* git-directory not clean *)
+        print_newline ();
+        print_string "The following error occured while creating a directory: " ;
+        print_endline error_message;
+        None)
+  | None -> None (* git-directory not clean *)
 
 (** A list of commits previously analyzed for the given src directory *)
 let get_analyzed_commits src_files = 
@@ -67,7 +67,7 @@ let save_cil (file: Cil.file) = match current_commit_dir () with
     let cilFile = Filename.concat dir cilFileName in
     marshall file cilFile
   | None -> print_endline "Failure when saving cil: working directory is dirty"
- 
+
 let loadCil () = 
   (* TODO: Use the previous commit, or more specifally, the last analyzed commit *)
   match current_commit_dir () with
@@ -81,8 +81,8 @@ let results_exist () =
 
 let last_analyzed_commit_dir (src_files: string list) =
   match last_analyzed_commit () with
-    | Some commit -> commit_dir () commit
-    | None -> raise (Failure "No previous analysis results")
+  | Some commit -> commit_dir () commit
+  | None -> raise (Failure "No previous analysis results")
 
 let load_latest_cil (src_files: string list) = 
   try
