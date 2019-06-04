@@ -41,7 +41,6 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 
-  
   let update_vid_max vid =
     if vid > !vid_max then vid_max := vid
   in
@@ -50,15 +49,15 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     if sid > !sid_max then sid_max := sid
   in
 
-  let make_vid () = 
+  let make_vid () =
     vid_max := !vid_max +1;
     !vid_max
   in
-  let make_sid () = 
+  let make_sid () =
     sid_max := !sid_max +1;
     !sid_max
   in
-  let override_fundec (target: fundec) (src: fundec) = 
+  let override_fundec (target: fundec) (src: fundec) =
     target.sbody <- src.sbody;
     target.sallstmts <- src.sallstmts;
     target.sformals <- src.sformals;
@@ -94,7 +93,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
       | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
       | GVarDecl (nw, _), GVarDecl (old, _) -> reset_var nw old
       | _ -> ()
-    with Failure m -> ()  
+    with Failure m -> ()
   in
   let reset_changed_fun (f: fundec) (old_f: fundec) =
     f.svar.vid <- old_f.svar.vid;
@@ -145,7 +144,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   List.iter reset_globals changes.unchanged;
   List.iter reset_changed_globals changes.changed;
   List.iter update_globals changes.added;
-  
+
   (* Update the sid_max and vid_max *)
   Cil.iterGlobals new_file update_ids;
   (* increment the sid so that the *unreachable* nodes that are introduced afterwards get unique sids *)
@@ -153,4 +152,3 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   ()
   done;
   {max_sid = !sid_max; max_vid = !vid_max}
-  
