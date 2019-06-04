@@ -353,7 +353,7 @@ let update_map old_file new_file =
 let store_map updated_map max_ids = (* Creates the directory for the commit *)
   match Serialize.current_commit_dir () with 
   | Some commit_dir ->
-    let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+    let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
     Serialize.marshall (updated_map, max_ids) map_file_name
   | None -> ()
 
@@ -363,21 +363,21 @@ let diff_and_rename file =
   if GobConfig.get_bool "ana.hashcons" = true then (print_endline "Incremental mode is only supported when ana.hashcons is turned off."; exit 1);
 
   Serialize.src_direcotry := src_path ();
-  if Serialize.results_exist ()  then (
-    let commit = Serialize.last_analyzed_commit () in
-    (match commit with
-     | Some c -> print_endline ("Last analyzed commit is: " ^ c )
-     | None -> ());
-  ) else (
-    match Serialize.current_commit () with
-      Some commit ->
-      let functionNameMap = VersionLookup.create_map file commit  in
-      (match Serialize.current_commit_dir () with 
-       | Some commit_dir ->
-         let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-         Serialize.marshall functionNameMap map_file_name;
-       | None -> ());
-    | None -> ();
+  (match Serialize.last_analyzed_commit () with
+   | Some c -> 
+     print_endline ("Last analyzed commit is: " ^ c )
+   | None -> (
+       (* In case there are no previous analysis results, and the working directory is clean,
+          we create a version map and store it to disc *)
+       match Serialize.current_commit () with
+         Some commit ->
+         let version_map = VersionLookup.create_map file commit in
+         (match Serialize.current_commit_dir () with
+          | Some commit_dir ->
+            let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
+            Serialize.marshall version_map map_file_name;
+          | None -> ());
+       | None -> ();)
   );
   let current_commit = (match Serialize.current_commit () with Some commit -> commit | _ -> "dirty") in
   let last_analyzed_commit = (match Serialize.last_analyzed_commit () with Some commit -> commit | _ -> "-none-") in
@@ -392,7 +392,7 @@ let diff_and_rename file =
           let function_name_map = VersionLookup.create_map file commit  in
           (match Serialize.current_commit_dir () with 
            | Some commit_dir ->
-             let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+             let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
              let max_ids = UpdateCil.update_ids file UpdateCil.zero_ids file function_name_map current_commit false (CompareAST.empty_change_info ()) in
              Serialize.marshall function_name_map map_file_name;
              store_map function_name_map max_ids;
