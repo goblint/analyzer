@@ -359,7 +359,7 @@ struct
   let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
   let join x y = if Int64.compare x y > 0 then x else y
   let meet x y = if Int64.compare x y > 0 then y else x
-  let compare = compare
+  let compare = Int64.compare
 
   let of_bool x = if x then Int64.one else Int64.zero
   let to_bool' x = x <> Int64.zero
