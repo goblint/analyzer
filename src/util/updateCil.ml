@@ -15,7 +15,7 @@ let loaction_of_instruction (inst: instr) =
 let location_of_instructions (instrs: instr list): location = match instrs with
   | [] -> Cil.locUnknown (* TODO: fix this; raise (Failure "Empty list")*)
   | (h::t) -> loaction_of_instruction h 
-    
+
 let rec location_of_statement (s: stmt) = match s.skind with
   | Instr is -> location_of_instructions is
   | Return (_,l) -> l
@@ -64,22 +64,22 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     target.slocals <- src.slocals;
     target.smaxid <- src.smaxid;
     target.smaxstmtid <- src.smaxstmtid;
-    target.svar <- src.svar;  
+    target.svar <- src.svar;
   in
   let reset_fun (f: fundec) (old_f: fundec) =
-      f.svar.vid <- old_f.svar.vid;
-      List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
-      List.iter (fun (lo, o_f) -> lo.vid <- o_f.vid) (List.combine f.sformals old_f.sformals);
-      List.iter (fun (s, o_s) -> s.sid <- o_s.sid) (List.combine f.sallstmts old_f.sallstmts);
-      List.iter (fun s -> store_node_location (Statement s) (location_of_statement s)) f.sallstmts;
+    f.svar.vid <- old_f.svar.vid;
+    List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
+    List.iter (fun (lo, o_f) -> lo.vid <- o_f.vid) (List.combine f.sformals old_f.sformals);
+    List.iter (fun (s, o_s) -> s.sid <- o_s.sid) (List.combine f.sallstmts old_f.sallstmts);
+    List.iter (fun s -> store_node_location (Statement s) (location_of_statement s)) f.sallstmts;
 
-      store_node_location (Function f.svar) f.svar.vdecl;
-      store_node_location (FunctionEntry f.svar) f.svar.vdecl;
-      override_fundec f old_f;
-      List.iter (fun l -> update_vid_max l.vid) f.slocals;
-      List.iter (fun f -> update_vid_max f.vid) f.sformals;
-      List.iter (fun s -> update_sid_max s.sid) f.sallstmts;
-      update_vid_max f.svar.vid;
+    store_node_location (Function f.svar) f.svar.vdecl;
+    store_node_location (FunctionEntry f.svar) f.svar.vdecl;
+    override_fundec f old_f;
+    List.iter (fun l -> update_vid_max l.vid) f.slocals;
+    List.iter (fun f -> update_vid_max f.vid) f.sformals;
+    List.iter (fun s -> update_sid_max s.sid) f.sallstmts;
+    update_vid_max f.svar.vid;
   in
   let reset_var (v: varinfo) (old_v: varinfo)=
     v.vid <- old_v.vid;
@@ -108,10 +108,10 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     | _ -> () 
   in
   let update_fun (f: fundec) (old_f: fundec) =
-      f.svar.vid <- make_vid ();
-      List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
-      List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
-      List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
+    f.svar.vid <- make_vid ();
+    List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
+    List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
+    List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
   in
   let update_var (v: varinfo) (old_v: varinfo) =
     v.vid <- make_vid ()
@@ -149,6 +149,6 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   Cil.iterGlobals new_file update_ids;
   (* increment the sid so that the *unreachable* nodes that are introduced afterwards get unique sids *)
   while !sid_max > Cil.new_sid () do
-  ()
+    ()
   done;
   {max_sid = !sid_max; max_vid = !vid_max}
