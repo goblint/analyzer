@@ -30,8 +30,7 @@ module Std =
 struct
   (*  let equal = Util.equals
       let hash = Hashtbl.hash*)
-(*   let compare = Pervasives.compare (* TODO: Fix *)
- *)  let classify _ = 0
+  let classify _ = 0
   let class_name _ = "None"
   let name () = "std"
   let trace_enabled = false
@@ -80,7 +79,7 @@ struct
   include Std
   let hash () = 7134679
   let equal _ _ = true
-  let compare x y = 0 (* This corresponds to equal x y = true for all x, y *)
+  let compare x y = 0
   let pretty () _ = text N.name
   let short _ _ = N.name
   let toXML x = Xml.Element ("Leaf", [("text", N.name)], [])
@@ -149,15 +148,16 @@ struct
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
 
-  let compare x y = if equal x y then 0 else
+  let compare x y = 
     match (x, y) with
+    | (`Top, `Top) -> 0
+    | (`Bot, `Bot) -> 0
     | (`Top, _) -> 1
     | (`Bot, _) -> -1
     | (_, `Top) -> -1 
     | (_, `Bot) -> 1
     | (`Lifted x, `Lifted y) -> Base.compare x y
     | _ -> raise @@ invalid_arg "Invalid argument for Lift.compare"
-
 
   let short w state =
     match state with
@@ -416,10 +416,10 @@ struct
     Base1.equal x1 y1 && Base2.equal x2 y2 && Base3.equal x3 y3
   let compare (x1,x2,x3) (y1,y2,y3) =
     let comp1 = Base1.compare x1 y1 in
-    if comp1 != 0
+    if comp1 <> 0
       then comp1
       else let comp2 = Base2.compare x2 y2 in
-      if comp2 != 0
+      if comp2 <> 0
       then comp2
       else Base3.compare x3 y3
 
@@ -462,15 +462,7 @@ struct
   type t = Base.t list [@@deriving to_yojson]
   include Std
   let equal x y = try List.for_all2 Base.equal x y with Invalid_argument _ -> false
-  let compare x y = 
-    let rec compare_lists xs ys = match (xs, ys) with
-      | (x::xs), (y::ys) ->
-        let compareHead = Base.compare x y in
-        if compareHead = 0 then compare_lists xs ys else compareHead
-      | (x::xs), [] -> -1
-      | [], (y::ys) -> 1
-      | [], [] -> 0 in
-    if equal x y then 0 else compare_lists x y
+  let compare x y = BatList.compare Base.compare x y
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
   let short _ x =
@@ -536,7 +528,7 @@ struct
 
   let lift x = `Lifted x
 
-  let compare = compare
+  let compare = Pervasives.compare
 
   let equal x y =
     match (x, y) with
@@ -593,14 +585,12 @@ struct
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
 
-  let compare x y = 
-    if equal x y
-      then 0
-      else
-       match (x, y) with
-        | `Top, _ -> 1
-        | _, `Top -> -1
-        | `Lifted x, `Lifted y -> Base.compare x y
+  let compare x y =
+    match (x, y) with
+    | `Top, `Top -> 0
+    | `Top, _ -> 1
+    | _, `Top -> -1
+    | `Lifted x, `Lifted y -> Base.compare x y
 
   let hash = function
     | `Top -> 7890
