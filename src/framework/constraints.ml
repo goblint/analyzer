@@ -353,13 +353,13 @@ struct
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
-module type FunctionMap =
+module type Increment =
 sig
   val increment: increment_data
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward) (Fm: FunctionMap)
+module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = Basetype.Variables
@@ -380,7 +380,7 @@ struct
 
   let full_context = get_bool "exp.full-context"
   (* Dummy module. No incremental analysis supported here*)
-  let increment = Fm.increment
+  let increment = I.increment
   let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
