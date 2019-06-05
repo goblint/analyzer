@@ -44,8 +44,6 @@ let restoreMap (folder: string) (old_commit: commitID) (new_commit: commitID) (o
   let commitFolder = Filename.concat folder old_commit in
   let versionFile = Filename.concat commitFolder version_map_filename in
   let (oldMap, max_ids) = Serialize.unmarshall versionFile in
-  (* let astFile = Filename.concat commitFolder Serialize.cilFileName in
-     let oldAST = Cil.loadBinaryFile astFile in *)
   let (updated, changes) = updateMap oldFile newFile new_commit oldMap in
   (updated, changes, max_ids)
 
