@@ -110,8 +110,8 @@ module WP =
           ) else if not (HM.mem stable x) then (
             (solve[@tailcall]) x Widen;
           ) else if term && phase = Widen then (
-            (* HM.remove stable x;
-            (solve[@tailcall]) x Narrow; *)
+            HM.remove stable x;
+            (solve[@tailcall]) x Narrow;
           );
         )
       and eq x get set =
