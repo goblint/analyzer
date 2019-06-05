@@ -4,24 +4,33 @@ open Serialize
 
 type commitID = string
 
+type max_ids = {
+  max_sid: int;
+  max_vid: int;
+}
+
 let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (global_identifier, Cil.global * commitID) Hashtbl.t) = 
-  let changes = compareCilFiles oldFile newFile in  
+  let changes = compareCilFiles oldFile newFile in
   (* TODO: For updateCIL, we have to show whether the new data is from an changed or added functiong  *)
   List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) (glob, newCommitID)) (List.map (fun a -> a.current) changes.changed);
   List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) (glob, newCommitID)) changes.added;
   (ht, changes)
 
 let create_map (new_file: Cil.file) (commit: commitID) =
+    let max_sid = ref 0 in
+    let max_vid = ref 0 in
+    let update_sid sid = if sid > !max_sid then max_sid := sid in
+    let update_vid vid = if vid > !max_vid then max_vid := vid in
     let add_to_hashtbl tbl (global: Cil.global) =
-        match global with
-            | GFun (fund, loc) as f -> Hashtbl.replace tbl (identifier_of_global f) (f, commit)
-            | GVar (var, _, _) as v -> Hashtbl.replace tbl (identifier_of_global v) (v, commit)
-            | GVarDecl (var, _) as v -> Hashtbl.replace tbl (identifier_of_global v) (v, commit)
-            | other -> ()
+      match global with
+        | GFun (fund, loc) as f -> update_vid fund.svar.vid; update_sid fund.smaxid; Hashtbl.replace tbl (identifier_of_global f) (f, commit)
+        | GVar (var, _, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) (v, commit)
+        | GVarDecl (var, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) (v, commit)
+        | other -> ()
     in
     let tbl : (global_identifier, Cil.global * commitID) Hashtbl.t = Hashtbl.create 1000 in
     Cil.iterGlobals new_file (add_to_hashtbl tbl);
-    tbl
+    tbl, {max_sid = !max_sid; max_vid =  !max_vid}
 
 (** For debugging purposes: print the mapping from function name to commit *)
 let print_mapping (function_name: string) (dec, commit: Cil.global * commitID) =
@@ -33,7 +42,7 @@ let print_mapping (function_name: string) (dec, commit: Cil.global * commitID) =
     restoreMap glob_folder old_file new_file *)
 let restoreMap (folder: string) (old_commit: commitID) (new_commit: commitID) (oldFile: Cil.file) (newFile: Cil.file)= 
     let commitFolder = Filename.concat folder old_commit in
-    let versionFile = Filename.concat commitFolder versionMapFilename in
+    let versionFile = Filename.concat commitFolder version_map_filename in
     let (oldMap, max_ids) = Serialize.unmarshall versionFile in
    (* let astFile = Filename.concat commitFolder Serialize.cilFileName in
     let oldAST = Cil.loadBinaryFile astFile in *)

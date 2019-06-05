@@ -6,7 +6,7 @@ let base_dir () = get_string "incremental.basedir"
 
 let goblint_dirname = ".gob"
 
-let versionMapFilename = "version.data"
+let version_map_filename = "version.data"
 
 let cilFileName = "ast.data"
 

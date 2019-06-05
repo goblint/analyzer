@@ -2,6 +2,7 @@ open Cil
 open Node
 open Tracing
 open CompareAST
+open VersionLookup
 
 let store_node_location (n: node) (l: location): unit =
   NodeMap.add !location_map n l 
@@ -30,14 +31,9 @@ let rec location_of_statement (s: stmt) = match s.skind with
   | TryFinally (_,_,l) -> l
   | TryExcept (_,_,_,l) -> l
 
-type max_ids = {
-  max_sid: int;
-  max_vid: int;
-}
-
 let zero_ids = {max_sid = 0; max_vid = 0}
 
-let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (already_analyzed: bool) (changes: change_info) =
+let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (changes: change_info) =
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 

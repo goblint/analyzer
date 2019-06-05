@@ -363,47 +363,34 @@ let diff_and_rename file =
   if GobConfig.get_bool "ana.hashcons" = true then (print_endline "Incremental mode is only supported when ana.hashcons is turned off."; exit 1);
 
   Serialize.src_direcotry := src_path ();
-  (match Serialize.last_analyzed_commit () with
-   | Some c -> 
-     print_endline ("Last analyzed commit is: " ^ c )
-   | None -> (
-       (* In case there are no previous analysis results, and the working directory is clean,
-          we create a version map and store it to disc *)
-       match Serialize.current_commit () with
-         Some commit ->
-         let version_map = VersionLookup.create_map file commit in
-         (match Serialize.current_commit_dir () with
-          | Some commit_dir ->
-            let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
-            Serialize.marshall version_map map_file_name;
-          | None -> ());
-       | None -> ();)
-  );
-  let current_commit = (match Serialize.current_commit () with Some commit -> commit | _ -> "dirty") in
-  let last_analyzed_commit = (match Serialize.last_analyzed_commit () with Some commit -> commit | _ -> "-none-") in
-  let (name_map, changes) = (match Serialize.load_latest_cil !cFileNames with
-      | Some file2 -> let (function_name_map, changes, max_ids) = update_map file2 file in
-        let already_analyzed = (String.equal current_commit last_analyzed_commit) in
-        let max_ids = UpdateCil.update_ids file2 max_ids file function_name_map current_commit already_analyzed changes in
-        store_map function_name_map max_ids;
-        (function_name_map, changes)
-      | None -> match Serialize.current_commit () with
-          Some commit ->
-          let function_name_map = VersionLookup.create_map file commit  in
-          (match Serialize.current_commit_dir () with 
-           | Some commit_dir ->
-             let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
-             let max_ids = UpdateCil.update_ids file UpdateCil.zero_ids file function_name_map current_commit false (CompareAST.empty_change_info ()) in
-             Serialize.marshall function_name_map map_file_name;
-             store_map function_name_map max_ids;
-             (function_name_map, CompareAST.empty_change_info ())
-           | None -> print_endline "Failure! Working directory is not clean"; exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
-        | None -> print_endline "Failure! Current commit could not be red.";  exit 5;
-    ) in
-  let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
-  let current_commit_dir = Filename.concat (data_path ()) current_commit in
-  Serialize.save_cil file;
-  { Analyses.changes = changes; analyzed_commit_dir = analyzed_commit_dir; current_commit_dir = current_commit_dir }
+
+  let change_info = (match Serialize.current_commit () with 
+      | Some current_commit -> ((* "put the preparation for incremental analysis here!" *) 
+          let (changes, last_analyzed_commit) =
+            (match Serialize.last_analyzed_commit () with 
+             | Some last_analyzed_commit -> (match Serialize.load_latest_cil !cFileNames with
+                 | Some file2 -> 
+                   let (version_map, changes, max_ids) = update_map file2 file in
+                   let max_ids = UpdateCil.update_ids file2 max_ids file version_map current_commit changes in
+                   store_map version_map max_ids;
+                   (changes, last_analyzed_commit)
+                 | None -> print_endline "No ast.data from previous analysis found. Exiting."; exit 1;
+               )
+             | None -> (match Serialize.current_commit_dir () with
+                 | Some commit_dir ->
+                   let (version_map, max_ids) = VersionLookup.create_map file current_commit in
+                   store_map version_map max_ids;
+                   (CompareAST.empty_change_info (), "")
+                 | None -> print_endline "Directory for storing the results of the current run could not be created. Exiting."; exit 1)
+            ) in
+          Serialize.save_cil file;
+          let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
+          let current_commit_dir = Filename.concat (data_path ()) current_commit in
+          {Analyses.changes = changes; analyzed_commit_dir; current_commit_dir}
+        )
+      | None -> raise (Failure "Failure! Working directory is not clean";))
+  in change_info
+
 
 (** the main function *)
 let main =
