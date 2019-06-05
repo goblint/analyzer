@@ -26,18 +26,18 @@ let identifier_of_global glob =
   | _ -> raise (Failure "Not a variable or function")
 
 module GlobalMap = Map.Make(struct
-  type t = global_identifier
-  let compare a b =
-    let c = compare a.name b.name in
-    if c <> 0
+    type t = global_identifier
+    let compare a b =
+      let c = compare a.name b.name in
+      if c <> 0
       then c
       else compare a.global_t b.global_t
-end)
+  end)
 
 let eq_list eq xs ys = 
-    try
-      List.for_all (fun (a,b) -> eq a b) (List.combine xs ys)
-    with Invalid_argument _ -> false
+  try
+    List.for_all (fun (a,b) -> eq a b) (List.combine xs ys)
+  with Invalid_argument _ -> false
 
 let eq_typ (a: typ) (b: typ) =
   let ignoreAttrs = fun _ -> [] in
@@ -68,25 +68,25 @@ and eq_lhost (a: lhost) (b: lhost) = match a, b with
   | Var v1, Var v2 -> eq_varinfo v1 v2 
   | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
   | _, _ -> false
- 
+
 and eq_eitems (a: string * exp * location) (b: string * exp * location) = match a, b with
-  (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2
-  (* Ignore location *)
+    (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2
+(* Ignore location *)
 
 and eq_enuminfo (a: enuminfo) (b: enuminfo) = a.ename = b.ename && a.ekind = b.ekind && eq_list eq_eitems a.eitems b.eitems
-  (* Ignore ereferenced, eattr *)
+(* Ignore ereferenced, eattr *)
 
 and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b.vtype &&
-  a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline && a.vaddrof = b.vaddrof
-  (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vattr *)
+                                           a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline && a.vaddrof = b.vaddrof
+(* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vattr *)
 
 and eq_compinfo (a: compinfo) (b: compinfo) = a.cstruct = b.cstruct && a.cname = b.cname && eq_list eq_fieldinfo a.cfields b.cfields && a.cdefined = b.cdefined 
-  (* Ignore ckey, creferenced and cattr *)
+(* Ignore ckey, creferenced and cattr *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) =
   a.fname = b.fname && eq_typ a.ftype b.ftype && a.fbitfield = b.fbitfield
-  (* Ignore fcomp, fattr, floc *)
- 
+(* Ignore fcomp, fattr, floc *)
+
 and eq_offset (a: offset) (b: offset) = match a, b with
   | NoOffset, NoOffset -> true 
   | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 && eq_offset offset1 offset2 
@@ -94,7 +94,7 @@ and eq_offset (a: offset) (b: offset) = match a, b with
   | _, _ -> false 
 
 and eq_lval (a: lval) (b: lval) = match a, b with
-  (host1, off1), (host2, off2) -> eq_lhost host1 host2 && eq_offset off1 off2  
+    (host1, off1), (host2, off2) -> eq_lhost host1 host2 && eq_offset off1 off2  
 
 let eq_instr (a: instr) (b: instr) = match a, b with
   | Set (lv1, exp1, _l1), Set (lv2, exp2, _l2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
@@ -118,27 +118,27 @@ let eq_stmt_with_location ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
 let rec eq_stmtkind ((a, af): stmtkind * fundec) ((b, bf): stmtkind * fundec) =
   let eq_block' = fun x y -> eq_block (x, af) (y, bf) in
   match a, b with
-    | Instr is1, Instr is2 -> eq_list eq_instr is1 is2
-    | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp exp1 exp2
-    | Return (None, _l1), Return (None, _l2) -> true
-    | Return _, Return _ -> false
-    | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location (!st1, af) (!st2, bf) (* Consider checking equality of the label instead *)
-    | Break _, Break _ -> true
-    | Continue _, Continue _ -> true
-    | If (exp1, then1, else1, _l1), If (exp2, then2, else2, _l2) -> eq_exp exp1 exp2 && eq_block' then1 then2 && eq_block' else1 else2
-    | Switch (exp1, block1, stmts1, _l1), Switch (exp2, block2, stmts2, _l2) -> eq_exp exp1 exp2 && eq_block' block1 block2 && eq_list (fun a b -> eq_stmt (a,af) (b,bf)) stmts1 stmts2
-    | Loop (block1, _l1, _con1, _br1), Loop (block2, _l2, _con2, _br2) -> eq_block' block1 block2
-    | Block block1, Block block2 -> eq_block' block1 block2
-    | TryFinally (tryBlock1, finallyBlock1, _l1), TryFinally (tryBlock2, finallyBlock2, _l2) -> eq_block' tryBlock1 tryBlock2 && eq_block' finallyBlock1 finallyBlock2
-    | TryExcept (tryBlock1, exn1, exceptBlock1, _l1), TryExcept (tryBlock2, exn2, exceptBlock2, _l2) -> eq_block' tryBlock1 tryBlock2 && eq_block' exceptBlock1 exceptBlock2
-    | _, _ -> false
+  | Instr is1, Instr is2 -> eq_list eq_instr is1 is2
+  | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp exp1 exp2
+  | Return (None, _l1), Return (None, _l2) -> true
+  | Return _, Return _ -> false
+  | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location (!st1, af) (!st2, bf) (* Consider checking equality of the label instead *)
+  | Break _, Break _ -> true
+  | Continue _, Continue _ -> true
+  | If (exp1, then1, else1, _l1), If (exp2, then2, else2, _l2) -> eq_exp exp1 exp2 && eq_block' then1 then2 && eq_block' else1 else2
+  | Switch (exp1, block1, stmts1, _l1), Switch (exp2, block2, stmts2, _l2) -> eq_exp exp1 exp2 && eq_block' block1 block2 && eq_list (fun a b -> eq_stmt (a,af) (b,bf)) stmts1 stmts2
+  | Loop (block1, _l1, _con1, _br1), Loop (block2, _l2, _con2, _br2) -> eq_block' block1 block2
+  | Block block1, Block block2 -> eq_block' block1 block2
+  | TryFinally (tryBlock1, finallyBlock1, _l1), TryFinally (tryBlock2, finallyBlock2, _l2) -> eq_block' tryBlock1 tryBlock2 && eq_block' finallyBlock1 finallyBlock2
+  | TryExcept (tryBlock1, exn1, exceptBlock1, _l1), TryExcept (tryBlock2, exn2, exceptBlock2, _l2) -> eq_block' tryBlock1 tryBlock2 && eq_block' exceptBlock1 exceptBlock2
+  | _, _ -> false
 
 and eq_stmt ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
-    List.for_all (fun (x,y) -> eq_label x y) (List.combine a.labels b.labels) &&
-    eq_stmtkind (a.skind, af) (b.skind, bf)
+  List.for_all (fun (x,y) -> eq_label x y) (List.combine a.labels b.labels) &&
+  eq_stmtkind (a.skind, af) (b.skind, bf)
 
 and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
-    a.battrs = b.battrs && List.for_all (fun (x,y) -> eq_stmt (x, af) (y, bf)) (List.combine a.bstmts b.bstmts)
+  a.battrs = b.battrs && List.for_all (fun (x,y) -> eq_stmt (x, af) (y, bf)) (List.combine a.bstmts b.bstmts)
 
 let eq_fundec (a: Cil.fundec) (b: Cil.fundec) =
   try
@@ -177,13 +177,13 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
     try 
       let ident = identifier_of_global global in
       (try
-        let old_global = GlobalMap.find ident map in
-        (* Do a (recursive) equal comparision ignoring location information *)
-        let identical = eq_global old_global global in
-        if identical 
-          then changes.unchanged <- global :: changes.unchanged
-          else changes.changed <- {current = global; old = old_global} :: changes.changed
-      with Not_found -> ())
+         let old_global = GlobalMap.find ident map in
+         (* Do a (recursive) equal comparision ignoring location information *)
+         let identical = eq_global old_global global in
+         if identical 
+         then changes.unchanged <- global :: changes.unchanged
+         else changes.changed <- {current = global; old = old_global} :: changes.changed
+       with Not_found -> ())
     with e -> () (* Global was no variable or function, it does not belong into the map *)
   in
   let checkExists map global =
@@ -197,7 +197,7 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   let module StringSet = Set.Make (String) in
   Cil.iterGlobals newAST
     (fun glob -> checkUnchanged oldMap glob);
-  
+
   (* We check whether functions have been added or removed *)
   Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with e -> ());
   Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with e -> ());
