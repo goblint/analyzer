@@ -16,11 +16,13 @@ struct
 
   module Var = S.Var
   module Dom = S.Dom
+
   let increment = S.increment
 
   let box = S.box
 
   let conv x = x
+
   let system x =
     match S.system x with
     | [] -> None
@@ -63,9 +65,11 @@ struct
 
   module Var = ExtendInt (S.Var)
   module Dom = S.Dom
+
   let increment = S.increment
 
   let box (x,n) = S.box x
+
   let conv x = (x,-1)
 
   let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option =
@@ -355,7 +359,7 @@ struct
         set v 1;
         Hashtbl.add histo v 1
       end
-    | Out_of_memory -> ()
+
   let start_event () = ()
   let stop_event () = ()
 
