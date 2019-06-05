@@ -7,30 +7,6 @@ open VersionLookup
 let store_node_location (n: node) (l: location): unit =
   NodeMap.add !location_map n l 
 
-let loaction_of_instruction (inst: instr) = 
-  match inst with
-  | Set (_,_,l) -> l
-  | Call (_,_,_,l) -> l
-  | Asm (_,_,_,_,_,l) -> l
-
-let location_of_instructions (instrs: instr list): location = match instrs with
-  | [] -> Cil.locUnknown (* TODO: fix this; raise (Failure "Empty list")*)
-  | (h::t) -> loaction_of_instruction h 
-
-let rec location_of_statement (s: stmt) = match s.skind with
-  | Instr is -> location_of_instructions is
-  | Return (_,l) -> l
-  | Goto (_,l) -> l
-  | ComputedGoto (_,l) -> l
-  | Break l -> l
-  | Continue l -> l
-  | If (_,_,_,l) -> l
-  | Switch (_,_,_,l) -> l
-  | Loop (_,l,_,_) -> l
-  | Block b -> location_of_statement (List.hd b.bstmts)
-  | TryFinally (_,_,l) -> l
-  | TryExcept (_,_,_,l) -> l
-
 let zero_ids = {max_sid = 0; max_vid = 0}
 
 let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (changes: change_info) =
@@ -67,7 +43,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
     List.iter (fun (lo, o_f) -> lo.vid <- o_f.vid) (List.combine f.sformals old_f.sformals);
     List.iter (fun (s, o_s) -> s.sid <- o_s.sid) (List.combine f.sallstmts old_f.sallstmts);
-    List.iter (fun s -> store_node_location (Statement s) (location_of_statement s)) f.sallstmts;
+    List.iter (fun s -> store_node_location (Statement s) (get_stmtLoc s.skind)) f.sallstmts;
 
     store_node_location (Function f.svar) f.svar.vdecl;
     store_node_location (FunctionEntry f.svar) f.svar.vdecl;
