@@ -4,10 +4,8 @@ open Prelude
 open Analyses
 open Constraints
 open Messages
-open Pervasives
 open CompareAST
 open Cil
-open Batteries
 
 let result_file_name = "td3.data" 
 
@@ -40,11 +38,11 @@ module WP =
 
     let print_data data str =
       print_endline (str ^
-      "|rho|="^string_of_int (HM.length data.rho) ^ "\n" ^
-      "|stable|="^string_of_int (HM.length data.stable) ^ "\n" ^
-      "|infl|="^string_of_int (HM.length data.infl) ^ "\n" ^
-      "|wpoint|="^string_of_int (HM.length data.wpoint)
-      );      
+                     "|rho|="^string_of_int (HM.length data.rho) ^ "\n" ^
+                     "|stable|="^string_of_int (HM.length data.stable) ^ "\n" ^
+                     "|infl|="^string_of_int (HM.length data.infl) ^ "\n" ^
+                     "|wpoint|="^string_of_int (HM.length data.wpoint)
+                    );
 
     module P =
     struct
@@ -309,39 +307,38 @@ module WP =
 
       {infl; rho; wpoint; stable}
 
-      let solve box st vs =
-        incremental_mode := GobConfig.get_string "exp.incremental.mode";
-        let reuse_stable = GobConfig.get_bool "exp.incremental.stable" in
-        let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
-
-        if !incremental_mode <> "off" then (
-          let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-          let data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
-                        then Serialize.unmarshall file_in
-                        else create_empty_data ()
-          in
-          if not reuse_stable then (
-            print_endline "Destabilizing everything!";
-            data.stable <- HM.create 10;
-            data.infl <- HM.create 10
-          ); 
-          if not reuse_wpoint then data.wpoint <- HM.create 10;
-          let result = solve box st vs data in
-          let path = Goblintutil.create_dir S.increment.current_commit_dir in
-          if Sys.file_exists path then (
-            let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
-            print_endline @@ "Saving solver result to " ^ file_out;
-            Serialize.marshall result file_out;
-          );
-          clear_data result;
-          result.rho
-          )
-        else (
-          let data = create_empty_data () in
-          let result = solve box st vs data in
-          clear_data result;
-          result.rho
-        )
+    let solve box st vs =
+      incremental_mode := GobConfig.get_string "exp.incremental.mode";
+      let reuse_stable = GobConfig.get_bool "exp.incremental.stable" in
+      let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
+      if !incremental_mode <> "off" then (
+        let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
+        let data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
+          then Serialize.unmarshall file_in
+          else create_empty_data ()
+        in
+        if not reuse_stable then (
+          print_endline "Destabilizing everything!";
+          data.stable <- HM.create 10;
+          data.infl <- HM.create 10
+        );
+        if not reuse_wpoint then data.wpoint <- HM.create 10;
+        let result = solve box st vs data in
+        let path = Goblintutil.create_dir S.increment.current_commit_dir in
+        if Sys.file_exists path then (
+          let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
+          print_endline @@ "Saving solver result to " ^ file_out;
+          Serialize.marshall result file_out;
+        );
+        clear_data result;
+        result.rho
+      )
+      else (
+        let data = create_empty_data () in
+        let result = solve box st vs data in
+        clear_data result;
+        result.rho
+      )
   end
 
 let _ =
