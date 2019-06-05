@@ -2,8 +2,6 @@ open Prelude
 open GobConfig
 open Analyses
 
-let base_dir () = get_string "incremental.basedir"
-
 let goblint_dirname = ".gob"
 
 let version_map_filename = "version.data"
@@ -15,17 +13,17 @@ let src_direcotry = ref ""
 let gob_directory () = let src_dir = !src_direcotry in
   Filename.concat src_dir goblint_dirname
 
-let current_commit src_files =
+let current_commit () =
   Git.current_commit (!src_direcotry) (* TODO: change to file path of analyzed src *)
 
 let commit_dir src_files commit = 
   let gob_dir = gob_directory src_files in
   Filename.concat gob_dir commit
 
-let current_commit_dir src_files = match current_commit src_files with
+let current_commit_dir () = match current_commit () with
   | Some commit -> (
       try
-        let gob_dir = gob_directory src_files in
+        let gob_dir = gob_directory () in
         let _path  = Goblintutil.create_dir gob_dir in
         let dir = Filename.concat gob_dir commit in
         Some (Goblintutil.create_dir dir)
@@ -37,7 +35,7 @@ let current_commit_dir src_files = match current_commit src_files with
   | None -> None (* git-directory not clean *)
 
 (** A list of commits previously analyzed for the given src directory *)
-let get_analyzed_commits src_files = 
+let get_analyzed_commits src_files =
   let src_dir = gob_directory src_files in
   Sys.readdir src_dir
 
@@ -45,7 +43,7 @@ let last_analyzed_commit () =
   try
     let src_dir = !src_direcotry in
     let commits = Git.git_log src_dir in
-    let commitList = String.split_on_char '\n' commits in 
+    let commitList = String.split_on_char '\n' commits in
     let analyzed = get_analyzed_commits () in
     let analyzed_set = Set.of_array analyzed in
     Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
@@ -62,20 +60,6 @@ let unmarshall fileName =
   let marshalled = input_file fileName in
   Marshal.from_string marshalled 0
 
-let save_cil (file: Cil.file) = match current_commit_dir () with
-  |Some dir ->
-    let cilFile = Filename.concat dir cilFileName in
-    marshall file cilFile
-  | None -> print_endline "Failure when saving cil: working directory is dirty"
-
-let loadCil () = 
-  (* TODO: Use the previous commit, or more specifally, the last analyzed commit *)
-  match current_commit_dir () with
-  |Some dir ->
-    let cilFile = Filename.concat dir cilFileName in
-    unmarshall cilFile
-  | None -> None
-
 let results_exist () =
   last_analyzed_commit () <> None
 
@@ -90,3 +74,9 @@ let load_latest_cil (src_files: string list) =
     let cil = Filename.concat dir cilFileName in
     Some (unmarshall cil)
   with e -> None
+
+let save_cil (file: Cil.file) = match current_commit_dir () with
+  |Some dir ->
+    let cilFile = Filename.concat dir cilFileName in
+    marshall file cilFile
+  | None -> print_endline "Failure when saving cil: working directory is dirty"
