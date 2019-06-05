@@ -14,7 +14,7 @@ let gob_directory () = let src_dir = !src_direcotry in
   Filename.concat src_dir goblint_dirname
 
 let current_commit () =
-  Git.current_commit (!src_direcotry) (* TODO: change to file path of analyzed src *)
+  Git.current_commit (!src_direcotry)
 
 let commit_dir src_files commit = 
   let gob_dir = gob_directory src_files in
