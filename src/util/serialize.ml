@@ -10,7 +10,7 @@ let version_map_filename = "version.data"
 
 let cilFileName = "ast.data"
 
-let src_direcotry =  ref ""
+let src_direcotry = ref ""
 
 let gob_directory () = let src_dir = !src_direcotry in
   Filename.concat src_dir goblint_dirname
@@ -31,7 +31,7 @@ let current_commit_dir src_files = match current_commit src_files with
         Some (Goblintutil.create_dir dir)
       with e -> let error_message = (Printexc.to_string e) in
         print_newline ();
-        print_string "The following error occured while creating a directory: " ;
+        print_string "The following error occured while creating a directory: ";
         print_endline error_message;
         None)
   | None -> None (* git-directory not clean *)
@@ -84,9 +84,9 @@ let last_analyzed_commit_dir (src_files: string list) =
   | Some commit -> commit_dir () commit
   | None -> raise (Failure "No previous analysis results")
 
-let load_latest_cil (src_files: string list) = 
+let load_latest_cil (src_files: string list) =
   try
-    let dir = last_analyzed_commit_dir src_files  in
+    let dir = last_analyzed_commit_dir src_files in
     let cil = Filename.concat dir cilFileName in
     Some (unmarshall cil)
   with e -> None
