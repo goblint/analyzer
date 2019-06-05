@@ -32,15 +32,8 @@ let create_map (new_file: Cil.file) (commit: commitID) =
   Cil.iterGlobals new_file (add_to_hashtbl tbl);
   tbl, {max_sid = !max_sid; max_vid =  !max_vid}
 
-(** For debugging purposes: print the mapping from function name to commit *)
-let print_mapping (function_name: string) (dec, commit: Cil.global * commitID) =
-  print_string function_name;
-  print_string " -> ";
-  print_endline commit
-
-(** load the old cil.file, load the corresponding map, update the map, return it-
-    restoreMap glob_folder old_file new_file *)
-let restoreMap (folder: string) (old_commit: commitID) (new_commit: commitID) (oldFile: Cil.file) (newFile: Cil.file)= 
+(* Load and update the version map *)
+let load_and_update_map (folder: string) (old_commit: commitID) (new_commit: commitID) (oldFile: Cil.file) (newFile: Cil.file) = 
   let commitFolder = Filename.concat folder old_commit in
   let versionFile = Filename.concat commitFolder version_map_filename in
   let (oldMap, max_ids) = Serialize.unmarshall versionFile in
@@ -48,9 +41,9 @@ let restoreMap (folder: string) (old_commit: commitID) (new_commit: commitID) (o
   (updated, changes, max_ids)
 
 let restore_map (folder: string) (old_file: Cil.file) (new_file: Cil.file) =
-  match Serialize.current_commit () with 
-  |Some new_commit -> 
+  match Serialize.current_commit () with
+  |Some new_commit ->
     (match (Serialize.last_analyzed_commit ()) with
-     |Some old_commit -> restoreMap folder old_commit new_commit old_file new_file 
+     |Some old_commit -> load_and_update_map folder old_commit new_commit old_file new_file
      |None -> raise (Failure "No commit has been analyzed yet. Restore map failed."))
   |None -> raise (Failure "Working directory is dirty. Restore map failed.")
