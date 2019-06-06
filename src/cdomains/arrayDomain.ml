@@ -73,7 +73,7 @@ struct
 
   let name () = "native arrays"
   let hash = Hashtbl.hash
-  let compare = Pervasives.compare (* NB! is not guaranteed to terminate on cyclic data *)
+  let compare = BatArray.compare Base.compare
 
   let for_all2 f i o =
     let len_i = Array.length i in
