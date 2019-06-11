@@ -575,8 +575,6 @@ struct
   type t = [`Top | `Lifted of Base.t ] [@@deriving to_yojson]
   include Std
 
-  let compare = Pervasives.compare
-
   let lift x = `Lifted x
 
   let equal x y =
