@@ -16,6 +16,7 @@ ocb() {
 
 opam_setup() {
   eval $(opam config env)
+  opam init -y -a --bare
   opam update
   opam switch -y create ./ --deps-only
   # opam install camlp4 mongo # camlp4 needed for mongo
