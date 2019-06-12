@@ -9,16 +9,16 @@ build: [make]
 run-test: [make "test"]
 depends: [
   "ocaml" {>= "4.04.1" & < "4.08"}
-  "ocamlfind"
-  "goblint-cil"
-  "batteries"
-  "xml-light"
+  "ocamlbuild" {build}
+  "ocamlfind" {build}
+  "goblint-cil" {build}
+  "batteries" {build}
+  "xml-light" {build}
   "ppx_distr_guards"
   "ppx_monadic"
   "ppx_import"
   "ppx_deriving"
   "ppx_deriving_yojson"
-  "ocamlbuild" {build}
 ]
 synopsis: "Static analysis framework for concurrent C"
 url {
