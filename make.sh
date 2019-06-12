@@ -14,14 +14,11 @@ ocb() {
   $OCAMLBUILD $FLAGS $*
 }
 
-ocaml_version="4.06.0"
-opam_build() {
+opam_setup() {
   eval $(opam config env)
   opam update
-  opam install ocamlfind batteries xml-light ppx_distr_guards ppx_monadic ppx_import ppx_deriving ppx_deriving_yojson
+  opam switch -y create ./ --deps-only
   # opam install camlp4 mongo # camlp4 needed for mongo
-  # opam's cil is too old
-  opam pin -y add cil "https://github.com/goblint/cil.git"
 }
 
 rule() {
@@ -75,13 +72,11 @@ rule() {
              cd g2html && ant jar && cd .. &&
              cp g2html/g2html.jar .
              ;;
-    dep*)    OPAMYES=1 opam_build;;
+    dep*)    OPAMYES=1 opam install . --deps-only;;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
              echo "For the --html output you also need: javac, ant, dot (graphviz)"
              echo "For running the regression tests you also need: ruby, gem, curl"
-             opam init --comp=$ocaml_version
-             opam switch $ocaml_version # in case opam was already initialized
-             opam_build
+             opam_setup
              ;;
     dev)     echo "Installing opam packages for development..."
              opam install utop merlin ocp-indent
