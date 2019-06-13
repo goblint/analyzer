@@ -205,6 +205,17 @@ let preprocess_files () =
   (* reverse the files again *)
   cFileNames := List.rev !cFileNames;
 
+  (* If the first file given is a Makefile, we use it to combine files *)
+  if List.length !cFileNames >= 1 then (
+    let firstFile = List.first !cFileNames in
+    if Filename.basename firstFile = "Makefile" then (
+      let dir_name = Filename.dirname firstFile in
+      let _ = MakefileUtil.run_cilly dir_name in
+      let file = MakefileUtil.find_file_by_suffix dir_name "_comb.c" in
+      cFileNames := file :: (List.drop 1 !cFileNames);
+    );
+  );
+
   (* possibly add our lib.c to the files *)
   if get_bool "custom_libc" then
     cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;

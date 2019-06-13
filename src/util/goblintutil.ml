@@ -426,3 +426,16 @@ let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 let get_goblint_path = Filename.dirname BatSys.executable_name
 
 let tryopt f a = try Some (f a) with _ -> None (* reason: match .. with _ does not include exceptions, or-patterns currently not supported for exceptions *)
+
+let rec_find_file_by_suffix (dir: string) (file_name_suffix: string) = 
+  let list_files d = Array.to_list @@ Sys.readdir d in
+  let dirs = Queue.create () in
+  
+  let rec search (dir: string) (files: string list) = match files with
+    | (h::t) -> let f = Filename.concat dir h in
+                if Sys.file_exists f && Sys.is_directory f 
+                  then (Queue.add f dirs; search dir t)
+                  else if Batteries.String.ends_with h file_name_suffix then f else search dir t 
+    | [] -> if Queue.is_empty dirs then raise (Failure "No such file") else let h = Queue.take dirs in search h (list_files h)
+  in
+  search dir (list_files dir)
