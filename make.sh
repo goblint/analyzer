@@ -15,7 +15,7 @@ ocb() {
 }
 
 opam_setup() {
-  eval $(opam config env)
+  set -x
   opam init -y -a --bare
   opam update
   opam switch -y create ./ --deps-only
