@@ -3,7 +3,7 @@ open MyCFG
 module NH = Hashtbl.Make (Node)
 module NS = Set.Make (Node)
 
-let find_loop_heads (module Cfg:CfgBidir) (entry_node:node): unit NH.t =
+let find_loop_heads (module Cfg:CfgBidir) (file:Cil.file): unit NH.t =
   let loop_heads = NH.create 100 in
 
   (* DFS *)
@@ -18,10 +18,16 @@ let find_loop_heads (module Cfg:CfgBidir) (entry_node:node): unit NH.t =
     end
   in
 
-  iter_node NS.empty entry_node;
+  Cil.iterGlobals file (function
+      | GFun (fd, _) ->
+        let entry_node = FunctionEntry fd.svar in
+        iter_node NS.empty entry_node
+      | _ -> ()
+    );
+
   loop_heads
 
-let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t): unit =
+let write_file (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node -> Invariant.t): unit =
   let (main_entry_nodes, other_entry_nodes) =
     entrystates
     |> List.map (fun ((n, _), _) -> n)
@@ -37,7 +43,7 @@ let write_file (module Cfg:CfgBidir) entrystates (invariant:node -> Invariant.t)
     | [main_entry], [] -> main_entry
   in
 
-  let loop_heads = find_loop_heads (module Cfg) main_entry in
+  let loop_heads = find_loop_heads (module Cfg) file in
 
 
   let node_name = function

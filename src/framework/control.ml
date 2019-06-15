@@ -409,7 +409,7 @@ struct
               a
           ) lh Invariant.none
       in
-      Witness.write_file (module Cfg) entrystates find_invariant;
+      Witness.write_file (module Cfg) file entrystates find_invariant;
 
       (* let print_invariant2 (l, n, f) v =
          in
