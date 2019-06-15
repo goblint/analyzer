@@ -399,15 +399,18 @@ struct
         Printf.printf "INVARIANT %s: %s: %s\n" (EQSys.LVar.description k) (EQSys.D.short 800 v) (Option.default "None" (EQSys.D.invariant "" v))
       in
       LHT.iter print_invariant lh;
-      let find_invariant (n:node): Invariant.t =
-        (* TODO: get invariant from LHT? *)
-        (* currently doesn't really handle context *)
-        LHT.fold (fun k v a ->
-            if Node.equal n (EQSys.LVar.node k) then
+      let module NH = Hashtbl.Make (MyCFG.Node) in
+      let invariants = NH.create 100 in
+      LHT.iter (fun k v ->
+          (* TODO: get invariant from LHT? *)
+          (* currently doesn't really handle context *)
+          let n = EQSys.LVar.node k in
+          NH.modify_def Invariant.none n (fun a ->
               Invariant.(a || EQSys.D.invariant "" v)
-            else
-              a
-          ) lh Invariant.none
+            ) invariants
+        ) lh;
+      let find_invariant (n:node): Invariant.t =
+        NH.find_default invariants n Invariant.none
       in
       Witness.write_file (module Cfg) file entrystates find_invariant;
 
