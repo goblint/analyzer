@@ -99,7 +99,11 @@ rule() {
     test)    ./scripts/update_suite.rb;; # run regression tests
     testci)  ruby scripts/update_suite.rb -s -d;;
     travis)  echo "run ./scripts/travis-ci.sh to setup ocaml"
-             docker run -it -u travis -v $(pwd):$(pwd) -w $(pwd) travisci/ci-garnet:packer-1515445631-7dfb2e1 bash;;
+             echo "mount cwd as bind: beware that cwd of host can be modified!"
+             docker run -it -u travis -v $(pwd):$(pwd) -w $(pwd) travisci/ci-garnet:packer-1515445631-7dfb2e1 bash
+             # echo "mount cwd as volume: changes won't affect host's cwd."
+             # docker run -it -u travis -v `pwd`:/analyzer:ro -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cp -r /analyzer .; cd analyzer; bash'
+             ;;
     unit)    ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native;;
     server)  rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
              ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
