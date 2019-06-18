@@ -74,8 +74,6 @@ and eq_lhost (a: lhost) (b: lhost) = match a, b with
     | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
     | _, _ -> false
 
-and eq_typinfo (a: typeinfo) (b: typeinfo) = a.tname = b.tname && eq_typ a.ttype b.ttype (* Ignore the treferenced field *)
-
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) = 
   if( List.exists (fun x-> match x with (x,y)-> a==x && b == y) acc) 
     then true 
@@ -90,7 +88,9 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
           | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2) 
                       ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
                           eq_list eq_attribute attr1 attr2
-          | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typinfo typinfo1 typeinfo2 && eq_list eq_attribute attr1 attr2
+          | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typ_acc typinfo1.ttype typeinfo2.ttype acc && eq_list eq_attribute attr1 attr2 (* Ignore tname, treferenced *)
+          | TNamed (tinf, attr), b -> eq_typ_acc tinf.ttype b acc (* Ignore tname, treferenced. TODO: dismiss attributes, or not? *)
+          | a, TNamed (tinf, attr) -> eq_typ_acc a tinf.ttype acc (* Ignore tname, treferenced . TODO: dismiss attributes, or not? *)
           | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->  eq_compinfo compinfo1 compinfo2 acc &&  eq_list eq_attribute attr1 attr2 
           | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2
           | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
