@@ -99,10 +99,11 @@ rule() {
     test)    ./scripts/update_suite.rb;; # run regression tests
     testci)  ruby scripts/update_suite.rb -s -d;;
     travis)  echo "run ./scripts/travis-ci.sh to setup ocaml"
-             echo "mount cwd as bind: beware that cwd of host can be modified!"
-             docker run -it -u travis -v $(pwd):$(pwd):delegated -w $(pwd) travisci/ci-garnet:packer-1515445631-7dfb2e1 bash
-             # echo "mount cwd as volume: changes won't affect host's cwd."
-             # docker run -it -u travis -v `pwd`:/analyzer:ro:delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cp -r /analyzer .; cd analyzer; bash'
+             # echo "bind-mount cwd: beware that cwd of host can be modified and IO is very slow!"
+             # docker run -it -u travis -v $(pwd):$(pwd):delegated -w $(pwd) travisci/ci-garnet:packer-1515445631-7dfb2e1 bash
+             echo "copy cwd w/o git-ignored files: changes in container won't affect host's cwd."
+             # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
+             docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
              ;;
     unit)    ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native;;
     server)  rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
