@@ -72,7 +72,7 @@ rule() {
              cd g2html && ant jar && cd .. &&
              cp g2html/g2html.jar .
              ;;
-    dep*)    OPAMYES=1 opam install . --deps-only;;
+    deps)    opam install -y . --deps-only;;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
              echo "For the --html output you also need: javac, ant, dot (graphviz)"
              echo "For running the regression tests you also need: ruby, gem, curl"
