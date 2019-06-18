@@ -16,7 +16,7 @@ ocb() {
 
 opam_setup() {
   set -x
-  opam init -y -a --bare
+  opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam switch -y create ./ --deps-only 4.07.1
   # opam install camlp4 mongo # camlp4 needed for mongo
 }

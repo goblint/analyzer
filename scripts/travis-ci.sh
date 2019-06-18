@@ -40,7 +40,7 @@ else
 fi
 
 # install dependencies
-./make.sh setup
+SANDBOXING=--disable-sandboxing ./make.sh setup
 eval `opam config env`
 # compile
 ./make.sh nat
