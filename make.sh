@@ -17,7 +17,7 @@ ocb() {
 opam_setup() {
   set -x
   opam init -y -a --bare
-  opam switch -y create ./ --deps-only
+  opam switch -y create ./ --deps-only 4.07.1
   # opam install camlp4 mongo # camlp4 needed for mongo
 }
 
