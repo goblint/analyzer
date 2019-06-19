@@ -1,9 +1,6 @@
 #! /bin/bash
 set -e
 
-# generate the version file
-scripts/set_version.sh
-
 TARGET=src/goblint
 FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
 OCAMLBUILD=ocamlbuild
@@ -11,6 +8,9 @@ EXCLUDE="_build|goblint.ml|apronDomain|poly"
 
 ocb() {
   command -v opam >/dev/null 2>&1 && eval $(opam config env)
+  scripts/set_version.sh # generate the version file
+  ls -1 src/**/*.ml | egrep -v $EXCLUDE | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
+  echo "open Maingoblint" >> $TARGET.ml
   $OCAMLBUILD $FLAGS $*
 }
 
@@ -117,9 +117,6 @@ rule() {
       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac;
 }
-
-ls -1 src/**/*.ml | egrep -v $EXCLUDE | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
-echo "open Maingoblint" >> $TARGET.ml
 
 if [ $# -eq 0 ]; then
   rule nat
