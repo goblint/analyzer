@@ -12,4 +12,4 @@ RUN sudo chown -R opam .
 # COPY --chown=opam . /home/opam/analyzer
 RUN make dep > /dev/null
 RUN make
-CMD ./goblint --help
+CMD ./goblint
