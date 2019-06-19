@@ -1,4 +1,5 @@
 opam-version: "2.0"
+name: "goblint"
 maintainer: "Ralf Vogler <ralf.vogler@gmail.com>"
 authors: "Vesal Vojdani, Kalmer Apinis, Ralf Vogler"
 license: "MIT"

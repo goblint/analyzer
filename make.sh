@@ -87,6 +87,8 @@ rule() {
       cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
+    ;; lock)
+      opam lock .
     ;; watch)
       fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; headers)
