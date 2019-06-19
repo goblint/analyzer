@@ -89,7 +89,7 @@ rule() {
       sudo gem install parallel
     ;; watch)
       fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
-    ;; header*)
+    ;; headers)
       curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
       tar xf master.tar.gz && rm master.tar.gz
       rm -rf linux-headers && mv linux-headers-master linux-headers
