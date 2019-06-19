@@ -49,6 +49,12 @@ let eqS (a: Cil.stmt) (b: Cil.stmt) =
 let print (a: Pretty.doc)  =
   print_endline @@ Pretty.sprint 100 a
 
+(* hack: CIL generates new type names for anonymous types - we want to ignore these *)
+let compare_name a b =
+  let anon_struct = "__anonstruct_" in
+  let anon_union = "__anonunion_" in
+  if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
+
 let rec eq_constant (a: constant) (b: constant) = match a, b with
     CInt64 (val1, kind1, str1), CInt64 (val2, kind2, str2) -> val1 = val2 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
   | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 (* Ignore name and enuminfo  *)
@@ -91,8 +97,9 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
         | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typ_acc typinfo1.ttype typeinfo2.ttype acc && eq_list eq_attribute attr1 attr2 (* Ignore tname, treferenced *)
         | TNamed (tinf, attr), b -> eq_typ_acc tinf.ttype b acc (* Ignore tname, treferenced. TODO: dismiss attributes, or not? *)
         | a, TNamed (tinf, attr) -> eq_typ_acc a tinf.ttype acc (* Ignore tname, treferenced . TODO: dismiss attributes, or not? *)
-        | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->  eq_compinfo compinfo1 compinfo2 acc &&  eq_list eq_attribute attr1 attr2 
-        | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2
+        (* The following two lines are a hack to ensure that anonymous types get the same name and thus, the same typsig *)
+        | TComp (compinfo1, attr1), TComp (compinfo2, attr2) -> let res = eq_compinfo compinfo1 compinfo2 acc &&  eq_list eq_attribute attr1 attr2 in (if res && compinfo1.cname <> compinfo2.cname then compinfo2.cname <- compinfo1.cname); res
+        | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
         | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
         | _, _ -> a = b)
 
@@ -102,8 +109,10 @@ and eq_eitems (a: string * exp * location) (b: string * exp * location) = match 
     (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2
 (* Ignore location *)
 
-and eq_enuminfo (a: enuminfo) (b: enuminfo) = a.ename = b.ename && eq_list eq_attribute a.eattr b.eattr &&
-                                              eq_list eq_eitems a.eitems b.eitems
+and eq_enuminfo (a: enuminfo) (b: enuminfo) =
+  compare_name a.ename b.ename &&
+  eq_list eq_attribute a.eattr b.eattr &&
+  eq_list eq_eitems a.eitems b.eitems
 (* Ignore ereferenced *)
 
 and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
@@ -145,8 +154,12 @@ and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure *)
 
 (* Accumulator is needed because of recursive types: we have to assume that two types we already encountered in a previous step of the recursion are equivalent *)
-and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) = a.cstruct = b.cstruct && a.cname = b.cname && eq_list (fun a b-> eq_fieldinfo a b acc) a.cfields b.cfields 
-                                                                      && eq_list eq_attribute a.cattr b.cattr && a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *) (* Ignore ckey, and ignore creferenced *)
+and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) =
+  a.cstruct = b.cstruct &&
+  compare_name a.cname b.cname &&
+  eq_list (fun a b-> eq_fieldinfo a b acc) a.cfields b.cfields &&
+  eq_list eq_attribute a.cattr b.cattr &&
+  a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list)=
   a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr
