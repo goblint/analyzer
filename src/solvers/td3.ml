@@ -293,6 +293,7 @@ module WP =
       if tracing then (if List.length !cache_sizes = 0 then trace "cache" "#caches: 0" else trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes));
 
       let reachability xs =
+        let remove_all x = HM.remove rho x; HM.remove stable x; HM.remove infl x; HM.remove wpoint x in
         let reachable = HM.create (HM.length rho) in
         let rec one_var x =
           if not (HM.mem reachable x) then (
@@ -305,7 +306,7 @@ module WP =
           ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
         in
         List.iter one_var xs;
-        HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
+        HM.iter (fun x v -> if not (HM.mem reachable x) then remove_all x) rho;
       in
       reachability vs;
 
