@@ -2,7 +2,7 @@
 
 open Pretty
 
-type json = Yojson.Safe.json
+type json = Yojson.Safe.t
 let json_to_yojson x = x
 
 module type S =
