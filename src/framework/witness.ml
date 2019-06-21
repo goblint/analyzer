@@ -5,15 +5,17 @@ module NS = Set.Make (Node)
 
 let find_loop_heads (module Cfg:CfgBidir) (file:Cil.file): unit NH.t =
   let loop_heads = NH.create 100 in
+  let global_visited_nodes = NH.create 100 in
 
   (* DFS *)
-  let rec iter_node visited_nodes node =
-    if NS.mem node visited_nodes then
+  let rec iter_node path_visited_nodes node =
+    if NS.mem node path_visited_nodes then
       NH.add loop_heads node ()
-    else begin
-      let new_visited_nodes = NS.add node visited_nodes in
+    else if not (NH.mem global_visited_nodes node) then begin
+      NH.add global_visited_nodes node ();
+      let new_path_visited_nodes = NS.add node path_visited_nodes in
       List.iter (fun (_, to_node) ->
-          iter_node new_visited_nodes to_node
+          iter_node new_path_visited_nodes to_node
         ) (Cfg.next node)
     end
   in
