@@ -20,6 +20,7 @@ depends: [
   "ppx_import"
   "ppx_deriving"
   "ppx_deriving_yojson"
+  "ounit" {with-test}
 ]
 pin-depends: [
   [ "goblint-cil.1.7.4" "git+https://github.com/goblint/cil.git" ]

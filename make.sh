@@ -81,7 +81,7 @@ rule() {
       opam_setup
     ;; dev)
       echo "Installing opam packages for development..."
-      opam install utop merlin ocp-indent
+      opam install utop merlin ocp-indent ounit
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -
