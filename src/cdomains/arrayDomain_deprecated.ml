@@ -5,6 +5,15 @@ open Messages
 
 module A = Array
 
+type json = Yojson.Safe.t
+
+module Map = struct
+    module Make (X: sig include Map.OrderedType val to_yojson : t -> json end) = struct
+      include Map.Make (X)
+      let to_yojson poly_v x = [%to_yojson: (X.t * 'v) list] (bindings x)
+    end
+end
+
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
@@ -12,7 +21,7 @@ struct
   include Lattice.StdCousot
   type idx = Idx.t
   type value = Base.t
-  and t = value array [@@deriving to_yojson]
+  type t = Base.t array [@@deriving to_yojson]
 
   let name () = "native arrays"
   let hash = Hashtbl.hash
@@ -182,11 +191,10 @@ struct
 
 end
 
-
 module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
-  module Array = NativeArray (Base) (Idx)
+  module A = NativeArray (Base) (Idx)
   include Printable.Std
   include Lattice.StdCousot
 
@@ -194,67 +202,68 @@ struct
   type idx = Idx.t
   type value = Base.t
 
-  type t = Value  of value
-     | Array of Array.t
+  type t = Value of Base.t | Array of A.t [@@deriving to_yojson]
 
   let hash  = Hashtbl.hash
 
   let equal x y =
     match (x,y) with
       | (Value v1,Value v2) -> Base.equal v1 v2
-      | (Array v1,Array v2) -> Array.equal v1 v2
+      | (Array v1,Array v2) -> A.equal v1 v2
       | _ -> false
 
 
   let compare a b =
     match (a,b) with
       | Value v1, Value v2 ->  Base.compare v1 v2
-      | Array v1, Array v2 -> Array.compare v1 v2
+      | Array v1, Array v2 -> A.compare v1 v2
       | Array v1, Value v2 -> -1
       | Value v1, Array v2 ->  1
 
   let isSimple (a:t) =
     match a with
   Value v -> true
-      | Array v -> Array.isSimple v
+      | Array v -> A.isSimple v
 
   let leq a b =
     match (a,b) with
       | Value v1, Value v2 -> Base.leq v1 v2
-      | Array v1, Array v2 -> Array.leq v1 v2
+      | Array v1, Array v2 -> A.leq v1 v2
       | Array v1, Value v2 -> not (Base.equal (Base.bot ()) v2)
       | Value v1, Array v2 -> Base.equal v1 (Base.bot ())
 
   let join a b =
     let arr_len a =
-      match Array.length a with
+      match A.length a with
         | Some v -> v
         | None -> failwith "Cannot get length of native array." in
-    let value_array ar va = Array.make (arr_len ar) va in
+    let value_array ar va = A.make (arr_len ar) va in
       match (a,b) with
     (Value v1, Value v2) -> Value (Base.join v1 v2)
-  | (Array v1, Array v2) -> Array (Array.join v1 v2)
-  | (Array v1, Value v2) -> Array (Array.join v1 (value_array v1 v2))
-  | (Value v1, Array v2) -> Array (Array.join v2 (value_array v2 v1))
+  | (Array v1, Array v2) -> Array (A.join v1 v2)
+  | (Array v1, Value v2) -> Array (A.join v1 (value_array v1 v2))
+  | (Value v1, Array v2) -> Array (A.join v2 (value_array v2 v1))
 
 
   let meet a b =
      let arr_len a =
-      match Array.length a with
+      match A.length a with
         | Some v -> v
         | None -> failwith "Cannot get length of native array." in
-    let value_array ar va = Array.make (arr_len ar) va in
+    let value_array ar va = A.make (arr_len ar) va in
       match (a,b) with
     (Value v1, Value v2) -> Value (Base.meet v1 v2)
-  | (Array v1, Array v2) -> Array (Array.meet v1 v2)
-  | (Array v1, Value v2) -> Array (Array.meet v1 (value_array v1 v2))
-  | (Value v1, Array v2) -> Array (Array.meet v2 (value_array v2 v1))
+  | (Array v1, Array v2) -> Array (A.meet v1 v2)
+  | (Array v1, Value v2) -> Array (A.meet v1 (value_array v1 v2))
+  | (Value v1, Array v2) -> Array (A.meet v2 (value_array v2 v1))
 
 
   let short w x =
     match x with
   Value v -> "Array: {" ^ (Base.short (w - 9) v) ^ "}"
-      | Array v -> Array.short w v
+      | Array v -> A.short w v
+
+  let printXml f x = () (* TODO *)
 
   let valueToXML a =
     let add_prefix x =
@@ -268,7 +277,7 @@ struct
   let toXML_f _ a =
     match a with
   Value v -> valueToXML v
-      | Array v -> Array.toXML v
+      | Array v -> A.toXML v
 
 
   let bot () = Value (Base.bot ())
@@ -287,19 +296,19 @@ struct
   let pretty_f _ () x =
     match x with
   Value v -> text "Array: " ++ Base.pretty () v
-      | Array v -> Array.pretty () v
+      | Array v -> A.pretty () v
 
 
   let get a i =
     match a with
   Value v -> v
-      | Array v -> Array.get v i
+      | Array v -> A.get v i
 
 
   let set a i n =
     match a with
   Value v -> Value (Base.join v n)
-      | Array v -> Array (Array.set v i n)
+      | Array v -> Array (A.set v i n)
 
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m
@@ -309,11 +318,11 @@ struct
     if i > 25 then
       Value v
     else
-      Array (Array.make i v)
+      Array (A.make i v)
 
   let length x =
     match x with
-      | Array a -> Array.length a
+      | Array a -> A.length a
       | _ -> None
 
 end
@@ -329,7 +338,7 @@ struct
 
   type t =
     | Mapping of Base.t M.t
-    | Bot
+    | Bot [@@deriving to_yojson]
 
   type value = Base.t
   type idx = Idx.t
@@ -379,6 +388,8 @@ struct
             ((Idx.short max_int x) ^  " -> " ^
             (Base.short max_int y))::l) a ([]:string list) in
         Printable.get_short_list "Array: {" "}" (w-9) strlist
+
+  let printXml f x = () (* TODO *)
 
   let pretty_f _ () a =
     match a with
@@ -498,8 +509,8 @@ module CountingMap (Base: Lattice.S) (Idx: IntDomain.S) =
 struct
   module M = Map.Make (Idx)
 
-  type scmap = (int ref) M.t
-  type t = Base.t M.t (*map*) * scmap (*index map*) * int ref (*pos*) * int (*len*)
+  type scmap = (int ref) M.t [@@deriving to_yojson]
+  type t = Base.t M.t (*map*) * scmap (*index map*) * int ref (*pos*) * int (*len*) [@@deriving to_yojson]
 
   let set_use (map, index, _, len) pos = (map, index, ref pos, len)
 
@@ -648,7 +659,7 @@ struct
 
   module M = CountingMap(Base)(Idx)
 
-  type t = M.t * int
+  type t = M.t * int [@@deriving to_yojson]
   type value = Base.t
   type idx = Idx.t
 
@@ -731,6 +742,7 @@ struct
 
   let toXML = toXML_f short
 
+  let printXml _ _ = () (* TODO *)
 end
 
 module PreciseMapArray

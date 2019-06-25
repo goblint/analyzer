@@ -1,5 +1,5 @@
 open OUnit
-open ArrayDomain
+open ArrayDomain_deprecated
 open GeneralArrayTest
 
 module I = Int64
