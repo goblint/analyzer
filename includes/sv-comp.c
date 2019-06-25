@@ -17,3 +17,6 @@ __VERIFIER_nondet(long)
 __VERIFIER_nondet2(unsigned long, ulong)
 // void* __VERIFIER_nondet_pointer() { void* val; return val; }
 __VERIFIER_nondet2(void*, pointer)
+
+void __VERIFIER_atomic_begin() { } // TODO: use atomic marker in Goblint
+void __VERIFIER_atomic_end() { } // TODO: use atomic marker in Goblint
