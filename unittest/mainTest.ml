@@ -2,7 +2,7 @@ open OUnit
 
 module U = Testutils
 
-let all_tests _ = ("Tests for goblin" >:::
+let all_tests _ = ("" >:::
   [ NativeArrayDomainTest.test ();
     CollapsingArrayDomainTest.test ();
     IntDomainTest.test ();
@@ -13,8 +13,9 @@ let all_tests _ = ("Tests for goblin" >:::
     (* etc *)
   ])
 
-
 let _ =
+  (* first we need to load the default config which is done at the toplevel in Defaults *)
+  let module Ignore = Defaults in
   let verbose = ref false in
   let set_verbose _ = verbose := true in
   Arg.parse
