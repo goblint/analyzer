@@ -1,0 +1,108 @@
+pthread/*_false-unreach-call*.i
+pthread/*_true-unreach-call*.i
+    bigshot_p: two threads, global var init
+    bigshot_s, bigshot_s2: Goblint false, thread join after create
+    fib_*: alternate interleaving of two threads produces max value
+    indexer: pthread_exit not defined? pthread_exit not handled in Goblint? thread argument escaped and shared
+    lazy01: three threads, global var, Goblint stuck?
+    queue_*: simultaneous queue push and pop
+    reorder_2, reorder_5: two global vars, unlocked setter, getter
+    sigma: 16 threads write to global array with global shared index
+    singleton_*: global singleton array overwrites
+    stack_*: simultaneous stack push and pop
+    stateful01: two global vars, uses only one mutex?
+    sync01: cond variables
+    triangular_*: alternate interleaving of two threads produces max value
+    twostage_3: global pointer mutexes, independent mutexes on two globals vars
+
+pthread-atomic/*_false-unreach-call*.i
+pthread-atomic/*_true-unreach-call*.i
+    dekker: two threads mutual exclusion without mutex
+    gcd: verify that two thread Euclid's algorithm gives gcd
+    lamport: two threads mutual exclusion without mutex
+    peterson: two threads mutual exclusion without mutex
+    qrcu: ?
+    read_write_lock: four threads mutual exclusion without mutex
+    scull: Goblint true
+    szymanski: two threads mutual exclusion without mutex
+    time_var_mutex: two threads, mutexes, some third value dependent exclusion?
+
+pthread-ext/*_false-unreach-call*.i
+pthread-ext/*_true-unreach-call*.i
+    all: infinite threads?
+    01-14: uses __VERIFIER_atomic_*
+    15-20: same as pthread-atomic ones?
+    23: ?
+    25-26: uses __VERIFIER_atomic_*, similar to pthread ones?
+    27: ?
+    28: error in single independent thread
+    29-44: uses __VERIFIER_atomic_*
+    45: very basic, Goblint false
+    46: very basic, GCC threadlocal var with __thread?, Goblint false
+    47-48: uses __VERIFIER_atomic_*
+
+pthread-wmm/*_false-unreach-call*.i
+pthread-wmm/*_true-unreach-call*.i
+    not human-readable, weak memory models litmus tests modelled using pthread, interleavings?
+
+pthread-lit/*_false-unreach-call*.i
+pthread-lit/*_true-unreach-call*.i
+    fk2012: uses __VERIFIER_atomic_*, infinite threads, consumer-producer
+    fkp2013: based on fixed number of threads
+    fkp2013_variant: based on dynamic number of threads
+    fkp2014: uses __VERIFIER_atomic_*, is even correct? (why can't global t be negative to begin with?)
+    qw2004_*: uses __VERIFIER_atomic_*
+    sssc12_*: uses __VERIFIER_atomic_*
+
+ldv-races/*_true-unreach-call*.i
+ldv-races/*_false-unreach-call*.i
+    all: Goblint false
+    race-1: global var race, no race after pthread_join
+    race-2: data pointer struct var race, lock in struct
+    race-3: global struct var race, lock in struct
+    race-4: global var race, thread creates thread, no race after pthread_join
+
+ldv-linux-3.14-races/*_false-unreach-call*.i
+ldv-linux-3.14-races/*_true-unreach-call*.i
+    not human-readable
+
+pthread-complex/*_false-unreach-call*.i
+pthread-complex/*_true-unreach-call*.i
+    bounded_buffer: mutexes and cond variables in dynamic structs
+    elimination_backoff: uses __VERIFIER_atomic_*
+    safestack_relacy: uses __VERIFIER_atomic_*
+    workstealqueue_mutex: uses __VERIFIER_atomic_*
+
+pthread-driver-races/*_true-unreach-call*.i
+pthread-driver-races/*_false-unreach-call*.i
+    char_generic_nvram_nvram_llseek_nvram_unlocked_ioctl_true-unreach-call.i: Goblint true
+    char_generic_nvram_nvram_llseek_read_nvram_true-unreach-call.i: Goblint true
+    char_generic_nvram_nvram_llseek_write_nvram_true-unreach-call.i: Goblint true
+    char_generic_nvram_nvram_unlocked_ioctl_write_nvram_true-unreach-call.i: Goblint true
+    char_generic_nvram_read_nvram_nvram_unlocked_ioctl_true-unreach-call.i: Goblint true
+    char_generic_nvram_read_nvram_write_nvram_false-unreach-call.i: Goblint true (wrong!!!)
+    char_pc8736x_gpio_pc8736x_gpio_configure_pc8736x_gpio_get_true-unreach-call.i: Goblint true
+    char_pc8736x_gpio_pc8736x_gpio_open_pc8736x_gpio_configure_true-unreach-call.i: Goblint true
+    char_pc8736x_gpio_pc8736x_gpio_open_pc8736x_gpio_get_true-unreach-call.i: Goblint true
+    ...: Goblint false (3 correctly, 9 incorrectly)
+
+pthread-C-DAC/*_true-unreach-call*.i
+pthread-C-DAC/*_false-unreach-call*.i
+    pthread-demo-datarace: two threads counting, Goblint stuck?
+    pthread-finding-k-matches: many threads counting elements in array
+    pthread-numerical-integration: many threads calculate pi by summing
+
+pthread-divine/*_false-unreach-call*.i
+pthread-divine/*_true-unreach-call*.i
+    barrier: cond variables
+    condvar_*: cond variables
+    divinefifo*: assert after pthread_join
+    one_time_barrier_*: cond variables
+    ring_*: no mutex mutual exclusion
+    tls_basic: pthread_getspecific thread locals, assert after pthread_join
+    tls_destructor: pthread_getspecific thread locals with key destructor?
+
+pthread-nondet/*_false-unreach-call*.i
+pthread-nondet/*_true-unreach-call*.i
+    nondet-array: based on dynamic number of threads
+    nondet-loop_bound_*: based on dynamic number of threads
