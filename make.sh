@@ -44,7 +44,7 @@ rule() {
       # gprof & ocamlprof (run also generates ocamlprof.dump). use: ocamlprof src/goblint.ml
       ocb -ocamlopt ocamloptp $TARGET.p.native &&
       cp _build/$TARGET.p.native goblint
-    ;; doc*)
+    ;; docs)
       rm -rf doc;
       ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
       ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
@@ -103,13 +103,16 @@ rule() {
       ./scripts/update_suite.rb # run regression tests
     ;; testci)
       ruby scripts/update_suite.rb -s -d
-    ;; travis)
+    ;; travis) # run a travis docker container with the files tracked by git - intended to debug setup problems on travis-ci.com
       echo "run ./scripts/travis-ci.sh to setup ocaml"
       # echo "bind-mount cwd: beware that cwd of host can be modified and IO is very slow!"
       # docker run -it -u travis -v $(pwd):$(pwd):delegated -w $(pwd) travisci/ci-garnet:packer-1515445631-7dfb2e1 bash
       echo "copy cwd w/o git-ignored files: changes in container won't affect host's cwd."
       # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
       docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
+    ;; docker) # build and run a docker image
+      docker build -t goblint . | ts -i
+      docker run -it goblint bash
     ;; unit)
       ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native
     ;; server)
