@@ -95,6 +95,18 @@ let write_file (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node
           | Function f, _ ->
             [xml_data "returnFromFunction" f.vname]
           | _, _ -> []
+        end;
+        begin match edge with
+          (* control actually only allowed in violation witness *)
+          | Test (_, b) ->
+            [xml_data "control" ("condition-" ^ string_of_bool b)]
+          (* enter and return on other side of nodes,
+             more correct loc (startline) but had some scope problem? *)
+          | Entry f ->
+            [xml_data "enterFunction2" f.svar.vname]
+          | Ret (_, f) ->
+            [xml_data "returnFromFunction2" f.svar.vname]
+          | _ -> []
         end
       ])
   in
