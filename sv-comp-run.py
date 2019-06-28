@@ -6,6 +6,7 @@ import subprocess
 import re
 import collections
 import os.path
+import shlex
 
 
 def str2bool(s):
@@ -34,23 +35,31 @@ with open(set_filename) as set_file:
         print(f"{code_filename}: ", end="", flush=True)
         expected = extract_bool(r"_(false|true)-unreach-call", code_filename)
 
-        # p = subprocess.run(f"~/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug {code_filename}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
-        p = subprocess.run(f"~/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug --set ana.activated[+] \"'var_eq'\" --enable ana.int.interval {code_filename}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
-        actual = extract_bool(r"__VERIFIER_error unreach2: (false|true)", p.stdout)
+        try:
+            # p = subprocess.run(f"~/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug {code_filename}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
+            # p = subprocess.run(f"~/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug --set ana.activated[+] \"'var_eq'\" --enable ana.int.interval {code_filename}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
+            # p = subprocess.run(shlex.split(f"/home/simmo/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug --set ana.activated[+] \"'var_eq'\" --enable ana.int.interval {code_filename}"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=10)
+            p = subprocess.run(shlex.split(f"/home/simmo/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug --set ana.activated[+] \"'var_eq'\" --set ana.activated[+] \"'symb_locks'\" --set ana.activated[+] \"'thread'\" --set ana.activated[+] \"'region'\" --enable ana.int.interval {code_filename}"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=30)
+            actual = extract_bool(r"__VERIFIER_error unreach2: (false|true)", p.stdout)
+        except subprocess.TimeoutExpired:
+            actual = "timeout"
 
-        missing_funcs = False
-        for m in re.finditer(r"Function definition missing for (__VERIFIER_\S+)", p.stdout):
-            missing_funcs = True
-            print(f"MISSING FUNC {m.group(1)}")
+        if "p" in locals(): # sometimes on timeout p is declared, sometimes isn't
+            missing_funcs = False
+            for m in re.finditer(r"Function definition missing for (__VERIFIER_\S+)", p.stdout):
+                missing_funcs = True
+                print(f"MISSING FUNC {m.group(1)}")
 
-        if missing_funcs:
-            sys.exit(0)
+            if missing_funcs:
+                sys.exit(0)
 
         text = None
         if expected is None or actual is None:
             text = f"NONE expected {expected}, actual {actual}"
         elif actual == expected:
             text = f"CORRECT {expected}"
+        elif actual == "timeout":
+            text = f"UNKNOWN expected {expected}, actual {actual}"
         else:
             text = f"INCORRECT expected {expected}, actual {actual}"
 
