@@ -399,18 +399,20 @@ struct
         Printf.printf "INVARIANT %s: %s: %s\n" (EQSys.LVar.description k) (EQSys.D.short 800 v) (Option.default "None" (EQSys.D.invariant "" v))
       in
       LHT.iter print_invariant lh;
-      let module NH = Hashtbl.Make (MyCFG.Node) in
-      let invariants = NH.create 100 in
-      LHT.iter (fun k v ->
-          (* TODO: get invariant from LHT? *)
-          (* currently doesn't really handle context *)
-          let n = EQSys.LVar.node k in
-          NH.modify_def Invariant.none n (fun a ->
-              Invariant.(a || EQSys.D.invariant "" v)
-            ) invariants
-        ) lh;
-      let find_invariant (n:node): Invariant.t =
-        NH.find_default invariants n Invariant.none
+      let find_invariant: node -> Invariant.t =
+        let module NH = Hashtbl.Make (MyCFG.Node) in
+        let invariants = NH.create 100 in
+        LHT.iter (fun k v ->
+            (* TODO: get invariant from LHT? *)
+            (* currently doesn't really handle context *)
+            let n = EQSys.LVar.node k in
+            NH.modify_def Invariant.none n (fun a ->
+                Invariant.(a || EQSys.D.invariant "" v)
+              ) invariants
+          ) lh;
+
+        fun n ->
+          NH.find_default invariants n Invariant.none
       in
       Witness.write_file "witness.graphml" (module Cfg) file entrystates find_invariant (fun _ -> true);
 
@@ -467,18 +469,21 @@ struct
         ) v
     in
     Result.iter print_invariant !local_xml;
-    let module NH = Hashtbl.Make (MyCFG.Node) in
-    let invariants = NH.create 100 in
-    Result.iter (fun (l, n, f) v ->
-        (* currently doesn't really handle context *)
-        let i = LT.fold (fun (c, d, f2) a ->
-            Invariant.(a || Spec.D.invariant "" d)
-          ) v Invariant.none
-        in
-        NH.add invariants n i
-      ) !local_xml;
-    let find_invariant (n:node): Invariant.t =
-      NH.find_default invariants n Invariant.none
+
+    let find_invariant: node -> Invariant.t =
+      let module NH = Hashtbl.Make (MyCFG.Node) in
+      let invariants = NH.create 100 in
+      Result.iter (fun (l, n, f) v ->
+          (* currently doesn't really handle context *)
+          let i = LT.fold (fun (c, d, f2) a ->
+              Invariant.(a || Spec.D.invariant "" d)
+            ) v Invariant.none
+          in
+          NH.add invariants n i
+        ) !local_xml;
+
+      fun n ->
+        NH.find_default invariants n Invariant.none
     in
     Witness.write_file "witness2.graphml" (module Cfg) file entrystates find_invariant !liveness;
 
