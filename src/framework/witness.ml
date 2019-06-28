@@ -73,6 +73,11 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
         begin match node with
           | Statement s ->
             [xml_data "sourcecode" (Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
+
+          (* violation actually only allowed in violation witness *)
+          (* maybe should appear on from_node of entry edge instead *)
+          | FunctionEntry f when f.vname = "__VERIFIER_error" ->
+            [xml_data "violation" "true"]
           | _ -> []
         end
       ])
