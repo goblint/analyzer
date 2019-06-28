@@ -412,11 +412,7 @@ struct
       let find_invariant (n:node): Invariant.t =
         NH.find_default invariants n Invariant.none
       in
-      Witness.write_file (module Cfg) file entrystates find_invariant;
-
-      (* let print_invariant2 (l, n, f) v =
-         in
-         Result.iter print_invariant2 !local_xml; *)
+      Witness.write_file "witness.graphml" (module Cfg) file entrystates find_invariant (fun _ -> true);
 
       (* run activated transformations with the analysis result *)
       let ask loc =
@@ -461,8 +457,30 @@ struct
       (fun () -> Messages.waitWhat "Timeout reached!");
 
     let liveness = ref (fun _ -> true) in
-    if (get_bool "dbg.print_dead_code") then
+    if (get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp") then
       liveness := print_dead_code !local_xml;
+
+    let print_invariant (l, n, f) v =
+      (* some nodes duplicated for different contexts *)
+      LT.iter (fun (c, d, f2) ->
+          ignore (Pretty.printf "INVARIANT2 %a: %s: %s\n" Var.pretty n (Spec.D.short 800 d) (Option.default "None" (EQSys.D.invariant "" d)))
+        ) v
+    in
+    Result.iter print_invariant !local_xml;
+    let module NH = Hashtbl.Make (MyCFG.Node) in
+    let invariants = NH.create 100 in
+    Result.iter (fun (l, n, f) v ->
+        (* currently doesn't really handle context *)
+        let i = LT.fold (fun (c, d, f2) a ->
+            Invariant.(a || Spec.D.invariant "" d)
+          ) v Invariant.none
+        in
+        NH.add invariants n i
+      ) !local_xml;
+    let find_invariant (n:node): Invariant.t =
+      NH.find_default invariants n Invariant.none
+    in
+    Witness.write_file "witness2.graphml" (module Cfg) file entrystates find_invariant !liveness;
 
     if (get_bool "exp.cfgdot") then
       MyCFG.dead_code_cfg file (module Cfg:CfgBidir) !liveness;

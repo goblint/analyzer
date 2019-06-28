@@ -29,7 +29,7 @@ let find_loop_heads (module Cfg:CfgBidir) (file:Cil.file): unit NH.t =
 
   loop_heads
 
-let write_file (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node -> Invariant.t): unit =
+let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node -> Invariant.t) (is_live:node -> bool): unit =
   let (main_entry_nodes, other_entry_nodes) =
     entrystates
     |> List.map (fun ((n, _), _) -> n)
@@ -145,13 +145,17 @@ let write_file (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node
     if not (NH.mem itered_nodes node) then begin
       NH.add itered_nodes node ();
       add_node node;
+      let locedges_to_nodes =
+        Cfg.next node
+        |> List.filter (fun (_, to_node) -> is_live to_node)
+      in
       List.iter (fun (locedges, to_node) ->
           add_node to_node;
           add_edges node locedges to_node
-        ) (Cfg.next node);
+        ) locedges_to_nodes;
       List.iter (fun (locedges, to_node) ->
           iter_node to_node
-        ) (Cfg.next node)
+        ) locedges_to_nodes
     end
   in
 
@@ -169,7 +173,7 @@ let write_file (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node
           ] (List.rev !graph_children))
       ])
   in
-  let out = open_out "witness.graphml" in
+  let out = open_out filename in
   Printf.fprintf out "%s" (Xml.to_string_fmt xml);
   flush out;
   close_out_noerr out
