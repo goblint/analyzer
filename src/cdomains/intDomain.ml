@@ -496,9 +496,9 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
-module Lift (Base: S) = (* identical to Flat, but does not go to `Top/`Bot if Base raises Unknown/Error *)
+module Lift (Base: S) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
-  include Lattice.Lift (Base) (struct
+  include Lattice.LiftPO (Base) (struct
       let top_name = "MaxInt"
       let bot_name = "MinInt"
     end)
