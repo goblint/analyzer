@@ -626,24 +626,23 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
     struct
-      let lh_find_default h k d = try LH.find h k with Not_found -> d
-      let gh_find_default h k d = try GH.find h k with Not_found -> d
-
       module IneqSys = IneqConstrSysFromGlobConstrSys (S)
       module EqSys = Generic.NormalSysConverter (IneqSys)
 
       module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
-      let getR = function
+      let getR v = function
         | `Left x -> x
-        | `Right _ -> S.G.bot ()
-        | _ -> undefined ()
+        | `Right x ->
+          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
+          undefined ()
 
-      let getL = function
+      let getL v = function
         | `Right x -> x
-        | `Left _ -> S.D.top ()
-        | _ -> undefined ()
+        | `Left x ->
+          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
+          undefined ()
 
       let solve ls gs l =
         let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls
@@ -653,8 +652,8 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
         let l' = LH.create 113 in
         let g' = GH.create 113 in
         let split_vars = function
-          | (`L x,_) -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
-          | (`G x,_) -> fun y -> GH.replace g' x (getR y)
+          | (`L x,_) -> fun y -> LH.replace l' x (getL x y)
+          | (`G x,_) -> fun y -> GH.replace g' x (getR x y)
         in
         VH.iter split_vars hm;
         (l', g')
@@ -667,34 +666,34 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
     struct
-      let lh_find_default h k d = try LH.find h k with Not_found -> d
-      let gh_find_default h k d = try GH.find h k with Not_found -> d
-
       module IneqSys = IneqConstrSysFromGlobConstrSys (S)
 
       module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
       module Sol' = Sol (IneqSys) (VH)
 
-      let getR = function
+      let getG v = function
         | `Left x -> x
-        | `Right _ -> S.G.bot ()
-        | _ -> undefined ()
+        | `Right x ->
+          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
+          (* undefined () *) (* TODO this only happens for test 17/02 arinc/unique_proc *)
+          S.G.bot ()
 
-      let getL = function
+      let getL v = function
         | `Right x -> x
-        | `Left _ -> S.D.top ()
-        | _ -> undefined ()
+        | `Left x ->
+          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
+          undefined ()
 
       let solve ls gs l =
         let vs = List.map (fun (x,v) -> `L x, `Right v) ls
-                 @ List.map (fun (x,v) -> `G x, `Left  v) gs in
+                 @ List.map (fun (x,v) -> `G x, `Left v) gs in
         let sv = List.map (fun x -> `L x) l in
         let hm = Sol'.solve IneqSys.box vs sv in
         let l' = LH.create 113 in
         let g' = GH.create 113 in
         let split_vars = function
-          | `L x -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
-          | `G x -> fun y -> GH.replace g' x (getR y)
+          | `L x -> fun y -> LH.replace l' x (getL x y)
+          | `G x -> fun y -> GH.replace g' x (getG x y)
         in
         VH.iter split_vars hm;
         (l', g')
