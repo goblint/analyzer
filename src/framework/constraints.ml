@@ -965,12 +965,19 @@ struct
   let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
     Goblintutil.in_verifying_stage := true;
     Goblintutil.verified := Some true;
-    let complain_l ?(side=false) (v:LVar.t) lhs rhs =
+    let complain_l (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\n%s:\n%a\nDifference: %a\n@]"
-                LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs (if side then "Side-effect" else "Right-Hand-Side") D.pretty rhs D.pretty_diff (rhs,lhs))
+      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
+                LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
     in
-    let complain_g v (g:GVar.t) lhs rhs =
+    let complain_sidel v1 (v2:LVar.t) lhs rhs =
+      Goblintutil.verified := Some false;
+      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\nOrigin: %a (%s:%d)\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]"
+      LVar.pretty_trace v2 (LVar.file_name v2) (LVar.line_nr v2)
+      LVar.pretty_trace v1 (LVar.file_name v1) (LVar.line_nr v1)
+      D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
+    in
+    let complain_sideg v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
                 GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) G.pretty lhs G.pretty rhs)
@@ -986,12 +993,12 @@ struct
         let check_local l lv =
           let lv' = sigma' l in
           if not (D.leq lv lv') then
-            complain_l ~side:true l lv' lv
+            complain_sidel v l lv' lv
         in
         let check_glob g gv =
           let gv' = theta' g in
           if not (G.leq gv gv') then
-            complain_g v g gv' gv
+            complain_sideg v g gv' gv
         in
         let d = rhs sigma' check_local theta' check_glob in
         (* Then we check that the local state satisfies this constraint. *)
