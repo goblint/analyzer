@@ -236,10 +236,13 @@ struct
 
   let query ctx q =
     match q with
-    | Queries.ExpEq (exp1, exp2) ->
+    | Queries.ExpEq (exp1, exp2) ->                           (* TODO: We want to leverage all the additional information we have here *)
       let inv1, inv2 = evaluate_exp ctx.local exp1,
                        evaluate_exp ctx.local exp2 in
-      `Bool (INV.compare inv1 inv2 = 0)
+      if INV.is_int inv1 then
+        `Bool (INV.compare inv1 inv2 = 0)
+      else
+        `Top
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
