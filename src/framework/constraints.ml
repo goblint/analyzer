@@ -710,11 +710,11 @@ module PathSensitive2 (Spec:Spec)
 struct
   module D =
   struct
-    include SetDomain.Hoare (Spec.D) (N)
+    include SetDomain.Hoare (Spec.D) (N) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s: These are fine!" (name ()) else begin
+      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
         try
           let p t = not (mem t s2) in
           let evil = choose (filter p s1) in
