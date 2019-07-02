@@ -394,11 +394,11 @@ struct
       if get_bool "dump_globs" then
         print_globals gh;
 
-      let print_invariant k v =
-        (* some nodes duplicated for different contexts *)
-        Printf.printf "INVARIANT %s: %s: %s\n" (EQSys.LVar.description k) (EQSys.D.short 800 v) (Option.default "None" (EQSys.D.invariant "" v))
-      in
-      LHT.iter print_invariant lh;
+      (* let print_invariant k v =
+           (* some nodes duplicated for different contexts *)
+           Printf.printf "INVARIANT %s: %s: %s\n" (EQSys.LVar.description k) (EQSys.D.short 800 v) (Option.default "None" (EQSys.D.invariant "" v))
+         in
+         LHT.iter print_invariant lh; *)
       let find_invariant: node -> Invariant.t =
         let module NH = Hashtbl.Make (MyCFG.Node) in
         let invariants = NH.create 100 in
@@ -462,13 +462,13 @@ struct
     if (get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp") then
       liveness := print_dead_code !local_xml;
 
-    let print_invariant (l, n, f) v =
-      (* some nodes duplicated for different contexts *)
-      LT.iter (fun (c, d, f2) ->
-          ignore (Pretty.printf "INVARIANT2 %a: %s: %s\n" Var.pretty n (Spec.D.short 800 d) (Option.default "None" (EQSys.D.invariant "" d)))
-        ) v
-    in
-    Result.iter print_invariant !local_xml;
+    (* let print_invariant (l, n, f) v =
+         (* some nodes duplicated for different contexts *)
+         LT.iter (fun (c, d, f2) ->
+             ignore (Pretty.printf "INVARIANT2 %a: %s: %s\n" Var.pretty n (Spec.D.short 800 d) (Option.default "None" (EQSys.D.invariant "" d)))
+           ) v
+       in
+       Result.iter print_invariant !local_xml; *)
 
     let find_invariant: node -> Invariant.t =
       let module NH = Hashtbl.Make (MyCFG.Node) in
