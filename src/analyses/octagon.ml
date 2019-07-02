@@ -246,20 +246,49 @@ struct
   let exitstate  v = D.top ()
 
   let query ctx q =
+    let getSumAndDiffForVars exp1 exp2 =
+      match exp1, exp2 with
+      | Lval(Var v1,NoOffset), Lval(Var v2, NoOffset) -> 
+        let sum, diff, flag = D.get_relation v1 v2 ctx.local in
+        if not flag then
+          sum, diff
+        else
+          sum, BatOption.map (OctagonDomain.INV.mul (OctagonDomain.INV.of_int Int64.minus_one)) diff
+      | _ -> None, None
+    in
     match q with
     | Queries.MustBeEqual (exp1,exp2) ->
       begin
-        match exp1, exp2 with
-        | Lval(Var v1,NoOffset), Lval(Var v2, NoOffset) ->
-          let sum, diff = D.get_relation v1 v2 ctx.local in
+        match getSumAndDiffForVars exp1 exp2 with
+        | _, Some(x) -> 
           begin
-            match diff with
-            | Some(x) -> 
-              begin
-                match OctagonDomain.INV.to_int x with
-                | (Some i) -> `Bool (Int64.equal Int64.zero i)
-                | _ -> Queries.Result.top ()
-              end
+            match OctagonDomain.INV.to_int x with
+            | (Some i) -> `Bool (Int64.equal Int64.zero i)
+            | _ -> Queries.Result.top ()
+          end
+        | _ -> Queries.Result.top ()
+      end
+    | Queries.MayBeEqual (exp1,exp2) ->
+      begin
+        match getSumAndDiffForVars exp1 exp2 with
+        | _, Some(x) -> 
+          begin
+            if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int Int64.zero)) then
+              `Bool (false)
+            else
+              Queries.Result.top ()
+          end
+        | _ -> Queries.Result.top ()
+      end
+    | Queries.MayBeLess (exp1, exp2) ->
+      (* TODO: Here the order of arguments actually matters, be careful *)
+      begin
+        match getSumAndDiffForVars exp1 exp2 with
+        | _, Some(x) -> 
+          begin
+            match OctagonDomain.INV.maximal x with
+            | Some i when Int64.compare i Int64.zero >= 0 ->
+              `Bool(false)
             | _ -> Queries.Result.top ()
           end
         | _ -> Queries.Result.top ()
@@ -279,7 +308,7 @@ struct
     | Queries.InInterval (exp, inv) ->
       let linv = evaluate_exp ctx.local exp in
       `Bool (INV.leq linv inv)
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top () 
 end
 
 

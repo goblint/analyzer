@@ -75,7 +75,9 @@ sig
   val strong_closure  : t -> t
   val map_to_matrix   : t -> elt array array * (BV.t, int) Hashtbl.t
   val matrix_to_map   : elt array array -> (BV.t, int) Hashtbl.t -> t
-  val get_relation    : Deriving.Cil.varinfo -> Deriving.Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option
+  val get_relation    : Deriving.Cil.varinfo -> Deriving.Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option * bool
+  (* TODO: Currently last bool indicates if it was neccessary to switch the order of vars and thereofre multiplying diff by -1 in consumers may be neccessary. *)
+  (* This is ugly and needs to be fixed *)
 end
 
 
@@ -195,13 +197,15 @@ module MapOctagon : S
   let rec get_relation i j oct =
     if BV.compare i j = 1 then
       begin
-        get_relation j i oct
+        let sum,diff,_ = get_relation j i oct in
+        sum,diff,true
       end
     else try
         let _, l = find i oct in
-        find_constraints j l
+        let summ, diff = find_constraints j l in
+        summ,diff, false
       with Not_found ->
-        None, None
+        None, None, false
 
   let get_interval i oct =
     try
@@ -346,7 +350,7 @@ module MapOctagon : S
         then
           if cmp = 1
           then
-            let sumConst, difConst = get_relation j i oct in
+            let sumConst, difConst, _ = get_relation j i oct in
             match i_inv, j_inv with
             | true, false -> upper sumConst
             | false, true -> OPT.map Int64.neg (lower sumConst)
@@ -669,7 +673,7 @@ module MapOctagonBot : S
 
   let rec get_relation i j oct =
     match oct with
-    | `Bot -> None, None
+    | `Bot -> None, None, false
     | `Lifted x -> MapOctagon.get_relation i j x
   
 end
