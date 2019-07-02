@@ -34,7 +34,7 @@ struct
           let module B_prod = BatSet.Make2 (Exp) (Exp) in
           let s_prod = B_prod.cartesian_product s s in
           let i = B_prod.Product.fold (fun (x, y) a ->
-              if Exp.compare x y < 0 && not (Cilfacade.exp_contains_tmp x) && not (Cilfacade.exp_contains_tmp y) then (* each equality only one way, no self-equalities *)
+              if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) then (* each equality only one way, no self-equalities *)
                 let xname = string_of_exp x in
                 let yname = string_of_exp y in
                 let eq = xname ^ " == " ^ yname in
