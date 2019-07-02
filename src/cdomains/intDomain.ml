@@ -381,14 +381,8 @@ struct
   let add  = Int64.add (* TODO: signed overflow is undefined behavior! *)
   let sub  = Int64.sub
   let mul  = Int64.mul
-  let div x y = (* TODO: exception is not very helpful here?! *)
-    match y with
-    | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *)
-    | _  -> Int64.div x y           (*    sigfpe and ocaml has somehow forgotten how to deal with it*)
-  let rem x y =
-    match y with
-    | 0L -> raise Division_by_zero  (* ditto *)
-    | _  -> Int64.rem x y
+  let div  = Int64.div
+  let rem  = Int64.rem
   let lt n1 n2 = of_bool (n1 <  n2)
   let gt n1 n2 = of_bool (n1 >  n2)
   let le n1 n2 = of_bool (n1 <= n2)
