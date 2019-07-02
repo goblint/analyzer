@@ -24,7 +24,7 @@ struct
 
   let is_local lval =
     not (lval.vglob ||
-         lval.vdecl.line = -1 ||
+         lval.vdecl.line = -1 || (* TODO: Why? *)
          lval.vdecl.line = -3 ||
          lval.vdecl.line = -4)
 
@@ -103,20 +103,32 @@ struct
        | Var lval ->
          let rval = stripCastsDeep rval in
          (match rval with
-          | BinOp(op, Lval(Var(var), _), Const(CInt64 (integer, _, _)), _)
+          | BinOp(op, Lval(Var(var), _), Const(CInt64 (integer, _, _)), _) (* TODO: offsets etc? What if the arguments are reversed? *)
             when op = PlusA || op = MinusA ->
-            let integer =
-              if op = MinusA
-              then Int64.neg integer
-              else integer
-            in
-            if (BV.compare lval var) = 0
-            then D.adjust var integer ctx.local, true
-            else
-              let oct = D.erase lval ctx.local in
-              D.set_constraint (lval, Some(false, var), true, integer)
-                (D.set_constraint (lval, Some(false, var), false, integer) oct), true
-          | exp ->
+            begin
+              Printf.printf "------------------------>this one!";
+              let integer =
+                if op = MinusA
+                then Int64.neg integer
+                else integer
+              in
+              if (BV.compare lval var) = 0
+              then D.adjust var integer ctx.local, true
+              else
+                let oct = D.erase lval ctx.local in                     (* integer <= varFromRight-lval <= integer *)
+                D.set_constraint (lval, Some(false, var), true, integer)
+                  (D.set_constraint (lval, Some(false, var), false, integer) oct), true
+            end
+          | Lval(Var var, NoOffset) ->
+            begin
+              if (BV.compare lval var) = 0
+              then D.adjust var Int64.zero ctx.local, true
+              else
+                let oct = D.erase lval ctx.local in                     (* 0 <= varFromRight-lval <= 0 *)
+                D.set_constraint (lval, Some(false, var), true, Int64.zero)
+                  (D.set_constraint (lval, Some(false, var), false, Int64.zero) oct), true
+            end
+          | exp ->  (* TODO: What about assigning the value of one variable to the other? *)
             let const = evaluate_exp ctx.local exp in
             let oct = D.erase lval ctx.local in
             if not (INV.is_top const) then
