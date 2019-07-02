@@ -42,7 +42,7 @@ sig
   val stop: t -> unit
 end
 
-module type StringGraphMlWriter = GraphMlWriter with type node := string
+module type StringGraphMlWriter = GraphMlWriter with type node = string
 
 module XmlGraphMlWriter: StringGraphMlWriter =
 struct
@@ -80,17 +80,43 @@ struct
 end
 
 module NodeGraphMlWriter (M: StringGraphMlWriter):
-  (GraphMlWriter with type node := node) =
+  (GraphMlWriter with type node = MyCFG.node) =
 struct
-  include M
+  type t = M.t
+  type node = MyCFG.node
 
   let string_of_node = function
     | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
     | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
     | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
 
+  let start = M.start
+  let write_metadata = M.write_metadata
   let write_node g node datas = M.write_node g (string_of_node node) datas
   let write_edge g source target datas = M.write_edge g (string_of_node source) (string_of_node target) datas
+  let stop = M.stop
+end
+
+module DeDupGraphMlWriter (Node: Hashtbl.HashedType) (M: GraphMlWriter with type node = Node.t): (GraphMlWriter with type node = Node.t) =
+struct
+  module H = Hashtbl.Make(Node)
+
+  type t =
+    {
+      delegate: M.t;
+      added_nodes: unit H.t
+    }
+  type node = M.node
+
+  let start out = { delegate = M.start out; added_nodes = H.create 100 }
+  let write_metadata {delegate} = M.write_metadata delegate
+  let write_node {delegate; added_nodes} node datas =
+    if not (H.mem added_nodes node) then begin
+      H.add added_nodes node ();
+      M.write_node delegate node datas
+    end
+  let write_edge {delegate} = M.write_edge delegate
+  let stop {delegate} = M.stop delegate
 end
 
 let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node -> Invariant.t) (is_live:node -> bool): unit =
@@ -112,7 +138,7 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
   let loop_heads = find_loop_heads (module Cfg) file in
 
 
-  let module GML = NodeGraphMlWriter (XmlGraphMlWriter) in
+  let module GML = DeDupGraphMlWriter (Node) (NodeGraphMlWriter (XmlGraphMlWriter)) in
   let out = open_out filename in
   let g = GML.start out in
 
@@ -185,12 +211,8 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
       ])
   in
 
-  let added_nodes = NH.create 100 in
   let add_node ?(entry=false) node =
-    if not (NH.mem added_nodes node) then begin
-      NH.add added_nodes node ();
-      write_node ~entry node
-    end
+    write_node ~entry node
   in
 
   (* BFS, just for nicer ordering of witness graph children *)
@@ -202,7 +224,7 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
       let return_node = Function f in
       iter_node entry_node;
       write_edge from_node (loc, edge) entry_node;
-      if NH.mem added_nodes return_node then
+      if NH.mem itered_nodes return_node then
         write_edge return_node (loc, edge) to_node
       else
         () (* return node missing, function never returns *)
