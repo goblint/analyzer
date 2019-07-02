@@ -1,5 +1,7 @@
 sut:
-  build: .
+  build:
+    context: .
+    cache_from: ${CACHE_TAG}
   environment:
     LC_ALL: C.UTF-8
   command: ./make.sh nat headers testci
