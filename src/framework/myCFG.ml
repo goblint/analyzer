@@ -225,6 +225,9 @@ let createCFG (file: file) =
           Hashtbl.add stmt_index_hack stmt.sid fd;
           if Messages.tracing then Messages.trace "cfg" "Statement at %a.\n" d_loc (get_stmtLoc stmt.skind);
           match stmt.skind with
+          (* turn pthread_exit into return? *)
+          (* | Instr [Call (_, Lval (Var {vname="pthread_exit"}, _), [ret_exp], _)] -> addCfg (Function fd.svar) (Ret (Some ret_exp,fd), Statement stmt) *)
+          (* | Instr [Call (lval, ((Lval (Var {vname="pthread_exit"}, _)) as func), ([ret_exp] as args), loc)] -> addCfg (Function fd.svar) (Proc (lval, func, args), Statement stmt) *)
           (* Normal instructions are easy. They should be a list of a single
            * instruction, either Set, Call or ASM: *)
           | Instr xs ->
