@@ -279,7 +279,7 @@ struct
     | None, _ | _, None -> bot ()
     | Some (x1,x2), Some (y1,y2) ->
       begin match y1, y2 with
-        | 0L, 0L       -> bot ()
+        | 0L, 0L       -> top () (* TODO warn about undefined behavior *)
         | 0L, _        -> div (Some (x1,x2)) (Some (1L,y2))
         | _      , 0L  -> div (Some (x1,x2)) (Some (y1,(-1L)))
         | _ when leq (of_int 0L) (Some (y1,y2)) -> top ()
