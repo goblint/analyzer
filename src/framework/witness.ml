@@ -33,21 +33,25 @@ let find_loop_heads (module Cfg:CfgBidir) (file:Cil.file): unit NH.t =
 module type GraphMlWriter =
 sig
   type t
+  type node
 
   val start: out_channel -> t
   val write_metadata: t -> string -> string -> unit
-  val write_node: t -> string -> (string * string) list -> unit
-  val write_edge: t -> string -> string -> (string * string) list -> unit
+  val write_node: t -> node -> (string * string) list -> unit
+  val write_edge: t -> node -> node -> (string * string) list -> unit
   val stop: t -> unit
 end
 
-module XmlGraphMlWriter: GraphMlWriter =
+module type StringGraphMlWriter = GraphMlWriter with type node := string
+
+module XmlGraphMlWriter: StringGraphMlWriter =
 struct
   type t =
     {
       out: out_channel;
       mutable children: Xml.xml list
     }
+  type node = string
 
   let start out = { out; children = [] }
 
@@ -75,6 +79,20 @@ struct
     flush g.out
 end
 
+module NodeGraphMlWriter (M: StringGraphMlWriter):
+  (GraphMlWriter with type node := node) =
+struct
+  include M
+
+  let string_of_node = function
+    | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
+    | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
+    | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
+
+  let write_node g node datas = M.write_node g (string_of_node node) datas
+  let write_edge g source target datas = M.write_edge g (string_of_node source) (string_of_node target) datas
+end
+
 let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node -> Invariant.t) (is_live:node -> bool): unit =
   let (main_entry_nodes, other_entry_nodes) =
     entrystates
@@ -94,13 +112,7 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
   let loop_heads = find_loop_heads (module Cfg) file in
 
 
-  let node_name = function
-    | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
-    | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
-    | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
-  in
-
-  let module GML = XmlGraphMlWriter in
+  let module GML = NodeGraphMlWriter (XmlGraphMlWriter) in
   let out = open_out filename in
   let g = GML.start out in
 
@@ -111,7 +123,7 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
   GML.write_metadata g "programfile" (getLoc main_entry).file;
 
   let write_node ~entry node =
-    GML.write_node g (node_name node) (List.concat [
+    GML.write_node g node (List.concat [
         begin if entry then
             [("entry", "true")]
           else
@@ -139,7 +151,7 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
       ])
   in
   let write_edge from_node ((loc, edge):Cil.location * edge) to_node =
-    GML.write_edge g (node_name from_node) (node_name to_node) (List.concat [
+    GML.write_edge g from_node to_node (List.concat [
         begin if loc.line <> -1 then
             [("startline", string_of_int loc.line);
              ("endline", string_of_int loc.line)]
