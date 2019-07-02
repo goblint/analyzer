@@ -106,7 +106,6 @@ struct
           | BinOp(op, Lval(Var(var), _), Const(CInt64 (integer, _, _)), _) (* TODO: offsets etc? What if the arguments are reversed? *)
             when op = PlusA || op = MinusA ->
             begin
-              Printf.printf "------------------------>this one!";
               let integer =
                 if op = MinusA
                 then Int64.neg integer
@@ -248,6 +247,23 @@ struct
 
   let query ctx q =
     match q with
+    | Queries.MustBeEqual (exp1,exp2) ->
+      begin
+        match exp1, exp2 with
+        | Lval(Var v1,NoOffset), Lval(Var v2, NoOffset) ->
+          let sum, diff = D.get_relation v1 v2 ctx.local in
+          begin
+            match diff with
+            | Some(x) -> 
+              begin
+                match OctagonDomain.INV.to_int x with
+                | (Some i) -> `Bool (Int64.equal Int64.zero i)
+                | _ -> Queries.Result.top ()
+              end
+            | _ -> Queries.Result.top ()
+          end
+        | _ -> Queries.Result.top ()
+      end
     | Queries.ExpEq (exp1, exp2) ->                           (* TODO: We want to leverage all the additional information we have here *)
       let inv1, inv2 = evaluate_exp ctx.local exp1,
                        evaluate_exp ctx.local exp2 in

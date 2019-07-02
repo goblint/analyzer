@@ -75,6 +75,7 @@ sig
   val strong_closure  : t -> t
   val map_to_matrix   : t -> elt array array * (BV.t, int) Hashtbl.t
   val matrix_to_map   : elt array array -> (BV.t, int) Hashtbl.t -> t
+  val get_relation    : Deriving.Cil.varinfo -> Deriving.Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option
 end
 
 
@@ -665,4 +666,10 @@ module MapOctagonBot : S
   let projection key key2 = function
     | `Bot -> INV.top ()
     | `Lifted x -> MapOctagon.projection key key2 x
+
+  let rec get_relation i j oct =
+    match oct with
+    | `Bot -> None, None
+    | `Lifted x -> MapOctagon.get_relation i j x
+  
 end
