@@ -66,7 +66,7 @@ struct
   let write_node g id datas = write_child g (xml_node id datas)
 
   let xml_edge source target datas =
-    Xml.Element ("node", [("source", source); ("target", target)], xml_datas datas)
+    Xml.Element ("edge", [("source", source); ("target", target)], xml_datas datas)
   let write_edge g source target datas = write_child g (xml_edge source target datas)
 
   let stop g =
