@@ -24,7 +24,7 @@ struct
 
   let is_local lval =
     not (lval.vglob ||
-         lval.vdecl.line = -1 || (* TODO: Why? *)
+         lval.vdecl.line = -1 || (* TODO: Why?  CIL says:The line number. -1 means "do not know"	*)
          lval.vdecl.line = -3 ||
          lval.vdecl.line = -4)
 
@@ -230,7 +230,9 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
+    (* remove locals from state *)
+    let locals = (f.sformals @ f.slocals) in
+    List.fold_left (fun oct v -> D.erase v oct) ctx.local locals
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
