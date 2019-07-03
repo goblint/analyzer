@@ -244,7 +244,10 @@ struct
     | None -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+    match lval with
+    | Some (Var v,_) -> D.erase v ctx.local
+    | Some (Mem _, _)
+    | None -> ctx.local
 
   let startstate v = D.top ()
   let otherstate v = D.top ()
