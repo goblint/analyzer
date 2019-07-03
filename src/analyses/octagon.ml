@@ -221,7 +221,7 @@ struct
 
       if changed then begin
         let oct = D.strong_closure (D.meet ctx.local oct) in
-        print_oct oct |> print_endline;
+        (* print_oct oct |> print_endline; *)
         oct end
       else
         oct
