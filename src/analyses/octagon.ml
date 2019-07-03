@@ -238,7 +238,10 @@ struct
     [ctx.local,ctx.local]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    au
+    match lval with
+    | Some (Var v,_) -> D.erase v au (* TODO: Be smarter here *)
+    | Some (Mem _, _)
+    | None -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
