@@ -15,5 +15,5 @@ COPY --chown=opam . /home/opam/analyzer
 RUN make
 # need UTF-8 for test script, image's default is US-ASCII
 ENV LC_ALL=C.UTF-8
-RUN make test
+# RUN make test
 CMD ./goblint

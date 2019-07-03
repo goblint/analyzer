@@ -7,4 +7,4 @@ services:
         - voglerr/goblint:latest
     environment:
       LC_ALL: C.UTF-8
-    command: ./make.sh nat headers testci
+    command: make test
