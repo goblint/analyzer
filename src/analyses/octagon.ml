@@ -22,11 +22,12 @@ struct
   let print_oct oct =
     Prelude.Ana.sprint D.pretty oct
 
-  let is_local lval =
-    not (lval.vglob ||
-         lval.vdecl.line = -1 || (* TODO: Why?  CIL says:The line number. -1 means "do not know"	*)
-         lval.vdecl.line = -3 ||
-         lval.vdecl.line = -4)
+  let is_local_and_not_pointed_to v =
+    (not (v.vglob ||
+         v.vdecl.line = -1 || (* TODO: Why?  CIL says:The line number. -1 means "do not know"	*)
+         v.vdecl.line = -3 ||
+         v.vdecl.line = -4))
+    && (not v.vaddrof)  (* to avoid handling pointers, only vars whose address is never taken (i.e. can not be pointed to) *)
 
 
   let evaluate_sums oct exp =
@@ -98,7 +99,7 @@ struct
     let lhost, _ = lval in
     let oct, changed =
       (match lhost with
-       | Var lval when not (is_local lval) ->
+       | Var lval when not (is_local_and_not_pointed_to lval) ->
          ctx.local, false
        | Var lval ->
          let rval = stripCastsDeep rval in
@@ -195,7 +196,7 @@ struct
            let oct = begin
              match lexp with
              | BinOp(op, Lval(Var v1, _), Lval(Var v2, _), _)
-               when is_local v1 && is_local v2 && (op = PlusA || op = MinusA) ->
+               when is_local_and_not_pointed_to v1 && is_local_and_not_pointed_to v2 && (op = PlusA || op = MinusA) ->
                let sign = (op = PlusA) in
                let oct = if setUpper
                  then D.set_constraint (v1, Some(sign, v2), true, invUpper) ctx.local
@@ -204,7 +205,7 @@ struct
                  then D.set_constraint (v1, Some(sign, v2), false, invLower) oct
                  else oct in
                oct
-             | Lval(Var v, _) when is_local v ->
+             | Lval(Var v, _) when is_local_and_not_pointed_to v ->
                let oct = if setUpper
                  then D.set_constraint (v, None, true, invUpper) ctx.local
                  else ctx.local in
