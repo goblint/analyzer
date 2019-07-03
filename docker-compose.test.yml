@@ -1,6 +1,6 @@
 version: '3.2'
 services:
-  goblint:
+  sut:
     build:
       context: .
       cache_from:
