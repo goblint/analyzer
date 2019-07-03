@@ -134,7 +134,7 @@ struct
               D.set_constraint (lval, None, true, INV.maximal const |> Option.get)
                 (D.set_constraint (lval, None, false, INV.minimal const |> Option.get)
                    oct), true
-            else ctx.local, false
+            else oct, false
          )
        | _ -> ctx.local, false)
     in
@@ -174,8 +174,8 @@ struct
         | _ -> cmp
       in
 
-      let oct, changed =
-        (match exp with
+      let oct, changed =                              (* TODO: in cases like x < y are we doing everything we can? *)
+        (match exp with                               (* In case of x=y we definetly aren't if x and y are both vars*)
          | BinOp(cmp, lexp, rexp, _) ->
            let cmp = if tv then cmp else negate cmp in
            let inv = evaluate_exp ctx.local rexp in
