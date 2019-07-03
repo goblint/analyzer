@@ -96,12 +96,11 @@ struct
 
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let lhost, _ = lval in
     let oct, changed =
-      (match lhost with
-       | Var lval when not (is_local_and_not_pointed_to lval) ->
+      (match lval with
+       | (Var lval, NoOffset) when not (is_local_and_not_pointed_to lval) ->
          ctx.local, false
-       | Var lval ->
+       | (Var lval, NoOffset) ->
          let rval = stripCastsDeep rval in
          (match rval with
           | BinOp(op, Lval(Var(var), _), Const(CInt64 (integer, _, _)), _) (* TODO: offsets etc? What if the arguments are reversed? *)
