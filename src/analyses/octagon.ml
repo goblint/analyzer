@@ -28,6 +28,7 @@ struct
          v.vdecl.line = -3 ||
          v.vdecl.line = -4))
     && (not v.vaddrof)  (* to avoid handling pointers, only vars whose address is never taken (i.e. can not be pointed to) *)
+    && (Cil.isIntegralType v.vtype)
 
 
   let evaluate_sums oct exp =
