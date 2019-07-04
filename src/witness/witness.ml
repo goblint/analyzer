@@ -29,6 +29,33 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   let out = open_out filename in
   let g = GML.start out in
 
+  GML.write_key g "graph" "witness-type" "string" None;
+  GML.write_key g "graph" "sourcecodelang" "string" None;
+  GML.write_key g "graph" "producer" "string" None;
+  GML.write_key g "graph" "specification" "string" None;
+  GML.write_key g "graph" "programfile" "string" None;
+  GML.write_key g "graph" "programhash" "string" None;
+  GML.write_key g "graph" "architecture" "string" None;
+  GML.write_key g "graph" "creationtime" "string" None;
+  GML.write_key g "node" "entry" "boolean" (Some "false");
+  GML.write_key g "node" "sink" "boolean" (Some "false");
+  GML.write_key g "node" "violation" "boolean" (Some "false");
+  GML.write_key g "node" "invariant" "string" None;
+  GML.write_key g "node" "invariant.scope" "string" None;
+  GML.write_key g "edge" "assumption" "string" None;
+  GML.write_key g "edge" "assumption.scope" "string" None;
+  GML.write_key g "edge" "assumption.resultfunction" "string" None;
+  GML.write_key g "edge" "control" "string" None;
+  GML.write_key g "edge" "startline" "int" None;
+  GML.write_key g "edge" "endline" "int" None;
+  GML.write_key g "edge" "startoffset" "int" None;
+  GML.write_key g "edge" "endoffset" "int" None;
+  GML.write_key g "edge" "enterLoopHead" "boolean" (Some "false");
+  GML.write_key g "edge" "enterFunction" "string" None;
+  GML.write_key g "edge" "returnFromFunction" "string" None;
+  GML.write_key g "edge" "threadId" "string" None;
+  GML.write_key g "edge" "createThread" "string" None;
+
   GML.write_metadata g "witness-type" "correctness_witness";
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" "Goblint";
