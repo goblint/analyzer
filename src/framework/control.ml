@@ -441,7 +441,7 @@ struct
         in
         Result.fold dead_verifier_error !local_xml true
       in
-      Printf.printf "%s unreach: %B\n" Svcomp.verifier_error svcomp_unreach_call;
+      Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
       if svcomp_unreach_call then begin
         (* let print_invariant (l, n, f) v =
