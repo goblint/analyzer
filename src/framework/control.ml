@@ -429,66 +429,68 @@ struct
     if (get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp") then
       liveness := print_dead_code !local_xml;
 
-    let svcomp_unreach_call =
-      let dead_verifier_error (l, n, f) v acc =
-        match n with
-        (* FunctionEntry isn't used for extern __VERIFIER_error... *)
-        | FunctionEntry f when f.vname = Svcomp.verifier_error ->
-          let is_dead = not (!liveness n) in
-          acc && is_dead
-        | _ -> acc
+    if get_bool "ana.sv-comp" then begin
+      let svcomp_unreach_call =
+        let dead_verifier_error (l, n, f) v acc =
+          match n with
+          (* FunctionEntry isn't used for extern __VERIFIER_error... *)
+          | FunctionEntry f when f.vname = Svcomp.verifier_error ->
+            let is_dead = not (!liveness n) in
+            acc && is_dead
+          | _ -> acc
+        in
+        Result.fold dead_verifier_error !local_xml true
       in
-      Result.fold dead_verifier_error !local_xml true
-    in
-    Printf.printf "%s unreach: %B\n" Svcomp.verifier_error svcomp_unreach_call;
+      Printf.printf "%s unreach: %B\n" Svcomp.verifier_error svcomp_unreach_call;
 
-    if svcomp_unreach_call then begin
-      (* let print_invariant (l, n, f) v =
-           (* some nodes duplicated for different contexts *)
-           LT.iter (fun (c, d, f2) ->
-               ignore (Pretty.printf "INVARIANT2 %a: %s: %s\n" Var.pretty n (Spec.D.short 800 d) (Option.default "None" (EQSys.D.invariant "" d)))
-             ) v
-         in
-         Result.iter print_invariant !local_xml; *)
+      if svcomp_unreach_call then begin
+        (* let print_invariant (l, n, f) v =
+             (* some nodes duplicated for different contexts *)
+             LT.iter (fun (c, d, f2) ->
+                 ignore (Pretty.printf "INVARIANT2 %a: %s: %s\n" Var.pretty n (Spec.D.short 800 d) (Option.default "None" (EQSys.D.invariant "" d)))
+               ) v
+           in
+           Result.iter print_invariant !local_xml; *)
 
-      let find_invariant: node -> Invariant.t =
-        let module NH = Hashtbl.Make (MyCFG.Node) in
-        let invariants = NH.create 100 in
-        Result.iter (fun (l, n, f) v ->
-            (* currently doesn't really handle context *)
-            let i = LT.fold (fun (c, d, f2) a ->
-                Invariant.(a || Spec.D.invariant "" d)
-              ) v Invariant.none
-            in
-            NH.add invariants n i
-          ) !local_xml;
+        let find_invariant: node -> Invariant.t =
+          let module NH = Hashtbl.Make (MyCFG.Node) in
+          let invariants = NH.create 100 in
+          Result.iter (fun (l, n, f) v ->
+              (* currently doesn't really handle context *)
+              let i = LT.fold (fun (c, d, f2) a ->
+                  Invariant.(a || Spec.D.invariant "" d)
+                ) v Invariant.none
+              in
+              NH.add invariants n i
+            ) !local_xml;
 
-        fun n ->
-          NH.find_default invariants n Invariant.none
-      in
-      let module TaskResult =
-      struct
-        let result = true
-        let is_live = !liveness
-        let invariant = find_invariant
-        let is_violation _ = false
-        let is_sink _ = false
+          fun n ->
+            NH.find_default invariants n Invariant.none
+        in
+        let module TaskResult =
+        struct
+          let result = true
+          let is_live = !liveness
+          let invariant = find_invariant
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        Witness.write_file "witness.graphml" (module Task) (module TaskResult)
+      end else begin
+        let module TaskResult =
+        struct
+          let result = false
+          let is_live = !liveness
+          let invariant _ = Invariant.none
+          let is_violation = function
+            | FunctionEntry f when f.vname = Svcomp.verifier_error -> true
+            | _ -> false
+          let is_sink _ = false
+        end
+        in
+        Witness.write_file "witness.graphml" (module Task) (module TaskResult)
       end
-      in
-      Witness.write_file "witness.graphml" (module Task) (module TaskResult)
-    end else begin
-      let module TaskResult =
-      struct
-        let result = false
-        let is_live = !liveness
-        let invariant _ = Invariant.none
-        let is_violation = function
-          | FunctionEntry f when f.vname = Svcomp.verifier_error -> true
-          | _ -> false
-        let is_sink _ = false
-      end
-      in
-      Witness.write_file "witness.graphml" (module Task) (module TaskResult)
     end;
 
     if (get_bool "exp.cfgdot") then
