@@ -76,15 +76,6 @@ struct
         end;
       in
       Result.iter add_one xs;
-      let dead_verifier_error (l, n, f) v acc =
-        match n with
-        (* FunctionEntry isn't used for extern __VERIFIER_error... *)
-        | FunctionEntry f when f.vname = Svcomp.verifier_error ->
-          let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
-          acc && is_dead
-        | _ -> acc
-      in
-      Printf.printf "%s unreach (dead_code): %B\n" Svcomp.verifier_error (Result.fold dead_verifier_error xs true);
       let live file fn =
         try StringMap.find fn (StringMap.find file !live_lines)
         with Not_found -> BatISet.empty
@@ -358,7 +349,7 @@ struct
       local_xml := solver2source_result lh;
       global_xml := gh;
 
-      if get_bool "dbg.uncalled" || get_bool "ana.sv-comp" then
+      if get_bool "dbg.uncalled" then
         begin
           let out = M.get_out "uncalled" Legacy.stdout in
           let insrt k _ s = match k with
@@ -373,27 +364,15 @@ struct
             not (Str.last_chars loc.file 2 = ".h") &&
             not (LibraryFunctions.is_safe_uncalled fn.vname)
           in
-
-          if get_bool "dbg.uncalled" then begin
-            let print_uncalled = function
-              | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
-                begin
-                  let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
-                  ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
-                end
-              | _ -> ()
-            in
-            List.iter print_uncalled file.globals
-          end;
-
-          if get_bool "ana.sv-comp" then begin
-            let dead_verifier_error acc global = match global with
-              | GFun (fn, loc) when is_bad_uncalled fn.svar loc && fn.svar.vname = Svcomp.verifier_error ->
-                true
-              | _ -> acc
-            in
-            Printf.printf "%s unreach (uncalled): %B\n" Svcomp.verifier_error (List.fold_left dead_verifier_error false file.globals)
-          end
+          let print_uncalled = function
+            | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+              begin
+                let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+              end
+            | _ -> ()
+          in
+          List.iter print_uncalled file.globals
         end;
 
       (* check for dead code at the last state: *)
@@ -403,39 +382,6 @@ struct
 
       if get_bool "dump_globs" then
         print_globals gh;
-
-      (* let print_invariant k v =
-           (* some nodes duplicated for different contexts *)
-           Printf.printf "INVARIANT %s: %s: %s\n" (EQSys.LVar.description k) (EQSys.D.short 800 v) (Option.default "None" (EQSys.D.invariant "" v))
-         in
-         LHT.iter print_invariant lh; *)
-      let find_invariant: node -> Invariant.t =
-        let module NH = Hashtbl.Make (MyCFG.Node) in
-        let invariants = NH.create 100 in
-        LHT.iter (fun k v ->
-            (* TODO: get invariant from LHT? *)
-            (* currently doesn't really handle context *)
-            let n = EQSys.LVar.node k in
-            NH.modify_def Invariant.none n (fun a ->
-                Invariant.(a || EQSys.D.invariant "" v)
-              ) invariants
-          ) lh;
-
-        fun n ->
-          NH.find_default invariants n Invariant.none
-      in
-      let module TaskResult =
-      struct
-        let result = true
-        let is_live _ = true
-        let invariant = find_invariant
-        let is_violation = function
-          | FunctionEntry f when f.vname = Svcomp.verifier_error -> true
-          | _ -> false
-        let is_sink _ = false
-      end
-      in
-      Witness.write_file "witness.graphml" (module Task) (module TaskResult);
 
       (* run activated transformations with the analysis result *)
       let ask loc =
@@ -494,7 +440,7 @@ struct
       in
       Result.fold dead_verifier_error !local_xml true
     in
-    Printf.printf "%s unreach (liveness): %B\n" Svcomp.verifier_error svcomp_unreach_call;
+    Printf.printf "%s unreach: %B\n" Svcomp.verifier_error svcomp_unreach_call;
 
     if svcomp_unreach_call then begin
       (* let print_invariant (l, n, f) v =
@@ -529,7 +475,7 @@ struct
         let is_sink _ = false
       end
       in
-      Witness.write_file "witness2.graphml" (module Task) (module TaskResult)
+      Witness.write_file "witness.graphml" (module Task) (module TaskResult)
     end else begin
       let module TaskResult =
       struct
@@ -542,7 +488,7 @@ struct
         let is_sink _ = false
       end
       in
-      Witness.write_file "witness2.graphml" (module Task) (module TaskResult)
+      Witness.write_file "witness.graphml" (module Task) (module TaskResult)
     end;
 
     if (get_bool "exp.cfgdot") then
