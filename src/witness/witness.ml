@@ -8,7 +8,7 @@ module NH = Hashtbl.Make (Node)
 module type Task =
 sig
   val file: Cil.file
-  val specification: string
+  val specification: Svcomp.specification
 
   val main_entry: node
   module Cfg: CfgBidir (* TODO: only needs CfgForward? *)
@@ -57,7 +57,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
 
           (* violation actually only allowed in violation witness *)
           (* maybe should appear on from_node of entry edge instead *)
-          | FunctionEntry f when f.vname = "__VERIFIER_error" ->
+          | FunctionEntry f when f.vname = Svcomp.verifier_error ->
             [("violation", "true")]
           | _ -> []
         end

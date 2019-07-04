@@ -79,12 +79,12 @@ struct
       let dead_verifier_error (l, n, f) v acc =
         match n with
         (* FunctionEntry isn't used for extern __VERIFIER_error... *)
-        | FunctionEntry f when f.vname = "__VERIFIER_error" ->
+        | FunctionEntry f when f.vname = Svcomp.verifier_error ->
           let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
           acc && is_dead
         | _ -> acc
       in
-      Printf.printf "__VERIFIER_error unreach: %B\n" (Result.fold dead_verifier_error xs true);
+      Printf.printf "%s unreach: %B\n" Svcomp.verifier_error (Result.fold dead_verifier_error xs true);
       let live file fn =
         try StringMap.find fn (StringMap.find file !live_lines)
         with Not_found -> BatISet.empty
@@ -327,7 +327,7 @@ struct
     let module Task =
     struct
       let file = file
-      let specification = "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      let specification = Svcomp.unreach_call_specification
 
       let main_entry = WitnessUtil.find_main_entry entrystates
       module Cfg = Cfg
@@ -388,11 +388,11 @@ struct
 
           if get_bool "ana.sv-comp" then begin
             let dead_verifier_error acc global = match global with
-              | GFun (fn, loc) when is_bad_uncalled fn.svar loc && fn.svar.vname = "__VERIFIER_error" ->
+              | GFun (fn, loc) when is_bad_uncalled fn.svar loc && fn.svar.vname = Svcomp.verifier_error ->
                 true
               | _ -> acc
             in
-            Printf.printf "__VERIFIER_error unreach2: %B\n" (List.fold_left dead_verifier_error false file.globals)
+            Printf.printf "%s unreach2: %B\n" Svcomp.verifier_error (List.fold_left dead_verifier_error false file.globals)
           end
         end;
 
