@@ -101,34 +101,31 @@ struct
       (match lval with
        | (Var lval, NoOffset) when not (is_local_and_not_pointed_to lval) ->
          ctx.local, false
-       | (Var lval, NoOffset) ->
+       | (Var lval, NoOffset) ->                    (* TODO: Are we handling all interesting cases here? *)
          let rval = stripCastsDeep rval in
+         let assignVarPlusInt v i =
+            if (BV.compare lval v) = 0 then 
+              D.adjust v i ctx.local, true
+            else
+              let oct = D.erase lval ctx.local in                     (* integer <= varFromRight-lval <= integer *)
+              D.set_constraint (lval, Some(false, v), true, i)
+                (D.set_constraint (lval, Some(false, v), false, i) oct), true
+         in
          (match rval with
-          | BinOp(op, Lval(Var(var), _), Const(CInt64 (integer, _, _)), _) (* TODO: offsets etc? What if the arguments are reversed? *)
+          | BinOp(op, Const(CInt64 (integer, _, _)), Lval(Var(var), NoOffset), _) 
+          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _)
             when op = PlusA || op = MinusA ->
             begin
-              let integer =
+              let integer = 
                 if op = MinusA
                 then Int64.neg integer
                 else integer
               in
-              if (BV.compare lval var) = 0
-              then D.adjust var integer ctx.local, true
-              else
-                let oct = D.erase lval ctx.local in                     (* integer <= varFromRight-lval <= integer *)
-                D.set_constraint (lval, Some(false, var), true, integer)
-                  (D.set_constraint (lval, Some(false, var), false, integer) oct), true
+              assignVarPlusInt var integer
             end
           | Lval(Var var, NoOffset) ->
-            begin
-              if (BV.compare lval var) = 0
-              then D.adjust var Int64.zero ctx.local, true
-              else
-                let oct = D.erase lval ctx.local in                     (* 0 <= varFromRight-lval <= 0 *)
-                D.set_constraint (lval, Some(false, var), true, Int64.zero)
-                  (D.set_constraint (lval, Some(false, var), false, Int64.zero) oct), true
-            end
-          | exp ->  (* TODO: What about assigning the value of one variable to the other? *)
+            assignVarPlusInt var Int64.zero
+          | exp ->
             let const = evaluate_exp ctx.local exp in
             let oct = D.erase lval ctx.local in
             if not (INV.is_top const) then
@@ -303,7 +300,7 @@ struct
         | _ -> Queries.Result.top ()
       end
     | Queries.ExpEq (exp1, exp2) ->                           (* TODO: We want to leverage all the additional information we have here *)
-      let inv1, inv2 = evaluate_exp ctx.local exp1,
+      let inv1, inv2 = evaluate_exp ctx.local exp1,           (* Also, what does ExpEq actually do? Is it must or may equality?        *)
                        evaluate_exp ctx.local exp2 in
       if INV.is_int inv1 then
         `Bool (INV.compare inv1 inv2 = 0)

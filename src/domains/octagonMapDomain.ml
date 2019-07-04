@@ -254,15 +254,14 @@ module MapOctagon : S
         add var1 (const, consts) oct
       end
 
-  let myadd inv c =
+  let myadd inv c =                                 (* this looks like it is the same as INV.add inv (INV.of_int c)  ? *)
     let lower = INV.minimal inv |> OPT.get in
     let upper = INV.maximal inv |> OPT.get in
     let lower = max (Int64.add lower c) min_int in
     let upper = min (Int64.add upper c) max_int in
     INV.of_interval (lower, upper)
 
-
-
+  (* deals with incrementing var by constant `value` *)
   let adjust var value oct =
     try
       let const, consts = find var oct in
@@ -325,11 +324,11 @@ module MapOctagon : S
       else
         Lattice.unsupported "wrong arguments"
 
-  let upper = function
+  let upper = function                          (* this looks like it is the same as BatOption.map INV.maximal *)
     | None -> None
     | Some inv -> INV.maximal inv
 
-  let lower = function
+  let lower = function                          (* this looks like it is the same as BatOption.map INV.maximal *)
     | None -> None
     | Some inv -> INV.minimal inv
 
