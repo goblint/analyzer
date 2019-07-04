@@ -324,6 +324,16 @@ struct
       List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
 
 
+    let module Task =
+    struct
+      let file = file
+      let specification = "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+
+      let main_entry = WitnessUtil.find_main_entry entrystates
+      module Cfg = Cfg
+    end
+    in
+
     let local_xml = ref (Result.create 0) in
     let global_xml = ref (GHT.create 0) in
     let do_analyze_using_solver () =
@@ -414,7 +424,13 @@ struct
         fun n ->
           NH.find_default invariants n Invariant.none
       in
-      Witness.write_file "witness.graphml" (module Cfg) file entrystates find_invariant (fun _ -> true);
+      let module TaskResult =
+      struct
+        let is_live _ = true
+        let invariant = find_invariant
+      end
+      in
+      Witness.write_file "witness.graphml" (module Task) (module TaskResult);
 
       (* run activated transformations with the analysis result *)
       let ask loc =
@@ -485,7 +501,13 @@ struct
       fun n ->
         NH.find_default invariants n Invariant.none
     in
-    Witness.write_file "witness2.graphml" (module Cfg) file entrystates find_invariant !liveness;
+    let module TaskResult =
+    struct
+      let is_live = !liveness
+      let invariant = find_invariant
+    end
+    in
+    Witness.write_file "witness2.graphml" (module Task) (module TaskResult);
 
     if (get_bool "exp.cfgdot") then
       MyCFG.dead_code_cfg file (module Cfg:CfgBidir) !liveness;

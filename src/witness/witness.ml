@@ -5,9 +5,26 @@ open Graphml
 module GML = DeDupGraphMlWriter (Node) (NodeGraphMlWriter (XmlGraphMlWriter))
 module NH = Hashtbl.Make (Node)
 
-let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node -> Invariant.t) (is_live:node -> bool): unit =
-  let main_entry = find_main_entry entrystates in
-  let loop_heads = find_loop_heads (module Cfg) file in
+module type Task =
+sig
+  val file: Cil.file
+  val specification: string
+
+  val main_entry: node
+  module Cfg: CfgBidir (* TODO: only needs CfgForward? *)
+end
+
+module type TaskResult =
+sig
+  val is_live: node -> bool
+  val invariant: node -> Invariant.t
+end
+
+
+let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
+  let main_entry = Task.main_entry in
+  let module Cfg = Task.Cfg in
+  let loop_heads = find_loop_heads (module Cfg) Task.file in
 
   let out = open_out filename in
   let g = GML.start out in
@@ -15,7 +32,7 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
   GML.write_metadata g "witness-type" "correctness_witness";
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" "Goblint";
-  GML.write_metadata g "specification" "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )";
+  GML.write_metadata g "specification" Task.specification;
   GML.write_metadata g "programfile" (getLoc main_entry).file;
 
   let write_node ~entry node =
@@ -25,7 +42,7 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
           else
             []
         end;
-        begin match node, invariant node with
+        begin match node, TaskResult.invariant node with
           | Statement _, Some i ->
             [("invariant", i);
              ("invariant.scope", (getFun node).svar.vname)]
@@ -108,7 +125,7 @@ let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invar
       add_node node;
       let locedges_to_nodes =
         Cfg.next node
-        |> List.filter (fun (_, to_node) -> is_live to_node)
+        |> List.filter (fun (_, to_node) -> TaskResult.is_live to_node)
       in
       List.iter (fun (locedges, to_node) ->
           add_node to_node;
