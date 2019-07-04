@@ -51,10 +51,15 @@ struct
 
   let stop g =
     let xml =
-      Xml.Element ("graphml", [], List.rev g.keys @ [
+      Xml.Element ("graphml", [
+          ("xmlns", "http://graphml.graphdrawing.org/xmlns");
+          ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+          ("xsi:schemaLocation", "http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd")
+        ], List.rev g.keys @ [
           Xml.Element ("graph", [("edgedefault", "directed")], List.rev g.children)
         ])
     in
+    output_string g.out "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     output_string g.out (Xml.to_string_fmt xml);
     flush g.out
 end
