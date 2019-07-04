@@ -3,6 +3,21 @@ open MyCFG
 module NH = Hashtbl.Make (Node)
 module NS = Set.Make (Node)
 
+let find_main_entry entrystates =
+  let (main_entry_nodes, other_entry_nodes) =
+    entrystates
+    |> List.map (fun ((n, _), _) -> n)
+    |> List.partition (function
+        | FunctionEntry f -> f.vname = "main"
+        | _ -> false
+      )
+  in
+  match main_entry_nodes, other_entry_nodes with
+  | [], _ -> failwith "no main_entry_nodes"
+  | _ :: _ :: _, _ -> failwith "multiple main_entry_nodes"
+  | _, _ :: _ -> failwith "some other_entry_nodes"
+  | [main_entry], [] -> main_entry
+
 let find_loop_heads (module Cfg:CfgBidir) (file:Cil.file): unit NH.t =
   let loop_heads = NH.create 100 in
   let global_visited_nodes = NH.create 100 in
@@ -120,21 +135,7 @@ struct
 end
 
 let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node -> Invariant.t) (is_live:node -> bool): unit =
-  let (main_entry_nodes, other_entry_nodes) =
-    entrystates
-    |> List.map (fun ((n, _), _) -> n)
-    |> List.partition (function
-        | FunctionEntry f -> f.vname = "main"
-        | _ -> false
-      )
-  in
-  let main_entry = match main_entry_nodes, other_entry_nodes with
-    | [], _ -> failwith "no main_entry_nodes"
-    | _ :: _ :: _, _ -> failwith "multiple main_entry_nodes"
-    | _, _ :: _ -> failwith "some other_entry_nodes"
-    | [main_entry], [] -> main_entry
-  in
-
+  let main_entry = find_main_entry entrystates in
   let loop_heads = find_loop_heads (module Cfg) file in
 
 
