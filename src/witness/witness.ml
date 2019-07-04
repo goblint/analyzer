@@ -16,6 +16,7 @@ end
 
 module type TaskResult =
 sig
+  val result: bool
   val is_live: node -> bool
 
   (* correctness witness *)
@@ -62,7 +63,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   GML.write_key g "edge" "threadId" "string" None;
   GML.write_key g "edge" "createThread" "string" None;
 
-  GML.write_metadata g "witness-type" "correctness_witness";
+  GML.write_metadata g "witness-type" (if TaskResult.result then "correctness_witness" else "violation_witness");
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" "Goblint";
   GML.write_metadata g "specification" Task.specification;
