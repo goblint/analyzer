@@ -2,15 +2,13 @@ open MyCFG
 open WitnessUtil
 open Graphml
 
+module GML = DeDupGraphMlWriter (Node) (NodeGraphMlWriter (XmlGraphMlWriter))
 module NH = Hashtbl.Make (Node)
-module NS = Set.Make (Node)
 
 let write_file filename (module Cfg:CfgBidir) (file:Cil.file) entrystates (invariant:node -> Invariant.t) (is_live:node -> bool): unit =
   let main_entry = find_main_entry entrystates in
   let loop_heads = find_loop_heads (module Cfg) file in
 
-
-  let module GML = DeDupGraphMlWriter (Node) (NodeGraphMlWriter (XmlGraphMlWriter)) in
   let out = open_out filename in
   let g = GML.start out in
 
