@@ -17,7 +17,13 @@ end
 module type TaskResult =
 sig
   val is_live: node -> bool
+
+  (* correctness witness *)
   val invariant: node -> Invariant.t
+
+  (* violation witness *)
+  val is_violation: node -> bool
+  val is_sink: node -> bool
 end
 
 
@@ -81,12 +87,19 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
         begin match node with
           | Statement s ->
             [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
-
-          (* violation actually only allowed in violation witness *)
-          (* maybe should appear on from_node of entry edge instead *)
-          | FunctionEntry f when f.vname = Svcomp.verifier_error ->
-            [("violation", "true")]
           | _ -> []
+        end;
+        (* violation actually only allowed in violation witness *)
+        (* maybe should appear on from_node of entry edge instead *)
+        begin if TaskResult.is_violation node then
+            [("violation", "true")]
+          else
+            []
+        end;
+        begin if TaskResult.is_sink node then
+            [("sink", "true")]
+          else
+            []
         end
       ])
   in
@@ -150,17 +163,20 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
     if not (NH.mem itered_nodes node) then begin
       NH.add itered_nodes node ();
       add_node node;
-      let locedges_to_nodes =
-        Cfg.next node
-        |> List.filter (fun (_, to_node) -> TaskResult.is_live to_node)
-      in
-      List.iter (fun (locedges, to_node) ->
-          add_node to_node;
-          add_edges node locedges to_node
-        ) locedges_to_nodes;
-      List.iter (fun (locedges, to_node) ->
-          iter_node to_node
-        ) locedges_to_nodes
+      let is_sink = TaskResult.is_violation node || TaskResult.is_sink node in
+      if not is_sink then begin
+        let locedges_to_nodes =
+          Cfg.next node
+          |> List.filter (fun (_, to_node) -> TaskResult.is_live to_node)
+        in
+        List.iter (fun (locedges, to_node) ->
+            add_node to_node;
+            add_edges node locedges to_node
+          ) locedges_to_nodes;
+        List.iter (fun (locedges, to_node) ->
+            iter_node to_node
+          ) locedges_to_nodes
+      end
     end
   in
 

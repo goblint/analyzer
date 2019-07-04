@@ -428,6 +428,10 @@ struct
       struct
         let is_live _ = true
         let invariant = find_invariant
+        let is_violation = function
+          | FunctionEntry f when f.vname = Svcomp.verifier_error -> true
+          | _ -> false
+        let is_sink _ = false
       end
       in
       Witness.write_file "witness.graphml" (module Task) (module TaskResult);
@@ -505,6 +509,10 @@ struct
     struct
       let is_live = !liveness
       let invariant = find_invariant
+      let is_violation = function
+        | FunctionEntry f when f.vname = Svcomp.verifier_error -> true
+        | _ -> false
+      let is_sink _ = false
     end
     in
     Witness.write_file "witness2.graphml" (module Task) (module TaskResult);
