@@ -112,7 +112,6 @@ struct
                 (D.set_constraint (lval, Some(false, v), false, i) oct), true
          in
          (match rval with
-          | BinOp(op, Const(CInt64 (integer, _, _)), Lval(Var(var), NoOffset), _) 
           | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _)
             when op = PlusA || op = MinusA ->
             begin
@@ -123,6 +122,8 @@ struct
               in
               assignVarPlusInt var integer
             end
+          | BinOp(PlusA, Const(CInt64 (integer, _, _)), Lval(Var(var), NoOffset), _) ->
+            assignVarPlusInt var integer
           | Lval(Var var, NoOffset) ->
             assignVarPlusInt var Int64.zero
           | exp ->
