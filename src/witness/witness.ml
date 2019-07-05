@@ -148,6 +148,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   let rec add_edge from_node (loc, edge) to_node = match edge with
     | Proc (_, Lval (Var f, _), _) -> (* TODO: doesn't cover all cases? *)
       (* splice in function body *)
+      (* TODO: what should happen when same function enters and returns in different places? *)
       let entry_node = FunctionEntry f in
       let return_node = Function f in
       iter_node entry_node;
@@ -169,6 +170,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
         let locedges_to_nodes =
           Cfg.next node
           |> List.filter (fun (_, to_node) -> TaskResult.is_live to_node)
+          (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
         in
         List.iter (fun (locedges, to_node) ->
             add_node to_node;
