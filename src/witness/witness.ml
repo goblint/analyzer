@@ -65,7 +65,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
 
   GML.write_metadata g "witness-type" (if TaskResult.result then "correctness_witness" else "violation_witness");
   GML.write_metadata g "sourcecodelang" "C";
-  GML.write_metadata g "producer" "Goblint";
+  GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" Task.specification;
   GML.write_metadata g "programfile" (getLoc main_entry).file;
 
