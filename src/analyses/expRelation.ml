@@ -46,30 +46,40 @@ struct
       | x -> x
 
   let query ctx (q:Queries.t) : Queries.Result.t =
-  match q with
-  | Queries.MustBeEqual (e1, e2) ->
-    begin
-      if Expcompare.compareExp (canonize e1) (canonize e2) then
-        `Bool (true)
-      else
-        Queries.Result.top()
-    end
-  | Queries.MayBeLess (e1, e2) ->
-    begin
-      let lvalsEq l1 l2 = Expcompare.compareExp (Lval l1) (Lval l2) in (* == would be wrong here *)
-      match e1, e2 with
-      | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-          `Bool(false)   (* c > 0 => (! x+c < x) *)
-      | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-          `Bool(false)   (* c < 0 => (! x < x+c )*)
-      | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-          `Bool(false)   (* c < 0 => (! x-c < x) *)
-      | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-          `Bool(false)   (* c < 0 => (! x < x-c) *)
-      | _ ->
-          Queries.Result.top ()
-    end
-  | _ -> Queries.Result.top ()
+    let lvalsEq l1 l2 = Expcompare.compareExp (Lval l1) (Lval l2) in (* == would be wrong here *)
+    match q with
+    | Queries.MustBeEqual (e1, e2) ->
+      begin
+        if Expcompare.compareExp (canonize e1) (canonize e2) then
+          `Bool (true)
+        else
+          Queries.Result.top()
+      end
+    | Queries.MayBeLess (e1, e2) ->
+      begin
+        match e1, e2 with
+        | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
+            `Bool(false)   (* c > 0 => (! x+c < x) *)
+        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
+            `Bool(false)   (* c < 0 => (! x < x+c )*)
+        | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
+            `Bool(false)   (* c < 0 => (! x-c < x) *)
+        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
+            `Bool(false)   (* c < 0 => (! x < x-c) *)
+        | _ ->
+            Queries.Result.top ()
+      end
+    | Queries.MayBeEqual (e1,e2) ->
+      begin
+        match e1,e2 with
+        | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
+        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _)
+        | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
+        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2) && Int64.compare i Int64.zero <> 0  ->
+            `Bool(false)
+        | _ -> Queries.Result.top ()
+      end
+    | _ -> Queries.Result.top ()
 
 
   (* below here is all the usual stuff an analysis requires, we don't do anything here *)
