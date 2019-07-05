@@ -68,6 +68,8 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" Task.specification;
   GML.write_metadata g "programfile" (getLoc main_entry).file;
+  (* TODO: programhash *)
+  (* TODO: architecture *)
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
 
   let write_node ~entry node =
