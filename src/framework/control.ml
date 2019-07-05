@@ -101,11 +101,13 @@ struct
         printf "File '%s':\n" f;
         StringMap.iter print_func
       in
-      if StringMap.is_empty !dead_lines
-      then printf "No dead code found!\n"
-      else begin
-        StringMap.iter print_file !dead_lines;
-        printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
+      if get_bool "dbg.print_dead_code" then begin
+        if StringMap.is_empty !dead_lines
+        then printf "No dead code found!\n"
+        else begin
+          StringMap.iter print_file !dead_lines;
+          printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
+        end
       end;
       let str = function true -> "then" | false -> "else" in
       let report tv loc dead =
