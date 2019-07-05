@@ -54,6 +54,21 @@ struct
       else
         Queries.Result.top()
     end
+  | Queries.MayBeLess (e1, e2) ->
+    begin
+      let lvalsEq l1 l2 = Expcompare.compareExp (Lval l1) (Lval l2) in (* == would be wrong here *)
+      match e1, e2 with
+      | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
+          `Bool(false)   (* c > 0 => (! x+c < x) *)
+      | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
+          `Bool(false)   (* c < 0 => (! x < x+c )*)
+      | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
+          `Bool(false)   (* c < 0 => (! x-c < x) *)
+      | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
+          `Bool(false)   (* c < 0 => (! x < x-c) *)
+      | _ ->
+          Queries.Result.top ()
+    end
   | _ -> Queries.Result.top ()
 
 
