@@ -269,7 +269,6 @@ struct
       | MinusA
       | MinusPI
       | MinusPP when equality () = Some true -> Some (`Int (ID.of_int 0L))
-      | MinusA
       | MinusPI
       | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list ptrdiff_ikind [0L]))
       | Le
