@@ -247,15 +247,27 @@ struct
     | Some (Var v,_) -> D.erase v ctx.local
     | Some (Mem _, _)
     | None -> ctx.local
-
   let startstate v = D.top ()
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
 
   let query ctx q =
-    let getSumAndDiffForVars exp1 exp2 =
+    let rec getSumAndDiffForVars exp1 exp2 =
+      let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int c)) x in
       match exp1, exp2 with
-      | Lval(Var v1,NoOffset), Lval(Var v2, NoOffset) -> 
+      | BinOp(PlusA, Lval l1, Const(CInt64(c,_,_)), _), Lval l2 ->
+        let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
+        addConstant sum c, addConstant diff c                         (* a+c <= (x+c)-y <= b+c (add c to all sides)    *)
+      | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(c,_,_)), _) ->
+        let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
+        addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* x-(y+c)= x-y-c --> a-c <= x-(y+c) <= b-c      *)         
+      | BinOp(MinusA, Lval l1, Const(CInt64(c,_,_)), _), Lval l2 ->
+        let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
+        addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* (x-c)-y = x-y-c --> a-c <= (x-c)-y <= b-c     *)
+      | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(c,_,_)), _) ->
+        let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
+        addConstant sum c, addConstant diff c                         (* x-(y-c) = x-y+c --> a+c <= x-(y-c) <= b+c     *)
+      | Lval(Var v1, NoOffset), Lval(Var v2, NoOffset) -> 
         let sum, diff, flag = D.get_relation v1 v2 ctx.local in
         if not flag then
           sum, diff
