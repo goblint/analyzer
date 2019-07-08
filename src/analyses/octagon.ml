@@ -293,7 +293,7 @@ struct
         match getSumAndDiffForVars exp1 exp2 with
         | _, Some(x) -> 
           begin
-            match OctagonDomain.INV.maximal x with
+            match OctagonDomain.INV.minimal x with
             | Some i when Int64.compare i Int64.zero >= 0 ->
               `Bool(false)
             | _ -> Queries.Result.top ()
