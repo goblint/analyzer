@@ -20,6 +20,8 @@ module WP =
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
+    module HPM = Hashtbl.Make (P)
+
     type phase = Widen | Narrow
 
 
@@ -33,17 +35,22 @@ module WP =
       let called = HM.create  10 in
       let rho    = HM.create  10 in
       let wpoint = HM.create  10 in
+      let effects = HPM.create 10 in
       let cache_sizes = ref [] in
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
-      let rec destabilize x =
+      let rec destabilize ?side x =
         if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if HM.mem called x then assert (HM.find infl x = VS.empty); (* TODO if this is really true, we can remove the check below *)
+        Option.may (fun z -> if HPM.mem effects (x,z) then HM.replace wpoint z ()) side;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) w
+        VS.iter (fun y ->
+          HM.remove stable y;
+          if not (HM.mem called y) then match side with Some z when not (HM.mem wpoint z) -> destabilize ~side:z y | _ -> destabilize y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         init x;
@@ -54,7 +61,7 @@ module WP =
           let wp = space && HM.mem rho x || HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) side in
+          let tmp = eq x (eval l x) (side x) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
@@ -96,7 +103,7 @@ module WP =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) side in
+          let tmp = eq y (eval l x) (side x) in
           HM.remove called y;
           if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
@@ -108,8 +115,9 @@ module WP =
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
-      and side y d = (* only to variables y w/o rhs *)
+      and side x y d = (* only to variables y w/o rhs *)
         if tracing then trace "sol2" "side to %a on %i (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
+        HPM.replace effects (x,y) ();
         if S.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
@@ -128,9 +136,12 @@ module WP =
           (* assert (S.Dom.leq old j);
           assert (S.Dom.leq old w);
           assert (S.Dom.leq j w); *)
-          HM.replace rho y (S.Dom.widen old (S.Dom.join old d));
+          HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d));
           HM.replace stable y ();
-          destabilize y
+          if HM.mem wpoint y then
+            destabilize y (* we already are a wpoint, so no need to propagate it anymore *)
+          else
+            destabilize ~side:y y
         )
       and init x =
         if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
