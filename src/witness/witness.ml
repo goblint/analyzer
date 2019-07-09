@@ -146,7 +146,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
     write_node ~entry node
   in
 
-  (* BFS, just for nicer ordering of witness graph children *)
+  (* DFS with BFS-like child ordering, just for nicer ordering of witness graph children *)
   let itered_nodes = NH.create 100 in
   let rec add_edge from_node (loc, edge) to_node = match edge with
     | Proc (_, Lval (Var f, _), _) -> (* TODO: doesn't cover all cases? *)
