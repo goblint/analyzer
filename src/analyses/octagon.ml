@@ -172,9 +172,14 @@ struct
         | Ne -> Eq
         | _ -> cmp
       in
-
-      let oct, changed =                              (* TODO: in cases like x < y are we doing everything we can? *)
-        (match exp with                               (* In case of x=y we definetly aren't if x and y are both vars*)
+      let equivExpr =
+        match exp with
+        | BinOp(op, Lval(Var v1, NoOffset), Lval(Var v2, NoOffset), t) when op = Eq || op = Le || op = Lt || op = Ge || op = Gt ->
+            BinOp(op, BinOp(MinusA, Lval(Var v1, NoOffset), Lval(Var v2, NoOffset),t), Cil.integer 0, t)
+        | _ -> exp
+      in
+      let oct, changed =                              
+        (match equivExpr with
          | BinOp(cmp, lexp, rexp, _) ->
            let cmp = if tv then cmp else negate cmp in
            let inv = evaluate_exp ctx.local rexp in
@@ -193,7 +198,7 @@ struct
            let invLower = if cmp = Gt then Int64.add invLower Int64.one else invLower in
            let oct = begin
              match lexp with
-             | BinOp(op, Lval(Var v1, _), Lval(Var v2, _), _)
+             | BinOp(op, Lval(Var v1, NoOffset), Lval(Var v2, NoOffset), _)
                when is_local_and_not_pointed_to v1 && is_local_and_not_pointed_to v2 && (op = PlusA || op = MinusA) ->
                let sign = (op = PlusA) in
                let oct = if setUpper
@@ -203,7 +208,7 @@ struct
                  then D.set_constraint (v1, Some(sign, v2), false, invLower) oct
                  else oct in
                oct
-             | Lval(Var v, _) when is_local_and_not_pointed_to v ->
+             | Lval(Var v, NoOffset) when is_local_and_not_pointed_to v ->
                let oct = if setUpper
                  then D.set_constraint (v, None, true, invUpper) ctx.local
                  else ctx.local in
