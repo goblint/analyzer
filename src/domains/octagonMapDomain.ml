@@ -322,7 +322,7 @@ module MapOctagon : S
         else
           INV.neg (projection var2 (Some (false, var1)) oct)
       else
-        Lattice.unsupported "wrong arguments"
+        Lattice.unsupported "wrong arguments (projection should not be called with var1=var2(?) )"
 
   let upper = function                          (* this looks like it is the same as BatOption.map INV.maximal *)
     | None -> None

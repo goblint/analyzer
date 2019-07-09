@@ -44,8 +44,7 @@ struct
     match exp with
     | BinOp(op, expl, expr, _) when op = PlusA || op = MinusA ->
       begin match match_exp expl, match_exp expr with
-        | None, _ | _, None -> None
-        | Some(cl, varl), Some(cr, varr) ->
+        | Some(cl, varl), Some(cr, varr) when (BV.compare varl varr <> 0) -> (* this is needed as projection with varl=varr throws an exception (?) *)
           let cr = if op = PlusA then cr else Int64.neg cr in
           let cl, cr = INV.of_int cl, INV.of_int cr in
           let varSum = D.projection varl (Some (true, varr)) oct in
@@ -61,6 +60,7 @@ struct
             INV.add (INV.mul cr varDif2) (INV.mul (INV.add cl cr) varl);
           ] in
           Some (List.fold_left INV.meet (INV.top ()) candidates)
+        | _ -> None
       end
     | _ -> None
 
