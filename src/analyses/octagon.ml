@@ -112,8 +112,8 @@ struct
                 (D.set_constraint (lval, Some(false, v), false, i) oct), true
          in
          (match rval with
-          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _)
-            when op = PlusA || op = MinusA ->
+          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _) 
+            when (op = PlusA || op = MinusA) && is_local_and_not_pointed_to var ->
             begin
               let integer = 
                 if op = MinusA
@@ -122,9 +122,9 @@ struct
               in
               assignVarPlusInt var integer
             end
-          | BinOp(PlusA, Const(CInt64 (integer, _, _)), Lval(Var(var), NoOffset), _) ->
+          | BinOp(PlusA, Const(CInt64 (integer, _, _)), Lval(Var(var), NoOffset), _) when is_local_and_not_pointed_to var ->
             assignVarPlusInt var integer
-          | Lval(Var var, NoOffset) ->
+          | Lval(Var var, NoOffset) when is_local_and_not_pointed_to var ->
             assignVarPlusInt var Int64.zero
           | exp ->
             let const = evaluate_exp ctx.local exp in
