@@ -95,9 +95,6 @@ module E = struct
   let is_top (_, _, inv) = INV.is_top inv
 end
 
-module MyList = struct
-  include Liszt(E)
-end
 
 module VD = Lattice.Prod (INV) (Liszt(E))
 module MapOctagon : S
