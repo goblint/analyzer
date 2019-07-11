@@ -180,31 +180,33 @@ module WP =
       (* verifies values at widening points and adds values for variables in-between *)
       let visited = HM.create 10 in
       let check_side x y d =
+        HM.replace visited y ();
         let mem = HM.mem rho y in
         let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
         if not (S.Dom.leq d d') then ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d S.Dom.pretty d'
       in
       let rec eq check x =
+        HM.replace visited x ();
         match S.system x with
         | None -> if HM.mem rho x then HM.find rho x else (ignore @@ Pretty.printf "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pretty_trace x; S.Dom.bot ())
         | Some f -> f (get ~check) (check_side x)
       and get ?(check=false) x =
-        if HM.mem rho x && HM.mem visited x then ( (* `vs` are in `rho`, so to restore others we need to skip to `eq`. *)
+        if HM.mem visited x then (
+          HM.find rho x
+        ) else if HM.mem rho x then ( (* `vs` are in `rho`, so to restore others we need to skip to `eq`. *)
           let d1 = HM.find rho x in
+          let d2 = eq check x in (* just to reach unrestored variables *)
           if check then (
             if not (HM.mem stable x) && S.system x <> None then ignore @@ Pretty.printf "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pretty_trace x;
-            let d2 = eq true x in
             if not (S.Dom.leq d2 d1) then
               ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x (S.Var.file_name x) (S.Var.line_nr x) S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
           );
           d1
         ) else (
-          HM.replace visited x ();
-          let d = eq false x in
-          if not (HM.mem rho x) then HM.replace rho x d;
-          (* let _ = eq true x in *)
+          let d = eq check x in
+          HM.replace rho x d;
           d
-        );
+        )
       in
       (* restore values for non-widening-points *)
       if space && GobConfig.get_bool "exp.solver.td3.space_restore" then (
@@ -212,7 +214,7 @@ module WP =
           print_endline ("Restoring missing values.");
         let restore () =
           let get x =
-            let d = get x in
+            let d = get ~check:true x in
             if tracing then trace "sol2" "restored var %a on %i ## %a\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Dom.pretty d
           in
           List.iter get vs;
