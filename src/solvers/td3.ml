@@ -136,7 +136,7 @@ module WP =
           (* assert (S.Dom.leq old j);
           assert (S.Dom.leq old w);
           assert (S.Dom.leq j w); *)
-          HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d));
+          HM.replace rho y ((if HM.mem wpoint y || space then S.Dom.widen old else identity) (S.Dom.join old d));
           HM.replace stable y ();
           if HM.mem wpoint y then
             destabilize y (* we already are a wpoint, so no need to propagate it anymore *)
