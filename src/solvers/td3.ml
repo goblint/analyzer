@@ -50,7 +50,7 @@ module WP =
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
           HM.remove stable y;
-          if not (HM.mem called y) then match side with Some z when not (HM.mem wpoint z) -> destabilize ~side:z y | _ -> destabilize y) w
+          if not (HM.mem called y) then destabilize ?side y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         init x;
@@ -58,7 +58,7 @@ module WP =
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
-          let wp = space && HM.mem rho x || HM.mem wpoint x in
+          let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
           let tmp = eq x (eval l x) (side x) in
@@ -111,7 +111,7 @@ module WP =
       and eval l x y =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
-        if not space && HM.mem called y then HM.replace wpoint y ();
+        if HM.mem called y then HM.replace wpoint y ();
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
