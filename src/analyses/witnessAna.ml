@@ -42,34 +42,33 @@ struct
   module G = Lattice.Unit
   module C = D
 
-  let stuff ctx =
-    let (_, prev) = ctx.local in
-    (prev, S.singleton ctx.node)
+  let step from to_node =
+    let (_, prev) = from in
+    (prev, S.singleton to_node)
+
+  let step_ctx ctx = step ctx.local ctx.node
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    stuff ctx
+    step_ctx ctx
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    stuff ctx
+    step_ctx ctx
 
   let body ctx (f:fundec) : D.t =
-    stuff ctx
+    step_ctx ctx
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    stuff ctx
+    step_ctx ctx
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let (_, prev) = ctx.local in
-    let enter = (prev, S.singleton (FunctionEntry f)) in
-    [ctx.local, enter]
+    [ctx.local, step ctx.local (FunctionEntry f)]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    let (_, prev) = au in
-    (prev, S.singleton ctx.node)
+    step au ctx.node
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    stuff ctx
+    step_ctx ctx
 
   let startstate v = D.bot ()
   let otherstate v = D.bot ()
