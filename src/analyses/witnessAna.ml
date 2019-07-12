@@ -130,7 +130,11 @@ struct
     (prev, `Lifted to_node)
 
   let step_ctx ctx =
-    step (snd ctx.local) (ctx.node, get_context ctx)
+    try
+      step (snd ctx.local) (ctx.node, get_context ctx)
+    (* with Failure "Global initializers have no context." -> *)
+    with Failure _ ->
+      W.bot ()
 
   (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
   let strict (d, w) = (d, w) (* D.is_bot redefined *)
