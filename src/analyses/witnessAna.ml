@@ -84,7 +84,7 @@ end
 
 module WitnessLifter (S:Spec): Spec =
 struct
-  module V = PrintableVar
+  module V = Printable.Prod (PrintableVar) (S.C)
 
   (* module VS = SetDomain.Make (V)
      module VF = FlatBot (V)
@@ -113,6 +113,12 @@ struct
          BatPrintf.fprintf f "%a<path><analysis name=\"witness\">%a</analysis></path>" S.C.printXml d W.printXml w
      end *)
 
+  let get_context ctx =
+    (* nasty hacking *)
+    let c_unit: unit -> S.C.t = Obj.obj (ctx.context) in
+    let c = c_unit () in
+    c
+
   let set_of_flat (x:VF.t): VS.t = match x with
     | `Lifted x -> VS.singleton x
     | `Bot -> VS.bot ()
@@ -123,7 +129,8 @@ struct
     (* ignore (Pretty.printf "from: %a, prev: %a -> to_node: %a\n" W.pretty from VS.pretty prev V.pretty to_node); *)
     (prev, `Lifted to_node)
 
-  let step_ctx ctx = step (snd ctx.local) ctx.node
+  let step_ctx ctx =
+    step (snd ctx.local) (ctx.node, get_context ctx)
 
   (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
   let strict (d, w) = (d, w) (* D.is_bot redefined *)
@@ -197,12 +204,14 @@ struct
   let enter ctx r f args =
     let ddl = S.enter (unlift_ctx ctx) r f args in
     let w = snd ctx.local in
-    let w' = step w (FunctionEntry f) in
-    List.map (fun (d1, d2) -> (strict (d1, w), strict (d2, w'))) ddl
+    List.map (fun (d1, d2) ->
+        let w' = step w (FunctionEntry f, S.context d2) in
+        (strict (d1, w), strict (d2, w'))
+      ) ddl
 
   let combine ctx r fe f args (d', w') =
     let d = S.combine (unlift_ctx ctx) r fe f args d' in
-    let w = step w' ctx.node in
+    let w = step w' (ctx.node, get_context ctx) in
     strict (d, w)
 end
 
