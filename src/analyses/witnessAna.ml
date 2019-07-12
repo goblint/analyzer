@@ -29,6 +29,8 @@ struct
   let invariant _ _ = Invariant.none
 end
 
+module FlatBot (Base: Printable.S) = Lattice.LiftBot (Lattice.Fake (Base))
+
 module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
@@ -37,14 +39,19 @@ struct
 
   module V = PrintableVar
   module S = SetDomain.Make (V)
+  module F = FlatBot (V)
 
-  module D = Lattice.Prod (S) (S)
+  module D = Lattice.Prod (S) (F)
   module G = Lattice.Unit
   module C = D
 
-  let step from to_node =
-    let (_, prev) = from in
-    (prev, S.singleton to_node)
+  let set_of_flat (x:F.t): S.t = match x with
+    | `Lifted x -> S.singleton x
+    | `Bot -> S.bot ()
+
+  let step (from:D.t) (to_node:V.t): D.t =
+    let prev = set_of_flat (snd from) in
+    (prev, F.lift to_node)
 
   let step_ctx ctx = step ctx.local ctx.node
 
