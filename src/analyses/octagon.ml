@@ -238,8 +238,41 @@ struct
     let locals = (f.sformals @ f.slocals) in
     List.fold_left (fun oct v -> D.erase v oct) ctx.local locals
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local,ctx.local]
+  let make_entry (ctx:(D.t, G.t) Analyses.ctx) fn (args: exp list): D.t =
+    (* The normal haskell zip that throws no exception *)
+    let rec zip x y  = match x,y with
+    | (x::xs), (y::ys) -> (x,y) :: zip xs ys
+    | _ -> []
+    in
+    let is_relevant_var exp = match exp with  (* TODO: If we want to, we can expand this *)
+      | Lval(Var v, NoOffset) when is_local_and_not_pointed_to v -> true
+      | _ -> false
+    in
+    let get_var exp = match exp with
+      | Lval(Var v, NoOffset) -> v
+      | _ -> raise (Invalid_argument "only call with Lval(Var v, NoOffset)")
+    in
+    let formals = (Cilfacade.getdec fn).sformals in
+    let formals_and_exps = zip formals args in
+    let relevant_vars_in_args = List.filter is_relevant_var args |> List.map get_var in
+    let relevant_octagon_part = D.keep_only relevant_vars_in_args ctx.local in
+    let add_const (oct:D.t) (f, exp) = (* add the constraints created by setting formal f to exp  *)
+      let oct_with_eq =  match exp with
+        | Lval(Var v_exp, NoOffset) when is_local_and_not_pointed_to v_exp -> (* For formal f, add constraint f = exp if exp is a variable *)
+            D.set_constraint (f, Some(false, v_exp), true, Int64.zero) (D.set_constraint (f, Some(false, v_exp), false, Int64.zero) oct)
+        | _ -> oct
+      in
+      let inv = evaluate_exp ctx.local exp in
+      if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
+        D.set_constraint (f, None, true, INV.maximal inv |> Option.get) (D.set_constraint (f, None, false, INV.minimal inv |> Option.get) oct_with_eq)
+      else 
+        oct_with_eq
+    in
+    let closed = D.strong_closure (List.fold_left add_const relevant_octagon_part formals_and_exps) in (* compute closure so relationships between formals are inferred. TODO: Is it ok to do this here? *)
+    D.keep_only formals closed (* Remove vars that were only needed because they were in exp *)
+
+  let enter ctx (lval: lval option) (fn:varinfo) (args:exp list) : (D.t * D.t) list =
+    [ctx.local, make_entry ctx fn args]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     match lval with
