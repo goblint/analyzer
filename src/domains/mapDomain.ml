@@ -53,7 +53,7 @@ module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
   module M = struct
     include Map.Make (Domain)
-    let to_yojson poly_v x = [%to_yojson: (Domain.t * 'v) list] (bindings x) (* TODO pull this into Prelude *)
+    let to_yojson poly_v x = [%to_yojson: (Domain.t * 'v) list] poly_v (bindings x) (* TODO pull this into Prelude *)
   end
 
   include Printable.Std

@@ -10,7 +10,7 @@ type json = Yojson.Safe.t
 module Map = struct
     module Make (X: sig include Map.OrderedType val to_yojson : t -> json end) = struct
       include Map.Make (X)
-      let to_yojson poly_v x = [%to_yojson: (X.t * 'v) list] (bindings x)
+      let to_yojson poly_v x = [%to_yojson: (X.t * 'v) list] poly_v (bindings x)
     end
 end
 
