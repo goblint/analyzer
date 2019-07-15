@@ -17,7 +17,7 @@ ocb() {
 opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
-  opam switch -y create ./ --deps-only ocaml-base-compiler.4.07.1
+  opam switch -y create . --deps-only ocaml-base-compiler.4.07.1
   # opam install camlp4 mongo # camlp4 needed for mongo
 }
 
@@ -88,7 +88,7 @@ rule() {
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
     ;; lock)
-      opam lock .
+      opam lock
     ;; watch)
       fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; headers)
