@@ -512,11 +512,17 @@ module MapOctagon : S
         oct
       ) oct vars
 
-  let widen a b = widen a (strong_closure b)
+  let widen a b = widen a (strong_closure b) (* strong closure must not(!) be called for the result (https://arxiv.org/pdf/cs/0703084.pdf)  *)
   let narrow a b = narrow a b |> strong_closure
 
   let meet a b = meet a b |> strong_closure
-  let join a b = join a b
+  let join a b = join a b                       (* a strong closure is useless here if the arguments are strongly closed *)
+
+  let leq a b =
+    if !Goblintutil.in_verifying_stage then
+      leq (strong_closure a) b 
+    else
+      leq a b 
 
   let inv_index i = i lxor 1
 
