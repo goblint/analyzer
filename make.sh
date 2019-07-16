@@ -1,5 +1,6 @@
 #! /bin/bash
-set -e
+set -e # exit immediately if a command fails
+set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
 TARGET=src/goblint
 FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
