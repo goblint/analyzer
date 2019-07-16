@@ -166,7 +166,7 @@ module MapOctagon : S
         then ls
         else x :: (delete_constraint (sign, v) xs)
       end
-      else if cmp = -1
+      else if cmp < 0
       then ls
       else x :: (delete_constraint (sign, v) xs)
     | [] -> []
@@ -180,7 +180,7 @@ module MapOctagon : S
           if sign = true then
             find_constraints (Some inv) xs
           else first, (Some inv)
-        else if cmp = 1 then
+        else if cmp > 1 then
           find_constraints first xs
         else
           first, None
@@ -237,10 +237,9 @@ module MapOctagon : S
       add var (cast var new_inv, consts) oct
     | var1, Some (sign, var2), upper, value ->
       let cmp = (BV.compare var1 var2) in
-      if cmp = 0
-      then (Lattice.unsupported "wrong arguments")
-      else if cmp = 1
-      then
+      if cmp = 0 then 
+        Lattice.unsupported "wrong arguments"
+      else if cmp > 0 then
         let upper, value =
           if sign
           then upper, value
@@ -306,7 +305,7 @@ module MapOctagon : S
          INV.top ())
     | Some (sign, var2) ->
       let cmp = (BV.compare var1 var2) in
-      if cmp = -1 then
+      if cmp < 0 then
         try
           let (_, consts) = find var1 oct in
           let first, second = find_constraints var2 consts in
@@ -316,7 +315,7 @@ module MapOctagon : S
           | None -> INV.top ()
         with Not_found ->
           INV.top ()
-      else if cmp = 1 then
+      else if cmp > 0 then
         if sign = true then
           projection var2 (Some (true, var1)) oct
         else
@@ -347,8 +346,7 @@ module MapOctagon : S
         let cmp = BV.compare i j in
         if cmp <> 0
         then
-          if cmp = 1
-          then
+          if cmp > 0 then
             let sumConst, difConst, _ = get_relation j i oct in
             match i_inv, j_inv with
             | true, false -> upper sumConst
@@ -391,7 +389,7 @@ module MapOctagon : S
     let cmp = BV.compare i j in
     if cmp <> 0
     then
-      if cmp = 1
+      if cmp > 0
       then
         match i_inv, j_inv with
         | true, false ->
