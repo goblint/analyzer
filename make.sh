@@ -73,7 +73,7 @@ rule() {
       cd g2html && ant jar && cd .. &&
       cp g2html/g2html.jar .
     ;; deps)
-      opam install -y . --deps-only
+      opam update; opam install -y . --deps-only --locked
     ;; setup)
       echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
