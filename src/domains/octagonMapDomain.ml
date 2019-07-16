@@ -35,15 +35,15 @@ struct
       concat hd (map2 keep f [] tl)
     | xh :: xs, yh :: ys when (B.compare xh yh) = 0 ->
       let res = f xh yh in
-      if B.is_top res
-      then
+      if B.is_top res then
         (map2 keep f xs ys)
       else
         res :: (map2 keep f xs ys)
     | xh :: xs, yh :: ys ->
-      if B.compare xh yh = -1
-      then concat xh (map2 keep f xs y)
-      else concat yh (map2 keep f x ys)
+      if B.compare xh yh < 0 then
+        concat xh (map2 keep f xs y)
+      else
+        concat yh (map2 keep f x ys)
 
   (* on meets we want to preserve the value of one octagon if *)
   (* the other octagon does not have a value at that position *)
@@ -55,10 +55,10 @@ struct
 
   let rec leq x y =
     match x, y with
-    | _, [] -> true
-    | [], _ -> false
+    | _, [] -> true (* x has additional constraints (x leq y for all other constraints) => x leq y  *)
+    | [], _ -> false (* y has additional constraints (x leq y for all other constraints) => not (x leq y) *)
     | x :: xs, y :: ys
-      when (B.compare x y) = 0 ->
+      when (B.compare x y) = 0 -> (* Compare zero here if constraints are about the same var and sign *)
       B.leq x y && leq xs ys
     | _ :: xs, y ->
       leq xs y
@@ -125,27 +125,25 @@ module MapOctagon : S
       |> cast v
     in
     match ls with
-    | x :: xs ->
-      let (sign2, v2, inv2) = x in
+    | ((sign2, v2, inv2) as x) :: xs ->
       let cmp = BV.compare v v2 in
       if cmp = 0
       then begin
-        if sign = sign2
-        then
+        if sign = sign2 then
           let inv = construct_inv inv2 in
-          if INV.is_top inv
-          then
+          if INV.is_top inv then
             xs
           else
             (sign, v, inv) :: xs
-        else if sign = true
-        then if delete then ls else (sign, v, inv) :: ls
+        else if sign = true then (* sums are smaller than differences, constraint will not be in ls *)
+          if delete then ls else (sign, v, inv) :: ls
         else
           x :: (set_constraint_list (sign, v, upper, value) xs)
       end
-      else if cmp = -1
-      then if delete then ls else (sign, v, inv) :: ls
-      else x :: (set_constraint_list (sign, v, upper, value) xs)
+      else if cmp < 0 then 
+        if delete then ls else (sign, v, inv) :: ls
+      else 
+        x :: (set_constraint_list (sign, v, upper, value) xs)
     | [] -> [(sign, v, inv)]
 
   let add_var var oct =
@@ -230,9 +228,10 @@ module MapOctagon : S
       in
       let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in
       let new_inv =
-        if upper
-        then INV.of_interval (OPT.get (INV.minimal old_inv), value)
-        else INV.of_interval (value, OPT.get (INV.maximal old_inv))
+        if upper then 
+          INV.of_interval (OPT.get (INV.minimal old_inv), value)
+        else
+          INV.of_interval (value, OPT.get (INV.maximal old_inv))
       in
       add var (cast var new_inv, consts) oct
     | var1, Some (sign, var2), upper, value ->
@@ -241,9 +240,10 @@ module MapOctagon : S
         Lattice.unsupported "wrong arguments"
       else if cmp > 0 then
         let upper, value =
-          if sign
-          then upper, value
-          else not upper, Int64.neg value
+          if sign then 
+            upper, value
+          else 
+            not upper, Int64.neg value
         in
         set_constraint (var2, Some (sign, var1), upper, value) oct
       else begin
@@ -272,11 +272,12 @@ module MapOctagon : S
 
       map (fun (a, consts) ->
           (a, List.map (fun (sign, var2, old_val) ->
-               if (BV.compare var var2) <> 0
-               then sign, var2, old_val
-               else if sign = true
-               then sign, var2, (myadd old_val value)
-               else sign, var2, (myadd old_val (Int64.neg value))
+              if (BV.compare var var2) <> 0 then 
+                sign, var2, old_val
+              else if sign = true then 
+                sign, var2, (myadd old_val value)
+              else 
+                sign, var2, (myadd old_val (Int64.neg value))
              )
               consts)
         ) oct
@@ -353,9 +354,10 @@ module MapOctagon : S
             | false, true -> OPT.map Int64.neg (lower sumConst)
             | false, false -> upper difConst
             | true, true -> OPT.map Int64.neg (lower difConst)
-          else if i_inv <> j_inv
-          then matrix_get (j, i_inv) (i, j_inv) oct
-          else matrix_get (j, not i_inv) (i, not j_inv) oct
+          else if i_inv <> j_inv then 
+            matrix_get (j, i_inv) (i, j_inv) oct
+          else 
+            matrix_get (j, not i_inv) (i, not j_inv) oct
         else
           let const = get_interval i oct in
           match i_inv, j_inv with
