@@ -35,7 +35,6 @@ module WP =
       let called = HM.create  10 in
       let rho    = HM.create  10 in
       let wpoint = HM.create  10 in
-      let effects = HPM.create 10 in
       let cache_sizes = ref [] in
 
       let add_infl y x =
@@ -45,7 +44,7 @@ module WP =
       let rec destabilize ?side x =
         if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
         if HM.mem called x then assert (HM.find infl x = VS.empty); (* TODO if this is really true, we can remove the check below *)
-        Option.may (fun z -> if HPM.mem effects (x,z) then HM.replace wpoint z ()) side;
+        Option.may (fun z -> if S.Var.equal z x then HM.replace wpoint z ()) side;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
@@ -117,7 +116,7 @@ module WP =
         tmp
       and side x y d = (* only to variables y w/o rhs *)
         if tracing then trace "sol2" "side to %a on %i (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
-        HPM.replace effects (x,y) ();
+        add_infl x y;
         if S.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
@@ -136,7 +135,7 @@ module WP =
           (* assert (S.Dom.leq old j);
           assert (S.Dom.leq old w);
           assert (S.Dom.leq j w); *)
-          HM.replace rho y ((if HM.mem wpoint y || space then S.Dom.widen old else identity) (S.Dom.join old d));
+          HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d));
           HM.replace stable y ();
           if HM.mem wpoint y then
             destabilize y (* we already are a wpoint, so no need to propagate it anymore *)
