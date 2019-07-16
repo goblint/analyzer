@@ -41,15 +41,13 @@ module WP =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
-      let rec destabilize ?side x =
+      let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
-        if HM.mem called x then assert (HM.find infl x = VS.empty); (* TODO if this is really true, we can remove the check below *)
-        Option.may (fun z -> if S.Var.equal z x then HM.replace wpoint z ()) side;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
           HM.remove stable y;
-          if not (HM.mem called y) then destabilize ?side y) w
+          destabilize y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         init x;
@@ -137,10 +135,8 @@ module WP =
           assert (S.Dom.leq j w); *)
           HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d));
           HM.replace stable y ();
-          if HM.mem wpoint y then
-            destabilize y (* we already are a wpoint, so no need to propagate it anymore *)
-          else
-            destabilize ~side:y y
+          destabilize y;
+          if not (HM.mem stable y) then HM.replace wpoint y ()
         )
       and init x =
         if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
