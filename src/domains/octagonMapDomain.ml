@@ -591,9 +591,12 @@ module MapOctagon : S
             Int64.div (Int64.of_float f) (Int64.of_int 2) in
           let upper = get (inv_index i) i |> unpack in
           let lower = Int64.neg (get i (inv_index i) |> unpack) in
+          if not (INV.is_top (INV.of_interval (upper,lower))) then
           let oct = set_constraint (var1, None, true, upper) oct in
           let oct = set_constraint (var1, None, false, lower) oct in
           matrix_iter i (j + 2) oct
+          else
+            matrix_iter i (j + 2) oct
         else if i < j
         then
           let unpack upper =
