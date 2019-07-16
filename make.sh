@@ -111,7 +111,7 @@ rule() {
       # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
       docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
     ;; docker) # build and run a docker image
-      docker build -t goblint . | ts -i
+      docker build --pull -t goblint . | ts -i
       docker run -it goblint bash
     ;; unit)
       ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native
