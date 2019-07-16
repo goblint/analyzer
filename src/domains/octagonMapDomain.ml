@@ -64,11 +64,22 @@ struct
       leq xs y
 end
 
+module ConstraintType = struct
+  type side = Upper | Lower
+  
+  let opposite s = if s = Upper then Lower else Upper
+
+  let plus = true
+  let minus = false
+end
+
+module CT = ConstraintType
+
 module type S =
 sig
   include Lattice.S
   type key
-  val set_constraint  : key * (bool * key) option * bool * int64 -> t -> t
+  val set_constraint  : key * (bool * key) option * CT.side * int64 -> t -> t
   val adjust          : key -> int64 -> t -> t
   val erase           : key -> t -> t
   val projection      : key -> (bool * key) option -> t -> INV.t
@@ -108,8 +119,8 @@ module MapOctagon : S
   let print_oct oct =
     Prelude.Ana.sprint pretty oct
 
-  let rec set_constraint_list (sign, v, upper, value) ls =
-    let inv = if upper
+  let rec set_constraint_list (sign, v, side, value) ls =
+    let inv = if side = CT.Upper
       then INV.ending value
       else INV.starting value
     in
@@ -119,7 +130,7 @@ module MapOctagon : S
       let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in
       let old_lower = INV.minimal old_inv |> OPT.get in
       let old_upper = INV.maximal old_inv |> OPT.get in
-      (if upper
+      (if side = CT.Upper
        then INV.of_interval (old_lower, min old_upper value)
        else INV.of_interval (max old_lower value, old_upper))
       |> cast v
@@ -135,15 +146,15 @@ module MapOctagon : S
             xs
           else
             (sign, v, inv) :: xs
-        else if sign = true then (* sums are smaller than differences, constraint will not be in ls *)
+        else if sign = CT.plus then (* sums are smaller than differences, constraint will not be in ls *)
           if delete then ls else (sign, v, inv) :: ls
         else
-          x :: (set_constraint_list (sign, v, upper, value) xs)
+          x :: (set_constraint_list (sign, v, side, value) xs)
       end
       else if cmp < 0 then 
         if delete then ls else (sign, v, inv) :: ls
       else 
-        x :: (set_constraint_list (sign, v, upper, value) xs)
+        x :: (set_constraint_list (sign, v, side, value) xs)
     | [] -> [(sign, v, inv)]
 
   let add_var var oct =
@@ -158,11 +169,12 @@ module MapOctagon : S
       let cmp = BV.compare v v2 in
       if cmp = 0
       then begin
-        if sign = sign2
-        then xs
-        else if sign = true
-        then ls
-        else x :: (delete_constraint (sign, v) xs)
+        if sign = sign2 then 
+          xs
+        else if sign = ConstraintType.plus then
+          ls
+        else 
+          x :: (delete_constraint (sign, v) xs)
       end
       else if cmp < 0
       then ls
@@ -175,9 +187,10 @@ module MapOctagon : S
       | (sign, v, inv) :: xs ->
         let cmp = BV.compare var v in
         if cmp = 0 then
-          if sign = true then
+          if sign = ConstraintType.plus then
             find_constraints (Some inv) xs
-          else first, (Some inv)
+          else 
+            first, (Some inv)
         else if cmp > 1 then
           find_constraints first xs
         else
@@ -218,7 +231,7 @@ module MapOctagon : S
 
   let rec set_constraint const oct =
     match const with
-    | var, None, upper, value ->
+    | var, None, side, value ->
       let oct = add_var var oct in
       let old_inv, consts =
         try
@@ -228,28 +241,28 @@ module MapOctagon : S
       in
       let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in
       let new_inv =
-        if upper then 
+        if side = CT.Upper then 
           INV.of_interval (OPT.get (INV.minimal old_inv), value)
         else
           INV.of_interval (value, OPT.get (INV.maximal old_inv))
       in
       add var (cast var new_inv, consts) oct
-    | var1, Some (sign, var2), upper, value ->
+    | var1, Some (sign, var2), side, value ->
       let cmp = (BV.compare var1 var2) in
       if cmp = 0 then 
         Lattice.unsupported "wrong arguments"
       else if cmp > 0 then
-        let upper, value =
-          if sign then 
-            upper, value
+        let side, value =
+          if sign = CT.plus then 
+            side, value
           else 
-            not upper, Int64.neg value
+            CT.opposite side, Int64.neg value
         in
-        set_constraint (var2, Some (sign, var1), upper, value) oct
+        set_constraint (var2, Some (sign, var1), side, value) oct
       else begin
         let oct = add_var var1 (add_var var2 oct) in
         let (const, consts) = find var1 oct in
-        let consts = set_constraint_list (sign, var2, upper, value) consts in
+        let consts = set_constraint_list (sign, var2, side, value) consts in
         add var1 (const, consts) oct
       end
 
@@ -274,7 +287,7 @@ module MapOctagon : S
           (a, List.map (fun (sign, var2, old_val) ->
               if (BV.compare var var2) <> 0 then 
                 sign, var2, old_val
-              else if sign = true then 
+              else if sign = ConstraintType.plus then 
                 sign, var2, (myadd old_val value)
               else 
                 sign, var2, (myadd old_val (Int64.neg value))
@@ -310,14 +323,14 @@ module MapOctagon : S
         try
           let (_, consts) = find var1 oct in
           let first, second = find_constraints var2 consts in
-          let candidate = if sign then first else second in
+          let candidate = if sign = CT.plus then first else second in
           match candidate with
           | Some inv -> inv
           | None -> INV.top ()
         with Not_found ->
           INV.top ()
       else if cmp > 0 then
-        if sign = true then
+        if sign = CT.plus then
           projection var2 (Some (true, var1)) oct
         else
           INV.neg (projection var2 (Some (false, var1)) oct)
@@ -395,23 +408,23 @@ module MapOctagon : S
       then
         match i_inv, j_inv with
         | true, false ->
-          set_constraint (j, Some (true, i), true, value) oct
+          set_constraint (j, Some (CT.plus, i), CT.Upper, value) oct
         | false, true ->
-          set_constraint (j, Some (true, i), false, Int64.neg value) oct
+          set_constraint (j, Some (CT.plus, i), CT.Lower, Int64.neg value) oct
         | false, false ->
-          set_constraint (j, Some (false, i), true, value) oct
+          set_constraint (j, Some (CT.minus, i), CT.Upper, value) oct
         | true, true ->
-          set_constraint (j, Some (false, i), false, Int64.neg value) oct
+          set_constraint (j, Some (CT.minus, i), CT.Lower, Int64.neg value) oct
       else if i_inv <> j_inv
       then matrix_set (j, i_inv) (i, j_inv) value oct
       else matrix_set (j, not i_inv) (i, not j_inv) value oct
     else
     if not i_inv && j_inv
     then
-      set_constraint (i, None, false, Int64.neg(Int64.div value (Int64.of_int 2))) oct
+      set_constraint (i, None, CT.Lower, Int64.neg(Int64.div value (Int64.of_int 2))) oct
     else if i_inv && not j_inv
     then
-      set_constraint (i, None, true, Int64.div value (Int64.of_int 2)) oct
+      set_constraint (i, None, CT.Upper, Int64.div value (Int64.of_int 2)) oct
     else Lattice.unsupported "error"
 
 
@@ -556,13 +569,13 @@ module MapOctagon : S
         let upper = INV.maximal const |> OPT.get in
         let lower = INV.minimal const |> OPT.get in
         if not (Int64.compare lower min_int = 0)
-        then if sign = true
+        then if sign = CT.plus
           then (set index1 (inv_index index2) (Int64.neg lower);
                 set index2 (inv_index index1) (Int64.neg lower))
           else (set (inv_index index2) (inv_index index1) (Int64.neg lower);
                 set index1 index2 (Int64.neg lower));
         if not (Int64.compare upper max_int = 0)
-        then if sign = true
+        then if sign = CT.plus
           then (set (inv_index index1) index2 upper;
                 set (inv_index index2) index1 upper)
           else (set index2 index1 upper;
@@ -594,8 +607,8 @@ module MapOctagon : S
           let upper = get (inv_index i) i |> unpack in
           let lower = Int64.neg (get i (inv_index i) |> unpack) in
           if not (INV.is_top (INV.of_interval (upper,lower))) then
-          let oct = set_constraint (var1, None, true, upper) oct in
-          let oct = set_constraint (var1, None, false, lower) oct in
+            let oct = set_constraint (var1, None, CT.Upper, upper) oct in
+            let oct = set_constraint (var1, None, CT.Lower, lower) oct in
           matrix_iter i (j + 2) oct
           else
             matrix_iter i (j + 2) oct
@@ -614,14 +627,14 @@ module MapOctagon : S
           let oct =
             let upper = get (inv_index i) j |> unpack true in
             let lower = get i (inv_index j) |> unpack false in
-            set_constraint (var1, Some(true, var2), true, upper)
-              (set_constraint (var1, Some(true, var2), false, lower) oct)
+            set_constraint (var1, Some(CT.plus, var2), CT.Upper, upper)
+              (set_constraint (var1, Some(CT.plus, var2), CT.Lower, lower) oct)
           in
           let oct =
             let upper = get (inv_index i) (inv_index j) |> unpack true in
             let lower = get i j |> unpack false in
-            set_constraint (var1, Some(false, var2), true, upper)
-              (set_constraint (var1, Some(false, var2), false, lower) oct)
+            set_constraint (var1, Some(CT.minus, var2), CT.Upper, upper)
+              (set_constraint (var1, Some(CT.minus, var2), CT.Lower, lower) oct)
           in
           matrix_iter i (j + 2) oct
         else

@@ -108,8 +108,8 @@ struct
               D.adjust v i ctx.local, true
             else
               let oct = D.erase lval ctx.local in                     (* integer <= varFromRight-lval <= integer *)
-              D.set_constraint (lval, Some(false, v), true, i)
-                (D.set_constraint (lval, Some(false, v), false, i) oct), true
+              D.set_constraint (lval, Some(ConstraintType.minus, v), CT.Upper, i)
+                (D.set_constraint (lval, Some(ConstraintType.minus, v), CT.Lower, i) oct), true (* TODO: Is this ok, we need to be careful when to do closures *)
          in
          (match rval with
           | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _) 
@@ -130,8 +130,8 @@ struct
             let const = evaluate_exp ctx.local exp in
             let oct = D.erase lval ctx.local in
             if not (INV.is_top const) then
-              D.set_constraint (lval, None, true, INV.maximal const |> Option.get)
-                (D.set_constraint (lval, None, false, INV.minimal const |> Option.get)
+              D.set_constraint (lval, None, CT.Upper, INV.maximal const |> Option.get)
+                (D.set_constraint (lval, None, CT.Lower, INV.minimal const |> Option.get)
                    oct), true
             else oct, false
          )
@@ -200,20 +200,20 @@ struct
              match lexp with
              | BinOp(op, Lval(Var v1, NoOffset), Lval(Var v2, NoOffset), _)
                when is_local_and_not_pointed_to v1 && is_local_and_not_pointed_to v2 && (op = PlusA || op = MinusA) ->
-               let sign = (op = PlusA) in
+               let sign = if (op = PlusA) then ConstraintType.plus else ConstraintType.minus in
                let oct = if setUpper
-                 then D.set_constraint (v1, Some(sign, v2), true, invUpper) ctx.local
+                 then D.set_constraint (v1, Some(sign, v2), CT.Upper, invUpper) ctx.local
                  else ctx.local in
                let oct = if setLower
-                 then D.set_constraint (v1, Some(sign, v2), false, invLower) oct
+                 then D.set_constraint (v1, Some(sign, v2), CT.Lower, invLower) oct
                  else oct in
                oct
              | Lval(Var v, NoOffset) when is_local_and_not_pointed_to v ->
                let oct = if setUpper
-                 then D.set_constraint (v, None, true, invUpper) ctx.local
+                 then D.set_constraint (v, None, CT.Upper, invUpper) ctx.local
                  else ctx.local in
                let oct = if setLower
-                 then D.set_constraint (v, None, false, invLower) oct
+                 then D.set_constraint (v, None, CT.Lower, invLower) oct
                  else oct in
                oct
              | _ -> ctx.local
@@ -259,12 +259,12 @@ struct
     let add_const (oct:D.t) (f, exp) = (* add the constraints created by setting formal f to exp  *)
       let oct_with_eq =  match exp with
         | Lval(Var v_exp, NoOffset) when is_local_and_not_pointed_to v_exp -> (* For formal f, add constraint f = exp if exp is a variable *)
-            D.set_constraint (f, Some(false, v_exp), true, Int64.zero) (D.set_constraint (f, Some(false, v_exp), false, Int64.zero) oct)
+            D.set_constraint (f, Some(ConstraintType.minus, v_exp), CT.Upper, Int64.zero) (D.set_constraint (f, Some(ConstraintType.minus, v_exp), CT.Lower, Int64.zero) oct)
         | _ -> oct
       in
       let inv = evaluate_exp ctx.local exp in
       if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
-        D.set_constraint (f, None, true, INV.maximal inv |> Option.get) (D.set_constraint (f, None, false, INV.minimal inv |> Option.get) oct_with_eq)
+        D.set_constraint (f, None, CT.Upper, INV.maximal inv |> Option.get) (D.set_constraint (f, None, CT.Lower, INV.minimal inv |> Option.get) oct_with_eq)
       else 
         oct_with_eq
     in
@@ -356,7 +356,7 @@ struct
       if INV.is_int inv1 then
         if INV.is_bot (INV.meet inv1 inv2) then
           `Bool false
-        else if INV.compare inv1 inv2 == 0 then
+        else if INV.compare inv1 inv2 = 0 then
           `Bool true 
         else
           `Top
