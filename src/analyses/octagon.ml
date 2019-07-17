@@ -34,9 +34,9 @@ struct
   let evaluate_sums oct exp =
     let match_exp = function
       | BinOp(Mult, Lval(Var(var), _), Const(CInt64 (c, _, _)), _)
-      | BinOp(Mult, Const(CInt64 (c, _, _)), Lval(Var(var), _), _) ->
+      | BinOp(Mult, Const(CInt64 (c, _, _)), Lval(Var(var), NoOffset), _) ->
         Some (c, var)
-      | Lval(Var(var), _) ->
+      | Lval(Var(var), NoOffset) ->
         Some (Int64.one, var)
       | _ -> None
     in
@@ -71,11 +71,11 @@ struct
       begin
         match exp with
         | Const (CInt64 (i, _, _)) -> INV.of_int i
-        | Lval (Var var, _) -> D.projection var None oct
+        | Lval (Var var, NoOffset) -> D.projection var None oct
         | UnOp (Neg, exp, _) ->
           INV.neg (evaluate_exp oct exp)
         | BinOp (op, expl, expr, _) ->
-          let op = (match op with
+          let op = match op with
               | PlusA -> INV.add
               | MinusA -> INV.sub
               | Mult -> INV.mul
@@ -86,7 +86,7 @@ struct
               | Ge -> INV.ge
               | Eq -> INV.eq
               | Ne -> INV.ne
-              | _ -> fun _ _ -> INV.top ())
+              | _ -> fun _ _ -> INV.top ()
           in
           let result = op (evaluate_exp oct expl) (evaluate_exp oct expr) in
           if INV.is_bot result
@@ -99,26 +99,26 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let oct, changed =
       (match lval with
-       | (Var lval, NoOffset) when not (is_local_and_not_pointed_to lval) ->
+       | (Var var, NoOffset) when not (is_local_and_not_pointed_to var) ->
          ctx.local, false
-       | (Var lval, NoOffset) ->                    (* TODO: Are we handling all interesting cases here? *)
+       | (Var var1, NoOffset) ->                    (* TODO: Are we handling all interesting cases here? *)
          let rval = stripCastsDeep rval in
          let assignVarPlusInt v i =
-            if (BV.compare lval v) = 0 then 
+            if (BV.compare var1 v) = 0 then 
               D.adjust v i ctx.local, true
             else
-              let oct = D.erase lval ctx.local in                     (* integer <= varFromRight-lval <= integer *)
-              D.set_constraint (lval, Some(ConstraintType.minus, v), CT.Upper, i)
-                (D.set_constraint (lval, Some(ConstraintType.minus, v), CT.Lower, i) oct), true (* TODO: Is this ok, we need to be careful when to do closures *)
+              let oct = D.erase var1 ctx.local in                     (* integer <= varFromRight-lval <= integer *)
+              D.set_constraint (var1, Some(ConstraintType.minus, v), CT.UpperAndLower, i) oct, true (* TODO: Is this ok, we need to be careful when to do closures *)
          in
          (match rval with
           | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _) 
             when (op = PlusA || op = MinusA) && is_local_and_not_pointed_to var ->
             begin
               let integer = 
-                if op = MinusA
-                then Int64.neg integer
-                else integer
+                if op = MinusA then 
+                  Int64.neg integer
+                else
+                  integer
               in
               assignVarPlusInt var integer
             end
@@ -128,19 +128,17 @@ struct
             assignVarPlusInt var Int64.zero
           | exp ->
             let const = evaluate_exp ctx.local exp in
-            let oct = D.erase lval ctx.local in
+            let oct = D.erase var1 ctx.local in
             if not (INV.is_top const) then
-              D.set_constraint (lval, None, CT.Upper, INV.maximal const |> Option.get)
-                (D.set_constraint (lval, None, CT.Lower, INV.minimal const |> Option.get)
+              D.set_constraint (var1, None, CT.Upper, INV.maximal const |> Option.get)
+                (D.set_constraint (var1, None, CT.Lower, INV.minimal const |> Option.get)
                    oct), true
             else oct, false
          )
        | _ -> ctx.local, false)
     in
-    if changed
-    then begin
+    if changed then
       D.strong_closure oct
-    end
     else
       oct
 
@@ -222,10 +220,8 @@ struct
          | _ -> ctx.local, false)
       in
 
-      if changed then begin
-        let oct = D.strong_closure (D.meet ctx.local oct) in
-        (* print_oct oct |> print_endline; *)
-        oct end
+      if changed then
+        D.strong_closure (D.meet ctx.local oct)
       else
         oct
     end
@@ -259,7 +255,7 @@ struct
     let add_const (oct:D.t) (f, exp) = (* add the constraints created by setting formal f to exp  *)
       let oct_with_eq =  match exp with
         | Lval(Var v_exp, NoOffset) when is_local_and_not_pointed_to v_exp -> (* For formal f, add constraint f = exp if exp is a variable *)
-            D.set_constraint (f, Some(ConstraintType.minus, v_exp), CT.Upper, Int64.zero) (D.set_constraint (f, Some(ConstraintType.minus, v_exp), CT.Lower, Int64.zero) oct)
+            D.set_constraint (f, Some(ConstraintType.minus, v_exp), CT.UpperAndLower, Int64.zero) oct
         | _ -> oct
       in
       let inv = evaluate_exp ctx.local exp in

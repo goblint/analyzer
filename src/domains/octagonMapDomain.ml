@@ -65,7 +65,7 @@ struct
 end
 
 module ConstraintType = struct
-  type side = Upper | Lower
+  type side = Upper | Lower | UpperAndLower
   
   let opposite s = if s = Upper then Lower else Upper
 
@@ -232,9 +232,13 @@ module MapOctagon : S
 
   let rec set_constraint const oct =
     match const with
+    | var, c, CT.UpperAndLower, value ->
+      let lower = set_constraint (var, c, CT.Lower, value) oct in
+      set_constraint (var, c, CT.Upper, value) lower
     | var, None, side, value ->
       let oct = add_var var oct in
       let old_inv, consts = find var oct in
+      let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in (* TODO: why would it be \bot? *)
       let new_inv =
         if side = CT.Upper then 
           INV.of_interval (OPT.get (INV.minimal old_inv), value)
