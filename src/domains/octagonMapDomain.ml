@@ -158,9 +158,10 @@ module MapOctagon : S
     | [] -> [(sign, v, inv)]
 
   let add_var var oct =
-    if mem var oct
-    then oct
-    else add var (INV.top(), []) oct
+    if mem var oct then
+      oct
+    else 
+      add var (INV.top(), []) oct
 
   let rec delete_constraint (sign, v) ls =
     match ls with
@@ -233,13 +234,7 @@ module MapOctagon : S
     match const with
     | var, None, side, value ->
       let oct = add_var var oct in
-      let old_inv, consts =
-        try
-          find var oct
-        with Not_found ->
-          INV.top (), []
-      in
-      let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in
+      let old_inv, consts = find var oct in
       let new_inv =
         if side = CT.Upper then 
           INV.of_interval (OPT.get (INV.minimal old_inv), value)
@@ -250,7 +245,7 @@ module MapOctagon : S
     | var1, Some (sign, var2), side, value ->
       let cmp = (BV.compare var1 var2) in
       if cmp = 0 then 
-        Lattice.unsupported "wrong arguments"
+        Lattice.unsupported "Can't set constraint between variable and itself"
       else if cmp > 0 then
         let side, value =
           if sign = CT.plus then 
