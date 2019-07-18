@@ -19,6 +19,9 @@ struct
   module C = D
   module G = Lattice.Unit
 
+  let return_varstore = ref dummyFunDec.svar
+  let return_varinfo () = !return_varstore
+
   let print_oct oct =
     Prelude.Ana.sprint D.pretty oct
 
@@ -230,9 +233,16 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    (* remove locals from state *)
-    let locals = (f.sformals @ f.slocals) in
-    List.fold_left (fun oct v -> D.erase v oct) ctx.local locals
+    (* we only have information about locals in the map, so instead of removing we start with a blank slate *)
+    let start = D.top () in
+    match exp with
+    | Some e ->
+        let inv = evaluate_exp ctx.local e in
+        if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
+          D.set_constraint (return_varinfo (), None, CT.Upper, INV.maximal inv |> Option.get) (D.set_constraint (return_varinfo (), None, CT.Lower, INV.minimal inv |> Option.get) start)
+        else 
+          start
+    | None -> start
 
   let make_entry (ctx:(D.t, G.t) Analyses.ctx) fn (args: exp list): D.t =
     (* The normal haskell zip that throws no exception *)
@@ -270,11 +280,17 @@ struct
   let enter ctx (lval: lval option) (fn:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (after:D.t) : D.t =
     match lval with
-    | Some (Var v,_) -> D.erase v au (* TODO: Be smarter here *)
-    | Some (Mem _, _)
-    | None -> au
+    | Some (Var v, NoOffset) -> 
+        let retval = evaluate_exp after (Lval ((Var (return_varinfo ())), NoOffset)) in
+        let oct = D.erase v ctx.local in
+        if not (INV.is_top retval) then
+          D.set_constraint (v, None, CT.Upper, INV.maximal retval |> Option.get)
+            (D.set_constraint (v, None, CT.Lower, INV.minimal retval |> Option.get)
+                oct)
+        else oct
+    | _ -> ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match lval with

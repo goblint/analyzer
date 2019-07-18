@@ -149,8 +149,6 @@ module MapOctagon : S
         if INV.is_top inv then 
           ls (* no prexisting constraint on these two vars -> adding top is pointless *)
         else
-      else 
-        else
           (sign, v, inv) :: ls
       else 
         x :: (set_constraint_list (sign, v, side, value) xs)
@@ -174,8 +172,6 @@ module MapOctagon : S
         xs
       else if cmp < 0 then
         ls
-      else
-        else 
       else
         x :: (delete_constraint (sign, v) xs)
     | [] -> []
