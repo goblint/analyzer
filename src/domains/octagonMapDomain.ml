@@ -124,8 +124,7 @@ module MapOctagon : S
       then INV.ending value
       else INV.starting value
     in
-    let inv = cast v inv in
-    let delete = INV.is_top inv in
+    (* let inv = cast v inv in *) (* this does nothing, why do we have it? *)
     let construct_inv old_inv =
       let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in
       let old_lower = INV.minimal old_inv |> OPT.get in
@@ -137,25 +136,29 @@ module MapOctagon : S
     in
     match ls with
     | ((sign2, v2, inv2) as x) :: xs ->
-      let cmp = BV.compare v v2 in
-      if cmp = 0
-      then begin
-        if sign = sign2 then
+      let cmp = E.compare (sign, v, value) x in
+      if cmp = 0 then
+        begin
           let inv = construct_inv inv2 in
           if INV.is_top inv then
             xs
           else
             (sign, v, inv) :: xs
-        else if sign = CT.plus then (* sums are smaller than differences, constraint will not be in ls *)
-          if delete then ls else (sign, v, inv) :: ls
-        else
-          x :: (set_constraint_list (sign, v, side, value) xs)
-      end
+        end
       else if cmp < 0 then 
-        if delete then ls else (sign, v, inv) :: ls
+        if INV.is_top inv then 
+          ls (* no prexisting constraint on these two vars -> adding top is pointless *)
+        else
+      else 
+        else
+          (sign, v, inv) :: ls
       else 
         x :: (set_constraint_list (sign, v, side, value) xs)
-    | [] -> [(sign, v, inv)]
+    | [] -> 
+      if INV.is_top inv then
+        [] (* no prexisting constraint on these two vars -> adding top is pointless *)
+      else
+        [(sign, v, inv)]
 
   let add_var var oct =
     if mem var oct then
@@ -165,23 +168,19 @@ module MapOctagon : S
 
   let rec delete_constraint (sign, v) ls =
     match ls with
-    | x :: xs ->
-      let (sign2, v2, _) = x in
-      let cmp = BV.compare v v2 in
-      if cmp = 0
-      then begin
-        if sign = sign2 then 
-          xs
-        else if sign = ConstraintType.plus then
-          ls
+    | ((sign2, v2, _) as x) :: xs ->
+      let cmp = E.compare (sign,v, INV.top ()) x in
+      if cmp = 0 then
+        xs
+      else if cmp < 0 then
+        ls
+      else
         else 
-          x :: (delete_constraint (sign, v) xs)
-      end
-      else if cmp < 0
-      then ls
-      else x :: (delete_constraint (sign, v) xs)
+      else
+        x :: (delete_constraint (sign, v) xs)
     | [] -> []
 
+  (* return sum, diff constraint for this variable *)
   let find_constraints var ls =
     let rec find_constraints first ls =
       match ls with
@@ -192,7 +191,7 @@ module MapOctagon : S
             find_constraints (Some inv) xs
           else 
             first, (Some inv)
-        else if cmp > 1 then
+        else if cmp > 0 then
           find_constraints first xs
         else
           first, None
