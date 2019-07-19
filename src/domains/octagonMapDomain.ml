@@ -67,7 +67,13 @@ end
 module ConstraintType = struct
   type side = Upper | Lower | UpperAndLower
   
-  let opposite s = if s = Upper then Lower else Upper
+  let opposite s =
+    if s = Upper then
+      Lower 
+    else if s = Lower then 
+      Upper
+    else
+      s
 
   let plus = true
   let minus = false
@@ -119,20 +125,35 @@ module MapOctagon : S
   let print_oct oct =
     Prelude.Ana.sprint pretty oct
 
-  let rec set_constraint_list (sign, v, side, value) ls =
-    let inv = if side = CT.Upper
-      then INV.ending value
-      else INV.starting value
+  let rec set_constraint_list (sign, v, side, value) ls =   (* Idea: Not set constraints that are [MinInt,MaxInt] those don't mean shit *)
+    let inv =
+      if side = CT.Upper then 
+        INV.ending value
+      else if side = CT.Lower then
+        INV.starting value
+      else
+        INV.of_interval (value, value)
     in
     (* let inv = cast v inv in *) (* this does nothing, why do we have it? *)
     let construct_inv old_inv =
-      let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in
-      let old_lower = INV.minimal old_inv |> OPT.get in
-      let old_upper = INV.maximal old_inv |> OPT.get in
-      (if side = CT.Upper
-       then INV.of_interval (old_lower, min old_upper value)
-       else INV.of_interval (max old_lower value, old_upper))
-      |> cast v
+      if side = CT.UpperAndLower then
+        INV.of_interval(value, value)
+      else
+        let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in
+        let old_lower = INV.minimal old_inv |> OPT.get in
+        let old_upper = INV.maximal old_inv |> OPT.get in
+        if side = CT.Upper then 
+          let res = INV.of_interval (old_lower, min old_upper value) in    (* When both setting lower and upper after each other                                                *)
+          if INV.is_bot res then                                           (* from e.g. [1,3] to [5,6] the result would be [5,3] i.e. bot after setting the lower boundary only *)
+            INV.ending value
+          else
+            res
+        else 
+          let res = INV.of_interval (max old_lower value, old_upper) in
+          if INV.is_bot res then
+            INV.starting value
+          else
+            res
     in
     match ls with
     | ((sign2, v2, inv2) as x) :: xs ->
@@ -227,18 +248,25 @@ module MapOctagon : S
 
   let rec set_constraint const oct =
     match const with
-    | var, c, CT.UpperAndLower, value ->
-      let lower = set_constraint (var, c, CT.Lower, value) oct in
-      set_constraint (var, c, CT.Upper, value) lower
     | var, None, side, value ->
       let oct = add_var var oct in
       let old_inv, consts = find var oct in
       let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in (* TODO: why would it be \bot? *)
       let new_inv =
-        if side = CT.Upper then 
-          INV.of_interval (OPT.get (INV.minimal old_inv), value)
+        if side = CT.Upper then
+          let res = INV.of_interval (OPT.get (INV.minimal old_inv), value) in
+          if INV.is_bot res then
+            INV.ending value
+          else
+            res
+        else if side = CT.Lower then
+          let res = INV.of_interval (value, OPT.get (INV.maximal old_inv)) in
+          if INV.is_bot res then
+            INV.starting value
+          else
+            res
         else
-          INV.of_interval (value, OPT.get (INV.maximal old_inv))
+          INV.of_interval(value, value)
       in
       add var (cast var new_inv, consts) oct
     | var1, Some (sign, var2), side, value ->
@@ -603,7 +631,7 @@ module MapOctagon : S
           if not (INV.is_top (INV.of_interval (upper,lower))) then
             let oct = set_constraint (var1, None, CT.Upper, upper) oct in
             let oct = set_constraint (var1, None, CT.Lower, lower) oct in
-          matrix_iter i (j + 2) oct
+            matrix_iter i (j + 2) oct
           else
             matrix_iter i (j + 2) oct
         else if i < j
@@ -651,8 +679,8 @@ module MapOctagon : S
       else
         strong_closure oct
     in
-    strong_closure' oct |> remove_empty
-
+    strong_closure' oct
+    
   (* Remove all information except those concerning variables in vars *)
   let keep_only vars oct =
     let oct_keys_filtered = filter (fun k _ -> List.mem k vars) oct in
