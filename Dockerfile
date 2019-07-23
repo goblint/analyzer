@@ -1,6 +1,8 @@
+# default tag 'latest' is Debian Stable with opam switches for OCaml 4.02-4.08 (currently, 1 GB)
+# the <DISTRO>-opam images just have opam (ubuntu-19.04-opam is 223 MB)
+FROM ocaml/opam2
 # To best make use of the build cache, layers should be ordered by frequency of change.
 # Here: apt packages, make.sh, linux-headers, opam packages, source code
-FROM ocaml/opam2
 # {ruby, gem, locale} needed for `make test`
 RUN sudo apt-get update && sudo apt-get install -yq m4 libgmp-dev ruby
 RUN sudo gem install parallel
