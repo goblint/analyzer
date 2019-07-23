@@ -5,6 +5,9 @@ osx_image: xcode10
 language: c
 git:
   submodules: false
+cache:
+  directories:
+  - $HOME/.opam
 install: bash -x scripts/travis-ci.sh
 script: ./make.sh headers testci
 addons:
