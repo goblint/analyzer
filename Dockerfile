@@ -6,9 +6,14 @@ RUN sudo apt-get update && sudo apt-get install -yq m4 libgmp-dev ruby
 RUN sudo gem install parallel
 RUN opam switch 4.07
 # First we only copy files needed for setup. If we added all here, it would invalidate the cache on every change and the following steps would have to be rerun.
-COPY --chown=opam make.sh opam opam.locked /home/opam/analyzer/
+COPY --chown=opam make.sh /home/opam/analyzer/
+# Change workdir after first copy, otherwise wrong permissions.
 WORKDIR /home/opam/analyzer
+# Download linux-headers before installing dependencies, so that this can be cached separately.
 RUN ./make.sh headers
+# dependencies and their locked versions; upgraded versions will only be installed after a change to opam.locked
+COPY --chown=opam opam opam.locked /home/opam/analyzer/
+# install locked dependencies
 RUN ./make.sh deps
 # add the rest to the image (~11s), .dockerignore is symlinked to .gitignore
 COPY --chown=opam . /home/opam/analyzer
