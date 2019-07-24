@@ -51,6 +51,8 @@ module WP =
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
+    module HPM = Hashtbl.Make (P)
+
     type phase = Widen | Narrow
 
     let solve box st vs data =
@@ -76,7 +78,9 @@ module WP =
         if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) w
+        VS.iter (fun y ->
+          HM.remove stable y;
+          destabilize y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         init x;
@@ -84,10 +88,10 @@ module WP =
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
-          let wp = space && HM.mem rho x || HM.mem wpoint x in
+          let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) side in
+          let tmp = eq x (eval l x) (side x) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
@@ -129,7 +133,7 @@ module WP =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) side in
+          let tmp = eq y (eval l x) (side x) in
           HM.remove called y;
           if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
@@ -137,12 +141,13 @@ module WP =
       and eval l x y =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
-        if not space && HM.mem called y then HM.replace wpoint y ();
+        if HM.mem called y then HM.replace wpoint y ();
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
-      and side y d = (* only to variables y w/o rhs *)
+      and side x y d = (* only to variables y w/o rhs *)
         if tracing then trace "sol2" "side to %a on %i (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
+        add_infl x y;
         if S.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
@@ -161,9 +166,10 @@ module WP =
           (* assert (S.Dom.leq old j);
           assert (S.Dom.leq old w);
           assert (S.Dom.leq j w); *)
-          HM.replace rho y (S.Dom.widen old (S.Dom.join old d));
+          HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d));
           HM.replace stable y ();
-          destabilize y
+          destabilize y;
+          if not (HM.mem stable y) then HM.replace wpoint y ()
         )
       and init x =
         if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
@@ -240,38 +246,34 @@ module WP =
 
       (* verifies values at widening points and adds values for variables in-between *)
       let visited = HM.create 10 in
-      let rec get x =
-       if HM.mem visited x then (
-          if not (HM.mem rho x) then (
-            ignore @@ Pretty.printf "TDFP Found an unknown that should be a widening point: %a\n" S.Var.pretty_trace x;
-            S.Dom.bot ()
-          ) else
-            HM.find rho x
-        ) else (
-          HM.replace visited x ();
-          let check_side y d =
-            let mem = HM.mem rho y in
-            let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
-            if not (S.Dom.leq d d') then ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d S.Dom.pretty d'
-          in
-          let eq x =
-            match S.system x with
-            | None -> if HM.mem rho x then HM.find rho x else S.Dom.bot ()
-            | Some f -> f get check_side
-          in
-          if HM.mem rho x then (
+      let check_side x y d =
+        HM.replace visited y ();
+        let mem = HM.mem rho y in
+        let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
+        if not (S.Dom.leq d d') then ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d S.Dom.pretty d'
+      in
+      let rec eq check x =
+        HM.replace visited x ();
+        match S.system x with
+        | None -> if HM.mem rho x then HM.find rho x else (ignore @@ Pretty.printf "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pretty_trace x; S.Dom.bot ())
+        | Some f -> f (get ~check) (check_side x)
+      and get ?(check=false) x =
+        if HM.mem visited x then (
+          HM.find rho x
+        ) else if HM.mem rho x then ( (* `vs` are in `rho`, so to restore others we need to skip to `eq`. *)
+          let d1 = HM.find rho x in
+          let d2 = eq check x in (* just to reach unrestored variables *)
+          if check then (
             if not (HM.mem stable x) && S.system x <> None then ignore @@ Pretty.printf "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pretty_trace x;
-            let d1 = HM.find rho x in
-            let d2 = eq x in
+            let d2 = eq true x in
             if not (S.Dom.leq d2 d1) then
               ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x (S.Var.file_name x) (S.Var.line_nr x) S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
-            d1
-          ) else (
-            let d = eq x in
-            (* assert(not (S.Dom.is_bot d)); *)
-            HM.replace rho x d;
-            d
-          )
+          );
+          d1
+        ) else (
+          let d = eq check x in
+          HM.replace rho x d;
+          d
         )
       in
       (* restore values for non-widening-points *)
@@ -280,17 +282,17 @@ module WP =
           print_endline ("Restoring missing values.");
         let restore () =
           let get x =
-            let d = get x in
-            if tracing then trace "sol2" "restored var %a on %i ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Dom.pretty d
+            let d = get ~check:true x in
+            if tracing then trace "sol2" "restored var %a on %i ## %a\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Dom.pretty d
           in
           List.iter get vs;
           HM.iter (fun x v -> if not (HM.mem visited x) then HM.remove rho x) rho
         in
         Stats.time "restore" restore ();
-        if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho)
       );
       let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
-      if tracing then (if List.length !cache_sizes = 0 then trace "cache" "#caches: 0" else trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes));
+      if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
 
       let reachability xs =
         let remove_all x = HM.remove rho x; HM.remove stable x; HM.remove infl x; HM.remove wpoint x in

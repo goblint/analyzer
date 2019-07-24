@@ -3,7 +3,6 @@
 
 # setup base system and clone goblint if not running in travis-ci
 if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-    brew cask uninstall oclint # Travis image has this pre-installed (https://github.com/travis-ci/travis-ci/issues/8826)
     brew update
     brew install ocaml opam gcc
 else
@@ -40,7 +39,7 @@ else
 fi
 
 # install dependencies
-OPAMYES=1 ./make.sh setup
+SANDBOXING=--disable-sandboxing ./make.sh setup
 eval `opam config env`
 # compile
 ./make.sh nat

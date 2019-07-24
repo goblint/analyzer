@@ -1,4 +1,5 @@
 opam-version: "2.0"
+name: "goblint"
 maintainer: "Ralf Vogler <ralf.vogler@gmail.com>"
 authors: "Vesal Vojdani, Kalmer Apinis, Ralf Vogler"
 license: "MIT"
@@ -9,16 +10,20 @@ build: [make]
 run-test: [make "test"]
 depends: [
   "ocaml" {>= "4.04.1" & < "4.08"}
-  "ocamlfind"
-  "goblint-cil"
-  "batteries"
-  "xml-light"
+  "ocamlbuild" {build}
+  "ocamlfind" {build}
+  "goblint-cil" {build}
+  "batteries" {build}
+  "xml-light" {build}
   "ppx_distr_guards"
   "ppx_monadic"
   "ppx_import"
   "ppx_deriving"
   "ppx_deriving_yojson"
-  "ocamlbuild" {build}
+  "ounit" {with-test}
+]
+pin-depends: [
+  [ "goblint-cil.1.7.4" "git+https://github.com/goblint/cil.git" ]
 ]
 synopsis: "Static analysis framework for concurrent C"
 url {

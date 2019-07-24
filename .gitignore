@@ -38,3 +38,4 @@ ocamlprof.dump
 arinc
 
 .vscode
+_opam/
