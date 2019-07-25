@@ -613,48 +613,52 @@ module MapOctagon : S
     let inv_vars = Hashtbl.create (Hashtbl.length vars) in
     Hashtbl.iter (fun var index -> Hashtbl.add inv_vars (index * 2) var) vars;
     let get i j = Array.get (Array.get matrix i) j in
+    let unpack_interval negate v =
+      match v with
+      | Infinity -> if negate then min_int else max_int
+      | Val f ->
+          let res =  Int64.div (Int64.of_float f) (Int64.of_int 2) in
+          if negate then Int64.neg res else res
+    in
+    let unpack_constraint negate v =
+      match v with
+      | Infinity ->
+        if negate
+        then min_int
+        else max_int
+      | Val f ->
+        let f = Int64.of_float f in
+        if negate then Int64.neg f else f
+    in
 
     let rec matrix_iter i j oct =
-      if i >= Array.length matrix
-      then oct
-      else if j >= Array.length matrix
-      then matrix_iter (i + 2) 0 oct
+      if i >= Array.length matrix then 
+        oct
+      else if j >= Array.length matrix then 
+        matrix_iter (i + 2) 0 oct
       else
         let var1 = Hashtbl.find inv_vars i in
         let var2 = Hashtbl.find inv_vars j in
-        if i = j
-        then
-          let unpack = function | Infinity -> max_int | Val f ->
-            Int64.div (Int64.of_float f) (Int64.of_int 2) in
-          let upper = get (inv_index i) i |> unpack in
-          let lower = Int64.neg (get i (inv_index i) |> unpack) in
+        if i = j then
+          let upper = get (inv_index i) i |> (unpack_interval false) in
+          let lower = get i (inv_index i) |> (unpack_interval true) in (* fucking min_int != -max_int *)
           if not (INV.is_top (INV.of_interval (upper,lower))) then
             let oct = set_constraint (var1, None, CT.Upper, upper) oct in
             let oct = set_constraint (var1, None, CT.Lower, lower) oct in
             matrix_iter i (j + 2) oct
           else
             matrix_iter i (j + 2) oct
-        else if i < j
-        then
-          let unpack upper =
-            function
-            | Infinity ->
-              if upper
-              then max_int
-              else min_int
-            | Val f ->
-              let f = Int64.of_float f in
-              if upper then f else Int64.neg f
-          in
+        else if i < j then
+
           let oct =
-            let upper = get (inv_index i) j |> unpack true in
-            let lower = get i (inv_index j) |> unpack false in
+            let upper = get (inv_index i) j |> unpack_constraint false in
+            let lower = get i (inv_index j) |> unpack_constraint true in
             set_constraint (var1, Some(CT.plus, var2), CT.Upper, upper)
               (set_constraint (var1, Some(CT.plus, var2), CT.Lower, lower) oct)
           in
           let oct =
-            let upper = get (inv_index i) (inv_index j) |> unpack true in
-            let lower = get i j |> unpack false in
+            let upper = get (inv_index i) (inv_index j) |> unpack_constraint false in
+            let lower = get i j |> unpack_constraint true in
             set_constraint (var1, Some(CT.minus, var2), CT.Upper, upper)
               (set_constraint (var1, Some(CT.minus, var2), CT.Lower, lower) oct)
           in
