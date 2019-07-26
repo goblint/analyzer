@@ -29,6 +29,30 @@ struct
   let invariant _ _ = Invariant.none
 end
 
+module PrintableObj =
+struct
+  type t = int
+
+  let name () = "obj"
+  let of_obj = Hashtbl.hash
+  let short _ x = string_of_int x
+
+  include Printable.PrintSimple (
+    struct
+      type t' = t
+      let short = short
+      let name = name
+    end
+    )
+  let to_yojson x = `String (short 100 x)
+
+  let invariant _ _ = Invariant.none
+
+  let compare x y = Pervasives.compare x y
+  let equal x y = compare x y = 0
+  let hash x = x
+end
+
 module FlatBot (Base: Printable.S) = Lattice.LiftBot (Lattice.Fake (Base))
 
 module Spec : Analyses.Spec =
@@ -37,7 +61,8 @@ struct
 
   let name = "witness"
 
-  module V = PrintableVar
+  (* module V = PrintableVar *)
+  module V = Printable.Prod (PrintableVar) (PrintableObj)
   module S = SetDomain.Make (V)
   module F = FlatBot (V)
 
@@ -53,7 +78,8 @@ struct
     let prev = set_of_flat (snd from) in
     (prev, F.lift to_node)
 
-  let step_ctx ctx = step ctx.local ctx.node
+  (* let step_ctx ctx = step ctx.local ctx.node *)
+  let step_ctx ctx = step ctx.local (ctx.node, PrintableObj.of_obj ctx.context)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -69,10 +95,12 @@ struct
     step_ctx ctx
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, step ctx.local (FunctionEntry f)]
+    (* [ctx.local, step ctx.local (FunctionEntry f)] *)
+    [ctx.local, step ctx.local (FunctionEntry f, PrintableObj.of_obj ctx.context)] (* TODO: wrong context? should somehow be like WitnessLifter enter? *)
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    step au ctx.node
+    (* step au ctx.node *)
+    step au (ctx.node, PrintableObj.of_obj ctx.context)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     step_ctx ctx
