@@ -33,9 +33,27 @@ module PrintableObj =
 struct
   type t = int
 
-  let name () = "obj"
-  let of_obj = Hashtbl.hash
-  let short _ x = string_of_int x
+  let name () = "PrintableObj"
+
+  module H = Hashtbl.Make (
+    struct
+      type t = int
+      let equal x y = x = y
+      let hash x = x
+    end
+    )
+
+  let to_obj_table = H.create 100
+
+  let of_obj o =
+    let h = Hashtbl.hash o in
+    if not (H.mem to_obj_table h) then
+      H.add to_obj_table h o;
+    h
+
+  let to_obj x = H.find to_obj_table x
+
+  let short _ x = Printf.sprintf "PrintableObj(%d)" x
 
   include Printable.PrintSimple (
     struct
