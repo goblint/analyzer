@@ -51,7 +51,7 @@ struct
   let meet a b = map2 true B.meet a b
   let join a b = map2 false B.join a b
   let narrow a b = map2 true B.narrow a b
-  let widen a b = map2 true B.widen a b
+  let widen a b = map2 false B.widen a b
 
   let rec leq x y =
     match x, y with
