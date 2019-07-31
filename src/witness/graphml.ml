@@ -83,6 +83,30 @@ struct
   let stop = M.stop
 end
 
+(* copied from NodeGraphMlWriter *)
+module NodeStackGraphMlWriter (M: StringGraphMlWriter):
+  (GraphMlWriter with type node = MyCFG.node list) =
+struct
+  type t = M.t
+  type node = MyCFG.node list
+
+  let string_of_node = function
+    | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
+    | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
+    | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
+  let string_of_nodestack n =
+    n
+    |> List.map string_of_node
+    |> String.concat "@"
+
+  let start = M.start
+  let write_key = M.write_key
+  let write_metadata = M.write_metadata
+  let write_node g node datas = M.write_node g (string_of_nodestack node) datas
+  let write_edge g source target datas = M.write_edge g (string_of_nodestack source) (string_of_nodestack target) datas
+  let stop = M.stop
+end
+
 module DeDupGraphMlWriter (Node: Hashtbl.HashedType) (M: GraphMlWriter with type node = Node.t): (GraphMlWriter with type node = Node.t) =
 struct
   module H = Hashtbl.Make(Node)
