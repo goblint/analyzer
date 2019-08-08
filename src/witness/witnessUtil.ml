@@ -6,10 +6,10 @@ module NS = Set.Make (Node)
 let find_main_entry entrystates =
   let (main_entry_nodes, other_entry_nodes) =
     entrystates
-    |> List.map (fun ((n, _), _) -> n)
+    |> List.map fst
     |> List.partition (function
-        | FunctionEntry f -> f.vname = "main"
-        | _ -> false
+        | FunctionEntry f, _ -> f.vname = "main"
+        | _, _ -> false
       )
   in
   match main_entry_nodes, other_entry_nodes with

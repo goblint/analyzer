@@ -2,6 +2,14 @@ open MyCFG
 open WitnessUtil
 open Graphml
 
+module HashedPair (M1: Hashtbl.HashedType) (M2: Hashtbl.HashedType): (Hashtbl.HashedType with type t = M1.t * M2.t) =
+struct
+  type t = M1.t * M2.t
+  (* copied from Printable.Prod *)
+  let equal (x1,x2) (y1,y2) = M1.equal x1 y1 && M2.equal x2 y2
+  let hash (x,y) = M1.hash x + M2.hash y * 17
+end
+
 module HashedList (M: Hashtbl.HashedType): (Hashtbl.HashedType with type t = M.t list) =
 struct
   type t = M.t list
@@ -10,35 +18,43 @@ struct
   let hash = List.fold_left (fun xs x -> xs + M.hash x) 996699
 end
 
-module NL = HashedList (Node)
-module GML = DeDupGraphMlWriter (NL) (NodeStackGraphMlWriter (XmlGraphMlWriter))
-module NH = Hashtbl.Make (Node)
-module NLH = Hashtbl.Make (NL)
 
 module type Task =
 sig
   val file: Cil.file
   val specification: Svcomp.specification
 
-  val main_entry: node
+  type c
+  module C: Printable.S with type t = c
+  val main_entry: node * c
   module Cfg: CfgBidir (* TODO: only needs CfgForward? *)
 end
 
 module type TaskResult =
 sig
+  type c
+
   val result: bool
-  val is_live: node -> bool
+  val is_live: node * c -> bool
+  val entry_ctx: node * c -> c
 
   (* correctness witness *)
-  val invariant: node -> Invariant.t
+  val invariant: node * c -> Invariant.t
 
   (* violation witness *)
-  val is_violation: node -> bool
-  val is_sink: node -> bool
+  val is_violation: node * c -> bool
+  val is_sink: node * c -> bool
 end
 
 
-let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
+let write_file (type c) filename (module Task:Task with type c = c) (module TaskResult:TaskResult with type c = c): unit =
+  let module C = Task.C in
+  let module NC = HashedPair (Node) (C) in
+  let module NCL = HashedList (NC) in
+  let module GML = DeDupGraphMlWriter (NCL) (NodeCtxStackGraphMlWriter (C) (XmlGraphMlWriter)) in
+  let module NH = Hashtbl.Make (Node) in
+  let module NCLH = Hashtbl.Make (NCL) in
+
   let main_entry = Task.main_entry in
   let module Cfg = Task.Cfg in
   let loop_heads = find_loop_heads (module Cfg) Task.file in
@@ -77,20 +93,20 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" Task.specification;
-  GML.write_metadata g "programfile" (getLoc main_entry).file;
+  GML.write_metadata g "programfile" (getLoc (fst main_entry)).file;
   (* TODO: programhash *)
   (* TODO: architecture *)
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
 
-  let write_node ~entry nodestack =
-    let node = List.hd nodestack in
-    GML.write_node g nodestack (List.concat [
+  let write_node ~entry nodectxstack =
+    let (node, _) as nodectx = List.hd nodectxstack in
+    GML.write_node g nodectxstack (List.concat [
         begin if entry then
             [("entry", "true")]
           else
             []
         end;
-        begin match node, TaskResult.invariant node with
+        begin match node, TaskResult.invariant nodectx with
           | Statement _, Some i ->
             [("invariant", i);
              ("invariant.scope", (getFun node).svar.vname)]
@@ -106,22 +122,22 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
         end;
         (* violation actually only allowed in violation witness *)
         (* maybe should appear on from_node of entry edge instead *)
-        begin if TaskResult.is_violation node then
+        begin if TaskResult.is_violation nodectx then
             [("violation", "true")]
           else
             []
         end;
-        begin if TaskResult.is_sink node then
+        begin if TaskResult.is_sink nodectx then
             [("sink", "true")]
           else
             []
         end
       ])
   in
-  let write_edge from_nodestack ((loc, edge):Cil.location * edge) to_nodestack =
-    let from_node = List.hd from_nodestack in
-    let to_node = List.hd to_nodestack in
-    GML.write_edge g from_nodestack to_nodestack (List.concat [
+  let write_edge from_nodectxstack ((loc, edge):Cil.location * edge) to_nodectxstack =
+    let (from_node, _) = List.hd from_nodectxstack in
+    let (to_node, _) = List.hd to_nodectxstack in
+    GML.write_edge g from_nodectxstack to_nodectxstack (List.concat [
         begin if loc.line <> -1 then
             [("startline", string_of_int loc.line);
              ("endline", string_of_int loc.line)]
@@ -155,49 +171,51 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
       ])
   in
 
-  let add_node ?(entry=false) nodestack =
-    write_node ~entry nodestack
+  let add_node ?(entry=false) nodectxstack =
+    write_node ~entry nodectxstack
   in
 
   (* DFS with BFS-like child ordering, just for nicer ordering of witness graph children *)
-  let itered_nodestacks = NLH.create 100 in
-  let rec add_edge from_nodestack (loc, edge) to_nodestack = match edge with
+  let itered_nodestacks = NCLH.create 100 in
+  let rec add_edge from_nodectxstack (loc, edge) to_nodectxstack = match edge with
     | Proc (_, Lval (Var f, _), _) -> (* TODO: doesn't cover all cases? *)
       (* splice in function body *)
       (* TODO: what should happen when same function enters and returns in different places? *)
-      let entry_nodestack = FunctionEntry f :: from_nodestack in
-      let return_nodestack = Function f :: from_nodestack in
+      let ctx = TaskResult.entry_ctx (List.hd from_nodectxstack) in
+      let entry_nodestack = (FunctionEntry f, ctx) :: from_nodectxstack in
+      let return_nodestack = (Function f, ctx) :: from_nodectxstack in
       iter_nodestack entry_nodestack;
-      write_edge from_nodestack (loc, edge) entry_nodestack;
-      if NLH.mem itered_nodestacks return_nodestack then
-        write_edge return_nodestack (loc, edge) to_nodestack
+      write_edge from_nodectxstack (loc, edge) entry_nodestack;
+      if NCLH.mem itered_nodestacks return_nodestack then
+        write_edge return_nodestack (loc, edge) to_nodectxstack
       else
         () (* return node missing, function never returns *)
     | _ ->
-      write_edge from_nodestack (loc, edge) to_nodestack
-  and add_edges from_nodestack locedges to_nodestack =
-    List.iter (fun locedge -> add_edge from_nodestack locedge to_nodestack) locedges
+      write_edge from_nodectxstack (loc, edge) to_nodectxstack
+  and add_edges from_nodectxstack locedges to_nodectxstack =
+    List.iter (fun locedge -> add_edge from_nodectxstack locedge to_nodectxstack) locedges
   and iter_nodestack = function
-    | [] -> failwith "empty nodestack"
-    | (node :: nodectx) as nodestack ->
-      if not (NLH.mem itered_nodestacks nodestack) then begin
-        NLH.add itered_nodestacks nodestack ();
-        add_node nodestack;
-        let is_sink = TaskResult.is_violation node || TaskResult.is_sink node in
+    | [] -> failwith "empty nodectxstack"
+    | ((node, ctx) as nodectx :: nodectxtl) as nodectxstack ->
+      if not (NCLH.mem itered_nodestacks nodectxstack) then begin
+        NCLH.add itered_nodestacks nodectxstack ();
+        add_node nodectxstack;
+        let is_sink = TaskResult.is_violation nodectx || TaskResult.is_sink nodectx in
         if not is_sink then begin
-          let locedges_to_nodestacks =
+          let locedges_to_nodectxstacks =
             Cfg.next node
-            |> List.filter (fun (_, to_node) -> TaskResult.is_live to_node)
+            |> List.map (fun (locedges, to_node) -> (locedges, (to_node, ctx)))
+            |> List.filter (fun (_, to_nodectx) -> TaskResult.is_live to_nodectx)
             (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
-            |> List.map (fun (locedges, to_node) -> (locedges, to_node :: nodectx))
+            |> List.map (fun (locedges, to_nodectx) -> (locedges, to_nodectx :: nodectxtl))
           in
-          List.iter (fun (locedges, to_nodestack) ->
-              add_node to_nodestack;
-              add_edges nodestack locedges to_nodestack
-            ) locedges_to_nodestacks;
-          List.iter (fun (locedges, to_nodestack) ->
-              iter_nodestack to_nodestack
-            ) locedges_to_nodestacks
+          List.iter (fun (locedges, to_nodectxstack) ->
+              add_node to_nodectxstack;
+              add_edges nodectxstack locedges to_nodectxstack
+            ) locedges_to_nodectxstacks;
+          List.iter (fun (locedges, to_nodectxstack) ->
+              iter_nodestack to_nodectxstack
+            ) locedges_to_nodectxstacks
         end
       end
   in

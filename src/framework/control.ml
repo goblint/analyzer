@@ -323,16 +323,20 @@ struct
       let file = file
       let specification = Svcomp.unreach_call_specification
 
+      type c = Spec.C.t
       let main_entry = WitnessUtil.find_main_entry entrystates
       module Cfg = Cfg
+      module C = Spec.C
     end
     in
 
     let local_xml = ref (Result.create 0) in
     let global_xml = ref (GHT.create 0) in
+    let lh_ref = ref (LHT.create 0) in
     let do_analyze_using_solver () =
       if get_bool "dbg.earlywarn" then Goblintutil.may_narrow := false;
       let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
+      lh_ref := lh;
 
       if not (get_string "comparesolver"="") then begin
         let compare_with (module S2 :  GenericGlobSolver) =
@@ -446,6 +450,13 @@ struct
       in
       Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
+      let get: node * Spec.C.t -> Spec.D.t =
+        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+      in
+      let is_live nc = not (Spec.D.is_bot (get nc)) in
+      let find_invariant nc = Spec.D.invariant "" (get nc) in
+      let entry_ctx nc = Spec.context (get nc) in
+
       if svcomp_unreach_call then begin
         (* let print_invariant (l, n, f) v =
              (* some nodes duplicated for different contexts *)
@@ -455,25 +466,27 @@ struct
            in
            Result.iter print_invariant !local_xml; *)
 
-        let find_invariant: node -> Invariant.t =
-          let module NH = Hashtbl.Make (MyCFG.Node) in
-          let invariants = NH.create 100 in
-          Result.iter (fun (l, n, f) v ->
-              (* currently doesn't really handle context *)
-              let i = LT.fold (fun (c, d, f2) a ->
-                  Invariant.(a || Spec.D.invariant "" d)
-                ) v Invariant.none
-              in
-              NH.add invariants n i
-            ) !local_xml;
+        (* let find_invariant: node * Spec.C.t -> Invariant.t =
+           let module NH = Hashtbl.Make (MyCFG.Node) in
+           let invariants = NH.create 100 in
+           Result.iter (fun (l, n, f) v ->
+               (* currently doesn't really handle context *)
+               let i = LT.fold (fun (c, d, f2) a ->
+                   Invariant.(a || Spec.D.invariant "" d)
+                 ) v Invariant.none
+               in
+               NH.add invariants n i
+             ) !local_xml;
 
-          fun n ->
-            NH.find_default invariants n Invariant.none
-        in
+           fun (n, c) -> (* TODO: use c *)
+             NH.find_default invariants n Invariant.none
+           in *)
         let module TaskResult =
         struct
+          type c = Spec.C.t
           let result = true
-          let is_live = !liveness
+          let is_live = is_live
+          let entry_ctx = entry_ctx
           let invariant = find_invariant
           let is_violation _ = false
           let is_sink _ = false
@@ -483,12 +496,14 @@ struct
       end else begin
         let module TaskResult =
         struct
+          type c = Spec.C.t
           let result = false
-          let is_live = !liveness
+          let is_live = is_live
+          let entry_ctx = entry_ctx
           let invariant _ = Invariant.none
           let is_violation = function
-            | FunctionEntry f when f.vname = Svcomp.verifier_error -> true
-            | _ -> false
+            | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
+            | _, _ -> false
           let is_sink _ = false
         end
         in

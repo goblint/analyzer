@@ -170,9 +170,18 @@ struct
     | `Bot -> VS.bot ()
     | `Top -> VS.top ()
 
+  module VH = Hashtbl.Make (V)
+  let steps = VH.create 100
+
   let step (from:W.t) (to_node:V.t): W.t =
     let prev = set_of_flat (snd from) in
     (* ignore (Pretty.printf "from: %a, prev: %a -> to_node: %a\n" W.pretty from VS.pretty prev V.pretty to_node); *)
+    begin match snd from with
+      | `Lifted from_node ->
+        VH.modify_def (VS.empty ()) from_node (fun to_nodes -> VS.add to_node to_nodes) steps;
+        ignore (Pretty.printf "from_node: %a -> to_node: %a\n" V.pretty from_node V.pretty to_node);
+      | _ -> ()
+    end;
     (prev, `Lifted to_node)
 
   let step_ctx ctx =
@@ -188,7 +197,14 @@ struct
   let name = S.name ^ " witnessed"
 
   let init = S.init
-  let finalize = S.finalize
+  let finalize () =
+    S.finalize ();
+    VH.iter (fun from_node to_nodes ->
+        ignore (Pretty.printf "from_node: %a ->\n" V.pretty from_node);
+        VS.iter (fun to_node ->
+            ignore (Pretty.printf "    -> to_node: %a\n" V.pretty to_node)
+          ) to_nodes
+      ) steps
 
   let startstate v = (S.startstate v, W.bot ())
   let morphstate v (d, w) = (S.morphstate v d, w)
