@@ -1009,3 +1009,48 @@ struct
     LH.iter verify_var sigma;
     Goblintutil.in_verifying_stage := false
 end
+
+module RecoverInfls
+    (EQSys:GlobConstrSys)
+    (LH:Hashtbl.S with type key=EQSys.LVar.t)
+    (GH:Hashtbl.S with type key=EQSys.GVar.t)
+=
+struct
+  open EQSys
+
+  module LS = Set.Make (LVar)
+
+  let infls_rinfls (lh:D.t LH.t) (gh:G.t GH.t): LS.t LH.t * LS.t LH.t =
+    let infls = LH.create 100 in
+    let rinfls = LH.create 100 in
+
+    let add_infl x y =
+      LH.modify_def LS.empty y (LS.add x) infls;
+      LH.modify_def LS.empty x (LS.add y) rinfls
+    in
+
+    let one_var x d =
+      let one_constraint rhs =
+        let getl y =
+          add_infl x y;
+          try LH.find lh y with Not_found -> D.bot ()
+        in
+        let getg y = try GH.find gh y with Not_found -> G.bot () in
+        let setl y yd = () in
+        let setg y yd = () in
+        ignore (rhs getl setl getg setg)
+      in
+      let rhs = system x in
+      List.iter one_constraint rhs
+    in
+
+    LH.iter one_var lh;
+
+    (* LH.iter (fun y xs ->
+          let string_of_var v = String.trim @@ Pretty.sprint 80 (LVar.pretty_trace () v) in
+          let xs_str = String.concat ", " (List.map string_of_var (LS.to_list xs)) in
+          Printf.printf "%s -> %s\n" (string_of_var y) xs_str
+        ) rinfls; *)
+
+    infls, rinfls
+end

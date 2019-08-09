@@ -47,6 +47,8 @@ struct
     (** The comparator *)
     let module Comp = Compare (Spec) (EQSys) (LHT) (GHT) in
 
+    let module Infls = RecoverInfls (EQSys) (LHT) (GHT) in
+
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
     (** Set of triples [RT] *)
@@ -450,12 +452,24 @@ struct
       in
       Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
+      let (infls, rinfls) = Infls.infls_rinfls !lh_ref !global_xml in
+
       let get: node * Spec.C.t -> Spec.D.t =
         fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
       in
       let is_live nc = not (Spec.D.is_bot (get nc)) in
       let find_invariant nc = Spec.D.invariant "" (get nc) in
-      let entry_ctx nc = Spec.context (get nc) in
+      (* let entry_ctx nc = Spec.context (get nc) in *)
+      let entry_ctx nc =
+        LHT.find rinfls nc
+        |> Infls.LS.to_list
+        |> List.filter_map (fun (fn, fc) ->
+            match fn with
+            | Function f -> Some fc
+            | _ -> None
+          )
+        |> List.hd (* TODO: ability to return multiple *)
+      in
 
       if svcomp_unreach_call then begin
         (* let print_invariant (l, n, f) v =
