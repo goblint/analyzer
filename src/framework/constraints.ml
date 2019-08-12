@@ -1036,7 +1036,10 @@ struct
           try LH.find lh y with Not_found -> D.bot ()
         in
         let getg y = try GH.find gh y with Not_found -> G.bot () in
-        let setl y yd = () in
+        let setl y yd =
+          ()
+          (* ignore (Pretty.printf "setl: %a -> %a" LVar.pretty_trace x LVar.pretty_trace y) *)
+        in
         let setg y yd = () in
         ignore (rhs getl setl getg setg)
       in

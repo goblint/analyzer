@@ -179,7 +179,7 @@ struct
     begin match snd from with
       | `Lifted from_node ->
         VH.modify_def (VS.empty ()) from_node (fun to_nodes -> VS.add to_node to_nodes) steps;
-        ignore (Pretty.printf "from_node: %a -> to_node: %a\n" V.pretty from_node V.pretty to_node);
+        (* ignore (Pretty.printf "from_node: %a -> to_node: %a\n" V.pretty from_node V.pretty to_node); *)
       | _ -> ()
     end;
     (prev, `Lifted to_node)
@@ -199,12 +199,13 @@ struct
   let init = S.init
   let finalize () =
     S.finalize ();
-    VH.iter (fun from_node to_nodes ->
-        ignore (Pretty.printf "from_node: %a ->\n" V.pretty from_node);
-        VS.iter (fun to_node ->
-            ignore (Pretty.printf "    -> to_node: %a\n" V.pretty to_node)
-          ) to_nodes
-      ) steps
+    (* VH.iter (fun from_node to_nodes ->
+         ignore (Pretty.printf "from_node: %a ->\n" V.pretty from_node);
+         VS.iter (fun to_node ->
+             ignore (Pretty.printf "    -> to_node: %a\n" V.pretty to_node)
+           ) to_nodes
+       ) steps *)
+    ()
 
   let startstate v = (S.startstate v, W.bot ())
   let morphstate v (d, w) = (S.morphstate v d, w)
