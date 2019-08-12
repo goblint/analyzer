@@ -23,7 +23,7 @@ let get_spec () : (module Spec) =
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
-            (* |> lift (get_bool "ana.sv-comp") (module WitnessAna.WitnessLifter) *)
+            |> lift (get_bool "ana.sv-comp") (module WitnessAna.WitnessLifter)
           ))
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)

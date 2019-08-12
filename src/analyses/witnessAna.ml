@@ -144,7 +144,7 @@ struct
     include Lattice.Prod (S.D) (W)
 
     (* alternative to using strict *)
-    let is_bot (d, w) = S.D.is_bot d
+    (* let is_bot (d, w) = S.D.is_bot d *)
 
     let printXml f (d, w) =
       BatPrintf.fprintf f "%a<path><analysis name=\"witness\">%a</analysis></path>" S.D.printXml d W.printXml w
@@ -191,8 +191,8 @@ struct
     with Failure _ ->
       W.bot ()
 
-  (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
-  let strict (d, w) = (d, w) (* D.is_bot redefined *)
+  let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w)
+  (* let strict (d, w) = (d, w) (* D.is_bot redefined *) *)
 
   let name = S.name ^ " witnessed"
 
