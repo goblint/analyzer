@@ -294,9 +294,11 @@ struct
 
   let val_of = identity
   let context x =
-    let x = filter (fun (x,_) -> not (mem x !cont_inse)) x in
     let x = spec_list x in
-    map (fun (n,(module S:Spec),d) -> n, repr @@ S.context (obj d)) x
+    map (fun (n,(module S:Spec),d) ->
+        let d' = if mem n !cont_inse then S.D.top () else obj d in
+        n, repr @@ S.context d'
+      ) x
 
   let should_join x y =
     let xs = filter (fun (x,_) -> mem x !path_sens) x in
@@ -405,7 +407,7 @@ struct
   and branch (ctx:(D.t, G.t) ctx) (e:exp) (tv:bool) =
     let spawns = ref [] in
     let splits = ref [] in
-    let sides  = ref [] in
+    let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
     let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
       let rec ctx' : (S.D.t, S.G.t) ctx =
@@ -509,12 +511,6 @@ struct
       | `Bool false -> false
       | _ -> true
     in
-    let reach_or_mpt =
-      if reach then
-        ReachableFrom (mkAddrOf (Mem e,NoOffset))
-      else
-        MayPointTo (mkAddrOf (Mem e,NoOffset))
-    in
     (* The following function adds accesses to the lval-set ls
        -- this is the common case if we have a sound points-to set. *)
     let on_lvals ls includes_uk =
@@ -530,16 +526,17 @@ struct
       in
       LS.iter f ls
     in
+    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
     match ctx.ask reach_or_mpt with
     | `Bot -> ()
     | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
       (* the case where the points-to set is non top and does not contain unknown values *)
       on_lvals ls false
-    | `LvalSet ls when not (LS.is_top ls) ->      
+    | `LvalSet ls when not (LS.is_top ls) ->
       (* the case where the points-to set is non top and contains unknown values *)
       let includes_uk = ref false in
       (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes (mkAddrOf (Mem e,NoOffset))) with
+      begin match ctx.ask (ReachableUkTypes e) with
         | `Bot -> ()
         | `TypeSet ts when Queries.TS.is_top ts ->
           includes_uk := true
@@ -556,7 +553,7 @@ struct
           includes_uk := true
       end;
       on_lvals ls !includes_uk
-    | _ -> 
+    | _ ->
       add_access (conf - 60) None None
 
   let assign (ctx:(D.t, G.t) ctx) l e =

@@ -373,6 +373,8 @@ struct
   module D = S.D
   module G = S.G
 
+  let full_context = get_bool "exp.full-context"
+
   let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
@@ -386,7 +388,7 @@ struct
       ; presub  = []
       ; postsub = []
       ; spawn   = (fun f d -> let c = S.context d in
-                    sidel (FunctionEntry f, c) d;
+                    if not full_context then sidel (FunctionEntry f, c) d;
                     ignore (getl (Function f, c)))
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
@@ -446,9 +448,9 @@ struct
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
     let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
     let paths = S.enter ctx lv f args in
-    let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, S.context v) v) paths in
+    let _     = if not full_context then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, S.context v) v) paths in
     let paths = List.map (fun (c,v) -> (c, if S.D.is_bot v then v else getl (Function f, S.context v))) paths in
-    let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
+    let paths = List.filter (fun (c,v) -> not (D.is_bot v)) paths in
     let paths = List.map combine paths in
     List.fold_left D.join (D.bot ()) paths
 
@@ -512,7 +514,7 @@ struct
 
   let system (v,c) =
     match v with
-    | FunctionEntry _ when get_bool "exp.full-context" ->
+    | FunctionEntry _ when full_context ->
       [fun _ _ _ _ -> S.val_of c]
     | _ -> List.map (tf (v,c)) (Cfg.prev v)
 end
@@ -624,24 +626,23 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
     struct
-      let lh_find_default h k d = try LH.find h k with Not_found -> d
-      let gh_find_default h k d = try GH.find h k with Not_found -> d
-
       module IneqSys = IneqConstrSysFromGlobConstrSys (S)
       module EqSys = Generic.NormalSysConverter (IneqSys)
 
       module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
-      let getR = function
+      let getR v = function
         | `Left x -> x
-        | `Right _ -> S.G.bot ()
-        | _ -> undefined ()
+        | `Right x ->
+          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
+          undefined ()
 
-      let getL = function
+      let getL v = function
         | `Right x -> x
-        | `Left _ -> S.D.top ()
-        | _ -> undefined ()
+        | `Left x ->
+          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
+          undefined ()
 
       let solve ls gs l =
         let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls
@@ -651,8 +652,8 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
         let l' = LH.create 113 in
         let g' = GH.create 113 in
         let split_vars = function
-          | (`L x,_) -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
-          | (`G x,_) -> fun y -> GH.replace g' x (getR y)
+          | (`L x,_) -> fun y -> LH.replace l' x (getL x y)
+          | (`G x,_) -> fun y -> GH.replace g' x (getR x y)
         in
         VH.iter split_vars hm;
         (l', g')
@@ -665,34 +666,34 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
     struct
-      let lh_find_default h k d = try LH.find h k with Not_found -> d
-      let gh_find_default h k d = try GH.find h k with Not_found -> d
-
       module IneqSys = IneqConstrSysFromGlobConstrSys (S)
 
       module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
       module Sol' = Sol (IneqSys) (VH)
 
-      let getR = function
+      let getG v = function
         | `Left x -> x
-        | `Right _ -> S.G.bot ()
-        | _ -> undefined ()
+        | `Right x ->
+          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
+          (* undefined () *) (* TODO this only happens for test 17/02 arinc/unique_proc *)
+          S.G.bot ()
 
-      let getL = function
+      let getL v = function
         | `Right x -> x
-        | `Left _ -> S.D.top ()
-        | _ -> undefined ()
+        | `Left x ->
+          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
+          undefined ()
 
       let solve ls gs l =
         let vs = List.map (fun (x,v) -> `L x, `Right v) ls
-                 @ List.map (fun (x,v) -> `G x, `Left  v) gs in
+                 @ List.map (fun (x,v) -> `G x, `Left v) gs in
         let sv = List.map (fun x -> `L x) l in
         let hm = Sol'.solve IneqSys.box vs sv in
         let l' = LH.create 113 in
         let g' = GH.create 113 in
         let split_vars = function
-          | `L x -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
-          | `G x -> fun y -> GH.replace g' x (getR y)
+          | `L x -> fun y -> LH.replace l' x (getL x y)
+          | `G x -> fun y -> GH.replace g' x (getG x y)
         in
         VH.iter split_vars hm;
         (l', g')
@@ -709,11 +710,11 @@ module PathSensitive2 (Spec:Spec)
 struct
   module D =
   struct
-    include SetDomain.Hoare (Spec.D) (N)
+    include SetDomain.Hoare (Spec.D) (N) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
     let name = "PathSensitive (" ^ name ^ ")"
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s: These are fine!" (name) else begin
+      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
         try
           let p t = not (mem t s2) in
           let evil = choose (filter p s1) in
@@ -966,10 +967,17 @@ struct
     Goblintutil.verified := Some true;
     let complain_l (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]"
+      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
                 LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
     in
-    let complain_g v (g:GVar.t) lhs rhs =
+    let complain_sidel v1 (v2:LVar.t) lhs rhs =
+      Goblintutil.verified := Some false;
+      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\nOrigin: %a (%s:%d)\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]"
+      LVar.pretty_trace v2 (LVar.file_name v2) (LVar.line_nr v2)
+      LVar.pretty_trace v1 (LVar.file_name v1) (LVar.line_nr v1)
+      D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
+    in
+    let complain_sideg v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
                 GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) G.pretty lhs G.pretty rhs)
@@ -985,12 +993,12 @@ struct
         let check_local l lv =
           let lv' = sigma' l in
           if not (D.leq lv lv') then
-            complain_l l lv' lv
+            complain_sidel v l lv' lv
         in
         let check_glob g gv =
           let gv' = theta' g in
           if not (G.leq gv gv') then
-            complain_g v g gv' gv
+            complain_sideg v g gv' gv
         in
         let d = rhs sigma' check_local theta' check_glob in
         (* Then we check that the local state satisfies this constraint. *)

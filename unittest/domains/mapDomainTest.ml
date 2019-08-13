@@ -3,15 +3,7 @@ open Pretty
 
 module GroupableDriver : MapDomain.Groupable with type t = string  =
 struct
-  type t = string
-  include Printable.Std
-
-  let pretty_f _ () x = text x
-  let toXML_f _ x =  Xml.Element (x,[],[])
-  let short _ x = x
-  let isSimple x = true
-  let pretty = pretty_f short
-  let toXML = toXML_f short
+  include Printable.Strings
 end
 
 module LatticeDriver = Lattice.Fake (GroupableDriver)

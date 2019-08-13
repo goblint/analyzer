@@ -6,4 +6,4 @@ let was_test_successful x =
     | _ -> false
 
 let was_successful x = 
-  List.fold_left (&) true (List.map was_test_successful x)
+  List.fold_left (&&) true (List.map was_test_successful x)

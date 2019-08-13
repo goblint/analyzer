@@ -772,6 +772,7 @@ struct
       if (AD.is_top addr) then st
       else
         let oldval = get a gs st addr in
+        let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
         let new_val = apply_invariant oldval value in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
         (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -1423,7 +1424,7 @@ struct
     | `Unknown _ -> begin
         let args =
           match LF.get_invalidate_action f.vname with
-          | Some fnc -> fnc `Write  args
+          | Some fnc -> fnc `Write  args (* why do we only spawn arguments that are written?? *)
           | None -> args
         in
         let flist = collect_funargs ctx.ask ctx.global ctx.local args in
@@ -1661,7 +1662,7 @@ struct
               if List.fold_right f flist false
               && not (get_bool "exp.single-threaded")
               && get_bool "exp.unknown_funs_spawn" then
-                cpa,Flag.make_main fl
+                cpa, Flag.make_main fl
               else
                 st
             )

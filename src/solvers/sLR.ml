@@ -43,6 +43,7 @@ module SLR3 =
         get_key x
       in
       let wpoint = HM.create  10 in
+      let globals = HM.create  10 in
       let stable = HM.create  10 in
       let infl   = HM.create  10 in
       let set    = HM.create  10 in
@@ -63,7 +64,12 @@ module SLR3 =
           let tmp = S.Dom.join tmp (sides x) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
-          let tmp = if wpx then box x old tmp else tmp in
+          let tmp =
+            if wpx then
+              if HM.mem globals x then S.Dom.widen old tmp
+              else box x old tmp
+            else tmp
+          in
           if not (S.Dom.equal old tmp) then begin
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
@@ -103,6 +109,7 @@ module SLR3 =
         let w = try HM.find set x with Not_found -> VS.empty in
         Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
       and side x y d =
+        HM.add globals y ();
         if not (HM.mem rho y) then begin
           init y;
           add_set x y d;

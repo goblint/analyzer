@@ -28,10 +28,25 @@ module Offset (Idx: IntDomain.S) =
 struct
   type t = (fieldinfo, Idx.t) offs [@@deriving to_yojson]
   include Printable.Std
-  include Lattice.StdCousot
 
-  let rec equal x y = match x, y with
+  let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname
+  let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false
+
+  let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
+    | `NoOffset -> `MustZero
+    | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to 0L x with
+      | `MustNonzero, _
+      | _, `Neq -> `MustNonzero
+      | `MustZero, `Eq -> `MustZero
+      | _, _ -> `MayZero)
+    | `Field (x, o) ->
+      if is_first_field x then cmp_zero_offset o else `MustNonzero
+
+  let rec equal x y =
+    match x, y with
     | `NoOffset , `NoOffset -> true
+    | `NoOffset, x
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero
     | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> equal o1 o2
     | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
     | _ -> false
@@ -51,8 +66,9 @@ struct
 
   let rec hash = function
     | `NoOffset -> 1
-    | `Field (f,o) -> Hashtbl.hash f.fname * hash o
-    | `Index (i,o) -> 2 * hash o + 13
+    | `Field (f,o) when not (is_first_field f) -> Hashtbl.hash f.fname * hash o + 13
+    | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
+    | `Index (_,o) -> hash o (* index might become top during fp -> might be zero offset *)
   let name = "Offset"
 
   let from_offset x = x
@@ -86,20 +102,31 @@ struct
   let rec leq x y =
     match x, y with
     | `NoOffset, `NoOffset -> true
+    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
     | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> leq o1 o2
     | _ -> false
 
   let isSimple x = true
 
-  let rec merge op x y = match x, y with
+  let rec merge cop x y =
+    let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
+    match x, y with
     | `NoOffset, `NoOffset -> `NoOffset
-    | `Field (x1,y1), `Field (x2,y2) when x1.fname = x2.fname -> `Field (x1, merge op y1 y2)
-    | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge op y1 y2)
+    | `NoOffset, x
+    | x, `NoOffset -> (match cop, cmp_zero_offset x with
+      | (`Join | `Widen), (`MustZero | `MayZero) -> x
+      | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset
+      | _ -> raise Lattice.Uncomparable)
+    | `Field (x1,y1), `Field (x2,y2) when x1.fname = x2.fname -> `Field (x1, merge cop y1 y2)
+    | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
     | _ -> raise Lattice.Uncomparable
 
-  let join x y = merge Idx.join x y
-  let meet x y = merge Idx.meet x y
+  let join x y = merge `Join x y
+  let meet x y = merge `Meet x y
+  let widen x y = merge `Widen x y
+  let narrow x y = merge `Narrow x y
 
   let rec drop_ints = function
     | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
@@ -199,7 +226,7 @@ struct
 
   let short _ = function
     | Addr x     -> short_addr x
-    | StrPtr x   -> x
+    | StrPtr x   -> "\"" ^ x ^ "\""
     | UnknownPtr -> "?"
     | SafePtr    -> "SAFE"
     | NullPtr    -> "NULL"
@@ -239,13 +266,7 @@ struct
     | SafePtr | UnknownPtr -> Hashtbl.hash UnknownPtr (* SafePtr <= UnknownPtr ==> same hash *)
     | x -> Hashtbl.hash x
 
-  let rec is_zero_offset =
-    let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname in
-    let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false in
-    function
-    | `Field (x,o) -> is_first_field x && is_zero_offset o
-    | `Index (x,o) -> Idx.to_int x = Some 0L && is_zero_offset o
-    | `NoOffset -> true
+  let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
   let equal x y = match x, y with
     | Addr (v,o), Addr (u,p) -> v.vid = u.vid && Offs.equal o p
@@ -318,7 +339,7 @@ struct
     | Addr (x, o) -> Addr (x, Offs.drop_ints o)
     | x -> x
 
-  let merge op x y =
+  let merge cop x y =
     match x, y with
     | UnknownPtr, SafePtr
     | SafePtr, UnknownPtr -> UnknownPtr
@@ -326,13 +347,13 @@ struct
     | NullPtr   , NullPtr -> NullPtr
     | SafePtr   , SafePtr -> SafePtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x, Offs.merge op o u)
+    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable
 
-  let join = merge Idx.join
-  let widen = merge Idx.widen
-  let meet = merge Idx.meet
-  let narrow = merge Idx.narrow
+  let join = merge `Join
+  let widen = merge `Widen
+  let meet = merge `Meet
+  let narrow = merge `Narrow
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end

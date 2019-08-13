@@ -35,7 +35,7 @@ struct
   
   let get_int_d v =
     match v with
-        -1 ->  (`Excluded (S.singleton Int64.zero))
+        -1 -> Idx.of_excl_list Cil.IInt [I.zero]
       | -2 -> Idx.top ()
       | -3 -> Idx.bot ()
       | _  -> Idx.of_int (I.of_int v)
@@ -46,7 +46,7 @@ struct
 
   let set_v a i v =
     match v with
-        -1 -> set_t a i (`Excluded (S.singleton Int64.zero))
+        -1 -> set_t a i (Idx.of_excl_list Cil.IInt [I.zero])
       | -2 -> set_t a i (Idx.top ())
       | -3 -> set_t a i (Idx.bot ())
       | _  -> set_t a i (Idx.of_int (I.of_int v))
@@ -56,7 +56,7 @@ struct
     let v = D.get a (Idx.of_int (I.of_int i)) in
         match v with 
   	  `Definite x -> (I.to_int x)
-	  | `Excluded x when S.is_empty x -> -2
+	  | `Excluded (x,_) when S.is_empty x -> -2
   	| _ ->  -1
 	    
   let enc a =

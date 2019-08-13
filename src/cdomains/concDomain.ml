@@ -97,7 +97,7 @@ module SimpleThreadDomain = struct
 
   let short w (x,y) =
     let tid = Lifted.short w y in
-    if x > 1 then tid else tid ^ "!"
+    if x > 1 then tid else tid ^ "!" (* ! means unique *)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let same_tid x y =

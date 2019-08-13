@@ -101,7 +101,7 @@ struct
         (* when reading: bump reader locks to exclusive as they protect reads *)
         Lockset.map (fun (x,_) -> (x,true)) ctx.local
     in
-    let ls = D.fold add_lock locks (LSSet.empty ())in
+    let ls = D.fold add_lock locks (LSSet.empty ()) in
     (ps, ls)
 
   let eval_exp_addr a exp =

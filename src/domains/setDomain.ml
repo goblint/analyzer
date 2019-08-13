@@ -412,6 +412,15 @@ struct
         | None, Some x when op = `Join -> Some x
         | _ -> None
       ) x y
+  
+  let merge_meet f x y =
+    Map.merge (fun i a b -> match a, b with
+        | Some a, Some b ->
+          let r = List.concat @@ List.map (fun x -> B.meet f x a) b in
+          if r = [] then None else Some r
+        | _ -> None
+      ) x y
+
   (* join all elements from the smaller map into their bucket in the other one.
    * this doesn't need to go over all elements of both maps as the general merge above. *)
   let merge_join f x y =
@@ -420,8 +429,8 @@ struct
 
   let join   x y = merge_join E.join x y
   let widen  x y = merge_join E.widen x y
-  let meet   x y = merge `Meet E.meet x y
-  let narrow x y = merge `Meet E.narrow x y
+  let meet   x y = merge_meet E.meet x y
+  let narrow x y = merge_meet E.narrow x y
 
   (* Set *)
   let of_list_by f es = List.fold_left (flip (B.merge_element (B.join f))) Map.empty es
@@ -465,8 +474,9 @@ struct
 
   (* Printable *)
   let name = "Set (" ^ E.name ^ ")"
-  let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false
-  let hash = Hashtbl.hash
+  (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
+  let equal x y = leq x y && leq y x
+  let hash xs = fold (fun v a -> a + E.hash v) xs 0
   let compare = compare
   let isSimple _ = false
   let short w x : string =

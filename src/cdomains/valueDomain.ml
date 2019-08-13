@@ -348,8 +348,9 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some 0L -> true
+    | (`Int x, `Address y) when ID.to_int x = Some 0L && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
+    | (`Address _, `Int y) when ID.is_top y -> true
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) -> Structs.leq x y
     | (`Union x, `Union y) -> Unions.leq x y
@@ -412,7 +413,8 @@ struct
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some 0L -> AD.widen AD.null_ptr y
-        | _ -> AD.top_ptr)
+        | Some x when x<>0L -> AD.(widen y not_null)
+        | _ -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union x, `Union y) -> `Union (Unions.widen x y)
