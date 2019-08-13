@@ -150,7 +150,7 @@ struct
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m
   let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%a</key>\n%a" Domain.printXml k Range.printXml v

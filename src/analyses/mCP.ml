@@ -77,7 +77,7 @@ struct
     fold_left (fun a (n,d) -> f a n d) a x
 
   let pretty_f _ () x =
-    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
+    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
     | [] -> text "[]"
@@ -117,7 +117,7 @@ struct
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
   let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
 
-  let name () = IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map (flip assoc !analyses_table) @@ map fst @@ domain_list ())
+  let name = IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map (flip assoc !analyses_table) @@ map fst @@ domain_list ())
 
   let toXML_f sf x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.toXML (obj x) :: a) [] x in

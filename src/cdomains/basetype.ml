@@ -13,14 +13,9 @@ struct
     x.line = y.line && x.file = y.file
   let compare x y = compare (x.file, x.line) (y.file, y.line)
   let hash x = Hashtbl.hash (x.line, x.file)
-  let toXML_f sf x = Xml.Element ("Loc", [("file", x.file); ("line", string_of_int x.line); ("text", sf 80 x)], [])
-  let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S"
-  let pretty_f sf () x = text (sf max_int x)
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
-  let name () = "proglines"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S"
+  let name = "proglines"
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module ProgLocation : Printable.S with type t = location =
@@ -40,8 +35,8 @@ struct
   let pretty_f sf () x = text (sf max_int x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "proglines_byte"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "proglines_byte"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -68,8 +63,8 @@ struct
   let pretty_f sf () x = text (sf max_int x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "proglinesfun"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "proglinesfun"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -108,8 +103,8 @@ struct
     |  _ -> "None"
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "variables"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "variables"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let category _ = -1
   let line_nr a = a.vdecl.line
   let file_name a = a.vdecl.file
@@ -157,8 +152,8 @@ struct
     |  _ -> "None"
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "variables"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "variables"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -177,8 +172,8 @@ struct
   let pretty_f sf () x = text (sf 80 x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "raw strings"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "raw strings"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -205,7 +200,7 @@ struct
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "expresssions"
+  let name = "expresssions"
 
   let rec occurs x e =
     let rec occurs_lv (v,offs) =
@@ -246,7 +241,7 @@ struct
     in
     constFold true (replace_rv e)
 
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -270,8 +265,8 @@ struct
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "expressions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "expressions"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -290,8 +285,8 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "functions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "functions"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -309,9 +304,9 @@ struct
   let pretty_f _ () x = CilFun.pretty () x.svar
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "function decs"
+  let name = "function decs"
   let dummy = dummyFunDec
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -333,8 +328,8 @@ struct
   let class_name _ = "None"
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "field"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "field"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
 
@@ -402,8 +397,8 @@ struct
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "variables and fields"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "variables and fields"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 
 end
@@ -424,7 +419,7 @@ struct
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "types"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "types"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end

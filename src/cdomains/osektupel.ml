@@ -12,7 +12,7 @@ include Lattice.StdCousot
 *)
 
 
-let name () = "Transactionality tupels"
+let name = "Transactionality tupels"
 
 let is_bot_c x = (x = Bot)
 

@@ -46,7 +46,7 @@ module Simple = struct
     | 0,_ -> true
     | _,0 -> true
     | _   -> false
-  let name () = "MT mode"
+  let name = "MT mode"
 end
 
 (** Type to represent an abstract thread ID. *)
@@ -81,7 +81,7 @@ module SimpleThreadDomain = struct
   module Lifted =
   struct
     include Lattice.Flat (Thread) (ThreadLiftNames)
-    let name () = "Thread"
+    let name = "Thread"
   end
   include Lattice.ProdSimple (Simple) (Lifted)
   let is_multi (x,_) = x > 0

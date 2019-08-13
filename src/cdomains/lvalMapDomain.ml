@@ -110,7 +110,7 @@ struct
   let short i x = string_of x
   include Printable.PrintSimple (struct
       type t' = t
-      let name () = Impl.name
+      let name = Impl.name
       let short = short
     end)
   (* constructing & manipulation *)

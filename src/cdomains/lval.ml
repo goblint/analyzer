@@ -47,13 +47,13 @@ struct
   let pretty x = pretty_f short x
   let toXML x = toXML_f short x
   let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let rec hash = function
     | `NoOffset -> 1
     | `Field (f,o) -> Hashtbl.hash f.fname * hash o
     | `Index (i,o) -> 2 * hash o + 13
-  let name () = "Offset"
+  let name = "Offset"
 
   let from_offset x = x
   let to_offset x = [x]
@@ -146,7 +146,7 @@ struct
   type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving to_yojson]
   module Offs = Offset (Idx)
   include Printable.Std
-  let name () = "Normal Lvals"
+  let name = "Normal Lvals"
 
   let get_location = function
     | Addr (x,_) -> x.vdecl
@@ -269,7 +269,7 @@ struct
 
   let toXML = toXML_f short
   let pretty = pretty_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let to_exp (f:idx -> exp) x =
     let rec to_cil c =
       match c with
@@ -367,7 +367,7 @@ struct
   let toXML x = toXML_f short x
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
@@ -500,7 +500,7 @@ struct
 
   let hash    = Hashtbl.hash
   let compare = Pervasives.compare
-  let name () = "simplified lval"
+  let name = "simplified lval"
   let isSimple _ = true
 
   let class_tag (v,o) =
@@ -545,7 +545,7 @@ struct
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)], [])
   let pretty  = pretty_f short
   let toXML = toXML_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end

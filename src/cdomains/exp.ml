@@ -12,7 +12,7 @@ struct
   let compare = Pervasives.compare
   let classify _ = 0
   let class_name _ = "None"
-  let name () = "Cil expressions"
+  let name = "Cil expressions"
 
   let pretty = d_exp
   let short w s = sprint w (d_exp () s)
@@ -20,7 +20,7 @@ struct
   let isSimple _ = true
   let pretty_f _ = pretty
   let toXML_f _ = toXML
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let rec interesting x =
     match x with
@@ -278,7 +278,7 @@ struct
   let compare = Pervasives.compare
   let classify _ = 0
   let class_name _ = "None"
-  let name () = "Per-Element locking triple"
+  let name = "Per-Element locking triple"
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
   let short w (x,y,z) = sprint w (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
@@ -286,7 +286,7 @@ struct
   let isSimple _ = true
   let pretty_f _ = pretty
   let toXML_f _ = toXML
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   type ee = EVar of varinfo
           | EAddr

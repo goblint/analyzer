@@ -7,13 +7,13 @@ module VD = ValueDomain.Compound
 module CPA =
 struct
   include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
-  let name () = "value domain"
+  let name = "value domain"
 end
 
 module Flag =
 struct
   include ConcDomain.SimpleThreadDomain
-  let name () = "flag domain"
+  let name = "flag domain"
 end
 
 

@@ -19,14 +19,14 @@ end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
-  let name () = "trivial arrays"
+  let name = "trivial arrays"
   include Val
   type idx = Idx.t
   type value = Val.t
 
   let short w x = "Array: " ^ Val.short (w - 7) x
   let pretty () x = text "Array: " ++ pretty_f short () x
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let toXML m = toXML_f short m
   let get a i = a
   let set a i v = join a v
@@ -71,7 +71,7 @@ struct
   type value = Base.t
   and t = value array [@@deriving to_yojson]
 
-  let name () = "native arrays"
+  let name = "native arrays"
   let hash = Hashtbl.hash
   let compare = Pervasives.compare (* NB! is not guaranteed to terminate on cyclic data *)
 
@@ -152,7 +152,7 @@ struct
 
   let pretty ()  x = pretty_f short () x
   let toXML s = toXML_f short s
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let get a i =
     let folded () =
@@ -248,7 +248,7 @@ struct
   include Printable.Std
   include Lattice.StdCousot
 
-  let name () = "collapsing arrays"
+  let name = "collapsing arrays"
   type idx = Idx.t
   type value = Base.t
 
@@ -361,7 +361,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let make i v =
     if i > 25 then
@@ -411,7 +411,7 @@ struct
       | Mapping a, Mapping b -> M.equal Base.equal a b
 
   let hash  = Hashtbl.hash
-  let name () = "map array"
+  let name = "map array"
 
   let top () = Mapping M.empty
   let is_top x =
@@ -457,7 +457,7 @@ struct
       (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
   let pretty () = pretty_f short ()
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let toXML_f s x =
     let text = s Goblintutil.summary_length x in
@@ -856,8 +856,8 @@ struct
       (normalized, len)
 
 
-  let name () = "strict map based arrays"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "strict map based arrays"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
 end
 
@@ -984,8 +984,8 @@ struct
       make len new_joined
 *)
 
-  let name () = "loose map based arrays"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let name = "loose map based arrays"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
 end
 
@@ -1053,6 +1053,6 @@ struct
 
   let make i v = `Lifted (A.make i v)
 
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 end
 *)

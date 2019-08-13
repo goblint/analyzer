@@ -167,7 +167,7 @@ struct
       let full_name = res_dir ^ "/" ^ fname ^ ".xml" in
       if not (Sys.file_exists full_name) then begin
         File.with_file_out ~mode:[`excl;`create;`text] full_name loc_start;
-        Hashtbl.add created_files full_name ()
+        Hashtbl.add created_files full_name
       end;
       File.with_file_out ~mode:[`append;`excl;`text] full_name (write_one_call v d)
     in

@@ -67,7 +67,7 @@ struct
   include Printable.Std
   type t = result [@@deriving to_yojson]
 
-  let name () = "query result domain"
+  let name = "query result domain"
 
   let bot () = `Bot
   let is_bot x = x = `Bot
@@ -167,7 +167,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML s = toXML_f short s
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let leq x y =
     match (x,y) with

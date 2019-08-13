@@ -116,7 +116,7 @@ struct
   include Printable.Std
   module I = InfInt
   type t = I.t * I.t
-  let name () = "int intervals"
+  let name = "int intervals"
 
   let of_interval (x,y) = (I.Fin x, I.Fin y)
   let ending   x = (I.NInf , I.Fin x)
@@ -167,7 +167,7 @@ struct
   let pretty = pretty_f short
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML = toXML_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
 
   let leq  (x1,x2) (y1,y2) = I.leq y1 x1 && I.leq x2 y2
   let join (x1,x2) (y1,y2) = (I.min x1 y1, I.max x2 y2)
@@ -368,7 +368,7 @@ struct
     (*    | `Bot*)
   ]
 
-  let name () = "Exclusive & Inclusive Integer Intervals"
+  let name = "Exclusive & Inclusive Integer Intervals"
 
   let cast_to _ = failwith "Not implemented!"
   let of_interval _ = failwith "Not implemented!"
@@ -409,7 +409,7 @@ struct
   let toXML_f sf (x:t) = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
 
   let top () : t = `Included (I.top ())
   let bot () : t = `Included (I.bot ())
@@ -666,7 +666,7 @@ struct
   include Printable.Std
   include Lattice.StdCousot
   let cast_to _ x = x
-  let name () = "none"
+  let name = "none"
   type t = unit
   let hash () = 101010
   let equal _ _ = true
@@ -722,7 +722,7 @@ struct
   let lognot n1    = ()
   let logand n1 n2 = ()
   let logor  n1 n2 = ()
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
@@ -735,7 +735,7 @@ struct
   include Lattice.Prod (I1) (I2)
 
   let cast_to t (a,b) = I1.cast_to t a, I2.cast_to t b
-  let name () = I1.name () ^ " * " ^ I2.name ()
+  let name = I1.name ^ " * " ^ I2.name
 
   let equal (x1,x2) (y1,y2) =
     (I1.equal x1 y1 && I2.equal x2 y2)
@@ -929,7 +929,7 @@ struct
 
   (* constructors *)
 
-  let name () = I1.name () (* why do we just use the first name? *)
+  let name = I1.name (* why do we just use the first name? *)
   let cast_to' t x = (* why do we not call this on all?? *)
     match x with
     | Trier a -> Trier (I1.cast_to t a)

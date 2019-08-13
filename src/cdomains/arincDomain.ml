@@ -39,7 +39,7 @@ struct
   let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; pred=%s; ctx=%s }" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Pretty.sprint 200 (Pred.pretty () x.pred)) (Ctx.short 50 x.ctx)
   include Printable.PrintSimple (struct
       type t' = t
-      let name () = "ARINC state"
+      let name = "ARINC state"
       let short = short
     end)
   let toXML_f sf d =

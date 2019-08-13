@@ -36,7 +36,7 @@ end
 
 module Blob (Value: S) (Size: IntDomain.S) =
 struct
-  let name () = "blob"
+  let name = "blob"
   include Lattice.Prod (Value) (Size)
   type value = Value.t
   type size = Size.t
@@ -76,7 +76,7 @@ struct
 
 
   include Printable.Std
-  let name () = "compound"
+  let name = "compound"
 
   type offs = (fieldinfo,IndexDomain.t) Lval.offs
 
@@ -190,7 +190,7 @@ struct
     | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
     | (`List x, `List y) -> Lists.pretty_diff () (x,y)
     | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
+    | _ -> dprintf "%s: %a not same type as %a" (name) pretty x pretty y
 
   (************************************************************
    * Functions for getting state out of a compound:

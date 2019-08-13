@@ -76,7 +76,7 @@ struct
   include Printable.Blank
   include Lattice.StdCousot
   include BatSet.Make(Base)
-  let name () = "Set (" ^ Base.name () ^ ")"
+  let name = "Set (" ^ Base.name ^ ")"
   let empty _ = empty
   let leq  = subset
   let join = union
@@ -90,55 +90,19 @@ struct
     let add_to_it x s = add (f x) s in
     fold add_to_it s (empty ())
 
-  let pretty_f _ () x =
-    let elts = elements x in
-    let content = List.map (Base.pretty ()) elts in
-    let rec separate x =
-      match x with
-      | [] -> []
-      | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-    (text "{") ++ content ++ (text "}")
-
   (** Short summary for sets. *)
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (Base.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let show x =
+    let all_elems = List.map Base.show (elements x) in
+    Printable.show_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
-
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    if cardinal x<2 && for_all Base.isSimple x then
-      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-    else
-      let elems = List.map Base.toXML (elements x) in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-
-  let toXML s  = toXML_f short s
-  let pretty () x = pretty_f short () x
 
   let equal x y =
     cardinal x = cardinal y
     && for_all (fun e -> exists (Base.equal e) y) x
 
-  let isSimple x =
-    (List.length (elements x)) < 3
-
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    if leq x y then dprintf "%s: These are fine!" (name ()) else
-    if is_bot y then dprintf "%s: %a instead of bot" (name ()) pretty x else begin
-      let evil = choose (diff x y) in
-      let other = choose y in
-      Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y
-        Base.pretty_diff (evil,other)
-    end
   let printXml f xs =
     BatPrintf.fprintf f "<value>\n<set>\n";
     iter (Base.printXml f) xs;
@@ -152,16 +116,13 @@ module SensitiveConf (C: Printable.ProdConfiguration) (Base: Lattice.S) (User: P
 struct
   module Elt = Printable.ProdConf (C) (Base) (User)
   include Make(Elt)
-  let name () = "Sensitive " ^ name ()
+  let name = "Sensitive " ^ name
 
   let leq s1 s2 =
     (* I want to check that forall e in x, the same key is in y with it's base
      * domain element being leq of this one *)
     let p (b1,u1) = exists (fun (b2,u2) -> User.equal u1 u2 && Base.leq b1 b2) s2 in
     for_all p s1
-
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let join s1 s2 =
     (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
@@ -219,7 +180,7 @@ struct
   let hash = function
     | All -> 999999
     | Set x -> S.hash x
-  let name () = "Topped " ^ S.name ()
+  let name = "Topped " ^ S.name
   let equal x y =
     match x, y with
     | All, All -> true
@@ -334,7 +295,7 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
     | Set x, Set y -> S.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    | _ -> dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f = function
     | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n"
     | Set s ->
@@ -358,7 +319,7 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
     | Set x, Set y -> S.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    | _ -> dprintf "%s: %a not leq %a" (name) pretty x pretty y
 
   let meet x y =
     let f y r =
@@ -379,7 +340,7 @@ struct
 
   let isSimple _ = false
 
-  let name () = "Headless " ^ name ()
+  let name = "Headless " ^ name
   let pretty_f _ () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
@@ -395,7 +356,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    Pretty.dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f xs =
     iter (Base.printXml f) xs
 end
@@ -503,7 +464,7 @@ struct
     for_all (flip mem y) x
 
   (* Printable *)
-  let name () = "Set (" ^ E.name () ^ ")"
+  let name = "Set (" ^ E.name ^ ")"
   let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false
   let hash = Hashtbl.hash
   let compare = compare

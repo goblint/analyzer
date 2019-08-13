@@ -710,15 +710,15 @@ struct
   module D =
   struct
     include SetDomain.Hoare (Spec.D) (N)
-    let name () = "PathSensitive (" ^ name () ^ ")"
+    let name = "PathSensitive (" ^ name ^ ")"
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s: These are fine!" (name ()) else begin
+      if leq s1 s2 then dprintf "%s: These are fine!" (name) else begin
         try
           let p t = not (mem t s2) in
           let evil = choose (filter p s1) in
           let other = choose s2 in
-          (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
+          (* dprintf "%s has a problem with %a not leq %a because %a" (name)
              Spec.D.pretty evil Spec.D.pretty other
              Spec.D.pretty_diff (evil,other) *)
           Spec.D.pretty_diff () (evil,other)

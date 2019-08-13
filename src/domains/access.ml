@@ -34,9 +34,9 @@ struct
   let pretty_f sf () x = text (sf 80 x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "strings"
+  let name = "strings"
   let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
       (Goblintutil.escape (short 80 x))

@@ -116,7 +116,7 @@ struct
   let compare (x:t) y = Pervasives.compare x y
   let short _ = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
   let isSimple _ = true
-  let name () = "32bit intervals"
+  let name = "32bit intervals"
   let pretty_f sh () x = text (sh 80 x)
   let pretty = pretty_f short
   let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
@@ -333,7 +333,7 @@ module Integers : S with type t = int64  = (* no top/bot, order is <= *)
 struct
   include Printable.Std
   include Lattice.StdCousot
-  let name () = "integers"
+  let name = "integers"
   type t = int64 [@@deriving to_yojson]
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
   let equal (x:t) (y:t) = x=y
@@ -397,7 +397,7 @@ struct
   let lognot n1    = of_bool (not (to_bool' n1))
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
   let cast_to t x = Size.cast t x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
@@ -422,7 +422,7 @@ struct
       let bot_name = "Error int"
     end)
 
-  let name () = "flat integers"
+  let name = "flat integers"
   let cast_to t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
@@ -491,7 +491,7 @@ struct
       let bot_name = "MinInt"
     end)
 
-  let name () = "lifted integers"
+  let name = "lifted integers"
   let cast_to t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
@@ -586,7 +586,7 @@ struct
     | `Excluded (xs,xw), `Excluded (ys,yw) -> S.equal xs ys && R.equal xw yw
     | _ -> false
 
-  let name () = "trier"
+  let name = "trier"
   let top_of ik = `Excluded (S.empty (), size ik)
   let top () = top_of (Size.max `Signed)
   let is_top x = x = top ()
@@ -828,7 +828,7 @@ struct
   let max_width = 64
   let size t = Size.bit t
 
-  let name () = "circular int intervals"
+  let name = "circular int intervals"
   let cast_to t x =
     match (I.bounds x) with
     | None -> Bot (size t)
@@ -1034,7 +1034,7 @@ struct
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf
                                               Goblintutil.summary_length x)],[])
   let toXML = toXML_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   (* Widen
@@ -1124,7 +1124,7 @@ struct
   type t = bool [@@deriving to_yojson]
   let hash = function true -> 51534333 | _ -> 561123444
   let equal (x:t) (y:t) = x=y
-  let name () = "booleans"
+  let name = "booleans"
   let cast_to _ x = x
   let copy x = x
   let isSimple _ = true
@@ -1179,7 +1179,7 @@ struct
   let lognot = (not)
   let logand = (&&)
   let logor  = (||)
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
@@ -1197,7 +1197,7 @@ module Enums : S = struct
   type e = I.t
   and t = Neg of e list * R.t | Pos of e list [@@deriving to_yojson]
 
-  let name () = "enums"
+  let name = "enums"
 
   let bot () = Pos []
   let top_of ik = Neg ([], size ik)
@@ -1400,7 +1400,7 @@ module IntDomTuple = struct
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
 
-  let name () = "intdomtuple"
+  let name = "intdomtuple"
 
   (* f0: constructors *)
   let top = create { fi = fun (type a) (module I:S with type t = a) -> I.top }
