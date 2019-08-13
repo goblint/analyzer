@@ -86,9 +86,9 @@ struct
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
       text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
-  let short w x =
+  let show x =
     let w2 = let n = List.length x in if n=0 then w else w / n in
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.short w2 (obj x) :: a) [] x in
+    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.show2 (obj x) :: a) [] x in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
 
   let to_yojson x =

@@ -48,10 +48,8 @@ struct
   let entry_tail x = x
   let entry_rand x = x
 
-  let short w x =
+  let show x =
     if is_bot x
     then "Empty List"
-    else "List: " ^ short w x
-
-  let pretty () x = pretty_f short () x
+    else "List: " ^ show x
 end

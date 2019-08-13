@@ -96,7 +96,7 @@ struct
   let get_alias (x,y) = (May.choose y).key
 
   (* Printing *)
-  let string_of_key k = Lval.CilLval.short 80 k
+  let string_of_key k = Lval.CilLval.show k
   let string_of_loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs)
   let string_of_record r = Impl.string_of_state r.state^" ("^string_of_loc r.loc^")"
   let string_of (x,y) =

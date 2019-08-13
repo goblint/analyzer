@@ -61,7 +61,7 @@ module Thread = struct
       let name =
         match loc with
         | None -> f.vname
-        | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.short 80 l
+        | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.show l
       in
       let newvar = makeGlobalVar name voidType in
       Hashtbl.add thread_hash (f,loc) newvar;
@@ -95,8 +95,8 @@ module SimpleThreadDomain = struct
   let switch (x,z) (y,_) = (Simple.switch x y, z)
 
 
-  let short w (x,y) =
-    let tid = Lifted.short w y in
+  let show (x,y) =
+    let tid = Lifted.show y in
     if x > 1 then tid else tid ^ "!" (* ! means unique *)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x

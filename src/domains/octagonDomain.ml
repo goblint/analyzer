@@ -310,5 +310,5 @@ struct
     in to_string 0
 
   let isSimple _ = false
-  let short _ x = "array octagon"
+  let show x = "array octagon"
 end

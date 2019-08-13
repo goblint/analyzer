@@ -119,14 +119,14 @@ struct
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) y = x=y
   let compare (x:t) y = Pervasives.compare x y
-  let short _ = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
+  let show = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
   let isSimple _ = true
   let name = "32bit intervals"
   let pretty_f sh () x = text (sh 80 x)
   let pretty = pretty_f short
   let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
   let toXML = toXML_f short
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
   let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
 
 
@@ -350,7 +350,7 @@ struct
   let bot () = raise Error
   let is_bot _ = false
   let isSimple _  = true
-  let short _ x = if x = GU.inthack then "*" else Int64.to_string x
+  let show x = if x = GU.inthack then "*" else Int64.to_string x
   let pretty_f _ _ x = text (Int64.to_string x)
   let toXML_f _ x = Xml.Element ("Leaf", [("text", Int64.to_string x)],[])
   let toXML m = toXML_f short m
@@ -401,7 +401,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
   let cast_to t x = Size.cast t x
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end
 
 module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
@@ -487,7 +487,7 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end
 
 module Lift (Base: S) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
@@ -559,7 +559,7 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end
 
 module Flattened = Flat (Integers)
@@ -619,15 +619,15 @@ struct
 
   let isSimple _ = true
 
-  let short w x =
+  let show x =
     let short_size x = "("^R.short 2 x^")" in
     match x with
     | `Bot -> bot_name
-    | `Definite x -> Integers.short w x
+    | `Definite x -> Integers.show x
     (* Print the empty exclusion as if it where a distinct top element: *)
     | `Excluded (s,l) when S.is_empty s -> top_name ^ short_size l
     (* Prepend the exclusion sets with something: *)
-    | `Excluded (s,l) -> "Not " ^ S.short w s ^ short_size l
+    | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
 
   let pretty_f sf () x = text (sf max_int x)
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
@@ -798,7 +798,7 @@ struct
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -1046,14 +1046,14 @@ struct
     | Int(w,a,b) -> w lxor (Hashtbl.hash b) lxor (Hashtbl.hash a)
 
   let isSimple x = true
-  let short _ x = I.to_string x
+  let show x = I.to_string x
   let pretty_f sh () x = text (sh 10 x)
   let pretty = pretty_f short
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf
                                               Goblintutil.summary_length x)],[])
   let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 
   (* Widen
    * Roughly double the interval size. *)
@@ -1147,7 +1147,7 @@ struct
   let cast_to _ x = x
   let copy x = x
   let isSimple _ = true
-  let short _ x = if x then N.truename else N.falsename
+  let show x = if x then N.truename else N.falsename
   let pretty_f sf _ x = Pretty.text (sf Goblintutil.summary_length x)
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML m = toXML_f short m
@@ -1199,7 +1199,7 @@ struct
   let logand = (&&)
   let logor  = (||)
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end
 
 module Booleans = MakeBooleans (
@@ -1231,7 +1231,7 @@ module Enums : S = struct
   let bot () = Pos []
   let top_of ik = Neg ([], size ik)
   let top () = top_of (Size.max `Signed)
-  let short _ = function
+  let show = function
     | Pos[] -> "bot" | Neg([],r) -> "top"
     | Pos xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
     | Neg (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
@@ -1374,7 +1374,7 @@ module Enums : S = struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 
   let of_bool x = Pos [if x then Int64.one else Int64.zero]
   let to_bool = function
@@ -1472,7 +1472,7 @@ module IntDomTuple = struct
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
   (* others *)
-  let short _ = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.short 30 }
+  let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.short 30 }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   (* f2: binary ops *)
@@ -1515,5 +1515,5 @@ module IntDomTuple = struct
   let toXML = toXML_f short
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end

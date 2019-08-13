@@ -258,29 +258,10 @@ struct
 
   (* The printable implementation *)
 
-  let pretty_f _ () x =
-    match x with
-    | All -> text N.topname
-    | Set t -> S.pretty () t
-
-  let short w x : string =
+  let show x : string =
     match x with
     | All -> N.topname
-    | Set t -> S.short w t
-
-  let isSimple x =
-    match x with
-    | All -> true
-    | Set t -> S.isSimple t
-
-  let toXML_f _ x =
-    match x with
-    | All -> Xml.Element ("Leaf", [("text", N.topname)], [])
-    | Set t -> S.toXML t
-
-  let pretty () x = pretty_f short () x
-  let toXML x = toXML_f short x
-
+    | Set t -> S.show t
 
   (* Lattice implementation *)
 
@@ -295,7 +276,7 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
     | Set x, Set y -> S.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not leq %a" (name) pretty x pretty y
+    | _ -> Printable.dumb_diff name show () (x,y)
   let printXml f = function
     | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n"
     | Set s ->
@@ -334,7 +315,7 @@ end
 (* This one just removes the extra "{" notation and also by always returning
  * false for the isSimple, the answer looks better, but this is essentially a
  * hack. All the pretty printing needs some rethinking. *)
-module HeadlessSet (Base: Printable.S) =
+(* module HeadlessSet (Base: Printable.S) =
 struct
   include Make(Base)
 
@@ -359,7 +340,7 @@ struct
     Pretty.dprintf "%s: %a not leq %a" (name) pretty x pretty y
   let printXml f xs =
     iter (Base.printXml f) xs
-end
+end *)
 
 (* Hoare hash set for partial orders: keeps uncomparable elements separate
    - All comparable elements must have the same hash so that they land in the same bucket!
@@ -473,40 +454,19 @@ struct
     for_all (flip mem y) x
 
   (* Printable *)
-  let name = "Set (" ^ E.name ^ ")"
+  let name = "HoarePO (" ^ E.name ^ ")"
   (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
   let equal x y = leq x y && leq y x
   let hash xs = fold (fun v a -> a + E.hash v) xs 0
   let compare = compare
   let isSimple _ = false
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (E.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let show x : string =
+    let all_elems : string list = List.map E.show (elements x) in
+    Printable.show_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    let elems = List.map E.toXML (elements x) in
-    Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-
-  let toXML s  = toXML_f short s
-  let pretty_f _ () x =
-    let content = List.map (E.pretty ()) (elements x) in
-    let rec separate x =
-      match x with
-      | [] -> []
-      | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-    (text "{") ++ content ++ (text "}")
-  let pretty () x = pretty_f short () x
-
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y
+  let pretty_diff = Printable.dumb_diff name show
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<set>\n";
     List.iter (E.printXml f) (elements x);

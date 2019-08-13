@@ -549,7 +549,7 @@ struct
   open S
   include Printable.Prod3 (C) (D) (Basetype.CilFundec)
   let isSimple _ = false
-  let short w (es,x,f:t) = call_descr f es
+  let show (es,x,f:t) = call_descr f es
   let toXML (es,x,_ as st:t) =
     let open Xml in
     let flatten_single = function
@@ -561,7 +561,7 @@ struct
     let esc = Goblintutil.escape in
     let ctx = try_replace_text "Context" (flatten_single (C.toXML es)) in
     let res = try_replace_text "Value" (flatten_single (D.toXML x)) in
-    Element ("Node",["text",esc (short 80 st)],[ctx;res])
+    Element ("Node",["text",esc (show st)],[ctx;res])
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d

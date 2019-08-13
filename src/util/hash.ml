@@ -108,7 +108,7 @@ struct
       fold ch y true
     in length x = length y && forall2 Range.equal x y
   let hash xs = fold (fun k v xs -> xs lxor (Domain.hash k) lxor (Range.hash v)) xs 0
-  let short _ x = "mapping"
+  let show x = "mapping"
   let isSimple _ = false
 
   let toXML_f sf mapping =
@@ -119,7 +119,7 @@ struct
       | Xml.Element ("Leaf",attr,[]) ->
         let summary =
           let w = Goblintutil.summary_length - 4 in
-          let key_str = Domain.short w key in
+          let key_str = Domain.show key in
           let st_str  = Range.short (w - String.length key_str) st in
           key_str ^ " -> " ^ st_str
         in
@@ -149,8 +149,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name) pretty x pretty y
+  let pretty_diff = Printable.dumb_diff name showy
   let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%a</key>\n%a" Domain.printXml k Range.printXml v

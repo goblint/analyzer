@@ -5,6 +5,9 @@ open Pretty
 type json = Yojson.Safe.t
 let json_to_yojson x = x
 
+let dumb_diff name short () (x, y) =
+  dprintf "%s: %s not leq %s" name (short x) (short y)
+
 module type S =
 sig
   val name: string (* for debugging *)
@@ -16,8 +19,17 @@ sig
   (* val t_to_protobuf : Protobuf.Encoder.t -> t -> unit *)
   (* val diff : t -> t -> t *)
 
-  (* hand-written (for now) fast xml output *)
-  val printXml : 'a BatInnerIO.output -> t -> unit
+  (* hand-written, to be deprecated *)
+  (* val short: int -> t -> string *)
+  (* val isSimple: t -> bool *)
+  (* val pretty: unit -> t -> doc *)
+  val pretty_diff: unit -> (t * t) -> Pretty.doc
+  (* val toXML : t -> Xml.xml *)
+  (* These two lets us reuse the short function, and allows some overriding
+   * possibilities. *)
+  (* val pretty_f: (int -> t -> string) -> unit -> t -> doc *)
+  (* val toXML_f : (int -> t -> string) -> t -> Xml.xml *)
+  val printXml : 'a BatInnerIO.output -> t -> unit (* fast xml output *)
 
   val equal: t -> t -> bool
   val hash: t -> int
@@ -40,17 +52,17 @@ struct
   include Std
   let show = "Output not supported"
   let name = "blank"
-  let diff x y = x
+  let pretty_diff () (x,y) = dprintf "Unsupported"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
 end
 
 module PrintSimple (P: sig
     type t'
-    val short: t' -> string
+    val show: t' -> string
     val name: string
   end) =
 struct
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (P.short x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (P.show x))
 end
 
 module type Name = sig val name: string end
@@ -62,6 +74,7 @@ struct
   let equal _ _ = true
   let show _ = N.name
   let name = "Unit"
+  let pretty_diff = dumb_diff name show
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.name)
 end
 module Unit = UnitConf (struct let name = "()" end)
@@ -92,8 +105,8 @@ struct
   let hash x = x.BatHashcons.hcode
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
-  let short w = lift_f Base.show
   let to_yojson = lift_f (Base.to_yojson)
+  let pretty_diff = dumb_diff name Base.show
   let printXml f x = Base.printXml f x.BatHashcons.obj
 end
 
@@ -122,6 +135,7 @@ struct
     | `Top -> top_name
 
   let name = "lifted " ^ Base.name
+  let pretty_diff () = dumb_diff name show ()
   let printXml f = function
     | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
@@ -149,6 +163,11 @@ struct
     | `Left n ->  Base1.show n
     | `Right n ->  Base2.show n
   let name = "either " ^ Base1.name ^ " or " ^ Base2.name
+  let pretty_diff () (x,y) =
+    match (x,y) with
+    | `Left x, `Left y ->  Base1.pretty_diff () (x,y)
+    | `Right x, `Right y ->  Base2.pretty_diff () (x,y)
+    | _ -> dumb_diff name show () (x,y)
   let printXml f = function
     | `Left x  -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
@@ -185,6 +204,7 @@ struct
     | `Top -> top_name
 
   let name = "lifted " ^ Base1.name ^ " and " ^ Base2.name
+  let pretty_diff () = dumb_diff name show ()
   let printXml f = function
     | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
     | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
@@ -229,6 +249,12 @@ struct
 
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape Base1.name) Base1.printXml x (Goblintutil.escape Base2.name) Base2.printXml y
+
+  let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc =
+    if Base1.equal x1 y1 then
+      Base2.pretty_diff () (x2,y2)
+    else
+      Base1.pretty_diff () (x1,y1)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -241,7 +267,7 @@ struct
   let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
   let equal (x1,x2,x3) (y1,y2,y3) =
     Base1.equal x1 y1 && Base2.equal x2 y2 && Base3.equal x3 y3
-  let short w (x,y,z) =
+  let show (x,y,z) =
     let first = ref "" in
     let second= ref "" in
     let third = ref "" in
@@ -250,6 +276,7 @@ struct
     third  := Base3.show z;
     "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
 
+  let pretty_diff = dumb_diff name show
   let printXml f (x,y,z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape Base1.name) Base1.printXml x (Goblintutil.escape Base2.name) Base2.printXml y (Goblintutil.escape Base3.name) Base3.printXml z
 
@@ -268,6 +295,7 @@ struct
     "[" ^ (String.concat ", " elems) ^ "]"
 
   let name = Base.name ^ " list"
+  let pretty_diff = dumb_diff name show
   let printXml f xs =
     let rec loop n = function
       | [] -> ()
@@ -294,6 +322,7 @@ struct
   let hash x = x-5284
   let equal (x:int) (y:int) = x=y
 
+  let pretty_diff = dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%d\n</data>\n</value>\n" x
 end
 
@@ -320,6 +349,7 @@ struct
     | `Bot -> "bot of " ^ Base.name
 
   let name = "bottom or " ^ Base.name
+  let pretty_diff () = dumb_diff name show ()
   let printXml f = function
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Lifted n -> Base.printXml f n
@@ -348,6 +378,10 @@ struct
     | `Top -> "top of " ^ Base.name
 
   let name = "top or " ^ Base.name
+  let pretty_diff () (x,y) =
+    match (x,y) with
+    | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
+    | _ -> dumb_diff name show () (x,y)
 
   let printXml f = function
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
@@ -364,6 +398,7 @@ struct
   let pretty () n = text n
   let show n = n
   let name = "String"
+  let pretty_diff = dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
 end
 

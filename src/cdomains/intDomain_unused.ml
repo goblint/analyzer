@@ -149,7 +149,7 @@ struct
     I.compare x y > 0
 
   let isSimple _ = true
-  let short _ (x,y) =
+  let show (x,y) =
     let f p =
       match p with
       | I.NInf -> "-∞"
@@ -343,7 +343,7 @@ struct
         top ()
     end
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 
   let of_excl_list t l = top ()
   let is_excl_list l = false
@@ -397,11 +397,11 @@ struct
     | `Included _, `Excluded _ -> -1
     | `Excluded _, `Included _ -> 1
 
-  let short w (x:t) =
+  let show (x:t) =
     match x with
     (*       | `Bot -> "⊥" *)
-    | `Included x -> I.short w x
-    | `Excluded x -> "Not " ^ I.short w x
+    | `Included x -> I.show x
+    | `Excluded x -> "Not " ^ I.show x
 
   let isSimple _ = true
 
@@ -676,7 +676,7 @@ struct
   let bot () = ()
   let is_bot _ = true
   let isSimple _  = true
-  let short _ x = "?"
+  let show x = "?"
   let pretty_f _ _ x = text "?"
   let toXML_f _ x = Xml.Element ("Leaf", [("text", "?")],[])
   let toXML m = toXML_f short m
@@ -723,7 +723,7 @@ struct
   let logand n1 n2 = ()
   let logor  n1 n2 = ()
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end
 
 
@@ -906,7 +906,7 @@ struct
   let is_excl_list (x1,x2) = (I1.is_excl_list x1) || (I2.is_excl_list x2)
   let is_bool (x1,x2) = (I1.is_bool x1) || (I2.is_bool x2)
   let is_int (x1,x2) = (I1.is_int x1) || (I2.is_int x2)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 
 end
 
@@ -1034,9 +1034,9 @@ struct
 
   let short' w x =
     match x with
-    | Trier x -> I1.short w x
-    | Interval x -> I2.short w x
-    | CInterval x -> I3.short w x
+    | Trier x -> I1.show x
+    | Interval x -> I2.show x
+    | CInterval x -> I3.show x
   (*      | _ -> raise IntDomListBroken*)
 
   let toXML_f' sf x =
@@ -1337,7 +1337,7 @@ struct
   let is_bot = List.for_all is_bot'
   let leq    = List.for_all2 leq'
 
-  let short _ x =
+  let show x =
     match x with
     | [] -> ""
     | [x] -> short' 30 x
@@ -1423,7 +1423,7 @@ struct
 
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 
 end
 *)

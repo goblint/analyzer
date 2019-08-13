@@ -23,7 +23,7 @@ struct
   type value = M.value
 
   (** Short summary for structs *)
-  let short w mapping =
+  let show mapping =
     let usable_length = w - 5 in
     let assoclist = M.fold (fun x y rest -> (x,y)::rest) mapping [] in
     let f (key, st) = Val.short usable_length st in

@@ -7,9 +7,9 @@ module F = Lval.Fields
 module EquAddr =
 struct
   include Printable.ProdSimple (V) (F)
-  let short w (v,fd) =
-    let v_str = V.short w v in let w = w - String.length v_str in
-    let fd_str = F.short w fd in
+  let show (v,fd) =
+    let v_str = V.show v in let w = w - String.length v_str in
+    let fd_str = F.show fd in
     v_str ^ fd_str
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
@@ -28,9 +28,9 @@ struct
     let esc = Goblintutil.escape in
     let f ((v1,v2: key), (fd: value)) =
       let w = Goblintutil.summary_length - 4 in
-      let v1_str = V.short w v1 in let w = w - String.length v1_str in
-      let v2_str = V.short w v2 in let w = w - String.length v2_str in
-      let fd_str = F.short w fd in
+      let v1_str = V.show v1 in let w = w - String.length v1_str in
+      let v2_str = V.show v2 in let w = w - String.length v2_str in
+      let fd_str = F.show fd in
       let summary = esc (v1_str ^ " = " ^ v2_str ^ fd_str) in
       let attr = [("text", summary)] in
       Xml.Element ("Leaf",attr,[])
@@ -46,7 +46,7 @@ struct
     let content () = fold f mapping nil in
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 
-  let short _ _ = "Equalities"
+  let show _ = "Equalities"
 
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x

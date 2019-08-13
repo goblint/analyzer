@@ -96,7 +96,7 @@ struct
         | `Right _    -> false
       in
       let rs = RS.filter is_public v in
-      (*    if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.short 80 rs);*)
+      (*    if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.show rs);*)
       if not (RS.is_empty rs) then ctx.sideg (Re.partition_varinfo ()) (false, RegPart.singleton rs)
 
 

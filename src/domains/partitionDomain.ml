@@ -52,7 +52,7 @@ struct
   type set = S.t
   type elem = S.elt
 
-  let short w _ = "Partitions"
+  let show _ = "Partitions"
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
@@ -103,7 +103,7 @@ struct
   type set = B.t
   type partition = t
 
-  let short w _ = "Partitions"
+  let show _ = "Partitions"
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 

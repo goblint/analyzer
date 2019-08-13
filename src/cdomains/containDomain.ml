@@ -63,7 +63,7 @@ struct
       end
     else Goblintutil.demangle (get_var x).vname
 
-  let short _ x = lookup x
+  let show x = lookup x
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
@@ -86,7 +86,7 @@ struct
       (*report("FAILED : "^cls^"::"^x.fname);*)
       short 0 x
 
-  let short _ x = lookup x
+  let show x = lookup x
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x

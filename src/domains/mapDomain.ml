@@ -108,7 +108,7 @@ struct
     in
     M.merge f
 
-  let short _ x = "mapping"
+  let show x = "mapping"
   let isSimple _ = false
 
   let toXML_f _ mapping =
@@ -119,7 +119,7 @@ struct
         Xml.Element ("Loc", attr, [Range.toXML st])
       | Xml.Element ("Leaf",attr,[]) ->
         let w = Goblintutil.summary_length - 4 in
-        let key_str = Domain.short w key in
+        let key_str = Domain.show key in
         let summary =
           let st_str = Range.short (w - String.length key_str) st in
           esc key_str ^ " -> " ^ esc st_str
@@ -166,7 +166,7 @@ struct
     in
     let f key st dok =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
-         not (List.mem (Domain.short 80 key) !ME.tracevars) then
+         not (List.mem (Domain.show key) !ME.tracevars) then
         dok
       else
         dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else
@@ -192,7 +192,7 @@ struct
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.short 800 k)) Range.printXml v
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.show0 k)) Range.printXml v
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;

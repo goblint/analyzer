@@ -15,6 +15,7 @@ struct
   let hash x = Hashtbl.hash (x.line, x.file)
   let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S"
   let name = "proglines"
+  let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
@@ -27,17 +28,13 @@ struct
   let compare = compare
   let hash = Hashtbl.hash
   let toXML_f sf x = Xml.Element ("Loc", [("file", x.file); ("line", string_of_int x.line); ("byte", string_of_int x.byte); ("text", sf 80 x)], [])
-  (* let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S" *)
+  (* let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S" *)
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let short w x = show x
-  let pretty_f sf () x = text (sf max_int x)
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "proglines_byte"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
@@ -51,21 +48,19 @@ struct
   let hash (x,a,f) = ProgLines.hash x * f.svar.vid * MyCFG.Node.hash a
   let pretty_node () (l,x) =
     match x with
-    | MyCFG.Statement     s -> dprintf "statement \"%a\" at %a" dn_stmt s ProgLines.pretty l
-    | MyCFG.Function      f -> dprintf "result of %s at %a" f.vname ProgLines.pretty l
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.vname ProgLines.pretty l
+    | MyCFG.Statement     s -> dprintf "statement \"%a\" at %s" dn_stmt s (ProgLines.show l)
+    | MyCFG.Function      f -> dprintf "result of %s at %s" f.vname (ProgLines.show l)
+    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %s" f.vname (ProgLines.show l)
 
   let toXML_f _ (x,a,f) = Xml.Element ("Loc", [("file", x.file);
                                                ("line", string_of_int x.line);
                                                (*("node", sprint 80 (pretty_node () (x,a)));*)
                                                ("fun", f.svar.vname)], [])
-  let short w (x,a,f) = ProgLines.short w x ^ "(" ^ f.svar.vname ^ ")"
+  let show (x,a,f) = ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty_f sf () x = text (sf max_int x)
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "proglinesfun"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module Variables =
@@ -79,14 +74,8 @@ struct
   let equal x y = x.vid = y.vid
   let compare x y = compare x.vid y.vid
   let hash x = x.vid - 4773
-  let short _ x = GU.demangle x.vname
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    let typeinf = Pretty.sprint Goblintutil.summary_length (d_type () x.vtype) in
-    let info = "id=" ^ string_of_int x.vid ^ "; type=" ^ esc typeinf in
-    Xml.Element ("Leaf", [("text", esc (sf max_int x)); ("info", info)],[])
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
+  let show x = GU.demangle x.vname
+  let pretty_trace () x = Pretty.dprintf "%s on %s" x.vname (ProgLines.show x.vdecl)
   let get_location x = x.vdecl
   let classify x = match x with
     | x when x.vglob -> 2
@@ -101,17 +90,15 @@ struct
     |  5 -> "Parameter"
     | -1 -> "Temp"
     |  _ -> "None"
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "variables"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
+  let pretty_diff = Printable.dumb_diff name show
   let category _ = -1
   let line_nr a = a.vdecl.line
   let file_name a = a.vdecl.file
   let description n = sprint 80 (pretty_trace () n)
   let context () _ = Pretty.nil
   let loopSep _ = true
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec.svar
 end
@@ -127,14 +114,14 @@ struct
   let equal (x,sx) (y,sy) = x.vid = y.vid && sx = sy
   let compare (x,sx) (y,sy) = compare (x.vid,sx) (y.vid,sy)
   let hash (x,s) = Hashtbl.hash (x.vid,s)
-  let short _ (x,s) = x.vname
+  let show (x,s) = x.vname
   let toXML_f sf (x,_ as xs) =
     let esc = Goblintutil.escape in
     let typeinf = Pretty.sprint Goblintutil.summary_length (d_type () x.vtype) in
     let info = "id=" ^ string_of_int x.vid ^ "; type=" ^ esc typeinf in
     Xml.Element ("Leaf", [("text", esc (sf max_int xs)); ("info", info)],[])
   let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
+  let pretty_trace () (x,s) = Pretty.dprintf "%s on %s" x.vname (ProgLines.show x.vdecl)
   let get_location (x,s) = x.vdecl
   let classify x = match x with
     | x,_ when x.vglob -> 2
@@ -149,11 +136,9 @@ struct
     |  5 -> "Parameter"
     | -1 -> "Temp"
     |  _ -> "None"
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "variables"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff () = Printable.dumb_diff name show ()
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module RawStrings: Printable.S with type t = string =
@@ -164,16 +149,13 @@ struct
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let isSimple _ = true
-  let short _ x = "\"" ^ x ^ "\""
+  let show x = "\"" ^ x ^ "\""
   let toXML_f sf x =
     let esc = Goblintutil.escape in
     Xml.Element ("Leaf", ["text", esc (sf 80 x)], [])
-  let pretty_f sf () x = text (sf 80 x)
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "raw strings"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
@@ -191,14 +173,8 @@ struct
   let compare x y = Pervasives.compare x y
   let equal x y = Util.equals x y
   let hash x = Hashtbl.hash x
-  let short w x = sprint ~width:w (d_exp () x)
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-  let pretty_f sf () x = d_exp () x
+  let show x = sprint ~width:0 (d_exp () x)
 
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "expresssions"
 
   let rec occurs x e =
@@ -240,8 +216,8 @@ struct
     in
     constFold true (replace_rv e)
 
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module CilStmt: Printable.S with type t = stmt =
@@ -253,7 +229,7 @@ struct
   let compare x y = compare x.sid y.sid
   let equal x y = x.sid = y.sid
   let hash x = Hashtbl.hash (x.sid) * 97
-  let short _ x = "<stmt>"
+  let show x = "<stmt>"
   let toXML_f _ x = Xml.Element ("Stmt", [("id", string_of_int x.sid);
                                           ("sourcecode", Pretty.sprint ~width:0 (dn_stmt () x))], [])
   let pretty_f _ () x =
@@ -262,11 +238,10 @@ struct
     | If (exp,_,_,_) -> dn_exp () exp
     | _ -> dn_stmt () x
 
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
+  let pretty () x = pretty_f show () x
   let name = "expressions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module CilFun: Printable.S with type t = varinfo =
@@ -280,13 +255,10 @@ struct
   let hash x = Hashtbl.hash x.vid
   let toXML_f _ x = Xml.Element ("Fun", [("id", string_of_int x.vid)
                                         ;("text", x.vname)], [])
-  let short _ x = x.vname
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
+  let show x = x.vname
   let name = "functions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module CilFundec =
@@ -298,15 +270,11 @@ struct
   let compare x y = compare x.svar.vid y.svar.vid
   let equal x y = x.svar.vid = y.svar.vid
   let hash x = x.svar.vid * 3
-  let toXML_f _ x = CilFun.toXML x.svar
-  let short _ x = x.svar.vname
-  let pretty_f _ () x = CilFun.pretty () x.svar
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
+  let show x = x.svar.vname
   let name = "function decs"
   let dummy = dummyFunDec
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module CilField =
@@ -318,18 +286,12 @@ struct
   let compare x y = compare x.fname y.fname
   let equal x y = x.fname = y.fname
   let hash x = Hashtbl.hash x.fname
-  let short _ x = x.fname
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-  let pretty_f sf () x = Pretty.text (sf max_int x)
+  let show x = x.fname
   let classify _ = 0
   let class_name _ = "None"
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "field"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module FieldVariables =
@@ -357,7 +319,7 @@ struct
   let copy x = x
   let equal x y = (get_var x).vid = (get_var y).vid && (apply_field (fun v->v.fname) "" x)=(apply_field (fun v->v.fname) "" y)
 
-  let short _ x = GU.demangle (get_var x).vname^
+  let show x = GU.demangle (get_var x).vname^
                   (*"("^string_of_int (get_var x).vid ^")"^*)
                   (apply_field (fun x->"::"^x.fname) "" x)
 
@@ -369,15 +331,7 @@ struct
 
   let hash x = Hashtbl.hash ((get_var x).vid,(apply_field (fun x->"::"^x.fname) "" x))
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    let typeinf = Pretty.sprint Goblintutil.summary_length (d_type () (apply_field (fun x->x.ftype) (get_var x).vtype x)) in
-    let info = "id=" ^ string_of_int (get_var x).vid ^ "; type=" ^ esc typeinf in
-    Xml.Element ("Leaf", [("text", esc (sf max_int x)); ("info", info)],[])
-
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty_trace () x = let name = short 0 x in
-    Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
+  let pretty_trace () x = dprintf "%s on %s" (show x) (ProgLines.show (get_var x).vdecl)
 
   let get_location x = (get_var x).vdecl
   let classify x = match (get_var x) with
@@ -394,11 +348,9 @@ struct
     | -1 -> "Temp"
     |  _ -> "None"
 
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "variables and fields"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 
 end
 
@@ -410,15 +362,9 @@ struct
   let compare x y = Pervasives.compare x y
   let equal x y = Util.equals x y
   let hash (x:typ) = Hashtbl.hash x
-  let short w x = sprint ~width:w (d_type () x)
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-  let pretty_f sf () x = d_type () x
+  let show x = sprint ~width:0 (d_type () x)
 
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
   let name = "types"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let pretty_diff = Printable.dumb_diff name show
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end

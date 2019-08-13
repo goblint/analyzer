@@ -49,11 +49,11 @@ module Solver = EffectWCon.Make2 (ConstrSys) (LH) (GH)
 let test1 () = 
   let id x = x in
   let sol, gsol = Solver.solve [] [] ["w"] in
-  assert_equal ~printer:id "42" (Int.short 80 (GH.find gsol "g"));
-  assert_equal ~printer:id "42" (Int.short 80 (LH.find sol "x"));
-  assert_equal ~printer:id "8"  (Int.short 80 (LH.find sol "y"));
-  assert_equal ~printer:id "8"  (Int.short 80 (LH.find sol "z"));
-  assert_equal ~printer:id "Unknown int" (Int.short 80 (LH.find sol "w"))
+  assert_equal ~printer:id "42" (Int.show (GH.find gsol "g"));
+  assert_equal ~printer:id "42" (Int.show (LH.find sol "x"));
+  assert_equal ~printer:id "8"  (Int.show (LH.find sol "y"));
+  assert_equal ~printer:id "8"  (Int.show (LH.find sol "z"));
+  assert_equal ~printer:id "Unknown int" (Int.show (LH.find sol "w"))
 
 let test () = "solverTest" >:::
   [ "system1" >:: test1 ]

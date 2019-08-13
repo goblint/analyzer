@@ -49,7 +49,7 @@ struct
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
     (** Set of triples [RT] *)
-    let module LT = SetDomain.HeadlessSet (RT) in
+    let module LT = SetDomain.Make (RT) in
     (** Analysis result structure---a hashtable from program points to [LT] *)
     let module Result = Analyses.Result (LT) (struct let result_name = "analysis" end) in
 
@@ -168,7 +168,7 @@ struct
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
-        fprintf f "\n<glob><key>%s</key>%a</glob>" (Goblintutil.escape (Basetype.Variables.short 800 k)) Spec.G.printXml v;
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (Goblintutil.escape (Basetype.Variables.show0 k)) Spec.G.printXml v;
       in
       GHT.iter print_globals g
     in

@@ -855,7 +855,7 @@ struct
     | _ ->
       let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
       let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
-      (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
+      (* let sofa = AD.show lval_val^" = "^VD.show rval_val in *)
       (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
       let not_local xs =
         let not_local x =
@@ -1315,11 +1315,11 @@ struct
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
-          M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.short 80 a;
+          M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.show a;
           `Top
         | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
-          (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
+          (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.show (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
           begin match unrollType (typeOf e) with
             | TPtr(TInt(IChar, _), _) ->
               let v, offs = Q.LS.choose @@ addrToLvalSet a in
@@ -1332,7 +1332,7 @@ struct
               `Top
           end
         | x ->
-          (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
+          (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.show x); *)
           `Top
       end
     | _ -> Q.Result.top ()

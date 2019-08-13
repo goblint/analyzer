@@ -32,7 +32,7 @@ let bot () = (Bot, Bot, Bot, Bot)
 let is_bot x = (x = bot())
 let isSimple _  = true
 
-let short _ (a,b,c,d) =
+let show (a,b,c,d) =
   let a' = match a with Bot -> "bot" | Val a'' -> string_of_int a'' in
   let b' = match b with Bot -> "bot" | Val b'' -> string_of_int b'' in
   let c' = match c with Bot -> "bot" | Val c'' -> string_of_int c'' in

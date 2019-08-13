@@ -35,8 +35,8 @@ struct
     module  L = Printable.Prod (Addr) (RW)
     include L
 
-    let short w (a,write) =
-      let addr_str = Addr.short w a in
+    let show (a,write) =
+      let addr_str = Addr.show a in
       if write then
         addr_str
       else

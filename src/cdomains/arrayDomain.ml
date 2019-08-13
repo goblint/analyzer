@@ -24,9 +24,9 @@ struct
   type idx = Idx.t
   type value = Val.t
 
-  let short w x = "Array: " ^ Val.short (w - 7) x
+  let show x = "Array: " ^ Val.short (w - 7) x
   let pretty () x = text "Array: " ++ pretty_f short () x
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
+  let pretty_diff = Printable.dumb_diff name show
   let toXML m = toXML_f short m
   let get a i = a
   let set a i v = join a v

@@ -131,56 +131,18 @@ struct
     | `Blob x, `Blob y -> Blobs.compare x y
     | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
 
-  let pretty_f _ () state =
+  let show state =
     match state with
-    | `Int n ->  ID.pretty () n
-    | `Address n ->  AD.pretty () n
-    | `Struct n ->  Structs.pretty () n
-    | `Union n ->  Unions.pretty () n
-    | `Array n ->  CArrays.pretty () n
-    | `Blob n ->  Blobs.pretty () n
-    | `List n ->  Lists.pretty () n
-    | `Bot -> text bot_name
-    | `Top -> text top_name
-
-  let short w state =
-    match state with
-    | `Int n ->  ID.short w n
-    | `Address n ->  AD.short w n
-    | `Struct n ->  Structs.short w n
-    | `Union n ->  Unions.short w n
-    | `Array n ->  CArrays.short w n
-    | `Blob n ->  Blobs.short w n
-    | `List n ->  Lists.short w n
+    | `Int n ->  ID.show n
+    | `Address n ->  AD.show n
+    | `Struct n ->  Structs.show n
+    | `Union n ->  Unions.show n
+    | `Array n ->  CArrays.show n
+    | `Blob n ->  Blobs.show n
+    | `List n ->  Lists.show n
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let rec isSimple x =
-    match x with
-    | `Int n ->  ID.isSimple n
-    | `Address n ->  AD.isSimple n
-    | `Struct n ->  Structs.isSimple n
-    | `Union n ->  Unions.isSimple n
-    | `Array n ->  CArrays.isSimple n
-    | `List n ->  Lists.isSimple n
-    | `Blob n ->  Blobs.isSimple n
-    | _ -> true
-
-  let toXML_f _ state =
-    match state with
-    | `Int n -> ID.toXML n
-    | `Address n -> AD.toXML n
-    | `Struct n -> Structs.toXML n
-    | `Union n -> Unions.toXML n
-    | `Array n -> CArrays.toXML n
-    (* let (node, attr, children) = Base.toXML n in (node, ("lifted", !liftname)::attr, children) *)
-    | `Blob n -> Blobs.toXML n
-    | `List n -> Lists.toXML n
-    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
-
-  let pretty () x = pretty_f short () x
-  let toXML s = toXML_f short s
   let pretty_diff () (x,y) =
     match (x,y) with
     | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
@@ -190,7 +152,7 @@ struct
     | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
     | (`List x, `List y) -> Lists.pretty_diff () (x,y)
     | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not same type as %a" (name) pretty x pretty y
+    | _ -> dprintf "%s: %s not same type as %s" (name) (show x) (show y)
 
   (************************************************************
    * Functions for getting state out of a compound:
@@ -265,7 +227,7 @@ struct
         | x -> x (* TODO we should also keep track of the type here *)
     in
     let a' = AD.map one_addr a in
-    M.tracel "cast" "cast_addr %a to %a is %a!\n" AD.pretty a d_type t AD.pretty a'; a'
+    M.tracel "cast" "cast_addr %s to %a is %s!\n" (AD.show a) d_type t (AD.show a'); a'
 
   (* this is called for:
    * 1. normal casts
@@ -274,7 +236,7 @@ struct
   let rec cast ?torg t v =
     (*if v = `Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
     if v = `Bot then v else
-      let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
+      let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %s to %a is top!\n" l (show v) d_type t in
       let t = unrollType t in
       let v' = match t with
         | TFloat (fk,_) -> log_top __POS__; `Top
@@ -335,11 +297,11 @@ struct
         (* | _ -> log_top (); `Top *)
         | _ -> log_top __POS__; assert false
       in
-      Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
+      Messages.tracel "cast" "cast %s to %a is %s!\n" (show v) d_type t (show v'); v'
 
 
   let warn_type op x y =
-    ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
+    ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %s and %s\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line (show x) (show y)
 
   let leq x y =
     match (x,y) with
@@ -522,7 +484,7 @@ struct
           | `Address _ ->  eval_offset f x offs (* this used to be `blob `address -> we ignore the index *)
           | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-          | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
+          | _ -> M.warn ("Trying to read an index, but was not given an array ("^show x^")"); top ()
         end
 
   let rec update_offset (x:t) (offs:offs) (value:t): t =
@@ -584,7 +546,7 @@ struct
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value
             | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value))
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
+            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^show x^")"); top ()
           end
       in mu result
 

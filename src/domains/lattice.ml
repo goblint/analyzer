@@ -224,12 +224,6 @@ struct
     | (_, `Bot) -> false
     | (`Lifted x, `Lifted y) -> Base.leq x y
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    match (x,y) with
-    | (`Lifted x, `Lifted y) -> Base.pretty_diff () (x,y)
-    | _ -> if leq x y then Pretty.text "No Changes" else
-        Pretty.dprintf "%a instead of %a" pretty x pretty y
-
   let join x y =
     match (x,y) with
     | (`Top, _) -> `Top

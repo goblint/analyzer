@@ -63,7 +63,7 @@ struct
   let meet a b =
     map_arrays Base.meet a b
 
-  let short w x =
+  let show x =
     let itemlist = Array.to_list x in
     let strlist  = List.map (Base.short max_int) itemlist in
     Printable.get_short_list "Array: {" "}" (w-9) strlist
@@ -250,10 +250,10 @@ struct
   | (Value v1, Array v2) -> Array (A.meet v2 (value_array v2 v1))
 
 
-  let short w x =
+  let show x =
     match x with
   Value v -> "Array: {" ^ (Base.short (w - 9) v) ^ "}"
-      | Array v -> A.short w v
+      | Array v -> A.show v
 
   let printXml f x = () (* TODO *)
 
@@ -370,7 +370,7 @@ struct
       | Bot -> true
       | Mapping a -> M.is_empty a
 
-  let short w a =
+  let show a =
     match a with
       | Bot -> "Erronous array"
       | Mapping x when is_top a -> "Unknown array"
@@ -694,7 +694,7 @@ struct
 
   let isSimple x = false
 
-  let short w (map,_) =
+  let show (map,_) =
     let strlist =
       M.fold map (fun x y l ->
         ((Idx.short max_int x) ^  " -> " ^
@@ -847,9 +847,9 @@ struct
     let result_map = M.fold a map_union_b (M.make (new_rest)) in
     let use = (M.get_use a)+(M.get_use b) in
 (*      print_endline "--------------";
-      print_endline (short 80 (a,i));
-      print_endline (short 80 (b,i));
-      print_endline (short 80 (result_map,i));
+      print_endline (show (a,i));
+      print_endline (show (b,i));
+      print_endline (show (result_map,i));
       print_endline "--------------";  *)
       (M.set_use result_map use, i)
 *)

@@ -132,15 +132,15 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let rec short w state =
+  let rec show state =
     match state with
-    | `Int n ->  ID.short w n
+    | `Int n ->  ID.show n
     | `Str s ->  s
-    | `Bool n ->  BD.short w n
-    | `LvalSet n ->  LS.short w n
-    | `ExprSet n ->  ES.short w n
-    | `ExpTriples n ->  PS.short w n
-    | `TypeSet n -> TS.short w n
+    | `Bool n ->  BD.show n
+    | `LvalSet n ->  LS.show n
+    | `ExprSet n ->  ES.show n
+    | `ExpTriples n ->  PS.show n
+    | `TypeSet n -> TS.show n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -168,7 +168,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML s = toXML_f short s
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name) pretty x pretty y
+  let pretty_diff = Printable.dumb_diff name show
 
   let leq x y =
     match (x,y) with
@@ -239,5 +239,5 @@ struct
     | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
     | (x,_) -> x
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (show0 x))
 end

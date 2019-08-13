@@ -66,41 +66,16 @@ struct
   let to_string x = List.concat (List.map Addr.to_string (elements x))
 
   (* add an & in front of real addresses *)
-  let short_addr w a =
+  let show_addr a =
     match Addr.to_var a with
-    | [_] -> "&" ^ Addr.short w a
-    | _ -> Addr.short w a
+    | [_] -> "&" ^ Addr.show a
+    | _ -> Addr.show a
 
-  let pretty_f w () x =
+  let show x : string =
     try
-      let content = List.map (Addr.pretty_f short_addr ()) (elements x) in
-      let rec separate x =
-        match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ (text ", ") :: separate xs
-      in
-      let separated = separate content in
-      let content = List.fold_left (++) nil separated in
-      (text "{") ++ content ++ (text "}")
-    with SetDomain.Unsupported _ -> pretty_f w () x
-
-  let short w x : string =
-    try
-      let usable_length = w - 5 in
-      let all_elems : string list = List.map (short_addr usable_length) (elements x) in
-      Printable.get_short_list "{" "}" usable_length all_elems
-    with SetDomain.Unsupported _ -> short w x
-
-  let toXML_f sf x =
-    try
-      let esc = Goblintutil.escape in
-      let elems = List.map Addr.toXML (elements x) in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-    with SetDomain.Unsupported _ -> toXML_f sf x
-
-  let toXML s  = toXML_f short s
-  let pretty () x = pretty_f short () x
+      let all_elems : string list = List.map show_addr (elements x) in
+      Printable.show_list "{" "}" all_elems
+    with SetDomain.Unsupported _ -> show x
 
   (*
   let leq = if not fast_addr_sets then leq else fun x y ->

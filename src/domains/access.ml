@@ -27,29 +27,18 @@ struct
   let equal (x:t) (y:t) = x=y
   let compare (x:t) (y:t) = compare x y
   let isSimple _ = true
-  let short _ x = x
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", ["text", esc (sf 80 x)], [])
-  let pretty_f sf () x = text (sf 80 x)
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
+  let show x = x
   let name = "strings"
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name) pretty x pretty y
+  let pretty_diff = Printable.dumb_diff name show
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
-      (Goblintutil.escape (short 80 x))
+      (Goblintutil.escape (show x))
 end
 
 module LabeledString =
 struct
   include Printable.Prod (Ident) (Ident)
-  let pretty_f sf () (x,y) =
-    Pretty.text (sf Goblintutil.summary_length (x,y))
-  let short _ (x,y) = x^":"^y
-  let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
+  let show (x,y) = x^":"^y
 end
 module LSSet = SetDomain.Make (LabeledString)
 module LSSSet = SetDomain.Make (LSSet)
@@ -500,9 +489,9 @@ let print_races_oldscool () =
     let wt = if w then "write" else "read" in
     match ls with
     | Some ls ->
-      sprint 80 (dprintf "%s by ??? %a and lockset: %a" wt LSSet.pretty ls LSSet.pretty lp), loc
+      sprint 80 (dprintf "%s by ??? %s and lockset: %s" wt (LSSet.show ls) (LSSet.show lp)), loc
     | None ->
-      sprint 80 (dprintf "%s by ??? ⊥ and lockset: %a" wt LSSet.pretty lp), loc
+      sprint 80 (dprintf "%s by ??? ⊥ and lockset: %s" wt (LSSet.show lp)), loc
   in
   let g ty lv ls (accs,lp) (s,xs) =
     let nxs  = Set.fold (fun e xs -> (k ls e) :: xs) accs xs in
@@ -553,11 +542,11 @@ let print_accesses () =
       let d_ls () = match ls with
         | None -> Pretty.text " is ok"
         | Some ls when LSSet.is_empty ls -> nil
-        | Some ls -> text " in " ++ LSSet.pretty () ls
+        | Some ls -> text " in " ++ text (LSSet.show ls)
       in
       let atyp = if w then "write" else "read" in
-      ignore (printf "  %s@@%a%t with %a (conf. %d)" atyp d_loc loc
-                d_ls LSSet.pretty lp conf);
+      ignore (printf "  %s@@%a%t with %s (conf. %d)" atyp d_loc loc
+                d_ls (LSSet.show lp) conf);
       if debug then
         ignore (printf "  (exp: %a)\n" d_exp e)
       else
@@ -587,7 +576,7 @@ let print_accesses_xml () =
     let h (conf,w,loc,e,lp) =
       let atyp = if w then "write" else "read" in
       BatPrintf.printf "  <access type=\"%s\" loc=\"%s\" conf=\"%d\">\n"
-        atyp (Basetype.ProgLines.short 0 loc) conf;
+        atyp (Basetype.ProgLines.show loc) conf;
 
       let d_lp f (t,id) = BatPrintf.fprintf f "type=\"%s\" id=\"%s\"" t id in
 

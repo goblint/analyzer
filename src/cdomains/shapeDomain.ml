@@ -13,8 +13,8 @@ struct
   struct
     include Printable.Prod (CLval) (Offs)
 
-    let short w  = function
-      | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short w l
+    let show  = function
+      | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.show l
       | (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
 
     let pretty = pretty_f short
@@ -22,9 +22,9 @@ struct
   end
 
   include Printable.Either (Var) (AdrPair)
-  let short w = function
-    | `Left  v -> Var.short w v
-    | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short w l
+  let show = function
+    | `Left  v -> Var.show v
+    | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.show l
     | `Right (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
 
   let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
@@ -54,10 +54,10 @@ struct
       (struct let top_name = "Unknown edge"
         let bot_name = "Impossible edge" end)
 
-  let short w : t -> string = function
-    | `Lifted1 v -> "N "^ListPtrSet.short w v
-    | `Lifted2 v -> "S "^ListPtrSet.short w v
-    | x -> short w x
+  let show : t -> string = function
+    | `Lifted1 v -> "N "^ListPtrSet.show v
+    | `Lifted2 v -> "S "^ListPtrSet.show v
+    | x -> show x
 
   let pretty = pretty_f short
   let toXML  = toXML_f short
@@ -68,7 +68,7 @@ struct
   include Lattice.Prod3 (Edges) (Edges) (ListPtrSetR)
     (*  module TR = Printable.Prod3 (Edges) (Edges) (ListPtrSetR)
 
-        let short w ((p,n),(e,_)) = TR.short w (p,n,e)
+        let show ((p,n),(e,_)) = TR.show (p,n,e)
         let pretty = pretty_f short
         let toXML_f _ ((p,n),(e,_)) = TR.toXML_f TR.short (p,n,e)
         let toXML  = toXML_f short*)
@@ -540,7 +540,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
         (blab (not (lpv'.vglob)) (fun () -> Pretty.printf "global %s is never dead\n" lpv'.vname) &&
          let killer = ref dummyFunDec.svar in
          blab (if Usedef.VS.exists (fun x -> if lpv'.vid = x.vid then (killer := x; true) else false) alive
-               then ((*ignore (Messages.report ("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname));*)false)
+               then ((*ignore (Messages.report ("List "^ListPtr.show lp^" totally destroyed by "^(!killer).vname));*)false)
                else true) (fun () -> Pretty.printf "%s in alive list\n" lpv'.vname ))
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
@@ -559,8 +559,8 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
     then (if single_nonlist k && noone_points_at_me k sm then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms))
     else
       let isbroken = not (proper_list k) in
-      (*if isbroken then Messages.waitWhat (ListPtr.short 80 k) ;*)
-      (*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
+      (*if isbroken then Messages.waitWhat (ListPtr.show k) ;*)
+      (*       Messages.report ("checking :"^ListPtr.show k^" -- "^if isbroken then " broken " else "still a list"); *)
       (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, reg_for k :: rms)
   in
   SHMap.fold f sm (sm,[],[])

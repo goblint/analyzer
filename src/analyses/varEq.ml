@@ -543,7 +543,7 @@ struct
       `Bool (Queries.BD.of_bool true)
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
-      (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
+      (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.show r));  *)
       `ExprSet r
     | _ -> `Top
 
