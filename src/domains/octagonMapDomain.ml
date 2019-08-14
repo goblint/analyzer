@@ -103,7 +103,7 @@ sig
   val matrix_to_map   : elt array array -> (BV.t, int) Hashtbl.t -> t
   val get_relation    : Deriving.Cil.varinfo -> Deriving.Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option * bool
   val keep_only       : Deriving.Cil.varinfo list -> t -> t
-  (* TODO: Currently last bool indicates if it was neccessary to switch the order of vars and thereofre multiplying diff by -1 in consumers may be neccessary. *)
+  (* TODO: Currently last bool indicates if it was neccessary to switch the order of vars and therefore multiplying diff by -1 in consumers may be neccessary. *)
   (* This is ugly and needs to be fixed *)
 end
 
@@ -585,20 +585,21 @@ module MapOctagon : S
       let index1 = (Hashtbl.find vars var) * 2 in
       set index1 index1 Int64.zero;
       set (inv_index index1) (inv_index index1) Int64.zero;
-      let upper = INV.maximal const |> OPT.get in
-      let lower = INV.minimal const |> OPT.get in
+      let upper = OPT.default max_int (INV.maximal const) in 
+      let lower = OPT.default min_int (INV.minimal const) in
       let two = Int64.of_int 2 in
-      if upper <> max_int
-      then set (inv_index index1) index1
-          (Int64.mul upper two);
-      if lower <> min_int
-      then set index1 (inv_index index1)
-          (Int64.neg (Int64.mul lower two));
+      if upper <> max_int then
+        set (inv_index index1) index1 (Int64.mul upper two);
+      if lower <> min_int then 
+        set index1 (inv_index index1) (Int64.neg (Int64.mul lower two));
 
       let add_constraints (sign, var2, const) =
-        let index2 = (Hashtbl.find vars var2) * 2 in
-        let upper = INV.maximal const |> OPT.get in
-        let lower = INV.minimal const |> OPT.get in
+        let index2 = try (Hashtbl.find vars var2) * 2 
+          with Not_found ->
+          raise (Invalid_argument ("Not found var:" ^ var2.vname ^ "@" ^ var2.vdecl.file ^ ":" ^ (string_of_int var2.vdecl.line)))
+        in
+        let upper = OPT.default max_int (INV.maximal const) in
+        let lower = OPT.default min_int (INV.minimal const) in
         if not (Int64.compare lower min_int = 0)
         then if sign = CT.plus
           then (set index1 (inv_index index2) (Int64.neg lower);
