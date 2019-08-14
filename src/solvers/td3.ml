@@ -7,7 +7,7 @@ open Messages
 open CompareAST
 open Cil
 
-let result_file_name = "td3.data" 
+let result_file_name = "td3.data"
 
 let incremental_mode = ref "off"
 
@@ -32,7 +32,7 @@ module WP =
       stable = HM.create 10
     }
 
-    let clear_data data = 
+    let clear_data data =
       HM.clear data.infl;
       HM.clear data.stable
 

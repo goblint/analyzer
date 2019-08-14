@@ -101,7 +101,7 @@ struct
     | (MyCFG.FunctionEntry f,_) -> 3
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
-  let hash x = 
+  let hash x =
     match x with
     | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
     | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
@@ -476,7 +476,7 @@ sig
   val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
-type increment_data = { 
+type increment_data = {
   analyzed_commit_dir: string;
   current_commit_dir: string;
   changes: CompareAST.change_info
