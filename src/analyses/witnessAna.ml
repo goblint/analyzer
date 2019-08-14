@@ -147,7 +147,8 @@ struct
     (* let is_bot (d, w) = S.D.is_bot d *)
 
     let printXml f (d, w) =
-      BatPrintf.fprintf f "%a<path><analysis name=\"witness\">%a</analysis></path>" S.D.printXml d W.printXml w
+      (* BatPrintf.fprintf f "%a<path><analysis name=\"witness\">%a</analysis></path>" S.D.printXml d W.printXml w *)
+      BatPrintf.fprintf f "%a<analysis name=\"witness\">%a</analysis>" S.D.printXml d W.printXml w
   end
   module G = S.G
   module C = S.C
@@ -159,11 +160,12 @@ struct
          BatPrintf.fprintf f "%a<path><analysis name=\"witness\">%a</analysis></path>" S.C.printXml d W.printXml w
      end *)
 
-  let get_context ctx =
-    (* nasty hacking *)
-    let c_unit: unit -> S.C.t = Obj.obj (ctx.context) in
-    let c = c_unit () in
-    c
+  (* let get_context ctx =
+     (* nasty hacking *)
+     let c_unit: unit -> S.C.t = Obj.obj (ctx.context) in
+     let c = c_unit () in
+     c *)
+  let get_context ctx = ctx.context2 ()
 
   let set_of_flat (x:VF.t): VS.t = match x with
     | `Lifted x -> VS.singleton x
@@ -191,8 +193,8 @@ struct
     with Failure _ ->
       W.bot ()
 
-  let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w)
-  (* let strict (d, w) = (d, w) (* D.is_bot redefined *) *)
+  (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
+  let strict (d, w) = (d, w) (* D.is_bot redefined *)
 
   let name = S.name ^ " witnessed"
 
@@ -220,7 +222,7 @@ struct
   let call_descr = S.call_descr
   (* let call_descr f ((c, w):C.t) = S.call_descr f c *)
 
-  let unlift_ctx (ctx:(D.t, 'g) Analyses.ctx) =
+  let unlift_ctx (ctx:(D.t, 'g, 'c) Analyses.ctx) =
     let w = snd ctx.local in
     { ctx with
       local = fst ctx.local;

@@ -18,12 +18,14 @@ let get_spec () : (module Spec) =
             (module MCP.MCP2 : Spec)
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
+            |> lift (get_bool "ana.sv-comp") (module WitnessAna.WitnessLifter)
             |> lift true (module PathSensitive2)
             |> lift (get_bool "ana.hashcons") (module HashconsLifter)
+            (* |> lift (get_bool "ana.sv-comp") (module WitnessAna.WitnessLifter) *)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
-            |> lift (get_bool "ana.sv-comp") (module WitnessAna.WitnessLifter)
+            (* |> lift (get_bool "ana.sv-comp") (module WitnessAna.WitnessLifter) *)
           ))
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
@@ -203,6 +205,7 @@ struct
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
         ; context = Obj.repr (fun () -> failwith "Global initializers have no context.")
+        ; context2 = (fun () -> failwith "Global initializers have no context.")
         ; local   = Spec.D.top ()
         ; global  = (fun _ -> Spec.G.bot ())
         ; presub  = []
@@ -272,6 +275,7 @@ struct
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
         ; context = Obj.repr (fun () -> failwith "enter_func has no context.")
+        ; context2 = (fun () -> failwith "enter_func has no context.")
         ; local   = st
         ; global  = (fun _ -> Spec.G.bot ())
         ; presub  = []
@@ -409,6 +413,7 @@ struct
           { ask    = query
           ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
           ; context = Obj.repr (fun () -> failwith "No context in query context.")
+          ; context2 = (fun () -> failwith "No context in query context.")
           ; local  = Hashtbl.find joined loc
           ; global = GHT.find gh
           ; presub = []

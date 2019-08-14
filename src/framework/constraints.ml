@@ -37,7 +37,8 @@ struct
   let call_descr f = S.call_descr f % D.unlift
 
   let conv ctx =
-    { ctx with local = D.unlift ctx.local
+    { ctx with context2 = (fun () -> C.unlift (ctx.context2 ()))
+             ; local = D.unlift ctx.local
              ; spawn = (fun v -> ctx.spawn v % D.lift )
              ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
     }
@@ -245,7 +246,8 @@ struct
   let call_descr f (c,m) = S.call_descr f c
 
   let conv ctx =
-    { ctx with local = fst ctx.local
+    { ctx with context2 = (fun () -> fst (ctx.context2 ()))
+             ; local = fst ctx.local
              ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
              ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
     }
@@ -289,6 +291,35 @@ struct
   let val_of = inj S.val_of (* empty map when generating value from context *)
   let context (d,m) = S.context d (* just the child analysis' context *)
   let call_descr = S.call_descr
+
+  (* copied from WidenContextLifter... *)
+  let conv ctx =
+    { ctx with local = fst ctx.local
+             ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
+             ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
+    }
+  let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
+
+  let sync ctx        = let d, ds = S.sync (conv ctx) in (d, snd ctx.local), ds
+  let query ctx       = S.query (conv ctx)
+  let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
+  let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
+  let body ctx f      = lift_fun ctx S.body   ((|>) f)
+  let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
+  let intrpt ctx      = lift_fun ctx S.intrpt identity
+  let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
+
+  let enter ctx r f args =
+    let m = snd ctx.local in
+    let d' v_cur =
+      let v_old = M.find f m in
+      let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
+      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      v_new, M.add f v_new m
+    in
+    S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
+
+  let combine ctx r fe f args es = lift_fun ctx S.combine (fun p -> p r fe f args (fst es))
 end
 
 
@@ -375,7 +406,7 @@ struct
 
   let full_context = get_bool "exp.full-context"
 
-  let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
+  let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
@@ -383,6 +414,7 @@ struct
       { ask     = query
       ; node    = fst var
       ; context = snd var
+      ; context2 = (fun () -> let context_unit: unit -> S.C.t = snd var |> Obj.obj in context_unit ())
       ; local   = pval
       ; global  = getg
       ; presub  = []
