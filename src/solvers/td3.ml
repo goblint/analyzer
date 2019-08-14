@@ -19,6 +19,7 @@ module WP =
     module VS = Set.Make (S.Var)
 
     type solver_data = {
+      mutable st: (S.Var.t * S.Dom.t) list;
       mutable infl: VS.t HM.t;
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
@@ -26,6 +27,7 @@ module WP =
     }
 
     let create_empty_data () = {
+      st = [];
       infl = HM.create 10;
       rho = HM.create 10;
       wpoint = HM.create 10;
@@ -190,6 +192,24 @@ module WP =
       start_event ();
 
       if !incremental_mode = "incremental" then (
+        (* If a global changes because of some assignment inside a function, we reanalyze,
+         * but if it changes because of a different global initializer, then
+         *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
+         *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
+         *)
+        print_endline "Destabilizing start functions if their start state changed...";
+        List.iter (fun (v,d) ->
+          match List.assoc_opt v data.st with
+          | Some d' ->
+              if S.Dom.equal d d' then
+                ignore @@ Pretty.printf "Function %a has the same state\n"
+              else (
+                ignore @@ Pretty.printf "Function %a has changed state: %a\n" S.Dom.pretty_diff (d, d');
+                destabilize v
+              )
+          | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
+        ) st;
+
         print_endline "Destabilizing changed functions...";
 
         (* We need to destabilize all nodes in changed functions *)
@@ -314,7 +334,7 @@ module WP =
       stop_event ();
       print_data data "Data after solve completed:\n";
 
-      {infl; rho; wpoint; stable}
+      {st; infl; rho; wpoint; stable}
 
     let solve box st vs =
       incremental_mode := GobConfig.get_string "exp.incremental.mode";
