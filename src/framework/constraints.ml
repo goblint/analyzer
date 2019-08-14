@@ -753,6 +753,9 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
+
+    let leq a b = 
+      leq a b || leq (join_reduce a) (join_reduce b) 
   end
 
   module G = Spec.G

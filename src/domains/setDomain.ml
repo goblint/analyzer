@@ -591,7 +591,7 @@ struct
       let xs,ys = S.elements a, S.elements b in
       List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (Set (S.union b (S.of_list x)))
   let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
-  let narrow = product_bot B.narrow
+  let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
   let remove x a = failwith "Hoare: unsupported remove"
