@@ -31,7 +31,7 @@
       "debug": true
    },
    "printstats": true,
-   "result": "fast_xml",
+   "result": "none",
    "solver": "td3",
    "noverify": true
 }
