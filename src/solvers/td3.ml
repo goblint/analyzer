@@ -198,9 +198,10 @@ module WP =
         in
         let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.increment.changes.changed in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
-        let obsolete = Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs) in
+        let obsolete = Set.union (Set.of_list (List.map (fun a -> "ret" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs))
+                                 (Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs)) in
 
-        List.iter (fun a -> print_endline ("Obsolete: " ^ a.svar.vname) ) obsolete_funs;
+        List.iter (fun a -> print_endline ("Obsolete: " ^ a.svar.vname)) obsolete_funs;
 
         (* Actually destabilize all nodes contained in changed functions *)
         HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable;
@@ -294,7 +295,6 @@ module WP =
       if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
 
       let reachability xs =
-        let remove_all x = HM.remove rho x; HM.remove stable x; HM.remove infl x; HM.remove wpoint x in
         let reachable = HM.create (HM.length rho) in
         let rec one_var x =
           if not (HM.mem reachable x) then (
@@ -307,7 +307,7 @@ module WP =
           ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
         in
         List.iter one_var xs;
-        HM.iter (fun x v -> if not (HM.mem reachable x) then remove_all x) rho;
+        HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
       in
       reachability vs;
 
