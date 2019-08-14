@@ -92,9 +92,10 @@ struct
               | _ -> fun _ _ -> INV.top ()
           in
           let result = op (evaluate_exp oct expl) (evaluate_exp oct expr) in
-          if INV.is_bot result
-          then INV.top ()
-          else result
+          if INV.is_bot result then (* TODO: Why would this happen? *)
+            INV.top ()
+          else
+            result
         | _ -> INV.top ()
       end
 
@@ -222,7 +223,6 @@ struct
            oct, setUpper || setLower
          | _ -> ctx.local, false)
       in
-
       if changed then
         D.strong_closure (D.meet ctx.local oct)
       else
