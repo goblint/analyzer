@@ -53,6 +53,15 @@ struct
   let narrow a b = map2 true B.narrow a b
   let widen a b = map2 false B.widen a b
 
+  let rec filter f x =
+    match x with
+    | [] -> []
+    | hd :: tl ->
+      if f x then 
+        hd :: (filter f tl) 
+      else
+        filter f tl
+
   let rec leq x y =
     match x, y with
     | _, [] -> true (* x has additional constraints (x leq y for all other constraints) => x leq y  *)
@@ -450,7 +459,7 @@ module MapOctagon : S
     else Lattice.unsupported "error"
 
 
-  let strong_closure oct =
+  let strong_closure_map oct =
     let vars = fold (fun key _ keys -> key::keys) oct []
                |> List.rev
     in
@@ -675,16 +684,15 @@ module MapOctagon : S
 
   let strong_closure oct =
     let strong_closure' oct =
-      if use_matrix_closure
-      then
+      if use_matrix_closure then
         let matrix, vars = map_to_matrix oct in
-        let matrix = ArrayOctagon.strong_closure matrix in
-        matrix_to_map matrix vars
+        let closed = ArrayOctagon.strong_closure matrix in
+        matrix_to_map closed vars
       else
-        strong_closure oct
+        strong_closure_map oct
     in
     strong_closure' oct
-    
+
   (* Remove all information except those concerning variables in vars *)
   let keep_only vars oct =
     let oct_keys_filtered = filter (fun k _ -> List.mem k vars) oct in
