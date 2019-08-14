@@ -4,22 +4,23 @@
          "base"
       ],
       "int": {
-         "interval": false,
+         "interval": true,
          "trier ": false
       },
       "hashcons": false
    },
    "exp": {
+      "earlyglobs": true,
       "solver": {
          "td3": {
             "term": true,
-            "space": true,
+            "space": false,
             "space_cache": true,
             "space_restore": true
          }
       },
       "incremental":{
-         "mode": "off"
+         "mode": "incremental"
       }
    },
    "dbg": {
@@ -30,7 +31,7 @@
       "debug": true
    },
    "printstats": true,
-   "result": "fast_xml",
+   "result": "none",
    "solver": "td3",
-   "noverify": false
+   "noverify": true
 }
