@@ -198,13 +198,15 @@ module WP =
          *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
          *)
         print_endline "Destabilizing start functions if their start state changed...";
+        (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
         List.iter (fun (v,d) ->
           match List.assoc_opt v data.st with
           | Some d' ->
               if S.Dom.equal d d' then
-                ignore @@ Pretty.printf "Function %a has the same state\n"
+                (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
+                ()
               else (
-                ignore @@ Pretty.printf "Function %a has changed state: %a\n" S.Dom.pretty_diff (d, d');
+                ignore @@ Pretty.printf "Function %a has changed state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
                 destabilize v
               )
           | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
