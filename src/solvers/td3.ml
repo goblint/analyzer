@@ -55,7 +55,7 @@ module WP =
 
     type phase = Widen | Narrow
 
-    let solve box st vs data (to_destabilize: bool list) =
+    let solve box st vs data =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
@@ -179,12 +179,11 @@ module WP =
         )
       in
 
-      let set_start ((x,d), dest) =
+      let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a on %i ## %a\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Dom.pretty d;
         init x;
         HM.replace rho x d;
         HM.replace stable x ();
-        if (dest) then destabilize x;
         (* solve x Widen *)
       in
 
@@ -226,12 +225,10 @@ module WP =
         delete_marked wpoint;
         delete_marked stable;
 
+        print_data data "Data after clean-up:\n"
       );
 
-      List.iter set_start (List.combine st to_destabilize);
-      if !incremental_mode = "incremental" then (
-        print_data data "Data after clean-up:\n";
-      );
+      List.iter set_start st;
       List.iter init vs;
       List.iter (fun x -> solve x Widen) vs;
       (* iterate until there are no unstable variables
@@ -325,30 +322,29 @@ module WP =
       let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
       if !incremental_mode <> "off" then (
         let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-        let (old_st, data) =  if Sys.file_exists file_in && !incremental_mode <> "complete"
+        let data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
           then Serialize.unmarshall file_in
-          else (st, create_empty_data ())
+          else create_empty_data ()
         in
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
           data.stable <- HM.create 10;
           data.infl <- HM.create 10
         );
-        let to_destabilize = List.map (fun ((a,b), (c,d)) -> not (S.Dom.equal b d)) (List.combine st old_st) in
         if not reuse_wpoint then data.wpoint <- HM.create 10;
-        let result = solve box st vs data to_destabilize in
+        let result = solve box st vs data in
         let path = Goblintutil.create_dir S.increment.current_commit_dir in
         if Sys.file_exists path then (
           let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
           print_endline @@ "Saving solver result to " ^ file_out;
-          Serialize.marshall (st,result) file_out;
+          Serialize.marshall result file_out;
         );
         clear_data result;
         result.rho
       )
       else (
         let data = create_empty_data () in
-        let result = solve box st vs data (List.map (fun _ -> false) st) in
+        let result = solve box st vs data in
         clear_data result;
         result.rho
       )
