@@ -46,14 +46,23 @@ trap finish EXIT
 
 outp=$out/$(basename $repo_path)
 
+rm -f "$outp/incremental.log"
 function log {
   echo "$*" | tee -a $outp/incremental.log
 }
 
+log $(date)
+
 git -C $repo_path checkout $start_commit
 i=1
+prev_commit=''
 while
   commit=$(git -C $repo_path rev-parse HEAD)
+  if [ "$commit" = "$prev_commit" ]; then
+    log "Reached last commit $commit"
+    break
+  fi
+  prev_commit=$commit
   outc=$outp/$commit
   mkdir -p $outc
   git -C $repo_path show > $outc/commit.patch
@@ -63,11 +72,12 @@ while
   fi
   files=$(git -C $repo_path diff-tree --no-commit-id --name-only -r $commit)
   # if [ ! $(echo "$files" | grep ".*\.c$") ]; then
-  if ! grep ".*\.c$" > /dev/null <<< "$files"; then
-    log "  No *.c files are included in this commit!"
+  if ! grep ".*\.[ch]$" > /dev/null <<< "$files"; then
+    log "  No *.c or *.h files are included in this commit!"
   fi
   start=`date +%s`
-  time ./goblint -v --conf conf/incremental.json $repo_path/Makefile | tee $outc/analyzer.log
+  # running it with (gtime -v ./goblint ...) doesn't react to ^C
+  (date && ./goblint -v --conf conf/incremental.json $repo_path/Makefile 2>&1) | tee $outc/analyzer.log
   end=`date +%s`
   runtime=$((end-start))
   log "  Done after $runtime seconds"
@@ -75,3 +85,5 @@ while
   git_fwd # TODO use this as exit condition
   [ "$i" -lt "$limit" ]
 do :; done
+
+log $(date)
