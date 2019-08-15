@@ -71,13 +71,13 @@ while
   if [ -e "$repo_path/.gob/$commit" ]; then
     log "  Incremental results for this commit already exists!"
   fi
-  files=$(git -C $repo_path diff-tree --no-commit-id --name-only -r $commit)
+  files=$(git -C $repo_path diff-tree --no-commit-id --name-only --root -r $commit)
   # if [ ! $(echo "$files" | grep ".*\.c$") ]; then
   if ! grep ".*\.[ch]$" > /dev/null <<< "$files"; then
     log "  No *.c or *.h files are included in this commit!"
   fi
-  log "  All files: $(git -C $repo_path diff --shortstat HEAD HEAD~)"
-  log "  *.c and *.h: $(git -C $repo_path diff --shortstat HEAD HEAD~ -- *.c *.h)"
+  log "  All files: $(git -C $repo_path show --pretty=format:"" --shortstat $commit)"
+  log "  *.c and *.h: $(git -C $repo_path show --pretty=format:"" --shortstat $commit -- *.c *.h)"
   start=`date +%s`
   # running it with (gtime -v ./goblint ...) doesn't react to ^C
   (date && ./goblint -v --conf conf/incremental.json $repo_path/Makefile 2>&1) | tee $outc/analyzer.log
