@@ -82,7 +82,11 @@ while
   end=`date +%s`
   runtime=$((end-start))
   log "  Goblint ran $runtime seconds"
-  # TODO grep obsolete functions, changed start state, evals
+  log "  $(grep 'evals = ' $outc/analyzer.log)"
+  log "  $(grep 'change_info = ' $outc/analyzer.log)"
+  log "  Obsolete functions: $(grep 'Obsolete function' $outc/analyzer.log | wc -l)"
+  log "  Changed start state: $(grep 'has changed start state' $outc/analyzer.log | wc -l)"
+  log "  New start functions: $(grep 'New start function' $outc/analyzer.log | wc -l)"
   i="$((i+1))"
   git_fwd # TODO use this as exit condition
   [ "$i" -lt "$limit" ]
