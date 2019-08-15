@@ -46,11 +46,12 @@ trap finish EXIT
 
 outp=$out/$(basename $repo_path)
 
-rm -f "$outp/incremental.log"
+rm -rf "$outp"
 function log {
   echo "$*" | tee -a $outp/incremental.log
 }
 
+mkdir -p "$outp"
 log $(date)
 
 git -C $repo_path checkout $start_commit
@@ -80,7 +81,8 @@ while
   (date && ./goblint -v --conf conf/incremental.json $repo_path/Makefile 2>&1) | tee $outc/analyzer.log
   end=`date +%s`
   runtime=$((end-start))
-  log "  Done after $runtime seconds"
+  log "  Goblint ran $runtime seconds"
+  # TODO grep obsolete functions, changed start state, evals
   i="$((i+1))"
   git_fwd # TODO use this as exit condition
   [ "$i" -lt "$limit" ]
