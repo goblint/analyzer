@@ -76,6 +76,8 @@ while
   if ! grep ".*\.[ch]$" > /dev/null <<< "$files"; then
     log "  No *.c or *.h files are included in this commit!"
   fi
+  log "  All files: $(git -C $repo_path diff --shortstat HEAD HEAD~)"
+  log "  *.c and *.h: $(git -C $repo_path diff --shortstat HEAD HEAD~ -- *.c *.h)"
   start=`date +%s`
   # running it with (gtime -v ./goblint ...) doesn't react to ^C
   (date && ./goblint -v --conf conf/incremental.json $repo_path/Makefile 2>&1) | tee $outc/analyzer.log
