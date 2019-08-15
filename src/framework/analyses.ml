@@ -422,6 +422,7 @@ type ('d,'g,'c) ctx =
   ; node     : MyCFG.node
   ; context  : Obj.t (** represented type: unit -> (Control.get_spec ()).C.t *)
   ; context2 : unit -> 'c
+  ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : varinfo -> 'g
   ; presub   : (string * Obj.t) list

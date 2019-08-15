@@ -420,6 +420,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -447,6 +448,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -482,6 +484,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -574,6 +577,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -603,6 +607,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -633,6 +638,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -663,6 +669,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -693,6 +700,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -722,6 +730,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -750,6 +759,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -777,6 +787,7 @@ struct
         ; node   = ctx.node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all

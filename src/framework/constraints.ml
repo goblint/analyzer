@@ -406,7 +406,7 @@ struct
 
   let full_context = get_bool "exp.full-context"
 
-  let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
+  let common_ctx var edge pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
@@ -415,6 +415,7 @@ struct
       ; node    = fst var
       ; context = snd var
       ; context2 = (fun () -> let context_unit: unit -> S.C.t = snd var |> Obj.obj in context_unit ())
+      ; edge    = edge
       ; local   = pval
       ; global  = getg
       ; presub  = []
@@ -437,12 +438,12 @@ struct
     | [x]   -> x
     | x::xs -> D.join x (bigsqcup xs)
 
-  let tf_loop var getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_loop var edge getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.intrpt ctx)::!r)
 
-  let tf_assign var lv e getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_assign var edge lv e getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.assign ctx lv e)::!r)
 
   let normal_return r fd ctx sideg =
@@ -458,8 +459,8 @@ struct
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
 
-  let tf_ret var ret fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_ret var edge ret fd getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     let d =
       if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
           List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
@@ -469,12 +470,12 @@ struct
     in
     bigsqcup (d::!r)
 
-  let tf_entry var fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_entry var edge fd getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.body ctx fd)::!r)
 
-  let tf_test var e tv getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_test var edge e tv getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.branch ctx e tv)::!r)
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
@@ -488,8 +489,8 @@ struct
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
-  let tf_proc var lv e args getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_proc var edge lv e args getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     let functions =
       match ctx.ask (Queries.EvalFunvar e) with
       | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
@@ -510,14 +511,14 @@ struct
 
   let tf var getl sidel getg sideg edge d =
     begin match edge with
-      | Assign (lv,rv) -> tf_assign var lv rv
-      | Proc (r,f,ars) -> tf_proc var r f ars
-      | Entry f        -> tf_entry var f
-      | Ret (r,fd)     -> tf_ret var r fd
-      | Test (p,b)     -> tf_test var p b
+      | Assign (lv,rv) -> tf_assign var edge lv rv
+      | Proc (r,f,ars) -> tf_proc var edge r f ars
+      | Entry f        -> tf_entry var edge f
+      | Ret (r,fd)     -> tf_ret var edge r fd
+      | Test (p,b)     -> tf_test var edge p b
       | ASM _          -> fun _ _ _ _ d -> ignore (M.warn "ASM statement ignored."); d
       | Skip           -> fun _ _ _ _ d -> d
-      | SelfLoop       -> tf_loop var
+      | SelfLoop       -> tf_loop var edge
     end getl sidel getg sideg d
 
   let tf var getl sidel getg sideg (_,edge) d (f,t) =

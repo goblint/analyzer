@@ -29,6 +29,29 @@ struct
   let invariant _ _ = Invariant.none
 end
 
+(* TODO: move this to MyCFG *)
+module Edge: Printable.S with type t = MyCFG.edge =
+struct
+  type t = MyCFG.edge [@@deriving to_yojson]
+
+  let equal = Util.equals
+  let compare = Pervasives.compare
+  let hash = Hashtbl.hash
+
+  let short w x = Pretty.sprint w (MyCFG.pretty_edge () x)
+  let name () = "edge"
+
+  include Printable.PrintSimple (
+    struct
+      type t' = t
+      let short = short
+      let name = name
+    end
+    )
+
+  let invariant _ _ = Invariant.none
+end
+
 module PrintableObj =
 struct
   type t = int
@@ -131,13 +154,14 @@ end
 module WitnessLifter (S:Spec): Spec =
 struct
   module V = Printable.Prod (PrintableVar) (S.C)
+  module VE = Printable.Prod (V) (Edge)
 
   (* module VS = SetDomain.Make (V)
      module VF = FlatBot (V)
      module W = Lattice.Prod (VS) (VF) *)
-  module VS = SetDomain.ToppedSet (V) (struct let topname = "VS top" end)
+  module VES = SetDomain.ToppedSet (VE) (struct let topname = "VES top" end)
   module VF = Lattice.Flat (V) (struct let bot_name = "VF bot" let top_name = "VF top" end)
-  module W = Lattice.Prod (VS) (VF)
+  module W = Lattice.Prod (VES) (VF)
 
   module D =
   struct
@@ -167,20 +191,20 @@ struct
      c *)
   let get_context ctx = ctx.context2 ()
 
-  let set_of_flat (x:VF.t): VS.t = match x with
-    | `Lifted x -> VS.singleton x
-    | `Bot -> VS.bot ()
-    | `Top -> VS.top ()
+  let set_of_flat (x:VF.t) (edge:Edge.t): VES.t = match x with
+    | `Lifted x -> VES.singleton (x, edge)
+    | `Bot -> VES.bot ()
+    | `Top -> VES.top ()
 
   module VH = Hashtbl.Make (V)
   let steps = VH.create 100
 
-  let step (from:W.t) (to_node:V.t): W.t =
-    let prev = set_of_flat (snd from) in
+  let step (from:W.t) (edge:Edge.t) (to_node:V.t): W.t =
+    let prev = set_of_flat (snd from) edge in
     (* ignore (Pretty.printf "from: %a, prev: %a -> to_node: %a\n" W.pretty from VS.pretty prev V.pretty to_node); *)
     begin match snd from with
       | `Lifted from_node ->
-        VH.modify_def (VS.empty ()) from_node (fun to_nodes -> VS.add to_node to_nodes) steps;
+        VH.modify_def (VES.empty ()) from_node (fun to_nodes -> VES.add (to_node, edge) to_nodes) steps;
         (* ignore (Pretty.printf "from_node: %a -> to_node: %a\n" V.pretty from_node V.pretty to_node); *)
       | _ -> ()
     end;
@@ -188,7 +212,7 @@ struct
 
   let step_ctx ctx =
     try
-      step (snd ctx.local) (ctx.node, get_context ctx)
+      step (snd ctx.local) ctx.edge (ctx.node, get_context ctx)
     (* with Failure "Global initializers have no context." -> *)
     with Failure _ ->
       W.bot ()
@@ -274,13 +298,13 @@ struct
     let ddl = S.enter (unlift_ctx ctx) r f args in
     let w = snd ctx.local in
     List.map (fun (d1, d2) ->
-        let w' = step w (FunctionEntry f, S.context d2) in
+        let w' = step w MyCFG.Skip (FunctionEntry f, S.context d2) in
         (strict (d1, w), strict (d2, w'))
       ) ddl
 
   let combine ctx r fe f args (d', w') =
     let d = S.combine (unlift_ctx ctx) r fe f args d' in
-    let w = step w' (ctx.node, get_context ctx) in
+    let w = step w' MyCFG.Skip (ctx.node, get_context ctx) in
     strict (d, w)
 end
 

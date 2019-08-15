@@ -64,8 +64,8 @@ struct
   let compare = node_compare
 end
 
-type asm_out = (string option * string * lval) list
-type asm_in  = (string option * string * exp ) list
+type asm_out = (string option * string * lval) list [@@deriving to_yojson]
+type asm_in  = (string option * string * exp ) list [@@deriving to_yojson]
 
 type edge =
   | Assign of lval * exp
@@ -88,6 +88,7 @@ type edge =
   (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop
   (** This for interrupt edges.! *)
+[@@deriving to_yojson]
 
 
 let pretty_edge () = function
