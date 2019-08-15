@@ -43,20 +43,34 @@ function finish {
 }
 trap finish EXIT
 
+
 outp=$out/$(basename $repo_path)
+
+function log {
+  echo "$*" | tee -a $outp/incremental.log
+}
+
 git -C $repo_path checkout $start_commit
 i=1
 while
   commit=$(git -C $repo_path rev-parse HEAD)
   outc=$outp/$commit
   mkdir -p $outc
-  echo "Analyze $i. commit $commit" | tee -a $outp/incremental.log
   git -C $repo_path show > $outc/commit.patch
+  log "Analyze $i. commit $commit"
+  if [ -e "$repo_path/.gob/$commit" ]; then
+    log "  Incremental results for this commit already exists!"
+  fi
+  files=$(git -C $repo_path diff-tree --no-commit-id --name-only -r $commit)
+  # if [ ! $(echo "$files" | grep ".*\.c$") ]; then
+  if ! grep ".*\.c$" > /dev/null <<< "$files"; then
+    log "  No *.c files are included in this commit!"
+  fi
   start=`date +%s`
   time ./goblint -v --conf conf/incremental.json $repo_path/Makefile | tee $outc/analyzer.log
   end=`date +%s`
   runtime=$((end-start))
-  echo "Done after $runtime seconds" | tee -a $outp/incremental.log
+  log "  Done after $runtime seconds"
   i="$((i+1))"
   git_fwd # TODO use this as exit condition
   [ "$i" -lt "$limit" ]
