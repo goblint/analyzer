@@ -192,6 +192,8 @@ module WP =
       start_event ();
 
       if !incremental_mode = "incremental" then (
+        let c = S.increment.changes in
+        List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
         (* If a global changes because of some assignment inside a function, we reanalyze,
          * but if it changes because of a different global initializer, then
          *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
@@ -206,7 +208,7 @@ module WP =
                 (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
                 ()
               else (
-                ignore @@ Pretty.printf "Function %a has changed state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
+                ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
                 destabilize v
               )
           | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
@@ -223,7 +225,7 @@ module WP =
         let obsolete = Set.union (Set.of_list (List.map (fun a -> "ret" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs))
                                  (Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs)) in
 
-        List.iter (fun a -> print_endline ("Obsolete: " ^ a.svar.vname)) obsolete_funs;
+        List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         (* Actually destabilize all nodes contained in changed functions *)
         HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable;
