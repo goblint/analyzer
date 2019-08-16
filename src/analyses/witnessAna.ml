@@ -261,7 +261,12 @@ struct
     let w = snd ctx.local in
     (strict (d, w), l)
 
-  let query ctx q = S.query (unlift_ctx ctx) q
+  let query ctx q =
+    match q with
+    | Queries.PrevVars ->
+      (* `Str "witnessAna" *)
+      `Str (VES.short 100 (fst (snd ctx.local)))
+    | _ -> S.query (unlift_ctx ctx) q
 
   let assign ctx lv e =
     let d = S.assign (unlift_ctx ctx) lv e in

@@ -45,6 +45,7 @@ type t = ExpEq of exp * exp
        | PrintFullState
        | CondVars of exp
        | Access of exp * bool * bool * int
+       | PrevVars
        | TheAnswerToLifeUniverseAndEverything
 [@@deriving to_yojson]
 
