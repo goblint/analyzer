@@ -484,13 +484,19 @@ struct
         and query x = Spec.query ctx x in
         Spec.query ctx
       in
+      let rec iterprevvar (n, c) e =
+        ignore (Pretty.printf "iterprevvar %a %a\n" EQSys.LVar.pretty (n, c) MyCFG.pretty_edge e);
+        iterprevs (n, Obj.obj c)
+      and iterprevs (n, c) =
+        ignore (ask (n, c) (Queries.IterPrevVars iterprevvar))
+      in
 
       let main_exit =
         match Task.main_entry with
         | FunctionEntry f, c -> (Function f, c)
         | _, _ -> failwith "main_exit"
       in
-      ignore (Pretty.printf "PrevVars: %a\n" Queries.Result.pretty (ask main_exit Queries.PrevVars));
+      iterprevs main_exit;
 
       let get: node * Spec.C.t -> Spec.D.t =
         fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())

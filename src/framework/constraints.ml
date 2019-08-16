@@ -48,7 +48,11 @@ struct
     D.lift d, diff
 
   let query ctx q =
-    S.query (conv ctx) q
+    match q with
+    | Queries.IterPrevVars f ->
+      let g (n, c) e = f (n, Obj.repr (C.lift (Obj.obj c))) e in
+      S.query (conv ctx) (Queries.IterPrevVars g)
+    | _ -> S.query (conv ctx) q
 
   let assign ctx lv e =
     D.lift @@ S.assign (conv ctx) lv e

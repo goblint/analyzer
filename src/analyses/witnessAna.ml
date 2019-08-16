@@ -263,9 +263,11 @@ struct
 
   let query ctx q =
     match q with
-    | Queries.PrevVars ->
-      (* `Str "witnessAna" *)
-      `Str (VES.short 100 (fst (snd ctx.local)))
+    | Queries.IterPrevVars f ->
+      VES.iter (fun ((n, c), e) ->
+          f (n, Obj.repr c) e
+        ) (fst (snd ctx.local));
+      `Bot
     | _ -> S.query (unlift_ctx ctx) q
 
   let assign ctx lv e =

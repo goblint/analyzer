@@ -26,6 +26,9 @@ struct
   let meet x y = ES_r.join x y
 end
 
+type iterprevvar = (MyCFG.node * Obj.t) -> MyCFG.edge -> unit
+let iterprevvar_to_yojson _ = `Null
+
 type t = ExpEq of exp * exp
        | EqualSet of exp
        | MayPointTo of exp
@@ -45,7 +48,7 @@ type t = ExpEq of exp * exp
        | PrintFullState
        | CondVars of exp
        | Access of exp * bool * bool * int
-       | PrevVars
+       | IterPrevVars of iterprevvar
        | TheAnswerToLifeUniverseAndEverything
 [@@deriving to_yojson]
 
