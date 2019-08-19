@@ -331,10 +331,7 @@ struct
       let file = file
       let specification = Svcomp.unreach_call_specification
 
-      type c = Spec.C.t
-      let main_entry = WitnessUtil.find_main_entry entrystates
       module Cfg = Cfg
-      module C = Spec.C
     end
     in
 
@@ -512,6 +509,27 @@ struct
 
         (prev, next)
       in
+      let module Arg =
+      struct
+        module Node =
+        struct
+          include EQSys.LVar
+
+          let to_string (n, c) =
+            (* copied from NodeCtxStackGraphMlWriter *)
+            let cstr = string_of_int (Spec.C.hash c) in (* TODO: proper string *)
+            match n with
+            | Statement stmt  -> Printf.sprintf "s%d(%s)" stmt.sid cstr
+            | Function f      -> Printf.sprintf "ret%d%s(%s)" f.vid f.vname cstr
+            | FunctionEntry f -> Printf.sprintf "fun%d%s(%s)" f.vid f.vname cstr
+        end
+
+        let main_entry = WitnessUtil.find_main_entry entrystates
+        let next n =
+          LHT.find_default witness_next n [] (* main return is not in next at all *)
+          |> List.map (fun (to_n, edge) -> (edge, to_n)) (* TODO: flip order in witness_next *)
+      end
+      in
 
       let get: node * Spec.C.t -> Spec.D.t =
         fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
@@ -561,10 +579,8 @@ struct
            in *)
         let module TaskResult =
         struct
-          type c = Spec.C.t
+          module Arg = Arg
           let result = true
-          let is_live = is_live
-          let entry_ctx = entry_ctx
           let invariant = find_invariant
           let is_violation _ = false
           let is_sink _ = false
@@ -574,10 +590,8 @@ struct
       end else begin
         let module TaskResult =
         struct
-          type c = Spec.C.t
+          module Arg = Arg
           let result = false
-          let is_live = is_live
-          let entry_ctx = entry_ctx
           let invariant _ = Invariant.none
           let is_violation = function
             | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true

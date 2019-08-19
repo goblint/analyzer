@@ -18,44 +18,77 @@ struct
   let hash = List.fold_left (fun xs x -> xs + M.hash x) 996699
 end
 
+module type ArgNode =
+sig
+  include Hashtbl.HashedType
+
+  val node: t -> MyCFG.node
+  val to_string: t -> string
+end
+
+(* Abstract Reachability Graph *)
+module type Arg =
+sig
+  module Node: ArgNode
+
+  val main_entry: Node.t
+  val next: Node.t -> (MyCFG.edge * Node.t) list
+end
+
 
 module type Task =
 sig
   val file: Cil.file
   val specification: Svcomp.specification
 
-  type c
-  module C: Printable.S with type t = c
-  val main_entry: node * c
   module Cfg: CfgBidir (* TODO: only needs CfgForward? *)
 end
 
 module type TaskResult =
 sig
-  type c
+  module Arg: Arg
 
   val result: bool
-  val is_live: node * c -> bool
-  val entry_ctx: node * c -> c
 
   (* correctness witness *)
-  val invariant: node * c -> Invariant.t
+  val invariant: Arg.Node.t -> Invariant.t
 
   (* violation witness *)
-  val is_violation: node * c -> bool
-  val is_sink: node * c -> bool
+  val is_violation: Arg.Node.t -> bool
+  val is_sink: Arg.Node.t -> bool
 end
 
 
-let write_file (type c) filename (module Task:Task with type c = c) (module TaskResult:TaskResult with type c = c): unit =
-  let module C = Task.C in
-  let module NC = HashedPair (Node) (C) in
-  let module NCL = HashedList (NC) in
-  let module GML = DeDupGraphMlWriter (NCL) (NodeCtxStackGraphMlWriter (C) (XmlGraphMlWriter)) in
-  let module NH = Hashtbl.Make (Node) in
-  let module NCLH = Hashtbl.Make (NCL) in
+(* copied from NodeCtxStackGraphMlWriter *)
+(* TODO: move to somewhere else but don't create cycle *)
+module ArgNodeStackGraphMlWriter (N: ArgNode) (M: StringGraphMlWriter):
+  (GraphMlWriter with type node = N.t list) =
+struct
+  type t = M.t
+  type node = N.t list
 
-  let main_entry = Task.main_entry in
+  let string_of_nodectxstack nc =
+    nc
+    |> List.map N.to_string
+    |> String.concat "@"
+
+  let start = M.start
+  let write_key = M.write_key
+  let write_metadata = M.write_metadata
+  let write_node g node datas = M.write_node g (string_of_nodectxstack node) datas
+  let write_edge g source target datas = M.write_edge g (string_of_nodectxstack source) (string_of_nodectxstack target) datas
+  let stop = M.stop
+end
+
+let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
+  let module Arg = TaskResult.Arg in
+  let module N = Arg.Node in
+  let module NL = HashedList (N) in
+  let module GML = DeDupGraphMlWriter (NL) (ArgNodeStackGraphMlWriter (N) (XmlGraphMlWriter)) in
+  let module NH = Hashtbl.Make (Node) in
+  let module NLH = Hashtbl.Make (NL) in
+
+  let main_entry = Arg.main_entry in
   let module Cfg = Task.Cfg in
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
@@ -93,13 +126,14 @@ let write_file (type c) filename (module Task:Task with type c = c) (module Task
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" Task.specification;
-  GML.write_metadata g "programfile" (getLoc (fst main_entry)).file;
+  GML.write_metadata g "programfile" (getLoc (N.node main_entry)).file;
   (* TODO: programhash *)
   (* TODO: architecture *)
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
 
   let write_node ~entry nodectxstack =
-    let (node, _) as nodectx = List.hd nodectxstack in
+    let nodectx = List.hd nodectxstack in
+    let node = N.node nodectx in
     GML.write_node g nodectxstack (List.concat [
         begin if entry then
             [("entry", "true")]
@@ -134,16 +168,17 @@ let write_file (type c) filename (module Task:Task with type c = c) (module Task
         end
       ])
   in
-  let write_edge from_nodectxstack ((loc, edge):Cil.location * edge) to_nodectxstack =
-    let (from_node, _) = List.hd from_nodectxstack in
-    let (to_node, _) = List.hd to_nodectxstack in
+  let write_edge from_nodectxstack edge to_nodectxstack =
+    let from_node = N.node (List.hd from_nodectxstack) in
+    let to_node = N.node (List.hd to_nodectxstack) in
     GML.write_edge g from_nodectxstack to_nodectxstack (List.concat [
-        begin if loc.line <> -1 then
-            [("startline", string_of_int loc.line);
-             ("endline", string_of_int loc.line)]
-          else
-            []
-        end;
+        (* TODO: add back loc as argument with edge? *)
+        (* begin if loc.line <> -1 then
+               [("startline", string_of_int loc.line);
+                ("endline", string_of_int loc.line)]
+             else
+               []
+           end; *)
         begin if NH.mem loop_heads to_node then
             [("enterLoopHead", "true")]
           else
@@ -176,44 +211,27 @@ let write_file (type c) filename (module Task:Task with type c = c) (module Task
   in
 
   (* DFS with BFS-like child ordering, just for nicer ordering of witness graph children *)
-  let itered_nodestacks = NCLH.create 100 in
-  let rec add_edge from_nodectxstack (loc, edge) to_nodectxstack = match edge with
-    | Proc (_, Lval (Var f, _), _) -> (* TODO: doesn't cover all cases? *)
-      (* splice in function body *)
-      (* TODO: what should happen when same function enters and returns in different places? *)
-      let ctx = TaskResult.entry_ctx (List.hd from_nodectxstack) in
-      let entry_nodestack = (FunctionEntry f, ctx) :: from_nodectxstack in
-      let return_nodestack = (Function f, ctx) :: from_nodectxstack in
-      iter_nodestack entry_nodestack;
-      write_edge from_nodectxstack (loc, edge) entry_nodestack;
-      if NCLH.mem itered_nodestacks return_nodestack then
-        write_edge return_nodestack (loc, edge) to_nodectxstack
-      else
-        () (* return node missing, function never returns *)
-    | _ ->
-      write_edge from_nodectxstack (loc, edge) to_nodectxstack
-  and add_edges from_nodectxstack locedges to_nodectxstack =
-    List.iter (fun locedge -> add_edge from_nodectxstack locedge to_nodectxstack) locedges
+  let itered_nodestacks = NLH.create 100 in
+  let rec add_edge from_nodectxstack edge to_nodectxstack =
+    write_edge from_nodectxstack edge to_nodectxstack
   and iter_nodestack = function
     | [] -> failwith "empty nodectxstack"
-    | ((node, ctx) as nodectx :: nodectxtl) as nodectxstack ->
-      if not (NCLH.mem itered_nodestacks nodectxstack) then begin
-        NCLH.add itered_nodestacks nodectxstack ();
+    | (nodectx :: nodectxtl) as nodectxstack ->
+      if not (NLH.mem itered_nodestacks nodectxstack) then begin
+        NLH.add itered_nodestacks nodectxstack ();
         add_node nodectxstack;
         let is_sink = TaskResult.is_violation nodectx || TaskResult.is_sink nodectx in
         if not is_sink then begin
           let locedges_to_nodectxstacks =
-            Cfg.next node
-            |> List.map (fun (locedges, to_node) -> (locedges, (to_node, ctx)))
-            |> List.filter (fun (_, to_nodectx) -> TaskResult.is_live to_nodectx)
+            Arg.next nodectx
             (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
-            |> List.map (fun (locedges, to_nodectx) -> (locedges, to_nodectx :: nodectxtl))
+            |> List.map (fun (edge, to_nodectx) -> (edge, to_nodectx :: nodectxtl))
           in
-          List.iter (fun (locedges, to_nodectxstack) ->
+          List.iter (fun (edge, to_nodectxstack) ->
               add_node to_nodectxstack;
-              add_edges nodectxstack locedges to_nodectxstack
+              add_edge nodectxstack edge to_nodectxstack
             ) locedges_to_nodectxstacks;
-          List.iter (fun (locedges, to_nodectxstack) ->
+          List.iter (fun (edge, to_nodectxstack) ->
               iter_nodestack to_nodectxstack
             ) locedges_to_nodectxstacks
         end
