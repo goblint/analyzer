@@ -462,41 +462,56 @@ struct
 
       let (infls, rinfls) = Infls.infls_rinfls !lh_ref !global_xml in
 
-      let ask (lvar:EQSys.LVar.t) =
+      let (witness_prev, witness_next) =
         let lh = !lh_ref in
         let gh = !global_xml in
-        (* build a ctx for using the query system *)
-        let rec ctx =
-          { ask    = query
-          ; node   = fst lvar
-          ; context = Obj.repr (fun () -> snd lvar)
-          ; context2 = (fun () -> snd lvar)
-          ; edge    = MyCFG.Skip
-          ; local  = LHT.find lh lvar
-          ; global = GHT.find gh
-          ; presub = []
-          ; postsub= []
-          ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-          ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
-          ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
-          ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
-          }
-        and query x = Spec.query ctx x in
-        Spec.query ctx
-      in
-      let rec iterprevvar (n, c) e =
-        ignore (Pretty.printf "iterprevvar %a %a\n" EQSys.LVar.pretty (n, c) MyCFG.pretty_edge e);
-        iterprevs (n, Obj.obj c)
-      and iterprevs (n, c) =
-        ignore (ask (n, c) (Queries.IterPrevVars iterprevvar))
-      in
+        let ask_local (lvar:EQSys.LVar.t) local =
+          (* build a ctx for using the query system *)
+          let rec ctx =
+            { ask    = query
+            ; node   = fst lvar
+            ; context = Obj.repr (fun () -> snd lvar)
+            ; context2 = (fun () -> snd lvar)
+            ; edge    = MyCFG.Skip
+            ; local  = local
+            ; global = GHT.find gh
+            ; presub = []
+            ; postsub= []
+            ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+            ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
+            ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
+            ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
+            }
+          and query x = Spec.query ctx x in
+          Spec.query ctx
+        in
+        let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in
 
-      let main_exit =
-        match Task.main_entry with
-        | FunctionEntry f, c -> (Function f, c)
-        | _, _ -> failwith "main_exit"
+        let prev = LHT.create 100 in
+        let next = LHT.create 100 in
+        LHT.iter (fun lvar local ->
+            ignore (ask_local lvar local (Queries.IterPrevVars (fun (prev_node, prev_c_obj) edge ->
+                let prev_lvar: LHT.key = (prev_node, Obj.obj prev_c_obj) in
+                LHT.modify_def [] lvar (fun prevs -> (prev_lvar, edge) :: prevs) prev;
+                LHT.modify_def [] prev_lvar (fun nexts -> (lvar, edge) :: nexts) next
+              )))
+          ) lh;
+
+        (* let rec iterprevvar (n, c) e =
+             ignore (Pretty.printf "iterprevvar %a %a\n" EQSys.LVar.pretty (n, c) MyCFG.pretty_edge e);
+             iterprevs (n, Obj.obj c)
+           and iterprevs (n, c) =
+             ignore (ask (n, c) (Queries.IterPrevVars iterprevvar))
+           in
+           let main_exit =
+             match Task.main_entry with
+             | FunctionEntry f, c -> (Function f, c)
+             | _, _ -> failwith "main_exit"
+           in
+           iterprevs main_exit; *)
+
+        (prev, next)
       in
-      iterprevs main_exit;
 
       let get: node * Spec.C.t -> Spec.D.t =
         fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
@@ -504,15 +519,20 @@ struct
       let is_live nc = not (Spec.D.is_bot (get nc)) in
       let find_invariant nc = Spec.D.invariant "" (get nc) in
       (* let entry_ctx nc = Spec.context (get nc) in *)
+      (* TODO: remove infls stuff *)
+      (* let entry_ctx nc =
+           LHT.find rinfls nc
+           |> Infls.LS.to_list
+           |> List.filter_map (fun (fn, fc) ->
+               match fn with
+               | Function f -> Some fc
+               | _ -> None
+             )
+           |> List.hd (* TODO: ability to return multiple *)
+         in *)
       let entry_ctx nc =
-        LHT.find rinfls nc
-        |> Infls.LS.to_list
-        |> List.filter_map (fun (fn, fc) ->
-            match fn with
-            | Function f -> Some fc
-            | _ -> None
-          )
-        |> List.hd (* TODO: ability to return multiple *)
+        let nexts = LHT.find witness_next nc in
+        snd (fst (List.hd nexts)) (* TODO: ability to return multiple *)
       in
 
       if svcomp_unreach_call then begin

@@ -181,7 +181,7 @@ let write_file (type c) filename (module Task:Task with type c = c) (module Task
     | Proc (_, Lval (Var f, _), _) -> (* TODO: doesn't cover all cases? *)
       (* splice in function body *)
       (* TODO: what should happen when same function enters and returns in different places? *)
-      let ctx = TaskResult.entry_ctx (List.hd to_nodectxstack) in
+      let ctx = TaskResult.entry_ctx (List.hd from_nodectxstack) in
       let entry_nodestack = (FunctionEntry f, ctx) :: from_nodectxstack in
       let return_nodestack = (Function f, ctx) :: from_nodectxstack in
       iter_nodestack entry_nodestack;
