@@ -35,7 +35,7 @@ sig
   val next: Node.t -> (MyCFG.edge * Node.t) list
 end
 
-module StackArg (Arg: Arg):
+module StackArg (Cfg:CfgForward) (Arg: Arg):
   (* TODO: better signature *)
 sig
   module Node: ArgNode with type t = Arg.Node.t list
@@ -60,11 +60,50 @@ struct
   let next = function
     | [] -> failwith "StackArg.next: empty"
     | n :: stack ->
-      Arg.next n
-      |> List.map (function
-          (* TODO: add function entry & exit cases *)
-          | (edge, to_n) -> (edge, to_n :: stack)
-        )
+      let node = Arg.Node.node n in
+      match node with
+      | Function _ -> (* TODO: can this be done without Cfg? *)
+        begin match stack with
+          (* | [] -> failwith "StackArg.next: return stack empty" *)
+          | [] -> [] (* main return *)
+          | call_n :: call_stack ->
+            let call_node = Arg.Node.node call_n in
+            let call_next =
+              Cfg.next call_node
+              (* filter because infinite loops starting with function call
+                 will have another Neg(1) edge from the head *)
+              |> List.filter (fun (locedges, to_node) ->
+                  List.exists (function
+                      | (_, Proc _) -> true
+                      | (_, _) -> false
+                    ) locedges
+                )
+            in
+            begin match call_next with
+              | [] -> failwith "StackArg.next: call next empty"
+              | [(_, return_node)] ->
+                Arg.next n
+                |> List.filter (fun (edge, to_n) ->
+                    let to_node = Arg.Node.node to_n in
+                    MyCFG.Node.equal to_node return_node
+                  )
+                |> List.map (fun (edge, to_n) ->
+                    let to_n' = to_n :: call_stack in
+                    (edge, to_n')
+                  )
+              | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
+            end
+        end
+      | _ ->
+        Arg.next n
+        |> List.map (fun (edge, to_n) ->
+            let to_node = Arg.Node.node to_n in
+            let to_n' = match to_node with
+              | FunctionEntry _ -> to_n :: n :: stack
+              | _ -> to_n :: stack
+            in
+            (edge, to_n')
+          )
 end
 
 
@@ -90,9 +129,9 @@ sig
   val is_sink: Arg.Node.t -> bool
 end
 
-module StackTaskResult (TaskResult: TaskResult) =
+module StackTaskResult (Cfg:CfgForward) (TaskResult: TaskResult) =
 struct
-  module Arg = StackArg (TaskResult.Arg)
+  module Arg = StackArg (Cfg) (TaskResult.Arg)
 
   let result = TaskResult.result
 
@@ -122,7 +161,8 @@ struct
 end
 
 let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
-  let module TaskResult = StackTaskResult (TaskResult) in
+  let module Cfg = Task.Cfg in
+  let module TaskResult = StackTaskResult (Cfg) (TaskResult) in
   let module Arg = TaskResult.Arg in
   let module N = Arg.Node in
   let module GML = DeDupGraphMlWriter (N) (ArgNodeGraphMlWriter (N) (XmlGraphMlWriter)) in
@@ -130,7 +170,6 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   let module NLH = Hashtbl.Make (N) in
 
   let main_entry = Arg.main_entry in
-  let module Cfg = Task.Cfg in
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
   let out = open_out filename in
