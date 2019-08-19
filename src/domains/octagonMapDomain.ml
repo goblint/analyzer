@@ -627,20 +627,17 @@ module MapOctagon : S
       match v with
       | Infinity -> if negate then min_int else max_int
       | Val f ->
-          let res =  Int64.div (Int64.of_float f) (Int64.of_int 2) in
-          if negate then Int64.neg res else res
+        let res =  Int64.div (Int64.of_float f) (Int64.of_int 2) in
+        if negate then max (Int64.neg res) min_int else min res max_int (* ok to do this here, only called from closure and closure does not cause over/underflows -> is that true (?!) *)
     in
-    let unpack_constraint negate v =
-      match v with
-      | Infinity ->
-        if negate
-        then min_int
-        else max_int
-      | Val f ->
-        let f = Int64.of_float f in
-        if negate then Int64.neg f else f
+    let unpack_constraints lower upper =
+      match lower, upper with
+      | Val l, Val u -> (* only if both upper and lower boundaries have defintive values, if one of them is Infinity there is no guarantee that no wraparound occured *)
+        let l' = Int64.neg (Int64.of_float l) in
+        let u' = Int64.of_float u in
+        INV.of_interval(l', u')   (* By creating an interval here, wraparounds (min < min_int or max > max_int) are handled properly *)
+      | _ -> INV.top ()
     in
-
     let rec matrix_iter i j oct =
       if i >= Array.length matrix then 
         oct
@@ -651,24 +648,24 @@ module MapOctagon : S
         let var2 = Hashtbl.find inv_vars j in
         if i = j then
           let upper = get (inv_index i) i |> (unpack_interval false) in
+          let () = assert(upper <= max_int) in
           let lower = get i (inv_index i) |> (unpack_interval true) in (* fucking min_int != -max_int *)
-          if not (INV.is_top (INV.of_interval (upper,lower))) then
-            let oct = set_constraint (var1, None, CT.Upper, upper) oct in
-            let oct = set_constraint (var1, None, CT.Lower, lower) oct in
-            matrix_iter i (j + 2) oct
-          else
-            matrix_iter i (j + 2) oct
+          let () = assert(min_int <= lower) in 
+          let oct = set_constraint (var1, None, CT.Upper, upper) oct in
+          let oct = set_constraint (var1, None, CT.Lower, lower) oct in
+          matrix_iter i (j + 2) oct
         else if i < j then
-
           let oct =
-            let upper = get (inv_index i) j |> unpack_constraint false in
-            let lower = get i (inv_index j) |> unpack_constraint true in
+            let inv = unpack_constraints (get i (inv_index j)) (get (inv_index i) j) in
+            let lower = BatOption.default min_int (INV.minimal inv) in
+            let upper = BatOption.default max_int (INV.maximal inv) in
             set_constraint (var1, Some(CT.plus, var2), CT.Upper, upper)
               (set_constraint (var1, Some(CT.plus, var2), CT.Lower, lower) oct)
           in
           let oct =
-            let upper = get (inv_index i) (inv_index j) |> unpack_constraint false in
-            let lower = get i j |> unpack_constraint true in
+            let inv = unpack_constraints (get i j) (get (inv_index i) (inv_index j)) in
+            let lower = BatOption.default min_int (INV.minimal inv) in
+            let upper = BatOption.default max_int (INV.maximal inv) in
             set_constraint (var1, Some(CT.minus, var2), CT.Upper, upper)
               (set_constraint (var1, Some(CT.minus, var2), CT.Lower, lower) oct)
           in
@@ -684,15 +681,12 @@ module MapOctagon : S
       not (INV.is_top const) || not ((List.length consts) = 0))
 
   let strong_closure oct =
-    let strong_closure' oct =
-      if use_matrix_closure then
-        let matrix, vars = map_to_matrix oct in
-        let closed = ArrayOctagon.strong_closure matrix in
-        matrix_to_map closed vars
-      else
-        strong_closure_map oct
-    in
-    strong_closure' oct
+    if use_matrix_closure then
+      let matrix, vars = map_to_matrix oct in
+      let closed = ArrayOctagon.strong_closure matrix in
+      matrix_to_map closed vars
+    else
+      strong_closure_map oct
 
   (* Remove all information except those concerning variables in vars *)
   let keep_only vars oct =
