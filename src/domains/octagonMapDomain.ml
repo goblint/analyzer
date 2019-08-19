@@ -558,18 +558,6 @@ module MapOctagon : S
         oct
       ) oct vars
 
-  let widen a b = widen a (strong_closure b) (* strong closure must not(!) be called for the result (https://arxiv.org/pdf/cs/0703084.pdf)  *)
-  let narrow a b = narrow a b |> strong_closure
-
-  let meet a b = meet a b |> strong_closure
-  let join a b = join a b                       (* a strong closure is useless here if the arguments are strongly closed *)
-
-  let leq a b =
-    if !Goblintutil.in_verifying_stage then
-      leq (strong_closure a) b 
-    else
-      leq a b 
-
   let inv_index i = i lxor 1
 
   let map_to_matrix oct =
@@ -693,6 +681,22 @@ module MapOctagon : S
     let oct_keys_filtered = filter (fun k _ -> List.mem k vars) oct in
     let filter_constraints (inv, consts) = (inv, List.filter (fun (_,v,_) -> List.mem v vars) consts) in
     map filter_constraints oct_keys_filtered
+
+  let widen a b = widen a (strong_closure b) (* strong closure must not(!) be called for the result (https://arxiv.org/pdf/cs/0703084.pdf)  *)
+  
+  let narrow a b =
+    (* Some constraints may involve a variable that is not there in the result. These need to be removed *)
+    let remove_invalid_constraints a = map (fun (k, (l:E.t list)) -> (k, List.filter (fun (_, v, _) -> mem v a) l)) in 
+    map2 VD.narrow a b |> remove_invalid_constraints a |> strong_closure
+  
+  let meet a b = meet a b |> strong_closure
+  let join a b = join a b                       (* a strong closure is useless here if the arguments are strongly closed *)
+
+  let leq a b =
+    if !Goblintutil.in_verifying_stage then
+      leq a b || leq (strong_closure a) b 
+    else
+      leq a b 
 end
 
 module MapOctagonBot : S
