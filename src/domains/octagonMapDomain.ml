@@ -576,10 +576,8 @@ module MapOctagon : S
       let upper = OPT.default max_int (INV.maximal const) in 
       let lower = OPT.default min_int (INV.minimal const) in
       let two = Int64.of_int 2 in
-      if upper <> max_int then
-        set (inv_index index1) index1 (Int64.mul upper two);
-      if lower <> min_int then 
-        set index1 (inv_index index1) (Int64.neg (Int64.mul lower two));
+      set (inv_index index1) index1 (Int64.mul upper two);
+      set index1 (inv_index index1) (Int64.neg (Int64.mul lower two));
 
       let add_constraints (sign, var2, const) =
         let index2 = try (Hashtbl.find vars var2) * 2 
@@ -611,12 +609,13 @@ module MapOctagon : S
     let inv_vars = Hashtbl.create (Hashtbl.length vars) in
     Hashtbl.iter (fun var index -> Hashtbl.add inv_vars (index * 2) var) vars;
     let get i j = Array.get (Array.get matrix i) j in
-    let unpack_interval negate v =
-      match v with
-      | Infinity -> if negate then min_int else max_int
-      | Val f ->
-        let res =  Int64.div (Int64.of_float f) (Int64.of_int 2) in
-        if negate then max (Int64.neg res) min_int else min res max_int (* ok to do this here, only called from closure and closure does not cause over/underflows -> is that true (?!) *)
+    let unpack_interval lower upper =
+      match lower, upper with
+      | Val l, Val u ->
+        let l' = max (Int64.neg (Int64.div (Int64.of_float l) (Int64.of_int 2))) min_int in (* ok to do this here, only called from closure and closure does not cause over/underflows for vars -> is that true (?!) *)
+        let u' =  min (Int64.div (Int64.of_float u) (Int64.of_int 2)) max_int in
+        INV.of_interval(l', u') 
+      | _ -> INV.top ()
     in
     let unpack_constraints lower upper =
       match lower, upper with
@@ -635,10 +634,9 @@ module MapOctagon : S
         let var1 = Hashtbl.find inv_vars i in
         let var2 = Hashtbl.find inv_vars j in
         if i = j then
-          let upper = get (inv_index i) i |> (unpack_interval false) in
-          let () = assert(upper <= max_int) in
-          let lower = get i (inv_index i) |> (unpack_interval true) in (* fucking min_int != -max_int *)
-          let () = assert(min_int <= lower) in 
+          let inv = unpack_interval (get i (inv_index i)) (get (inv_index i) i) in
+          let upper = BatOption.default max_int (INV.maximal inv) in
+          let lower = BatOption.default min_int (INV.minimal inv) in
           let oct = set_constraint (var1, None, CT.Upper, upper) oct in
           let oct = set_constraint (var1, None, CT.Lower, lower) oct in
           matrix_iter i (j + 2) oct
