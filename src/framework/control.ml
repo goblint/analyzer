@@ -478,7 +478,7 @@ struct
           and query x = Spec.query ctx x in
           Spec.query ctx
         in
-        let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in
+        (* let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in *)
 
         let prev = LHT.create 100 in
         let next = LHT.create 100 in
@@ -489,19 +489,6 @@ struct
                 LHT.modify_def [] prev_lvar (fun nexts -> (lvar, edge) :: nexts) next
               )))
           ) lh;
-
-        (* let rec iterprevvar (n, c) e =
-             ignore (Pretty.printf "iterprevvar %a %a\n" EQSys.LVar.pretty (n, c) MyCFG.pretty_edge e);
-             iterprevs (n, Obj.obj c)
-           and iterprevs (n, c) =
-             ignore (ask (n, c) (Queries.IterPrevVars iterprevvar))
-           in
-           let main_exit =
-             match Task.main_entry with
-             | FunctionEntry f, c -> (Function f, c)
-             | _, _ -> failwith "main_exit"
-           in
-           iterprevs main_exit; *)
 
         (prev, next)
       in
@@ -532,38 +519,9 @@ struct
       let get: node * Spec.C.t -> Spec.D.t =
         fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
       in
-      let is_live nc = not (Spec.D.is_bot (get nc)) in
       let find_invariant nc = Spec.D.invariant "" (get nc) in
-      (* let entry_ctx nc = Spec.context (get nc) in *)
-      let entry_ctx nc =
-        let nexts = LHT.find witness_next nc in
-        snd (fst (List.hd nexts)) (* TODO: ability to return multiple *)
-      in
 
       if svcomp_unreach_call then begin
-        (* let print_invariant (l, n, f) v =
-             (* some nodes duplicated for different contexts *)
-             LT.iter (fun (c, d, f2) ->
-                 ignore (Pretty.printf "INVARIANT2 %a: %s: %s\n" Var.pretty n (Spec.D.short 800 d) (Option.default "None" (EQSys.D.invariant "" d)))
-               ) v
-           in
-           Result.iter print_invariant !local_xml; *)
-
-        (* let find_invariant: node * Spec.C.t -> Invariant.t =
-           let module NH = Hashtbl.Make (MyCFG.Node) in
-           let invariants = NH.create 100 in
-           Result.iter (fun (l, n, f) v ->
-               (* currently doesn't really handle context *)
-               let i = LT.fold (fun (c, d, f2) a ->
-                   Invariant.(a || Spec.D.invariant "" d)
-                 ) v Invariant.none
-               in
-               NH.add invariants n i
-             ) !local_xml;
-
-           fun (n, c) -> (* TODO: use c *)
-             NH.find_default invariants n Invariant.none
-           in *)
         let module TaskResult =
         struct
           module Arg = Arg
