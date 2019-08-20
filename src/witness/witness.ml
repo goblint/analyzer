@@ -2,109 +2,6 @@ open MyCFG
 open WitnessUtil
 open Graphml
 
-module HashedPair (M1: Hashtbl.HashedType) (M2: Hashtbl.HashedType):
-  Hashtbl.HashedType with type t = M1.t * M2.t =
-struct
-  type t = M1.t * M2.t
-  (* copied from Printable.Prod *)
-  let equal (x1,x2) (y1,y2) = M1.equal x1 y1 && M2.equal x2 y2
-  let hash (x,y) = M1.hash x + M2.hash y * 17
-end
-
-module HashedList (M: Hashtbl.HashedType):
-  Hashtbl.HashedType with type t = M.t list =
-struct
-  type t = M.t list
-  (* copied from Printable.Liszt *)
-  let equal x y = try List.for_all2 M.equal x y with Invalid_argument _ -> false
-  let hash = List.fold_left (fun xs x -> xs + M.hash x) 996699
-end
-
-module type ArgNode =
-sig
-  include Hashtbl.HashedType
-
-  val cfgnode: t -> MyCFG.node
-  val to_string: t -> string
-end
-
-(* Abstract Reachability Graph *)
-module type Arg =
-sig
-  module Node: ArgNode
-
-  val main_entry: Node.t
-  val next: Node.t -> (MyCFG.edge * Node.t) list
-end
-
-module StackArgNode (ArgNode: ArgNode):
-  ArgNode with type t = ArgNode.t list =
-struct
-  include HashedList (ArgNode)
-
-  let cfgnode nl = ArgNode.cfgnode (List.hd nl)
-  let to_string nl =
-    nl
-    |> List.map ArgNode.to_string
-    |> String.concat "@"
-end
-
-module StackArg (Cfg:CfgForward) (Arg: Arg):
-  Arg with module Node = StackArgNode (Arg.Node) =
-struct
-  module Node = StackArgNode (Arg.Node)
-
-  let main_entry = [Arg.main_entry]
-
-  let next = function
-    | [] -> failwith "StackArg.next: empty"
-    | n :: stack ->
-      let cfgnode = Arg.Node.cfgnode n in
-      match cfgnode with
-      | Function _ -> (* TODO: can this be done without Cfg? *)
-        begin match stack with
-          (* | [] -> failwith "StackArg.next: return stack empty" *)
-          | [] -> [] (* main return *)
-          | call_n :: call_stack ->
-            let call_cfgnode = Arg.Node.cfgnode call_n in
-            let call_next =
-              Cfg.next call_cfgnode
-              (* filter because infinite loops starting with function call
-                 will have another Neg(1) edge from the head *)
-              |> List.filter (fun (locedges, to_node) ->
-                  List.exists (function
-                      | (_, Proc _) -> true
-                      | (_, _) -> false
-                    ) locedges
-                )
-            in
-            begin match call_next with
-              | [] -> failwith "StackArg.next: call next empty"
-              | [(_, return_node)] ->
-                Arg.next n
-                |> List.filter (fun (edge, to_n) ->
-                    let to_cfgnode = Arg.Node.cfgnode to_n in
-                    MyCFG.Node.equal to_cfgnode return_node
-                  )
-                |> List.map (fun (edge, to_n) ->
-                    let to_n' = to_n :: call_stack in
-                    (edge, to_n')
-                  )
-              | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
-            end
-        end
-      | _ ->
-        Arg.next n
-        |> List.map (fun (edge, to_n) ->
-            let to_cfgnode = Arg.Node.cfgnode to_n in
-            let to_n' = match to_cfgnode with
-              | FunctionEntry _ -> to_n :: n :: stack
-              | _ -> to_n :: stack
-            in
-            (edge, to_n')
-          )
-end
-
 
 module type Task =
 sig
@@ -116,7 +13,7 @@ end
 
 module type TaskResult =
 sig
-  module Arg: Arg
+  module Arg: MyARG.S
 
   val result: bool
 
@@ -130,7 +27,7 @@ end
 
 module StackTaskResult (Cfg:CfgForward) (TaskResult: TaskResult) =
 struct
-  module Arg = StackArg (Cfg) (TaskResult.Arg)
+  module Arg = MyARG.Stack (Cfg) (TaskResult.Arg)
 
   let result = TaskResult.result
 
@@ -143,7 +40,7 @@ end
 
 (* copied from NodeGraphMlWriter *)
 (* TODO: move to somewhere else but don't create cycle *)
-module ArgNodeGraphMlWriter (N: ArgNode) (M: StringGraphMlWriter):
+module ArgNodeGraphMlWriter (N: MyARG.Node) (M: StringGraphMlWriter):
   GraphMlWriter with type node = N.t =
 struct
   type t = M.t
