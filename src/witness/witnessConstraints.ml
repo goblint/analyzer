@@ -59,10 +59,6 @@ module WitnessLifter (S:Spec): Spec =
 struct
   module V = Printable.Prod (PrintableVar) (S.C)
   module VE = Printable.Prod (V) (Edge)
-
-  (* module VS = SetDomain.Make (V)
-     module VF = FlatBot (V)
-     module W = Lattice.Prod (VS) (VF) *)
   module VES = SetDomain.ToppedSet (VE) (struct let topname = "VES top" end)
   module VF = Lattice.Flat (V) (struct let bot_name = "VF bot" let top_name = "VF top" end)
   module W = Lattice.Prod (VES) (VF)
@@ -71,28 +67,13 @@ struct
   struct
     include Lattice.Prod (S.D) (W)
 
-    (* alternative to using strict *)
-    (* let is_bot (d, w) = S.D.is_bot d *)
-
     let printXml f (d, w) =
       (* BatPrintf.fprintf f "%a<path><analysis name=\"witness\">%a</analysis></path>" S.D.printXml d W.printXml w *)
       BatPrintf.fprintf f "%a<analysis name=\"witness\">%a</analysis>" S.D.printXml d W.printXml w
   end
   module G = S.G
   module C = S.C
-  (* module C =
-     struct
-       include Printable.Prod (S.C) (W)
 
-       let printXml f (d, w) =
-         BatPrintf.fprintf f "%a<path><analysis name=\"witness\">%a</analysis></path>" S.C.printXml d W.printXml w
-     end *)
-
-  (* let get_context ctx =
-     (* nasty hacking *)
-     let c_unit: unit -> S.C.t = Obj.obj (ctx.context) in
-     let c = c_unit () in
-     c *)
   let get_context ctx = ctx.context2 ()
 
   let set_of_flat (x:VF.t) (edge:Edge.t): VES.t = match x with
@@ -100,18 +81,9 @@ struct
     | `Bot -> VES.bot ()
     | `Top -> VES.top ()
 
-  module VH = Hashtbl.Make (V)
-  let steps = VH.create 100
-
   let step (from:W.t) (edge:Edge.t) (to_node:V.t): W.t =
     let prev = set_of_flat (snd from) edge in
     (* ignore (Pretty.printf "from: %a, prev: %a -> to_node: %a\n" W.pretty from VS.pretty prev V.pretty to_node); *)
-    begin match snd from with
-      | `Lifted from_node ->
-        VH.modify_def (VES.empty ()) from_node (fun to_nodes -> VES.add (to_node, edge) to_nodes) steps;
-        (* ignore (Pretty.printf "from_node: %a -> to_node: %a\n" V.pretty from_node V.pretty to_node); *)
-      | _ -> ()
-    end;
     (prev, `Lifted to_node)
 
   let step_ctx ctx =
@@ -122,20 +94,12 @@ struct
       W.bot ()
 
   (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
-  let strict (d, w) = (d, w) (* D.is_bot redefined *)
+  let strict (d, w) = (d, w) (* analysis is strict as long as witness lifter inside dead code lifter *)
 
   let name = S.name ^ " witnessed"
 
   let init = S.init
-  let finalize () =
-    S.finalize ();
-    (* VH.iter (fun from_node to_nodes ->
-         ignore (Pretty.printf "from_node: %a ->\n" V.pretty from_node);
-         VS.iter (fun to_node ->
-             ignore (Pretty.printf "    -> to_node: %a\n" V.pretty to_node)
-           ) to_nodes
-       ) steps *)
-    ()
+  let finalize = S.finalize
 
   let startstate v = (S.startstate v, W.bot ())
   let morphstate v (d, w) = (S.morphstate v d, w)
@@ -144,11 +108,8 @@ struct
 
   let should_join (x, _) (y, _) = S.should_join x y
   let val_of c = (S.val_of c, W.bot ())
-  (* let val_of ((c, w):C.t): D.t = (S.val_of c, w) *)
   let context (d, _) = S.context d
-  (* let context ((d, w):D.t): C.t = (S.context d, w) *)
   let call_descr = S.call_descr
-  (* let call_descr f ((c, w):C.t) = S.call_descr f c *)
 
   let unlift_ctx (ctx:(D.t, 'g, 'c) Analyses.ctx) =
     let w = snd ctx.local in
