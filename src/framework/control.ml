@@ -515,6 +515,8 @@ struct
         struct
           include EQSys.LVar
 
+          let cfgnode = node
+
           let to_string (n, c) =
             (* copied from NodeCtxStackGraphMlWriter *)
             let cstr = string_of_int (Spec.C.hash c) in (* TODO: proper string *)

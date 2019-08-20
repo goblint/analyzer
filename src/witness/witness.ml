@@ -24,7 +24,7 @@ module type ArgNode =
 sig
   include Hashtbl.HashedType
 
-  val node: t -> MyCFG.node
+  val cfgnode: t -> MyCFG.node
   val to_string: t -> string
 end
 
@@ -42,7 +42,7 @@ module StackArgNode (ArgNode: ArgNode):
 struct
   include HashedList (ArgNode)
 
-  let node nl = ArgNode.node (List.hd nl)
+  let cfgnode nl = ArgNode.cfgnode (List.hd nl)
   let to_string nl =
     nl
     |> List.map ArgNode.to_string
@@ -59,16 +59,16 @@ struct
   let next = function
     | [] -> failwith "StackArg.next: empty"
     | n :: stack ->
-      let node = Arg.Node.node n in
-      match node with
+      let cfgnode = Arg.Node.cfgnode n in
+      match cfgnode with
       | Function _ -> (* TODO: can this be done without Cfg? *)
         begin match stack with
           (* | [] -> failwith "StackArg.next: return stack empty" *)
           | [] -> [] (* main return *)
           | call_n :: call_stack ->
-            let call_node = Arg.Node.node call_n in
+            let call_cfgnode = Arg.Node.cfgnode call_n in
             let call_next =
-              Cfg.next call_node
+              Cfg.next call_cfgnode
               (* filter because infinite loops starting with function call
                  will have another Neg(1) edge from the head *)
               |> List.filter (fun (locedges, to_node) ->
@@ -83,8 +83,8 @@ struct
               | [(_, return_node)] ->
                 Arg.next n
                 |> List.filter (fun (edge, to_n) ->
-                    let to_node = Arg.Node.node to_n in
-                    MyCFG.Node.equal to_node return_node
+                    let to_cfgnode = Arg.Node.cfgnode to_n in
+                    MyCFG.Node.equal to_cfgnode return_node
                   )
                 |> List.map (fun (edge, to_n) ->
                     let to_n' = to_n :: call_stack in
@@ -96,8 +96,8 @@ struct
       | _ ->
         Arg.next n
         |> List.map (fun (edge, to_n) ->
-            let to_node = Arg.Node.node to_n in
-            let to_n' = match to_node with
+            let to_cfgnode = Arg.Node.cfgnode to_n in
+            let to_n' = match to_cfgnode with
               | FunctionEntry _ -> to_n :: n :: stack
               | _ -> to_n :: stack
             in
@@ -165,8 +165,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   let module Arg = TaskResult.Arg in
   let module N = Arg.Node in
   let module GML = DeDupGraphMlWriter (N) (ArgNodeGraphMlWriter (N) (XmlGraphMlWriter)) in
-  let module NH = Hashtbl.Make (Node) in
-  let module NLH = Hashtbl.Make (N) in
+  let module NH = Hashtbl.Make (N) in
 
   let main_entry = Arg.main_entry in
   let loop_heads = find_loop_heads (module Cfg) Task.file in
@@ -205,52 +204,52 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" Task.specification;
-  let programfile = (getLoc (N.node main_entry)).file in
+  let programfile = (getLoc (N.cfgnode main_entry)).file in
   GML.write_metadata g "programfile" programfile;
   (* TODO: programhash *)
   (* TODO: architecture *)
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
 
-  let write_node ~entry nodectxstack =
-    let node = N.node nodectxstack in
-    GML.write_node g nodectxstack (List.concat [
+  let write_node ?(entry=false) node =
+    let cfgnode = N.cfgnode node in
+    GML.write_node g node (List.concat [
         begin if entry then
             [("entry", "true")]
           else
             []
         end;
-        begin match node, TaskResult.invariant nodectxstack with
+        begin match cfgnode, TaskResult.invariant node with
           | Statement _, Some i ->
             [("invariant", i);
-             ("invariant.scope", (getFun node).svar.vname)]
+             ("invariant.scope", (getFun cfgnode).svar.vname)]
           | _ ->
             (* ignore entry and return invariants, variables of wrong scopes *)
             (* TODO: don't? fix scopes? *)
             []
         end;
-        begin match node with
+        begin match cfgnode with
           | Statement s ->
             [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
           | _ -> []
         end;
         (* violation actually only allowed in violation witness *)
         (* maybe should appear on from_node of entry edge instead *)
-        begin if TaskResult.is_violation nodectxstack then
+        begin if TaskResult.is_violation node then
             [("violation", "true")]
           else
             []
         end;
-        begin if TaskResult.is_sink nodectxstack then
+        begin if TaskResult.is_sink node then
             [("sink", "true")]
           else
             []
         end
       ])
   in
-  let write_edge from_nodectxstack edge to_nodectxstack =
-    let from_node = N.node from_nodectxstack in
-    let to_node = N.node to_nodectxstack in
-    GML.write_edge g from_nodectxstack to_nodectxstack (List.concat [
+  let write_edge from_node edge to_node =
+    let from_cfgnode = N.cfgnode from_node in
+    let to_cfgnode = N.cfgnode to_node in
+    GML.write_edge g from_node to_node (List.concat [
         (* TODO: add back loc as argument with edge? *)
         (* begin if loc.line <> -1 then
                [("startline", string_of_int loc.line);
@@ -258,19 +257,19 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
              else
                []
            end; *)
-        begin let loc = getLoc from_node in
+        begin let loc = getLoc from_cfgnode in
           (* exclude line numbers from sv-comp.c and unknown line numbers *)
           if loc.file = programfile && loc.line <> -1 then
             [("startline", string_of_int loc.line)]
           else
             []
         end;
-        begin if NH.mem loop_heads to_node then
+        begin if WitnessUtil.NH.mem loop_heads to_cfgnode then
             [("enterLoopHead", "true")]
           else
             []
         end;
-        begin match from_node, to_node with
+        begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f ->
             [("enterFunction", f.vname)]
           | Function f, _ ->
@@ -292,37 +291,31 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
       ])
   in
 
-  let add_node ?(entry=false) nodectxstack =
-    write_node ~entry nodectxstack
-  in
-
   (* DFS with BFS-like child ordering, just for nicer ordering of witness graph children *)
-  let itered_nodestacks = NLH.create 100 in
-  let rec add_edge from_nodectxstack edge to_nodectxstack =
-    write_edge from_nodectxstack edge to_nodectxstack
-  and iter_nodestack nodectxstack =
-    if not (NLH.mem itered_nodestacks nodectxstack) then begin
-      NLH.add itered_nodestacks nodectxstack ();
-      add_node nodectxstack;
-      let is_sink = TaskResult.is_violation nodectxstack || TaskResult.is_sink nodectxstack in
+  let itered_nodes = NH.create 100 in
+  let rec iter_node node =
+    if not (NH.mem itered_nodes node) then begin
+      NH.add itered_nodes node ();
+      write_node node;
+      let is_sink = TaskResult.is_violation node || TaskResult.is_sink node in
       if not is_sink then begin
-        let locedges_to_nodectxstacks =
-          Arg.next nodectxstack
+        let edge_to_nodes =
+          Arg.next node
           (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
         in
-        List.iter (fun (edge, to_nodectxstack) ->
-            add_node to_nodectxstack;
-            add_edge nodectxstack edge to_nodectxstack
-          ) locedges_to_nodectxstacks;
-        List.iter (fun (edge, to_nodectxstack) ->
-            iter_nodestack to_nodectxstack
-          ) locedges_to_nodectxstacks
+        List.iter (fun (edge, to_node) ->
+            write_node to_node;
+            write_edge node edge to_node
+          ) edge_to_nodes;
+        List.iter (fun (edge, to_node) ->
+            iter_node to_node
+          ) edge_to_nodes
       end
     end
   in
 
-  add_node ~entry:true main_entry;
-  iter_nodestack main_entry;
+  write_node ~entry:true main_entry;
+  iter_node main_entry;
 
   GML.stop g;
   close_out_noerr out
