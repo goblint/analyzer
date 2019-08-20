@@ -1,42 +1,7 @@
 open MyCFG
 open WitnessUtil
 open Graphml
-
-
-module type Task =
-sig
-  val file: Cil.file
-  val specification: Svcomp.specification
-
-  module Cfg: CfgBidir (* TODO: only needs CfgForward? *)
-end
-
-module type TaskResult =
-sig
-  module Arg: MyARG.S
-
-  val result: bool
-
-  (* correctness witness *)
-  val invariant: Arg.Node.t -> Invariant.t
-
-  (* violation witness *)
-  val is_violation: Arg.Node.t -> bool
-  val is_sink: Arg.Node.t -> bool
-end
-
-module StackTaskResult (Cfg:CfgForward) (TaskResult: TaskResult) =
-struct
-  module Arg = MyARG.Stack (Cfg) (TaskResult.Arg)
-
-  let result = TaskResult.result
-
-  let invariant nl = TaskResult.invariant (List.hd nl)
-
-  let is_violation nl = TaskResult.is_violation (List.hd nl)
-  let is_sink nl = TaskResult.is_sink (List.hd nl)
-end
-
+open Svcomp
 
 let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
   let module Cfg = Task.Cfg in
