@@ -455,7 +455,7 @@ struct
       in
       Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
-      let (witness_prev, witness_next) =
+      let witness_next =
         let lh = !lh_ref in
         let gh = !global_xml in
         let ask_local (lvar:EQSys.LVar.t) local =
@@ -480,17 +480,16 @@ struct
         in
         (* let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in *)
 
-        let prev = LHT.create 100 in
         let next = LHT.create 100 in
         LHT.iter (fun lvar local ->
             ignore (ask_local lvar local (Queries.IterPrevVars (fun (prev_node, prev_c_obj) edge ->
                 let prev_lvar: LHT.key = (prev_node, Obj.obj prev_c_obj) in
-                LHT.modify_def [] lvar (fun prevs -> (edge, prev_lvar) :: prevs) prev;
                 LHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar) :: nexts) next
               )))
           ) lh;
 
-        (prev, next)
+        fun n ->
+          LHT.find_default next n [] (* main return is not in next at all *)
       in
       let module Arg =
       struct
@@ -510,8 +509,7 @@ struct
         end
 
         let main_entry = WitnessUtil.find_main_entry entrystates
-        let next n =
-          LHT.find_default witness_next n [] (* main return is not in next at all *)
+        let next = witness_next
       end
       in
 
