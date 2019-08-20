@@ -205,7 +205,8 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" Task.specification;
-  GML.write_metadata g "programfile" (getLoc (N.node main_entry)).file;
+  let programfile = (getLoc (N.node main_entry)).file in
+  GML.write_metadata g "programfile" programfile;
   (* TODO: programhash *)
   (* TODO: architecture *)
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
@@ -257,6 +258,13 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
              else
                []
            end; *)
+        begin let loc = getLoc from_node in
+          (* exclude line numbers from sv-comp.c and unknown line numbers *)
+          if loc.file = programfile && loc.line <> -1 then
+            [("startline", string_of_int loc.line)]
+          else
+            []
+        end;
         begin if NH.mem loop_heads to_node then
             [("enterLoopHead", "true")]
           else
