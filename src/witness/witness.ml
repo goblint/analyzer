@@ -2,7 +2,8 @@ open MyCFG
 open WitnessUtil
 open Graphml
 
-module HashedPair (M1: Hashtbl.HashedType) (M2: Hashtbl.HashedType): (Hashtbl.HashedType with type t = M1.t * M2.t) =
+module HashedPair (M1: Hashtbl.HashedType) (M2: Hashtbl.HashedType):
+  Hashtbl.HashedType with type t = M1.t * M2.t =
 struct
   type t = M1.t * M2.t
   (* copied from Printable.Prod *)
@@ -10,7 +11,8 @@ struct
   let hash (x,y) = M1.hash x + M2.hash y * 17
 end
 
-module HashedList (M: Hashtbl.HashedType): (Hashtbl.HashedType with type t = M.t list) =
+module HashedList (M: Hashtbl.HashedType):
+  Hashtbl.HashedType with type t = M.t list =
 struct
   type t = M.t list
   (* copied from Printable.Liszt *)
@@ -35,25 +37,22 @@ sig
   val next: Node.t -> (MyCFG.edge * Node.t) list
 end
 
-module StackArg (Cfg:CfgForward) (Arg: Arg):
-  (* TODO: better signature *)
-sig
-  module Node: ArgNode with type t = Arg.Node.t list
-
-  val main_entry: Node.t
-  val next: Node.t -> (MyCFG.edge * Node.t) list
-end =
+module StackArgNode (ArgNode: ArgNode):
+  ArgNode with type t = ArgNode.t list =
 struct
-  module Node =
-  struct
-    include HashedList (Arg.Node)
+  include HashedList (ArgNode)
 
-    let node nl = Arg.Node.node (List.hd nl)
-    let to_string nl =
-      nl
-      |> List.map Arg.Node.to_string
-      |> String.concat "@"
-  end
+  let node nl = ArgNode.node (List.hd nl)
+  let to_string nl =
+    nl
+    |> List.map ArgNode.to_string
+    |> String.concat "@"
+end
+
+module StackArg (Cfg:CfgForward) (Arg: Arg):
+  Arg with module Node = StackArgNode (Arg.Node) =
+struct
+  module Node = StackArgNode (Arg.Node)
 
   let main_entry = [Arg.main_entry]
 
@@ -145,7 +144,7 @@ end
 (* copied from NodeGraphMlWriter *)
 (* TODO: move to somewhere else but don't create cycle *)
 module ArgNodeGraphMlWriter (N: ArgNode) (M: StringGraphMlWriter):
-  (GraphMlWriter with type node = N.t) =
+  GraphMlWriter with type node = N.t =
 struct
   type t = M.t
   type node = N.t
