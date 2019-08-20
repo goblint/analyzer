@@ -485,8 +485,8 @@ struct
         LHT.iter (fun lvar local ->
             ignore (ask_local lvar local (Queries.IterPrevVars (fun (prev_node, prev_c_obj) edge ->
                 let prev_lvar: LHT.key = (prev_node, Obj.obj prev_c_obj) in
-                LHT.modify_def [] lvar (fun prevs -> (prev_lvar, edge) :: prevs) prev;
-                LHT.modify_def [] prev_lvar (fun nexts -> (lvar, edge) :: nexts) next
+                LHT.modify_def [] lvar (fun prevs -> (edge, prev_lvar) :: prevs) prev;
+                LHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar) :: nexts) next
               )))
           ) lh;
 
@@ -512,7 +512,6 @@ struct
         let main_entry = WitnessUtil.find_main_entry entrystates
         let next n =
           LHT.find_default witness_next n [] (* main return is not in next at all *)
-          |> List.map (fun (to_n, edge) -> (edge, to_n)) (* TODO: flip order in witness_next *)
       end
       in
 
