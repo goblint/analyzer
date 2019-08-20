@@ -9,7 +9,7 @@ sig
   val file: Cil.file
   val specification: specification
 
-  module Cfg: MyCFG.CfgBidir (* TODO: only needs CfgForward? *)
+  module Cfg: MyCFG.CfgForward
 end
 
 module type TaskResult =

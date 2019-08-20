@@ -18,7 +18,7 @@ let find_main_entry entrystates =
   | _, _ :: _ -> failwith "some other_entry_nodes"
   | [main_entry], [] -> main_entry
 
-let find_loop_heads (module Cfg:CfgBidir) (file:Cil.file): unit NH.t =
+let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
   let loop_heads = NH.create 100 in
   let global_visited_nodes = NH.create 100 in
 
