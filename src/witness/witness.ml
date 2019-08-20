@@ -38,24 +38,6 @@ struct
 end
 
 
-(* copied from NodeGraphMlWriter *)
-(* TODO: move to somewhere else but don't create cycle *)
-module ArgNodeGraphMlWriter (N: MyARG.Node) (M: StringGraphMlWriter):
-  GraphMlWriter with type node = N.t =
-struct
-  type t = M.t
-  type node = N.t
-
-  let string_of_node = N.to_string
-
-  let start = M.start
-  let write_key = M.write_key
-  let write_metadata = M.write_metadata
-  let write_node g node datas = M.write_node g (string_of_node node) datas
-  let write_edge g source target datas = M.write_edge g (string_of_node source) (string_of_node target) datas
-  let stop = M.stop
-end
-
 let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
   let module Cfg = Task.Cfg in
   let module TaskResult = StackTaskResult (Cfg) (TaskResult) in
