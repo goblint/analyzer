@@ -52,104 +52,8 @@ struct
   let invariant _ _ = Invariant.none
 end
 
-module PrintableObj =
-struct
-  type t = int
-
-  let name () = "PrintableObj"
-
-  module H = Hashtbl.Make (
-    struct
-      type t = int
-      let equal x y = x = y
-      let hash x = x
-    end
-    )
-
-  let to_obj_table = H.create 100
-
-  let of_obj o =
-    let h = Hashtbl.hash o in
-    if not (H.mem to_obj_table h) then
-      H.add to_obj_table h o;
-    h
-
-  let to_obj x = H.find to_obj_table x
-
-  let short _ x = Printf.sprintf "PrintableObj(%d)" x
-
-  include Printable.PrintSimple (
-    struct
-      type t' = t
-      let short = short
-      let name = name
-    end
-    )
-  let to_yojson x = `String (short 100 x)
-
-  let invariant _ _ = Invariant.none
-
-  let compare x y = Pervasives.compare x y
-  let equal x y = compare x y = 0
-  let hash x = x
-end
-
 module FlatBot (Base: Printable.S) = Lattice.LiftBot (Lattice.Fake (Base))
 
-module Spec : Analyses.Spec =
-struct
-  include Analyses.DefaultSpec
-
-  let name = "witness"
-
-  (* module V = PrintableVar *)
-  module V = Printable.Prod (PrintableVar) (PrintableObj)
-  module S = SetDomain.Make (V)
-  module F = FlatBot (V)
-
-  module D = Lattice.Prod (S) (F)
-  module G = Lattice.Unit
-  module C = D
-
-  let set_of_flat (x:F.t): S.t = match x with
-    | `Lifted x -> S.singleton x
-    | `Bot -> S.bot ()
-
-  let step (from:D.t) (to_node:V.t): D.t =
-    let prev = set_of_flat (snd from) in
-    (prev, F.lift to_node)
-
-  (* let step_ctx ctx = step ctx.local ctx.node *)
-  let step_ctx ctx = step ctx.local (ctx.node, PrintableObj.of_obj ctx.context)
-
-  (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    step_ctx ctx
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    step_ctx ctx
-
-  let body ctx (f:fundec) : D.t =
-    step_ctx ctx
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    step_ctx ctx
-
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* [ctx.local, step ctx.local (FunctionEntry f)] *)
-    [ctx.local, step ctx.local (FunctionEntry f, PrintableObj.of_obj ctx.context)] (* TODO: wrong context? should somehow be like WitnessLifter enter? *)
-
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* step au ctx.node *)
-    step au (ctx.node, PrintableObj.of_obj ctx.context)
-
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    step_ctx ctx
-
-  let startstate v = D.bot ()
-  let otherstate v = D.bot ()
-  let exitstate  v = D.bot ()
-end
 
 module WitnessLifter (S:Spec): Spec =
 struct
@@ -314,6 +218,3 @@ struct
     let w = step w' MyCFG.Skip (ctx.node, get_context ctx) in
     strict (d, w)
 end
-
-let _ =
-  MCP.register_analysis (module Spec : Spec)
