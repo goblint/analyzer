@@ -10,7 +10,7 @@ sig
   val in_rel : t -> relation -> t -> bool
 end *)
 
-(* partial order: elements might not be comparable and no bot/top -> join etc. might fail *)
+(* partial order: elements might not be comparable and no bot/top -> join etc. might fail with exception Uncomparable *)
 exception Uncomparable
 module type PO =
 sig
@@ -216,6 +216,64 @@ struct
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | _ -> x
+end
+
+module LiftPO (Base: PO) (N: Printable.LiftingNames) =
+struct
+  include Printable.Lift (Base) (N)
+
+  let bot () = `Bot
+  let is_bot x = x = `Bot
+  let top () = `Top
+  let is_top x = x = `Top
+
+  let leq x y =
+    match (x,y) with
+    | (_, `Top) -> true
+    | (`Top, _) -> false
+    | (`Bot, _) -> true
+    | (_, `Bot) -> false
+    | (`Lifted x, `Lifted y) -> Base.leq x y
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    match (x,y) with
+    | (`Lifted x, `Lifted y) -> Base.pretty_diff () (x,y)
+    | _ -> if leq x y then Pretty.text "No Changes" else
+        Pretty.dprintf "%a instead of %a" pretty x pretty y
+
+  let join x y =
+    match (x,y) with
+    | (`Top, _) -> `Top
+    | (_, `Top) -> `Top
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Lifted x, `Lifted y) ->
+      try `Lifted (Base.join x y)
+      with Uncomparable -> `Top
+
+  let meet x y =
+    match (x,y) with
+    | (`Bot, _) -> `Bot
+    | (_, `Bot) -> `Bot
+    | (`Top, x) -> x
+    | (x, `Top) -> x
+    | (`Lifted x, `Lifted y) ->
+      try `Lifted (Base.meet x y)
+      with Uncomparable -> `Bot
+
+  let widen x y =
+    match (x,y) with
+    | (`Lifted x, `Lifted y) ->
+      (try `Lifted (Base.widen x y)
+      with Uncomparable -> `Top)
+    | _ -> y
+
+  let narrow x y =
+    match (x,y) with
+    | (`Lifted x, `Lifted y) ->
+      (try `Lifted (Base.narrow x y)
+      with Uncomparable -> `Bot)
     | _ -> x
 end
 

@@ -279,7 +279,7 @@ struct
     | None, _ | _, None -> bot ()
     | Some (x1,x2), Some (y1,y2) ->
       begin match y1, y2 with
-        | 0L, 0L       -> bot ()
+        | 0L, 0L       -> top () (* TODO warn about undefined behavior *)
         | 0L, _        -> div (Some (x1,x2)) (Some (1L,y2))
         | _      , 0L  -> div (Some (x1,x2)) (Some (y1,(-1L)))
         | _ when leq (of_int 0L) (Some (y1,y2)) -> top ()
@@ -381,14 +381,8 @@ struct
   let add  = Int64.add (* TODO: signed overflow is undefined behavior! *)
   let sub  = Int64.sub
   let mul  = Int64.mul
-  let div x y = (* TODO: exception is not very helpful here?! *)
-    match y with
-    | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *)
-    | _  -> Int64.div x y           (*    sigfpe and ocaml has somehow forgotten how to deal with it*)
-  let rem x y =
-    match y with
-    | 0L -> raise Division_by_zero  (* ditto *)
-    | _  -> Int64.rem x y
+  let div  = Int64.div
+  let rem  = Int64.rem
   let lt n1 n2 = of_bool (n1 <  n2)
   let gt n1 n2 = of_bool (n1 >  n2)
   let le n1 n2 = of_bool (n1 <= n2)
@@ -496,9 +490,9 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
-module Lift (Base: S) = (* identical to Flat, but does not go to `Top/`Bot if Base raises Unknown/Error *)
+module Lift (Base: S) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
-  include Lattice.Lift (Base) (struct
+  include Lattice.LiftPO (Base) (struct
       let top_name = "MaxInt"
       let bot_name = "MinInt"
     end)

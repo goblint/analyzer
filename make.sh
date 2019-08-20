@@ -1,5 +1,6 @@
 #! /bin/bash
-set -e
+set -e # exit immediately if a command fails
+set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
 TARGET=src/goblint
 FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
@@ -17,7 +18,7 @@ ocb() {
 opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
-  opam switch -y create ./ --deps-only ocaml-base-compiler.4.07.1
+  opam switch -y create . --deps-only ocaml-base-compiler.4.07.1 --locked
   # opam install camlp4 mongo # camlp4 needed for mongo
 }
 
@@ -73,7 +74,7 @@ rule() {
       cd g2html && ant jar && cd .. &&
       cp g2html/g2html.jar .
     ;; deps)
-      opam install -y . --deps-only
+      opam update; opam install -y . --deps-only --locked
     ;; setup)
       echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
@@ -88,7 +89,7 @@ rule() {
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
     ;; lock)
-      opam lock .
+      opam lock
     ;; watch)
       fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; headers)
@@ -111,7 +112,7 @@ rule() {
       # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
       docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
     ;; docker) # build and run a docker image
-      docker build -t goblint . | ts -i
+      docker build --pull -t goblint . | ts -i
       docker run -it goblint bash
     ;; unit)
       ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native

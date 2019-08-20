@@ -5,14 +5,6 @@ open Messages
 
 module A = Array
 
-type json = Yojson.Safe.t
-
-module Map = struct
-    module Make (X: sig include Map.OrderedType val to_yojson : t -> json end) = struct
-      include Map.Make (X)
-      let to_yojson poly_v x = [%to_yojson: (X.t * 'v) list] (bindings x)
-    end
-end
 
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
@@ -382,7 +374,7 @@ struct
   include Printable.Std
   include Lattice.StdCousot
 
-  module M = Map.Make (Idx)
+  module M = Deriving.Map.Make (Idx)
 
   type t =
     | Mapping of Base.t M.t
@@ -577,7 +569,7 @@ end
  *)
 module CountingMap (Base: Lattice.S) (Idx: IntDomain.S) =
 struct
-  module M = Map.Make (Idx)
+  module M = Deriving.Map.Make (Idx)
 
   type scmap = (int ref) M.t [@@deriving to_yojson]
   type t = Base.t M.t (*map*) * scmap (*index map*) * int ref (*pos*) * int (*len*) [@@deriving to_yojson]
