@@ -455,7 +455,7 @@ struct
       in
       Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
-      let witness_next =
+      let (witness_prev, witness_next) =
         let lh = !lh_ref in
         let gh = !global_xml in
         let ask_local (lvar:EQSys.LVar.t) local =
@@ -480,16 +480,20 @@ struct
         in
         (* let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in *)
 
+        let prev = LHT.create 100 in
         let next = LHT.create 100 in
         LHT.iter (fun lvar local ->
             ignore (ask_local lvar local (Queries.IterPrevVars (fun (prev_node, prev_c_obj) edge ->
                 let prev_lvar: LHT.key = (prev_node, Obj.obj prev_c_obj) in
+                LHT.modify_def [] lvar (fun prevs -> (edge, prev_lvar) :: prevs) prev;
                 LHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar) :: nexts) next
               )))
           ) lh;
 
-        fun n ->
-          LHT.find_default next n [] (* main return is not in next at all *)
+        ((fun n ->
+            LHT.find_default prev n []), (* main entry is not in prev at all *)
+         (fun n ->
+            LHT.find_default next n [])) (* main return is not in next at all *)
       in
       let module Arg =
       struct
@@ -530,15 +534,39 @@ struct
         in
         Witness.write_file "witness.graphml" (module Task) (module TaskResult)
       end else begin
+        let is_violation = function
+          | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
+          | _, _ -> false
+        in
+        let is_sink =
+          (* TODO: somehow move this to witnessUtil *)
+          let non_sinks = LHT.create 100 in
+
+          (* DFS *)
+          let rec iter_node node =
+            if not (LHT.mem non_sinks node) then begin
+              LHT.replace non_sinks node ();
+              List.iter (fun (_, prev_node) ->
+                  iter_node prev_node
+                ) (witness_prev node)
+            end
+          in
+
+          LHT.iter (fun lvar _ ->
+              if is_violation lvar then
+                iter_node lvar
+            ) !lh_ref;
+
+          fun n ->
+            not (LHT.mem non_sinks n)
+        in
         let module TaskResult =
         struct
           module Arg = Arg
           let result = false
           let invariant _ = Invariant.none
-          let is_violation = function
-            | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
-            | _, _ -> false
-          let is_sink _ = false
+          let is_violation = is_violation
+          let is_sink = is_sink
         end
         in
         Witness.write_file "witness.graphml" (module Task) (module TaskResult)
