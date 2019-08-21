@@ -44,6 +44,9 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   GML.write_key g "edge" "threadId" "string" None;
   GML.write_key g "edge" "createThread" "string" None;
 
+  GML.write_key g "node" "goblintNode" "string" None;
+  GML.write_key g "edge" "goblintEdge" "string" None;
+
   GML.write_metadata g "witness-type" (if TaskResult.result then "correctness_witness" else "violation_witness");
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
@@ -87,7 +90,12 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
             [("sink", "true")]
           else
             []
-        end
+        end;
+        [("goblintNode", match cfgnode with
+           | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
+           | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
+           | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
+          )]
       ])
   in
   let write_edge from_node edge to_node =
@@ -131,7 +139,8 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
           | Ret (_, f) ->
             [("returnFromFunction2", f.svar.vname)]
           | _ -> []
-        end
+        end;
+        [("goblintEdge", Pretty.sprint 80 (pretty_edge () edge))]
       ])
   in
 
