@@ -3,16 +3,81 @@ open WitnessUtil
 open Graphml
 open Svcomp
 
+module type IsInteresting =
+sig
+  type node
+  val is_interesting: node -> MyCFG.edge -> node -> bool
+end
+
+module InterestingArg (TaskResult: TaskResult) (IsInteresting: IsInteresting with type node := TaskResult.Arg.Node.t):
+  MyARG.S with module Node = TaskResult.Arg.Node =
+struct
+  module Arg = TaskResult.Arg
+  include Arg
+
+  (* too aggressive, duplicates some interesting edges *)
+  (* let rec next node =
+       Arg.next node
+       |> List.map (fun (edge, to_node) ->
+           if IsInteresting.is_interesting node edge to_node then
+             [(edge, to_node)]
+           else
+             next to_node
+         )
+       |> List.flatten *)
+
+  let rec next node =
+    Arg.next node
+    |> List.map (fun (edge, to_node) ->
+        if IsInteresting.is_interesting node edge to_node then
+          [(edge, to_node)]
+        else begin
+          let to_node_next = next to_node in
+          if List.exists (fun (edge, to_node) ->
+              IsInteresting.is_interesting node edge to_node
+            ) to_node_next then
+            [(edge, to_node)] (* don't shortcut if node has outdoing interesting edges, e.g. control *)
+          else
+            to_node_next
+        end
+      )
+    |> List.flatten
+end
+
 let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
   let module Cfg = Task.Cfg in
+  let loop_heads = find_loop_heads (module Cfg) Task.file in
+
   let module TaskResult = StackTaskResult (Cfg) (TaskResult) in
-  let module Arg = TaskResult.Arg in
+  let module N = TaskResult.Arg.Node in
+  let module IsInteresting =
+  struct
+    type t = N.t
+    let is_interesting from_node edge to_node =
+      (* TODO: don't duplicate this logic with write_node, write_edge *)
+      (* startlines aren't currently interesting because broken, see below *)
+      let to_cfgnode = N.cfgnode to_node in
+      if TaskResult.is_violation to_node || TaskResult.is_sink to_node then
+        true
+      else if WitnessUtil.NH.mem loop_heads to_cfgnode then
+        true
+      else begin match edge with
+        | Test _ -> true
+        | _ -> false
+      end || begin match to_cfgnode, TaskResult.invariant to_node with
+          | Statement _, Some _ -> true
+          | _, _ -> false
+        end
+  end
+  in
+  (* let module Arg = TaskResult.Arg in *)
+  let module Arg = InterestingArg (TaskResult) (IsInteresting) in
+
   let module N = Arg.Node in
   let module GML = DeDupGraphMlWriter (N) (ArgNodeGraphMlWriter (N) (XmlGraphMlWriter)) in
   let module NH = Hashtbl.Make (N) in
 
   let main_entry = Arg.main_entry in
-  let loop_heads = find_loop_heads (module Cfg) Task.file in
 
   let out = open_out filename in
   let g = GML.start out in
