@@ -30,6 +30,9 @@ sig
   (** Left fold (like List.fold_left) over the arrays elements *)
   val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
   (** Left fold over the elements of two arrays (like List.fold_left2 *)
+  val smart_join: ?length:(int64 option) -> t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t
+  val smart_widen: ?length:(int64 option) -> t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t
+  val smart_leq: ?length:(int64 option) -> t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> bool
 end
 
 

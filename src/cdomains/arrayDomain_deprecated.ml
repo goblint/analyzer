@@ -160,6 +160,9 @@ struct
   let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = [] 
+  let smart_join ?(length=None) x y _ _ = join x y
+  let smart_widen ?(length=None) a b _ _ = widen a b
+  let smart_leq ?(length=None) x y _ _ = leq x y
 end
 
 module NativeArrayEx (Base: Lattice.S) (Idx: IntDomain.S)
@@ -210,6 +213,9 @@ struct
   let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = [] 
+  let smart_join ?(length=None) x y _ _ = join x y
+  let smart_widen ?(length=None) a b _ _ = widen a b
+  let smart_leq ?(length=None) x y _ _ = leq x y
 end
 
 module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
@@ -365,6 +371,9 @@ struct
   let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
+  let smart_join ?(length=None) x y _ _ = join x y
+  let smart_widen ?(length=None) a b _ _ = widen a b
+  let smart_leq ?(length=None) x y _ _ = leq x y
 end
 
 
@@ -551,6 +560,9 @@ struct
   let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
+  let smart_join ?(length=None) x y _ _ = join x y
+  let smart_widen ?(length=None) a b _ _ = widen a b
+  let smart_leq ?(length=None) x y _ _ = leq x y
 end
 
 
@@ -888,6 +900,9 @@ struct
   let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
+  let smart_join ?(length=None) x y _ _ = join x y
+  let smart_widen ?(length=None) a b _ _ = widen a b
+  let smart_leq ?(length=None) x y _ _ = leq x y
 end
 
 module LooseMapArray
@@ -1028,6 +1043,9 @@ struct
   let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
+  let smart_join ?(length=None) x y _ _ = join x y
+  let smart_widen ?(length=None) a b _ _ = widen a b
+  let smart_leq ?(length=None) x y _ _ = leq x y
 end
 
 
@@ -1079,6 +1097,9 @@ struct
   let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
+  let smart_join ?(length=None) x y _ _ = join x y
+  let smart_widen ?(length=None) a b _ _ = widen a b
+  let smart_leq ?(length=None) x y _ _ = leq x y
 end
 
 
@@ -1132,4 +1153,7 @@ struct
   let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
+  let smart_join ?(length=None) x y _ _ = join x y
+  let smart_widen ?(length=None) a b _ _ = widen a b
+  let smart_leq ?(length=None) x y _ _ = leq x y
 end

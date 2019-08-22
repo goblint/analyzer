@@ -24,6 +24,9 @@ sig
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
   val array_should_join: t -> t ->  (exp -> int64 option) -> (exp -> int64 option) -> bool 
+  val smart_join: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> t
+  val smart_widen: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> t
+  val smart_leq: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> bool
 end
 
 module type Blob =
@@ -406,6 +409,72 @@ struct
     | _ ->
       warn_type "join" x y;
       `Top
+
+  let rec smart_join x y x_eval_int y_eval_int =
+    match (x,y) with
+    | (`Top, _) -> `Top
+    | (_, `Top) -> `Top
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Int x, `Int y) -> `Int (ID.join x y)
+    | (`Int x, `Address y)
+    | (`Address y, `Int x) -> `Address (match ID.to_int x with
+        | Some 0L -> AD.join AD.null_ptr y
+        | Some x when x<>0L -> AD.(join y not_null)
+        | _ -> AD.join y AD.top_ptr)
+    | (`Address x, `Address y) -> `Address (AD.join x y)
+    | (`Struct x, `Struct y) -> `Struct (Structs.join x y) (* TODO: We need smart join for all of these *)
+    | (`Union x, `Union y) -> `Union (Unions.join x y) (* TODO: We need smart join for all of these *)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_join x y x_eval_int y_eval_int)
+    | (`List x, `List y) -> `List (Lists.join x y) (* TODO: We need smart join for all of these *)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* TODO: We need smart join for all of these *)
+    | `Blob (x,s), y
+    | y, `Blob (x,s) ->
+      `Blob (join (x:t) y, s)
+    | _ ->
+      warn_type "join" x y;
+      `Top
+
+  let smart_widen x y x_eval_int y_eval_int =
+    match (x,y) with
+    | (`Top, _) -> `Top
+    | (_, `Top) -> `Top
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Int x, `Int y) -> `Int (ID.widen x y)
+    | (`Int x, `Address y)
+    | (`Address y, `Int x) -> `Address (match ID.to_int x with
+        | Some 0L -> AD.widen AD.null_ptr y
+        | Some x when x<>0L -> AD.(widen y not_null)
+        | _ -> AD.widen y AD.top_ptr)
+    | (`Address x, `Address y) -> `Address (AD.widen x y)
+    | (`Struct x, `Struct y) -> `Struct (Structs.widen x y) (* TODO: We need smart widen for all of these *)
+    | (`Union x, `Union y) -> `Union (Unions.widen x y) (* TODO: We need smart widen for all of these *)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_widen x y x_eval_int y_eval_int)
+    | (`List x, `List y) -> `List (Lists.widen x y) (* TODO: We need smart widen for all of these *)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* TODO: We need smart widen for all of these *)
+    | _ ->
+      warn_type "widen" x y;
+      `Top
+
+
+  let smart_leq x y x_eval_int y_eval_int =
+    match (x,y) with
+    | (_, `Top) -> true
+    | (`Top, _) -> false
+    | (`Bot, _) -> true
+    | (_, `Bot) -> false
+    | (`Int x, `Int y) -> ID.leq x y
+    | (`Int x, `Address y) when ID.to_int x = Some 0L && not (AD.is_not_null y) -> true
+    | (`Int _, `Address y) when AD.may_be_unknown y -> true
+    | (`Address _, `Int y) when ID.is_top y -> true
+    | (`Address x, `Address y) -> AD.leq x y
+    | (`Struct x, `Struct y) -> Structs.leq x y (* TODO: We need smart leq for all of these *)
+    | (`Union x, `Union y) -> Unions.leq x y (* TODO: We need smart leq for all of these *)
+    | (`Array x, `Array y) -> CArrays.smart_leq x y x_eval_int y_eval_int
+    | (`List x, `List y) -> Lists.leq x y (* TODO: We need smart leq for all of these *)
+    | (`Blob x, `Blob y) -> Blobs.leq x y (* TODO: We need smart leq for all of these *)
+    | _ -> warn_type "leq" x y; false
 
   let rec meet x y =
     match (x,y) with
