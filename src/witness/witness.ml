@@ -46,6 +46,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
 
   GML.write_key g "node" "goblintNode" "string" None;
   GML.write_key g "edge" "goblintEdge" "string" None;
+  GML.write_key g "edge" "goblintLine" "string" None;
 
   GML.write_metadata g "witness-type" (if TaskResult.result then "correctness_witness" else "violation_witness");
   GML.write_metadata g "sourcecodelang" "C";
@@ -112,7 +113,9 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
         begin let loc = getLoc from_cfgnode in
           (* exclude line numbers from sv-comp.c and unknown line numbers *)
           if loc.file = programfile && loc.line <> -1 then
-            [("startline", string_of_int loc.line)]
+            (* TODO: startline disabled because Ultimate doesn't like our line numbers for some reason *)
+            (* [("startline", string_of_int loc.line)] *)
+            [("goblintLine", string_of_int loc.line)]
           else
             []
         end;
