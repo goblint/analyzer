@@ -477,6 +477,7 @@ struct
     let new_l = Length.to_int xl in
     (Base.smart_widen ~length:new_l x y x_eval_int y_eval_int,Length.join xl yl)
 
-  let smart_leq ?(length=None) (x,xl) (y,yl) x_eval_int y_eval_int = 
-    Base.smart_leq x y x_eval_int y_eval_int
+  let smart_leq ?(length=None) (x,xl) (y,yl) x_eval_int y_eval_int =
+    let new_l = Length.to_int xl in
+    Base.smart_leq ~length:new_l x y x_eval_int y_eval_int
 end
