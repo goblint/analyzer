@@ -2,6 +2,7 @@ open MyCFG
 open WitnessUtil
 open Graphml
 open Svcomp
+open GobConfig
 
 module type IsInteresting =
 sig
@@ -53,7 +54,8 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   let module IsInteresting =
   struct
     type t = N.t
-    let is_interesting from_node edge to_node =
+    let minwitness = get_bool "exp.minwitness"
+    let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
       (* startlines aren't currently interesting because broken, see below *)
       let to_cfgnode = N.cfgnode to_node in
@@ -68,6 +70,8 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
           | Statement _, Some _ -> true
           | _, _ -> false
         end
+    let is_interesting from_node edge to_node =
+      not minwitness || is_interesting_real from_node edge to_node
   end
   in
   (* let module Arg = TaskResult.Arg in *)
