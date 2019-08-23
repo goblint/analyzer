@@ -26,6 +26,7 @@ sig
   val to_yojson : t -> json
 
   val invariant: Invariant.context -> t -> Invariant.t
+  val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
 end
 
 module Std =
@@ -39,6 +40,7 @@ struct
   let trace_enabled = false
 
   let invariant _ _ = Invariant.none
+  let tag _ = failwith "Std: no tag"
 end
 
 module Blank =
@@ -122,6 +124,7 @@ struct
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
+  let tag x = x.BatHashcons.tag
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
   let short w = lift_f (Base.short w)

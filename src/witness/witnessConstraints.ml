@@ -27,6 +27,7 @@ struct
     BatPrintf.fprintf f "%s" (Xml.to_string (toXML x))
   let name () = "var"
   let invariant _ _ = Invariant.none
+  let tag _ = failwith "PrintableVar: no tag"
 end
 
 (* TODO: move this to MyCFG *)
@@ -50,6 +51,7 @@ struct
     )
 
   let invariant _ _ = Invariant.none
+  let tag _ = failwith "Edge: no tag"
 end
 
 module FlatBot (Base: Printable.S) = Lattice.LiftBot (Lattice.Fake (Base))

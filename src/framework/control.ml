@@ -505,11 +505,11 @@ struct
 
           let to_string (n, c) =
             (* copied from NodeCtxStackGraphMlWriter *)
-            let cstr = string_of_int (Spec.C.hash c) in (* TODO: proper string *)
+            let c_tag = Spec.C.tag c in
             match n with
-            | Statement stmt  -> Printf.sprintf "s%d(%s)" stmt.sid cstr
-            | Function f      -> Printf.sprintf "ret%d%s(%s)" f.vid f.vname cstr
-            | FunctionEntry f -> Printf.sprintf "fun%d%s(%s)" f.vid f.vname cstr
+            | Statement stmt  -> Printf.sprintf "s%d(%d)" stmt.sid c_tag
+            | Function f      -> Printf.sprintf "ret%d%s(%d)" f.vid f.vname c_tag
+            | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)" f.vid f.vname c_tag
         end
 
         let main_entry = WitnessUtil.find_main_entry entrystates
