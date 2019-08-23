@@ -67,6 +67,8 @@ struct
   struct
     include Lattice.Prod (S.D) (W)
 
+    let invariant c (d, w) = S.D.invariant c d (* don't return invariants from prev vars contexts *)
+
     let printXml f (d, w) =
       (* BatPrintf.fprintf f "%a<path><analysis name=\"witness\">%a</analysis></path>" S.D.printXml d W.printXml w *)
       BatPrintf.fprintf f "%a<analysis name=\"witness\">%a</analysis>" S.D.printXml d W.printXml w
