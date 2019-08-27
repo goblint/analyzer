@@ -176,6 +176,7 @@ let _ = ()
       ; reg Experimental "exp.incremental.mode"  "'off'" "Use incremental analysis in the TD3 solver."
       ; reg Experimental "exp.incremental.stable" "true" "Reuse the stable set and selectively destabilize it."
       ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
+      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc-6'" "Location of gcc-6. Used to combine source files with cilly."
 
 (* {4 category [Debugging]} *)
 let _ = ()

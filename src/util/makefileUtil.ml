@@ -28,7 +28,8 @@ let run_cilly (path: string) =
     let current_dir = Sys.getcwd () in
     if Sys.file_exists path && Sys.is_directory path then (
         Sys.chdir path;
-        let output = run_make [|"make"; "CC=cilly --gcc=/usr/bin/gcc-6 --merge --keepmerged"; "LD=cilly --gcc=/usr/bin/gcc-6 --merge --keepmerged"|] in
+        let gcc_path = GobConfig.get_string "exp.gcc_path" in
+        let output = run_make [|"make"; "CC=cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged"; "LD=cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged"|] in
         print_endline output;
         Sys.chdir current_dir;
     )
