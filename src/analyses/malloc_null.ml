@@ -223,7 +223,7 @@ struct
       end
     | _ -> ctx.local
 
-  let name = "malloc_null"
+  let name () = "malloc_null"
 
   let startstate v = D.empty ()
   let otherstate v = D.empty ()

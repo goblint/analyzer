@@ -445,7 +445,7 @@ sig
   module G : Lattice.S
   module C : Printable.S
 
-  val name : string
+  val name : unit -> string
 
   val init : unit -> unit
   val finalize : unit -> unit

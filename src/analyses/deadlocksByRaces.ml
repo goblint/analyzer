@@ -7,7 +7,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "oslo"
+  let name () = "oslo"
   module MSpec = Mutex.Spec
   module D = MSpec.D
   module G = MSpec.G

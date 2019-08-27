@@ -44,7 +44,7 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "arinc"
+  let name () = "arinc"
 
   let init () =
     LibraryFunctions.add_lib_funs Functions.special;
@@ -260,8 +260,7 @@ struct
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
-    let (a,b,c) = Base.Main.context @@ Obj.obj @@ List.assoc "base" ctx.presub in
-    let base_context = a in
+    let base_context = Base.Main.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub in
     let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
     { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
 

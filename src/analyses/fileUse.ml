@@ -7,7 +7,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "file"
+  let name () = "file"
   module D = FileDomain.Dom
   module C = FileDomain.Dom
   module G = Lattice.Unit

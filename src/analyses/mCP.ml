@@ -25,7 +25,7 @@ let register_analysis =
             ; cont = (module S.C : Printable.S)
             }
     in
-    let n = S.name in
+    let n = S.name () in
     analyses_table := (!count,n) :: !analyses_table;
     analyses_list' := (!count,s) :: !analyses_list';
     dep_list'      := (!count,dep) :: !dep_list';
@@ -224,7 +224,7 @@ struct
 
   open List open Obj
 
-  let name = "MCP2"
+  let name () = "MCP2"
 
   let path_sens = ref []
   let cont_inse = ref []

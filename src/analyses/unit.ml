@@ -7,7 +7,7 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "unit"
+  let name () = "unit"
   module D = Lattice.Unit
   module G = Lattice.Unit
   module C = Lattice.Unit

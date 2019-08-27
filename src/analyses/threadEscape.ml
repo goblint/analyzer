@@ -9,7 +9,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "escape"
+  let name () = "escape"
   module D = EscapeDomain.EscapedVars
   module C = EscapeDomain.EscapedVars
   module G = Lattice.Unit

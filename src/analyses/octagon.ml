@@ -14,7 +14,7 @@ let stripCastsDeep e =
 module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
-  let name = "octagon"
+  let name () = "octagon"
   module D = MapOctagonBot
   module C = D
   module G = Lattice.Unit

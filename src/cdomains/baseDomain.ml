@@ -16,33 +16,23 @@ struct
       with Not_found -> true
     in
     for_all array_join_ok x *)
-  
-  let eval x e =
-    match e with
-    | Lval (Var v, NoOffset) ->
-      begin
-        match find v x with
-        | `Int i -> ValueDomain.ID.to_int i
-        | _ -> None
-      end
-    | _ -> None 
 
-  let smart_join (x:t) (y:t) =
+  let smart_join (x:t) (y:t) (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) =
     let normal_join = join x y in
     if is_top normal_join || is_bot normal_join then
       normal_join
     else
-      if x == y then x else long_map2 (fun (a:VD.t) (b:VD.t) -> VD.smart_join a b (eval x) (eval y)) x y
+      if x == y then x else long_map2 (fun (a:VD.t) (b:VD.t) -> VD.smart_join a b (x_eval_int) (y_eval_int)) x y
 
-  let smart_widen (x:t) (y:t) =
+  let smart_widen (x:t) (y:t) (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) =
     let normal_widen = widen x y in
     if is_top normal_widen || is_bot normal_widen then
       normal_widen
     else
-      if x == y then x else long_map2 (fun (a:VD.t) (b:VD.t) -> VD.smart_widen a b (eval x) (eval y)) x y
+      if x == y then x else long_map2 (fun (a:VD.t) (b:VD.t) -> VD.smart_widen a b (x_eval_int) (y_eval_int)) x y
 
 
-  let smart_leq (x:t) (y:t) =
+  let smart_leq (x:t) (y:t) (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) =
     if is_top y then true
     else if is_bot x then true
     else if is_bot y then is_bot x
@@ -50,7 +40,7 @@ struct
     else
     (* For each key-value in m1, the same key must be in m2 with a geq value: *)
       let p key value =
-        try VD.smart_leq value (find key y) (eval x) (eval y) with Not_found -> false
+        try VD.smart_leq value (find key y) (x_eval_int) (y_eval_int) with Not_found -> false
       in
       x == y || for_all p x
 
@@ -85,16 +75,39 @@ end
 module VarSet = SetDomain.Make(Basetype.Variables)
 module VarMap = MapDomain.MapBot_LiftTop(Basetype.Variables)(VarSet)
 
-module Dom = 
+module type ExpEvaluator =
+sig
+  val eval_exp: CPA.t * Flag.t * VarMap.t ->  Cil.exp -> int64 option
+end
+
+(* Takes a module specifying how expressions can be evaluated inside the domain and returns the domain *)
+module DomFunctor(ExpEval:ExpEvaluator) = 
 struct
   include Lattice.Prod3(CPA)(Flag)(VarMap)
 
-  let join (a1,b1,c1) (a2,b2,c2) =
-    (CPA.smart_join a1 a2, Flag.join b1 b2, VarMap.join c1 c2)
+  let join ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
+    (CPA.smart_join a1 a2 (ExpEval.eval_exp one) (ExpEval.eval_exp two), Flag.join b1 b2, VarMap.join c1 c2)
 
-  let leq (a1, b1, c1) (a2, b2, c2) =
-    CPA.smart_leq a1 a2 && Flag.leq b1 b2 && VarMap.leq c1 c2
+  let leq ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
+    CPA.smart_leq a1 a2 (ExpEval.eval_exp one) (ExpEval.eval_exp two) && Flag.leq b1 b2 && VarMap.leq c1 c2
 
-  let widen (a1,b1,c1) (a2,b2,c2) =
-    (CPA.smart_widen a1 a2, Flag.widen b1 b2, VarMap.widen c1 c2)
+  let widen ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
+    (CPA.smart_widen a1 a2 (ExpEval.eval_exp one) (ExpEval.eval_exp two), Flag.widen b1 b2, VarMap.widen c1 c2)
 end
+
+
+(* The domain with an ExpEval that only returns constant values for top-level vars that are definite ints *)
+module DomWithTrivialExpEval = DomFunctor(struct
+  module M = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
+
+  let eval_exp x e =
+    let (x, _, _) = x in
+    match e with
+    | Lval (Var v, NoOffset) ->
+      begin
+        match M.find v x with
+        | `Int i -> ValueDomain.ID.to_int i
+        | _ -> None
+      end
+    | _ -> None 
+end)

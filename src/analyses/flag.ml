@@ -127,7 +127,7 @@ struct
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
 
-  let name = "flag"
+  let name () = "flag"
 
   let should_join _ _ = true
 

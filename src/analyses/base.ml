@@ -38,7 +38,7 @@ let is_private (a: Q.ask) (_,fl,_) (v: varinfo): bool =
   (not (BaseDomain.Flag.is_multi fl) && is_precious_glob v ||
    match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false)
 
-module Main =
+module MainFunctor(RVEval:BaseDomain.ExpEvaluator) =
 struct
   include Analyses.DefaultSpec
 
@@ -49,12 +49,15 @@ struct
   module Flag   = BaseDomain.Flag
   module Dep    = BaseDomain.VarMap
 
+  module Dom    = BaseDomain.DomFunctor(RVEval)
+
   module G      = BaseDomain.VD
-  module D      = BaseDomain.Dom
-  module C      = BaseDomain.Dom
+  module D      = Dom
+  module C      = Dom
   module V      = Basetype.Variables
 
-  let name = "base"
+
+  let name () = "base"
   let startstate v = CPA.bot (), Flag.bot (), Dep.bot ()
   let otherstate v = CPA.bot (), Flag.start_multi v, Dep.bot ()
   let exitstate  v = CPA.bot (), Flag.start_main v, Dep.bot ()
@@ -74,8 +77,6 @@ struct
   type address = AD.t
   type glob_fun  = V.t -> G.t
   type glob_diff = (V.t * G.t) list
-
-
   
   (**************************************************************************
    * Helpers
@@ -496,6 +497,8 @@ struct
     %> f (get_bool "exp.no-int-context") drop_ints
     %> f (get_bool "exp.no-interval32-context") drop_interval32
 
+  let context_cpa (cpa,fl,dep) = fst_triple @@ context (cpa,fl,dep)
+
   let convertToQueryLval x =
     let rec offsNormal o =
       let toInt i =
@@ -728,6 +731,16 @@ struct
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
       end  
+
+  
+  let eval_exp x (exp:exp):int64 option =
+      (* Since ctx is not available here, we need to make some adjustments *)
+      let knownothing = fun (x:Q.t) -> `Top in (* our version of ask *)
+      let gs = fun _ -> `Top in (* the expression is guaranteed to not contain globals *)
+      let v = eval_rv knownothing gs x exp in
+      match v with
+      | `Int x -> ValueDomain.ID.to_int x
+      | _ -> None
 
   let eval_funvar ctx fval: varinfo list =
     try
@@ -1967,6 +1980,17 @@ struct
       Access.LSSSet.empty (), es
 
 end
+
+module type MainSpec = sig
+  include Spec
+  include BaseDomain.ExpEvaluator
+  val return_lval: unit -> Cil.lval
+  val return_varinfo: unit -> Cil.varinfo
+  type extra = (varinfo * Offs.t * bool) list
+  val context_cpa: D.t -> BaseDomain.CPA.t
+end
+
+module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"]  again after modifying test cases accordingly *)

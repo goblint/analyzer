@@ -189,7 +189,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "term"
+  let name () = "term"
   module D = TermDomain
   module C = TermDomain
   module G = Lattice.Unit
@@ -250,10 +250,10 @@ end
 
 let _ =
   (* Cilfacade.register_preprocess Spec.name (new loopCounterVisitor); *)
-  Cilfacade.register_preprocess Spec.name (new loopBreaksVisitor);
-  Cilfacade.register_preprocess Spec.name (new loopVarsVisitor);
-  Cilfacade.register_preprocess Spec.name (new loopInstrVisitor);
-  Cilfacade.register_preprocess Spec.name (new recomputeVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopVarsVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopInstrVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new recomputeVisitor);
   Hashtbl.clear loopBreaks; (* because the sids are now different *)
-  Cilfacade.register_preprocess Spec.name (new loopBreaksVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
   MCP.register_analysis (module Spec : Spec)

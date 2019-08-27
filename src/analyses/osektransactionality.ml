@@ -10,7 +10,7 @@ struct
 
   let violations = ref false (*print negative warnings? *)
 
-  let name = "OSEK2"
+  let name () = "OSEK2"
   module D = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
   module C = D
   module G = Lattice.Unit

@@ -20,7 +20,7 @@ struct
   module G = S.G
   module C = Printable.HConsed (S.C)
 
-  let name = S.name^" hashconsed"
+  let name () = S.name () ^" hashconsed"
 
   let init = S.init
   let finalize = S.finalize
@@ -89,7 +89,7 @@ struct
   module G = S.G
   module C = S.C
 
-  let name = S.name^" level sliced"
+  let name () = S.name ()^" level sliced"
 
   let start_level = ref (`Top)
   let error_level = ref (`Lifted  0L)
@@ -188,7 +188,7 @@ module LimitLifter (S:Spec) =
 struct
   include (S : module type of S with module D := S.D)
 
-  let name = S.name^" limited"
+  let name () = S.name ()^" limited"
 
   let limit = ref 0
 
@@ -222,7 +222,7 @@ struct
   module G = S.G
   module C = Printable.Prod (S.C) (M)
 
-  let name = S.name^" with widened contexts"
+  let name () = S.name ()^" with widened contexts"
 
   let init = S.init
   let finalize = S.finalize
@@ -303,7 +303,7 @@ struct
   module G = S.G
   module C = S.C
 
-  let name = S.name^" lifted"
+  let name () = S.name ()^" lifted"
 
   let init = S.init
   let finalize = S.finalize
@@ -760,7 +760,7 @@ struct
   module G = Spec.G
   module C = Spec.C
 
-  let name = "PathSensitive2("^Spec.name^")"
+  let name () = "PathSensitive2("^Spec.name ()^")"
 
   let init = Spec.init
   let finalize = Spec.finalize

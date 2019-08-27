@@ -11,7 +11,7 @@ struct
   module G = Lattice.Unit
   module C = Lattice.Unit
 
-  let name = "expRelation"
+  let name () = "expRelation"
 
   let rec canonize (e:exp) =
     match e with

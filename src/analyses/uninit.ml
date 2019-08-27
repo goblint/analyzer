@@ -23,7 +23,7 @@ struct
   type trans_out = D.t
   type transfer  = trans_in -> trans_out
 
-  let name = "uninit"
+  let name () = "uninit"
 
   let should_join x y = D.equal x y
 
