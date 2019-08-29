@@ -178,7 +178,7 @@ struct
     in
     match e with
     | `Top
-    | `Bot -> false
+    | `Bot -> true
     | `Lifted exp ->
       let vars = Basetype.CilExp.get_vars exp in
       List.exists (fun x -> x.vglob) vars || contains_array_access exp
