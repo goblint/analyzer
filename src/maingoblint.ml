@@ -211,7 +211,7 @@ let preprocess_files () =
     if Filename.basename firstFile = "Makefile" then (
       let dir_name = Filename.dirname firstFile in
       let _ = MakefileUtil.run_cilly dir_name in
-      let file = MakefileUtil.find_file_by_suffix dir_name "_comb.c" in
+      let file = MakefileUtil.(find_file_by_suffix dir_name comb_suffix) in
       cFileNames := file :: (List.drop 1 !cFileNames);
     );
   );
