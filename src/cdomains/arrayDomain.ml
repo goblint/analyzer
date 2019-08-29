@@ -354,7 +354,7 @@ struct
           | None -> false
         in
         if must_be_size_minus_one then
-          (e2, (Val.join xl1 xl2, Val.join xm1 xm2, xr2))
+          (e2, (op xl1 xl2, op xm1 xm2, xr2))
         else
           (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Lifted e1e, `Top ->
@@ -368,7 +368,7 @@ struct
           | None -> false
         in
         if must_be_size_minus_one then
-          (e1, (Val.join xl1 xl2, Val.join xm1 xm2, xr1))
+          (e1, (op xl1 xl2, op xm1 xm2, xr1))
         else
           (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | _ ->
