@@ -2,6 +2,8 @@ open Unix
 
 let buff_size = 1024
 
+let cil_suffix = "_comb.c"
+
 let exec_program (program: string) (callArray : string array) =
   let in_channel = openfile "/dev/null" [O_RDONLY] 0o640 in
   let (fd_in, fd_out) = pipe () in
@@ -24,16 +26,6 @@ let exec_program (program: string) (callArray : string array) =
 let run_make (args: string array) =
     exec_program "make" args
 
-let run_cilly (path: string) =
-    let current_dir = Sys.getcwd () in
-    if Sys.file_exists path && Sys.is_directory path then (
-        Sys.chdir path;
-        let gcc_path = GobConfig.get_string "exp.gcc_path" in
-        let output = run_make [|"make"; "CC=cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged"; "LD=cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged"|] in
-        print_endline output;
-        Sys.chdir current_dir;
-    )
-
 (* BFS for a file with a given suffix in a directory or any subdirectoy *)
 let find_file_by_suffix (dir: string) (file_name_suffix: string) =
   let list_files d = Array.to_list @@ Sys.readdir d in
@@ -47,3 +39,21 @@ let find_file_by_suffix (dir: string) (file_name_suffix: string) =
     | [] -> if Queue.is_empty dirs then raise (Failure "No such file") else let d = Queue.take dirs in search d (list_files d)
   in
   search dir (list_files dir)
+
+let run_cilly (path: string) =
+    let current_dir = Sys.getcwd () in
+    if Sys.file_exists path && Sys.is_directory path then (
+        Sys.chdir path;
+        let _ = run_make [|"make"; "clean"|] in
+        try
+          while true do
+            let comb = find_file_by_suffix path cil_suffix in
+            Sys.remove comb;
+          done
+        with Failure e -> (); (* We have deleted all ..._comb.c files in the directory *)
+        let gcc_path = GobConfig.get_string "exp.gcc_path" in
+        let output = run_make [|"make"; "CC=cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged"; "LD=cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged"|] in
+        print_endline output;
+        Sys.chdir current_dir;
+    )
+
