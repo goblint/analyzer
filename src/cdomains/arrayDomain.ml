@@ -17,7 +17,6 @@ sig
   val make: int -> value -> t
   val length: t -> int option
 
-  val array_should_join: ?length:(int64 option) -> t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> bool 
   val move_if_affected: ?length:(int64 option) -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
@@ -44,7 +43,6 @@ struct
   let make i v = v
   let length _ = None
 
-  let array_should_join ?(length = None) _ _ _ _ = true
   let move_if_affected ?(length = None) _ x _ _ = x
   let get_vars_in_e _ = []
   let map f x = f x 
@@ -95,29 +93,6 @@ struct
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
-
-  let array_should_join ?(length=None) ((e1, _) as x1) ((e2, _) as x2) x_eval_int y_eval_int =
-    let exactly_one_not_part = (is_not_partitioned x1) <> (is_not_partitioned x2) in  
-    if exactly_one_not_part then
-      let partitioning_exp = if is_not_partitioned x1 then e2 else e1 in
-      let other_eval = if is_not_partitioned x1 then x_eval_int else y_eval_int in
-      match partitioning_exp with
-      | `Top -> true
-      | `Bot -> true (* does not happen *)
-      | `Lifted exp -> 
-        begin
-          (* ask in the state of the other one for the value of the expression *)
-          match other_eval exp with
-          | Some x when Int64.equal x Int64.zero -> false
-          | Some x ->
-            begin 
-              match length with
-              | Some y when Int64.equal x (Int64.sub y Int64.one) -> false
-              | _ -> true
-            end 
-          | _ -> true
-        end 
-    else true
 
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) i =
     match e, i with
@@ -335,10 +310,12 @@ struct
   (* leq needs not be given explictly, leq from product domain works here *)
 
   let make i v =
-    if i = 1 then (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ())) 
+    if i = 1 then 
+      (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ())) 
+    else if Val.is_bot v then
+      (Expp.top(), (Val.top(), Val.top(), Val.top()))
     else
-    if Val.is_bot v then (Expp.top(), (Val.top(), Val.top(), Val.top()))
-    else  (Expp.top(), (v, v, v))
+      (Expp.top(), (v, v, v))
 
   let length _ = None
 
@@ -429,7 +406,6 @@ struct
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
-  let array_should_join ?(length =None) _ _ _ _ = true
   let move_if_affected ?(length = None) _ x _ _ = x
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
@@ -455,10 +431,6 @@ struct
     Base.set ~length:new_l ask x i v, l 
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
-
-  let array_should_join ?(length=None) (x, xl) (y, yl) x_eval y_eval = 
-    let new_l = Length.to_int xl in
-    Base.array_should_join ~length:new_l x y x_eval y_eval
 
   let move_if_affected ?(length = None) ask (x,l) v i = 
     let new_l = Length.to_int l in

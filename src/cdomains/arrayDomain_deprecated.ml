@@ -157,7 +157,6 @@ struct
     let two_in_one = Array.map2 (fun x y -> (x,y)) x y in
     Array.fold_left (fun a x -> f a (fst x) (snd x)) a two_in_one
 
-  let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = [] 
   let smart_join ?(length=None) x y _ _ = join x y
@@ -210,7 +209,6 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a 
 
-  let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = [] 
   let smart_join ?(length=None) x y _ _ = join x y
@@ -368,7 +366,6 @@ struct
       | Value x', Value y' -> f a x' y'
       | _ -> raise (Invalid_argument "Collapsing: fold_left2 called on Array and Value")
 
-  let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) x y _ _ = join x y
@@ -557,7 +554,6 @@ struct
       | _ -> a 
 
 
-  let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) x y _ _ = join x y
@@ -897,7 +893,6 @@ struct
     let valInY k = M.find my k in
     M.fold mx (fun k v a -> f a v (valInY k)) a
 
-  let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) x y _ _ = join x y
@@ -1040,7 +1035,6 @@ struct
     let valInY k = M.find my k in
     M.fold mx (fun k v a -> f a v (valInY k)) a
 
-  let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) x y _ _ = join x y
@@ -1094,7 +1088,6 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a
 
-  let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) x y _ _ = join x y
@@ -1150,7 +1143,6 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a
 
-  let array_should_join ?(length=None) _ _ _ _ = true 
   let move_if_affected ?(length=None) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) x y _ _ = join x y

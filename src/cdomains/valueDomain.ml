@@ -23,7 +23,6 @@ sig
   val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
-  val array_should_join: t -> t ->  (exp -> int64 option) -> (exp -> int64 option) -> bool 
   val smart_join: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> t
   val smart_widen: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> t
   val smart_leq: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> bool
@@ -93,26 +92,6 @@ struct
   let top () = `Top
   let is_top x = x = `Top
   let top_name = "Unknown"
-
-  let rec array_should_join x y (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) = 
-    match (x,y) with    
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> true
-    | (`Address x, `Address y) -> true
-    | (`Struct x, `Struct y) ->
-      let pred = (fun (x:t) (y:t) -> array_should_join x y x_eval_int y_eval_int) in
-      Structs.for_all_common_bindings pred x y 
-    | (`Union (xf, xv), `Union (yf, yv)) ->
-      (* Structural equality fails here! *)
-      if UnionDomain.Field.equal xf  yf && not (UnionDomain.Field.is_top x) then 
-        array_should_join xv yv x_eval_int y_eval_int
-      else
-        true
-    | (`Array x, `Array y) -> 
-      CArrays.array_should_join x y x_eval_int y_eval_int &&
-      CArrays.fold_left2 (fun a (x:t) (y:t)  -> a && array_should_join x y x_eval_int y_eval_int) true x y
-    | _ -> true (* `Blob and `List cannot contain arrays *)
 
   let equal x y =
     match (x, y) with

@@ -1938,19 +1938,6 @@ struct
       List.mem f.vname fs
     | _ -> false
 
-  let should_join (a:D.t) (b:D.t) =
-    let cpa1 = fst_triple a in
-    let cpa2 = fst_triple b in
-    let eval_expr (st:store) (e:exp):int64 option =
-      (* Since ctx is not available here, we need to make some adjustments *)
-      let knownothing = fun (x:Q.t) -> `Top in (* our version of ask *)
-      let gs = fun _ -> `Top in (* the expression is guaranteed to not contain globals *)
-      let v = eval_rv knownothing gs st e in
-      match v with
-      | `Int x -> ValueDomain.ID.to_int x
-      | _ -> None
-    in
-    CPA.arrays_should_join cpa1 cpa2 (eval_expr a) (eval_expr b)
 
   let call_descr f (es,fl,dep) =
     let short_fun x =
