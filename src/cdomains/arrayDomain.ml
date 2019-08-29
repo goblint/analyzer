@@ -27,6 +27,15 @@ sig
   val smart_leq: ?length:(int64 option) -> t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> bool
 end
 
+module type LatticeWithSmartOps =
+sig
+  include Lattice.S
+  val smart_join: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t
+  val smart_widen: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t
+  val smart_leq: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> bool
+end
+
+
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
   let name () = "trivial arrays"
@@ -57,7 +66,7 @@ struct
   let smart_leq ?(length=None) a b _ _ = leq a b
 end
 
-module Partitioned (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
+module Partitioned (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t =
 struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
@@ -368,27 +377,42 @@ struct
   
   
   let smart_join ?(length=None) x1 x2 x1_eval_int x2_eval_int =
-    smart_op Val.join length x1 x2 x1_eval_int x2_eval_int
+    smart_op (fun x y -> Val.smart_join x y x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
   let smart_widen ?(length=None) x1 x2 x1_eval_int x2_eval_int =
-    smart_op Val.widen length x1 x2 x1_eval_int x2_eval_int
+    smart_op (fun x y -> Val.smart_widen x y x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
   let smart_leq ?(length=None) (e1, (xl1,xm1,xr1)) (e2, (xl2, xm2, xr2)) x1_eval_int x2_eval_int =
+    let val_smart_leq a b = Val.smart_leq a b x1_eval_int x2_eval_int in
     match e1, e2 with
-    | `Top, `Top
-    | `Lifted _, `Top -> Val.leq (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))
-    | `Lifted e1e, `Lifted e2e -> Basetype.CilExp.equal e1e e2e && Val.leq xl1 xl2 && Val.leq xm1 xm2 && Val.leq xr1 xr2
+    | `Top, `Top -> 
+      (* Printf.printf "comparing %s and %s"
+            ("Array (part. by " ^ Expp.short 10 e1 ^ "): (" ^
+        Val.short 10 xl1 ^ " -- " ^
+        Val.short 10 xm1 ^ " -- " ^
+        Val.short 10 xr1 ^ ")")
+
+            ("Array (part. by " ^ Expp.short 10 e2 ^ "): (" ^
+        Val.short 10 xl2 ^ " -- " ^
+        Val.short 10 xm2 ^ " -- " ^
+        Val.short 10 xr2 ^ ")\n\n"); *)
+      (* Those asserts ensure that for both arguments all segements are equal (as it should be) *)
+      assert(Val.leq xl1 xm1); assert(Val.leq xm1 xr1); assert(Val.leq xl2 xm2); assert(Val.leq xm2 xr2);
+      assert(Val.leq xm1 xl1); assert(Val.leq xr1 xm1); assert(Val.leq xm2 xl2); assert(Val.leq xr2 xm2);
+      val_smart_leq (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))    (* TODO: should the inner joins also be smart joins? *)
+    | `Lifted _, `Top -> val_smart_leq (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))
+    | `Lifted e1e, `Lifted e2e -> Basetype.CilExp.equal e1e e2e && val_smart_leq xl1 xl2 && val_smart_leq xm1 xm2 && val_smart_leq xr1 xr2
     | `Top, `Lifted e2e ->
       let must_be_zero = (x1_eval_int e2e = Some Int64.zero) in
       if must_be_zero then
-        Val.leq xm1 xm2 && Val.leq xr1 xr2
+        val_smart_leq xm1 xm2 && val_smart_leq xr1 xr2
       else
         let must_be_size_minus_one = match length with
           | Some l -> x1_eval_int e2e = Some (Int64.sub l Int64.one)
           | None -> false
         in
         if must_be_size_minus_one then
-          Val.leq xl1 xl2 && Val.leq xm1 xm2
+          val_smart_leq xl1 xl2 && val_smart_leq xm1 xm2
         else
           false
     | _ -> assert(false); false
@@ -418,7 +442,7 @@ struct
 end
 
 
-module PartitionedWithLength (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
+module PartitionedWithLength (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t =
 struct
   module Base = Partitioned (Val)
   module Length = IntDomain.Flattened (* We only keep one exact value or top/bot here *)

@@ -12,6 +12,9 @@ sig
   val map: (value -> value) -> t -> t
   val cardinal: t -> int
   val keys: t -> field list
+  val widen_with_fct: (value -> value -> value) -> t -> t -> t
+  val join_with_fct: (value -> value -> value) -> t -> t -> t
+  val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
 end
 
 module Simple (Val: Lattice.S) =
@@ -68,4 +71,7 @@ struct
   let pretty_diff () (x,y) =
     Pretty.dprintf "{@[%a@] ...}" M.pretty_diff (x,y)
   let printXml f xs = M.printXml f xs
+  let widen_with_fct = M.widen_with_fct
+  let leq_with_fct = M.leq_with_fct
+  let join_with_fct = M.join_with_fct
 end

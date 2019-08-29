@@ -14,6 +14,9 @@ sig
   val map: (value -> value) -> t -> t
   val cardinal: t -> int
   val keys: t -> field list
+  val widen_with_fct: (value -> value -> value) -> t -> t -> t
+  val join_with_fct: (value -> value -> value) -> t -> t -> t
+  val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
 end
 
 module Simple (Val: Lattice.S): S with type value = Val.t and type field = fieldinfo

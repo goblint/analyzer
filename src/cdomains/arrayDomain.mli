@@ -33,6 +33,13 @@ sig
   val smart_leq: ?length:(int64 option) -> t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> bool
 end
 
+module type LatticeWithSmartOps =
+sig
+  include Lattice.S
+  val smart_join: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t
+  val smart_widen: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t
+  val smart_leq: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> bool
+end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
@@ -43,11 +50,11 @@ module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value 
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
 
-module Partitioned (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
+module Partitioned (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t
 (** This functor creates an array representation that allows for partitioned arrays 
   * Such an array can be partitioned according to an expression in hwich case it
   * uses three values from Val to represent the elements of the array to the left,  
   * at, and toi the right of this epxression. *)
 
-module PartitionedWithLength (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
+module PartitionedWithLength (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t
 (** Like partitioned but additionally manages the length of the array *)

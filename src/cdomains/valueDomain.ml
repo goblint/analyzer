@@ -402,11 +402,11 @@ struct
         | Some x when x<>0L -> AD.(join y not_null)
         | _ -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.join x y) (* TODO: We need smart join for all of these *)
-    | (`Union x, `Union y) -> `Union (Unions.join x y) (* TODO: We need smart join for all of these *)
+    | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct (fun (a:t) (b:t) -> smart_join a b x_eval_int y_eval_int) x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.join f g, smart_join x y x_eval_int y_eval_int)
     | (`Array x, `Array y) -> `Array (CArrays.smart_join x y x_eval_int y_eval_int)
-    | (`List x, `List y) -> `List (Lists.join x y) (* TODO: We need smart join for all of these *)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* TODO: We need smart join for all of these *)
+    | (`List x, `List y) -> `List (Lists.join x y) (* `List can not contain array -> normal join  *)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `List can not contain array -> normal join  *)
     | `Blob (x,s), y
     | y, `Blob (x,s) ->
       `Blob (join (x:t) y, s)
@@ -414,7 +414,7 @@ struct
       warn_type "join" x y;
       `Top
 
-  let smart_widen x y x_eval_int y_eval_int =
+  let rec smart_widen x y x_eval_int y_eval_int =
     match (x,y) with
     | (`Top, _) -> `Top
     | (_, `Top) -> `Top
@@ -427,17 +427,17 @@ struct
         | Some x when x<>0L -> AD.(widen y not_null)
         | _ -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.widen x y) (* TODO: We need smart widen for all of these *)
-    | (`Union x, `Union y) -> `Union (Unions.widen x y) (* TODO: We need smart widen for all of these *)
+    | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct (fun (a:t) (b:t) -> smart_widen a b x_eval_int y_eval_int) x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.widen f g, smart_widen x y x_eval_int y_eval_int)
     | (`Array x, `Array y) -> `Array (CArrays.smart_widen x y x_eval_int y_eval_int)
-    | (`List x, `List y) -> `List (Lists.widen x y) (* TODO: We need smart widen for all of these *)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* TODO: We need smart widen for all of these *)
+    | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
     | _ ->
       warn_type "widen" x y;
       `Top
 
 
-  let smart_leq x y x_eval_int y_eval_int =
+  let rec smart_leq x y x_eval_int y_eval_int =
     match (x,y) with
     | (_, `Top) -> true
     | (`Top, _) -> false
@@ -448,11 +448,13 @@ struct
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
     | (`Address _, `Int y) when ID.is_top y -> true
     | (`Address x, `Address y) -> AD.leq x y
-    | (`Struct x, `Struct y) -> Structs.leq x y (* TODO: We need smart leq for all of these *)
-    | (`Union x, `Union y) -> Unions.leq x y (* TODO: We need smart leq for all of these *)
+    | (`Struct x, `Struct y) -> 
+          Structs.leq_with_fct (fun (a:t) (b:t) -> smart_leq a b x_eval_int y_eval_int) x y
+    | (`Union (f, x), `Union (g, y)) ->
+        UnionDomain.Field.leq f g && smart_leq x y x_eval_int y_eval_int
     | (`Array x, `Array y) -> CArrays.smart_leq x y x_eval_int y_eval_int
-    | (`List x, `List y) -> Lists.leq x y (* TODO: We need smart leq for all of these *)
-    | (`Blob x, `Blob y) -> Blobs.leq x y (* TODO: We need smart leq for all of these *)
+    | (`List x, `List y) -> Lists.leq x y (* `List can not contain array -> normal leq  *)
+    | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
     | _ -> warn_type "leq" x y; false
 
   let rec meet x y =
