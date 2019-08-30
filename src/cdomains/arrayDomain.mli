@@ -6,9 +6,9 @@ sig
   type idx (** The abstract domain used to index on arrays. *)
   type value (** The abstract domain of values stored in the array. *)
 
-  val get: Queries.ask -> t -> idx -> value
+  val get: Queries.ask -> t -> ExpDomain.t * idx -> value
   (** Returns the element residing at the given index. *)
-  val set: ?length:(int64 option) -> Queries.ask -> t -> idx -> value -> t
+  val set: ?length:(int64 option) -> Queries.ask -> t -> ExpDomain.t * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
   val make: int -> value -> t
@@ -50,11 +50,13 @@ module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value 
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
 
-module Partitioned (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t
+module Partitioned (Val: LatticeWithSmartOps) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
 (** This functor creates an array representation that allows for partitioned arrays 
-  * Such an array can be partitioned according to an expression in hwich case it
+  * Such an array can be partitioned according to an expression in which case it
   * uses three values from Val to represent the elements of the array to the left,  
-  * at, and toi the right of this epxression. *)
+  * at, and to the right of the expression. The Idx domain is required only so to 
+  * have a signature that allows for choosing an array representation at runtime.
+   *)
 
-module PartitionedWithLength (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t
+module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:Lattice.S): S with type value = Val.t and type idx = Idx.t
 (** Like partitioned but additionally manages the length of the array *)

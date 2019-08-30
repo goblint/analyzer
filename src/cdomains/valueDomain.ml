@@ -10,7 +10,7 @@ module GU = Goblintutil
 module Expp = ExpDomain
 module Q = Queries
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
-module ArrIdxDomain = ExpDomain (* IndexDomain *)
+module ArrIdxDomain = IndexDomain
 
 module type S =
 sig
@@ -542,17 +542,18 @@ struct
       in
       List.fold_left top_field nstruct compinfo.cfields
     in
+    let array_idx_top = (ExpDomain.top (), ArrIdxDomain.top ()) in
     match typ, state with
     |                 _ , `Address n    -> `Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
     |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
     | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value ask fd.ftype n)
     | TArray (t,_,_), `Array n      ->
-      let v = invalidate_value ask t (CArrays.get ask n (ArrIdxDomain.top ())) in
-      `Array (CArrays.set ask n (ArrIdxDomain.top ()) v)
+      let v = invalidate_value ask t (CArrays.get ask n array_idx_top) in
+      `Array (CArrays.set ask n (array_idx_top) v)
     |                 _ , `Array n      ->
-      let v = invalidate_value ask voidType (CArrays.get ask n (ArrIdxDomain.top ())) in
-      `Array (CArrays.set ask n (ArrIdxDomain.top ()) v)
+      let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) in
+      `Array (CArrays.set ask n (array_idx_top) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
     |                 t , _             -> top_value t
@@ -681,8 +682,7 @@ struct
             match x with
             | `Array x ->
               let e = determine_offset l o exp v in
-              do_eval_offset ask f (CArrays.get ask x e) offs exp l' o' v
-              (* do_eval_offset ask f (CArrays.get ask x idx) offs exp l' o' v *)
+              do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v
             | `Address _ -> 
               begin  
                 do_eval_offset ask f x offs exp l' o' v (* this used to be `blob `address -> we ignore the index *)
@@ -779,10 +779,8 @@ struct
             match x with
             | `Array x' ->
               let e = determine_offset l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask (CArrays.get ask x' e) offs value exp l' o' v in
-              (* let new_value_at_index = do_update_offset ask (CArrays.get ask x' idx) offs value exp l' o' v in *)
-              let new_array_value = CArrays.set ask x' e new_value_at_index in
-              (* let new_array_value = CArrays.set ask x' idx new_value_at_index in *)
+              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v in
+              let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v
             | `Bot ->  M.warn_each("encountered array bot, made array top"); `Array (CArrays.top ());
@@ -849,14 +847,11 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)
 
-(* and CArrays: ArrayDomain.S with type value = Compound.t and type idx = IndexDomain.t =
-  ArrayDomain.TrivialWithLength(Compound) (IndexDomain) *)
+ (* and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
+  ArrayDomain.TrivialWithLength(Compound) (ArrIdxDomain) *)
 
-and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ExpDomain.t =
-  ArrayDomain.PartitionedWithLength(Compound)
-
-(* when changing this, also change the ArrIdxDomain and the third argument of CArrays.set and
-  CArrays.get calls *)
+and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
+  ArrayDomain.PartitionedWithLength(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
 

@@ -12,8 +12,8 @@ sig
   type idx
   type value
 
-  val get: Q.ask -> t -> idx -> value
-  val set: ?length:(int64 option) -> Q.ask -> t -> idx -> value -> t
+  val get: Q.ask -> t ->  ExpDomain.t * idx -> value
+  val set: ?length:(int64 option) -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
   val make: int -> value -> t
   val length: t -> int option
 
@@ -66,7 +66,7 @@ struct
   let smart_leq ?(length=None)_ _ = leq
 end
 
-module Partitioned (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t =
+module Partitioned (Val: LatticeWithSmartOps) (Idx:Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
@@ -76,7 +76,7 @@ struct
   module Expp = ExpDomain
   module Base = Lattice.Prod3 (Val) (Val) (Val)
   include Lattice.ProdSimple(Expp) (Base)
-  type idx = ExpDomain.t
+  type idx = Idx.t
   type value = Val.t
   
   let is_not_partitioned (e, _) =
@@ -103,7 +103,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
 
-  let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) i =
+  let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) =
     match e, i with
     | `Lifted e', `Lifted i' ->
       begin
@@ -231,7 +231,7 @@ struct
           end
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
-  let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) i a =
+  let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
     begin
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       if is_not_partitioned (e, (xl, xm, xr)) then
@@ -421,12 +421,12 @@ struct
 end
 
 
-module PartitionedWithLength (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t =
+module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
-  module Base = Partitioned (Val)
+  module Base = Partitioned (Val) (Idx)
   module Length = IntDomain.Flattened (* We only keep one exact value or top/bot here *)
   include Lattice.Prod (Base) (Length)
-  type idx = ExpDomain.t
+  type idx = Idx.t
   type value = Val.t
   let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
   let set ?(length=None) ask (x,l) i v =

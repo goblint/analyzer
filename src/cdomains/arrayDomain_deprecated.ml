@@ -98,7 +98,7 @@ struct
   let toXML s = toXML_f short s
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let get ask a i =
+  let get ask a (_, i) =
     let folded () =
       Array.fold_left Base.join (Base.bot ()) a in
     let get_index i =
@@ -118,7 +118,7 @@ struct
          all possible elements *)
       folded ()
 
-  let set ?(length=None) ask a i v =
+  let set ?(length=None) ask a (_, i) v =
     let set_inplace a i v =
       let top_value () =
         Array.map (fun x -> Base.top ()) a in
@@ -509,13 +509,13 @@ struct
       | a  , Bot -> a
       | Mapping a, Mapping b -> Mapping (join_mappings a b)
 
-  let get ask x i =
+  let get ask x (_, i) =
     match x with
       | Bot -> Base.top ()
       | Mapping map when M.mem i map -> M.find i map
       | Mapping map -> Base.top ()
 
-  let set ?(length=None) ask x i v =
+  let set ?(length=None) ask x (_, i) v =
     let add_map  map i v = M.add i v map in
     let join_map map v = M.map (Base.join v) map in
     match x with
@@ -529,7 +529,7 @@ struct
       if cur = mx then
         map
       else
-        add_items (cur+1) mx (set (fun x -> (Queries.Result.top ())) map (Idx.of_int (Int64.of_int cur)) v) in
+        add_items (cur+1) mx (set (fun x -> (Queries.Result.top ())) map ((ExpDomain.top (), Idx.of_int (Int64.of_int cur))) v) in
     match I.n with
       | Some n -> add_items 0 (min i n) (top ())
       | None -> top ()
@@ -733,7 +733,7 @@ struct
   type value = Base.t
   type idx = Idx.t
 
-  let get ask ((map:M.t),len) index : Base.t=
+  let get ask ((map:M.t),len) (_, index) : Base.t=
     let join_values key value other = Base.join value other in
     let joined_items () = M.fold map join_values (Base.bot ()) in
     if Idx.is_int index then begin
@@ -863,7 +863,7 @@ struct
       then a
       else map2 Base.meet a b
 
-  let set ?(length=None) ask ((map,len) as emap) index value =
+  let set ?(length=None) ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
       let rest = M.find map (Idx.top ()) in
       if Base.equal value rest then begin
@@ -996,7 +996,7 @@ struct
       then a
       else map2 Base.meet a b
 
-  let set ?(length=None) ask ((map,len) as emap) index value =
+  let set ?(length=None) ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
       let rest = M.find map (Idx.top ()) in
       if Base.equal value rest then begin
