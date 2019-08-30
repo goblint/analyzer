@@ -346,10 +346,20 @@ module WP =
       let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
       if !incremental_mode <> "off" then (
         let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-        let data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
-          then Serialize.unmarshall file_in
-          else create_empty_data ()
+        let loaded, data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
+          then true, Serialize.unmarshall file_in
+          else false, create_empty_data ()
         in
+        (* This hack is for fixing hashconsing.
+         * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
+         * HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
+         * The tags are used for `equals` and `compare` to avoid structural comparisons. TODO is this really faster (if values are shared by hashcons they should be physically equal)?
+         * We have to replace all tags since they are not derived from the value (like hash) but are incremented starting with 1, i.e. dependent on the order in which lattice operations for different values are called, which will very likely be different for an incremental run.
+         * If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
+         * In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
+         * The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected. *)
+        if loaded && GobConfig.get_bool "ana.hashcons" then
+          HM.iter (fun k v -> HM.replace data.rho k (S.Dom.join (S.Dom.bot ()) v)) data.rho;
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
           data.stable <- HM.create 10;
