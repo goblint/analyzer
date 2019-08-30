@@ -1,5 +1,6 @@
 open Pretty
 open Cil
+open GobConfig
 
 module M = Messages
 module A = Array
@@ -362,8 +363,7 @@ struct
       else
         (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | _ ->
-      assert(false);
-      (Expp.top (), (op_over_all, op_over_all, op_over_all))
+      failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
   
   
   let smart_join ?(length=None) x1_eval_int x2_eval_int x1 x2 =
@@ -394,7 +394,8 @@ struct
         leq' xl1 xl2 && leq' xm1 xm2
       else
         false
-    | _ -> assert(false); false
+    | _ -> 
+      failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
 end
 
 
@@ -455,4 +456,94 @@ struct
   let smart_leq ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl)  =
     let l = Length.to_int xl in
     Base.smart_leq ~length:l x_eval_int y_eval_int x y
+end
+
+module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t =
+struct
+  module P = PartitionedWithLength(Val)(Idx)
+  module T = TrivialWithLength(Val)(Idx)
+
+  type idx = Idx.t
+  type value = Val.t
+  type t = P.t option * T.t option [@@deriving to_yojson]
+
+  (* Helpers *)
+  let binop opp opt (p1,t1) (p2,t2) = match (p1, t1),(p2, t2) with
+    | (Some p1, None), (Some p2, None) -> opp p1 p2
+    | (None, Some t1), (None, Some t2) -> opt t1 t2
+    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+
+  let binop_to_t opp opt (p1,t1) (p2,t2)= match (p1, t1),(p2, t2) with
+    | (Some p1, None), (Some p2, None) -> (Some (opp p1 p2), None)
+    | (None, Some t1), (None, Some t2) -> (None, Some(opt t1 t2))
+    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set" 
+
+  let unop opp opt (p,t) = match (p, t) with
+    | (Some p, None) -> opp p
+    | (None, Some t) -> opt t
+    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set" 
+
+  let unop_to_t opp opt (p,t) = match (p, t) with
+    | (Some p, None) -> (Some (opp p), None)
+    | (None, Some t) -> (None, Some(opt t))
+    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+
+  (* Simply call appropriate function for component that is not None *)
+  let equal = binop P.equal T.equal
+  let hash = unop P.hash T.hash
+  let compare = binop P.compare T.compare
+  let short l = unop (P.short l) (T.short l)
+  let isSimple = unop P.isSimple T.isSimple
+  let pretty () = unop (P.pretty ()) (T.pretty ())
+  let toXML = unop P.toXML T.toXML
+  let leq = binop P.leq T.leq
+  let join = binop_to_t P.join T.join
+  let meet = binop_to_t P.meet T.meet
+  let widen = binop_to_t P.widen T.widen
+  let narrow = binop_to_t P.narrow T.narrow
+  let is_top = unop P.is_top T.is_top
+  let is_bot = unop P.is_bot T.is_bot
+  let get a x i = unop (fun x -> P.get a x i) (fun x -> T.get a x i) x
+  let set ?(length=None) (ask:Q.ask) x i a = unop_to_t (fun x -> P.set ~length:length ask x i a) (fun x -> T.set ~length:length ask x i a) x
+  let length = unop P.length T.length     
+  let get_vars_in_e = unop P.get_vars_in_e T.get_vars_in_e
+  let map f = unop_to_t (P.map f) (T.map f)
+  let fold_left f s = unop (P.fold_left f s) (T.fold_left f s)
+  let fold_left2 f s = binop (P.fold_left2 f s) (T.fold_left2 f s)
+  let move_if_affected ?(length=None) (ask:Q.ask) x v f = unop_to_t (fun x -> P.move_if_affected ~length:length ask x v f) (fun x -> T.move_if_affected ~length:length ask x v f) x
+  let smart_join ?(length=None) f g = binop_to_t (P.smart_join ~length:length f g) (T.smart_join ~length:length f g)
+  let smart_widen ?(length=None) f g = binop_to_t (P.smart_widen ~length:length f g) (T.smart_widen ~length:length f g)
+  let smart_leq ?(length=None) f g = binop (P.smart_leq ~length:length f g) (T.smart_leq ~length:length f g)
+  
+  (* TODO: Check if these three are ok to make here *)
+  let printXml f = unop (P.printXml f) (T.printXml f)
+  let pretty_f _ = pretty
+  let toXML_f _ = unop (P.toXML_f P.short) (T.toXML_f T.short)
+
+
+  let pretty_diff () ((p1,t1),(p2,t2)) = match (p1, t1),(p2, t2) with
+    | (Some p1, None), (Some p2, None) -> P.pretty_diff () (p1, p2)
+    | (None, Some t1), (None, Some t2) -> T.pretty_diff () (t1, t2)
+    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set" 
+
+  (* Functions that make us of the configuration flag *)
+  let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "exp.partition-arrays" then P.name () else T.name ()
+
+  let bot () = 
+    if get_bool "exp.partition-arrays" then 
+      (Some (P.bot ()), None)
+    else
+      (None, Some (T.bot ()))
+
+  let top () =
+    if get_bool "exp.partition-arrays" then 
+      (Some (P.top ()), None)
+    else
+      (None, Some (T.top ())) 
+
+  let make i v =
+    if get_bool "exp.partition-arrays" then 
+      (Some (P.make i v), None)
+    else
+      (None, Some (T.make i v))
 end

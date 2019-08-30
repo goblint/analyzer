@@ -847,11 +847,8 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)
 
- (* and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
-  ArrayDomain.TrivialWithLength(Compound) (ArrIdxDomain) *)
-
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
-  ArrayDomain.PartitionedWithLength(Compound)(ArrIdxDomain)
+  ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
 

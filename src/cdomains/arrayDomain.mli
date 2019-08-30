@@ -59,4 +59,7 @@ module Partitioned (Val: LatticeWithSmartOps) (Idx: Lattice.S): S with type valu
    *)
 
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:Lattice.S): S with type value = Val.t and type idx = Idx.t
-(** Like partitioned but additionally manages the length of the array *)
+(** Like partitioned but additionally manages the length of the array. *)
+
+module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t
+(** Switches between PartitionedWithLength and TrivialWithLength based on the value of exp.partition-arrays. *)
