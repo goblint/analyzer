@@ -32,9 +32,12 @@ sig
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
   (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
   
-  val widen_with_fct: (value -> value -> value) -> t -> t -> t 
-  val join_with_fct: (value -> value -> value) -> t -> t -> t 
+  val widen_with_fct: (value -> value -> value) -> t -> t -> t
+  (* Widen using a custom widening function for value rather than the default one for value *)
+  val join_with_fct: (value -> value -> value) -> t -> t -> t
+  (* Join using a custom join function for value rather than the default one for value *)
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
+  (* Leq test using a custom leq function for value rather than the default one provided for value *)
 end
 
 module type Groupable =

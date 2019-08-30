@@ -22,17 +22,17 @@ sig
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
-  val smart_join: ?length:(int64 option) -> t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> t
-  val smart_widen: ?length:(int64 option) -> t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> t
-  val smart_leq: ?length:(int64 option) -> t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> bool
+  val smart_join: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
+  val smart_widen: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option)  -> t -> t-> t
+  val smart_leq: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
 end
 
 module type LatticeWithSmartOps =
 sig
   include Lattice.S
-  val smart_join: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t
-  val smart_widen: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t
-  val smart_leq: t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> bool
+  val smart_join: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
+  val smart_widen: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
+  val smart_leq: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> bool
 end
 
 
@@ -61,9 +61,9 @@ struct
   let set_inplace = set
   let copy a = a
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
-  let smart_join ?(length=None) a b _ _ = join a b
-  let smart_widen ?(length=None) a b _ _ = widen a b
-  let smart_leq ?(length=None) a b _ _ = leq a b
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None)_ _ = leq
 end
 
 module Partitioned (Val: LatticeWithSmartOps): S with type value = Val.t and type idx = ExpDomain.t =
@@ -335,86 +335,65 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml join_over_all
 
   let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
+    let must_be_length_minus_one v = match length with
+      | Some l -> v = Some (Int64.sub l Int64.one)
+      | None -> false
+    in
+    let must_be_zero v = v = Some Int64.zero in
     let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
     match e1, e2 with
     | `Lifted e1e, `Lifted e2e when Basetype.CilExp.equal e1e e2e ->
-      (* Partitioned according to the same expression, join segment-wise *)
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | `Lifted _, `Lifted _
     | `Top, `Top ->
       (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Top, `Lifted e2e ->
-      let must_be_zero = (x1_eval_int e2e = Some Int64.zero) in
-      if must_be_zero then
-        let () = Printf.printf "smart op!!!!!  -> %s\n " (short 80 (e2, (xl2, op xm1 xm2, op xr1 xr2))) in 
+      if must_be_zero (x1_eval_int e2e) then
         (e2, (xl2, op xm1 xm2, op xr1 xr2))
+      else if must_be_length_minus_one (x1_eval_int e2e) then
+        (e2, (op xl1 xl2, op xm1 xm2, xr2))
       else
-        let must_be_size_minus_one = match length with
-          | Some l -> x1_eval_int e2e = Some (Int64.sub l Int64.one)
-          | None -> false
-        in
-        if must_be_size_minus_one then
-          (e2, (op xl1 xl2, op xm1 xm2, xr2))
-        else
-          (Expp.top (), (op_over_all, op_over_all, op_over_all))
+        (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Lifted e1e, `Top ->
-      let must_be_zero = (x2_eval_int e1e = Some Int64.zero) in
-      if must_be_zero then
-        let () = Printf.printf "smart op!!!!!   ->  %s\n" (short 80 (e1, (xl1, op xm1 xm2, op xr1 xr2))) in 
+      if must_be_zero (x2_eval_int e1e) then
         (e1, (xl1, op xm1 xm2, op xr1 xr2))
+      else if must_be_length_minus_one (x2_eval_int e1e) then
+        (e1, (op xl1 xl2, op xm1 xm2, xr1))
       else
-        let must_be_size_minus_one = match length with
-          | Some l -> x2_eval_int e1e = Some (Int64.sub l Int64.one)
-          | None -> false
-        in
-        if must_be_size_minus_one then
-          (e1, (op xl1 xl2, op xm1 xm2, xr1))
-        else
-          (Expp.top (), (op_over_all, op_over_all, op_over_all))
+        (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | _ ->
       assert(false);
       (Expp.top (), (op_over_all, op_over_all, op_over_all))
   
   
-  let smart_join ?(length=None) x1 x2 x1_eval_int x2_eval_int =
-    smart_op (fun x y -> Val.smart_join x y x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+  let smart_join ?(length=None) x1_eval_int x2_eval_int x1 x2 =
+    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
-  let smart_widen ?(length=None) x1 x2 x1_eval_int x2_eval_int =
-    smart_op (fun x y -> Val.smart_widen x y x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+  let smart_widen ?(length=None) x1_eval_int x2_eval_int x1 x2  =
+    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
-  let smart_leq ?(length=None) (e1, (xl1,xm1,xr1)) (e2, (xl2, xm2, xr2)) x1_eval_int x2_eval_int =
-    let val_smart_leq a b = Val.smart_leq a b x1_eval_int x2_eval_int in
+  let smart_leq ?(length=None) x1_eval_int x2_eval_int (e1, (xl1,xm1,xr1)) (e2, (xl2, xm2, xr2)) =
+    let leq' = Val.smart_leq x1_eval_int x2_eval_int in
+    let must_be_zero v = (v = Some Int64.zero) in
+    let must_be_length_minus_one v =  match length with
+      | Some l -> v = Some (Int64.sub l Int64.one)
+      | None -> false
+    in
     match e1, e2 with
     | `Top, `Top -> 
-      (* Printf.printf "comparing %s and %s"
-            ("Array (part. by " ^ Expp.short 10 e1 ^ "): (" ^
-        Val.short 10 xl1 ^ " -- " ^
-        Val.short 10 xm1 ^ " -- " ^
-        Val.short 10 xr1 ^ ")")
-
-            ("Array (part. by " ^ Expp.short 10 e2 ^ "): (" ^
-        Val.short 10 xl2 ^ " -- " ^
-        Val.short 10 xm2 ^ " -- " ^
-        Val.short 10 xr2 ^ ")\n\n"); *)
       (* Those asserts ensure that for both arguments all segements are equal (as it should be) *)
       assert(Val.leq xl1 xm1); assert(Val.leq xm1 xr1); assert(Val.leq xl2 xm2); assert(Val.leq xm2 xr2);
       assert(Val.leq xm1 xl1); assert(Val.leq xr1 xm1); assert(Val.leq xm2 xl2); assert(Val.leq xr2 xm2);
-      val_smart_leq (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))    (* TODO: should the inner joins also be smart joins? *)
-    | `Lifted _, `Top -> val_smart_leq (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))
-    | `Lifted e1e, `Lifted e2e -> Basetype.CilExp.equal e1e e2e && val_smart_leq xl1 xl2 && val_smart_leq xm1 xm2 && val_smart_leq xr1 xr2
+      leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))    (* TODO: should the inner joins also be smart joins? *)
+    | `Lifted _, `Top -> leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))
+    | `Lifted e1e, `Lifted e2e -> Basetype.CilExp.equal e1e e2e && leq' xl1 xl2 && leq' xm1 xm2 && leq' xr1 xr2
     | `Top, `Lifted e2e ->
-      let must_be_zero = (x1_eval_int e2e = Some Int64.zero) in
-      if must_be_zero then
-        val_smart_leq xm1 xm2 && val_smart_leq xr1 xr2
+      if must_be_zero (x1_eval_int e2e) then
+        leq' xm1 xm2 && leq' xr1 xr2
+      else if must_be_length_minus_one (x1_eval_int e2e) then
+        leq' xl1 xl2 && leq' xm1 xm2
       else
-        let must_be_size_minus_one = match length with
-          | Some l -> x1_eval_int e2e = Some (Int64.sub l Int64.one)
-          | None -> false
-        in
-        if must_be_size_minus_one then
-          val_smart_leq xl1 xl2 && val_smart_leq xm1 xm2
-        else
-          false
+        false
     | _ -> assert(false); false
 end
 
@@ -436,9 +415,9 @@ struct
   let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e _ = []
 
-  let smart_join ?(length=None) a b _ _ = join a b
-  let smart_widen ?(length=None) a b _ _ = widen a b
-  let smart_leq ?(length=None) a b _ _ = leq a b
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end
 
 
@@ -465,15 +444,15 @@ struct
   let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
-  let smart_join ?(length=None) (x,xl) (y,yl) x_eval_int y_eval_int = 
-    let new_l = Length.to_int xl in
-    (Base.smart_join ~length:new_l x y x_eval_int y_eval_int,Length.join xl yl)
+  let smart_join ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl) = 
+    let l = Length.to_int xl in
+    (Base.smart_join ~length:l x_eval_int y_eval_int x y , Length.join xl yl)
 
-  let smart_widen ?(length=None) (x,xl) (y,yl) x_eval_int y_eval_int = 
-    let new_l = Length.to_int xl in
-    (Base.smart_widen ~length:new_l x y x_eval_int y_eval_int,Length.join xl yl)
+  let smart_widen ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl) = 
+    let l = Length.to_int xl in
+    (Base.smart_widen ~length:l x_eval_int y_eval_int x y , Length.join xl yl)
 
-  let smart_leq ?(length=None) (x,xl) (y,yl) x_eval_int y_eval_int =
-    let new_l = Length.to_int xl in
-    Base.smart_leq ~length:new_l x y x_eval_int y_eval_int
+  let smart_leq ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl)  =
+    let l = Length.to_int xl in
+    Base.smart_leq ~length:l x_eval_int y_eval_int x y
 end

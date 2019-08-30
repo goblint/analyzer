@@ -23,9 +23,9 @@ sig
   val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
-  val smart_join: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> t
-  val smart_widen: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> t
-  val smart_leq: t -> t -> (exp -> int64 option) -> (exp -> int64 option) -> bool
+  val smart_join: (exp -> int64 option) -> (exp -> int64 option) -> t -> t ->  t
+  val smart_widen: (exp -> int64 option) -> (exp -> int64 option) ->  t -> t -> t
+  val smart_leq: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
 end
 
 module type Blob =
@@ -389,7 +389,8 @@ struct
       warn_type "join" x y;
       `Top
 
-  let rec smart_join x y x_eval_int y_eval_int =
+  let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
+    let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
     match (x,y) with
     | (`Top, _) -> `Top
     | (_, `Top) -> `Top
@@ -402,9 +403,9 @@ struct
         | Some x when x<>0L -> AD.(join y not_null)
         | _ -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct (fun (a:t) (b:t) -> smart_join a b x_eval_int y_eval_int) x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.join f g, smart_join x y x_eval_int y_eval_int)
-    | (`Array x, `Array y) -> `Array (CArrays.smart_join x y x_eval_int y_eval_int)
+    | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.join f g, join_elem x y)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.join x y) (* `List can not contain array -> normal join  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `List can not contain array -> normal join  *)
     | `Blob (x,s), y
@@ -414,7 +415,8 @@ struct
       warn_type "join" x y;
       `Top
 
-  let rec smart_widen x y x_eval_int y_eval_int =
+  let rec smart_widen x_eval_int y_eval_int x y:t =
+    let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
     | (`Top, _) -> `Top
     | (_, `Top) -> `Top
@@ -427,9 +429,9 @@ struct
         | Some x when x<>0L -> AD.(widen y not_null)
         | _ -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct (fun (a:t) (b:t) -> smart_widen a b x_eval_int y_eval_int) x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.widen f g, smart_widen x y x_eval_int y_eval_int)
-    | (`Array x, `Array y) -> `Array (CArrays.smart_widen x y x_eval_int y_eval_int)
+    | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.widen f g, widen_elem x y)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
     | _ ->
@@ -437,7 +439,8 @@ struct
       `Top
 
 
-  let rec smart_leq x y x_eval_int y_eval_int =
+  let rec smart_leq x_eval_int y_eval_int x y =
+    let leq_elem:(t ->t -> bool) = smart_leq x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
     | (_, `Top) -> true
     | (`Top, _) -> false
@@ -449,10 +452,10 @@ struct
     | (`Address _, `Int y) when ID.is_top y -> true
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) -> 
-          Structs.leq_with_fct (fun (a:t) (b:t) -> smart_leq a b x_eval_int y_eval_int) x y
+          Structs.leq_with_fct leq_elem x y
     | (`Union (f, x), `Union (g, y)) ->
-        UnionDomain.Field.leq f g && smart_leq x y x_eval_int y_eval_int
-    | (`Array x, `Array y) -> CArrays.smart_leq x y x_eval_int y_eval_int
+        UnionDomain.Field.leq f g && leq_elem x y
+    | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y 
     | (`List x, `List y) -> Lists.leq x y (* `List can not contain array -> normal leq  *)
     | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
     | _ -> warn_type "leq" x y; false
