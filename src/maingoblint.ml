@@ -376,11 +376,11 @@ let diff_and_rename file =
   Serialize.src_direcotry := src_path ();
 
   let change_info = (match Serialize.current_commit () with 
-      | Some current_commit -> ((* "put the preparation for incremental analysis here!" *) 
+      | Some current_commit -> ((* "put the preparation for incremental analysis here!" *)
           let (changes, last_analyzed_commit) =
             (match Serialize.last_analyzed_commit () with 
              | Some last_analyzed_commit -> (match Serialize.load_latest_cil !cFileNames with
-                 | Some file2 -> 
+                 | Some file2 ->
                    let (version_map, changes, max_ids) = update_map file2 file in
                    let max_ids = UpdateCil.update_ids file2 max_ids file version_map current_commit changes in
                    store_map version_map max_ids;
@@ -397,6 +397,12 @@ let diff_and_rename file =
           Serialize.save_cil file;
           let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
           let current_commit_dir = Filename.concat (data_path ()) current_commit in
+          Cilfacade.print_to_file (Filename.concat current_commit_dir "cil.c") file;
+          if "" <> last_analyzed_commit then ( 
+            CompareAST.check_file_changed analyzed_commit_dir current_commit_dir;
+            (* Note: Global initializers/start state changes are not considered here: *)
+            CompareAST.check_any_changed changes
+          );
           {Analyses.changes = changes; analyzed_commit_dir; current_commit_dir}
         )
       | None -> raise (Failure "Failure! Working directory is not clean";))

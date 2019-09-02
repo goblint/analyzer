@@ -374,6 +374,16 @@ module WP =
           Serialize.marshall result file_out;
         );
         clear_data result;
+
+        (* Compare current rho to old rho *)
+        if Sys.file_exists file_in && !incremental_mode <> "complete" then (
+          let old_rho = (Serialize.unmarshall file_in: solver_data).rho in
+          let eq r s =
+            let leq r s = HM.fold (fun k v acc -> acc && (try S.Dom.leq v (HM.find s k) with Not_found -> false)) r true
+          in leq r s && leq s r in
+          print_endline @@ "Rho " ^ (if eq result.rho old_rho then "did not change" else "changed") ^ " compared to previous analysis.";
+        );
+
         result.rho
       )
       else (

@@ -25,6 +25,22 @@ let identifier_of_global glob =
   | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
   | _ -> raise (Failure "No variable or function")
 
+let any_changed (c: change_info) =
+  not @@ List.for_all (fun l -> l = 0) [List.length c.changed; List.length c.removed; List.length c.added]
+
+(* Check whether any changes to function definitions or types of globals were detected *)
+let check_any_changed (c: change_info) =
+  if GobConfig.get_string "exp.incremental.mode" = "incremental" then
+    print_endline @@ "Function definitions " ^ (if any_changed c then "or types of globals changed." else "and types of globals did not change.")
+
+(* Print whether the analyzed intermediate code changed *)
+let check_file_changed (old_commit_dir: string) (current_commit_dir: string) =
+  let old = Filename.concat old_commit_dir "cil.c" in
+  let current = Filename.concat current_commit_dir "cil.c" in
+  let old_file = BatFile.with_file_in old BatIO.read_all in
+  let current_file = BatFile.with_file_in current BatIO.read_all in
+  print_endline @@ "CIL-file " ^ (if old_file = current_file then "did not change." else "changed.")
+
 module GlobalMap = Map.Make(struct
     type t = global_identifier
     let compare a b =
