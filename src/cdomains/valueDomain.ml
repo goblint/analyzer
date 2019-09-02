@@ -575,8 +575,8 @@ struct
       end
     | _ -> None, None
 
-  let rec determine_offset left offset exp v =
-    let rec contains_pointer exp =
+  let rec determine_offset ask left offset exp v =
+    let rec contains_pointer exp = (* TODO: Can a CIL offset contain pointers? *)
       match exp with
       |	Const _
       |	SizeOf _
@@ -595,8 +595,25 @@ struct
       | Lval(Mem _, _) -> true
       | Lval(Var _, _) -> false
     in
+    let equiv_expr exp start_of_array_lval = 
+      match exp, start_of_array_lval with
+      | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when ( not (contains_pointer add)) ->
+        begin
+        match ask (Q.MayPointTo (Lval lval)) with
+        | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
+          begin
+          Printf.printf "gotcha for %s and %s\n" (Expp.short 80 (`Lifted (Lval start_of_array_lval))) (Expp.short 80 (`Lifted(Lval lval)));
+          match Q.LS.choose v with
+          | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
+            add
+          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+          end
+        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+        end
+      | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+    in
     match left, offset with
-      | Some(left), Some(Index(exp, o)) -> 
+      | Some(left), Some(Index(exp, _)) -> (* TODO: Why do I no longer care about the offset here (!!!!!!!!) *)
         if not (contains_pointer exp) then
           `Lifted exp 
         else
@@ -612,11 +629,10 @@ struct
                 let start_of_array = StartOf v' in
                 let start_type = Cil.typeOf start_of_array in
                 let expr_type = Cil.typeOf ptr in
-                (* Comparing types for structural equality is inocrrect here, use typeSig *)
+                (* Comparing types for structural equality is incorrect here, use typeSig *)
                 (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
                 if Cil.typeSig start_type = Cil.typeSig expr_type then
-                  let equivalent_expr = BinOp(MinusPP, expr, start_of_array, intType) in
-                  `Lifted (equivalent_expr)
+                  `Lifted (equiv_expr expr v')
                 else
                   (* If types do not agree here, this means that we were looking at pointers that *)
                   (* contain more than one array access. Those are not supported. *)
@@ -681,7 +697,7 @@ struct
             let l', o' = shift_one_over l o in 
             match x with
             | `Array x ->
-              let e = determine_offset l o exp v in
+              let e = determine_offset ask l o exp v in
               do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v
             | `Address _ -> 
               begin  
@@ -778,7 +794,7 @@ struct
             let l', o' = shift_one_over l o in 
             match x with
             | `Array x' ->
-              let e = determine_offset l o exp (Some v) in
+              let e = determine_offset ask l o exp (Some v) in
               let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
