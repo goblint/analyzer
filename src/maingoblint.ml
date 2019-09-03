@@ -377,7 +377,7 @@ let store_map updated_map max_ids = (* Creates the directory for the commit *)
   match Serialize.current_commit_dir () with
   | Some commit_dir ->
     let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
-    Serialize.marshall (updated_map, max_ids) map_file_name
+    Serialize.marshal (updated_map, max_ids) map_file_name
   | None -> ()
 
 (* Detects changes and renames vids and sids. *)

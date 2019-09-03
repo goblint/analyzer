@@ -49,14 +49,14 @@ let last_analyzed_commit () =
     Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
   with e -> None
 
-let marshall obj fileName  =
+let marshal obj fileName  =
   let objString = Marshal.to_string obj [] in
   let file = File.open_out fileName in
   Printf.fprintf file "%s" objString;
   flush file;
   close_out file;;
 
-let unmarshall fileName =
+let unmarshal fileName =
   let marshalled = input_file fileName in
   if GobConfig.get_bool "dbg.verbose" then print_endline ("Unmarshalling " ^ fileName ^ "... If type of content changed, this will result in a segmentation fault!");
   Marshal.from_string marshalled 0 (* use Marshal.from_channel? *)
@@ -73,11 +73,11 @@ let load_latest_cil (src_files: string list) =
   try
     let dir = last_analyzed_commit_dir src_files in
     let cil = Filename.concat dir cilFileName in
-    Some (unmarshall cil)
+    Some (unmarshal cil)
   with e -> None
 
 let save_cil (file: Cil.file) = match current_commit_dir () with
   | Some dir ->
     let cilFile = Filename.concat dir cilFileName in
-    marshall file cilFile
+    marshal file cilFile
   | None -> print_endline "Failed saving cil: working directory is dirty"

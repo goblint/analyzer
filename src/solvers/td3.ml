@@ -347,7 +347,7 @@ module WP =
       if !incremental_mode <> "off" then (
         let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
         let loaded, data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
-          then true, Serialize.unmarshall file_in
+          then true, Serialize.unmarshal file_in
           else false, create_empty_data ()
         in
         (* This hack is for fixing hashconsing.
@@ -371,13 +371,13 @@ module WP =
         if Sys.file_exists path then (
           let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
           print_endline @@ "Saving solver result to " ^ file_out;
-          Serialize.marshall result file_out;
+          Serialize.marshal result file_out;
         );
         clear_data result;
 
         (* Compare current rho to old rho *)
         if Sys.file_exists file_in && !incremental_mode <> "complete" then (
-          let old_rho = (Serialize.unmarshall file_in: solver_data).rho in
+          let old_rho = (Serialize.unmarshal file_in: solver_data).rho in
           let eq r s =
             let leq r s = HM.fold (fun k v acc -> acc && (try S.Dom.leq v (HM.find s k) with Not_found -> false)) r true
           in leq r s && leq s r in

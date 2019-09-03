@@ -36,7 +36,7 @@ let create_map (new_file: Cil.file) (commit: commitID) =
 let load_and_update_map (folder: string) (old_commit: commitID) (new_commit: commitID) (oldFile: Cil.file) (newFile: Cil.file) = 
   let commitFolder = Filename.concat folder old_commit in
   let versionFile = Filename.concat commitFolder version_map_filename in
-  let (oldMap, max_ids) = Serialize.unmarshall versionFile in
+  let (oldMap, max_ids) = Serialize.unmarshal versionFile in
   let (updated, changes) = updateMap oldFile newFile new_commit oldMap in
   (updated, changes, max_ids)
 
