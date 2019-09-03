@@ -19,7 +19,7 @@ module WP =
     module VS = Set.Make (S.Var)
 
     type solver_data = {
-      mutable st: (S.Var.t * S.Dom.t) list;
+      mutable st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       mutable infl: VS.t HM.t;
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
