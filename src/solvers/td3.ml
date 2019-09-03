@@ -107,7 +107,7 @@ module WP =
           in
           if tracing then trace "cache" "cache size %d for %a on %i\n" (HM.length l) S.Var.pretty_trace x (S.Var.line_nr x);
           cache_sizes := HM.length l :: !cache_sizes;
-          if not (S.Dom.equal old tmp) then (
+          if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
