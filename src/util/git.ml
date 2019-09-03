@@ -48,4 +48,4 @@ let git_directory path =
   let args = [|"git"; "-C"; dir; "rev-parse";  "--show-toplevel" |] in
   let git_output = execGit args in
   let git_path = Batteries.String.strip git_output in
-  if Sys.file_exists git_path then git_path else raise (Failure ("File " ^ path ^ " is not contained in a git repository."))
+  if Sys.file_exists git_path then git_path else failwith ("File " ^ path ^ " is not contained in a git repository.")

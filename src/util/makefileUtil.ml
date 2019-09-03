@@ -41,7 +41,9 @@ let find_file_by_suffix (dir: string) (file_name_suffix: string) =
                 if Sys.file_exists f && Sys.is_directory f
                   then (Queue.add f dirs; search dir t)
                   else if Batteries.String.ends_with h file_name_suffix then f else search dir t
-    | [] -> if Queue.is_empty dirs then raise (Failure ("find_file_by_suffix found no files with suffix "^file_name_suffix^" in "^dir)) else let d = Queue.take dirs in search d (list_files d)
+    | [] ->
+      if Queue.is_empty dirs then failwith ("find_file_by_suffix found no files with suffix "^file_name_suffix^" in "^dir)
+      else let d = Queue.take dirs in search d (list_files d)
   in
   search dir (list_files dir)
 
@@ -64,7 +66,7 @@ let run_cilly (path: string) =
         (* Exit if make failed *)
         if exit_code <> WEXITED 0 then 
           (
-            print_endline ("Failure when combining files. Make " ^ (string_of_process_status exit_code) ^ ".");
+            print_endline ("Failed combining files. Make " ^ (string_of_process_status exit_code) ^ ".");
             exit 1
           );
     )

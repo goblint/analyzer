@@ -418,7 +418,7 @@ let diff_and_rename file =
           );
           {Analyses.changes = changes; analyzed_commit_dir; current_commit_dir}
         )
-      | None -> raise (Failure "Failure! Working directory is not clean";))
+      | None -> failwith "Failure! Working directory is not clean")
   in change_info
 
 

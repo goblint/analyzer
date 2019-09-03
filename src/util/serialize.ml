@@ -66,7 +66,7 @@ let results_exist () =
 let last_analyzed_commit_dir (src_files: string list) =
   match last_analyzed_commit () with
   | Some commit -> commit_dir () commit
-  | None -> raise (Failure "No previous analysis results")
+  | None -> failwith "No previous analysis results"
 
 let load_latest_cil (src_files: string list) =
   try
@@ -76,7 +76,7 @@ let load_latest_cil (src_files: string list) =
   with e -> None
 
 let save_cil (file: Cil.file) = match current_commit_dir () with
-  |Some dir ->
+  | Some dir ->
     let cilFile = Filename.concat dir cilFileName in
     marshall file cilFile
-  | None -> print_endline "Failure when saving cil: working directory is dirty"
+  | None -> print_endline "Failed saving cil: working directory is dirty"
