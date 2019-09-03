@@ -10,8 +10,7 @@ int main () {
     j = 7;
     k = 5;
   }
-  // assert(i == 10); // UNKNOWN!
-  // Removed this assertion as it is specific to flat ints and fails as soon as intervals or octagons correctly determine this
+  assert(i == 10); // UNKNOWN!
   assert(k);  // UNKNOWN!
   // k is currenlty 0 \sqcup 5, if we unfolded the loops it would be 5
   assert(j==7);
