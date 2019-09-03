@@ -1980,5 +1980,5 @@ end
 module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
-  (* add ~dep:["expRelation"]  again after modifying test cases accordingly *)
+  (* add ~dep:["expRelation"] after modifying test cases accordingly *)
   MCP.register_analysis (module Main : Spec)
