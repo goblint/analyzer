@@ -51,22 +51,19 @@ let run_cilly (path: string) =
   if Sys.file_exists path && Sys.is_directory path then (
     (* We need to `make clean` if `make` was run manually, otherwise it would say there is nothing to do and cilly would not be run and no combined C file would be created. *)
     let _ = exec_command ~path "make clean" in
-    try
-      while true do
-        let comb = find_file_by_suffix path comb_suffix in
-        Sys.remove comb;
-      done
-    with Failure e -> (); (* Deleted all *_comb.c files in the directory *)
-
-      (* Combine the source files with make *)
-      let gcc_path = GobConfig.get_string "exp.gcc_path" in
-      let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
-                                                    "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
-      print_string output;
-      (* Exit if make failed *)
-      if exit_code <> WEXITED 0 then
-        (
-          print_endline ("Failed combining files. Make " ^ (string_of_process_status exit_code) ^ ".");
-          exit 1
-        );
+    (try
+       while true do
+         let comb = find_file_by_suffix path comb_suffix in
+         if GobConfig.get_bool "dbg.verbose" then print_endline ("deleting " ^ comb);
+         Sys.remove comb;
+       done
+     with Failure e -> ()); (* Deleted all *_comb.c files in the directory *)
+    (* Combine source files with make using cilly as compiler *)
+    let gcc_path = GobConfig.get_string "exp.gcc_path" in
+    let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
+                                                  "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
+    print_string output;
+    (* fail if make failed *)
+    if exit_code <> WEXITED 0 then
+      failwith ("Failed combining files. Make " ^ (string_of_process_status exit_code) ^ ".")
   )
