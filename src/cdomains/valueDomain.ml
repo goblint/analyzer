@@ -576,8 +576,8 @@ struct
     | _ -> None, None
 
   let rec determine_offset ask left offset exp v =
-    let rec contains_pointer exp = (* TODO: Can a CIL offset contain pointers? *)
-      match exp with
+    let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
+      match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
       |	SizeOf _
       |	SizeOfE _	
@@ -602,7 +602,6 @@ struct
         match ask (Q.MayPointTo (Lval lval)) with
         | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
-          Printf.printf "gotcha for %s and %s\n" (Expp.short 80 (`Lifted (Lval start_of_array_lval))) (Expp.short 80 (`Lifted(Lval lval)));
           match Q.LS.choose v with
           | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
             add
@@ -613,7 +612,7 @@ struct
       | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
     in
     match left, offset with
-      | Some(left), Some(Index(exp, _)) -> (* TODO: Why do I no longer care about the offset here (!!!!!!!!) *)
+      | Some(left), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
         if not (contains_pointer exp) then
           `Lifted exp 
         else
