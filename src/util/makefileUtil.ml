@@ -5,7 +5,13 @@ let buff_size = 1024
 (* Suffix of files combined by CIL *)
 let comb_suffix = "_comb.c"
 
-let exec_command (command: string) =
+let exec_command ?path (command: string) =
+  let current_dir = Sys.getcwd () in
+  (match path with
+  | Some path ->
+    if Sys.file_exists path && Sys.is_directory path then Sys.chdir path
+    else failwith ("Directory " ^ path ^ " does not exist!")
+  | None -> ());
   let (std_out, std_in) = open_process command in
   let output = Buffer.create buff_size in
   try
@@ -17,6 +23,7 @@ let exec_command (command: string) =
   with End_of_file ->
     let exit_code = close_process (std_out,std_in) in
     let output = Buffer.contents output in
+    Sys.chdir current_dir;
     (exit_code, output)
 
 let string_of_process_status = function
@@ -38,11 +45,9 @@ let find_file_by_suffix (dir: string) (file_name_suffix: string) =
   search dir (list_files dir)
 
 let run_cilly (path: string) =
-    let current_dir = Sys.getcwd () in
     if Sys.file_exists path && Sys.is_directory path then (
-        Sys.chdir path;
         (* We need to `make clean` if `make` was run manually, otherwise it would say there is nothing to do and cilly would not be run and no combined C file would be created. *)
-        let _ = exec_command "make clean" in
+        let _ = exec_command ~path "make clean" in
         try
           while true do
             let comb = find_file_by_suffix path comb_suffix in
@@ -52,8 +57,8 @@ let run_cilly (path: string) =
 
         (* Combine the source files with make *)
         let gcc_path = GobConfig.get_string "exp.gcc_path" in
-        let (exit_code, output) = exec_command @@ "make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
-                                                       "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"" in
+        let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
+                                                       "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
         print_string output;
         (* Exit if make failed *)
         if exit_code <> WEXITED 0 then 
@@ -61,6 +66,5 @@ let run_cilly (path: string) =
             print_endline ("Failure when combining files. Make " ^ (string_of_process_status exit_code) ^ ".");
             exit 1
           );
-        Sys.chdir current_dir;
     )
 
