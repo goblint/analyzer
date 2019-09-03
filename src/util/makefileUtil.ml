@@ -12,6 +12,7 @@ let exec_command ?path (command: string) =
     if Sys.file_exists path && Sys.is_directory path then Sys.chdir path
     else failwith ("Directory " ^ path ^ " does not exist!")
   | None -> ());
+  print_endline ("executing command `" ^ command ^ "` in " ^ Sys.getcwd ());
   let (std_out, std_in) = open_process command in
   let output = Buffer.create buff_size in
   try

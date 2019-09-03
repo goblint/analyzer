@@ -209,9 +209,21 @@ let preprocess_files () =
   if List.length !cFileNames >= 1 then (
     let firstFile = List.first !cFileNames in
     if Filename.basename firstFile = "Makefile" then (
-      let dir_name = Filename.dirname firstFile in
-      let _ = MakefileUtil.run_cilly dir_name in
-      let file = MakefileUtil.(find_file_by_suffix dir_name comb_suffix) in
+      let makefile = firstFile in
+      let path = Filename.dirname makefile in
+      (* make sure the Makefile exists or try to generate it *)
+      if not (Sys.file_exists makefile) then (
+        print_endline ("Given " ^ makefile ^ " does not exist!");
+        let configure = Filename.concat path "configure" in
+        if Sys.file_exists configure then (
+          print_endline ("Trying to run " ^ configure ^ " to generate Makefile");
+          let exit_code, output = MakefileUtil.exec_command ~path "./configure" in
+          print_endline (configure ^ MakefileUtil.string_of_process_status exit_code ^ ". Output: " ^ output);
+          if not (Sys.file_exists makefile) then failwith ("Running " ^ configure ^ " did not generate a Makefile - abort!")
+        ) else failwith ("Could neither find given " ^ makefile ^ " nor " ^ configure ^ " - abort!")
+      );
+      let _ = MakefileUtil.run_cilly path in
+      let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
       cFileNames := file :: (List.drop 1 !cFileNames);
     );
   );
