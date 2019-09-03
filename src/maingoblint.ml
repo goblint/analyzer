@@ -398,14 +398,14 @@ let diff_and_rename file =
                    let max_ids = UpdateCil.update_ids file2 max_ids file version_map current_commit changes in
                    store_map version_map max_ids;
                    (changes, last_analyzed_commit)
-                 | None -> print_endline "No ast.data from previous analysis found. Exiting."; exit 1;
+                 | None -> failwith "No ast.data from previous analysis found!"
                )
              | None -> (match Serialize.current_commit_dir () with
                  | Some commit_dir ->
                    let (version_map, max_ids) = VersionLookup.create_map file current_commit in
                    store_map version_map max_ids;
                    (CompareAST.empty_change_info (), "")
-                 | None -> print_endline "Directory for storing the results of the current run could not be created. Exiting."; exit 1)
+                 | None -> failwith "Directory for storing the results of the current run could not be created!")
             ) in
           Serialize.save_cil file;
           let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
