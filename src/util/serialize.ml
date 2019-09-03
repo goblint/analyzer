@@ -58,7 +58,8 @@ let marshall obj fileName  =
 
 let unmarshall fileName =
   let marshalled = input_file fileName in
-  Marshal.from_string marshalled 0
+  if GobConfig.get_bool "dbg.verbose" then print_endline ("Unmarshalling " ^ fileName ^ "... If type of content changed, this will result in a segmentation fault!");
+  Marshal.from_string marshalled 0 (* use Marshal.from_channel? *)
 
 let results_exist () =
   last_analyzed_commit () <> None
