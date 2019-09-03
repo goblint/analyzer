@@ -41,7 +41,7 @@ let run_cilly (path: string) =
     let current_dir = Sys.getcwd () in
     if Sys.file_exists path && Sys.is_directory path then (
         Sys.chdir path;
-        (* Clean the directory *)
+        (* We need to `make clean` if `make` was run manually, otherwise it would say there is nothing to do and cilly would not be run and no combined C file would be created. *)
         let _ = exec_command "make clean" in
         try
           while true do
