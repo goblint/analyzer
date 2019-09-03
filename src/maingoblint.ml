@@ -369,12 +369,12 @@ let handle_extraspecials () =
 let src_path () = Git.git_directory (List.first !cFileNames)
 let data_path () = Filename.concat (src_path ()) ".gob"
 
-let update_map old_file new_file = 
+let update_map old_file new_file =
   let dir = Serialize.gob_directory () in
   VersionLookup.restore_map dir old_file new_file
 
 let store_map updated_map max_ids = (* Creates the directory for the commit *)
-  match Serialize.current_commit_dir () with 
+  match Serialize.current_commit_dir () with
   | Some commit_dir ->
     let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
     Serialize.marshall (updated_map, max_ids) map_file_name
@@ -387,11 +387,11 @@ let diff_and_rename file =
 
   Serialize.src_direcotry := src_path ();
 
-  let change_info = (match Serialize.current_commit () with 
+  let change_info = (match Serialize.current_commit () with
       | Some current_commit -> ((* "put the preparation for incremental analysis here!" *)
           if get_bool "dbg.verbose" then print_endline ("incremental mode running on commit " ^ current_commit);
           let (changes, last_analyzed_commit) =
-            (match Serialize.last_analyzed_commit () with 
+            (match Serialize.last_analyzed_commit () with
              | Some last_analyzed_commit -> (match Serialize.load_latest_cil !cFileNames with
                  | Some file2 ->
                    let (version_map, changes, max_ids) = update_map file2 file in
@@ -411,7 +411,7 @@ let diff_and_rename file =
           let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
           let current_commit_dir = Filename.concat (data_path ()) current_commit in
           Cilfacade.print_to_file (Filename.concat current_commit_dir "cil.c") file;
-          if "" <> last_analyzed_commit then ( 
+          if "" <> last_analyzed_commit then (
             CompareAST.check_file_changed analyzed_commit_dir current_commit_dir;
             (* Note: Global initializers/start state changes are not considered here: *)
             CompareAST.check_any_changed changes

@@ -35,7 +35,7 @@ let last_commit_id (directory: string) =
   let output = execGit args in
   String.trim output
 
-let current_commit (directory: string) = 
+let current_commit (directory: string) =
   if is_clean directory then Some (last_commit_id directory)
   else None
 

@@ -16,7 +16,7 @@ let gob_directory () = let src_dir = !src_direcotry in
 let current_commit () =
   Git.current_commit (!src_direcotry)
 
-let commit_dir src_files commit = 
+let commit_dir src_files commit =
   let gob_dir = gob_directory src_files in
   Filename.concat gob_dir commit
 

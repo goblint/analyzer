@@ -1,39 +1,39 @@
 {
-   "ana": {
-      "activated": [
-         "base"
-      ],
-      "int": {
-         "interval": false,
-         "trier ": true
-      },
-      "hashcons": true
-   },
-   "exp": {
-      "earlyglobs": true,
-      "addr-context": true,
-      "widen-context": true,
-      "solver": {
-         "td3": {
-            "term": true,
-            "space": true,
-            "space_cache": true,
-            "space_restore": true
-         }
-      },
-      "incremental":{
-         "mode": "incremental"
+  "ana": {
+    "activated": [
+      "base"
+    ],
+    "int": {
+      "interval": false,
+      "trier ": true
+    },
+    "hashcons": true
+  },
+  "exp": {
+    "earlyglobs": true,
+    "addr-context": true,
+    "widen-context": true,
+    "solver": {
+      "td3": {
+        "term": true,
+        "space": true,
+        "space_cache": true,
+        "space_restore": true
       }
-   },
-   "dbg": {
-      "verbose": true,
-      "trace": {
-         "context": true
-      },
-      "debug": true
-   },
-   "printstats": true,
-   "result": "none",
-   "solver": "td3",
-   "noverify": true
+    },
+    "incremental": {
+      "mode": "incremental"
+    }
+  },
+  "dbg": {
+    "verbose": true,
+    "trace": {
+      "context": true
+    },
+    "debug": true
+  },
+  "printstats": true,
+  "result": "none",
+  "solver": "td3",
+  "noverify": true
 }

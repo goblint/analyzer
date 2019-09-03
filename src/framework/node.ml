@@ -5,7 +5,7 @@ open Pretty
 (** A node in the Control Flow Graph is either a statement or function. Think of
  * the function node as last node that all the returning nodes point to.  So
  * the result of the function call is contained in the function node. *)
- type node =
+type node =
   | Statement of stmt
   (** The statements as identified by CIL *)
   | FunctionEntry of varinfo
@@ -41,8 +41,8 @@ let print doc =
   print_string @@ Pretty.sprint max_int doc
 
 let to_str doc =
-  Pretty.sprint max_int doc 
-let print_b bool = 
+  Pretty.sprint max_int doc
+let print_b bool =
   print_endline (if bool then "true" else "false"); bool
 
 module Node :
