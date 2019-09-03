@@ -382,9 +382,6 @@ let store_map updated_map max_ids = (* Creates the directory for the commit *)
 
 (* Detects changes and renames vids and sids. *)
 let diff_and_rename file =
-  (* Hashconsing is not supported in incremental mode *)
-  if GobConfig.get_bool "ana.hashcons" = true then (print_endline "Incremental mode is only supported when ana.hashcons is turned off."; exit 1);
-
   Serialize.src_direcotry := src_path ();
 
   let change_info = (match Serialize.current_commit () with
