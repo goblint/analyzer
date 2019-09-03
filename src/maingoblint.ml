@@ -389,6 +389,7 @@ let diff_and_rename file =
 
   let change_info = (match Serialize.current_commit () with 
       | Some current_commit -> ((* "put the preparation for incremental analysis here!" *)
+          if get_bool "dbg.verbose" then print_endline ("incremental mode running on commit " ^ current_commit);
           let (changes, last_analyzed_commit) =
             (match Serialize.last_analyzed_commit () with 
              | Some last_analyzed_commit -> (match Serialize.load_latest_cil !cFileNames with
