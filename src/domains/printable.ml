@@ -117,7 +117,6 @@ struct
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
-  let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
   let short w = lift_f (Base.short w)
   let to_yojson = lift_f (Base.to_yojson)
@@ -128,6 +127,19 @@ struct
   let isSimple = lift_f Base.isSimple
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
+  let equal x y = (* Check if we call hashcons enough. Comment out the equal below to use this. *)
+    if x.BatHashcons.obj == y.BatHashcons.obj || x.BatHashcons.tag = y.BatHashcons.tag then (
+      if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
+        ignore @@ Pretty.printf "tags are equal but values are not for %a and %a\n" pretty x pretty y;
+      assert (Base.equal x.BatHashcons.obj y.BatHashcons.obj);
+      true
+    ) else (
+      if Base.equal x.BatHashcons.obj y.BatHashcons.obj then
+        ignore @@ Pretty.printf "tags are not equal but values are for %a and %a\n" pretty x pretty y;
+      assert (not (Base.equal x.BatHashcons.obj y.BatHashcons.obj));
+      false
+    )
+  (* let equal x y = x.BatHashcons.tag = y.BatHashcons.tag *)
 end
 
 module Lift (Base: S) (N: LiftingNames) =
