@@ -523,7 +523,7 @@ struct
   let name () = "Set (" ^ E.name () ^ ")"
   (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
   let equal x y = leq x y && leq y x
-  let hash = Hashtbl.hash
+  let hash xs = fold (fun v a -> a + E.hash v) xs 0
   let compare x y = 
     if equal x y 
       then 0
