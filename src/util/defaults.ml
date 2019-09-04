@@ -176,7 +176,7 @@ let _ = ()
       ; reg Experimental "exp.fast_global_inits" "true" "Only generate 'a[0] = 0' for a zero-initialized array a[n]. This is only sound for our flat array domain! TODO change this once we use others!"
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitizalized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
-      ; reg Experimental "exp.incremental.mode"  "'off'" "Use incremental analysis in the TD3 solver."
+      ; reg Experimental "exp.incremental.mode"  "'off'" "Use incremental analysis in the TD3 solver. Values: off (default), incremental (analyze based on data from a previous commit or fresh if there is none), complete (discard loaded data and start fresh)."
       ; reg Experimental "exp.incremental.stable" "true" "Reuse the stable set and selectively destabilize it."
       ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
       ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc-6'" "Location of gcc-6. Used to combine source files with cilly."
