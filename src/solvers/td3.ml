@@ -94,6 +94,7 @@ module WP =
           let old = HM.find rho x in
           let l = HM.create 10 in
           let tmp = eq x (eval l x) (side x) in
+          (* let tmp = if GobConfig.get_bool "ana.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
@@ -333,7 +334,7 @@ module WP =
         List.iter one_var xs;
         HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
       in
-      reachability vs;
+      (* reachability vs; *)
 
       stop_event ();
       print_data data "Data after solve completed:\n";
