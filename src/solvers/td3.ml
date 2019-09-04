@@ -94,8 +94,6 @@ module WP =
           let old = HM.find rho x in
           let l = HM.create 10 in
           let tmp = eq x (eval l x) (side x) in
-          (* TODO if hashcons enabled *)
-          let tmp = S.Dom.join (S.Dom.bot ()) tmp in (* Call hashcons via join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag, and since equal just looks at the tag, we would destabilize below. *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
