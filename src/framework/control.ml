@@ -20,6 +20,7 @@ let get_spec () : (module Spec) =
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter)
             |> lift true (module PathSensitive2)
+            |> lift (get_bool "ana.hashcons") (module HashconsContextLifter)
             |> lift (get_bool "ana.hashcons") (module HashconsLifter)
             (* |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter) *)
             |> lift true (module DeadCodeLifter)

@@ -9,16 +9,16 @@ open GobConfig
 
 module M = Messages
 
-(** Lifts a [Spec] so that the domain and the context are [Hashcons]d. *)
+(** Lifts a [Spec] so that the domain is [Hashcons]d. *)
 module HashconsLifter (S:Spec)
   : Spec with module D = Lattice.HConsed (S.D)
           and module G = S.G
-          and module C = Printable.HConsed (S.C)
+          and module C = S.C
 =
 struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
-  module C = Printable.HConsed (S.C)
+  module C = S.C
 
   let name = S.name^" hashconsed"
 
@@ -32,13 +32,12 @@ struct
   let otherstate v = D.lift (S.otherstate v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
-  let val_of = D.lift % S.val_of % C.unlift
-  let context = C.lift % S.context % D.unlift
-  let call_descr f = S.call_descr f % D.unlift
+  let val_of = D.lift % S.val_of
+  let context = S.context % D.unlift
+  let call_descr = S.call_descr
 
   let conv ctx =
-    { ctx with context2 = (fun () -> C.unlift (ctx.context2 ()))
-             ; local = D.unlift ctx.local
+    { ctx with local = D.unlift ctx.local
              ; spawn = (fun v -> ctx.spawn v % D.lift )
              ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
     }
@@ -48,11 +47,7 @@ struct
     D.lift d, diff
 
   let query ctx q =
-    match q with
-    | Queries.IterPrevVars f ->
-      let g (n, c) e = f (n, Obj.repr (C.lift (Obj.obj c))) e in
-      S.query (conv ctx) (Queries.IterPrevVars g)
-    | _ -> S.query (conv ctx) q
+    S.query (conv ctx) q
 
   let assign ctx lv e =
     D.lift @@ S.assign (conv ctx) lv e
@@ -77,6 +72,75 @@ struct
 
   let combine ctx r fe f args es =
     D.lift @@ S.combine (conv ctx) r fe f args (D.unlift es)
+
+  let part_access _ _ _ _ =
+    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
+end
+
+(** Lifts a [Spec] so that the context is [Hashcons]d. *)
+module HashconsContextLifter (S:Spec)
+  : Spec with module D = S.D
+          and module G = S.G
+          and module C = Printable.HConsed (S.C)
+=
+struct
+  module D = S.D
+  module G = S.G
+  module C = Printable.HConsed (S.C)
+
+  let name = S.name^" context hashconsed"
+
+  let init = S.init
+  let finalize = S.finalize
+
+  let should_join = S.should_join
+
+  let startstate = S.startstate
+  let exitstate  = S.exitstate
+  let otherstate = S.otherstate
+  let morphstate = S.morphstate
+
+  let val_of = S.val_of % C.unlift
+  let context = C.lift % S.context
+  let call_descr f = S.call_descr f % C.unlift
+
+  let conv ctx =
+    { ctx with context2 = (fun () -> C.unlift (ctx.context2 ())) }
+
+  let sync ctx =
+    let d, diff = S.sync (conv ctx) in
+    d, diff
+
+  let query ctx q =
+    match q with
+    | Queries.IterPrevVars f ->
+      let g (n, c) e = f (n, Obj.repr (C.lift (Obj.obj c))) e in
+      S.query (conv ctx) (Queries.IterPrevVars g)
+    | _ -> S.query (conv ctx) q
+
+  let assign ctx lv e =
+    S.assign (conv ctx) lv e
+
+  let branch ctx e tv =
+    S.branch (conv ctx) e tv
+
+  let body ctx f =
+    S.body (conv ctx) f
+
+  let return ctx r f =
+    S.return (conv ctx) r f
+
+  let intrpt ctx =
+    S.intrpt (conv ctx)
+
+  let enter ctx r f args =
+    S.enter (conv ctx) r f args
+
+  let special ctx r f args =
+    S.special (conv ctx) r f args
+
+  let combine ctx r fe f args es =
+    S.combine (conv ctx) r fe f args es
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
