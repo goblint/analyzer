@@ -58,6 +58,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
       (* startlines aren't currently interesting because broken, see below *)
+      let from_cfgnode = N.cfgnode from_node in
       let to_cfgnode = N.cfgnode to_node in
       if TaskResult.is_violation to_node || TaskResult.is_sink to_node then
         true
@@ -68,6 +69,10 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
         | _ -> false
       end || begin match to_cfgnode, TaskResult.invariant to_node with
           | Statement _, Some _ -> true
+          | _, _ -> false
+        end || begin match from_cfgnode, to_cfgnode with
+          | _, FunctionEntry f -> true
+          | Function f, _ -> false
           | _, _ -> false
         end
     let is_interesting from_node edge to_node =
