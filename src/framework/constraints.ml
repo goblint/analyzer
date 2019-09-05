@@ -1110,3 +1110,39 @@ struct
     LH.iter verify_var sigma;
     Goblintutil.in_verifying_stage := false
 end
+
+module Reachability
+    (EQSys:GlobConstrSys)
+    (LH:Hashtbl.S with type key=EQSys.LVar.t)
+    (GH:Hashtbl.S with type key=EQSys.GVar.t)
+=
+struct
+  open EQSys
+
+  let prune (lh:D.t LH.t) (gh:G.t GH.t) (lvs:LVar.t list): unit =
+    let reachablel = LH.create (LH.length lh) in
+
+    let rec one_lvar x =
+      if not (LH.mem reachablel x) then begin
+        LH.replace reachablel x ();
+        List.iter one_constraint (system x)
+      end
+    and one_constraint rhs =
+      let getl y =
+        one_lvar y;
+        try LH.find lh y with Not_found -> D.bot ()
+      in
+      let getg y = try GH.find gh y with Not_found -> G.bot () in
+      let setl y yd = one_lvar y in
+      let setg y yd = () in
+      ignore (rhs getl setl getg setg)
+    in
+
+    List.iter one_lvar lvs;
+    LH.filteri_inplace (fun x _ ->
+        let r = LH.mem reachablel x in
+        if not r then
+          ignore (Pretty.printf "Unreachable lvar %a" LVar.pretty_trace x);
+        r
+      ) lh
+end

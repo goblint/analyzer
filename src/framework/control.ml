@@ -458,6 +458,9 @@ struct
       in
       Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
+      let module Reach = Reachability (EQSys) (LHT) (GHT) in
+      Reach.prune !lh_ref !global_xml startvars';
+
       let (witness_prev, witness_next) =
         let lh = !lh_ref in
         let gh = !global_xml in
