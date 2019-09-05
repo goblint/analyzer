@@ -233,80 +233,100 @@ struct
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
   let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
-    begin
-      let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
-      if is_not_partitioned (e, (xl, xm, xr)) then
-        if not_allowed_for_part i then
-          let result = Val.join a (join_of_all_parts x) in
-          (e, (result, result, result))
-        else
+    let exp_value e =
+      match e with
+      | `Lifted e' ->
           begin
-            let exp_value =
-              match i with
-              | `Lifted i' ->
-                  begin
-                    match ask (Q.EvalInt i') with
-                    | `Int n -> Q.ID.to_int n
-                    | _ -> None
-                  end
-              |_ -> None in
-            let e_equals_zero = BatOption.map_default (Int64.equal Int64.zero) false exp_value in
-            let e_equals_maxIndex =
-              match length with
-              | Some l ->
-                  BatOption.map_default (Int64.equal (Int64.sub l Int64.one)) false exp_value
-              | _ -> false
-            in
-            let l = if e_equals_zero then Val.bot () else join_of_all_parts x in
-            let r = if e_equals_maxIndex then Val.bot () else join_of_all_parts x in
-            (i, (l, a, r))
+            match ask (Q.EvalInt e') with
+            | `Int n -> Q.ID.to_int n
+            | _ -> None
           end
+      |_ -> None
+    in
+    let equals_zero e = BatOption.map_default (Int64.equal Int64.zero) false (exp_value e) in
+    let equals_maxIndex e =
+      match length with
+      | Some l ->
+          BatOption.map_default (Int64.equal (Int64.sub l Int64.one)) false (exp_value e)
+      | _ -> false
+    in
+    let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
+    if is_not_partitioned x then
+      if not_allowed_for_part i then
+        let result = Val.join a (join_of_all_parts x) in
+        (e, (result, result, result))
       else
-        match e, i with
-        | `Lifted e', `Lifted i' -> begin
-            let default =
-              begin
-                let left =
-                  match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
-                  | `Bool false -> xl
-                  | _ -> lubIfNotBot xl in
-                let middle =
-                  match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
-                  | `Bool false -> xm
-                  | _ -> Val.join xm a in
-                let right =
-                  match ask (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
-                  | `Bool false -> xr
-                  | _ -> lubIfNotBot xr in
-                (e, (left, middle, right))
-              end
-            in
-            let isEqual = match ask (Q.MustBeEqual (e',i')) with
-              | `Bool true -> true
-              | _ -> false
-            in
-            if isEqual then
-              (*  e = _{must} i => update strongly *)
-              (e, (xl, a, xr))
-            else if Cil.isConstant e' && Cil.isConstant i' then
-              match Cil.isInteger e', Cil.isInteger i' with
-                | Some e'', Some i'' ->
-                  if i'' = Int64.add e'' Int64.one then
-                    (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
-                    (i, (Val.join xl xm, a, xr))
-                  else if e'' = Int64.add i'' Int64.one then
-                    (i, (xl, a, Val.join xm xr))
-                  else
-                    default
-                | _ ->
-                  default
-            else
-              default
-          end
-        | _ ->
-          (* If the expression used to write is not known, all segments except the empty ones will be affected *)
-          (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
-    end
+        let l = if equals_zero i then Val.bot () else join_of_all_parts x in
+        let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
+        (i, (l, a, r))
+    else
+      let isEqual e' i' = match ask (Q.MustBeEqual (e',i')) with
+        | `Bool true -> true
+        | _ -> false
+      in
+      match e, i with
+      | `Lifted e', `Lifted i' when not_allowed_for_part i -> begin
+          let default =
+            let left =
+              match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
+              | `Bool false -> xl
+              | _ -> lubIfNotBot xl in
+            let middle =
+              match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
+              | `Bool false -> xm
+              | _ -> Val.join xm a in
+            let right =
+              match ask (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
+              | `Bool false -> xr
+              | _ -> lubIfNotBot xr in
+            (e, (left, middle, right))
+          in
+          if isEqual e' i' then
+            (*  e = _{must} i => update strongly *)
+            (e, (xl, a, xr))
+          else
+            default
+        end
+      | `Lifted e', `Lifted i' ->
+        if isEqual e' i' then
+          (e,(xl,a,xr))
+        else
+          let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
+            (match ask (Q.MayBeEqual (e', i')) with
+            | `Bool false -> Val.bot()
+            | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
+            (
+              match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.integer 1, Cil.intType),i')) with
+              | `Bool true -> xm
+              | _ ->
+                begin
+                  match ask (Q.MayBeLess (e', i')) with
+                  | `Bool false -> Val.bot()
+                  | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
+                end
+            )
+          in
+          let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
+            (match ask (Q.MayBeEqual (e', i')) with
+            | `Bool false -> Val.bot()
+            | _ -> xm)
+
+            (
+              match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.integer (-1), Cil.intType),i')) with
+              | `Bool true -> xm
+              | _ ->
+                begin
+                  match ask (Q.MayBeLess (i', e')) with
+                  | `Bool false -> Val.bot()
+                  | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
+                end
+            )
+          in
+          (* The new thing is partitioned according to i so we can strongly update *)
+          (i,(left, a, right))
+      | _ ->
+        (* If the expression used to write is not known, all segments except the empty ones will be affected *)
+        (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
 
   let join ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) =
     let new_e = Expp.join e1 e2 in
