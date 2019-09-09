@@ -501,6 +501,11 @@ struct
          (fun n ->
             LHT.find_default next n [])) (* main return is not in next at all *)
       in
+
+      let get: node * Spec.C.t -> Spec.D.t =
+        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+      in
+
       let module Arg =
       struct
         module Node =
@@ -522,10 +527,96 @@ struct
         let next = witness_next
       end
       in
+      (* TODO: convert to functor, move elsewhere *)
+      let module Arg =
+      struct
+        include Arg
 
-      let get: node * Spec.C.t -> Spec.D.t =
-        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+        (*  let partition_if_next if_next =
+              let test_next b = List.find_opt (function
+                  | (Test (_, b'), _) when b = b' -> true
+                  | (_, _) -> false
+                ) if_next
+              in
+              (* assert (List.length if_next <= 2); *)
+              (test_next true, test_next false)
+
+            let rec next (n, c) = match n with
+              | Statement {skind=If (e, _, _, loc)} ->
+                let if_next = Arg.next (n, c) in
+                begin match partition_if_next if_next with
+                  | (Some (_, ((if_true_next_n, _) as if_true_next_nc)), Some (_, if_false_next_nc)) ->
+                  begin match if_true_next_n with
+                    | Statement {skind=If (e2, _, _, loc2)} when loc = loc2 ->
+                      let if_true_next_next = next if_true_next_nc in
+                      begin match partition_if_next if_true_next_next with
+                        | (Some (_, if_true_next_true_next_nc), Some (_, if_true_next_false_next_nc)) ->
+                          if Node.equal if_false_next_nc if_true_next_false_next_nc then begin
+                            let exp = BinOp (LAnd, e, e2, intType) in
+                            [
+                              (Test (exp, true), if_true_next_true_next_nc);
+                              (Test (exp, false), if_false_next_nc)
+                            ]
+                          end else
+                            if_next
+                        | (_, _) -> if_next
+                      end
+                    | _ -> if_next
+                  end
+                  | (_, _) -> if_next
+                end
+              | _ -> Arg.next (n, c) *)
+
+        let partition_if_next_n if_next_n =
+          let test_next b = List.find (function
+              | (Test (_, b'), _) when b = b' -> true
+              | (_, _) -> false
+            ) if_next_n
+          in
+          (* assert (List.length if_next <= 2); *)
+          (test_next true, test_next false)
+
+        let cfg_next n =
+          Cfg.next n
+          |> List.map (fun (es, to_n) ->
+              List.map (fun (_, e) -> (e, to_n)) es
+            )
+          |> List.flatten
+
+        (* TODO: refactor *)
+        let rec cfg_if_next n = match n with
+          | Statement {skind=If (e, _, _, loc)} ->
+            let if_next_n = cfg_next n in
+            let ((_, if_true_next_n), (_, if_false_next_n)) = partition_if_next_n if_next_n in
+            begin match if_true_next_n with
+              | Statement {skind=If (_, _, _, loc2)} when loc = loc2 ->
+                let if_true_next_next_n = cfg_if_next if_true_next_n in
+                begin match partition_if_next_n if_true_next_next_n with
+                  (* get e2 from edge because recursive cfg_if_next returns it there *)
+                  | ((Test (e2, _), if_true_next_true_next_n), (_, if_true_next_false_next_n)) ->
+                    if MyCFG.Node.equal if_false_next_n if_true_next_false_next_n then begin
+                      let exp = BinOp (LAnd, e, e2, intType) in
+                      [
+                        (Test (exp, true), if_true_next_true_next_n);
+                        (Test (exp, false), if_false_next_n)
+                      ]
+                    end else
+                      if_next_n
+                  | (_, _) -> failwith "cfg_if_next: partition_if_next_n lied!"
+                end
+              | _ -> if_next_n
+            end
+          | _ -> cfg_next n
+
+        let next (n, c) = match n with
+          | Statement {skind=If (_, _, _, _)} when get_bool "exp.uncilwitness" ->
+            cfg_if_next n
+            |> List.map (fun (e, to_n) -> (e, (to_n, c)))
+            |> List.filter (fun (e, (to_n, c)) -> not (Spec.D.is_bot (get (to_n, c))))
+          | _ -> Arg.next (n, c)
+      end
       in
+
       let find_invariant nc = Spec.D.invariant "" (get nc) in
 
       if svcomp_unreach_call then begin

@@ -175,6 +175,7 @@ let _ = ()
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitizalized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
       ; reg Experimental "exp.minwitness"        "false" "Try to minimize the witness"
+      ; reg Experimental "exp.uncilwitness"      "false" "Try to undo CIL control flow transformations in witness"
 
 (* {4 category [Debugging]} *)
 let _ = ()
