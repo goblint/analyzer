@@ -377,7 +377,25 @@ struct
     match e1, e2 with
     | `Lifted e1e, `Lifted e2e when Basetype.CilExp.equal e1e e2e ->
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
-    | `Lifted _, `Lifted _
+    | `Lifted e1e, `Lifted e2e ->
+      Printf.printf "smart op over %s and %s\n" (short 80 x1) (short 80 x2);
+      let r = if must_be_zero (x1_eval_int e2e) then
+        let over_all_x1 = op (op xl1 xm1) xr1 in
+        (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+      else if must_be_length_minus_one (x1_eval_int e2e) then
+        let over_all_x1 = op (op xl1 xm1) xr1 in
+        (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+      else if must_be_zero (x2_eval_int e1e) then
+        let over_all_x2 = op (op xl2 xm2) xr2 in
+        (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+      else if must_be_length_minus_one (x2_eval_int e1e) then
+        let over_all_x2 = op (op xl2 xm2) xr2 in
+        (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+      else
+        (Printf.printf "None of the interesting ones\n";
+        (Expp.top (), (op_over_all, op_over_all, op_over_all))) in
+      Printf.printf "was %s\n\n" (short 80 r);
+      r
     | `Top, `Top ->
       (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Top, `Lifted e2e ->
