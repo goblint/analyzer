@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation','octagon']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation','octagon']" 
 void main(void) {
   example1();
   example2();
@@ -124,15 +124,15 @@ void example4(void) {
     a[j] = 42;
     
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    assert(a[i] == 9); // UNKNOWN
     
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
       int k = a[i-1];
-      assert(k == 9);
+      assert(k == 9); // UNKNOWN
 
       int l = a[0];
-      assert(l == 9);
+      assert(l == 9); // UNKNOWN
     }
 
     i++;
@@ -150,11 +150,11 @@ void example4a(void) {
     a[j] = 42;
     
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    assert(a[i] == 9); //UNKNOWN
     
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
-      assert(a[i-1] == 9);
+      assert(a[i-1] == 9); //UNKNOWN
     }
 
     i++;
@@ -173,11 +173,11 @@ void example4b(void) {
     a[j] = 42;
     
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    assert(a[i] == 9); //UNKNOWN
     
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
-      assert(a[i-1] == 9);
+      assert(a[i-1] == 9); //UNKNOWN
     }
 
     i++;
@@ -195,7 +195,7 @@ void example4c(void) {
     a[i-2] = 31;
 
     if(i < 41) {
-      assert(a[i+1] == 7);
+      assert(a[i+1] == 7); //UNKNOWN
     }
 
     i--;
@@ -295,13 +295,13 @@ void example8(void) {
     j++;      // Octagon knows -1 <= i-j <= -1
     i = j;    // Without octagons, we lose partitioning here because we don't know how far the move has been
   
-    assert(a[i-1] == 0);
-    assert(a[i-2] == 0);
+    assert(a[i-1] == 0); //UNKNOWN
+    assert(a[i-2] == 0); //UNKNOWN
   }
 
   j = 0;
   while(j < N) {
-    assert(a[j] == 0);
+    assert(a[j] == 0); //UNKNOWN
     j++;
   }
 }

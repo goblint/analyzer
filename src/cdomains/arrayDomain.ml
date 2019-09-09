@@ -4,7 +4,6 @@ open GobConfig
 
 module M = Messages
 module A = Array
-module GU = Goblintutil
 module Q = Queries
 
 module type S =
@@ -233,6 +232,7 @@ struct
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
   let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
+    let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
     let exp_value e =
       match e with
       | `Lifted e' ->
@@ -265,7 +265,7 @@ struct
         | _ -> false
       in
       match e, i with
-      | `Lifted e', `Lifted i' when not_allowed_for_part i -> begin
+      | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
           let default =
             let left =
               match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
@@ -284,6 +284,18 @@ struct
           if isEqual e' i' then
             (*  e = _{must} i => update strongly *)
             (e, (xl, a, xr))
+          else if Cil.isConstant e' && Cil.isConstant i' then
+            match Cil.isInteger e', Cil.isInteger i' with
+              | Some e'', Some i'' ->
+                if i'' = Int64.add e'' Int64.one then
+                  (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
+                  (i, (Val.join xl xm, a, xr))
+                else if e'' = Int64.add i'' Int64.one then
+                  (i, (xl, a, Val.join xm xr))
+                else
+                  default
+              | _ ->
+                default
           else
             default
         end
@@ -559,22 +571,22 @@ struct
     | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
 
   (* Functions that make us of the configuration flag *)
-  let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "exp.partition-arrays" then P.name () else T.name ()
+  let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "exp.partition-arrays.enabled" then P.name () else T.name ()
 
   let bot () =
-    if get_bool "exp.partition-arrays" then
+    if get_bool "exp.partition-arrays.enabled" then
       (Some (P.bot ()), None)
     else
       (None, Some (T.bot ()))
 
   let top () =
-    if get_bool "exp.partition-arrays" then
+    if get_bool "exp.partition-arrays.enabled" then
       (Some (P.top ()), None)
     else
       (None, Some (T.top ()))
 
   let make i v =
-    if get_bool "exp.partition-arrays" then
+    if get_bool "exp.partition-arrays.enabled" then
       (Some (P.make i v), None)
     else
       (None, Some (T.make i v))

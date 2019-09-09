@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']" 
 int main(void) {
   example1();
   example2();
@@ -49,19 +49,20 @@ void example2(void) {
     callee(arr);
   }
 
-  assert(arr[0] == 100); //FAIL
+  assert(arr[0] == 100); //UNKNOWN
   assert(arr[0] == 7); //UNKNOWN
   assert(arr[0] == 42); //UNKNOWN
 
-  assert(arr[7] == 100); //FAIL
+  assert(arr[7] == 100); //UNKNOWN
   assert(arr[7] == 7); //UNKNOWN
   assert(arr[7] == 42); //UNKNOWN
 
-  assert(arr[20] == 100); //FAIL
+  assert(arr[20] == 100); //UNKNOWN
   assert(arr[20] == 7); //UNKNOWN
   assert(arr[20] == 42); //UNKNOWN
 }
 
 void callee(int* arr) {
   arr[0] = 7;
+  asser(arr[0] == 7);
 }

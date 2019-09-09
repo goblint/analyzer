@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']" 
 int global_array[50];
 
 int main(void) {
@@ -18,5 +18,5 @@ void some_func(void) {
   }
 
   int x = global_array[0];
-  assert(x == 42); //FAIL
+  assert(x == 42); //UNKNOWN
 }

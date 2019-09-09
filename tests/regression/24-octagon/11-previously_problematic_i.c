@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays  --set ana.activated "['base','expRelation','octagon']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation','octagon']"
 // These examples were cases were we saw issues of not reaching a fixpoint during development of the octagon domain. Since those issues might
 // resurface, these tests without asserts are included
 char buf2[67];
@@ -8,6 +8,7 @@ int main(int argc, char **argv)
   int human_output_opts;
   int to_block_size;
   char buf1[67];
+  char local;
 
   int from_block_size = 1;
 

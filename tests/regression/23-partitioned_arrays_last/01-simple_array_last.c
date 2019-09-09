@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']" 
 int global;
 
 int main(void)
@@ -11,8 +11,6 @@ int main(void)
     example6();
     example7();
     example8();
-    example9();
-    example10();
     return 0;
 }
 
@@ -101,7 +99,7 @@ void example5(void) {
         assert(a[5] == 2); //UNKNOWN
         i++;
     }
-
+  
     assert(a[0] == 2);
     assert(a[41] == 2);
     assert(b[0] == 0);
@@ -174,33 +172,4 @@ void example8() {
     assert(a[2] == 42);
     assert(a[3] == 42);
     assert(a[global] == 42);
-}
-
-// Check that arrays of types different from int are handeled correctly
-void example9() {
-    char a[10];
-    int n;
-    assert(a[3] == 800); // FAIL
-
-    for(int i=0;i < 10; i++) {
-        a[i] = 7;
-    }
-
-    assert(a[0] == 7);
-    assert(a[3] == 7);
-
-    a[3] = (char) n;
-    assert(a[3] == 800); //FAIL
-    assert(a[3] == 127); //UNKNOWN
-    assert(a[3] == -128); //UNKNOWN
-    assert(a[3] == -129); //FAIL
-}
-
-void example10() {
-    int a[20];
-    a[5] = 3;
-
-    int i=5;
-    a[i] = 7;
-    assert(a[5] == 7);
 }
