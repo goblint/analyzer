@@ -588,8 +588,9 @@ struct
           | Statement {skind=If (e, _, _, loc)} ->
             let if_next_n = cfg_next n in
             let ((_, if_true_next_n), (_, if_false_next_n)) = partition_if_next_n if_next_n in
-            begin match if_true_next_n with
-              | Statement {skind=If (_, _, _, loc2)} when loc = loc2 ->
+            begin match if_true_next_n, if_false_next_n with
+              (* && *)
+              | (Statement {skind=If (_, _, _, loc2)}, _) when loc = loc2 ->
                 let if_true_next_next_n = cfg_if_next if_true_next_n in
                 begin match partition_if_next_n if_true_next_next_n with
                   (* get e2 from edge because recursive cfg_if_next returns it there *)
@@ -604,7 +605,23 @@ struct
                       if_next_n
                   | (_, _) -> failwith "cfg_if_next: partition_if_next_n lied!"
                 end
-              | _ -> if_next_n
+              (* || *)
+              | (_, Statement {skind=If (_, _, _, loc2)}) when loc = loc2 ->
+                let if_false_next_next_n = cfg_if_next if_false_next_n in
+                begin match partition_if_next_n if_false_next_next_n with
+                  (* get e2 from edge because recursive cfg_if_next returns it there *)
+                  | ((Test (e2, _), if_false_next_true_next_n), (_, if_false_next_false_next_n)) ->
+                    if MyCFG.Node.equal if_true_next_n if_false_next_true_next_n then begin
+                      let exp = BinOp (LOr, e, e2, intType) in
+                      [
+                        (Test (exp, true), if_true_next_n);
+                        (Test (exp, false), if_false_next_false_next_n)
+                      ]
+                    end else
+                      if_next_n
+                  | (_, _) -> failwith "cfg_if_next: partition_if_next_n lied!"
+                end
+              | (_, _) -> if_next_n
             end
           | _ -> cfg_next n
 
