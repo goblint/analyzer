@@ -209,7 +209,9 @@ let createCFG (file: file) =
                * the [Call] node. *)
               | Not_found ->
                 let newst = mkStmt (Return (None, locUnknown)) in
-                newst.sid <- new_sid ();
+                let start_id = 10_000_000_000 in (* TODO get max_sid? *)
+                let sid = Hashtbl.hash loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
+                newst.sid <- if sid < start_id then sid + start_id else sid;
                 mkEdge (realnode true stmt) (Test (one, false)) newst;
                 addCfg (Function fd.svar) (Ret (None,fd), Statement newst);
             end
