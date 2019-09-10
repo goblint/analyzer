@@ -82,6 +82,14 @@ module NoHashconsLifter (S: Spec) = struct
   include (S : Spec with module C := C)
 end
 
+(* see option ana.opt.equal *)
+module OptEqual (S: Spec) = struct
+  module D = struct include S.D let equal x y = x == y || equal x y end
+  module G = struct include S.G let equal x y = x == y || equal x y end
+  module C = struct include S.C let equal x y = x == y || equal x y end
+  include (S : Spec with module D := D and module G := G and module C := C)
+end
+
 (** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
 module LevelSliceLifter (S:Spec)
   : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
