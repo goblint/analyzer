@@ -125,7 +125,7 @@ let _ = ()
       ; reg Analyses "ana.arinc.validate"    "true" "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables."
       ; reg Analyses "ana.arinc.export"    "true" "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way."
       ; reg Analyses "ana.arinc.merge_globals" "false"  "Merge all global return code variables into one."
-      ; reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
+      ; reg Analyses "ana.opt.hashcons"        "true"  "Should we try to save memory and speed up equality by hashconsing?"
       ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
       ; reg Analyses "ana.mutex.disjoint_types" "true" "Do not propagate basic type writes to all struct fields"
 

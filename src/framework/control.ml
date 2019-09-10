@@ -23,7 +23,7 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
           ) in
-  (module (val if get_bool "ana.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
+  (module (val if get_bool "ana.opt.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
