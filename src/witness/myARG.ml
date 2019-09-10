@@ -85,3 +85,43 @@ struct
             (edge, to_n')
           )
 end
+
+module type IsInteresting =
+sig
+  type node
+  val is_interesting: node -> MyCFG.edge -> node -> bool
+end
+
+module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t):
+  S with module Node = Arg.Node =
+struct
+  include Arg
+
+  (* too aggressive, duplicates some interesting edges *)
+  (* let rec next node =
+       Arg.next node
+       |> List.map (fun (edge, to_node) ->
+           if IsInteresting.is_interesting node edge to_node then
+             [(edge, to_node)]
+           else
+             next to_node
+         )
+       |> List.flatten *)
+
+  let rec next node =
+    Arg.next node
+    |> List.map (fun (edge, to_node) ->
+        if IsInteresting.is_interesting node edge to_node then
+          [(edge, to_node)]
+        else begin
+          let to_node_next = next to_node in
+          if List.exists (fun (edge, to_node) ->
+              IsInteresting.is_interesting node edge to_node
+            ) to_node_next then
+            [(edge, to_node)] (* don't shortcut if node has outdoing interesting edges, e.g. control *)
+          else
+            to_node_next
+        end
+      )
+    |> List.flatten
+end
