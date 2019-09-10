@@ -329,7 +329,7 @@ module WP =
             | Some x -> one_constraint x
           )
         and one_constraint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
+          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> ignore @@ Pretty.printf "reachability: one_constraint: could not find variable %a\n" S.Var.pretty_trace x; S.Dom.bot ()) (fun x _ -> one_var x))
         in
         List.iter one_var xs;
         HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
