@@ -10,10 +10,9 @@ sig
   val is_interesting: node -> MyCFG.edge -> node -> bool
 end
 
-module InterestingArg (TaskResult: TaskResult) (IsInteresting: IsInteresting with type node := TaskResult.Arg.Node.t):
-  MyARG.S with module Node = TaskResult.Arg.Node =
+module InterestingArg (Arg: MyARG.S) (IsInteresting: IsInteresting with type node := Arg.Node.t):
+  MyARG.S with module Node = Arg.Node =
 struct
-  module Arg = TaskResult.Arg
   include Arg
 
   (* too aggressive, duplicates some interesting edges *)
@@ -79,8 +78,8 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
       not minwitness || is_interesting_real from_node edge to_node
   end
   in
-  (* let module Arg = TaskResult.Arg in *)
-  let module Arg = InterestingArg (TaskResult) (IsInteresting) in
+  let module Arg = TaskResult.Arg in
+  let module Arg = InterestingArg (Arg) (IsInteresting) in
 
   let module N = Arg.Node in
   let module GML = DeDupGraphMlWriter (N) (ArgNodeGraphMlWriter (N) (XmlGraphMlWriter)) in
