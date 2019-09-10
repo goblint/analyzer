@@ -125,3 +125,108 @@ struct
       )
     |> List.flatten
 end
+
+
+module type SIntra =
+sig
+  val next: MyCFG.node -> (MyCFG.edge * MyCFG.node) list
+end
+
+module type SIntraOpt =
+sig
+  val next: MyCFG.node -> ((MyCFG.edge * MyCFG.node) list) option
+end
+
+module CfgIntra (Cfg:CfgForward): SIntra =
+struct
+  let next node =
+    Cfg.next node
+    |> List.map (fun (es, to_n) ->
+        List.map (fun (_, e) -> (e, to_n)) es
+      )
+    |> List.flatten
+end
+
+module UnCilIntra (Arg: SIntra): SIntraOpt =
+struct
+  open Cil
+
+  let partition_if_next_n if_next_n =
+    let test_next b = List.find (function
+        | (Test (_, b'), _) when b = b' -> true
+        | (_, _) -> false
+      ) if_next_n
+    in
+    (* assert (List.length if_next <= 2); *)
+    (test_next true, test_next false)
+
+
+  (* TODO: refactor *)
+  let rec next n = match n with
+    | Statement {skind=If (e, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+      let if_next_n = Arg.next n in
+      let ((_, if_true_next_n), (_, if_false_next_n)) = partition_if_next_n if_next_n in
+      begin match if_true_next_n, if_false_next_n with
+        (* && *)
+        | (Statement {skind=If (_, _, _, loc2)}, _) when loc = loc2 ->
+          let if_true_next_next_n = next' if_true_next_n in
+          begin match partition_if_next_n if_true_next_next_n with
+            (* get e2 from edge because recursive next returns it there *)
+            | ((Test (e2, _), if_true_next_true_next_n), (_, if_true_next_false_next_n)) ->
+              if MyCFG.Node.equal if_false_next_n if_true_next_false_next_n then begin
+                let exp = BinOp (LAnd, e, e2, intType) in
+                Some [
+                  (Test (exp, true), if_true_next_true_next_n);
+                  (Test (exp, false), if_false_next_n)
+                ]
+              end else
+                None
+            | (_, _) -> failwith "NodeUnCil: partition_if_next_n lied!"
+          end
+        (* || *)
+        | (_, Statement {skind=If (_, _, _, loc2)}) when loc = loc2 ->
+          let if_false_next_next_n = next' if_false_next_n in
+          begin match partition_if_next_n if_false_next_next_n with
+            (* get e2 from edge because recursive next returns it there *)
+            | ((Test (e2, _), if_false_next_true_next_n), (_, if_false_next_false_next_n)) ->
+              if MyCFG.Node.equal if_true_next_n if_false_next_true_next_n then begin
+                let exp = BinOp (LOr, e, e2, intType) in
+                Some [
+                  (Test (exp, true), if_true_next_n);
+                  (Test (exp, false), if_false_next_false_next_n)
+                ]
+              end else
+                None
+            | (_, _) -> failwith "NodeUnCil: partition_if_next_n lied!"
+          end
+        | (_, _) -> None
+      end
+    | _ -> None
+  and next' n = match next n with
+    | Some next -> next
+    | None -> Arg.next n
+
+end
+
+module type MoveNode =
+sig
+  include Node
+
+  val move: t -> MyCFG.node -> t
+  val is_live: t -> bool
+end
+
+module Intra (Node: MoveNode) (ArgIntra: SIntraOpt) (Arg: S with module Node = Node):
+  S with module Node = Node =
+struct
+  include Arg
+  open GobConfig
+
+  let next node =
+    match ArgIntra.next (Node.cfgnode node) with
+    | None -> Arg.next node
+    | Some next ->
+      next
+      |> List.map (fun (e, to_n) -> (e, Node.move node to_n))
+      |> List.filter (fun (_, to_node) -> Node.is_live to_node)
+end
