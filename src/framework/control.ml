@@ -19,10 +19,10 @@ let get_spec () : (module Spec) =
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             |> lift true (module PathSensitive2)
-            |> lift (get_bool "ana.hashcons") (module HashconsLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
+            |> lift (get_bool "ana.hashcons") (module HashconsLifter)
           ))
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
