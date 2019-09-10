@@ -33,6 +33,7 @@ end
 module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
 struct
   type t = B.t * int
+  let relift x = x
   let compare ((u1,u2):t) (v1,v2) =
     match Pervasives.compare u2 v2 with
     | 0 -> B.compare u1 v1

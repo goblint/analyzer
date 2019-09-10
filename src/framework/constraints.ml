@@ -9,9 +9,9 @@ open GobConfig
 
 module M = Messages
 
-(** Lifts a [Spec] so that the domain and the context are [Hashcons]d. *)
+(** Lifts a [Spec] so that the domain and the context are [Hashcons]d and that C offers a relift function for incremental to re-hashcons loaded values. *)
 module HashconsLifter (S:Spec)
-  : Spec with module D = Lattice.HConsed (S.D)
+  : SpecHC with module D = Lattice.HConsed (S.D)
           and module G = S.G
           and module C = Printable.HConsed (S.C)
 =
@@ -77,6 +77,10 @@ struct
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
+module NoHashconsLifter (S: Spec) = struct
+  module C = Printable.HC (S.C)
+  include (S : Spec with module C := C)
+end
 
 (** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
 module LevelSliceLifter (S:Spec)
@@ -359,7 +363,7 @@ sig
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
+module FromSpec (S:SpecHC) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = Basetype.Variables
@@ -533,6 +537,9 @@ module Var2 (LV:VarType) (GV:VarType)
 =
 struct
   type t = [ `L of LV.t  | `G of GV.t ]
+  let relift = function
+    | `L x -> `L (LV.relift x)
+    | `G x -> `G (GV.relift x)
 
   let equal x y =
     match x, y with
@@ -847,7 +854,7 @@ struct
 end
 
 module Compare
-    (S:Spec)
+    (S:SpecHC)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
                         and module GVar = Basetype.Variables
                         and module D = S.D

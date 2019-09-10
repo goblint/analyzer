@@ -24,6 +24,22 @@ sig
   (* This is for debugging *)
   val name: unit -> string
   val to_yojson : t -> json
+
+end
+
+module type HC = (* HashCons *)
+sig
+  include S
+  (* For hashconsing together with incremental we need to re-hashcons old values.
+   * For HashconsLifter.D this is done on any lattice operation, so we can replace x with `join bot x` to hashcons it again and get a new tag for it.
+   * For HashconsLifter.C we call hashcons only in `context` which is in Analyses.Spec but not in Analyses.GlobConstrSys, i.e. not visible to the solver. *)
+  (* The default for this should be identity, except for HConsed below where we want to have the side-effect and return a value with the updated tag. *)
+  val relift: t -> t
+end
+
+module HC (X: S) = struct
+  include X
+  let relift x = x
 end
 
 module Std =
@@ -115,6 +131,7 @@ struct
   let unlift x = x.BatHashcons.obj
   let lift = HC.hashcons htable
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
+  let relift x = HC.hashcons htable x.BatHashcons.obj
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
   let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag

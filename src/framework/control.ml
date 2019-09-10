@@ -10,11 +10,11 @@ open Constraints
 
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
-let get_spec () : (module Spec) =
+let get_spec () : (module SpecHC) =
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
-  (module (val
+  let module S1 = (val
             (module MCP.MCP2 : Spec)
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
@@ -22,15 +22,15 @@ let get_spec () : (module Spec) =
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
-            |> lift (get_bool "ana.hashcons") (module HashconsLifter)
-          ))
+          ) in
+  (module (val if get_bool "ana.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
     (** The main function to preform the selected analyses. *)
-    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) (increment: increment_data) =
+    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
   
     let module Inc = struct let increment = increment end in
 

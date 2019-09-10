@@ -77,6 +77,7 @@ module Variables =
 struct
   include Printable.Std
   type t = varinfo [@@deriving to_yojson]
+  let relift x = x
   let trace_enabled = true
   let isSimple _  = true
   let is_global v = v.vglob

@@ -23,11 +23,13 @@ sig
   val file_name : t -> string
   val line_nr   : t -> int
   val node      : t -> MyCFG.node
+  val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
 end
 
 module Var =
 struct
   type t = MyCFG.node
+  let relift x = x
 
   let category = function
     | MyCFG.Statement     s -> 1
@@ -91,9 +93,10 @@ struct
 end
 
 
-module VarF (LD: Printable.S) =
+module VarF (LD: Printable.HC) =
 struct
   type t = MyCFG.node * LD.t
+  let relift (n,x) = n, LD.relift x
 
   let category = function
     | (MyCFG.Statement     s,_) -> 1
@@ -474,6 +477,12 @@ sig
   val special : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
+end
+
+module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)
+sig
+  module C : Printable.HC
+  include Spec with module C := C
 end
 
 type increment_data = {
