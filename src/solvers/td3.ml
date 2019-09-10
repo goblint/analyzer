@@ -365,7 +365,7 @@ module WP =
          * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
          * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
-        if loaded && GobConfig.get_bool "ana.hashcons" then
+        if loaded && GobConfig.get_bool "ana.hashcons" then (
           HM.iter (fun k v ->
             HM.remove data.rho k; (* remove old values *)
             (* call hashcons on contexts and abstract values; results in new tags *)
@@ -385,6 +385,7 @@ module WP =
             HM.remove data.infl k;
             HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
           ) data.infl;
+        );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
           data.stable <- HM.create 10;
