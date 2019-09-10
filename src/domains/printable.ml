@@ -157,7 +157,7 @@ struct
       false
     )
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
-  let equal = equal_debug
+  (* let equal = equal_debug *)
 end
 
 module Lift (Base: S) (N: LiftingNames) =
