@@ -82,7 +82,7 @@ module NoHashconsLifter (S: Spec) = struct
   include (S : Spec with module C := C)
 end
 
-(** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
+(** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
 module LevelSliceLifter (S:Spec)
   : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
           and module G = S.G
