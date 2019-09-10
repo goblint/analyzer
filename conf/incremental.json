@@ -7,7 +7,7 @@
       "interval": true,
       "trier ": false
     },
-    "hashcons": false
+    "hashcons": true
   },
   "exp": {
     "earlyglobs": true,
