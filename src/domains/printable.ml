@@ -177,13 +177,13 @@ struct
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
 
-  let compare x y = 
+  let compare x y =
     match (x, y) with
     | (`Top, `Top) -> 0
     | (`Bot, `Bot) -> 0
     | (`Top, _) -> 1
     | (`Bot, _) -> -1
-    | (_, `Top) -> -1 
+    | (_, `Top) -> -1
     | (_, `Bot) -> 1
     | (`Lifted x, `Lifted y) -> Base.compare x y
     | _ -> raise @@ invalid_arg "Invalid argument for Lift.compare"
@@ -242,9 +242,9 @@ struct
     match (x, y) with
     | (`Left _), (`Right _) -> -1
     | (`Right _), (`Left _) -> 1
-    | (`Right x), (`Right y) -> Base2.compare x y 
+    | (`Right x), (`Right y) -> Base2.compare x y
     | (`Left x), (`Left y) -> Base1.compare x y
-    | _, _ -> raise @@ Invalid_argument "Invalid argument for Either.compare" 
+    | _, _ -> raise @@ Invalid_argument "Invalid argument for Either.compare"
 
   let pretty_f _ () (state:t) =
     match state with
@@ -295,7 +295,7 @@ struct
     | (`Lifted1 x, `Lifted1 y) -> Base1.equal x y
     | (`Lifted2 x, `Lifted2 y) -> Base2.equal x y
     | _ -> false
-  
+
   let compare x y =
     let order x = match x with
       | `Top -> 0
@@ -303,11 +303,11 @@ struct
       | `Lifted1 _ -> 2
       | `Lifted2 _ -> 3
     in
-    if equal x y 
+    if equal x y
       then 0
-      else 
+      else
         let compareOrder = compare (order x) (order y) in
-        if compareOrder != 0 
+        if compareOrder != 0
           then compareOrder
           else
            match (x, y) with

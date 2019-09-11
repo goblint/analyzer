@@ -15,8 +15,8 @@ module GTPMA = GeneralTests(D)(ATD)
 module PMapATest (TD : GeneralArrayTest.S with type t = D.t) =
 struct
   open TD
-  
-  let  test = 
+
+  let  test =
     [ ("test_cache_mem" >:: GTPMA.test_cache_mem);
     ]
 
@@ -27,7 +27,7 @@ module STPMA = PMapATest(ATD)
 
 
 (* all tests together *)
-let  test () = "pMapArrayDomainTest" >::: 
+let  test () = "pMapArrayDomainTest" >:::
   GTPMA.test @ STPMA.test
 
 

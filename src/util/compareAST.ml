@@ -50,7 +50,7 @@ module GlobalMap = Map.Make(struct
       else compare a.global_t b.global_t
   end)
 
-let eq_list eq xs ys = 
+let eq_list eq xs ys =
   try
     List.for_all (fun (a,b) -> eq a b) (List.combine xs ys)
   with Invalid_argument _ -> false
@@ -82,32 +82,32 @@ and eq_exp (a: exp) (b: exp) = match a,b with
   | SizeOf typ1, SizeOf typ2 -> eq_typ typ1 typ2
   | SizeOfE exp1, SizeOfE exp2 -> eq_exp exp1 exp2
   | SizeOfStr str1, SizeOfStr str2 -> str1 = str2 (* possibly, having the same length would suffice *)
-  | AlignOf typ1, AlignOf typ2 -> eq_typ typ1 typ2 
+  | AlignOf typ1, AlignOf typ2 -> eq_typ typ1 typ2
   | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2
   | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) -> op1 == op2 && eq_exp exp1 exp2 && eq_typ typ1 typ2
   | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  op1 = op2 && eq_exp left1 left2 && eq_exp right1 right2 && eq_typ typ1 typ2
-  | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 &&  eq_exp exp1 exp2 
-  | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 
+  | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 &&  eq_exp exp1 exp2
+  | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2
   | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2
   | _, _ -> false
 
-and eq_lhost (a: lhost) (b: lhost) = match a, b with 
-    Var v1, Var v2 -> eq_varinfo v1 v2 
-  | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
+and eq_lhost (a: lhost) (b: lhost) = match a, b with
+    Var v1, Var v2 -> eq_varinfo v1 v2
+  | Mem exp1, Mem exp2 -> eq_exp exp1 exp2
   | _, _ -> false
 
-and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) = 
-  if( List.exists (fun x-> match x with (x,y)-> a==x && b == y) acc) 
-  then true 
+and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
+  if( List.exists (fun x-> match x with (x,y)-> a==x && b == y) acc)
+  then true
   else (let acc = List.cons (a,b) acc in
         match a, b with
         | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
         | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
         | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
-        | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2) 
+        | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2)
           ->  eq_typ_acc typ1 typ2 acc && eq_list eq_args list1 list2 && varArg1 = varArg2 &&
               eq_list eq_attribute attr1 attr2
-        | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2) 
+        | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2)
           ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
               eq_list eq_attribute attr1 attr2
         | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typ_acc typinfo1.ttype typeinfo2.ttype acc && eq_list eq_attribute attr1 attr2 (* Ignore tname, treferenced *)
@@ -134,7 +134,7 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) =
 and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
     (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ typ1 typ2 && eq_list eq_attribute attr1 attr2
 
-and eq_typsig (a: typsig) (b: typsig) = 
+and eq_typsig (a: typsig) (b: typsig) =
   match a, b with
   | TSArray (ts1, i1, attr1), TSArray (ts2, i2, attr2) -> eq_typsig ts1 ts2 && i1 = i2 && eq_list eq_attribute attr1 attr2
   | TSPtr (ts1, attr1), TSPtr (ts2, attr2) -> eq_typsig ts1 ts2 && eq_list eq_attribute attr1 attr2
@@ -156,7 +156,7 @@ and eq_attrparam (a: attrparam) (b: attrparam) = match a, b with
   | AUnOp (op1, attrparam1), AUnOp (op2, attrparam2) -> op1 = op2 && eq_attrparam attrparam1 attrparam2
   | ABinOp (op1, left1, right1), ABinOp (op2, left2, right2) -> op1 = op2 && eq_attrparam left1 left2 && eq_attrparam right1 right2
   | ADot (attrparam1, str1), ADot (attrparam2, str2) -> eq_attrparam attrparam1 attrparam2 && str1 = str2
-  | AStar attrparam1, AStar attrparam2 -> eq_attrparam attrparam1 attrparam2 
+  | AStar attrparam1, AStar attrparam2 -> eq_attrparam attrparam1 attrparam2
   | AAddrOf attrparam1, AAddrOf attrparam2 -> eq_attrparam attrparam1 attrparam2
   | AIndex (left1, right1), AIndex (left2, right2) -> eq_attrparam left1 left2 && eq_attrparam right1 right2
   | AQuestion (left1, middle1, right1), AQuestion (left2, middle2, right2) -> eq_attrparam left1 left2 && eq_attrparam middle1 middle2 && eq_attrparam right1 right2
@@ -181,13 +181,13 @@ and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list)=
   a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr
 
 and eq_offset (a: offset) (b: offset) = match a, b with
-    NoOffset, NoOffset -> true 
-  | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 [] && eq_offset offset1 offset2 
+    NoOffset, NoOffset -> true
+  | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 [] && eq_offset offset1 offset2
   | Index (exp1, offset1), Index (exp2, offset2) -> eq_exp exp1 exp2 && eq_offset offset1 offset2
-  | _, _ -> false 
+  | _, _ -> false
 
 and eq_lval (a: lval) (b: lval) = match a, b with
-    (host1, off1), (host2, off2) -> eq_lhost host1 host2 && eq_offset off1 off2  
+    (host1, off1), (host2, off2) -> eq_lhost host1 host2 && eq_offset off1 off2
 
 let eq_instr (a: instr) (b: instr) = match a, b with
   | Set (lv1, exp1, _l1), Set (lv2, exp2, _l2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
@@ -197,8 +197,8 @@ let eq_instr (a: instr) (b: instr) = match a, b with
   | _, _ -> false
 
 let eq_label (a: label) (b: label) = match a, b with
-    Label (lb1, _l1, s1), Label (lb2, _l2, s2) -> lb1 = lb2 && s1 = s2 
-  |   Case (exp1, _l1), Case (exp2, _l2) -> exp1 = exp2 
+    Label (lb1, _l1, s1), Label (lb2, _l2, s2) -> lb1 = lb2 && s1 = s2
+  |   Case (exp1, _l1), Case (exp2, _l2) -> exp1 = exp2
   | Default _l1, Default l2 -> true
   | _, _ -> false
 
@@ -235,8 +235,8 @@ and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
 
 let eqF (a: Cil.fundec) (b: Cil.fundec) =
   try
-    eq_varinfo a.svar b.svar && 
-    List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals) && 
+    eq_varinfo a.svar b.svar &&
+    List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals) &&
     List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) &&
     eq_block (a.sbody, a) (b.sbody, b)
   with Invalid_argument _ -> (* One of the combines failed because the lists have differend length *)
@@ -260,21 +260,21 @@ let eq_glob (a: global) (b: global) = match a, b with
 
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
-  let addGlobal map global  = 
+  let addGlobal map global  =
     try
       GlobalMap.add (identifier_of_global global) global map
     with
       e -> map
   in
   let changes = empty_change_info () in
-  let checkUnchanged map global = 
-    try 
+  let checkUnchanged map global =
+    try
       let ident = identifier_of_global global in
       (try
          let old_global = GlobalMap.find ident map in
          (* Do a (recursive) equal comparision ignoring location information *)
          let identical = eq_glob old_global global in
-         if identical 
+         if identical
          then changes.unchanged <- global :: changes.unchanged
          else changes.changed <- {current = global; old = old_global} :: changes.changed
        with Not_found -> ())
@@ -287,7 +287,7 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
   let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
-  (*  For each function in the new file, check whether a function with the same name 
+  (*  For each function in the new file, check whether a function with the same name
       already existed in the old version, and whether it is the same function. *)
   let module StringSet = Set.Make (String) in
   Cil.iterGlobals newAST

@@ -32,7 +32,7 @@ struct
 
     (** The main function to preform the selected analyses. *)
     let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
-  
+
     let module Inc = struct let increment = increment end in
 
     (** The Equation system *)

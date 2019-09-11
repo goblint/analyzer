@@ -16,7 +16,7 @@ module LMapATest (TD : GeneralArrayTest.S with type t = D.t) =
 struct
   open TD
 
-  let  test = 
+  let  test =
     [ ("test_cache_mem" >:: GTLMA.test_cache_mem);
     ]
 end
@@ -26,7 +26,7 @@ module STLMA = LMapATest(ATD)
 
 
 (* all tests together *)
-let  test () = "lMapArrayDomainTest" >::: 
+let  test () = "lMapArrayDomainTest" >:::
   GTLMA.test @ STLMA.test
 
 

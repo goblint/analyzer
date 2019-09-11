@@ -5,7 +5,7 @@ open CompareAST
 open VersionLookup
 
 let store_node_location (n: node) (l: location): unit =
-  NodeMap.add !location_map n l 
+  NodeMap.add !location_map n l
 
 let zero_ids = {max_sid = 0; max_vid = 0}
 
@@ -60,7 +60,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   let reset_globals (glob: global) =
     try
       let (old_glob, commit) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
-      match (glob, old_glob) with 
+      match (glob, old_glob) with
       | GFun (nw, _), GFun (old, _) -> reset_fun nw old
       | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
       | GVarDecl (nw, _), GVarDecl (old, _) -> reset_var nw old
@@ -74,10 +74,10 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
     List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
   in
-  let reset_changed_globals (changed: changed_global) = 
-    match (changed.current, changed.old) with 
+  let reset_changed_globals (changed: changed_global) =
+    match (changed.current, changed.old) with
     | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old
-    | _ -> () 
+    | _ -> ()
   in
   let update_fun (f: fundec) (old_f: fundec) =
     f.svar.vid <- make_vid ();
@@ -88,11 +88,11 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   let update_var (v: varinfo) (old_v: varinfo) =
     v.vid <- make_vid ()
   in
-  let update_globals (glob: global) = 
+  let update_globals (glob: global) =
     try
       let (old_glob, commit) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
       if (String.equal commit current_commit) then (
-        match (glob, old_glob) with 
+        match (glob, old_glob) with
         | GFun (nw, _), GFun (old, _) -> update_fun nw old
         | GVar (nw, _, _), GVar (old, _, _) -> update_var nw old
         | GVarDecl (nw, _), GVarDecl (old, _) -> update_var nw old

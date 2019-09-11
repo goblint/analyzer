@@ -24,10 +24,10 @@ struct
     assert_equal ~printer:(string_of_int)  42  (get_v !a 1);
     assert_equal ~printer:(string_of_int)  42  (get_v !a 100);
     assert_equal ~printer:(string_of_int)  42  (get_v !a 200)
- 
 
-  let  test = 
-    [ ("test_big_nat" >:: test_big_nat ); 
+
+  let  test =
+    [ ("test_big_nat" >:: test_big_nat );
     ]
 end
 
@@ -38,7 +38,7 @@ module STNat = NatTest(ATD)
 
 
 (* all tests together *)
-let  test () = "nativeArrayDomainTest" >::: 
+let  test () = "nativeArrayDomainTest" >:::
   GTNat.test @ STNat.test
 
 

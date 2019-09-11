@@ -20,8 +20,8 @@ module WP =
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
-    type phase = Widen | Narrow      
-    
+    type phase = Widen | Narrow
+
     let solve box st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)

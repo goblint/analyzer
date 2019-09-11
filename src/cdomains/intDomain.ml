@@ -14,7 +14,7 @@ sig
   val to_int: t -> int64 option
   val of_int: int64 -> t
   val is_int: t -> bool
-  val equal_to: int64 -> t -> [`Eq | `Neq | `Top] 
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   val of_bool: bool -> t

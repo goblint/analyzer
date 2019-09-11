@@ -9,7 +9,7 @@ type max_ids = {
   max_vid: int;
 }
 
-let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (global_identifier, Cil.global * commitID) Hashtbl.t) = 
+let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (global_identifier, Cil.global * commitID) Hashtbl.t) =
   let changes = compareCilFiles oldFile newFile in
   (* TODO: For updateCIL, we have to show whether the new data is from an changed or added functiong  *)
   List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) (glob, newCommitID)) (List.map (fun a -> a.current) changes.changed);
@@ -33,7 +33,7 @@ let create_map (new_file: Cil.file) (commit: commitID) =
   tbl, {max_sid = !max_sid; max_vid =  !max_vid}
 
 (* Load and update the version map *)
-let load_and_update_map (folder: string) (old_commit: commitID) (new_commit: commitID) (oldFile: Cil.file) (newFile: Cil.file) = 
+let load_and_update_map (folder: string) (old_commit: commitID) (new_commit: commitID) (oldFile: Cil.file) (newFile: Cil.file) =
   let commitFolder = Filename.concat folder old_commit in
   let versionFile = Filename.concat commitFolder version_map_filename in
   let (oldMap, max_ids) = Serialize.unmarshal versionFile in

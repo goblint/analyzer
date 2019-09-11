@@ -403,7 +403,7 @@ struct
       flush stdout;
       (* if read_line () = "n" then raise Break *)
     in
-    set_signal sigquit (Signal_handle handler);      
+    set_signal sigquit (Signal_handle handler);
 end
 
 (** use this if your [box] is [join] --- the simple solver *)

@@ -231,7 +231,7 @@ struct
     | All, All -> 0
     | All, Set _ -> 1
     | Set _, All -> -1
-    | Set x, Set y -> S.compare x y 
+    | Set x, Set y -> S.compare x y
 
   let empty () = Set (S.empty ())
   let is_empty x =
@@ -289,7 +289,7 @@ struct
   (*  let map f = schema (fun t -> Set (S.map f t)) "map"*)
   let fold f x e = schema (fun t -> S.fold f t e) "fold on All" x
   let for_all f = schema_default false (S.for_all f)
-  let exists f = schema_default true (S.exists f) 
+  let exists f = schema_default true (S.exists f)
   let filter f = schema (fun t -> Set (S.filter f t)) "filter on All"
   let elements = schema S.elements "elements on All"
   let of_list xs = Set (List.fold_right S.add xs (S.empty ()))
@@ -459,7 +459,7 @@ struct
         | None, Some x when op = `Join -> Some x
         | _ -> None
       ) x y
-  
+
   let merge_meet f x y =
     Map.merge (fun i a b -> match a, b with
         | Some a, Some b ->
@@ -524,12 +524,12 @@ struct
   (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
   let equal x y = leq x y && leq y x
   let hash xs = fold (fun v a -> a + E.hash v) xs 0
-  let compare x y = 
-    if equal x y 
+  let compare x y =
+    if equal x y
       then 0
-      else 
+      else
         let caridnality_comp = compare (cardinal x) (cardinal y) in
-        if caridnality_comp <> 0 
+        if caridnality_comp <> 0
           then caridnality_comp
           else Map.compare (List.compare E.compare) x y
   let isSimple _ = false
