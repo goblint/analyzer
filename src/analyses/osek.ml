@@ -241,8 +241,8 @@ struct
   let off_pry_with_flag : (string,(Flags.t*int) list) Hashtbl.t = Hashtbl.create 16
 
   (* task resource handling *)
-  let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType
-  let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" voidType
+  let dummy_release f = Goblintutil.create_var (makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType)
+  let dummy_get f = Goblintutil.create_var (makeLocalVar f ?insert:(Some false) "GetResource" voidType)
   let is_task_res' lock = is_task_res (names lock)
   let partition = D.ReverseAddrSet.partition is_task_res'
   let lockset_to_task lockset =
@@ -440,7 +440,7 @@ struct
   let type_inv (c:compinfo) : Lval.CilLval.t list =
     try [Hashtbl.find type_inv_tbl c.ckey,`NoOffset]
     with Not_found ->
-      let i = makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[])) in
+      let i = Goblintutil.create_var (makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[]))) in
       Hashtbl.add type_inv_tbl c.ckey i;
       [i, `NoOffset]
 

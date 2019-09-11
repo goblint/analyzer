@@ -60,7 +60,7 @@ struct
     try Hashtbl.find resources k
     with Not_found ->
       let vname = ArincUtil.show_resource resource^":"^name in
-      let v = makeGlobalVar vname voidPtrType in
+      let v = Goblintutil.create_var (makeGlobalVar vname voidPtrType) in
       Hashtbl.replace resources k v;
       v
   let get_by_id (id:id) : (resource*string) option =
@@ -108,7 +108,7 @@ struct
   let is_single ctx =
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
     not (BaseDomain.Flag.is_multi fl)
-  let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
+  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
   type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }

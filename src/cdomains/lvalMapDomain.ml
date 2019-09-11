@@ -90,7 +90,7 @@ struct
   include Lattice.StdCousot
 
   (* special variable used for indirection *)
-  let alias_var = Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset
+  let alias_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset
   (* alias structure: x[0].key=alias_var, y[0].key=linked_var *)
   let is_alias (x,y) = neg Must'.is_empty x && (Must'.choose x).key=alias_var
   let get_alias (x,y) = (May.choose y).key
@@ -218,7 +218,7 @@ struct
   let add_all m1 m2 = add_list (MDMap.bindings m2) m1
 
   (* callstack for locations *)
-  let callstack_var = Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
+  let callstack_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
   let callstack m = get_record callstack_var m |> Option.map_default V.loc []
   let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
   let edit_callstack f m = edit_record callstack_var (V.edit_loc f) m
@@ -258,7 +258,7 @@ struct
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
     | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2)
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
-    | _ -> Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
+    | _ -> Goblintutil.create_var @@ Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
 
   let keys_from_lval lval ask = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)

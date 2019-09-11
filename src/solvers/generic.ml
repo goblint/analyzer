@@ -17,6 +17,8 @@ struct
   module Var = S.Var
   module Dom = S.Dom
 
+  let increment = S.increment
+
   let box = S.box
 
   let conv x = x
@@ -31,6 +33,7 @@ end
 module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
 struct
   type t = B.t * int
+  let relift x = x
   let compare ((u1,u2):t) (v1,v2) =
     match Pervasives.compare u2 v2 with
     | 0 -> B.compare u1 v1
@@ -63,6 +66,8 @@ struct
 
   module Var = ExtendInt (S.Var)
   module Dom = S.Dom
+
+  let increment = S.increment
 
   let box (x,n) = S.box x
 
@@ -249,7 +254,7 @@ struct
       write_all hl hg
 end
 
-module SolverStatsWGlob (S:GlobConstrSys) =
+module SolverStatsWGlob (S:GlobConstrSys) (HM:Hash.H with type key = S.LVar.t) =
 struct
   open S
   open Messages
@@ -275,7 +280,7 @@ struct
     | Some x -> x
     | None -> raise Not_found
 
-  let histo = Hashtbl.create 1024
+  let histo = HM.create 1024
   let increase (v:LVar.t) =
     let set v c =
       if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (LVar.equal (from_some !max_var) v))) then begin
@@ -284,12 +289,12 @@ struct
         max_var := Some v
       end
     in
-    try let c = Hashtbl.find histo v in
+    try let c = HM.find histo v in
       set v (c+1);
-      Hashtbl.replace histo v (c+1)
+      HM.replace histo v (c+1)
     with Not_found -> begin
         set v 1;
-        Hashtbl.add histo v 1
+        HM.add histo v 1
       end
 
   let start_event () = ()
@@ -318,7 +323,7 @@ struct
 
 end
 
-module SolverStats (S:EqConstrSys) =
+module SolverStats (S:EqConstrSys) (HM:Hash.H with type key = S.v) =
 struct
   open S
   open Messages
@@ -339,7 +344,7 @@ struct
     | Some x -> x
     | None -> raise Not_found
 
-  let histo = Hashtbl.create 1024
+  let histo = HM.create 1024
   let increase (v:Var.t) =
     let set v c =
       if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (Var.equal (from_some !max_var) v))) then begin
@@ -348,12 +353,12 @@ struct
         max_var := Some v
       end
     in
-    try let c = Hashtbl.find histo v in
+    try let c = HM.find histo v in
       set v (c+1);
-      Hashtbl.replace histo v (c+1)
+      HM.replace histo v (c+1)
     with Not_found -> begin
         set v 1;
-        Hashtbl.add histo v 1
+        HM.add histo v 1
       end
 
   let start_event () = ()
@@ -406,7 +411,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
   struct
-    include SolverStats (S)
+    include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
@@ -480,7 +485,7 @@ module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
   struct
-    include SolverStats (S)
+    include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
@@ -581,7 +586,7 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
   struct
-    include SolverStats (S)
+    include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x

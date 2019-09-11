@@ -28,8 +28,8 @@ let vips = ref ([]: string list)
 let get_flag (state: (string * Obj.t) list) : BS.Flag.t =
   snd (Obj.obj (List.assoc "base" state))
 
-let big_kernel_lock = LockDomain.Addr.from_var (makeGlobalVar "[big kernel lock]" intType)
-let console_sem = LockDomain.Addr.from_var (makeGlobalVar "[console semaphore]" intType)
+let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
+let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
 
 module type SpecParam =
 sig

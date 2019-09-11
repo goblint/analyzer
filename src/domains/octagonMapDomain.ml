@@ -79,12 +79,13 @@ end
 
 
 module E = struct
-  include Lattice.Prod3 (IntDomain.Booleans) (Lattice.Fake(BV)) (INV)
+  module F = Lattice.Fake(BV)
+  include Lattice.Prod3 (IntDomain.Booleans) (F) (INV)
 
-  let compare (lsign, lvar, _) (rsign, rvar, _) =
-    let cmp = compare lvar rvar in
+ let compare (lsign, lvar, _) (rsign, rvar, _) =
+    let cmp = F.compare lvar rvar in
     if cmp <> 0 then cmp else
-      -(compare lsign rsign)
+      -(IntDomain.Booleans.compare lsign rsign)
 
   let leq (lsign, lvar, linv) (rsign, rvar, rinv) =
     lsign = rsign && BV.equal lvar rvar && INV.leq linv rinv

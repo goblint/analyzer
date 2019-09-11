@@ -63,7 +63,7 @@ module Thread = struct
         | None -> f.vname
         | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.short 80 l
       in
-      let newvar = makeGlobalVar name voidType in
+      let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       Hashtbl.add thread_hash (f,loc) newvar;
       newvar
 

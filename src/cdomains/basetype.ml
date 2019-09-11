@@ -14,7 +14,7 @@ struct
   let compare x y = compare (x.file, x.line) (y.file, y.line)
   let hash x = Hashtbl.hash (x.line, x.file)
   let toXML_f sf x = Xml.Element ("Loc", [("file", x.file); ("line", string_of_int x.line); ("text", sf 80 x)], [])
-  let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S"
+  let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
   let pretty_f sf () x = text (sf max_int x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
@@ -77,6 +77,7 @@ module Variables =
 struct
   include Printable.Std
   type t = varinfo [@@deriving to_yojson]
+  let relift x = x
   let trace_enabled = true
   let isSimple _  = true
   let is_global v = v.vglob
@@ -193,7 +194,6 @@ struct
   type t = exp [@@deriving to_yojson]
   let isSimple _  = true
   let copy x = x
-  let compare x y = Pervasives.compare x y
   let equal x y = Util.equals x y
   let hash x = Hashtbl.hash x
   let short w x = sprint ~width:w (d_exp () x)
@@ -412,7 +412,6 @@ struct
   include Printable.Std
   let isSimple _  = true
   type t = typ [@@deriving to_yojson]
-  let compare x y = Pervasives.compare x y
   let equal x y = Util.equals x y
   let hash (x:typ) = Hashtbl.hash x
   let short w x = sprint ~width:w (d_type () x)

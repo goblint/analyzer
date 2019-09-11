@@ -9,9 +9,9 @@ open GobConfig
 
 module M = Messages
 
-(** Lifts a [Spec] so that the domain and the context are [Hashcons]d. *)
+(** Lifts a [Spec] so that the domain and the context are [Hashcons]d and that C offers a relift function for incremental to re-hashcons loaded values. *)
 module HashconsLifter (S:Spec)
-  : Spec with module D = Lattice.HConsed (S.D)
+  : SpecHC with module D = Lattice.HConsed (S.D)
           and module G = S.G
           and module C = Printable.HConsed (S.C)
 =
@@ -77,8 +77,20 @@ struct
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
+module NoHashconsLifter (S: Spec) = struct
+  module C = Printable.HC (S.C)
+  include (S : Spec with module C := C)
+end
 
-(** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
+(* see option ana.opt.equal *)
+module OptEqual (S: Spec) = struct
+  module D = struct include S.D let equal x y = x == y || equal x y end
+  module G = struct include S.G let equal x y = x == y || equal x y end
+  module C = struct include S.C let equal x y = x == y || equal x y end
+  include (S : Spec with module D := D and module G := G and module C := C)
+end
+
+(** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
 module LevelSliceLifter (S:Spec)
   : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
           and module G = S.G
@@ -353,8 +365,13 @@ struct
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
+module type Increment =
+sig
+  val increment: increment_data
+end
+
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward)
+module FromSpec (S:SpecHC) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = Basetype.Variables
@@ -374,7 +391,8 @@ struct
   module G = S.G
 
   let full_context = get_bool "exp.full-context"
-
+  (* Dummy module. No incremental analysis supported here*)
+  let increment = I.increment
   let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
@@ -527,6 +545,9 @@ module Var2 (LV:VarType) (GV:VarType)
 =
 struct
   type t = [ `L of LV.t  | `G of GV.t ]
+  let relift = function
+    | `L x -> `L (LV.relift x)
+    | `G x -> `G (GV.relift x)
 
   let equal x y =
     match x, y with
@@ -589,7 +610,7 @@ struct
       | `Left  a -> S.G.printXml f a
       | `Right a -> S.D.printXml f a
   end
-
+  let increment = S.increment
   type v = Var.t
   type d = Dom.t
 
@@ -841,7 +862,7 @@ struct
 end
 
 module Compare
-    (S:Spec)
+    (S:SpecHC)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
                         and module GVar = Basetype.Variables
                         and module D = S.D
