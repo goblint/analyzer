@@ -134,10 +134,11 @@ end
 
 module type SIntraOpt =
 sig
-  val next: MyCFG.node -> ((MyCFG.edge * MyCFG.node) list) option
+  include SIntra
+  val next_opt: MyCFG.node -> ((MyCFG.edge * MyCFG.node) list) option
 end
 
-module CfgIntra (Cfg:CfgForward): SIntra =
+module CfgIntra (Cfg:CfgForward): SIntraOpt =
 struct
   let next node =
     Cfg.next node
@@ -145,20 +146,21 @@ struct
         List.map (fun (_, e) -> (e, to_n)) es
       )
     |> List.flatten
+  let next_opt _ = None
 end
 
-module UnCilIntra (Arg: SIntra): SIntraOpt =
+let partition_if_next_n if_next_n =
+  let test_next b = List.find (function
+      | (Test (_, b'), _) when b = b' -> true
+      | (_, _) -> false
+    ) if_next_n
+  in
+  (* assert (List.length if_next <= 2); *)
+  (test_next true, test_next false)
+
+module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
   open Cil
-
-  let partition_if_next_n if_next_n =
-    let test_next b = List.find (function
-        | (Test (_, b'), _) when b = b' -> true
-        | (_, _) -> false
-      ) if_next_n
-    in
-    (* assert (List.length if_next <= 2); *)
-    (test_next true, test_next false)
 
   let is_equiv_stmtkind sk1 sk2 = match sk1, sk2 with
     | Instr is1, Instr is2 -> List.for_all2 (=) is1 is2
@@ -180,14 +182,14 @@ struct
     | _, _-> false
 
   (* TODO: refactor *)
-  let rec next_unlogic n = match n with
+  let rec next_opt' n = match n with
     | Statement {skind=If (e, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
       let if_next_n = Arg.next n in
       let ((_, if_true_next_n), (_, if_false_next_n)) = partition_if_next_n if_next_n in
       begin match if_true_next_n, if_false_next_n with
         (* && *)
         | (Statement {skind=If (_, _, _, loc2)}, _) when loc = loc2 ->
-          let if_true_next_next_n = next_unlogic' if_true_next_n in
+          let if_true_next_next_n = next if_true_next_n in
           begin match partition_if_next_n if_true_next_next_n with
             (* get e2 from edge because recursive next returns it there *)
             | ((Test (e2, _), if_true_next_true_next_n), (_, if_true_next_false_next_n)) ->
@@ -199,11 +201,11 @@ struct
                 ]
               end else
                 None
-            | (_, _) -> failwith "UnCilIntra: partition_if_next_n lied!"
+            | (_, _) -> failwith "UnCilLogicIntra: partition_if_next_n lied!"
           end
         (* || *)
         | (_, Statement {skind=If (_, _, _, loc2)}) when loc = loc2 ->
-          let if_false_next_next_n = next_unlogic' if_false_next_n in
+          let if_false_next_next_n = next if_false_next_n in
           begin match partition_if_next_n if_false_next_next_n with
             (* get e2 from edge because recursive next returns it there *)
             | ((Test (e2, _), if_false_next_true_next_n), (_, if_false_next_false_next_n)) ->
@@ -215,22 +217,30 @@ struct
                 ]
               end else
                 None
-            | (_, _) -> failwith "UnCilIntra: partition_if_next_n lied!"
+            | (_, _) -> failwith "UnCilLogicIntra: partition_if_next_n lied!"
           end
         | (_, _) -> None
       end
     | _ -> None
-  and next_unlogic' n = match next_unlogic n with
+  and next_opt n = match next_opt' n with
+    | Some _ as next_opt -> next_opt
+    | None -> Arg.next_opt n
+  and next n = match next_opt' n with
     | Some next -> next
     | None -> Arg.next n
+end
 
-  let rec next_unternary n = match n with
+module UnCilTernaryIntra (Arg: SIntraOpt): SIntraOpt =
+struct
+  open Cil
+
+  let rec next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
-      let if_next_n = next_unlogic' n in
+      let if_next_n = Arg.next n in
       begin match partition_if_next_n if_next_n with
         | ((Test (e, _), if_true_next_n), (_, if_false_next_n)) ->
           if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
-            begin match next_unlogic' if_true_next_n, next_unlogic' if_false_next_n with
+            begin match Arg.next if_true_next_n, Arg.next if_false_next_n with
               | [(Assign (lv1, rv1), if_true_next_next_n)], [(Assign (lv2, rv2), if_false_next_next_n)] when lv1 = lv2 && MyCFG.Node.equal if_true_next_next_n if_false_next_next_n ->
                 (* CIL has no exp for ternary at all..., this string constant is just decorative *)
                 let exp = Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e dn_exp rv1 dn_exp rv2))) in
@@ -241,13 +251,15 @@ struct
             end
           else
             None
-        | (_, _) -> failwith "UnCilIntra: partition_if_next_n lied!"
+        | (_, _) -> failwith "UnCilTernaryIntra: partition_if_next_n lied!"
       end
     | _ -> None
-
-  let next n = match next_unternary n with
-    | Some _ as next -> next
-    | None -> next_unlogic n
+  let next_opt n = match next_opt' n with
+    | Some _ as next_opt -> next_opt
+    | None -> Arg.next_opt n
+  let next n = match next_opt n with
+    | Some next -> next
+    | None -> Arg.next n
 end
 
 module type MoveNode =
@@ -265,7 +277,7 @@ struct
   open GobConfig
 
   let next node =
-    match ArgIntra.next (Node.cfgnode node) with
+    match ArgIntra.next_opt (Node.cfgnode node) with
     | None -> Arg.next node
     | Some next ->
       next

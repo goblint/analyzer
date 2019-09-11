@@ -530,7 +530,13 @@ struct
         let next = witness_next
       end
       in
-      let module Arg = MyARG.Intra (Arg.Node) (MyARG.UnCilIntra (MyARG.CfgIntra (Cfg))) (Arg) in
+      let module Arg =
+      struct
+        open MyARG
+        module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (Cfg)))
+        include Intra (Arg.Node) (ArgIntra) (Arg)
+      end
+      in
 
       let find_invariant nc = Spec.D.invariant "" (get nc) in
 
