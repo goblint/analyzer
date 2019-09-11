@@ -544,7 +544,6 @@ struct
     x1.vid=x2.vid && eq o1 o2
 
   let hash    = Hashtbl.hash
-  let compare = Pervasives.compare
   let name () = "simplified lval"
   let isSimple _ = true
 

@@ -169,7 +169,6 @@ struct
   type t = string [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
-  let compare x y = String.compare x y
   let isSimple _ = true
   let short _ x = "\"" ^ x ^ "\""
   let toXML_f sf x =
@@ -195,7 +194,6 @@ struct
   type t = exp [@@deriving to_yojson]
   let isSimple _  = true
   let copy x = x
-  let compare x y = Pervasives.compare x y
   let equal x y = Util.equals x y
   let hash x = Hashtbl.hash x
   let short w x = sprint ~width:w (d_exp () x)
@@ -414,7 +412,6 @@ struct
   include Printable.Std
   let isSimple _  = true
   type t = typ [@@deriving to_yojson]
-  let compare x y = Pervasives.compare x y
   let equal x y = Util.equals x y
   let hash (x:typ) = Hashtbl.hash x
   let short w x = sprint ~width:w (d_type () x)

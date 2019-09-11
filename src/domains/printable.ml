@@ -46,6 +46,7 @@ module Std =
 struct
   (*  let equal = Util.equals
       let hash = Hashtbl.hash*)
+  let compare = compare (* Beware that this does not terminate on cyclic data! *)
   let classify _ = 0
   let class_name _ = "None"
   let name () = "std"
@@ -55,7 +56,6 @@ end
 module Blank =
 struct
   include Std
-  let compare = compare
   let pretty () _ = text "Output not supported"
   let short _ _ = "Output not supported"
   let toXML x = Xml.Element ("Leaf", [("text", "Output not supported")], [])
@@ -95,7 +95,6 @@ struct
   include Std
   let hash () = 7134679
   let equal _ _ = true
-  let compare x y = 0
   let pretty () _ = text N.name
   let short _ _ = N.name
   let toXML x = Xml.Element ("Leaf", [("text", N.name)], [])
@@ -543,7 +542,6 @@ struct
   let isSimple _ = true
   let hash x = x-5284
   let equal (x:int) (y:int) = x=y
-  let compare (x:int) (y:int) = Pervasives.compare x y
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
@@ -557,8 +555,6 @@ struct
   include Std
 
   let lift x = `Lifted x
-
-  let compare = Pervasives.compare
 
   let equal x y =
     match (x, y) with
@@ -665,7 +661,6 @@ struct
   include Std
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
-  let compare (x:t) (y:t) = String.compare x y 
   let pretty () n = text n
   let short _ n = n
   let toXML x = Xml.Element ("Leaf", [("text", x)], [])

@@ -118,7 +118,7 @@ struct
 
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) y = x=y
-  let compare (x:t) y = Pervasives.compare x y
+  let compare = Pervasives.compare
   let short _ = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
   let isSimple _ = true
   let name () = "32bit intervals"
@@ -359,7 +359,6 @@ struct
   let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
   let join x y = if Int64.compare x y > 0 then x else y
   let meet x y = if Int64.compare x y > 0 then y else x
-  let compare = Int64.compare
 
   let of_bool x = if x then Int64.one else Int64.zero
   let to_bool' x = x <> Int64.zero
@@ -584,7 +583,6 @@ struct
     | `Definite of Integers.t
     | `Bot
   ] [@@deriving to_yojson]
-  let compare = compare
   let hash (x:t) =
     match x with
     | `Excluded (s,r) -> S.hash s + R.hash r
@@ -839,7 +837,6 @@ struct
   module I = CBigInt
   module C = CircularBigInt
   type t = I.t interval
-  let compare = compare
   let to_yojson _ = failwith "TODO to_yojson"
 
   let max_width = 64
@@ -1143,7 +1140,6 @@ struct
   type t = bool [@@deriving to_yojson]
   let hash = function true -> 51534333 | _ -> 561123444
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
-  let compare = compare
   let equal (x:t) (y:t) = x=y
   let name () = "booleans"
   let cast_to _ x = x
