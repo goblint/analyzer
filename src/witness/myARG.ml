@@ -230,8 +230,12 @@ struct
   open Cil
 
   let ternary e_cond e_true e_false =
-    (* CIL has no exp for ternary at all..., this string constant is just decorative *)
-    Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e_cond dn_exp e_true dn_exp e_false)))
+    if e_true = Cil.one && e_false = Cil.zero then
+      (* avoid unnecessary ternary *)
+      e_cond
+    else
+      (* CIL has no exp for ternary at all..., this string constant is just decorative *)
+      Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e_cond dn_exp e_true dn_exp e_false)))
 
   let rec next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
