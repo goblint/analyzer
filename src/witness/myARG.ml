@@ -149,14 +149,18 @@ struct
   let next_opt _ = None
 end
 
-let partition_if_next_n if_next_n =
+let partition_if_next if_next_n =
+  (* TODO: refactor, check extra edges for error *)
   let test_next b = List.find (function
       | (Test (_, b'), _) when b = b' -> true
       | (_, _) -> false
     ) if_next_n
   in
   (* assert (List.length if_next <= 2); *)
-  (test_next true, test_next false)
+  match test_next true, test_next false with
+  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when e_true = e_false ->
+    (e_true, if_true_next_n, if_false_next_n)
+  | _, _ -> failwith "partition_if_next: bad branches"
 
 module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
@@ -181,45 +185,36 @@ struct
       is_equiv_edge e1 e2 && is_equiv_chain to_n1 to_n2
     | _, _-> false
 
-  (* TODO: refactor *)
+
   let rec next_opt' n = match n with
-    | Statement {skind=If (e, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
-      let if_next_n = Arg.next n in
-      let ((_, if_true_next_n), (_, if_false_next_n)) = partition_if_next_n if_next_n in
+    | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+      let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | (Statement {skind=If (_, _, _, loc2)}, _) when loc = loc2 ->
-          let if_true_next_next_n = next if_true_next_n in
-          begin match partition_if_next_n if_true_next_next_n with
-            (* get e2 from edge because recursive next returns it there *)
-            | ((Test (e2, _), if_true_next_true_next_n), (_, if_true_next_false_next_n)) ->
-              if is_equiv_chain if_false_next_n if_true_next_false_next_n then begin
-                let exp = BinOp (LAnd, e, e2, intType) in
-                Some [
-                  (Test (exp, true), if_true_next_true_next_n);
-                  (Test (exp, false), if_false_next_n)
-                ]
-              end else
-                None
-            | (_, _) -> failwith "UnCilLogicIntra: partition_if_next_n lied!"
-          end
+        | Statement {skind=If (_, _, _, loc2)}, _ when loc = loc2 ->
+          (* get e2 from edge because recursive next returns it there *)
+          let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
+          if is_equiv_chain if_false_next_n if_true_next_false_next_n then
+            let exp = BinOp (LAnd, e, e2, intType) in
+            Some [
+              (Test (exp, true), if_true_next_true_next_n);
+              (Test (exp, false), if_false_next_n)
+            ]
+          else
+            None
         (* || *)
-        | (_, Statement {skind=If (_, _, _, loc2)}) when loc = loc2 ->
-          let if_false_next_next_n = next if_false_next_n in
-          begin match partition_if_next_n if_false_next_next_n with
-            (* get e2 from edge because recursive next returns it there *)
-            | ((Test (e2, _), if_false_next_true_next_n), (_, if_false_next_false_next_n)) ->
-              if is_equiv_chain if_true_next_n if_false_next_true_next_n then begin
-                let exp = BinOp (LOr, e, e2, intType) in
-                Some [
-                  (Test (exp, true), if_true_next_n);
-                  (Test (exp, false), if_false_next_false_next_n)
-                ]
-              end else
-                None
-            | (_, _) -> failwith "UnCilLogicIntra: partition_if_next_n lied!"
-          end
-        | (_, _) -> None
+        | _, Statement {skind=If (_, _, _, loc2)} when loc = loc2 ->
+          (* get e2 from edge because recursive next returns it there *)
+          let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
+          if is_equiv_chain if_true_next_n if_false_next_true_next_n then
+            let exp = BinOp (LOr, e, e2, intType) in
+            Some [
+              (Test (exp, true), if_true_next_n);
+              (Test (exp, false), if_false_next_false_next_n)
+            ]
+          else
+            None
+        | _, _ -> None
       end
     | _ -> None
   and next_opt n = match next_opt' n with
@@ -234,25 +229,23 @@ module UnCilTernaryIntra (Arg: SIntraOpt): SIntraOpt =
 struct
   open Cil
 
+  let ternary e_cond e_true e_false =
+    (* CIL has no exp for ternary at all..., this string constant is just decorative *)
+    Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e_cond dn_exp e_true dn_exp e_false)))
+
   let rec next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
-      let if_next_n = Arg.next n in
-      begin match partition_if_next_n if_next_n with
-        | ((Test (e, _), if_true_next_n), (_, if_false_next_n)) ->
-          if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
-            begin match Arg.next if_true_next_n, Arg.next if_false_next_n with
-              | [(Assign (lv1, rv1), if_true_next_next_n)], [(Assign (lv2, rv2), if_false_next_next_n)] when lv1 = lv2 && MyCFG.Node.equal if_true_next_next_n if_false_next_next_n ->
-                (* CIL has no exp for ternary at all..., this string constant is just decorative *)
-                let exp = Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e dn_exp rv1 dn_exp rv2))) in
-                Some [
-                  (Assign (lv1, exp), if_true_next_next_n)
-                ]
-              | _, _ -> None
-            end
-          else
-            None
-        | (_, _) -> failwith "UnCilTernaryIntra: partition_if_next_n lied!"
-      end
+      let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
+      if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
+        match Arg.next if_true_next_n, Arg.next if_false_next_n with
+        | [(Assign (v_true, e_true), if_true_next_next_n)], [(Assign (v_false, e_false), if_false_next_next_n)] when v_true = v_false && MyCFG.Node.equal if_true_next_next_n if_false_next_next_n ->
+          let exp = ternary e_cond e_true e_false in
+          Some [
+            (Assign (v_true, exp), if_true_next_next_n)
+          ]
+        | _, _ -> None
+      else
+        None
     | _ -> None
   let next_opt n = match next_opt' n with
     | Some _ as next_opt -> next_opt
