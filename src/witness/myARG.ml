@@ -180,14 +180,14 @@ struct
     | _, _-> false
 
   (* TODO: refactor *)
-  let rec next n = match n with
+  let rec next_unlogic n = match n with
     | Statement {skind=If (e, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
       let if_next_n = Arg.next n in
       let ((_, if_true_next_n), (_, if_false_next_n)) = partition_if_next_n if_next_n in
       begin match if_true_next_n, if_false_next_n with
         (* && *)
         | (Statement {skind=If (_, _, _, loc2)}, _) when loc = loc2 ->
-          let if_true_next_next_n = next' if_true_next_n in
+          let if_true_next_next_n = next_unlogic' if_true_next_n in
           begin match partition_if_next_n if_true_next_next_n with
             (* get e2 from edge because recursive next returns it there *)
             | ((Test (e2, _), if_true_next_true_next_n), (_, if_true_next_false_next_n)) ->
@@ -199,11 +199,11 @@ struct
                 ]
               end else
                 None
-            | (_, _) -> failwith "NodeUnCil: partition_if_next_n lied!"
+            | (_, _) -> failwith "UnCilIntra: partition_if_next_n lied!"
           end
         (* || *)
         | (_, Statement {skind=If (_, _, _, loc2)}) when loc = loc2 ->
-          let if_false_next_next_n = next' if_false_next_n in
+          let if_false_next_next_n = next_unlogic' if_false_next_n in
           begin match partition_if_next_n if_false_next_next_n with
             (* get e2 from edge because recursive next returns it there *)
             | ((Test (e2, _), if_false_next_true_next_n), (_, if_false_next_false_next_n)) ->
@@ -215,15 +215,39 @@ struct
                 ]
               end else
                 None
-            | (_, _) -> failwith "NodeUnCil: partition_if_next_n lied!"
+            | (_, _) -> failwith "UnCilIntra: partition_if_next_n lied!"
           end
         | (_, _) -> None
       end
     | _ -> None
-  and next' n = match next n with
+  and next_unlogic' n = match next_unlogic n with
     | Some next -> next
     | None -> Arg.next n
 
+  let rec next_unternary n = match n with
+    | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+      let if_next_n = next_unlogic' n in
+      begin match partition_if_next_n if_next_n with
+        | ((Test (e, _), if_true_next_n), (_, if_false_next_n)) ->
+          if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
+            begin match next_unlogic' if_true_next_n, next_unlogic' if_false_next_n with
+              | [(Assign (lv1, rv1), if_true_next_next_n)], [(Assign (lv2, rv2), if_false_next_next_n)] when lv1 = lv2 && MyCFG.Node.equal if_true_next_next_n if_false_next_next_n ->
+                (* CIL has no exp for ternary at all..., this string constant is just decorative *)
+                let exp = Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e dn_exp rv1 dn_exp rv2))) in
+                Some [
+                  (Assign (lv1, exp), if_true_next_next_n)
+                ]
+              | _, _ -> None
+            end
+          else
+            None
+        | (_, _) -> failwith "UnCilIntra: partition_if_next_n lied!"
+      end
+    | _ -> None
+
+  let next n = match next_unternary n with
+    | Some _ as next -> next
+    | None -> next_unlogic n
 end
 
 module type MoveNode =
