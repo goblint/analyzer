@@ -108,18 +108,18 @@ struct
        | (Var var1, NoOffset) ->                    (* TODO: Are we handling all interesting cases here? *)
          let rval = stripCastsDeep rval in
          let assignVarPlusInt v i =
-            if (BV.compare var1 v) = 0 then 
+            if (BV.compare var1 v) = 0 then
               D.adjust v i ctx.local, true
             else
               let oct = D.erase var1 ctx.local in                     (* integer <= varFromRight-lval <= integer *)
               D.set_constraint (var1, Some(ConstraintType.minus, v), CT.UpperAndLower, i) oct, true (* TODO: Is this ok, we need to be careful when to do closures *)
          in
          (match rval with
-          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _) 
+          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _)
             when (op = PlusA || op = MinusA) && is_local_and_not_pointed_to var ->
             begin
-              let integer = 
-                if op = MinusA then 
+              let integer =
+                if op = MinusA then
                   Int64.neg integer
                 else
                   integer
@@ -180,7 +180,7 @@ struct
             BinOp(op, BinOp(MinusA, Lval(Var v1, NoOffset), Lval(Var v2, NoOffset),t), Cil.integer 0, t)
         | _ -> exp
       in
-      let oct, changed =                              
+      let oct, changed =
         (match equivExpr with
          | BinOp(cmp, lexp, rexp, _) ->
            let cmp = if tv then cmp else negate cmp in
@@ -240,7 +240,7 @@ struct
         let inv = evaluate_exp ctx.local e in
         if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
           D.set_constraint (return_varinfo (), None, CT.Upper, INV.maximal inv |> Option.get) (D.set_constraint (return_varinfo (), None, CT.Lower, INV.minimal inv |> Option.get) start)
-        else 
+        else
           start
     | None -> start
 
@@ -271,7 +271,7 @@ struct
       let inv = evaluate_exp ctx.local exp in
       if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
         D.set_constraint (f, None, CT.Upper, INV.maximal inv |> Option.get) (D.set_constraint (f, None, CT.Lower, INV.minimal inv |> Option.get) oct_with_eq)
-      else 
+      else
         oct_with_eq
     in
     let closed = D.strong_closure (List.fold_left add_const relevant_octagon_part formals_and_exps) in (* compute closure so relationships between formals are inferred. TODO: Is it ok to do this here? *)
@@ -282,7 +282,7 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (after:D.t) : D.t =
     match lval with
-    | Some (Var v, NoOffset) -> 
+    | Some (Var v, NoOffset) ->
         let retval = evaluate_exp after (Lval ((Var (return_varinfo ())), NoOffset)) in
         let oct = D.erase v ctx.local in
         if not (INV.is_top retval) then
@@ -310,14 +310,14 @@ struct
         addConstant sum c, addConstant diff c                         (* a+c <= (x+c)-y <= b+c (add c to all sides)    *)
       | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(c,_,_)), _) ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
-        addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* x-(y+c)= x-y-c --> a-c <= x-(y+c) <= b-c      *)         
+        addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* x-(y+c)= x-y-c --> a-c <= x-(y+c) <= b-c      *)
       | BinOp(MinusA, Lval l1, Const(CInt64(c,_,_)), _), Lval l2 ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
         addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* (x-c)-y = x-y-c --> a-c <= (x-c)-y <= b-c     *)
       | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(c,_,_)), _) ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
         addConstant sum c, addConstant diff c                         (* x-(y-c) = x-y+c --> a+c <= x-(y-c) <= b+c     *)
-      | Lval(Var v1, NoOffset), Lval(Var v2, NoOffset) -> 
+      | Lval(Var v1, NoOffset), Lval(Var v2, NoOffset) ->
         let sum, diff, flag = D.get_relation v1 v2 ctx.local in
         if not flag then
           sum, diff
@@ -329,7 +329,7 @@ struct
     | Queries.MustBeEqual (exp1,exp2) ->
       begin
         match getSumAndDiffForVars exp1 exp2 with
-        | _, Some(x) -> 
+        | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
             | (Some i) -> `Bool (Int64.equal Int64.zero i)
@@ -340,7 +340,7 @@ struct
     | Queries.MayBeEqual (exp1,exp2) ->
       begin
         match getSumAndDiffForVars exp1 exp2 with
-        | _, Some(x) -> 
+        | _, Some(x) ->
           begin
             if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int Int64.zero)) then
               `Bool (false)
@@ -353,7 +353,7 @@ struct
       (* TODO: Here the order of arguments actually matters, be careful *)
       begin
         match getSumAndDiffForVars exp1 exp2 with
-        | _, Some(x) -> 
+        | _, Some(x) ->
           begin
             match OctagonDomain.INV.minimal x with
             | Some i when Int64.compare i Int64.zero >= 0 ->
@@ -369,7 +369,7 @@ struct
         if INV.is_bot (INV.meet inv1 inv2) then
           `Bool false
         else if INV.compare inv1 inv2 = 0 then
-          `Bool true 
+          `Bool true
         else
           `Top
       else
@@ -382,7 +382,7 @@ struct
     | Queries.InInterval (exp, inv) ->
       let linv = evaluate_exp ctx.local exp in
       `Bool (INV.leq linv inv)
-    | _ -> Queries.Result.top () 
+    | _ -> Queries.Result.top ()
 end
 
 

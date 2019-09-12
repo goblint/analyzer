@@ -77,7 +77,7 @@ struct
   type address = AD.t
   type glob_fun  = V.t -> G.t
   type glob_diff = (V.t * G.t) list
-  
+
   (**************************************************************************
    * Helpers
    **************************************************************************)
@@ -196,7 +196,7 @@ struct
           begin
             let rec calculateDiffFromOffset x y =
               match x, y with
-              | `Field (xf, xo), `Field(yf, yo) when xf == yf -> 
+              | `Field (xf, xo), `Field(yf, yo) when xf == yf ->
                 calculateDiffFromOffset xo yo
               | `Index (i, `NoOffset), `Index(j, `NoOffset) ->
                 begin
@@ -211,7 +211,7 @@ struct
             in
             if AD.is_definite p1 && AD.is_definite p2 then
               match Addr.to_var_offset (AD.choose p1), Addr.to_var_offset (AD.choose p2) with
-              | [x, xo], [y, yo] when x==y -> 
+              | [x, xo], [y, yo] when x==y ->
                 calculateDiffFromOffset xo yo
               | _ ->
                 `Int (ID.top ())
@@ -287,7 +287,7 @@ struct
 
 
 
-  
+
   (**************************************************************************
    * State functions
    **************************************************************************)
@@ -730,9 +730,9 @@ struct
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
-      end  
+      end
 
-  
+
   let eval_exp x (exp:exp):int64 option =
       (* Since ctx is not available here, we need to make some adjustments *)
       let knownothing = fun (x:Q.t) -> `Top in (* our version of ask *)
@@ -866,7 +866,7 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match ID.to_int i1, ID.to_int i2 with
-            | Some i1', Some i2' when i1' == i2' -> `Bool(true) 
+            | Some i1', Some i2' when i1' == i2' -> `Bool(true)
             | _ -> Q.Result.top ()
             end
         | _ -> Q.Result.top ()
@@ -877,7 +877,7 @@ struct
         let e2_val = eval_rv ctx.ask ctx.global ctx.local e2 in
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
-            if ID.is_bot (ID.meet i1 i2) then 
+            if ID.is_bot (ID.meet i1 i2) then
               begin
                 (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
                 `Bool(false)
@@ -894,7 +894,7 @@ struct
         | `Int i1, `Int i2 -> begin
             match (ID.minimal i1), (ID.maximal i2) with
             | Some i1', Some i2' ->
-              if i1' >= i2' then 
+              if i1' >= i2' then
                 begin
                   (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
                   `Bool(false)
@@ -904,7 +904,7 @@ struct
           end
         | _ -> Q.Result.top ()
       end
-    | _ -> Q.Result.top ()  
+    | _ -> Q.Result.top ()
 
   let update_variable variable value state =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
@@ -914,15 +914,15 @@ struct
 
   (** Add dependencies between a value and the expression it (or any of its contents) are partitioned by *)
   let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st,fl,dep:store):store =
-    let add_one_dep (array:varinfo) (var:varinfo) dep = 
+    let add_one_dep (array:varinfo) (var:varinfo) dep =
       let vMap = try BaseDomain.VarMap.find var dep
         with Not_found -> BaseDomain.VarSet.empty () in
       let vMapNew = BaseDomain.VarSet.add array vMap in
       BaseDomain.VarMap.add var vMapNew dep
     in
     match value with
-    | `Array _ 
-    | `Struct _ 
+    | `Array _
+    | `Struct _
     | `Union _ ->
       begin
         let vars_in_paritioning = VD.affecting_vars value in
@@ -933,7 +933,7 @@ struct
     | _ ->  (st, fl, dep)
 
 
-  (** [set st addr val] returns a state where [addr] is set to [val] 
+  (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
   let set a ?(ctx=None) ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl,dep: store) (lval: AD.t) (value: value) (lval_raw:lval option) (rval_raw: exp option): store =
@@ -988,7 +988,7 @@ struct
         let rec effect_on_arrays a (st, fl, dep)=
           let affected_arrays =
             let set = try BaseDomain.VarMap.find x dep
-              with Not_found -> BaseDomain.VarSet.empty () in 
+              with Not_found -> BaseDomain.VarSet.empty () in
             BaseDomain.VarSet.elements set
           in
           let movement_for_expr l' r' currentE' =
@@ -1000,15 +1000,15 @@ struct
                   | Some true -> true
                   | _ -> false
                 end
-              | _ -> false 
+              | _ -> false
             in
             let newE = Basetype.CilExp.replace l' r' currentE' in
-            let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in 
-            if are_equal newE currentEPlusOne then 
-              Some 1 
+            let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in
+            if are_equal newE currentEPlusOne then
+              Some 1
             else
               let currentEMinusOne = BinOp (MinusA, currentE', Cil.integer 1, Cil.intType) in
-              if are_equal newE currentEMinusOne then 
+              if are_equal newE currentEMinusOne then
                 Some (-1)
               else
                 None
@@ -1018,7 +1018,7 @@ struct
             let nval =
               if actually_moved then
                 match lval_raw, rval_raw with
-                | Some (Lval(Var l',NoOffset)), Some r' -> 
+                | Some (Lval(Var l',NoOffset)), Some r' ->
                   begin
                     let moved_by = movement_for_expr l' r' in
                     VD.affect_move a v x moved_by
@@ -1031,7 +1031,7 @@ struct
                 | Some ctx ->
                   let patched = swap_st ctx (st,fl,dep) in
                   query patched
-                | _ -> 
+                | _ ->
                   a
                 in
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
@@ -1092,7 +1092,7 @@ struct
     let rem_partitioning a (st,fl,dep:store) (x:varinfo):store =
       let affected_arrays =
         let set = try BaseDomain.VarMap.find x dep
-         with Not_found -> BaseDomain.VarSet.empty () in 
+         with Not_found -> BaseDomain.VarSet.empty () in
         BaseDomain.VarSet.elements set
       in
       let effect_on_array arr st =
@@ -1407,7 +1407,7 @@ struct
         | _ -> ()
       end;
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, _) when AD.is_definite lval_val && v.vglob ->  
+      | (Var v, _) when AD.is_definite lval_val && v.vglob ->
         begin
         let current_val = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
         in
@@ -1415,13 +1415,13 @@ struct
         | `Bot -> (* current value is VD `Bot *)
           begin
             match Addr.to_var_offset (AD.choose lval_val) with
-            | [(x,offs)] -> 
+            | [(x,offs)] ->
               begin
                 let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
                 let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
                 set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv None None (* set top-level variable to updated value *)
               end
-            | _ ->  
+            | _ ->
               set_savetop ctx.ask ctx.global ctx.local lval_val rval_val (Some lval) (Some rval)
           end
         | _ ->
@@ -1501,7 +1501,7 @@ struct
     | "StartupHook" ->
       publish_all ctx;
       cp, Flag.get_multi (), dep
-    | _ -> 
+    | _ ->
       let locals = (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_paritioning ctx.ask ctx.local locals in
       let nst = rem_many ctx.ask nst_part locals in

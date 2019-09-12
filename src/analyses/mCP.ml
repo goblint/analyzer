@@ -305,7 +305,7 @@ struct
       | [],_, _ -> []
       | _,[], _ -> []
       | _,_ , []-> []
-      | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs) 
+      | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs)
     in
     let should_join ((_,(module S:Analyses.Spec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
     (* obtain all analyses specs that are path sensitive and their values both in x and y *)

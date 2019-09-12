@@ -451,11 +451,11 @@ struct
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
     | (`Address _, `Int y) when ID.is_top y -> true
     | (`Address x, `Address y) -> AD.leq x y
-    | (`Struct x, `Struct y) -> 
+    | (`Struct x, `Struct y) ->
           Structs.leq_with_fct leq_elem x y
     | (`Union (f, x), `Union (g, y)) ->
         UnionDomain.Field.leq f g && leq_elem x y
-    | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y 
+    | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
     | (`List x, `List y) -> Lists.leq x y (* `List can not contain array -> normal leq  *)
     | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
     | _ -> warn_type "leq" x y; false
@@ -564,7 +564,7 @@ struct
     match left, offset with
     | Some(left), Some(offset) ->
       begin
-        (* Remove the first part of an offset, returns (removedPart, remainingOffset) *) 
+        (* Remove the first part of an offset, returns (removedPart, remainingOffset) *)
         let removeFirstOffset offset =
           match offset with
             | Field(f, o) -> Field(f, NoOffset), o
@@ -580,7 +580,7 @@ struct
       match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
       |	SizeOf _
-      |	SizeOfE _	
+      |	SizeOfE _
       |	SizeOfStr _
       |	AlignOf _
       |	AlignOfE _ -> false
@@ -595,7 +595,7 @@ struct
       | Lval(Mem _, _) -> true
       | Lval(Var _, _) -> false
     in
-    let equiv_expr exp start_of_array_lval = 
+    let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when ( not (contains_pointer add)) ->
         begin
@@ -614,7 +614,7 @@ struct
     match left, offset with
       | Some(left), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
         if not (contains_pointer exp) then
-          `Lifted exp 
+          `Lifted exp
         else
           ExpDomain.top ()
       | Some((Mem(ptr), NoOffset)), Some(NoOffset) ->
@@ -624,7 +624,7 @@ struct
             begin
               (* This should mean the entire expression we have here is a pointer into the array *)
               if Cil.isArrayType (Cil.typeOf (Lval v')) then
-                let expr = ptr in  
+                let expr = ptr in
                 let start_of_array = StartOf v' in
                 let start_type = Cil.typeOf start_of_array in
                 let expr_type = Cil.typeOf ptr in
@@ -643,7 +643,7 @@ struct
             ExpDomain.top ()
         end
       | _, _ ->  ExpDomain.top()
-        
+
 
 
   (* Funny, this does not compile without the final type annotation! *)
@@ -652,12 +652,12 @@ struct
       match x, offs with
       | `Blob c, `Index (_, ox) ->
         begin
-          let l', o' = shift_one_over l o in 
+          let l', o' = shift_one_over l o in
           do_eval_offset ask f (Blobs.value c) ox exp l' o' v
         end
       | `Blob c, `Field _ ->
         begin
-          let l', o' = shift_one_over l o in 
+          let l', o' = shift_one_over l o in
           do_eval_offset ask f (Blobs.value c) offs exp l' o' v
         end
       | `Blob c, `NoOffset -> `Blob c
@@ -677,7 +677,7 @@ struct
               end
             | `Struct str ->
               let x = Structs.get str fld in
-              let l', o' = shift_one_over l o in 
+              let l', o' = shift_one_over l o in
               do_eval_offset ask f x offs exp l' o' v
             | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
@@ -686,27 +686,27 @@ struct
             match x with
             | `Union (`Lifted l_fld, valu) ->
               let x = cast ~torg:l_fld.ftype fld.ftype valu in
-              let l', o' = shift_one_over l o in 
+              let l', o' = shift_one_over l o in
               do_eval_offset ask f x offs exp l' o' v
             | `Union (_, valu) -> top ()
             | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
             | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
-            let l', o' = shift_one_over l o in 
+            let l', o' = shift_one_over l o in
             match x with
             | `Array x ->
               let e = determine_offset ask l o exp v in
               do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v
-            | `Address _ -> 
-              begin  
+            | `Address _ ->
+              begin
                 do_eval_offset ask f x offs exp l' o' v (* this used to be `blob `address -> we ignore the index *)
               end
             | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
           end
-    in 
+    in
     let l, o = match exp with
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
       | _ -> None, None
@@ -719,12 +719,12 @@ struct
       match x, offs with
       | `Blob (x,s), `Index (_,ofs) ->
         begin
-          let l', o' = shift_one_over l o in 
+          let l', o' = shift_one_over l o in
           mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v), s))
         end
-      | `Blob (x,s),_ -> 
+      | `Blob (x,s),_ ->
         begin
-          let l', o' = shift_one_over l o in 
+          let l', o' = shift_one_over l o in
           mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v), s))
         end
       | _ ->
@@ -772,7 +772,7 @@ struct
                     begin
                       match fld.ftype with
                       | TArray(_, l, _) ->
-                        let len = try Cil.lenOfArray l 
+                        let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
                         `Array(CArrays.make len `Top), offs
                       | _ -> top (), offs (* will not happen*)
@@ -790,7 +790,7 @@ struct
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
-            let l', o' = shift_one_over l o in 
+            let l', o' = shift_one_over l o in
             match x with
             | `Array x' ->
               let e = determine_offset ask l o exp (Some v) in
@@ -813,7 +813,7 @@ struct
   let rec affect_move ask (x:t) (v:varinfo) movement_for_expr:t =
     let move_fun x = affect_move ask x v movement_for_expr in
     match x with
-    | `Array a -> 
+    | `Array a ->
       begin
         (* potentially move things (i.e. other arrays after arbitrarily deep nesting) in array first *)
         let moved_elems = CArrays.map move_fun a in
@@ -823,7 +823,7 @@ struct
       end
     | `Struct s -> `Struct (Structs.map (move_fun) s)
     | `Union (f, v) -> `Union(f, move_fun v)
-    (* `Blob / `List can not contain Array *) 
+    (* `Blob / `List can not contain Array *)
     | x -> x
 
   let rec affecting_vars (x:t) =

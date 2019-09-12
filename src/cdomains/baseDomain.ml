@@ -42,7 +42,7 @@ sig
 end
 
 (* Takes a module specifying how expressions can be evaluated inside the domain and returns the domain *)
-module DomFunctor(ExpEval:ExpEvaluator) = 
+module DomFunctor(ExpEval:ExpEvaluator) =
 struct
   include Lattice.Prod3(CPA)(Flag)(VarMap)
 
@@ -73,5 +73,5 @@ module DomWithTrivialExpEval = DomFunctor(struct
         | `Int i -> ValueDomain.ID.to_int i
         | _ -> None
       end
-    | _ -> None 
+    | _ -> None
 end)

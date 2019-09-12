@@ -33,14 +33,14 @@ struct
         begin                                                     (*          MinusPP                     PlusA       *)
           let ce1 = canonize e1 in                                (*         /      \      =>            /     \      *)
           let ce2 = canonize e2 in                                (*     PlusPI      \              MinusPP     \     *)
-          let ce3 = canonize e3 in                                (*    /   \         \            /      \      \    *) 
+          let ce3 = canonize e3 in                                (*    /   \         \            /      \      \    *)
           BinOp(PlusA, BinOp(MinusPP, ce1, ce3, typ2), ce2, typ2) (*  ptr    i     array1        ptr    array1    i   *)
         end
       | BinOp (MinusPP, BinOp(MinusPI, e1, e2, typ1), e3, typ2) -> (*                                                 *)
         begin                                                      (*          MinusPP                     MinusA     *)
           let ce1 = canonize e1 in                                 (*         /      \      =>            /     \     *)
           let ce2 = canonize e2 in                                 (*     MinusPI     \              MinusPP     \    *)
-          let ce3 = canonize e3 in                                 (*    /   \         \            /      \      \   *) 
+          let ce3 = canonize e3 in                                 (*    /   \         \            /      \      \   *)
           BinOp(MinusA, BinOp(MinusPP, ce1, ce3, typ2), ce2, typ2) (*  ptr    i     array1        ptr    array1    i  *)
         end
       | x -> x

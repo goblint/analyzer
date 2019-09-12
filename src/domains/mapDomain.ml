@@ -31,7 +31,7 @@ sig
   val long_map2: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
   (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
-  
+
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   (* Widen using a custom widening function for value rather than the default one for value *)
   val join_with_fct: (value -> value -> value) -> t -> t -> t
@@ -410,7 +410,7 @@ struct
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (M.widen_with_fct f x y)
     | _ -> y
-  
+
 end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with

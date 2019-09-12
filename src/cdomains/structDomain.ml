@@ -36,7 +36,7 @@ struct
 
   let for_all_common_bindings (pred: (value -> value -> bool)) (x:t) (y:t) =
     let pred_ok key value =
-      try 
+      try
         let other = M.find key y in
         pred value other
       with Not_found -> true

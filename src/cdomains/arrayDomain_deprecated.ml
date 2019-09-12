@@ -157,7 +157,7 @@ struct
     Array.fold_left (fun a x -> f a (fst x) (snd x)) a two_in_one
 
   let move_if_affected ?(length=None) _ x _ _ = x
-  let get_vars_in_e _ = [] 
+  let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
@@ -202,14 +202,14 @@ struct
     match x with
       | `Lifted x' -> A.fold_left f a x'
       | _ -> a
-  
+
   let fold_left2 f a x y =
     match x,y with
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
-      | _ -> a 
+      | _ -> a
 
   let move_if_affected ?(length=None) _ x _ _ = x
-  let get_vars_in_e _ = [] 
+  let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
@@ -550,7 +550,7 @@ struct
       | Mapping x', Mapping y' ->
         let valInY k = M.find k y' in
         M.fold (fun k v a -> f a v (valInY k)) x' a
-      | _ -> a 
+      | _ -> a
 
 
   let move_if_affected ?(length=None) _ x _ _ = x
@@ -883,12 +883,12 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let map f (map,length) =
-    (M.map map f), length 
+    (M.map map f), length
 
   let fold_left f a (map,length) =
     M.fold map (fun k v a -> f a v) a
 
-  let fold_left2 f a (mx, _) (my, _) = 
+  let fold_left2 f a (mx, _) (my, _) =
     let valInY k = M.find my k in
     M.fold mx (fun k v a -> f a v (valInY k)) a
 
@@ -1030,7 +1030,7 @@ struct
   let fold_left f a (map,length) =
     M.fold map (fun k v a -> f a v) a
 
-  let fold_left2 f a (mx, _) (my, _) = 
+  let fold_left2 f a (mx, _) (my, _) =
     let valInY k = M.find my k in
     M.fold mx (fun k v a -> f a v (valInY k)) a
 
@@ -1072,7 +1072,7 @@ struct
 
   let make i v = `Lifted (A.make i v)
 
-  let map f x = 
+  let map f x =
     match x with
       | `Lifted a -> `Lifted (A.map f a)
       | _ -> x
@@ -1127,7 +1127,7 @@ struct
 
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let map f x = 
+  let map f x =
     match x with
       | `Lifted a -> `Lifted (A.map f a)
       | _ -> x
