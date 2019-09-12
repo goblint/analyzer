@@ -22,6 +22,10 @@ let showtemps = ref false
 let parse fileName =
   Frontc.parse fileName ()
 
+let print_to_file (fileName: string) (fileAST: file) =
+  let oc = Pervasives.open_out fileName in
+  dumpFile defaultCilPrinter oc fileName fileAST
+
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
 

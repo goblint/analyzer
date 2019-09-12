@@ -282,6 +282,30 @@ struct
     | NullPtr   , NullPtr -> true
     | _ -> false
 
+  let compare x y =
+    if equal x y
+      then 0
+      else
+        let order x = match x with
+          | Addr _ -> 0
+          | StrPtr _ -> 1
+          | UnknownPtr -> 2
+          | SafePtr -> 3
+          | NullPtr -> 4
+         in
+         let c = compare (order x) (order y) in
+         if c <> 0
+          then c
+          else
+            match (x, y) with
+            | Addr (v, o), Addr (u, p) ->
+              let vc = compare v.vid u.vid in
+              if vc <> 0
+                then vc
+                else Offs.compare o p
+            | StrPtr a, StrPtr b -> compare a b
+            | _, _ -> raise @@ Invalid_argument "Invalid argument for Normal.compare"
+
   let toXML_f_addr sf (x,y) =
     let esc = Goblintutil.escape in
     let typeinf = esc (Pretty.sprint Goblintutil.summary_length (d_type () x.vtype)) in
@@ -526,7 +550,6 @@ struct
     x1.vid=x2.vid && eq o1 o2
 
   let hash    = Hashtbl.hash
-  let compare = Pervasives.compare
   let name () = "simplified lval"
   let isSimple _ = true
 

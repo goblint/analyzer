@@ -28,7 +28,7 @@ module ConstrSys = struct
   module D = Int
   module G = IntR
 
-  (* 
+  (*
     1. x := g
     2. y := 8
     3. z := y
@@ -46,7 +46,7 @@ module LH = BatHashtbl.Make (ConstrSys.LVar)
 module GH = BatHashtbl.Make (ConstrSys.GVar)
 module Solver = EffectWCon.Make2 (ConstrSys) (LH) (GH)
 
-let test1 () = 
+let test1 () =
   let id x = x in
   let sol, gsol = Solver.solve [] [] ["w"] in
   assert_equal ~printer:id "42" (Int.short 80 (GH.find gsol "g"));

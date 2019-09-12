@@ -106,7 +106,7 @@ struct
   let type_inv (c:compinfo) : Lval.CilLval.t list =
     try [Hashtbl.find type_inv_tbl c,`NoOffset]
     with Not_found ->
-      let i = makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[])) in
+      let i = Goblintutil.create_var (makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[]))) in
       Hashtbl.add type_inv_tbl c i;
       [i, `NoOffset]
 

@@ -205,6 +205,29 @@ let preprocess_files () =
   (* reverse the files again *)
   cFileNames := List.rev !cFileNames;
 
+  (* If the first file given is a Makefile, we use it to combine files *)
+  if List.length !cFileNames >= 1 then (
+    let firstFile = List.first !cFileNames in
+    if Filename.basename firstFile = "Makefile" then (
+      let makefile = firstFile in
+      let path = Filename.dirname makefile in
+      (* make sure the Makefile exists or try to generate it *)
+      if not (Sys.file_exists makefile) then (
+        print_endline ("Given " ^ makefile ^ " does not exist!");
+        let configure = Filename.concat path "configure" in
+        if Sys.file_exists configure then (
+          print_endline ("Trying to run " ^ configure ^ " to generate Makefile");
+          let exit_code, output = MakefileUtil.exec_command ~path "./configure" in
+          print_endline (configure ^ MakefileUtil.string_of_process_status exit_code ^ ". Output: " ^ output);
+          if not (Sys.file_exists makefile) then failwith ("Running " ^ configure ^ " did not generate a Makefile - abort!")
+        ) else failwith ("Could neither find given " ^ makefile ^ " nor " ^ configure ^ " - abort!")
+      );
+      let _ = MakefileUtil.run_cilly path in
+      let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
+      cFileNames := file :: (List.drop 1 !cFileNames);
+    );
+  );
+
   (* possibly add our lib.c to the files *)
   if get_bool "custom_libc" then
     cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
@@ -261,7 +284,7 @@ let merge_preprocessed cpp_file_names =
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
-let do_analyze merged_AST =
+let do_analyze change_info merged_AST =
   let module L = Printable.Liszt (Basetype.CilFundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
@@ -286,7 +309,7 @@ let do_analyze merged_AST =
           print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
-        try Control.analyze ast funs
+        try Control.analyze change_info ast funs
         with x ->
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
@@ -343,6 +366,59 @@ let handle_extraspecials () =
   let funs = List.fold_left f [] (get_list "exp.extraspecials") in
   LibraryFunctions.add_lib_funs funs
 
+let src_path () = Git.git_directory (List.first !cFileNames)
+let data_path () = Filename.concat (src_path ()) ".gob"
+
+let update_map old_file new_file =
+  let dir = Serialize.gob_directory () in
+  VersionLookup.restore_map dir old_file new_file
+
+let store_map updated_map max_ids = (* Creates the directory for the commit *)
+  match Serialize.current_commit_dir () with
+  | Some commit_dir ->
+    let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
+    Serialize.marshal (updated_map, max_ids) map_file_name
+  | None -> ()
+
+(* Detects changes and renames vids and sids. *)
+let diff_and_rename file =
+  Serialize.src_direcotry := src_path ();
+
+  let change_info = (match Serialize.current_commit () with
+      | Some current_commit -> ((* "put the preparation for incremental analysis here!" *)
+          if get_bool "dbg.verbose" then print_endline ("incremental mode running on commit " ^ current_commit);
+          let (changes, last_analyzed_commit) =
+            (match Serialize.last_analyzed_commit () with
+             | Some last_analyzed_commit -> (match Serialize.load_latest_cil !cFileNames with
+                 | Some file2 ->
+                   let (version_map, changes, max_ids) = update_map file2 file in
+                   let max_ids = UpdateCil.update_ids file2 max_ids file version_map current_commit changes in
+                   store_map version_map max_ids;
+                   (changes, last_analyzed_commit)
+                 | None -> failwith "No ast.data from previous analysis found!"
+               )
+             | None -> (match Serialize.current_commit_dir () with
+                 | Some commit_dir ->
+                   let (version_map, max_ids) = VersionLookup.create_map file current_commit in
+                   store_map version_map max_ids;
+                   (CompareAST.empty_change_info (), "")
+                 | None -> failwith "Directory for storing the results of the current run could not be created!")
+            ) in
+          Serialize.save_cil file;
+          let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
+          let current_commit_dir = Filename.concat (data_path ()) current_commit in
+          Cilfacade.print_to_file (Filename.concat current_commit_dir "cil.c") file;
+          if "" <> last_analyzed_commit then (
+            CompareAST.check_file_changed analyzed_commit_dir current_commit_dir;
+            (* Note: Global initializers/start state changes are not considered here: *)
+            CompareAST.check_any_changed changes
+          );
+          {Analyses.changes = changes; analyzed_commit_dir; current_commit_dir}
+        )
+      | None -> failwith "Failure! Working directory is not clean")
+  in change_info
+
+
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
@@ -356,7 +432,9 @@ let main =
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
-        preprocess_files () |> merge_preprocessed |> do_analyze;
+        let file = preprocess_files () |> merge_preprocessed in
+        let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
+        file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)

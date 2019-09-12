@@ -1,9 +1,9 @@
 open OUnit
 open Int64
 
-module IntTest (I:IntDomain.S) = 
+module IntTest (I:IntDomain.S) =
 struct
-  let izero      = I.of_int zero 
+  let izero      = I.of_int zero
   let ione       = I.of_int one
   let iminus_one = I.of_int minus_one
   let itwo       = I.of_int (of_int 2)
@@ -61,7 +61,7 @@ struct
     assert_equal ~printer:(I.short 80) izero(I.sub izero izero)
 
 
-  let test_mul () = 
+  let test_mul () =
     assert_equal ~printer:(I.short 80) izero(I.mul izero iminus_one);
     assert_equal ~printer:(I.short 80) izero(I.mul izero izero);
     assert_equal ~printer:(I.short 80) ione (I.mul ione  ione);
@@ -108,7 +108,7 @@ struct
       ("test_bit"      >:: test_bit      );
     ]
 
-end      
+end
 
 module A = IntTest (IntDomain.Integers)
 module B = IntTest (IntDomain.Flattened)
@@ -118,7 +118,7 @@ module T = struct
   let of_excl_list xs = of_excl_list Cil.ILong xs
 end
 
-let tzero      = T.of_int zero 
+let tzero      = T.of_int zero
 let tone       = T.of_int one
 let tminus_one = T.of_int minus_one
 let ttwo       = T.of_int (of_int 2)
@@ -183,7 +183,7 @@ let test_meet () =
   assert_equal ~printer:(T.short 80) tex0 (T.meet tex0  tex0);
   assert_equal ~printer:(T.short 80) tex1 (T.meet tex1  tex1);
   assert_equal ~printer:(T.short 80) tex10(T.meet tex1  tex0);
-  assert_equal ~printer:(T.short 80) tex01(T.meet tex0  tex1); 
+  assert_equal ~printer:(T.short 80) tex01(T.meet tex0  tex1);
   assert_equal ~printer:(T.short 80) tzero(T.meet tex1  tzero);
   assert_equal ~printer:(T.short 80) tone (T.meet tex0  tone );
   assert_equal ~printer:(T.short 80) tzero(T.meet tex1  tzero);

@@ -32,7 +32,7 @@ struct
   module C = D
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
-  let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
+  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
 
   type pname = string (* process name *)
   type fname = string (* function name *)
@@ -78,7 +78,7 @@ struct
     let get (resource,name as k) =
       Option.default_delayed (fun () ->
           let vname = resource^":"^name in
-          let v = makeGlobalVar vname voidPtrType in
+          let v = Goblintutil.create_var (makeGlobalVar vname voidPtrType) in
           let i = Hashtbl.keys resources |> List.of_enum |> List.filter (fun x -> fst x = resource) |> List.length in
           Hashtbl.replace resources k (v,i);
           v,i) (Hashtbl.find resources k)

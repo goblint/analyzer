@@ -14,7 +14,7 @@ sig
   val to_int: t -> int64 option
   val of_int: int64 -> t
   val is_int: t -> bool
-  val equal_to: int64 -> t -> [`Eq | `Neq | `Top] 
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   val of_bool: bool -> t
@@ -118,7 +118,7 @@ struct
 
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) y = x=y
-  let compare (x:t) y = Pervasives.compare x y
+  let compare = Pervasives.compare
   let short _ = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
   let isSimple _ = true
   let name () = "32bit intervals"
@@ -583,7 +583,6 @@ struct
     | `Definite of Integers.t
     | `Bot
   ] [@@deriving to_yojson]
-
   let hash (x:t) =
     match x with
     | `Excluded (s,r) -> S.hash s + R.hash r
@@ -844,7 +843,6 @@ struct
   module I = CBigInt
   module C = CircularBigInt
   type t = I.t interval
-
   let to_yojson _ = failwith "TODO to_yojson"
 
   let max_width = 64

@@ -125,7 +125,8 @@ let _ = ()
       ; reg Analyses "ana.arinc.validate"    "true" "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables."
       ; reg Analyses "ana.arinc.export"    "true" "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way."
       ; reg Analyses "ana.arinc.merge_globals" "false"  "Merge all global return code variables into one."
-      ; reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
+      ; reg Analyses "ana.opt.hashcons"        "true"  "Should we try to save memory and speed up equality by hashconsing?"
+      ; reg Analyses "ana.opt.equal"       "true"  "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags)."
       ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
       ; reg Analyses "ana.mutex.disjoint_types" "true" "Do not propagate basic type writes to all struct fields"
 
@@ -177,6 +178,10 @@ let _ = ()
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitizalized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
       ; reg Experimental "exp.partition-arrays"  "false" "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well."
+      ; reg Experimental "exp.incremental.mode"  "'off'" "Use incremental analysis in the TD3 solver. Values: off (default), incremental (analyze based on data from a previous commit or fresh if there is none), complete (discard loaded data and start fresh)."
+      ; reg Experimental "exp.incremental.stable" "true" "Reuse the stable set and selectively destabilize it."
+      ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
+      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc-6'" "Location of gcc-6. Used to combine source files with cilly."
 
 (* {4 category [Debugging]} *)
 let _ = ()

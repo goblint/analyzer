@@ -14,16 +14,16 @@ struct
   let is_empty_top = ref true
 
   let get_empty () =
-    try 
+    try
       (is_empty_top := true;  M.top ())
-    with Lattice.Unsupported _ -> 
+    with Lattice.Unsupported _ ->
       (is_empty_top := false; M.bot ())
 
-  let is_empty x = 
+  let is_empty x =
     match (!is_empty_top) with
       | true  -> M.is_top x
       | false -> M.is_bot x
-    
+
 
   let test_add_remove_find () =
     let map = ref (get_empty ()) in
@@ -35,21 +35,21 @@ struct
 
 	map := M.add "key1" "value12" !map;
 	assert_equal "value12" (M.find "key1" !map);
-	  
+
 	map := M.add "key2" "value21" !map;
 	assert_equal "value21" (M.find "key2" !map);
 
 	map := M.remove "key1" !map;
-	begin 
+	begin
 	  try ignore (M.find "key1" !map); assert_failure "problem removeing key1"
 	  with Lattice.Unsupported _ -> ()
 	end ;
-	  
+
       end
-	
+
   let test_iter () =
     let map = ref (get_empty ()) in
-    let values = ["1","1";"2","2";"3","3";"4","4"]  in           
+    let values = ["1","1";"2","2";"3","3";"4","4"]  in
     let fun1 k v =
       assert_equal k v;
       map := M.remove k !map
@@ -62,7 +62,7 @@ struct
 
   let test_fold () =
     let map = ref (get_empty ()) in
-    let values = ["1","2";"2","3";"3","4";"4","5"]  in           
+    let values = ["1","2";"2","3";"3","4";"4","5"]  in
     let result = "45342312" in
     let fun1 k v a = k^v^a in
       begin
@@ -78,7 +78,7 @@ struct
       assert_equal "3" (M.find "2" !map);
       assert_equal "4" (M.find "3" !map);
       assert_equal "5" (M.find "4" !map)
-    
+
   let test_map () =
     let map = ref (get_empty ()) in
     let values = ["1","2";"2","3";"3","4";"4","5"]  in
@@ -89,7 +89,7 @@ struct
       assert_equal "31" (M.find "2" !map);
       assert_equal "41" (M.find "3" !map);
       assert_equal "51" (M.find "4" !map)
-    
+
   let test_add_list_set () =
     let map = ref (get_empty ()) in
     let keys = ["1";"2";"3"] in
@@ -105,7 +105,7 @@ struct
       map := M.add_list_fun keys fun1 !map;
       assert_equal "11" (M.find "1" !map);
       assert_equal "21" (M.find "2" !map);
-      assert_equal "31" (M.find "3" !map);     
+      assert_equal "31" (M.find "3" !map);
       assert_equal "41" (M.find "4" !map)
 
 
@@ -141,9 +141,9 @@ struct
       map2 := M.add_list values2 !map2;
       ignore (M.long_map2 fun1 !map1 !map2);
       assert_equal "1111" (M.fold fun2 (M.long_map2 fun1 !map2 !map1) "")
-      
 
-  let test () = 
+
+  let test () =
     [
       "test_add_remove_find" >:: test_add_remove_find;
       "test_add_list"        >:: test_add_list;
@@ -164,23 +164,23 @@ module Mbot = MapDomain.MapBot (GroupableDriver) (LatticeDriver)
 module Mtop = MapDomain.MapTop (GroupableDriver) (LatticeDriver)
 
 module Tbot = TestMap (Mbot)
-module Ttop = TestMap (Mtop) 
+module Ttop = TestMap (Mtop)
 
 
-let test_Mbot_join_meet () =    
+let test_Mbot_join_meet () =
   let assert_eq =
     let printer a = Pretty.sprint ~width:80 (Mbot.pretty () a) in
-    let cmp = Mbot.equal in 
-      assert_equal ~cmp:(cmp) ~printer:(printer) 
+    let cmp = Mbot.equal in
+      assert_equal ~cmp:(cmp) ~printer:(printer)
   in
   let bot    = Mbot.bot () in (* bot is empty *)
   let mone   = Mbot.add "1" "1" bot in
   let mtwo   = Mbot.add "2" "2" bot in
   let m12    = Mbot.add_list ["1","1";"2","2"] bot in
   let m21    = Mbot.add_list ["2","2";"1","1"] bot in
-    assert_eq bot    bot; 
-    assert_eq mone   mone; 
-    assert_eq mtwo   mtwo; 
+    assert_eq bot    bot;
+    assert_eq mone   mone;
+    assert_eq mtwo   mtwo;
     assert_eq m12    m21;
     assert_eq bot   (Mbot.join bot   bot );
     assert_eq mone  (Mbot.join mone  bot );
@@ -202,21 +202,21 @@ let test_Mbot_join_meet () =
     assert_eq mone  (Mbot.meet mone  m21 );
     assert_eq mtwo  (Mbot.meet m21   mtwo);
     ()
-      
+
 let test_Mtop_join_meet () =
   let assert_eq =
     let printer a = Pretty.sprint ~width:80 (Mtop.pretty () a) in
-    let cmp = Mtop.equal in 
-      assert_equal ~cmp:(cmp) ~printer:(printer) 
+    let cmp = Mtop.equal in
+      assert_equal ~cmp:(cmp) ~printer:(printer)
   in
   let top    = Mtop.top () in (* bot is empty *)
   let mone   = Mtop.add "1" "1" top in
   let mtwo   = Mtop.add "2" "2" top in
   let m12    = Mtop.add_list ["1","1";"2","2"] top in
   let m21    = Mtop.add_list ["2","2";"1","1"] top in
-    assert_eq top    top; 
-    assert_eq mone   mone; 
-    assert_eq mtwo   mtwo; 
+    assert_eq top    top;
+    assert_eq mone   mone;
+    assert_eq mtwo   mtwo;
     assert_eq m12    m21;
     assert_eq top   (Mtop.join top   top );
     assert_eq top   (Mtop.join mone  top );

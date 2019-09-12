@@ -57,8 +57,8 @@ struct
     match x with
     | [] -> []
     | hd :: tl ->
-      if f x then 
-        hd :: (filter f tl) 
+      if f x then
+        hd :: (filter f tl)
       else
         filter f tl
 
@@ -75,11 +75,11 @@ end
 
 module ConstraintType = struct
   type side = Upper | Lower | UpperAndLower
-  
+
   let opposite s =
     if s = Upper then
-      Lower 
-    else if s = Lower then 
+      Lower
+    else if s = Lower then
       Upper
     else
       s
@@ -109,14 +109,15 @@ end
 
 
 module E = struct
-  include Lattice.Prod3 (IntDomain.Booleans) (Lattice.Fake(BV)) (INV)
+  module F = Lattice.Fake(BV)
+  include Lattice.Prod3 (IntDomain.Booleans) (F) (INV)
 
   let compare (lsign, lvar, _) (rsign, rvar, _) =
     let cmp = BV.compare lvar rvar in
     if cmp <> 0 then
-      cmp 
+      cmp
     else
-      -(compare lsign rsign)
+      -(IntDomain.Booleans.compare lsign rsign)
 
   let leq (lsign, lvar, linv) (rsign, rvar, rinv) =
     lsign = rsign && BV.equal lvar rvar && INV.leq linv rinv
@@ -136,7 +137,7 @@ module MapOctagon : S
 
   let rec set_constraint_list (sign, v, side, value) ls =   (* Idea: Not set constraints that are [MinInt,MaxInt] those don't mean shit *)
     let inv =
-      if side = CT.Upper then 
+      if side = CT.Upper then
         INV.ending value
       else if side = CT.Lower then
         INV.starting value
@@ -151,13 +152,13 @@ module MapOctagon : S
         let old_inv = if INV.is_bot old_inv then INV.top () else old_inv in
         let old_lower = INV.minimal old_inv |> OPT.get in
         let old_upper = INV.maximal old_inv |> OPT.get in
-        if side = CT.Upper then 
+        if side = CT.Upper then
           let res = INV.of_interval (old_lower, min old_upper value) in    (* When both setting lower and upper after each other                                                *)
           if INV.is_bot res then                                           (* from e.g. [1,3] to [5,6] the result would be [5,3] i.e. bot after setting the lower boundary only *)
             INV.ending value
           else
             res
-        else 
+        else
           let res = INV.of_interval (max old_lower value, old_upper) in
           if INV.is_bot res then
             INV.starting value
@@ -175,14 +176,14 @@ module MapOctagon : S
           else
             (sign, v, inv) :: xs
         end
-      else if cmp < 0 then 
-        if INV.is_top inv then 
+      else if cmp < 0 then
+        if INV.is_top inv then
           ls (* no prexisting constraint on these two vars -> adding top is pointless *)
         else
           (sign, v, inv) :: ls
-      else 
+      else
         x :: (set_constraint_list (sign, v, side, value) xs)
-    | [] -> 
+    | [] ->
       if INV.is_top inv then
         [] (* no prexisting constraint on these two vars -> adding top is pointless *)
       else
@@ -191,7 +192,7 @@ module MapOctagon : S
   let add_var var oct =
     if mem var oct then
       oct
-    else 
+    else
       add var (INV.top(), []) oct
 
   let rec delete_constraint (sign, v) ls =
@@ -215,7 +216,7 @@ module MapOctagon : S
         if cmp = 0 then
           if sign = ConstraintType.plus then
             find_constraints (Some inv) xs
-          else 
+          else
             first, (Some inv)
         else if cmp > 0 then
           find_constraints first xs
@@ -280,13 +281,13 @@ module MapOctagon : S
       add var (cast var new_inv, consts) oct
     | var1, Some (sign, var2), side, value ->
       let cmp = (BV.compare var1 var2) in
-      if cmp = 0 then 
+      if cmp = 0 then
         Lattice.unsupported "Can't set constraint between variable and itself"
       else if cmp > 0 then
         let side, value =
-          if sign = CT.plus then 
+          if sign = CT.plus then
             side, value
-          else 
+          else
             CT.opposite side, Int64.neg value
         in
         set_constraint (var2, Some (sign, var1), side, value) oct
@@ -316,11 +317,11 @@ module MapOctagon : S
 
       map (fun (a, consts) ->
           (a, List.map (fun (sign, var2, old_val) ->
-              if (BV.compare var var2) <> 0 then 
+              if (BV.compare var var2) <> 0 then
                 sign, var2, old_val
-              else if sign = ConstraintType.plus then 
+              else if sign = ConstraintType.plus then
                 sign, var2, (myadd old_val value)
-              else 
+              else
                 sign, var2, (myadd old_val (Int64.neg value))
              )
               consts)
@@ -398,9 +399,9 @@ module MapOctagon : S
             | false, true -> OPT.map Int64.neg (lower sumConst)
             | false, false -> upper difConst
             | true, true -> OPT.map Int64.neg (lower difConst)
-          else if i_inv <> j_inv then 
+          else if i_inv <> j_inv then
             matrix_get (j, i_inv) (i, j_inv) oct
-          else 
+          else
             matrix_get (j, not i_inv) (i, not j_inv) oct
         else
           let const = get_interval i oct in
@@ -573,14 +574,14 @@ module MapOctagon : S
       let index1 = (Hashtbl.find vars var) * 2 in
       set index1 index1 Int64.zero;
       set (inv_index index1) (inv_index index1) Int64.zero;
-      let upper = OPT.default max_int (INV.maximal const) in 
+      let upper = OPT.default max_int (INV.maximal const) in
       let lower = OPT.default min_int (INV.minimal const) in
       let two = Int64.of_int 2 in
       set (inv_index index1) index1 (Int64.mul upper two);
       set index1 (inv_index index1) (Int64.neg (Int64.mul lower two));
 
       let add_constraints (sign, var2, const) =
-        let index2 = try (Hashtbl.find vars var2) * 2 
+        let index2 = try (Hashtbl.find vars var2) * 2
           with Not_found ->
           raise (Invalid_argument ("Not found var:" ^ var2.vname ^ "@" ^ var2.vdecl.file ^ ":" ^ (string_of_int var2.vdecl.line)))
         in
@@ -614,7 +615,7 @@ module MapOctagon : S
       | Val l, Val u ->
         let l' = max (Int64.neg (Int64.div (Int64.of_float l) (Int64.of_int 2))) min_int in (* ok to do this here, only called from closure and closure does not cause over/underflows for vars -> is that true (?!) *)
         let u' =  min (Int64.div (Int64.of_float u) (Int64.of_int 2)) max_int in
-        INV.of_interval(l', u') 
+        INV.of_interval(l', u')
       | _ -> INV.top ()
     in
     let unpack_constraints lower upper =
@@ -626,9 +627,9 @@ module MapOctagon : S
       | _ -> INV.top ()
     in
     let rec matrix_iter i j oct =
-      if i >= Array.length matrix then 
+      if i >= Array.length matrix then
         oct
-      else if j >= Array.length matrix then 
+      else if j >= Array.length matrix then
         matrix_iter (i + 2) 0 oct
       else
         let var1 = Hashtbl.find inv_vars i in
@@ -681,20 +682,20 @@ module MapOctagon : S
     map filter_constraints oct_keys_filtered
 
   let widen a b = widen a (strong_closure b) (* strong closure must not(!) be called for the result (https://arxiv.org/pdf/cs/0703084.pdf)  *)
-  
+
   let narrow a b =
     (* Some constraints may involve a variable that is not there in the result. These need to be removed *)
-    let remove_invalid_constraints a = map (fun (k, (l:E.t list)) -> (k, List.filter (fun (_, v, _) -> mem v a) l)) in 
+    let remove_invalid_constraints a = map (fun (k, (l:E.t list)) -> (k, List.filter (fun (_, v, _) -> mem v a) l)) in
     map2 VD.narrow a b |> remove_invalid_constraints a |> strong_closure
-  
+
   let meet a b = meet a b |> strong_closure
   let join a b = join a b                       (* a strong closure is useless here if the arguments are strongly closed *)
 
   let leq a b =
     if !Goblintutil.in_verifying_stage then
-      leq a b || leq (strong_closure a) b 
+      leq a b || leq (strong_closure a) b
     else
-      leq a b 
+      leq a b
 end
 
 module MapOctagonBot : S
@@ -733,7 +734,7 @@ module MapOctagonBot : S
     match oct with
     | `Bot -> None, None, false
     | `Lifted x -> MapOctagon.get_relation i j x
-  
-  let keep_only vars = 
+
+  let keep_only vars =
     ignore_bot (MapOctagon.keep_only vars)
 end

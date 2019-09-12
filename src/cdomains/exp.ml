@@ -9,7 +9,6 @@ struct
 
   let equal = Expcompare.compareExp
   let hash = Hashtbl.hash
-  let compare = Pervasives.compare
   let classify _ = 0
   let class_name _ = "None"
   let name () = "Cil expressions"
@@ -275,7 +274,6 @@ struct
 
   let equal = Util.equals
   let hash = Hashtbl.hash
-  let compare = Pervasives.compare
   let classify _ = 0
   let class_name _ = "None"
   let name () = "Per-Element locking triple"
