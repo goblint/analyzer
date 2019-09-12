@@ -591,7 +591,7 @@ struct
     | All -> b = All
     | _ -> for_all (fun x -> mem x b) a (* mem uses B.leq! *)
   let eq a b = leq a b && leq b a
-  let le x y = B.leq x y && not (B.equal x y)
+  let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
   let reduce = function
     | All -> All
     | Set s -> Set (S.filter (fun x -> not (S.exists (le x) s) && not (B.is_bot x)) s)
