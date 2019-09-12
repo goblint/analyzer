@@ -744,10 +744,10 @@ struct
              Spec.D.pretty evil Spec.D.pretty other
              Spec.D.pretty_diff (evil,other) *)
           Spec.D.pretty_diff () (evil,other)
-        with _ -> failwith @@
-          "PathSensitive2: choose failed b/c of empty set!"
-          ^", s1: "^string_of_int (cardinal s1)
-          ^", s2: "^string_of_int (cardinal s2)
+        with _ ->
+          dprintf "choose failed b/c of empty set s1: %d s2: %d"
+          (cardinal s1)
+          (cardinal s2)
       end
 
     let printXml f x =
