@@ -12,5 +12,13 @@ int main(void)
     n--;
   }
 
-  return 0;
+  int arr2[260];
+
+  n = 5;
+  arr2[259] = 0;
+
+  while (n > 1) {
+    arr2[258] = 7;
+    n--;
+  }
 }

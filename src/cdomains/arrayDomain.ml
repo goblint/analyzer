@@ -396,7 +396,7 @@ struct
       else if must_be_length_minus_one (x1_eval_int e2e) then
         (* A read will never be from xr2 -> we can ignore that here *)
         let l = join_of_all_parts x1 in
-        leq' l xm2 && leq' l xr2
+        leq' l xl2 && leq' l xm2
       else
         false
     | `Top, `Lifted e2e ->
