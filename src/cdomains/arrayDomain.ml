@@ -372,7 +372,7 @@ struct
   let smart_widen ?(length=None) x1_eval_int x2_eval_int x1 x2  =
     smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
-  let smart_leq ?(length=None) x1_eval_int x2_eval_int (e1, (xl1,xm1,xr1)) (e2, (xl2, xm2, xr2)) =
+  let smart_leq ?(length=None) x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
     let must_be_zero v = (v = Some Int64.zero) in
     let must_be_length_minus_one v =  match length with
@@ -386,7 +386,19 @@ struct
       assert(Val.leq xm1 xl1); assert(Val.leq xr1 xm1); assert(Val.leq xm2 xl2); assert(Val.leq xr2 xm2);
       leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))    (* TODO: should the inner joins also be smart joins? *)
     | `Lifted _, `Top -> leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))
-    | `Lifted e1e, `Lifted e2e -> Basetype.CilExp.equal e1e e2e && leq' xl1 xl2 && leq' xm1 xm2 && leq' xr1 xr2
+    | `Lifted e1e, `Lifted e2e ->
+      if Basetype.CilExp.equal e1e e2e then
+        leq' xl1 xl2 && leq' xm1 xm2 && leq' xr1 xr2
+      else if must_be_zero (x1_eval_int e2e) then
+        (* A read will never be from xl2 -> we can ignore that here *)
+        let l = join_of_all_parts x1 in
+        leq' l xm2 && leq' l xr2
+      else if must_be_length_minus_one (x1_eval_int e2e) then
+        (* A read will never be from xr2 -> we can ignore that here *)
+        let l = join_of_all_parts x1 in
+        leq' l xm2 && leq' l xr2
+      else
+        false
     | `Top, `Lifted e2e ->
       if must_be_zero (x1_eval_int e2e) then
         leq' xm1 xm2 && leq' xr1 xr2
