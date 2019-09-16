@@ -385,6 +385,7 @@ module WP =
             HM.remove data.infl k;
             HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
           ) data.infl;
+          data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.join (S.Dom.bot ()) v) data.st;
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
