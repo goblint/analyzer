@@ -378,20 +378,33 @@ struct
     | `Lifted e1e, `Lifted e2e when Basetype.CilExp.equal e1e e2e ->
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | `Lifted e1e, `Lifted e2e ->
-      if must_be_zero (x1_eval_int e2e) then
-        let over_all_x1 = op (op xl1 xm1) xr1 in
-        (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
-      else if must_be_length_minus_one (x1_eval_int e2e) then
-        let over_all_x1 = op (op xl1 xm1) xr1 in
-        (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
-      else if must_be_zero (x2_eval_int e1e) then
-        let over_all_x2 = op (op xl2 xm2) xr2 in
-        (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
-      else if must_be_length_minus_one (x2_eval_int e1e) then
-        let over_all_x2 = op (op xl2 xm2) xr2 in
-        (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
-      else
-        (Expp.top (), (op_over_all, op_over_all, op_over_all))
+      let over_all_x1 = op (op xl1 xm1) xr1 in
+      let over_all_x2 = op (op xl2 xm2) xr2 in
+      let e1e_in_state_of_x2 = x2_eval_int e1e in
+      let e2e_in_state_of_x1 = x1_eval_int e2e in
+      let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compareExp e1e e2e < 0 in
+      if e1e_is_better then (* first try if the result can be partitioned by e1e *)
+        if must_be_zero e1e_in_state_of_x2  then
+          (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+        else if must_be_length_minus_one e1e_in_state_of_x2  then
+          (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+        else if must_be_zero e2e_in_state_of_x1 then
+          (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+        else if must_be_length_minus_one e2e_in_state_of_x1 then
+          (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+        else
+          (Expp.top (), (op_over_all, op_over_all, op_over_all))
+      else  (* first try if the result can be partitioned by e2e *)
+        if must_be_zero e2e_in_state_of_x1 then
+          (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+        else if must_be_length_minus_one e2e_in_state_of_x1 then
+          (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+        else if must_be_zero e1e_in_state_of_x2 then
+          (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+        else if must_be_length_minus_one e1e_in_state_of_x2 then
+          (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+        else
+          (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Top, `Top ->
       (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Top, `Lifted e2e ->
@@ -418,7 +431,7 @@ struct
   let smart_widen ?(length=None) x1_eval_int x2_eval_int x1 x2  =
     smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
-  let smart_leq ?(length=None) x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2, xm2, xr2)) as x2) =
+  let smart_leq ?(length=None) x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
     let must_be_zero v = (v = Some Int64.zero) in
     let must_be_length_minus_one v =  match length with
