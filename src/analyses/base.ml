@@ -1146,7 +1146,18 @@ struct
     | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray _ -> bot_value a gs st t
+    | TArray (ai, exp, _) ->
+      let default = `Array (ValueDomain.CArrays.top ()) in
+      (match exp with
+       | Some exp ->
+         (match eval_rv a gs st exp with
+          | `Int n -> begin
+              match ID.to_int n with
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays" then (init_value a gs st ai) else (bot_value a gs st ai)))
+              | _ -> default
+            end
+          | _ -> default)
+       | None -> default)
     | TNamed ({ttype=t}, _) -> init_value a gs st t
     | _ -> `Top
 
@@ -1168,7 +1179,7 @@ struct
          (match eval_rv a gs st exp with
           | `Int n -> begin
               match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai))
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays" then (top_value a gs st ai) else (bot_value a gs st ai)))
               | _ -> default
             end
           | _ -> default)
