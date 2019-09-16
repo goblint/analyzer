@@ -1154,7 +1154,7 @@ struct
          (match eval_rv a gs st exp with
           | `Int n -> begin
               match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays" then (init_value a gs st ai) else (bot_value a gs st ai)))
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
               | _ -> default
             end
           | _ -> default)
@@ -1180,7 +1180,7 @@ struct
          (match eval_rv a gs st exp with
           | `Int n -> begin
               match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays" then (top_value a gs st ai) else (bot_value a gs st ai)))
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
               | _ -> default
             end
           | _ -> default)
