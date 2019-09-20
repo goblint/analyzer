@@ -103,7 +103,7 @@ sig
   val matrix_to_map   : elt array array -> (BV.t, int) Hashtbl.t -> t
   val get_relation    : Deriving.Cil.varinfo -> Deriving.Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option * bool
   val keep_only       : Deriving.Cil.varinfo list -> t -> t
-  (* TODO: Currently last bool indicates if it was neccessary to switch the order of vars and therefore multiplying diff by -1 in consumers may be neccessary. *)
+  (* TODO: Currently last bool indicates if it was necessary to switch the order of vars and therefore multiplying diff by -1 in consumers may be necessary. *)
   (* This is ugly and needs to be fixed *)
 end
 
@@ -620,7 +620,7 @@ module MapOctagon : S
     in
     let unpack_constraints lower upper =
       match lower, upper with
-      | Val l, Val u -> (* only if both upper and lower boundaries have defintive values, if one of them is Infinity there is no guarantee that no wraparound occured *)
+      | Val l, Val u -> (* only if both upper and lower boundaries have definitive values, if one of them is Infinity there is no guarantee that no wraparound occurred *)
         let l' = Int64.neg (Int64.of_float l) in
         let u' = Int64.of_float u in
         INV.of_interval(l', u')   (* By creating an interval here, wraparounds (min < min_int or max > max_int) are handled properly *)

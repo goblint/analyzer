@@ -672,7 +672,7 @@ struct
 
   let meet x y =
     match (x,y) with
-    (* Gretest LOWER bound with the least element is trivial: *)
+    (* Greatest LOWER bound with the least element is trivial: *)
     | `Bot, _ -> `Bot
     | _, `Bot -> `Bot
     (* Definite elements are either equal or the glb is bottom *)

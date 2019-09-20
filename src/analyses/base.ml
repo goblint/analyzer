@@ -191,7 +191,7 @@ struct
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
         | MinusPP ->
-          (* when subsracting pointers to arrays, per 6.5.6 of C-standard if we substract two pointers to the same array, the difference *)
+          (* when subtracting pointers to arrays, per 6.5.6 of C-standard if we subtract two pointers to the same array, the difference *)
           (* between them is the difference in subscript *)
           begin
             let rec calculateDiffFromOffset x y =
@@ -1039,7 +1039,7 @@ struct
             in
             update_variable arr nval st,fl, dep
           in
-          (* change_array is false if a change to the way arrays are partitioned is not neccessary *)
+          (* change_array is false if a change to the way arrays are partitioned is not necessary *)
           (* for now, this is only the case when guards are evaluated *)
           List.fold_left (fun x y -> effect_on_array change_array y x) (st,fl,dep) affected_arrays
         in
@@ -1088,7 +1088,7 @@ struct
 
   (* Removes all partitionings done according to this variable *)
   let rem_many_paritioning a (s:store) (v_list: varinfo list):store =
-    (* Removes the paritioning information from all affected arrays, call before removing locals *)
+    (* Removes the partitioning information from all affected arrays, call before removing locals *)
     let rem_partitioning a (st,fl,dep:store) (x:varinfo):store =
       let affected_arrays =
         let set = try BaseDomain.VarMap.find x dep

@@ -315,7 +315,7 @@ struct
               | _ -> log_top __POS__; CArrays.top ()
             )
         | TComp (ci,_) -> (* struct/union *)
-          (* rather clumsy, but our abstract values don't kepp their type *)
+          (* rather clumsy, but our abstract values don't keep their type *)
           let same_struct x = (* check if both have the same parent *)
             (* compinfo is cyclic, so we only check the name *)
             try compFullName (List.hd (Structs.keys x)).fcomp = compFullName (List.hd ci.cfields).fcomp
@@ -597,13 +597,14 @@ struct
     in
     let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
-      | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when ( not (contains_pointer add)) ->
+      | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin
         match ask (Q.MayPointTo (Lval lval)) with
         | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with
           | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
+            (* The idea here is that if a must(!) point to arr and we do sth like a[i] we dont want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
           end
