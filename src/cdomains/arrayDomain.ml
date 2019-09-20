@@ -304,20 +304,20 @@ struct
               default
           end
         | _ ->
-          (* If the expression used to write is not known, all segements except the empty ones will be affected *)
+          (* If the expression used to write is not known, all segments except the empty ones will be affected *)
           (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
     end
 
   let join ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) =
     let new_e = Expp.join e1 e2 in
     if Expp.is_top new_e then
-      (* At least one of them was not partitioned, or e != f *)
+      (* At least one of them was not partitioned, or e <> f *)
       let join_over_all = Val.join (join_of_all_parts x1) (join_of_all_parts x2) in
       (new_e, (join_over_all, join_over_all, join_over_all))
     else
       (new_e, (Val.join xl1 xl2, Val.join xm1 xm2, Val.join xr1 xr2))
 
-  (* leq needs not be given explictly, leq from product domain works here *)
+  (* leq needs not be given explicitly, leq from product domain works here *)
 
   let make i v =
     if i = 1 then

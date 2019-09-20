@@ -196,7 +196,8 @@ struct
           begin
             let rec calculateDiffFromOffset x y =
               match x, y with
-              | `Field (xf, xo), `Field(yf, yo) when xf == yf ->
+              | `Field ((xf:Cil.fieldinfo), xo), `Field((yf:Cil.fieldinfo), yo)
+                when  xf.floc = yf.floc && xf.fname = yf.fname && Cil.typeSig xf.ftype = Cil.typeSig yf.ftype && xf.fbitfield = yf.fbitfield && xf.fattr = yf.fattr ->
                 calculateDiffFromOffset xo yo
               | `Index (i, `NoOffset), `Index(j, `NoOffset) ->
                 begin
@@ -205,13 +206,13 @@ struct
                   | Some z -> `Int(ID.of_int z)
                   | _ -> `Int (ID.top ())
                 end
-              | `Index (xi, xo), `Index(yi, yo) when xi == yi ->
+              | `Index (xi, xo), `Index(yi, yo) when xi = yi ->
                 calculateDiffFromOffset xo yo
               | _ -> `Int (ID.top ())
             in
             if AD.is_definite p1 && AD.is_definite p2 then
               match Addr.to_var_offset (AD.choose p1), Addr.to_var_offset (AD.choose p2) with
-              | [x, xo], [y, yo] when x==y ->
+              | [x, xo], [y, yo] when x.vid = y.vid ->
                 calculateDiffFromOffset xo yo
               | _ ->
                 `Int (ID.top ())
@@ -866,7 +867,7 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match ID.to_int i1, ID.to_int i2 with
-            | Some i1', Some i2' when i1' == i2' -> `Bool(true)
+            | Some i1', Some i2' when i1' = i2' -> `Bool(true)
             | _ -> Q.Result.top ()
             end
         | _ -> Q.Result.top ()

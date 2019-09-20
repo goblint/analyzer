@@ -12,6 +12,7 @@ int main(void)
     example7();
     example8();
     example9();
+    example10();
     return 0;
 }
 
@@ -193,4 +194,13 @@ void example9() {
     assert(a[3] == 127); //UNKNOWN
     assert(a[3] == -128); //UNKNOWN
     assert(a[3] == -129); //FAIL
+}
+
+void example10() {
+    int a[20];
+    a[5] = 3;
+
+    int i=5;
+    a[i] = 7;
+    assert(a[5] == 7);
 }

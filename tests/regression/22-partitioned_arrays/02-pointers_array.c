@@ -16,10 +16,10 @@ void example1(void) {
 
     int a[42];
     int *ptr = &a;
-    
+
     *ptr = 42;
     ptr++;
-     
+
     assert(a[0] == 42);
     assert(a[1] == 42); // UNKNOWN
 
@@ -36,7 +36,7 @@ void example1(void) {
     ptr++;
     *ptr = 42;
     ptr++;
-    
+
 
     int i = 5;
     assert(a[i] == 42);
@@ -52,14 +52,14 @@ void example1(void) {
 void example2() {
   int array1[10000000];
   int array2[10000000];
-  
+
   int* ptr;
 
   if(rand()) {
     ptr = &array1;
     *ptr = 5;
 
-    assert(*ptr == 5);  
+    assert(*ptr == 5);
   }
   else {
     ptr = &array2;
@@ -96,7 +96,7 @@ void example4(void) {
     ptr++;
   }
 
-  // In an ideal world, I would like to have information about array1[0] and so on. For this the <= would need yo improve
+  // In an ideal world, I would like to have information about array1[0] and so on. For this the <= would need to improve, so that ptr is known to point to {array1[5,5]}
 }
 
 void example5(void) {
@@ -119,7 +119,7 @@ void example5(void) {
 void example6(void) {
   int array1[100];
   int* ptr = &array1;
-  
+
   *ptr = 5;
   int v = *ptr;
   assert(v == 5);
@@ -161,7 +161,7 @@ void example7(void) {
   }
 
   *ptr = 9;
-  
+
   // Case ptr = &arr1[7]
   //    arr1 -> (ptr-arr1, ([4,4], [9,9],[4,4]))
   //    arr2 -> (-,[4,4])
