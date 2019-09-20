@@ -395,33 +395,36 @@ struct
     | `Lifted e1e, `Lifted e2e when Basetype.CilExp.equal e1e e2e ->
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | `Lifted e1e, `Lifted e2e ->
-      let over_all_x1 = op (op xl1 xm1) xr1 in
-      let over_all_x2 = op (op xl2 xm2) xr2 in
-      let e1e_in_state_of_x2 = x2_eval_int e1e in
-      let e2e_in_state_of_x1 = x1_eval_int e2e in
-      let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compareExp e1e e2e < 0 in
-      if e1e_is_better then (* first try if the result can be partitioned by e1e *)
-        if must_be_zero e1e_in_state_of_x2  then
-          (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
-        else if must_be_length_minus_one e1e_in_state_of_x2  then
-          (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
-        else if must_be_zero e2e_in_state_of_x1 then
-          (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
-        else if must_be_length_minus_one e2e_in_state_of_x1 then
-          (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
-        else
-          (Expp.top (), (op_over_all, op_over_all, op_over_all))
-      else  (* first try if the result can be partitioned by e2e *)
-        if must_be_zero e2e_in_state_of_x1 then
-          (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
-        else if must_be_length_minus_one e2e_in_state_of_x1 then
-          (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
-        else if must_be_zero e1e_in_state_of_x2 then
-          (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
-        else if must_be_length_minus_one e1e_in_state_of_x2 then
-          (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
-        else
-          (Expp.top (), (op_over_all, op_over_all, op_over_all))
+      if get_string "exp.partition-arrays.keep-expr" = "last" || get_bool "exp.partition-arrays.smart-join" then
+        let over_all_x1 = op (op xl1 xm1) xr1 in
+        let over_all_x2 = op (op xl2 xm2) xr2 in
+        let e1e_in_state_of_x2 = x2_eval_int e1e in
+        let e2e_in_state_of_x1 = x1_eval_int e2e in
+        let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compareExp e1e e2e < 0 in
+        if e1e_is_better then (* first try if the result can be partitioned by e1e *)
+          if must_be_zero e1e_in_state_of_x2  then
+            (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+          else if must_be_length_minus_one e1e_in_state_of_x2  then
+            (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+          else if must_be_zero e2e_in_state_of_x1 then
+            (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+          else if must_be_length_minus_one e2e_in_state_of_x1 then
+            (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+          else
+            (Expp.top (), (op_over_all, op_over_all, op_over_all))
+        else  (* first try if the result can be partitioned by e2e *)
+          if must_be_zero e2e_in_state_of_x1 then
+            (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+          else if must_be_length_minus_one e2e_in_state_of_x1 then
+            (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+          else if must_be_zero e1e_in_state_of_x2 then
+            (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+          else if must_be_length_minus_one e1e_in_state_of_x2 then
+            (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+          else
+            (Expp.top (), (op_over_all, op_over_all, op_over_all))
+      else
+        (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Top, `Top ->
       (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Top, `Lifted e2e ->
