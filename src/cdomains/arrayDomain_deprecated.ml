@@ -156,7 +156,7 @@ struct
     let two_in_one = Array.map2 (fun x y -> (x,y)) x y in
     Array.fold_left (fun a x -> f a (fst x) (snd x)) a two_in_one
 
-  let move_if_affected ?(length=None) _ x _ _ = x
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
@@ -208,7 +208,7 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a
 
-  let move_if_affected ?(length=None) _ x _ _ = x
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
@@ -365,7 +365,7 @@ struct
       | Value x', Value y' -> f a x' y'
       | _ -> raise (Invalid_argument "Collapsing: fold_left2 called on Array and Value")
 
-  let move_if_affected ?(length=None) _ x _ _ = x
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
@@ -553,7 +553,7 @@ struct
       | _ -> a
 
 
-  let move_if_affected ?(length=None) _ x _ _ = x
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
@@ -892,7 +892,7 @@ struct
     let valInY k = M.find my k in
     M.fold mx (fun k v a -> f a v (valInY k)) a
 
-  let move_if_affected ?(length=None) _ x _ _ = x
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
@@ -1034,7 +1034,7 @@ struct
     let valInY k = M.find my k in
     M.fold mx (fun k v a -> f a v (valInY k)) a
 
-  let move_if_affected ?(length=None) _ x _ _ = x
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
@@ -1087,7 +1087,7 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a
 
-  let move_if_affected ?(length=None) _ x _ _ = x
+  let move_if_affected ?(length=None) ?(replace_with_const=false)  _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
@@ -1142,7 +1142,7 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a
 
-  let move_if_affected ?(length=None) _ x _ _ = x
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen

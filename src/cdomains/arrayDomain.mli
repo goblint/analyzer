@@ -16,8 +16,8 @@ sig
     * containing the element [e]. *)
   val length: t -> int option
   (** returns length of array if known *)
-  val move_if_affected: ?length:(int64 option) -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
-  (** changes the way in which the array is partitioned if this is necessitated by a change 
+  val move_if_affected: ?length:(int64 option) -> ?replace_with_const:bool -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  (** changes the way in which the array is partitioned if this is necessitated by a change
     * to the variable **)
   val get_vars_in_e: t -> Cil.varinfo list
   (** returns the variables occuring in the epxression according to which the
@@ -51,10 +51,10 @@ module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value 
   * indexing type is also used to manage the length. *)
 
 module Partitioned (Val: LatticeWithSmartOps) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
-(** This functor creates an array representation that allows for partitioned arrays 
+(** This functor creates an array representation that allows for partitioned arrays
   * Such an array can be partitioned according to an expression in which case it
-  * uses three values from Val to represent the elements of the array to the left,  
-  * at, and to the right of the expression. The Idx domain is required only so to 
+  * uses three values from Val to represent the elements of the array to the left,
+  * at, and to the right of the expression. The Idx domain is required only so to
   * have a signature that allows for choosing an array representation at runtime.
    *)
 

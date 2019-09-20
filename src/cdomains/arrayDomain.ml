@@ -17,7 +17,7 @@ sig
   val make: int -> value -> t
   val length: t -> int option
 
-  val move_if_affected: ?length:(int64 option) -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?length:(int64 option) -> ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
@@ -52,7 +52,7 @@ struct
   let make i v = v
   let length _ = None
 
-  let move_if_affected ?(length = None) _ x _ _ = x
+  let move_if_affected ?(length = None) ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let map f x = f x
   let fold_left f a x = f a x
@@ -177,7 +177,7 @@ struct
   let fold_left2 f a (_, ((xl:value), (xm:value), (xr:value))) (_, ((yl:value), (ym:value), (yr:value))) =
     f (f (f a xl yl) xm ym) xr yr
 
-  let move_if_affected ?(length=None) (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
+  let move_if_affected ?(length=None) ?(replace_with_const=false) (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
     let move (i:int option) =
       match i with
       | Some 0   ->
@@ -193,7 +193,24 @@ struct
       | _ ->
         begin
           let nval = join_of_all_parts x in
-          (Expp.top (), (nval, nval, nval))
+          let default = (Expp.top (), (nval, nval, nval)) in
+          if replace_with_const then
+            match e with
+            | `Lifted e' ->
+              begin
+                match ask (Q.EvalInt e') with
+                | `Int n ->
+                  begin
+                    match Q.ID.to_int n with
+                    | Some i ->
+                      (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
+                    | _ -> default
+                  end
+                | _ -> default
+              end
+            | _ -> default
+          else
+            default
         end
     in
     match e with
@@ -215,7 +232,7 @@ struct
               | _ -> false
             in
             let e_must_less_zero =
-              match ask (Q.MayBeLess (Cil.integer (-1), exp)) with
+              match ask (Q.MayBeLess (Cil.mone, exp)) with
               | `Bool false -> true (* !(-1 <_{may} e) => e <=_{must} -1 *)
               | _ -> false
             in
@@ -481,7 +498,7 @@ struct
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
-  let move_if_affected ?(length = None) _ x _ _ = x
+  let move_if_affected ?(length = None) ?(replace_with_const=false) _ x _ _ = x
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
   let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
@@ -507,9 +524,9 @@ struct
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 
-  let move_if_affected ?(length = None) ask (x,l) v i =
+  let move_if_affected ?(length = None) ?(replace_with_const=false) ask (x,l) v i =
     let new_l = Length.to_int l in
-    (Base.move_if_affected ~length:new_l ask x v i), l
+    (Base.move_if_affected ~length:new_l ~replace_with_const:replace_with_const ask x v i), l
 
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
@@ -581,7 +598,7 @@ struct
   let map f = unop_to_t (P.map f) (T.map f)
   let fold_left f s = unop (P.fold_left f s) (T.fold_left f s)
   let fold_left2 f s = binop (P.fold_left2 f s) (T.fold_left2 f s)
-  let move_if_affected ?(length=None) (ask:Q.ask) x v f = unop_to_t (fun x -> P.move_if_affected ~length:length ask x v f) (fun x -> T.move_if_affected ~length:length ask x v f) x
+  let move_if_affected ?(length=None) ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t (fun x -> P.move_if_affected ~length:length ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~length:length ~replace_with_const:replace_with_const ask x v f) x
   let smart_join ?(length=None) f g = binop_to_t (P.smart_join ~length:length f g) (T.smart_join ~length:length f g)
   let smart_widen ?(length=None) f g = binop_to_t (P.smart_widen ~length:length f g) (T.smart_widen ~length:length f g)
   let smart_leq ?(length=None) f g = binop (P.smart_leq ~length:length f g) (T.smart_leq ~length:length f g)

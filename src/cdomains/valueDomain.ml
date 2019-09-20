@@ -18,7 +18,7 @@ sig
   type offs
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
-  val affect_move: Q.ask -> t -> varinfo -> (exp -> int option) -> t
+  val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
   val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
@@ -811,15 +811,15 @@ struct
     in
     do_update_offset ask x offs value exp l o v
 
-  let rec affect_move ask (x:t) (v:varinfo) movement_for_expr:t =
-    let move_fun x = affect_move ask x v movement_for_expr in
+  let rec affect_move ?(replace_with_const=false) ask (x:t) (v:varinfo) movement_for_expr:t =
+    let move_fun x = affect_move ~replace_with_const:replace_with_const ask x v movement_for_expr in
     match x with
     | `Array a ->
       begin
         (* potentially move things (i.e. other arrays after arbitrarily deep nesting) in array first *)
         let moved_elems = CArrays.map move_fun a in
         (* then move the array itself *)
-        let new_val = CArrays.move_if_affected ask moved_elems v movement_for_expr in
+        let new_val = CArrays.move_if_affected ~replace_with_const:replace_with_const ask moved_elems v movement_for_expr in
         `Array (new_val)
       end
     | `Struct s -> `Struct (Structs.map (move_fun) s)
