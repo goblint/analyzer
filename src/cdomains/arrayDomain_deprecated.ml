@@ -425,7 +425,7 @@ struct
 
   let short w a =
     match a with
-      | Bot -> "Erronous array"
+      | Bot -> "Erroneous array"
       | Mapping x when is_top a -> "Unknown array"
       | Mapping a ->
         let strlist =
@@ -438,7 +438,7 @@ struct
 
   let pretty_f _ () a =
     match a with
-      | Bot -> text "Erronous array"
+      | Bot -> text "Erroneous array"
       | Mapping x ->
     let content =
       M.fold (fun x y l ->
@@ -830,14 +830,14 @@ struct
     let a_top = M.find a (Idx.top ()) in
     let b_top = M.find b (Idx.top ()) in
     let t_rest = fn a_top b_top in
-    let map_first key value map = (* handle indeces that are in a *)
+    let map_first key value map = (* handle indices that are in a *)
       let current_value = M.find b key in
       let new_value = fn value current_value in
       if Base.equal new_value t_rest then
         map else
         let use = (M.get_item_use a key)+(M.get_item_use b key) in
         M.add_w_use map key new_value use in
-    let map_rest key value map =  (* handle indeces that are only in b*)
+    let map_rest key value map =  (* handle indices that are only in b *)
       if M.mem a key then
         map else begin
         let new_val = fn value a_top in

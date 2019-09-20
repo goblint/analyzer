@@ -383,12 +383,12 @@ struct
   let get_ptrs (vals: value list): address list =
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs ->
-        M.warn_each "Unkown address given as function argument"; acc
+        M.warn_each "Unknown address given as function argument"; acc
       | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs ->
         let typ = AD.get_type adrs in
         if isFunctionType typ then acc else adrs :: acc
-      | `Top -> M.warn_each "Unkown value type given as function argument"; acc
+      | `Top -> M.warn_each "Unknown value type given as function argument"; acc
       | _ -> acc
     in
     List.fold_right f vals []
