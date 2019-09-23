@@ -620,20 +620,29 @@ struct
   (* Functions that make us of the configuration flag *)
   let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "exp.partition-arrays.enabled" then P.name () else T.name ()
 
-  let bot () =
+  let partition_enabled () =
     if get_bool "exp.partition-arrays.enabled" then
+      if get_bool "exp.fast_global_inits" then
+        failwith "Options 'exp.partition-arrays.enabled' and 'exp.fast_global_inits' are incompatible. Disable at least one of them."
+      else
+        true
+    else
+      false
+
+  let bot () =
+    if partition_enabled () then
       (Some (P.bot ()), None)
     else
       (None, Some (T.bot ()))
 
   let top () =
-    if get_bool "exp.partition-arrays.enabled" then
+    if partition_enabled () then
       (Some (P.top ()), None)
     else
       (None, Some (T.top ()))
 
   let make i v =
-    if get_bool "exp.partition-arrays.enabled" then
+    if partition_enabled () then
       (Some (P.make i v), None)
     else
       (None, Some (T.make i v))
