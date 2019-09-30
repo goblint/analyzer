@@ -7,6 +7,7 @@ import re
 import collections
 import os.path
 import shlex
+import yaml
 
 
 OVERVIEW = False # with True Goblint isn't executed
@@ -28,18 +29,31 @@ set_filename = sys.argv[1]
 with open(set_filename) as set_file:
     stats = collections.defaultdict(int)
 
-    code_filenames = []
+    task_filenames = []
     for pattern in set_file:
         pattern = pattern.strip()
         if pattern:
             pattern = os.path.join(os.path.dirname(set_filename), pattern)
-            for code_filename in glob.iglob(pattern):
-                code_filenames.append(code_filename)
+            for task_filename in glob.iglob(pattern):
+                task_filenames.append(task_filename)
 
-    for code_filename in sorted(code_filenames):
-        print(f"{code_filename}: ", end="", flush=True)
-        # TODO: handle .yml task definitions
-        expected = extract_bool(r"_(false|true)-unreach-call", code_filename)
+    for task_filename in sorted(task_filenames):
+        print(f"{task_filename}: ", end="", flush=True)
+
+        if task_filename.endswith(".yml"):
+            with open(task_filename) as task_file:
+                y = yaml.safe_load(task_file)
+
+                code_filename = y["input_files"]
+                code_filename = os.path.join(os.path.dirname(task_filename), code_filename)
+
+                expected = None
+                for y_property in y["properties"]:
+                    if y_property["property_file"] == "../properties/unreach-call.prp":
+                        expected = y_property["expected_verdict"]
+        else:
+            code_filename = task_filename
+            expected = extract_bool(r"_(false|true)-unreach-call", task_filename)
 
         if OVERVIEW:
             actual = None
@@ -57,7 +71,7 @@ with open(set_filename) as set_file:
                 print(f"MISSING FUNC {m.group(1)}")
 
             if missing_funcs:
-                sys.exit(0)
+                sys.exit(1)
 
         text = None
         if expected is None or actual is None:
