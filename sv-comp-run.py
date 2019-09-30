@@ -9,7 +9,9 @@ import os.path
 import shlex
 
 
-overview = True
+OVERVIEW = False # with True Goblint isn't executed
+GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --enable ana.int.interval {code_filename}"
+TIMEOUT = None # with some int that's Goblint timeout for single execution
 
 
 def str2bool(s):
@@ -29,23 +31,21 @@ with open(set_filename) as set_file:
     code_filenames = []
     for pattern in set_file:
         pattern = pattern.strip()
-        pattern = os.path.join(os.path.dirname(set_filename), pattern)
         if pattern:
+            pattern = os.path.join(os.path.dirname(set_filename), pattern)
             for code_filename in glob.iglob(pattern):
                 code_filenames.append(code_filename)
 
     for code_filename in sorted(code_filenames):
         print(f"{code_filename}: ", end="", flush=True)
+        # TODO: handle .yml task definitions
         expected = extract_bool(r"_(false|true)-unreach-call", code_filename)
 
-        if overview:
+        if OVERVIEW:
             actual = None
         else:
             try:
-                # p = subprocess.run(f"~/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug {code_filename}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
-                # p = subprocess.run(f"~/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug --set ana.activated[+] \"'var_eq'\" --enable ana.int.interval {code_filename}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
-                # p = subprocess.run(shlex.split(f"/home/simmo/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug --set ana.activated[+] \"'var_eq'\" --enable ana.int.interval {code_filename}"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=10)
-                p = subprocess.run(shlex.split(f"/home/simmo/Desktop/sv-comp/goblint/goblint --enable ana.sv-comp --enable dbg.debug --set ana.activated[+] \"'var_eq'\" --set ana.activated[+] \"'symb_locks'\" --set ana.activated[+] \"'thread'\" --set ana.activated[+] \"'region'\" --enable ana.int.interval {code_filename}"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=30)
+                p = subprocess.run(shlex.split(GOBLINT_COMMAND.format(code_filename=code_filename)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=TIMEOUT)
                 actual = extract_bool(r"SV-COMP \(unreach-call\): (false|true)", p.stdout)
             except subprocess.TimeoutExpired:
                 actual = "timeout"
@@ -72,6 +72,7 @@ with open(set_filename) as set_file:
         print(text)
         stats[text] += 1
 
+    # TODO: print this even when ctrl-c-ing script
     print("-" * 80)
     for text, count in stats.items():
         print(f"{text}: {count}")
