@@ -62,7 +62,7 @@ let may_narrow = ref true
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009)
 
-(** number of times that globals change *)
+(** number of times that globals change !CAUTION: This is only set in contain.ml and is not what one would think it is! *)
 let globals_changed = ref 0
 
 (** use the old accesses vs. the new pairwise accesses *)
