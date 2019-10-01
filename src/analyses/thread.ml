@@ -9,7 +9,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "thread"
+  let name () = "thread"
   module D = ConcDomain.ThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
@@ -110,7 +110,7 @@ module StartLocIDs =
 struct
   include Analyses.DefaultSpec
 
-  let name = "thread-id-location"
+  let name () = "thread-id-location"
   module D = ConcDomain.ThreadStringSet
   module C = D
   module G = Lattice.Unit

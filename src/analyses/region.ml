@@ -205,7 +205,7 @@ struct
 
   let exitstate = otherstate
 
-  let name = "region"
+  let name () = "region"
 
   let init () =
     partition_varstore := Goblintutil.create_var @@ makeVarinfo false "REGION_PARTITIONS" voidType;

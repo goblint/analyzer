@@ -684,7 +684,7 @@ struct
 
   let meet x y =
     match (x,y) with
-    (* Gretest LOWER bound with the least element is trivial: *)
+    (* Greatest LOWER bound with the least element is trivial: *)
     | `Bot, _ -> `Bot
     | _, `Bot -> `Bot
     (* Definite elements are either equal or the glb is bottom *)
@@ -720,8 +720,14 @@ struct
   let of_interval (x,y) = if Int64.compare x y == 0 then of_int x else top ()
   let ending   x = top ()
   let starting x = top ()
-  let maximal _ = None
-  let minimal _ = None
+
+  let maximal x = match x with
+    | `Definite x -> Integers.to_int x
+    | _ -> None
+
+  let minimal x = match x with
+    | `Definite x -> Integers.to_int x
+    | _ -> None
 
   let of_excl_list t l = `Excluded (List.fold_right S.add l (S.empty ()), size t)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false

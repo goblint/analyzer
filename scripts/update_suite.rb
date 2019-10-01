@@ -54,8 +54,8 @@ timedout  = [] # timed out tests
 
 class Project
   attr_reader :id, :name, :group, :path, :params, :warnings
-  attr_writer :size
-  def initialize(id, name, size, group, path, params, warnings)
+  attr_accessor :size, :ok
+  def initialize(id, name, size, group, path, params, warnings, ok)
     @id       = id
     @name     = name
     @size     = size
@@ -63,10 +63,11 @@ class Project
     @path     = path
     @params   = params
     @warnings = warnings
+    @ok = ok
   end
   def to_html
-    orgfile = name + ".c.html"
-    cilfile = name + ".cil.txt"
+    orgfile = File.join(group, name + ".c.html")
+    cilfile = File.join(group, name + ".cil.txt")
     "<td>#{@id}</td>\n" +
     "<td><a href=\"#{orgfile}\">#{@name}</a></td>\n" +
     "<td><a href=\"#{cilfile}\">#{@size} lines</a></td>\n"
@@ -118,7 +119,6 @@ regs.sort.each do |d|
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
     lines = IO.readlines(path)
-    size = 0
     debug = true
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
@@ -160,7 +160,7 @@ regs.sort.each do |d|
       debug = true
     end
     params << " --set dbg.debug true" if debug
-    p = Project.new(id,testname,size,groupname,path,params,hash)
+    p = Project.new(id,testname,0,groupname,path,params,hash,true)
     projects << p
   end
 end
@@ -194,12 +194,17 @@ doproject = lambda do |p|
   clearline
   id = "#{p.id} #{p.group}/#{p.name}"
   print "Testing #{id}"
-  warnfile = File.join(testresults, p.name + ".warn.txt")
-  statsfile = File.join(testresults, p.name + ".stats.txt")
-#   confile = File.join(testresults, p.name + ".con.txt")
-#   solfile = File.join(testresults, p.name + ".sol.txt")
-  cilfile = File.join(testresults, p.name + ".cil.txt")
-  orgfile = File.join(testresults, p.name + ".c.html")
+  begin
+    Dir.mkdir(File.join(testresults, p.group)) unless Dir.exist?(File.join(testresults, p.group))
+  rescue
+    # if we run into this, the directory was created in the time between exist? and mkdir => we can just continue
+  end
+  warnfile = File.join(testresults, p.group, p.name + ".warn.txt")
+  statsfile = File.join(testresults, p.group, p.name + ".stats.txt")
+#   confile = File.join(testresults, p.group, p.name + ".con.txt")
+#   solfile = File.join(testresults, p.group, p.name + ".sol.txt")
+  cilfile = File.join(testresults, p.group, p.name + ".cil.txt")
+  orgfile = File.join(testresults, p.group, p.name + ".c.html")
   if report then
     system(highlighter.call(filename, orgfile))
     `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
@@ -245,20 +250,22 @@ doproject = lambda do |p|
     f.puts "Goblint params: #{cmd}"
     f.puts vrsn
   end
-  status == 0
+  p.ok = status == 0
+  p
 end
 if sequential then
-  alliswell = projects.map(&doproject).all?
+  projects = projects.map(&doproject)
 else
   begin
     require 'parallel'
     # globals are protected from change when running processes instead of threads
-    alliswell = Parallel.map(projects, &doproject).all?
+    projects = Parallel.map(projects, &doproject)
   rescue LoadError => e
     puts "Missing dependency. Please run: gem install parallel"
     raise e
   end
 end
+alliswell = projects.map{|p| p.ok}.all?
 clearline
 
 #Outputting
@@ -295,7 +302,7 @@ File.open(theresultfile, "w") do |f|
     f.puts "<tr>"
     f.puts p.to_html
 
-    warnfile = p.name + ".warn.txt"
+    warnfile = File.join(p.group, p.name + ".warn.txt")
     warnings = Hash.new
     warnings[-1] = "term"
     lines = IO.readlines(File.join(testresults, warnfile))
@@ -353,7 +360,7 @@ File.open(theresultfile, "w") do |f|
     end
     f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.warnings.size}</a></td>"
 
-    statsfile = p.name + ".stats.txt"
+    statsfile = File.join(p.group, p.name + ".stats.txt")
     lines = IO.readlines(File.join(testresults, statsfile))
     res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
     errors = lines.grep(/Error:/)
@@ -394,7 +401,7 @@ File.open(theresultfile, "w") do |f|
       if not is_ok or ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
       else
-        whataglorifiedmess = p.name + ".c.html"
+        whataglorifiedmess = File.join(p.group, p.name + ".c.html")
         f.puts "<td><a href=\"#{whataglorifiedmess}#line#{ferr}\" style =\"color: red\">LINE #{ferr}</a></td>"
       end
     end

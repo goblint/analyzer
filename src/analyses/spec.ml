@@ -9,7 +9,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "spec"
+  let name()  = "spec"
   module D = SpecDomain.Dom
   module C = SpecDomain.Dom
   module G = Lattice.Unit

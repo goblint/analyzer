@@ -10,9 +10,13 @@ sig
   val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
+  val for_all_common_bindings: (value -> value -> bool) -> t -> t -> bool
   val map: (value -> value) -> t -> t
   val cardinal: t -> int
   val keys: t -> field list
+  val widen_with_fct: (value -> value -> value) -> t -> t -> t
+  val join_with_fct: (value -> value -> value) -> t -> t -> t
+  val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
 end
 
 module Simple (Val: Lattice.S): S with type value = Val.t and type field = fieldinfo

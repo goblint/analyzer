@@ -50,6 +50,9 @@ type t = ExpEq of exp * exp
        | Access of exp * bool * bool * int
        | IterPrevVars of iterprevvar
        | InInterval of exp * IntDomain.Interval32.t
+       | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
+       | MayBeEqual of exp * exp (* may two expressions be equal? *)
+       | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
        | TheAnswerToLifeUniverseAndEverything
 [@@deriving to_yojson]
 

@@ -31,6 +31,13 @@ sig
   val long_map2: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
   (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
+
+  val widen_with_fct: (value -> value -> value) -> t -> t -> t
+  (* Widen using a custom widening function for value rather than the default one for value *)
+  val join_with_fct: (value -> value -> value) -> t -> t -> t
+  (* Join using a custom join function for value rather than the default one for value *)
+  val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
+  (* Leq test using a custom leq function for value rather than the default one provided for value *)
 end
 
 module type Groupable =
@@ -208,12 +215,14 @@ type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
-  let leq m1 m2 =
+  let leq_with_fct f m1 m2 =
     (* For each key-value in m1, the same key must be in m2 with a geq value: *)
     let p key value =
-      try Range.leq value (find key m2) with Not_found -> false
+      try f value (find key m2) with Not_found -> false
     in
     m1 == m2 || for_all p m1
+
+  let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.bot ()
   let top () = Lattice.unsupported "partial map top"
@@ -239,8 +248,15 @@ struct
     | None -> Pretty.dprintf "No binding grew."
 
   let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
-  let join m1 m2 = if m1 == m2 then m1 else long_map2 Range.join m1 m2
-  let widen  = long_map2 Range.widen
+
+  let join_with_fct f m1 m2 =
+    if m1 == m2 then m1 else long_map2 f m1 m2
+  let join = join_with_fct Range.join
+
+  let widen_with_fct f =  long_map2 f
+  let widen  = widen_with_fct Range.widen
+
+
   let narrow = map2 Range.narrow
 end
 
@@ -251,12 +267,14 @@ type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
-  let leq m1 m2 = (* TODO use merge or sth faster? *)
+  let leq_with_fct f m1 m2 = (* TODO use merge or sth faster? *)
     (* For each key-value in m2, the same key must be in m1 with a leq value: *)
     let p key value =
-      try Range.leq (find key m1) value with Not_found -> false
+      try f (find key m1) value with Not_found -> false
     in
     m1 == m2 || for_all p m2
+
+  let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.top ()
   let top () = M.empty
@@ -265,11 +283,16 @@ struct
   let is_bot _ = false
 
   (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)
-
   let meet m1 m2 = if m1 == m2 then m1 else long_map2 Range.meet m1 m2
-  let join m1 m2 = if m1 == m2 then m1 else map2 Range.join m1 m2
 
-  let widen  = map2 Range.widen
+  let join_with_fct f m1 m2 =
+    if m1 == m2 then m1 else map2 f m1 m2
+
+  let join = join_with_fct Range.join
+
+  let widen_with_fct f = map2 f
+  let widen = widen_with_fct Range.widen
+
   let narrow = long_map2 Range.narrow
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
@@ -370,6 +393,24 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
     | _ -> raise (Fn_over_All "merge")
+
+  let leq_with_fct f x y =
+    match (x,y) with
+    | (_, `Top) -> true
+    | (`Top, _) -> false
+    | (`Lifted x, `Lifted y) -> M.leq_with_fct f x y
+
+  let join_with_fct f x y =
+    match (x,y) with
+    | (`Top, x) -> `Top
+    | (x, `Top) -> `Top
+    | (`Lifted x, `Lifted y) -> `Lifted (M.join_with_fct f x y)
+
+  let widen_with_fct f x y =
+    match (x,y) with
+    | (`Lifted x, `Lifted y) -> `Lifted (M.widen_with_fct f x y)
+    | _ -> y
+
 end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
@@ -450,4 +491,21 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
     | _ -> raise (Fn_over_All "merge")
+
+  let join_with_fct f x y =
+    match (x,y) with
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Lifted x, `Lifted y) -> `Lifted (M.join_with_fct f x y)
+
+  let widen_with_fct f x y =
+    match (x,y) with
+    | (`Lifted x, `Lifted y) -> `Lifted(M.widen_with_fct f x y)
+    | _ -> y
+
+  let leq_with_fct f x y =
+    match (x,y) with
+    | (`Bot, _) -> true
+    | (_, `Bot) -> false
+    | (`Lifted x, `Lifted y) -> M.leq_with_fct f x y
 end
