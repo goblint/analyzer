@@ -5,6 +5,9 @@ osx_image: xcode10
 language: c
 git:
   submodules: false
+cache:
+  directories:
+  - $HOME/.opam
 install: bash -x scripts/travis-ci.sh
 script: ./make.sh headers testci
 addons:
@@ -12,8 +15,6 @@ addons:
     update: true
 notifications:
   webhooks:
-    urls:
-      - https://webhooks.gitter.im/e/86c0d96b8abfc23dbc97
     # options: [always|never|change] default: always
     on_success: change
     on_failure: change

@@ -121,6 +121,5 @@ let do_stats fileNames =
     ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
     flush_all ();
     prerr_endline "Solver stats:";
-    prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");
     Stats.print (M.get_out "timing" Legacy.stderr) "Timings:\n"
   | _ -> ()

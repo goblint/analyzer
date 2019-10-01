@@ -10,7 +10,7 @@ module WP =
   functor (HM:Hash.H with type key = S.v) ->
   struct
 
-    include Generic.SolverStats (S)
+    include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
     module P =
@@ -20,8 +20,8 @@ module WP =
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
-    type phase = Widen | Narrow      
-    
+    type phase = Widen | Narrow
+
     let solve box st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
@@ -116,6 +116,7 @@ module WP =
         if tracing then trace "sol2" "set_start %a on %i ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Dom.pretty d;
         init x;
         HM.replace rho x d;
+        HM.replace rho' x d;
         solve x Widen
       in
 
@@ -140,9 +141,13 @@ module WP =
       (* verifies values at widening points and adds values for variables in-between *)
       let visited = HM.create 10 in
       let rec get x =
-        if HM.mem visited x then
-          HM.find rho x
-        else (
+        if HM.mem visited x then (
+          if not (HM.mem rho x) then (
+            ignore @@ Pretty.printf "Found an unknown that should be a widening point: %a\n" S.Var.pretty_trace x;
+            S.Dom.top ()
+          ) else
+            HM.find rho x
+        ) else (
           HM.replace visited x ();
           let check_side y d =
             let d' = try HM.find rho y with Not_found -> S.Dom.bot () in

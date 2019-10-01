@@ -1,5 +1,5 @@
 open OUnit
-open ArrayDomain
+open ArrayDomain_deprecated
 open GeneralArrayTest
 
 module I = Int64
@@ -23,7 +23,7 @@ struct
     assert_equal ~printer:(string_of_int)  42  (get_v !a 1);
     assert_equal ~printer:(string_of_int)  42  (get_v !a 10);
     assert_equal ~printer:(string_of_int)  42  (get_v !a 20)
- 
+
   let test_big_col () =
     let a = ref (D.make 201 (get_int_d (-3))) in
     assert_equal ~printer:(string_of_int) (-1) (get_v !a 0);
@@ -33,8 +33,8 @@ struct
     a := set_v !a 100 (-1);
     assert_equal ~cmp:D.equal ~printer:(D.short max_int) (D.top ()) (!a)
 
-  let  test = 
-    [ ("test_small_col" >:: test_small_col ); 
+  let  test =
+    [ ("test_small_col" >:: test_small_col );
       ("test_big_col"   >:: test_big_col   );
     ]
 
@@ -47,7 +47,7 @@ module STCol = ColTest(ATD)
 
 
 (* all tests together *)
-let  test () = "collapsingArrayDomainTest" >::: 
+let  test () = "collapsingArrayDomainTest" >:::
   GTCol.test @ STCol.test
 
 

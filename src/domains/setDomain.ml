@@ -225,6 +225,14 @@ struct
     | All, All -> true
     | Set x, Set y -> S.equal x y
     | _ -> false
+
+  let compare x y =
+    match (x, y) with
+    | All, All -> 0
+    | All, Set _ -> 1
+    | Set _, All -> -1
+    | Set x, Set y -> S.compare x y
+
   let empty () = Set (S.empty ())
   let is_empty x =
     match x with
@@ -281,7 +289,7 @@ struct
   (*  let map f = schema (fun t -> Set (S.map f t)) "map"*)
   let fold f x e = schema (fun t -> S.fold f t e) "fold on All" x
   let for_all f = schema_default false (S.for_all f)
-  let exists f = schema_default true (S.exists f) 
+  let exists f = schema_default true (S.exists f)
   let filter f = schema (fun t -> Set (S.filter f t)) "filter on All"
   let elements = schema S.elements "elements on All"
   let of_list xs = Set (List.fold_right S.add xs (S.empty ()))
@@ -519,8 +527,15 @@ struct
   let name () = "Set (" ^ E.name () ^ ")"
   (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
   let equal x y = leq x y && leq y x
-  let hash = Hashtbl.hash
-  let compare = compare
+  let hash xs = fold (fun v a -> a + E.hash v) xs 0
+  let compare x y =
+    if equal x y
+      then 0
+      else
+        let caridnality_comp = compare (cardinal x) (cardinal y) in
+        if caridnality_comp <> 0
+          then caridnality_comp
+          else Map.compare (List.compare E.compare) x y
   let isSimple _ = false
   let short w x : string =
     let usable_length = w - 5 in

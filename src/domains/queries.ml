@@ -49,6 +49,7 @@ type t = ExpEq of exp * exp
        | CondVars of exp
        | Access of exp * bool * bool * int
        | IterPrevVars of iterprevvar
+       | InInterval of exp * IntDomain.Interval32.t
        | TheAnswerToLifeUniverseAndEverything
 [@@deriving to_yojson]
 

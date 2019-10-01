@@ -38,6 +38,7 @@ ocamlprof.dump
 arinc
 
 .vscode
+_opam/
 cfgs/
 
 *.graphml

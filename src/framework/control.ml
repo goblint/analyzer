@@ -10,11 +10,11 @@ open Constraints
 
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
-let get_spec () : (module Spec) =
+let get_spec () : (module SpecHC) =
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
-  (module (val
+  let module S1 = (val
             (module MCP.MCP2 : Spec)
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
@@ -22,23 +22,24 @@ let get_spec () : (module Spec) =
             (* hashcons contexts before witness to reduce duplicates, because witness re-uses contexts in domain *)
             |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter)
             |> lift true (module PathSensitive2)
-            (* |> lift (get_bool "ana.hashcons") (module HashconsContextLifter) *)
-            |> lift (get_bool "ana.hashcons") (module HashconsLifter)
-            (* |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter) *)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
-            (* |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter) *)
-          ))
+            |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
+          ) in
+  (module (val if get_bool "ana.opt.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
-  (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =
+    (** The main function to preform the selected analyses. *)
+    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
+
+    let module Inc = struct let increment = increment end in
+
     (** The Equation system *)
-    let module EQSys = FromSpec (Spec) (Cfg) in
+    let module EQSys = FromSpec (Spec) (Cfg) (Inc) in
 
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in
@@ -139,7 +140,7 @@ struct
 
       (* Adding the state at each system variable to the final result *)
       let add_local_var (n,es) state =
-        let loc = MyCFG.getLoc n in
+        let loc = Tracing.getLoc n in
         if loc <> locUnknown then try
             let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
             if Result.mem res p then
@@ -600,12 +601,12 @@ struct
     Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
 
 
-  let analyze file fs =
-    analyze file fs (get_spec ())
+  let analyze file fs change_info =
+    analyze file fs (get_spec ()) change_info
 end
 
 (** The main function to perform the selected analyses. *)
-let analyze (file: file) fs =
+let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
@@ -615,4 +616,4 @@ let analyze (file: file) fs =
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
   let module CFG = struct let prev = cfgB let next = cfgF end in
   let module A = AnalyzeCFG (CFG) in
-  A.analyze file fs
+  A.analyze file fs change_info

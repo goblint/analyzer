@@ -14,7 +14,7 @@ sig
   val to_int: t -> int64 option
   val of_int: int64 -> t
   val is_int: t -> bool
-  val equal_to: int64 -> t -> [`Eq | `Neq | `Top] 
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   val of_bool: bool -> t
@@ -120,7 +120,7 @@ struct
 
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) y = x=y
-  let compare (x:t) y = Pervasives.compare x y
+  let compare = Pervasives.compare
   let short _ = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
   let isSimple _ = true
   let name () = "32bit intervals"
@@ -281,7 +281,7 @@ struct
     | None, _ | _, None -> bot ()
     | Some (x1,x2), Some (y1,y2) ->
       begin match y1, y2 with
-        | 0L, 0L       -> bot ()
+        | 0L, 0L       -> top () (* TODO warn about undefined behavior *)
         | 0L, _        -> div (Some (x1,x2)) (Some (1L,y2))
         | _      , 0L  -> div (Some (x1,x2)) (Some (y1,(-1L)))
         | _ when leq (of_int 0L) (Some (y1,y2)) -> top ()
@@ -393,14 +393,8 @@ struct
   let add  = Int64.add (* TODO: signed overflow is undefined behavior! *)
   let sub  = Int64.sub
   let mul  = Int64.mul
-  let div x y = (* TODO: exception is not very helpful here?! *)
-    match y with
-    | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *)
-    | _  -> Int64.div x y           (*    sigfpe and ocaml has somehow forgotten how to deal with it*)
-  let rem x y =
-    match y with
-    | 0L -> raise Division_by_zero  (* ditto *)
-    | _  -> Int64.rem x y
+  let div  = Int64.div
+  let rem  = Int64.rem
   let lt n1 n2 = of_bool (n1 <  n2)
   let gt n1 n2 = of_bool (n1 >  n2)
   let le n1 n2 = of_bool (n1 <= n2)
@@ -508,9 +502,9 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
-module Lift (Base: S) = (* identical to Flat, but does not go to `Top/`Bot if Base raises Unknown/Error *)
+module Lift (Base: S) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
-  include Lattice.Lift (Base) (struct
+  include Lattice.LiftPO (Base) (struct
       let top_name = "MaxInt"
       let bot_name = "MinInt"
     end)
@@ -601,7 +595,6 @@ struct
     | `Definite of Integers.t
     | `Bot
   ] [@@deriving to_yojson]
-
   let hash (x:t) =
     match x with
     | `Excluded (s,r) -> S.hash s + R.hash r
@@ -865,7 +858,6 @@ struct
   module I = CBigInt
   module C = CircularBigInt
   type t = I.t interval
-
   let to_yojson _ = failwith "TODO to_yojson"
 
   let max_width = 64

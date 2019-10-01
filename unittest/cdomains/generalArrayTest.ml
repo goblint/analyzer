@@ -19,8 +19,8 @@ sig
 end
 
 
-module ArrayTestDomain 
-  (D: ArrayDomain.S with type idx = Idx.t and type value = Val.t) 
+module ArrayTestDomain
+  (D: ArrayDomain.S with type idx = Idx.t and type value = Val.t)
 : S with type t = D.t =
 struct
   type t = D.t
@@ -29,36 +29,36 @@ struct
   (* _v values:
      >=0-> definite
      -1 -> excluded (set not 0)
-     -2 -> top 
-     -3 -> bot 
+     -2 -> top
+     -3 -> bot
   *)
-  
+
   let get_int_d v =
     match v with
-        -1 ->  (`Excluded (S.singleton Int64.zero))
+        -1 -> Idx.of_excl_list Cil.IInt [I.zero]
       | -2 -> Idx.top ()
       | -3 -> Idx.bot ()
       | _  -> Idx.of_int (I.of_int v)
-  
-  
+
+
   let set_t a i v =
     D.set a (Idx.of_int (I.of_int i)) v
 
   let set_v a i v =
     match v with
-        -1 -> set_t a i (`Excluded (S.singleton Int64.zero))
+        -1 -> set_t a i (Idx.of_excl_list Cil.IInt [I.zero])
       | -2 -> set_t a i (Idx.top ())
       | -3 -> set_t a i (Idx.bot ())
       | _  -> set_t a i (Idx.of_int (I.of_int v))
-  
-  
+
+
   let get_v a i : int=
     let v = D.get a (Idx.of_int (I.of_int i)) in
-        match v with 
+        match v with
   	  `Definite x -> (I.to_int x)
-	  | `Excluded x when S.is_empty x -> -2
+	  | `Excluded (x,_) when S.is_empty x -> -2
   	| _ ->  -1
-	    
+
   let enc a =
     let b = ref (D.make (Array.length a) (Val.top ())) in
     for i = 0 to (Array.length a - 1) do
@@ -71,11 +71,11 @@ end
 
 
 
-module GeneralTests 
-  (D: ArrayDomain.S with type idx = Idx.t and type value = Val.t) 
+module GeneralTests
+  (D: ArrayDomain.S with type idx = Idx.t and type value = Val.t)
   (N: S with type t = D.t) =
 struct
-  
+
   open N
 
   (* tests for get/set and make*)
@@ -83,19 +83,19 @@ struct
   let a2 = ref (enc [|1;2;3;4;5;6;7;8;9;10|])
   let a3 = ref (enc [||])
 
-  let test_equal () = 
+  let test_equal () =
     assert_equal ~cmp:D.equal ~printer:(D.short max_int) !a1 !a2
 
   exception E
-  let test_nequal () = 
-    try 
+  let test_nequal () =
+    try
       assert_equal ~cmp:D.equal !a3 !a2;
       raise E
     with
         Failure _ -> ()
       | E -> raise (Failure "Eq not working")
 
-  let test_set_and_get () = 
+  let test_set_and_get () =
     a1 := set_v !a1 0 101;
     assert_equal (get_v !a1 0) 101;
     a1 := set_v !a1 1 102;
@@ -111,7 +111,7 @@ struct
   let test_join () =
     b1 := D.join !b1 !b2;
     assert_equal ~cmp:D.equal ~printer:(D.short max_int) !b1 b12j
-  
+
 
   (* tests for meet *)
   let c1 = ref (enc [| 1;-3;  3; 4; 0; 0;-1; 2;-1|])
@@ -143,7 +143,7 @@ struct
     assert_equal ~cmp:D.equal ~printer:(D.short max_int) !c3 !c4
 
 
-  let test_cache_mem () = 
+  let test_cache_mem () =
     let v = ref (D.make 30 (Val.top ())) in
       v := set_v !v 1 42;
       v := set_v !v 2 8;
@@ -180,7 +180,7 @@ struct
       v := D.set !v  io  (get_int_d 0);
       assert_equal ~printer:(string_of_int) (-2) (get_v !v 1);
       assert_equal ~printer:(string_of_int) (-2) (get_v !v 2);
-      assert_equal ~printer:(string_of_int)   0  (get_v !v 0)  
+      assert_equal ~printer:(string_of_int)   0  (get_v !v 0)
 
 
   let u1 = ref (enc [|1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20|])
@@ -189,14 +189,14 @@ struct
   let u4 = ref (enc [|1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1|])
 
 
-  let test_unordered () = 
+  let test_unordered () =
     assert_bool "basic no order 1" (not (D.leq !u3 !u4));
     assert_bool "basic no order 2" (not (D.leq !u4 !u3));
     assert_bool "basic no order 3" (not (D.leq !u1 !u2));
     assert_bool "basic no order 4" (not (D.leq !u2 !u1))
 
 
-  let  test_order () = 
+  let  test_order () =
     assert_bool "basic order 1" (D.leq (D.bot()) (D.top()));
     assert_bool "basic order 2" (D.leq (D.bot()) ((D.join (D.top()) !u1)));
     assert_bool "basic order 3" (D.leq (D.bot()) ((D.join (D.top()) !u4)));
@@ -205,7 +205,7 @@ struct
     assert_bool "basic order 6" (D.leq !b2 b12j)
 
 
-  let test_order_make () = 
+  let test_order_make () =
     let a = ref (D.make 5 (Val.top ())) in
     let b = ref (D.make 5 (Val.top ())) in
     assert_bool "order after make" (D.leq !a !b);
@@ -226,8 +226,8 @@ struct
   let uj2 = ref (enc [|(-2);(-1);  0 ;(-2);(-1);  0 ;(-2);(-1);0;1;0|])
   let uj3 = ref (enc [|(-1);(-1);  0 ;  0 ;0;1|])
   let uj4 = ref (enc [|(-1);  0 ;(-1);  0 ;1;0|])
-  
-  
+
+
   let test_order_jm () =
     assert_bool "bot vs. top"     (D.leq (D.bot()) (D.top()));
     assert_bool "bot vs. top" (not(D.leq (D.top()) (D.bot())));
@@ -246,8 +246,8 @@ struct
 
 
   (* all tests together *)
-  let  test =  
-    [ ("test_equal"       >:: test_equal ); 
+  let  test =
+    [ ("test_equal"       >:: test_equal );
       ("test_nequal"      >:: test_nequal);
       ("test_set_and_get" >:: test_set_and_get );
       ("test_join"        >:: test_join );

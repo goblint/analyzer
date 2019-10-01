@@ -51,10 +51,7 @@ end
 
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
-  module M = struct
-    include Map.Make (Domain)
-    let to_yojson poly_v x = [%to_yojson: (Domain.t * 'v) list] (bindings x) (* TODO pull this into Prelude *)
-  end
+  module M = Deriving.Map.Make (Domain)
 
   include Printable.Std
   type key = Domain.t
@@ -76,6 +73,7 @@ struct
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal = for_all2 Range.equal
+  let compare x y = if equal x y then 0 else M.compare Range.compare x y
   let merge = M.merge
   let for_all = M.for_all
   let find_first = M.find_first

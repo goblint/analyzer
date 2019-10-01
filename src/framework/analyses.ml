@@ -23,11 +23,13 @@ sig
   val file_name : t -> string
   val line_nr   : t -> int
   val node      : t -> MyCFG.node
+  val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
 end
 
 module Var =
 struct
   type t = MyCFG.node
+  let relift x = x
 
   let category = function
     | MyCFG.Statement     s -> 1
@@ -91,9 +93,10 @@ struct
 end
 
 
-module VarF (LD: Printable.S) =
+module VarF (LD: Printable.HC) =
 struct
   type t = MyCFG.node * LD.t
+  let relift (n,x) = n, LD.relift x
 
   let category = function
     | (MyCFG.Statement     s,_) -> 1
@@ -118,7 +121,7 @@ struct
     | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
 
   let pretty_trace () (n,c as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a)" pretty x LD.pretty c
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
     else dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare (n1,d1) (n2,d2) =
@@ -451,6 +454,7 @@ sig
 
   val init : unit -> unit
   val finalize : unit -> unit
+  (* val finalize : G.t -> unit *)
 
   val startstate : varinfo -> D.t
   val morphstate : varinfo -> D.t -> D.t
@@ -477,6 +481,23 @@ sig
   val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
+module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)
+sig
+  module C : Printable.HC
+  include Spec with module C := C
+end
+
+type increment_data = {
+  analyzed_commit_dir: string;
+  current_commit_dir: string;
+  changes: CompareAST.change_info
+}
+
+let empty_increment_data () = {
+  analyzed_commit_dir = "";
+  current_commit_dir = "";
+  changes = CompareAST.empty_change_info ()
+}
 
 (** A side-effecting system. *)
 module type MonSystem =
@@ -494,6 +515,8 @@ sig
 
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
+  (** Data used for incremental analysis *)
+  val increment : increment_data
 end
 
 (** Any system of side-effecting inequations over lattices. *)
@@ -510,7 +533,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-
+  val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 

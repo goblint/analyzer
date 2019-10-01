@@ -12,7 +12,7 @@ module Make2
 struct
   open S
   include Generic.SolverInteractiveWGlob (S) (LH) (GH)
-  include Generic.SolverStatsWGlob (S)
+  include Generic.SolverStatsWGlob (S) (LH)
 
   let lh_find_default t x a = try LH.find t x with Not_found -> a
   let gh_find_default t x a = try GH.find t x with Not_found -> a
