@@ -100,7 +100,7 @@ struct
   (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
   let strict (d, w) = (d, w) (* analysis is strict as long as witness lifter inside dead code lifter *)
 
-  let name = S.name ^ " witnessed"
+  let name () = S.name () ^ " witnessed"
 
   let init = S.init
   let finalize = S.finalize

@@ -88,7 +88,7 @@ struct
   module G = S.G
   module C = Printable.HConsed (S.C)
 
-  let name = S.name^" context hashconsed"
+  let name () = S.name () ^" context hashconsed"
 
   let init = S.init
   let finalize = S.finalize

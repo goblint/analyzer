@@ -1574,7 +1574,7 @@ struct
     List.concat (List.map do_exp exps)
 
 
-  let make_entry (ctx:(D.t, G.t) Analyses.ctx) ?nfl:(nfl=(snd_triple ctx.local)) fn args: D.t =
+  let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) ?nfl:(nfl=(snd_triple ctx.local)) fn args: D.t =
     let (cpa,fl,dep) as st = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ctx.ask ctx.global st) args in
@@ -1596,7 +1596,7 @@ struct
 
   let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
 
-  let forkfun (ctx:(D.t, G.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
+  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
     let create_thread arg v =
       try
         (* try to get function declaration *)
