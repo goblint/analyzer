@@ -95,6 +95,11 @@ except KeyboardInterrupt:
 finally:
     print()
     print("-" * 80)
+    print("For each .yml we compare with expected_verdict for 'c/properties/unreach-call.prp':")
+    print("CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )")
+    print("-> 'expected True' means for all paths __VERIFIER_error is never called (__VERIFIER_assert always true) ")
+    print("-> 'expected False' means there exists a path where  __VERIFIER_error could be called (__VERIFIER_assert can be false)")
+    print("-" * 80)
     for text, count in stats.items():
         print(f"{text}: {count}")
     print("-" * 80)
