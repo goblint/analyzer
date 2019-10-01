@@ -7,7 +7,7 @@ import re
 import collections
 import os.path
 import shlex
-import yaml
+import yaml # pip3 install pyyaml
 
 
 OVERVIEW = False # with True Goblint isn't executed
