@@ -244,7 +244,7 @@ struct
     in
 
     let print_globals glob =
-      let out = M.get_out Spec.name !GU.out in
+      let out = M.get_out (Spec.name ()) !GU.out in
       let print_one v st =
         ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v Spec.G.pretty st)
       in

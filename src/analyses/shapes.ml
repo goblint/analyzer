@@ -13,7 +13,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "shape"
+  let name () = "shape"
   module LD = ShapeDomain.Dom
   module D  = Lattice.Prod (LD) (Re.D)
   module C  = Lattice.Prod (LD) (Re.D)

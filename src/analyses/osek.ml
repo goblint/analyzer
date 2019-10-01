@@ -228,7 +228,7 @@ struct
   module Flags = FlagModes.Spec.D
   module Acc = Hashtbl.Make (Basetype.Variables)
   module AccKeySet = Set.Make (Basetype.Variables)
-  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Base.Main.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
+  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BaseDomain.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
   module AccValSet = Set.Make (Printable.Prod (AccLoc) (Flags))
   let acc     : AccValSet.t Acc.t = Acc.create 100
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty
@@ -528,7 +528,7 @@ struct
 
   let add_accesses ctx (accessed: accesses) (flagstate: Flags.t) (ust:D.t) =
     let fl = Mutex.get_flag ctx.presub in
-    if Base.Main.Flag.is_multi fl then
+    if BaseDomain.Flag.is_multi fl then
       let loc = !Tracing.current_loc in
       let dispatch ax =
         match ax with
@@ -866,10 +866,10 @@ struct
     | _ -> M.special ctx lval f arglist
   (* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
 
-  let name = "OSEK"
+  let name () = "OSEK"
   let es_to_string f _ = f.svar.vname
 
-  let should_join _ _ = true
+  let should_join x y = D.equal x y
 
   (** Finalization and other result printing functions: *)
 
@@ -936,7 +936,7 @@ struct
         List.fold_left f (Lockset.bot ()) acc_list
       in
       let rw ((_,_,x),_,_) = x in
-      let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
+      let non_main ((_,x,_),_,_) = BaseDomain.Flag.is_bad x in
       let is_race_no_flags acc_list =
         let offpry = offpry acc_list in
         let minpry = minpry acc_list in
@@ -1103,7 +1103,7 @@ struct
           let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
           let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
           let action = if write then "write" else "read" in
-          let thread = "\"" ^ Base.Main.Flag.short 80 fl ^ "\"" in
+          let thread = "\"" ^ BaseDomain.Flag.short 80 fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in
           (warn,loc)
         in (*/f*)

@@ -591,7 +591,7 @@ struct
     | All -> b = All
     | _ -> for_all (fun x -> mem x b) a (* mem uses B.leq! *)
   let eq a b = leq a b && leq b a
-  let le x y = B.leq x y && not (B.equal x y)
+  let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
   let reduce = function
     | All -> All
     | Set s -> Set (S.filter (fun x -> not (S.exists (le x) s) && not (B.is_bot x)) s)
@@ -606,7 +606,7 @@ struct
       let xs,ys = S.elements a, S.elements b in
       List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (Set (S.union b (S.of_list x)))
   let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
-  let narrow = product_bot B.narrow
+  let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
   let remove x a = failwith "Hoare: unsupported remove"

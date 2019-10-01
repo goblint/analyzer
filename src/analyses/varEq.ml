@@ -32,7 +32,7 @@ struct
   module C = D
   module G = Lattice.Unit
 
-  let name = "var_eq"
+  let name () = "var_eq"
 
   let startstate v = D.top ()
   let otherstate v = D.top ()

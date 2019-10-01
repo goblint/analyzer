@@ -8,7 +8,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "maylocks"
+  let name () = "maylocks"
   module D = LockDomain.MayLockset
   module C = LockDomain.MayLockset
   module G = Lattice.Unit

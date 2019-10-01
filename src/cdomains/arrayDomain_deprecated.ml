@@ -97,7 +97,7 @@ struct
   let toXML s = toXML_f short s
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let get a i =
+  let get ask a (_, i) =
     let folded () =
       Array.fold_left Base.join (Base.bot ()) a in
     let get_index i =
@@ -117,7 +117,7 @@ struct
          all possible elements *)
       folded ()
 
-  let set a i v =
+  let set ?(length=None) ask a (_, i) v =
     let set_inplace a i v =
       let top_value () =
         Array.map (fun x -> Base.top ()) a in
@@ -148,6 +148,19 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     Array.iteri print_one xs ;
     BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let map f x = Array.map f x
+  let fold_left f a x = Array.fold_left f a x
+
+  let fold_left2 f a x y =
+    let two_in_one = Array.map2 (fun x y -> (x,y)) x y in
+    Array.fold_left (fun a x -> f a (fst x) (snd x)) a two_in_one
+
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end
 
 module NativeArrayEx (Base: Lattice.S) (Idx: IntDomain.S)
@@ -161,17 +174,17 @@ struct
   include Lattice.Lift (A) (struct let bot_name = "array bot"
                                    let top_name = "array top" end)
 
-  let get x i =
+  let get ask x i =
     match x with
       | `Top -> Base.top ()
       | `Bot -> Base.top ()
-      | `Lifted a -> A.get a i
+      | `Lifted a -> A.get ask a i
 
-  let set x i v =
+  let set ?(length=None) ask x i v =
     match x with
       | `Top -> `Top
       | `Bot -> `Bot
-      | `Lifted a -> `Lifted (A.set a i v)
+      | `Lifted a -> `Lifted (A.set ask a i v)
 
   let make (i:int) v = `Lifted (A.make i v)
 
@@ -180,6 +193,26 @@ struct
       | `Lifted a -> A.length a
       | _ -> None
 
+  let map f x =
+    match x with
+      | `Lifted x' -> `Lifted (A.map f x')
+      | _ -> x
+
+  let fold_left f a x =
+    match x with
+      | `Lifted x' -> A.fold_left f a x'
+      | _ -> a
+
+  let fold_left2 f a x y =
+    match x,y with
+      | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
+      | _ -> a
+
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end
 
 module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
@@ -290,16 +323,16 @@ struct
       | Array v -> A.pretty () v
 
 
-  let get a i =
+  let get ask a i =
     match a with
   Value v -> v
-      | Array v -> A.get v i
+      | Array v -> A.get ask v i
 
 
-  let set a i n =
+  let set ?(length=None) ask a i n =
     match a with
   Value v -> Value (Base.join v n)
-      | Array v -> Array (A.set v i n)
+      | Array v -> Array (A.set ask v i n)
 
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m
@@ -316,6 +349,27 @@ struct
       | Array a -> A.length a
       | _ -> None
 
+  let map f x =
+    match x with
+      | Array a -> Array (A.map f a)
+      | Value v -> Value (f v)
+
+  let fold_left f a x =
+    match x with
+      | Array x' -> A.fold_left f a x'
+      | Value v -> f a v
+
+  let fold_left2 f a x y =
+    match x, y with
+      | Array x', Array y' -> A.fold_left2 f a x' y'
+      | Value x', Value y' -> f a x' y'
+      | _ -> raise (Invalid_argument "Collapsing: fold_left2 called on Array and Value")
+
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end
 
 
@@ -371,7 +425,7 @@ struct
 
   let short w a =
     match a with
-      | Bot -> "Erronous array"
+      | Bot -> "Erroneous array"
       | Mapping x when is_top a -> "Unknown array"
       | Mapping a ->
         let strlist =
@@ -384,7 +438,7 @@ struct
 
   let pretty_f _ () a =
     match a with
-      | Bot -> text "Erronous array"
+      | Bot -> text "Erroneous array"
       | Mapping x ->
     let content =
       M.fold (fun x y l ->
@@ -454,13 +508,13 @@ struct
       | a  , Bot -> a
       | Mapping a, Mapping b -> Mapping (join_mappings a b)
 
-  let get x i =
+  let get ask x (_, i) =
     match x with
       | Bot -> Base.top ()
       | Mapping map when M.mem i map -> M.find i map
       | Mapping map -> Base.top ()
 
-  let set x i v =
+  let set ?(length=None) ask x (_, i) v =
     let add_map  map i v = M.add i v map in
     let join_map map v = M.map (Base.join v) map in
     match x with
@@ -474,12 +528,36 @@ struct
       if cur = mx then
         map
       else
-        add_items (cur+1) mx (set map (Idx.of_int (Int64.of_int cur)) v) in
+        add_items (cur+1) mx (set (fun x -> (Queries.Result.top ())) map ((ExpDomain.top (), Idx.of_int (Int64.of_int cur))) v) in
     match I.n with
       | Some n -> add_items 0 (min i n) (top ())
       | None -> top ()
 
   let length _ = None
+
+  let map f x =
+    match x with
+      | Mapping m -> Mapping (M.map f m)
+      | Bot -> Bot
+
+  let fold_left f a x =
+    match x with
+      | Mapping m -> M.fold (fun k v a -> f a v) m a
+      | Bot -> a
+
+  let fold_left2 f a x y =
+    match x, y with
+      | Mapping x', Mapping y' ->
+        let valInY k = M.find k y' in
+        M.fold (fun k v a -> f a v (valInY k)) x' a
+      | _ -> a
+
+
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end
 
 
@@ -654,7 +732,7 @@ struct
   type value = Base.t
   type idx = Idx.t
 
-  let get ((map:M.t),len) index : Base.t=
+  let get ask ((map:M.t),len) (_, index) : Base.t=
     let join_values key value other = Base.join value other in
     let joined_items () = M.fold map join_values (Base.bot ()) in
     if Idx.is_int index then begin
@@ -752,14 +830,14 @@ struct
     let a_top = M.find a (Idx.top ()) in
     let b_top = M.find b (Idx.top ()) in
     let t_rest = fn a_top b_top in
-    let map_first key value map = (* handle indeces that are in a *)
+    let map_first key value map = (* handle indices that are in a *)
       let current_value = M.find b key in
       let new_value = fn value current_value in
       if Base.equal new_value t_rest then
         map else
         let use = (M.get_item_use a key)+(M.get_item_use b key) in
         M.add_w_use map key new_value use in
-    let map_rest key value map =  (* handle indeces that are only in b*)
+    let map_rest key value map =  (* handle indices that are only in b *)
       if M.mem a key then
         map else begin
         let new_val = fn value a_top in
@@ -784,7 +862,7 @@ struct
       then a
       else map2 Base.meet a b
 
-  let set ((map,len) as emap) index value =
+  let set ?(length=None) ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
       let rest = M.find map (Idx.top ()) in
       if Base.equal value rest then begin
@@ -804,6 +882,21 @@ struct
   let name () = "strict map based arrays"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
+  let map f (map,length) =
+    (M.map map f), length
+
+  let fold_left f a (map,length) =
+    M.fold map (fun k v a -> f a v) a
+
+  let fold_left2 f a (mx, _) (my, _) =
+    let valInY k = M.find my k in
+    M.fold mx (fun k v a -> f a v (valInY k)) a
+
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end
 
 module LooseMapArray
@@ -902,7 +995,7 @@ struct
       then a
       else map2 Base.meet a b
 
-  let set ((map,len) as emap) index value =
+  let set ?(length=None) ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
       let rest = M.find map (Idx.top ()) in
       if Base.equal value rest then begin
@@ -932,6 +1025,20 @@ struct
   let name () = "loose map based arrays"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
+  let map f (m, len) = (M.map m f, len)
+
+  let fold_left f a (map,length) =
+    M.fold map (fun k v a -> f a v) a
+
+  let fold_left2 f a (mx, _) (my, _) =
+    let valInY k = M.find my k in
+    M.fold mx (fun k v a -> f a v (valInY k)) a
+
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end
 
 
@@ -948,14 +1055,14 @@ struct
   include Lattice.Lift (A) (struct let bot_name = "array bot"
                                    let top_name = "array top" end)
 
-  let set a i v :t =
+  let set ?(length=None) ask a i v :t =
     match a with
-      | `Lifted l -> `Lifted (A.set l i v)
+      | `Lifted l -> `Lifted (A.set ask l i v)
       | z -> z
 
-  let get a i =
+  let get ask a i =
     match a with
-      | `Lifted l -> A.get l i
+      | `Lifted l -> A.get ask l i
       | _ -> Base.top ()
 
   let length a =
@@ -965,6 +1072,26 @@ struct
 
   let make i v = `Lifted (A.make i v)
 
+  let map f x =
+    match x with
+      | `Lifted a -> `Lifted (A.map f a)
+      | _ -> x
+
+  let fold_left f a x =
+    match x with
+      | `Lifted x' -> A.fold_left f a x'
+      | _ -> a
+
+  let fold_left2 f a x y =
+    match x, y with
+      | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
+      | _ -> a
+
+  let move_if_affected ?(length=None) ?(replace_with_const=false)  _ x _ _ = x
+  let get_vars_in_e _ = []
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end
 
 
@@ -981,14 +1108,14 @@ struct
   include Lattice.Lift (A) (struct let bot_name = "array bot"
                                    let top_name = "array top" end)
 
-  let set a i v :t =
+  let set ?(length=None) ask a i v :t =
     match a with
-      | `Lifted l -> `Lifted (A.set l i v)
+      | `Lifted l -> `Lifted (A.set ask l i v)
       | z -> z
 
-  let get a i =
+  let get ask a i =
     match a with
-      | `Lifted l -> A.get l i
+      | `Lifted l -> A.get ask l i
       | _ -> Base.top ()
 
   let length a =
@@ -999,4 +1126,25 @@ struct
   let make i v = `Lifted (A.make i v)
 
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let map f x =
+    match x with
+      | `Lifted a -> `Lifted (A.map f a)
+      | _ -> x
+
+  let fold_left f a x =
+    match x with
+      | `Lifted x' -> A.fold_left f a x'
+      | _ -> a
+
+  let fold_left2 f a x y =
+    match x, y with
+      | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
+      | _ -> a
+
+  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let smart_join ?(length=None) _ _ = join
+  let smart_widen ?(length=None) _ _ = widen
+  let smart_leq ?(length=None) _ _ = leq
 end

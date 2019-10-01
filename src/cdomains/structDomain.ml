@@ -8,9 +8,13 @@ sig
   val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
+  val for_all_common_bindings: (value -> value -> bool) -> t -> t -> bool
   val map: (value -> value) -> t -> t
   val cardinal: t -> int
   val keys: t -> field list
+  val widen_with_fct: (value -> value -> value) -> t -> t -> t
+  val join_with_fct: (value -> value -> value) -> t -> t -> t
+  val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
 end
 
 module Simple (Val: Lattice.S) =
@@ -29,6 +33,15 @@ struct
     let f (key, st) = Val.short usable_length st in
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "<" ">" usable_length whole_str_list
+
+  let for_all_common_bindings (pred: (value -> value -> bool)) (x:t) (y:t) =
+    let pred_ok key value =
+      try
+        let other = M.find key y in
+        pred value other
+      with Not_found -> true
+    in
+    M.for_all pred_ok x
 
   let toXML_f sf = M.toXML_f sf
   let pretty_f sf = M.pretty_f sf
@@ -58,4 +71,7 @@ struct
   let pretty_diff () (x,y) =
     Pretty.dprintf "{@[%a@] ...}" M.pretty_diff (x,y)
   let printXml f xs = M.printXml f xs
+  let widen_with_fct = M.widen_with_fct
+  let leq_with_fct = M.leq_with_fct
+  let join_with_fct = M.join_with_fct
 end

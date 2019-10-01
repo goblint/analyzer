@@ -19,7 +19,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "containment"
+  let name () = "containment"
 
   module D =
   struct

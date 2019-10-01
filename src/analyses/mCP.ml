@@ -25,7 +25,7 @@ let register_analysis =
             ; cont = (module S.C : Printable.S)
             }
     in
-    let n = S.name in
+    let n = S.name () in
     analyses_table := (!count,n) :: !analyses_table;
     analyses_list' := (!count,s) :: !analyses_list';
     dep_list'      := (!count,dep) :: !dep_list';
@@ -224,7 +224,7 @@ struct
 
   open List open Obj
 
-  let name = "MCP2"
+  let name () = "MCP2"
 
   let path_sens = ref []
   let cont_inse = ref []
@@ -301,9 +301,19 @@ struct
       ) x
 
   let should_join x y =
+    let rec zip3 lst1 lst2 lst3 = match lst1,lst2,lst3 with
+      | [],_, _ -> []
+      | _,[], _ -> []
+      | _,_ , []-> []
+      | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs)
+    in
+    let should_join ((_,(module S:Analyses.Spec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
+    (* obtain all analyses specs that are path sensitive and their values both in x and y *)
+    let specs = filter (fun (x,_,_) -> mem x !path_sens) (spec_list x) in
     let xs = filter (fun (x,_) -> mem x !path_sens) x in
     let ys = filter (fun (x,_) -> mem x !path_sens) y in
-    D.equal xs ys
+    let zipped = zip3 specs xs ys in
+    List.for_all should_join zipped
 
   let otherstate v = map (fun (n,{spec=(module S:Spec)}) -> n, repr @@ S.otherstate v) !analyses_list
   let exitstate  v = map (fun (n,{spec=(module S:Spec)}) -> n, repr @@ S.exitstate  v) !analyses_list

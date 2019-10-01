@@ -51,7 +51,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "condvars"
+  let name () = "condvars"
   module D = Domain
   module C = Domain
   module G = Lattice.Unit

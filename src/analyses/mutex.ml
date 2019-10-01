@@ -25,7 +25,7 @@ let field_insensitive = ref false
 (** Only report races on these variables/types. *)
 let vips = ref ([]: string list)
 
-let get_flag (state: (string * Obj.t) list) : BS.Flag.t =
+let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
   snd (Obj.obj (List.assoc "base" state))
 
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
@@ -43,7 +43,7 @@ struct
   include Analyses.DefaultSpec
 
   (** name for the analysis (btw, it's "Only Mutex Must") *)
-  let name = "mutex"
+  let name () = "mutex"
 
   (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
   module D = Lockset
@@ -51,6 +51,8 @@ struct
 
   (** We do not add global state, so just lift from [BS]*)
   module G = P.G
+
+  let should_join x y = D.equal x y
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
@@ -143,7 +145,7 @@ struct
   let access_one_top ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
     let fl = get_flag ctx.presub in
-    if BS.Flag.is_multi fl then
+    if BaseDomain.Flag.is_multi fl then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
   (** We just lift start state, global and dependecy functions: *)

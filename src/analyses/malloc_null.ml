@@ -18,6 +18,8 @@ struct
   module C = ValueDomain.AddrSetDomain
   module G = Lattice.Unit
 
+  let should_join x y = D.equal x y
+
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
   let rec conv_offset x =
@@ -221,7 +223,7 @@ struct
       end
     | _ -> ctx.local
 
-  let name = "malloc_null"
+  let name () = "malloc_null"
 
   let startstate v = D.empty ()
   let otherstate v = D.empty ()

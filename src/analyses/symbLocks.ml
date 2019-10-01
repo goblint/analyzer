@@ -20,7 +20,7 @@ struct
   module C = LockDomain.Symbolic
   module G = Lattice.Unit
 
-  let name = "symb_locks"
+  let name () = "symb_locks"
 
   let startstate v = D.top ()
   let otherstate v = D.top ()

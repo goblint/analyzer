@@ -20,7 +20,7 @@ struct
   module G = S.G
   module C = Printable.HConsed (S.C)
 
-  let name = S.name^" hashconsed"
+  let name () = S.name () ^" hashconsed"
 
   let init = S.init
   let finalize = S.finalize
@@ -101,7 +101,7 @@ struct
   module G = S.G
   module C = S.C
 
-  let name = S.name^" level sliced"
+  let name () = S.name ()^" level sliced"
 
   let start_level = ref (`Top)
   let error_level = ref (`Lifted  0L)
@@ -200,7 +200,7 @@ module LimitLifter (S:Spec) =
 struct
   include (S : module type of S with module D := S.D)
 
-  let name = S.name^" limited"
+  let name () = S.name ()^" limited"
 
   let limit = ref 0
 
@@ -234,7 +234,7 @@ struct
   module G = S.G
   module C = Printable.Prod (S.C) (M)
 
-  let name = S.name^" with widened contexts"
+  let name () = S.name ()^" with widened contexts"
 
   let init = S.init
   let finalize = S.finalize
@@ -315,7 +315,7 @@ struct
   module G = S.G
   module C = S.C
 
-  let name = S.name^" lifted"
+  let name () = S.name ()^" lifted"
 
   let init = S.init
   let finalize = S.finalize
@@ -744,10 +744,10 @@ struct
              Spec.D.pretty evil Spec.D.pretty other
              Spec.D.pretty_diff (evil,other) *)
           Spec.D.pretty_diff () (evil,other)
-        with _ -> failwith @@
-          "PathSensitive2: choose failed b/c of empty set!"
-          ^", s1: "^string_of_int (cardinal s1)
-          ^", s2: "^string_of_int (cardinal s2)
+        with _ ->
+          dprintf "choose failed b/c of empty set s1: %d s2: %d"
+          (cardinal s1)
+          (cardinal s2)
       end
 
     let printXml f x =
@@ -773,12 +773,15 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
+
+    let leq a b =
+      leq a b || leq (join_reduce a) (join_reduce b)
   end
 
   module G = Spec.G
   module C = Spec.C
 
-  let name = "PathSensitive2("^Spec.name^")"
+  let name () = "PathSensitive2("^Spec.name ()^")"
 
   let init = Spec.init
   let finalize = Spec.finalize

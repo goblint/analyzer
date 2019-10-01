@@ -10,13 +10,15 @@ struct
 
   let violations = ref false (*print negative warnings? *)
 
-  let name = "OSEK2"
+  let name () = "OSEK2"
   module D = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
   module C = D
   module G = Lattice.Unit
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
   let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((Set.String.empty  )  , Osektupel.bot())
+
+  let should_join x y = D.equal x y
 
   let get_lockset ctx = Obj.obj (List.assoc "OSEK" ctx.postsub)
   let get_stack   ctx = Obj.obj (List.assoc "stack_trace_set" ctx.postsub)
