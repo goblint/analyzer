@@ -733,11 +733,89 @@ struct
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
       end
 
+  let rec bot_value a (gs:glob_fun) (st: store) (t: typ): value =
+    let rec bot_comp compinfo: ValueDomain.Structs.t =
+      let nstruct = ValueDomain.Structs.top () in
+      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype) in
+      List.fold_left bot_field nstruct compinfo.cfields
+    in
+    match t with
+    | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
+    | TPtr _ -> `Address (AD.bot ())
+    | TComp ({cstruct=true} as ci,_) -> `Struct (bot_comp ci)
+    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
+    | TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
+    | TArray (ai, Some exp, _) -> begin
+        let default = `Array (ValueDomain.CArrays.bot ()) in
+        match eval_rv a gs st exp with
+        | `Int n -> begin
+            match ID.to_int n with
+            | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai))
+            | _ -> default
+          end
+        | _ -> default
+      end
+    | TNamed ({ttype=t}, _) -> bot_value a gs st t
+    | _ -> `Bot
+
+  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
+    let rec init_comp compinfo: ValueDomain.Structs.t =
+      let nstruct = ValueDomain.Structs.top () in
+      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
+      List.fold_left init_field nstruct compinfo.cfields
+    in
+    match t with
+    | t when is_mutex_type t -> `Top
+    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
+    | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
+    | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
+    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
+    | TArray (ai, exp, _) ->
+      let default = `Array (ValueDomain.CArrays.top ()) in
+      (match exp with
+       | Some exp ->
+         (match eval_rv a gs st exp with
+          | `Int n -> begin
+              match ID.to_int n with
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
+              | _ -> default
+            end
+          | _ -> default)
+       | None -> default)
+    | TNamed ({ttype=t}, _) -> init_value a gs st t
+    | _ -> `Top
+
+  let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
+    let rec top_comp compinfo: ValueDomain.Structs.t =
+      let nstruct = ValueDomain.Structs.top () in
+      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype) in
+      List.fold_left top_field nstruct compinfo.cfields
+    in
+    match t with
+    | TInt _ -> `Int (ID.top ())
+    | TPtr _ -> `Address AD.top_ptr
+    | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
+    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
+    | TArray (ai, exp, _) ->
+      let default = `Array (ValueDomain.CArrays.top ()) in
+      (match exp with
+       | Some exp ->
+         (match eval_rv a gs st exp with
+          | `Int n -> begin
+              match ID.to_int n with
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
+              | _ -> default
+            end
+          | _ -> default)
+       | None -> default)
+    | TNamed ({ttype=t}, _) -> top_value a gs st t
+    | _ -> `Top
+
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
   let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     let r = eval_rv a gs st exp in
-    if VD.is_bot r then VD.top () else r
+    if VD.is_bot r then top_value a gs st (typeOf exp) else r
 
   let eval_exp x (exp:exp):int64 option =
       (* Since ctx is not available here, we need to make some adjustments *)
@@ -1114,84 +1192,6 @@ struct
  (**************************************************************************
    * Auxilliary functions
    **************************************************************************)
-
-  let rec bot_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let rec bot_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype) in
-      List.fold_left bot_field nstruct compinfo.cfields
-    in
-    match t with
-    | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
-    | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true} as ci,_) -> `Struct (bot_comp ci)
-    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
-    | TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
-    | TArray (ai, Some exp, _) -> begin
-        let default = `Array (ValueDomain.CArrays.bot ()) in
-        match eval_rv a gs st exp with
-        | `Int n -> begin
-            match ID.to_int n with
-            | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai))
-            | _ -> default
-          end
-        | _ -> default
-      end
-    | TNamed ({ttype=t}, _) -> bot_value a gs st t
-    | _ -> `Bot
-
-  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
-    let rec init_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
-      List.fold_left init_field nstruct compinfo.cfields
-    in
-    match t with
-    | t when is_mutex_type t -> `Top
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
-    | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
-    | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
-    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, exp, _) ->
-      let default = `Array (ValueDomain.CArrays.top ()) in
-      (match exp with
-       | Some exp ->
-         (match eval_rv a gs st exp with
-          | `Int n -> begin
-              match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-              | _ -> default
-            end
-          | _ -> default)
-       | None -> default)
-    | TNamed ({ttype=t}, _) -> init_value a gs st t
-    | _ -> `Top
-
-  let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let rec top_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype) in
-      List.fold_left top_field nstruct compinfo.cfields
-    in
-    match t with
-    | TInt _ -> `Int (ID.top ())
-    | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
-    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, exp, _) ->
-      let default = `Array (ValueDomain.CArrays.top ()) in
-      (match exp with
-       | Some exp ->
-         (match eval_rv a gs st exp with
-          | `Int n -> begin
-              match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-              | _ -> default
-            end
-          | _ -> default)
-       | None -> default)
-    | TNamed ({ttype=t}, _) -> top_value a gs st t
-    | _ -> `Top
 
   let invariant ctx a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
