@@ -43,8 +43,8 @@ try:
     else:
         print('Call script on .yml or .set file') # TODO also allow .c to just call goblint on with above options?
 
-    for task_filename in sorted(task_filenames):
-        print(f"{task_filename}: ", end="", flush=True)
+    for task_i, task_filename in enumerate(sorted(task_filenames)):
+        print(f"{task_i + 1}/{len(task_filenames)}: {task_filename}: ", end="", flush=True)
 
         if task_filename.endswith(".yml"):
             with open(task_filename) as task_file:
