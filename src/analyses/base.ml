@@ -733,6 +733,11 @@ struct
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
       end
 
+  (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
+  (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
+  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+    let r = eval_rv a gs st exp in
+    if VD.is_bot r then VD.top () else r
 
   let eval_exp x (exp:exp):int64 option =
       (* Since ctx is not available here, we need to make some adjustments *)
