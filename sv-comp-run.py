@@ -8,6 +8,7 @@ import collections
 import os.path
 import shlex
 import yaml # pip3 install pyyaml
+from timeit import default_timer as timer
 
 
 OVERVIEW = False # with True Goblint isn't executed
@@ -27,6 +28,7 @@ def extract_bool(p, s):
 
 
 stats = collections.defaultdict(int)
+total_time = 0
 try:
     inp = sys.argv[1]
     task_filenames = []
@@ -63,7 +65,9 @@ try:
 
         if OVERVIEW:
             actual = None
+            task_time = None
         else:
+            start_time = timer()
             try:
                 p = subprocess.run(shlex.split(GOBLINT_COMMAND.format(code_filename=code_filename)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=TIMEOUT)
                 if "Fatal error: exception " in p.stdout:
@@ -72,6 +76,10 @@ try:
                 actual = extract_bool(r"SV-COMP \(unreach-call\): (false|true)", p.stdout)
             except subprocess.TimeoutExpired:
                 actual = "timeout"
+            finally:
+                end_time = timer()
+                task_time = end_time - start_time
+                total_time += task_time
 
         if "p" in locals(): # sometimes on timeout p is declared, sometimes isn't
             missing_funcs = False
@@ -92,7 +100,8 @@ try:
         else:
             text = f"INCORRECT expected {expected}, actual {actual}"
 
-        print(text)
+        time_text = f" ({task_time:.2f} s)" if task_time is not None else ""
+        print(text + time_text)
         stats[text] += 1
 
 except KeyboardInterrupt:
@@ -108,3 +117,4 @@ finally:
     for text, count in stats.items():
         print(f"{text}: {count}")
     print("-" * 80)
+    print(f"total time: {total_time:.2f} s")
