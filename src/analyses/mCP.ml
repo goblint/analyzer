@@ -64,7 +64,7 @@ module DomListPrintable (DLSpec : DomainListPrintableSpec)
   (*  : Printable.S with type t = (string * unknown) list *)
 =
 struct
-  include Printable.Std (* for property-based testing *)
+  include Printable.Std (* for default invariant, tag, ... *)
 
   open DLSpec
   open List

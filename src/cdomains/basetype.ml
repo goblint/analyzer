@@ -25,7 +25,7 @@ end
 
 module ProgLocation : Printable.S with type t = location =
 struct
-  include Printable.Std (* for property-based testing *)
+  include Printable.Std (* for default invariant, tag, ... *)
 
   open Pretty
   type t = location [@@deriving to_yojson]

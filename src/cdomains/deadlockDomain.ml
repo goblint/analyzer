@@ -8,7 +8,7 @@ type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location} [@@deriving t
 
 module MyLock : Printable.S with type t = myowntypeEntry =
 struct
-  include Printable.Std (* for property-based testing *)
+  include Printable.Std (* for default invariant, tag, ... *)
 
   type t = myowntypeEntry [@@deriving to_yojson]
   module Ad = ValueDomain.Addr

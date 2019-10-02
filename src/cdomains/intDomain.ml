@@ -101,7 +101,7 @@ end
 
 module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit ints *)
 struct
-  include Printable.Std (* for property-based testing *)
+  include Printable.Std (* for default invariant, tag, ... *)
 
   open Int64
 
@@ -1234,7 +1234,7 @@ module Booleans = MakeBooleans (
   end)
 
 module Enums : S = struct
-  include Printable.Std (* for property-based testing *)
+  include Printable.Std (* for default invariant, tag, ... *)
 
   open Batteries
   module I = Integers
@@ -1427,7 +1427,7 @@ end
 
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
 module IntDomTuple = struct
-  include Printable.Std (* for property-based testing *)
+  include Printable.Std (* for default invariant, tag, ... *)
 
   open Batteries
   module I1 = Trier
