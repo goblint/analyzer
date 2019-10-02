@@ -1373,8 +1373,8 @@ module Enums : S = struct
   let gt = lift2 I.gt
   let le = lift2 I.le
   let ge = lift2 I.ge
-  let eq = lift2 I.eq
-  let ne = lift2 I.ne
+  let eq = lift2 I.eq (* TODO: add more precise cases for Neg, like in Trier? *)
+  let ne = lift2 I.ne (* TODO: add more precise cases for Neg, like in Trier? *)
   let bitnot = lift1 I.bitnot
   let bitand = lift2 I.bitand
   let bitor  = lift2 I.bitor
@@ -1423,6 +1423,18 @@ module Enums : S = struct
   let maximal = function Pos xs when xs<>[] -> Some (List.last xs) | _ -> None
   let minimal = function Pos (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
+
+  let invariant c = function
+    | Pos ps ->
+      List.fold_left (fun a x ->
+          let i = Invariant.of_string (c ^ " == " ^ Int64.to_string x) in
+          Invariant.(a || i)
+        ) Invariant.none ps
+    | Neg (ns, _) ->
+      List.fold_left (fun a x ->
+          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          Invariant.(a && i)
+        ) Invariant.none ns
 end
 
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
