@@ -144,6 +144,11 @@ struct
     let w = step_ctx ctx in
     strict (d, w)
 
+  let vdecl ctx v =
+    let d = S.vdecl (unlift_ctx ctx) v in
+    let w = step_ctx ctx in
+    strict (d, w)
+
   let branch ctx e tv =
     let d = S.branch (unlift_ctx ctx) e tv in
     let w = step_ctx ctx in

@@ -606,6 +606,36 @@ struct
     do_splits ctx d !splits;
     if q then raise Deadcode else d
 
+
+  let vdecl (ctx:(D.t, G.t, C.t) ctx) v =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f post_all (n,(module S:Spec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+        { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
+        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
+        ; ask    = query ctx
+        ; presub = filter_presubs n ctx.local
+        ; postsub= filter_presubs n post_all
+        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
+        }
+      in
+      n, repr @@ S.vdecl ctx' v
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    if q then raise Deadcode else d
+
   let body (ctx:(D.t, G.t, C.t) ctx) f =
     let spawns = ref [] in
     let splits = ref [] in

@@ -52,6 +52,9 @@ struct
   let assign ctx lv e =
     D.lift @@ S.assign (conv ctx) lv e
 
+  let vdecl ctx v =
+    D.lift @@ S.vdecl (conv ctx) v
+
   let branch ctx e tv =
     D.lift @@ S.branch (conv ctx) e tv
 
@@ -123,6 +126,9 @@ struct
 
   let assign ctx lv e =
     S.assign (conv ctx) lv e
+
+  let vdecl ctx v =
+    S.vdecl (conv ctx) v
 
   let branch ctx e tv =
     S.branch (conv ctx) e tv
@@ -220,6 +226,7 @@ struct
 
   let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
@@ -343,6 +350,7 @@ struct
   let sync ctx        = let d, ds = S.sync (conv ctx) in (d, snd ctx.local), ds
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
@@ -391,6 +399,7 @@ struct
   let sync ctx        = let d, ds = S.sync (conv ctx) in (d, snd ctx.local), ds
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
+  let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
@@ -462,6 +471,7 @@ struct
 
   let query ctx q     = lift_fun ctx identity S.query  ((|>) q)            `Bot
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
+  let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
   let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
   let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
@@ -542,6 +552,10 @@ struct
     let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.assign ctx lv e)::!r)
 
+  let tf_vdecl var edge v getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+    bigsqcup ((S.vdecl ctx v)::!r)
+
   let normal_return r fd ctx sideg =
     let spawning_return = S.return ctx r fd in
     let nval, ndiff = S.sync { ctx with local = spawning_return } in
@@ -612,6 +626,7 @@ struct
   let tf var getl sidel getg sideg edge d =
     begin match edge with
       | Assign (lv,rv) -> tf_assign var edge lv rv
+      | VDecl (v)      -> tf_vdecl var edge v
       | Proc (r,f,ars) -> tf_proc var edge r f ars
       | Entry f        -> tf_entry var edge f
       | Ret (r,fd)     -> tf_ret var edge r fd
@@ -938,6 +953,7 @@ struct
     if D.is_bot d then raise Deadcode else d
 
   let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
+  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
