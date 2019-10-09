@@ -64,6 +64,9 @@ struct
   let intrpt ctx =
     D.lift @@ S.intrpt (conv ctx)
 
+  let asm ctx =
+    D.lift @@ S.asm (conv ctx)
+
   let enter ctx r f args =
     List.map (fun (x,y) -> D.lift x, D.lift y) @@ S.enter (conv ctx) r f args
 
@@ -132,6 +135,9 @@ struct
 
   let intrpt ctx =
     S.intrpt (conv ctx)
+
+  let asm ctx =
+    S.asm (conv ctx)
 
   let enter ctx r f args =
     S.enter (conv ctx) r f args
@@ -218,6 +224,7 @@ struct
   let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
   let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity
+  let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args (fst es))
 
@@ -340,6 +347,7 @@ struct
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
   let intrpt ctx      = lift_fun ctx S.intrpt identity
+  let asm ctx         = lift_fun ctx S.asm    identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let enter ctx r f args =
@@ -387,6 +395,7 @@ struct
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
   let intrpt ctx      = lift_fun ctx S.intrpt identity
+  let asm ctx         = lift_fun ctx S.asm    identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let enter ctx r f args =
@@ -457,6 +466,7 @@ struct
   let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
   let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
   let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity            `Bot
+  let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args (D.unlift es)) `Bot
 
@@ -595,6 +605,10 @@ struct
       let funs = List.map one_function functions in
       bigsqcup (funs @ !r)
 
+  let tf_asm var edge getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+    bigsqcup ((S.asm ctx)::!r)
+
   let tf var getl sidel getg sideg edge d =
     begin match edge with
       | Assign (lv,rv) -> tf_assign var edge lv rv
@@ -602,7 +616,7 @@ struct
       | Entry f        -> tf_entry var edge f
       | Ret (r,fd)     -> tf_ret var edge r fd
       | Test (p,b)     -> tf_test var edge p b
-      | ASM _          -> fun _ _ _ _ d -> ignore (M.warn "ASM statement ignored."); d
+      | ASM (_, _, _)  -> tf_asm var edge (* TODO: use ASM fields for something? *)
       | Skip           -> fun _ _ _ _ d -> d
       | SelfLoop       -> tf_loop var edge
     end getl sidel getg sideg d
@@ -928,6 +942,7 @@ struct
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
   let intrpt ctx        = map ctx Spec.intrpt  identity
+  let asm ctx           = map ctx Spec.asm     identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
   let fold ctx f g h a =

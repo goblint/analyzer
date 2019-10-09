@@ -161,8 +161,12 @@ struct
 
   let intrpt ctx =
     let d = S.intrpt (unlift_ctx ctx) in
-    (* let w = step_ctx ctx in *)
-    let w = snd ctx.local in
+    let w = snd ctx.local in (* interrupt is a self-loop and doesn't step to next node *)
+    strict (d, w)
+
+  let asm ctx =
+    let d = S.asm (unlift_ctx ctx) in
+    let w = step_ctx ctx in
     strict (d, w)
 
   let special ctx r f args =
