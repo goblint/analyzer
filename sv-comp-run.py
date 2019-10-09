@@ -14,6 +14,7 @@ from timeit import default_timer as timer
 OVERVIEW = False # with True Goblint isn't executed
 GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --disable ana.int.trier --enable ana.int.enums --enable ana.int.interval --sets solver td3 --enable exp.widen-context --enable exp.malloc-fail --enable exp.partition-arrays.enabled {code_filename}"
 TIMEOUT = 30 # with some int that's Goblint timeout for single execution
+START = 1
 
 
 def str2bool(s):
@@ -45,7 +46,7 @@ try:
     else:
         print('Call script on .yml or .set file') # TODO also allow .c to just call goblint on with above options?
 
-    for task_i, task_filename in enumerate(sorted(task_filenames)):
+    for task_i, task_filename in list(enumerate(sorted(task_filenames)))[START - 1:]:
         print(f"{task_i + 1}/{len(task_filenames)}: {task_filename}: ", end="", flush=True)
 
         if task_filename.endswith(".yml"):
