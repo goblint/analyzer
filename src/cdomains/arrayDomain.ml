@@ -521,7 +521,7 @@ struct
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
 
-  let update_length (ask:Q.ask) ((x, l):t) t =
+  let update_length (ask:Q.ask) (x, l) t =
     match t with
     | TArray(t', Some exp, attr) ->
       let newl = match ask (Q.EvalInt exp) with

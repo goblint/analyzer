@@ -845,10 +845,14 @@ struct
     (* `Blob / `List can not contain Array *)
     | _ -> []
 
-  let rec update_array_lengths ask v t =
-    match v with
-    | `Array n -> `Array(CArrays.update_length ask n t)
-    | _ -> warn "why did we call this here?"; v
+  (* Won't compile without the final :t annotation *)
+  let rec update_array_lengths ask (v:t) (typ:Cil.typ):t =
+    match v, typ with
+    | `Array(n), TArray(ti, _, _) ->
+      let update_fun x = update_array_lengths ask x ti in
+      let n' = CArrays.map (update_fun) n in
+      `Array(CArrays.update_length ask n' typ)
+    | _ -> v
 
 
   let printXml f state =

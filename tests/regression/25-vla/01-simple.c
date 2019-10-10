@@ -3,6 +3,7 @@ int main(void)
 {
   int a[40];
   int n = 30;
+  int m = 20;
 
   // Check one-dimensional first
   int b[n];
@@ -13,9 +14,18 @@ int main(void)
   c[31] = 2;
   assert(c[31] = 2);
 
-  // Two dimensional, one variable
+  // Two dimensional, one variable, first
   int d[n][30];
   d[2][2] = 42;
   assert(d[2][2] == 42);
 
+  // Two dimensional, one variable, last
+  int e[20][n];
+  e[2][2] = 42;
+  assert(e[2][2] == 42);
+
+  // Two dimensional, two variable
+  int f[m][n];
+  f[2][2] = 42;
+  assert(f[2][2] == 42);
 }
