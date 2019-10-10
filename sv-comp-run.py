@@ -17,9 +17,15 @@ TIMEOUT = 30 # with some int that's Goblint timeout for single execution
 START = 1
 
 
+def str2bool(s):
+    return {
+        "true": True,
+        "false": False
+    }[s]
+
 def extract_bool(p, s):
     m = re.search(p, s)
-    return bool(m.group(1)) if m else None
+    return str2bool(m.group(1)) if m else None
 
 
 stats = collections.defaultdict(int)
