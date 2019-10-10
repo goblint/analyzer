@@ -115,9 +115,17 @@ finally:
     print("-> 'expected True' means for all paths __VERIFIER_error is never called (__VERIFIER_assert always true) ")
     print("-> 'expected False' means there exists a path where  __VERIFIER_error could be called (__VERIFIER_assert can be false)")
     print("-" * 80)
+    points = 0
     for text, count in stats.items():
+        if text.startswith("CORRECT True"):
+            points += 2
+        if text.startswith("CORRECT False"):
+            points += 1
+        if text.startswith("INCORRECT True"):
+            points -= 32
+        if text.startswith("INCORRECT False"):
+            points -= 16
         print(f"{text}: {count}")
     print("-" * 80)
     print(f"total time: {total_time:.2f} s")
-    points = stats["CORRECT True"] * 2 + stats["CORRECT False"] * 1 - stats["INCORRECT True"] * 32 - stats["INCORRECT False"] * 16
     print(f"total points: {points} (assuming witnesses are correct)")
