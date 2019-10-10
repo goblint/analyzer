@@ -31,6 +31,7 @@ sig
   val smart_join: ?length:(int64 option)-> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t  -> t
   val smart_widen: ?length:(int64 option) -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
   val smart_leq: ?length:(int64 option) -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t  -> bool
+  val update_length: Queries.ask -> t -> Cil.typ -> t
 end
 
 module type LatticeWithSmartOps =

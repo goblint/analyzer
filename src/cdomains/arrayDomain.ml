@@ -25,6 +25,7 @@ sig
   val smart_join: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
   val smart_widen: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option)  -> t -> t-> t
   val smart_leq: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
+  val update_length: Queries.ask -> t -> Cil.typ -> t
 end
 
 module type LatticeWithSmartOps =
@@ -64,6 +65,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None)_ _ = leq
+  let update_length _ x _ = x
 end
 
 module Partitioned (Val: LatticeWithSmartOps) (Idx:Lattice.S): S with type value = Val.t and type idx = Idx.t =
@@ -487,6 +489,8 @@ struct
         false
     | _ ->
       failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
+
+    let update_length _ x _ = x
 end
 
 
@@ -510,6 +514,16 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+
+  let update_length (ask:Q.ask) ((x, l):t) t =
+    match t with
+    | TArray(t', Some exp, attr) ->
+      let newl = match ask (Q.EvalInt exp) with
+      | `Int i -> Idx.of_int i (* TODO: allow intervals here *)
+      | _ -> Idx.top ()
+      in
+      (x, newl)
+    | _ -> (x, l)
 end
 
 
@@ -547,6 +561,16 @@ struct
   let smart_leq ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl)  =
     let l = Length.to_int xl in
     Base.smart_leq ~length:l x_eval_int y_eval_int x y
+
+  let update_length (ask:Queries.ask) (x, l) t =
+    match t with
+    | TArray(t', Some exp, attr) ->
+      let newl = match ask (Q.EvalInt exp) with
+      | `Int i -> Length.of_int i (* TODO: allow intervals here *)
+      | _ -> Length.top ()
+      in
+      (x, newl)
+    | _ -> (x, l)
 end
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t =
@@ -614,6 +638,7 @@ struct
   let pretty_f _ = pretty
   let toXML_f _ = unop (P.toXML_f P.short) (T.toXML_f T.short)
 
+  let update_length ask x t = unop_to_t (fun p -> P.update_length ask p t) (fun p -> T.update_length ask p t) x
 
   let pretty_diff () ((p1,t1),(p2,t2)) = match (p1, t1),(p2, t2) with
     | (Some p1, None), (Some p2, None) -> P.pretty_diff () (p1, p2)

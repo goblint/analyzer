@@ -18,6 +18,7 @@ sig
   type offs
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
+  val update_array_lengths: Q.ask -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
   val invalidate_value: Q.ask -> typ -> t -> t
@@ -843,6 +844,12 @@ struct
         affecting_vars v
     (* `Blob / `List can not contain Array *)
     | _ -> []
+
+  let rec update_array_lengths ask v t =
+    match v with
+    | `Array n -> `Array(CArrays.update_length ask n t)
+    | _ -> warn "why did we call this here?"; v
+
 
   let printXml f state =
     match state with

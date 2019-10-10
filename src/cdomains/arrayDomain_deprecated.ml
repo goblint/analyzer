@@ -4,8 +4,8 @@ open Pretty
 open Messages
 
 module A = Array
-
-
+(** Be really careful about using these, they might not be drop-in replacement for the domains in arrayDomain.ml **)
+(** One (maybe not the only) problem is that they might not support resizing which is needed for VLAS            **)
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
@@ -161,6 +161,8 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+
+  let update_length ask x t = x (* TODO:warn *)
 end
 
 module NativeArrayEx (Base: Lattice.S) (Idx: IntDomain.S)
@@ -213,6 +215,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+  let update_length ask x t = x (* TODO:warn *)
 end
 
 module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
@@ -370,6 +373,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+  let update_length ask x t = x (* TODO:warn *)
 end
 
 
@@ -558,6 +562,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+  let update_length ask x t = x (* TODO:warn *)
 end
 
 
@@ -897,6 +902,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+  let update_length ask x t = x (* TODO:warn *)
 end
 
 module LooseMapArray
@@ -1039,6 +1045,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+  let update_length ask x t = x (* TODO:warn *)
 end
 
 
@@ -1092,6 +1099,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+  let update_length ask x t = x (* TODO:warn *)
 end
 
 
@@ -1147,4 +1155,5 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
+  let update_length ask x t = x (* TODO:warn *)
 end

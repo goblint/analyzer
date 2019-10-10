@@ -1527,6 +1527,15 @@ struct
       | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp) None None
         (* lval_raw:None, and rval_raw:None is correct here *)
 
+  let vdecl ctx (v:varinfo) =
+    if not (Cil.isArrayType v.vtype) then
+      ctx.local
+    else
+      let lval = eval_lv ctx.ask ctx.global ctx.local (Var v, NoOffset) in
+      let current_value = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
+      let new_value = VD.update_array_lengths ctx.ask current_value v.vtype in
+      set ctx.ask ctx.global ctx.local lval new_value None None
+
   (**************************************************************************
    * Function calls
    **************************************************************************)
