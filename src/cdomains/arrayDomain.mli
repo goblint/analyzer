@@ -11,7 +11,7 @@ sig
   val set: ?length:(int64 option) -> Queries.ask -> t -> ExpDomain.t * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
-  val make: int -> value -> t
+  val make: int option -> value -> t
   (** [make l e] creates an abstract representation of an array of length [l]
     * containing the element [e]. *)
   val length: t -> int option

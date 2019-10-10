@@ -14,7 +14,7 @@ sig
 
   val get: Q.ask -> t ->  ExpDomain.t * idx -> value
   val set: ?length:(int64 option) -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
-  val make: int -> value -> t
+  val make: int option -> value -> t
   val length: t -> int option
 
   val move_if_affected: ?length:(int64 option) -> ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
@@ -371,7 +371,7 @@ struct
   (* leq needs not be given explicitly, leq from product domain works here *)
 
   let make i v =
-    if i = 1 then
+    if i = Some 1 then
       (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ()))
     else if Val.is_bot v then
       (Expp.top(), (Val.top(), Val.top(), Val.top()))
@@ -502,7 +502,13 @@ struct
   type value = Val.t
   let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
   let set ?(length=None) (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
-  let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
+  let make l x =
+    let l' = match l with
+      | Some i -> Idx.of_int (Int64.of_int i)
+      | _ -> Idx.top ()
+    in
+    Base.make l x, l'
+
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
   let move_if_affected ?(length = None) ?(replace_with_const=false) _ x _ _ = x
@@ -538,7 +544,12 @@ struct
   let set ?(length=None) ask (x,l) i v =
     let new_l = Length.to_int l in
     Base.set ~length:new_l ask x i v, l
-  let make l x = Base.make l x, Length.of_int (Int64.of_int l)
+  let make l x =
+    let l' = match l with
+      | Some i -> Length.of_int (Int64.of_int i)
+      | _ -> Length.top ()
+    in
+   Base.make l x, l'
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 
   let move_if_affected ?(length = None) ?(replace_with_const=false) ask (x,l) v i =

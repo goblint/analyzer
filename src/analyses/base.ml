@@ -744,17 +744,11 @@ struct
     | TPtr _ -> `Address (AD.bot ())
     | TComp ({cstruct=true} as ci,_) -> `Struct (bot_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
-    | TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
-    | TArray (ai, Some exp, _) -> begin
-        let default = `Array (ValueDomain.CArrays.bot ()) in
-        match eval_rv a gs st exp with
-        | `Int n -> begin
-            match ID.to_int n with
-            | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai))
-            | _ -> default
-          end
-        | _ -> default
-      end
+    | TArray (ai, None, _) ->
+      `Array (ValueDomain.CArrays.make None (bot_value a gs st ai))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (ValueDomain.CArrays.make (BatOption.map Int64.to_int l) (bot_value a gs st ai))
     | TNamed ({ttype=t}, _) -> bot_value a gs st t
     | _ -> `Bot
 
@@ -770,18 +764,11 @@ struct
     | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, exp, _) ->
-      let default = `Array (ValueDomain.CArrays.top ()) in
-      (match exp with
-       | Some exp ->
-         (match eval_rv a gs st exp with
-          | `Int n -> begin
-              match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-              | _ -> default
-            end
-          | _ -> default)
-       | None -> default)
+    | TArray (ai, None, _) ->
+      `Array (ValueDomain.CArrays.make None (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (ValueDomain.CArrays.make (BatOption.map Int64.to_int l) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
     | TNamed ({ttype=t}, _) -> init_value a gs st t
     | _ -> `Top
 
@@ -796,18 +783,11 @@ struct
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, exp, _) ->
-      let default = `Array (ValueDomain.CArrays.top ()) in
-      (match exp with
-       | Some exp ->
-         (match eval_rv a gs st exp with
-          | `Int n -> begin
-              match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-              | _ -> default
-            end
-          | _ -> default)
-       | None -> default)
+    | TArray (ai, None, _) ->
+      `Array (ValueDomain.CArrays.make None (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (ValueDomain.CArrays.make (BatOption.map Int64.to_int l) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
     | TNamed ({ttype=t}, _) -> top_value a gs st t
     | _ -> `Top
 
@@ -1861,7 +1841,7 @@ struct
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 1 (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (Some 1) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
                                   (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
         | _ -> st
       end

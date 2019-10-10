@@ -776,7 +776,7 @@ struct
                       | TArray(_, l, _) ->
                         let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        `Array(CArrays.make len `Top), offs
+                        `Array(CArrays.make (Some len) `Top), offs
                       | _ -> top (), offs (* will not happen*)
                     end
                   | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int 0L) ->
