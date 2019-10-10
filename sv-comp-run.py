@@ -119,3 +119,5 @@ finally:
         print(f"{text}: {count}")
     print("-" * 80)
     print(f"total time: {total_time:.2f} s")
+    points = stats["CORRECT True"] * 2 + stats["CORRECT False"] * 1 - stats["INCORRECT True"] * 32 - stats["INCORRECT False"] * 16
+    print(f"total points: {points} (assuming witnesses are correct)")
