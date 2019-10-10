@@ -121,9 +121,9 @@ finally:
             points += 2
         if text.startswith("CORRECT False"):
             points += 1
-        if text.startswith("INCORRECT True"):
+        if text.startswith("INCORRECT expected True"):
             points -= 32
-        if text.startswith("INCORRECT False"):
+        if text.startswith("INCORRECT expected False"):
             points -= 16
         print(f"{text}: {count}")
     print("-" * 80)
