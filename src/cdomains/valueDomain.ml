@@ -624,6 +624,15 @@ struct
         end
       | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
     in
+    (* Create a typesig from a type, but drop the arraylen attribute *)
+    let typeSigWithoutArraylen t =
+      let attrFilter (attr : attribute) : bool =
+        match attr with
+        | Attr ("arraylen", _) -> false
+        | _ -> true
+      in
+      typeSigWithAttrs (List.filter attrFilter) t
+    in
     match left, offset with
       | Some(left), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
         if not (contains_pointer exp) then
@@ -639,11 +648,11 @@ struct
               if Cil.isArrayType (Cil.typeOf (Lval v')) then
                 let expr = ptr in
                 let start_of_array = StartOf v' in
-                let start_type = Cil.typeOf start_of_array in
-                let expr_type = Cil.typeOf ptr in
+                let start_type = typeSigWithoutArraylen (Cil.typeOf start_of_array) in
+                let expr_type = typeSigWithoutArraylen (Cil.typeOf ptr) in
                 (* Comparing types for structural equality is incorrect here, use typeSig *)
                 (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
-                if Cil.typeSig start_type = Cil.typeSig expr_type then
+                if start_type = expr_type then
                   `Lifted (equiv_expr expr v')
                 else
                   (* If types do not agree here, this means that we were looking at pointers that *)
