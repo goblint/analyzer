@@ -31,6 +31,7 @@ def extract_bool(p, s):
 stats = collections.defaultdict(int)
 total_time = 0
 points = 0
+points_must = 0
 try:
     inp = sys.argv[1]
     task_filenames = []
@@ -98,11 +99,13 @@ try:
         elif result == expected:
             text = f"CORRECT {expected}"
             points += 2 if result else 1
+            points_must += 2 if result else 0
         elif result == "timeout" or result is None:
             text = f"UNKNOWN {result}, expected {expected}"
         else:
             text = f"INCORRECT {result}, expected {expected}"
             points -= 32 if result else 16
+            points_must -= 32 if result else 0
 
         time_text = f" ({task_time:.2f} s)" if task_time is not None else ""
         print(text + time_text)
@@ -124,4 +127,5 @@ finally:
     print("-" * 80)
     print("points: CORRECT{ True: 2, False: 1 }, INCORRECT{ True: -32, False: -16 }")
     print(f"total points: {points} (assuming witnesses are correct)")
+    print(f"total points_must: {points_must} (assuming witnesses are correct, only counting true-unreach (could return UNKNOWN for may-info))")
     print(f"total time: {total_time:.2f} s")
