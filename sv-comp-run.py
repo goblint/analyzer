@@ -92,14 +92,16 @@ try:
                 sys.exit(1)
 
         text = None
-        if expected is None or actual is None:
-            text = f"NONE expected {expected}, actual {actual}"
+        if expected is None:
+            text = f"NONE {actual}, no expected_verdict for unreach-call"
         elif actual == expected:
             text = f"CORRECT {expected}"
-        elif actual == "timeout":
-            text = f"UNKNOWN expected {expected}, actual {actual}"
+            points += 2 if actual else 1
+        elif actual == "timeout" or actual is None:
+            text = f"UNKNOWN {actual}, expected {expected}"
         else:
-            text = f"INCORRECT expected {expected}, actual {actual}"
+            text = f"INCORRECT {actual}, expected {expected}"
+            points -= 32 if actual else 16
 
         time_text = f" ({task_time:.2f} s)" if task_time is not None else ""
         print(text + time_text)
@@ -115,16 +117,7 @@ finally:
     print("-> 'expected True' means for all paths __VERIFIER_error is never called (__VERIFIER_assert always true) ")
     print("-> 'expected False' means there exists a path where  __VERIFIER_error could be called (__VERIFIER_assert can be false)")
     print("-" * 80)
-    points = 0
     for text, count in stats.items():
-        if text.startswith("CORRECT True"):
-            points += 2
-        if text.startswith("CORRECT False"):
-            points += 1
-        if text.startswith("INCORRECT expected True"):
-            points -= 32
-        if text.startswith("INCORRECT expected False"):
-            points -= 16
         print(f"{text}: {count}")
     print("-" * 80)
     print(f"total time: {total_time:.2f} s")
