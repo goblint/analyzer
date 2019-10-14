@@ -594,7 +594,13 @@ struct
   let narrow = binop_to_t P.narrow T.narrow
   let is_top = unop P.is_top T.is_top
   let is_bot = unop P.is_bot T.is_bot
-  let get a x i = unop (fun x -> P.get a x i) (fun x -> T.get a x i) x
+  let get a x (e,i) = unop (fun x ->
+        if e = `Top then
+          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Idx.to_int i) in
+          P.get a x (e', i)
+        else
+          P.get a x (e, i)
+      ) (fun x -> T.get a x (e,i)) x
   let set ?(length=None) (ask:Q.ask) x i a = unop_to_t (fun x -> P.set ~length:length ask x i a) (fun x -> T.set ~length:length ask x i a) x
   let length = unop P.length T.length
   let get_vars_in_e = unop P.get_vars_in_e T.get_vars_in_e
