@@ -244,7 +244,7 @@ struct
           start
     | None -> start
 
-  let make_entry (ctx:(D.t, G.t) Analyses.ctx) fn (args: exp list): D.t =
+  let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) fn (args: exp list): D.t =
     (* The normal haskell zip that throws no exception *)
     let rec zip x y  = match x,y with
     | (x::xs), (y::ys) -> (x,y) :: zip xs ys

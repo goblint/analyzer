@@ -377,17 +377,17 @@ struct
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
     (* | "mongo" ->
-      let open Deriving.Cil in
-      Printf.printf "Connecting to local MongoDB... ";
-      let db = Db.connect () in
-      let insert (loc,n,fd) v =
-        Db.insert db (MyCFG.node_to_yojson n, location_to_yojson loc, Range.to_yojson v)
-      in
-      let t = Unix.gettimeofday () in
-      Printf.printf "Inserting %d entries... " (length (Lazy.force table));
-      iter insert (Lazy.force table);
-      let t1 = Unix.gettimeofday () -. t in
-      Printf.printf "Done in %fs!\n" t1 *)
+       let open Deriving.Cil in
+       Printf.printf "Connecting to local MongoDB... ";
+       let db = Db.connect () in
+       let insert (loc,n,fd) v =
+         Db.insert db (MyCFG.node_to_yojson n, location_to_yojson loc, Range.to_yojson v)
+       in
+       let t = Unix.gettimeofday () in
+       Printf.printf "Inserting %d entries... " (length (Lazy.force table));
+       iter insert (Lazy.force table);
+       let t1 = Unix.gettimeofday () -. t in
+       Printf.printf "Done in %fs!\n" t1 *)
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -420,10 +420,12 @@ end
 
    It is not clear if we need pre-states, post-states or both on foreign analyses.
 *)
-type ('d,'g) ctx =
+type ('d,'g,'c) ctx =
   { ask      : Queries.t -> Queries.Result.t
   ; node     : MyCFG.node
-  ; context  : Obj.t
+  ; context  : Obj.t (** represented type: unit -> (Control.get_spec ()).C.t *)
+  ; context2 : unit -> 'c
+  ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : varinfo -> 'g
   ; presub   : (string * Obj.t) list
@@ -463,20 +465,21 @@ sig
   val val_of  : C.t -> D.t
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
-  val part_access: (D.t, G.t) ctx -> exp -> varinfo option -> bool -> (Access.LSSSet.t * Access.LSSet.t)
+  val part_access: (D.t, G.t, C.t) ctx -> exp -> varinfo option -> bool -> (Access.LSSSet.t * Access.LSSet.t)
 
-  val sync  : (D.t, G.t) ctx -> D.t * (varinfo * G.t) list
-  val query : (D.t, G.t) ctx -> Queries.t -> Queries.Result.t
-  val assign: (D.t, G.t) ctx -> lval -> exp -> D.t
-  val branch: (D.t, G.t) ctx -> exp -> bool -> D.t
-  val body  : (D.t, G.t) ctx -> fundec -> D.t
-  val return: (D.t, G.t) ctx -> exp option  -> fundec -> D.t
-  val intrpt: (D.t, G.t) ctx -> D.t
+  val sync  : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
+  val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
+  val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
+  val branch: (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
+  val body  : (D.t, G.t, C.t) ctx -> fundec -> D.t
+  val return: (D.t, G.t, C.t) ctx -> exp option  -> fundec -> D.t
+  val intrpt: (D.t, G.t, C.t) ctx -> D.t
+  val asm   : (D.t, G.t, C.t) ctx -> D.t
 
 
-  val special : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> D.t
-  val enter   : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
+  val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
+  val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
 module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)
@@ -609,6 +612,10 @@ struct
 
   let intrpt x = x.local
   (* Just ignore. *)
+
+  let asm x =
+    ignore (M.warn "ASM statement ignored.");
+    x.local (* Just ignore. *)
 
   let query _ (q:Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)

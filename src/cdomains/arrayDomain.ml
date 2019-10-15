@@ -558,6 +558,9 @@ struct
   type value = Val.t
   type t = P.t option * T.t option [@@deriving to_yojson]
 
+  let invariant _ _ = Invariant.none
+  let tag _ = failwith "Std: no tag"
+
   (* Helpers *)
   let binop opp opt (p1,t1) (p2,t2) = match (p1, t1),(p2, t2) with
     | (Some p1, None), (Some p2, None) -> opp p1 p2

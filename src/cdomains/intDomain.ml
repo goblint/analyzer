@@ -101,6 +101,8 @@ end
 
 module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit ints *)
 struct
+  include Printable.Std (* for default invariant, tag, ... *)
+
   open Int64
 
   type t = (int64 * int64) option [@@deriving to_yojson]
@@ -256,7 +258,6 @@ struct
   let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
 
   let neg = function None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
-  let rem x y = meet (bit Int64.rem x y) (join y (neg y))
 
   let add x y =
     match x, y with
@@ -264,6 +265,10 @@ struct
     | Some (x1,x2), Some (y1,y2) -> norm @@ Some (Int64.add x1 y1, Int64.add x2 y2)
 
   let sub i1 i2 = add i1 (neg i2)
+
+  let rem x y =
+    let y' = sub y (of_int 1L) in
+    meet (bit Int64.rem x y) (join y' (neg y'))
 
   let mul x y =
     match x, y with
@@ -329,6 +334,16 @@ struct
       if Int64.compare x2 y1 < 0 then of_bool true
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top ()
+
+  let invariant c = function
+    | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
+      Invariant.of_string (c ^ " == " ^ Int64.to_string x1)
+    | Some (x1, x2) ->
+      let open Invariant in
+      let i1 = if Int64.compare min_int x1 <> 0 then of_string (Int64.to_string x1 ^ " <= " ^ c) else none in
+      let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <= " ^ Int64.to_string x2) else none in
+      i1 && i2
+    | None -> None
 end
 
 
@@ -804,6 +819,15 @@ struct
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  let invariant c (x:t) = match x with
+    | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
+    | `Excluded (s, _) ->
+      S.fold (fun x a ->
+          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          Invariant.(a && i)
+        ) s Invariant.none
+    | `Bot -> Invariant.none
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -914,16 +938,16 @@ struct
   (* Debug Helpers *)
   let wrap_debug1 n f =
     fun a ->
-      let r = f a in
-      if get_bool "ana.int.cdebug" then print_endline (n^": "^(I.to_string a)^" = "^(I.to_string r));
-      r
+    let r = f a in
+    if get_bool "ana.int.cdebug" then print_endline (n^": "^(I.to_string a)^" = "^(I.to_string r));
+    r
 
   let wrap_debug2 n f =
     fun a b ->
-      let r = f a b in
-      if get_bool "ana.int.cdebug"
-      then print_endline (n^": "^(I.to_string a)^" .. "^(I.to_string b)^" = "^(I.to_string r));
-      r
+    let r = f a b in
+    if get_bool "ana.int.cdebug"
+    then print_endline (n^": "^(I.to_string a)^" .. "^(I.to_string b)^" = "^(I.to_string r));
+    r
 
   (* Arithmetic *)
   let neg = wrap_debug1 "neg" I.neg
@@ -1213,6 +1237,8 @@ module Booleans = MakeBooleans (
   end)
 
 module Enums : S = struct
+  include Printable.Std (* for default invariant, tag, ... *)
+
   open Batteries
   module I = Integers
   module R = Interval32 (* range for exclusion *)
@@ -1350,8 +1376,8 @@ module Enums : S = struct
   let gt = lift2 I.gt
   let le = lift2 I.le
   let ge = lift2 I.ge
-  let eq = lift2 I.eq
-  let ne = lift2 I.ne
+  let eq = lift2 I.eq (* TODO: add more precise cases for Neg, like in Trier? *)
+  let ne = lift2 I.ne (* TODO: add more precise cases for Neg, like in Trier? *)
   let bitnot = lift1 I.bitnot
   let bitand = lift2 I.bitand
   let bitor  = lift2 I.bitor
@@ -1400,10 +1426,24 @@ module Enums : S = struct
   let maximal = function Pos xs when xs<>[] -> Some (List.last xs) | _ -> None
   let minimal = function Pos (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
+
+  let invariant c = function
+    | Pos ps ->
+      List.fold_left (fun a x ->
+          let i = Invariant.of_string (c ^ " == " ^ Int64.to_string x) in
+          Invariant.(a || i)
+        ) Invariant.none ps
+    | Neg (ns, _) ->
+      List.fold_left (fun a x ->
+          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          Invariant.(a && i)
+        ) Invariant.none ns
 end
 
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
 module IntDomTuple = struct
+  include Printable.Std (* for default invariant, tag, ... *)
+
   open Batteries
   module I1 = Trier
   module I2 = Interval32
@@ -1456,7 +1496,7 @@ module IntDomTuple = struct
     let xs = mapp { fp = fun (type a) (module I:S with type t = a) -> I.equal_to i } x |> Tuple4.enum |> List.of_enum |> List.filter_map identity in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
-    `Top
+      `Top
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
@@ -1520,4 +1560,10 @@ module IntDomTuple = struct
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  let invariant c x =
+    let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
+    in List.fold_left (fun a i ->
+        Invariant.(a && i)
+      ) Invariant.none is
 end

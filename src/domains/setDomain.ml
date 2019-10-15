@@ -349,6 +349,10 @@ struct
       BatPrintf.fprintf f "<value><set>\n" ;
       S.iter (Base.printXml f) s;
       BatPrintf.fprintf f "</set></value>\n"
+
+  let invariant c = function
+    | All -> Invariant.none
+    | Set s -> S.invariant c s
 end
 
 (* superseded by Hoare *)

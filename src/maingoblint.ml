@@ -232,6 +232,9 @@ let preprocess_files () =
   if get_bool "custom_libc" then
     cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
 
+  if get_bool "ana.sv-comp" then
+    cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
+
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then begin
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in

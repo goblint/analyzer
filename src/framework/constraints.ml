@@ -13,12 +13,12 @@ module M = Messages
 module HashconsLifter (S:Spec)
   : SpecHC with module D = Lattice.HConsed (S.D)
           and module G = S.G
-          and module C = Printable.HConsed (S.C)
+          and module C = Printable.HC (S.C)
 =
 struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
-  module C = Printable.HConsed (S.C)
+  module C = Printable.HC (S.C)
 
   let name () = S.name () ^" hashconsed"
 
@@ -32,9 +32,9 @@ struct
   let otherstate v = D.lift (S.otherstate v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
-  let val_of = D.lift % S.val_of % C.unlift
-  let context = C.lift % S.context % D.unlift
-  let call_descr f = S.call_descr f % D.unlift
+  let val_of = D.lift % S.val_of
+  let context = S.context % D.unlift
+  let call_descr = S.call_descr
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
@@ -64,6 +64,9 @@ struct
   let intrpt ctx =
     D.lift @@ S.intrpt (conv ctx)
 
+  let asm ctx =
+    D.lift @@ S.asm (conv ctx)
+
   let enter ctx r f args =
     List.map (fun (x,y) -> D.lift x, D.lift y) @@ S.enter (conv ctx) r f args
 
@@ -72,6 +75,78 @@ struct
 
   let combine ctx r fe f args es =
     D.lift @@ S.combine (conv ctx) r fe f args (D.unlift es)
+
+  let part_access _ _ _ _ =
+    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
+end
+
+(** Lifts a [Spec] so that the context is [Hashcons]d. *)
+module HashconsContextLifter (S:Spec)
+  : Spec with module D = S.D
+          and module G = S.G
+          and module C = Printable.HConsed (S.C)
+=
+struct
+  module D = S.D
+  module G = S.G
+  module C = Printable.HConsed (S.C)
+
+  let name () = S.name () ^" context hashconsed"
+
+  let init = S.init
+  let finalize = S.finalize
+
+  let should_join = S.should_join
+
+  let startstate = S.startstate
+  let exitstate  = S.exitstate
+  let otherstate = S.otherstate
+  let morphstate = S.morphstate
+
+  let val_of = S.val_of % C.unlift
+  let context = C.lift % S.context
+  let call_descr f = S.call_descr f % C.unlift
+
+  let conv ctx =
+    { ctx with context2 = (fun () -> C.unlift (ctx.context2 ())) }
+
+  let sync ctx =
+    let d, diff = S.sync (conv ctx) in
+    d, diff
+
+  let query ctx q =
+    match q with
+    | Queries.IterPrevVars f ->
+      let g (n, c) e = f (n, Obj.repr (C.lift (Obj.obj c))) e in
+      S.query (conv ctx) (Queries.IterPrevVars g)
+    | _ -> S.query (conv ctx) q
+
+  let assign ctx lv e =
+    S.assign (conv ctx) lv e
+
+  let branch ctx e tv =
+    S.branch (conv ctx) e tv
+
+  let body ctx f =
+    S.body (conv ctx) f
+
+  let return ctx r f =
+    S.return (conv ctx) r f
+
+  let intrpt ctx =
+    S.intrpt (conv ctx)
+
+  let asm ctx =
+    S.asm (conv ctx)
+
+  let enter ctx r f args =
+    S.enter (conv ctx) r f args
+
+  let special ctx r f args =
+    S.special (conv ctx) r f args
+
+  let combine ctx r fe f args es =
+    S.combine (conv ctx) r fe f args es
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -149,6 +224,7 @@ struct
   let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
   let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity
+  let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args (fst es))
 
@@ -214,7 +290,7 @@ struct
     H.modify_def 1 k (fun v ->
         if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint MyCFG.pretty_short_node (Option.get !MyCFG.current_node));
         v+1
-    ) h;
+      ) h;
   module D = struct
     include S.D
     let widen x y = Option.may incr !MyCFG.current_node; widen x y (* when is this None? *)
@@ -257,7 +333,8 @@ struct
   let call_descr f (c,m) = S.call_descr f c
 
   let conv ctx =
-    { ctx with local = fst ctx.local
+    { ctx with context2 = (fun () -> fst (ctx.context2 ()))
+             ; local = fst ctx.local
              ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
              ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
     }
@@ -270,6 +347,7 @@ struct
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
   let intrpt ctx      = lift_fun ctx S.intrpt identity
+  let asm ctx         = lift_fun ctx S.asm    identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let enter ctx r f args =
@@ -301,6 +379,36 @@ struct
   let val_of = inj S.val_of (* empty map when generating value from context *)
   let context (d,m) = S.context d (* just the child analysis' context *)
   let call_descr = S.call_descr
+
+  (* copied from WidenContextLifter... *)
+  let conv ctx =
+    { ctx with local = fst ctx.local
+             ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
+             ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
+    }
+  let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
+
+  let sync ctx        = let d, ds = S.sync (conv ctx) in (d, snd ctx.local), ds
+  let query ctx       = S.query (conv ctx)
+  let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
+  let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
+  let body ctx f      = lift_fun ctx S.body   ((|>) f)
+  let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
+  let intrpt ctx      = lift_fun ctx S.intrpt identity
+  let asm ctx         = lift_fun ctx S.asm    identity
+  let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
+
+  let enter ctx r f args =
+    let m = snd ctx.local in
+    let d' v_cur =
+      let v_old = M.find f m in
+      let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
+      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      v_new, M.add f v_new m
+    in
+    S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
+
+  let combine ctx r fe f args es = lift_fun ctx S.combine (fun p -> p r fe f args (fst es))
 end
 
 
@@ -358,6 +466,7 @@ struct
   let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
   let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
   let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity            `Bot
+  let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args (D.unlift es)) `Bot
 
@@ -393,7 +502,7 @@ struct
   let full_context = get_bool "exp.full-context"
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
-  let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
+  let common_ctx var edge pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
@@ -401,6 +510,8 @@ struct
       { ask     = query
       ; node    = fst var
       ; context = snd var
+      ; context2 = (fun () -> let context_unit: unit -> S.C.t = snd var |> Obj.obj in context_unit ())
+      ; edge    = edge
       ; local   = pval
       ; global  = getg
       ; presub  = []
@@ -423,12 +534,12 @@ struct
     | [x]   -> x
     | x::xs -> D.join x (bigsqcup xs)
 
-  let tf_loop var getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_loop var edge getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.intrpt ctx)::!r)
 
-  let tf_assign var lv e getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_assign var edge lv e getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.assign ctx lv e)::!r)
 
   let normal_return r fd ctx sideg =
@@ -444,8 +555,8 @@ struct
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
 
-  let tf_ret var ret fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_ret var edge ret fd getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     let d =
       if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
           List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
@@ -455,12 +566,12 @@ struct
     in
     bigsqcup (d::!r)
 
-  let tf_entry var fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_entry var edge fd getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.body ctx fd)::!r)
 
-  let tf_test var e tv getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_test var edge e tv getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     bigsqcup ((S.branch ctx e tv)::!r)
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
@@ -474,8 +585,8 @@ struct
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
-  let tf_proc var lv e args getl sidel getg sideg d =
-    let ctx, r = common_ctx var d getl sidel getg sideg in
+  let tf_proc var edge lv e args getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
     let functions =
       match ctx.ask (Queries.EvalFunvar e) with
       | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
@@ -494,16 +605,20 @@ struct
       let funs = List.map one_function functions in
       bigsqcup (funs @ !r)
 
+  let tf_asm var edge getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+    bigsqcup ((S.asm ctx)::!r)
+
   let tf var getl sidel getg sideg edge d =
     begin match edge with
-      | Assign (lv,rv) -> tf_assign var lv rv
-      | Proc (r,f,ars) -> tf_proc var r f ars
-      | Entry f        -> tf_entry var f
-      | Ret (r,fd)     -> tf_ret var r fd
-      | Test (p,b)     -> tf_test var p b
-      | ASM _          -> fun _ _ _ _ d -> ignore (M.warn "ASM statement ignored."); d
+      | Assign (lv,rv) -> tf_assign var edge lv rv
+      | Proc (r,f,ars) -> tf_proc var edge r f ars
+      | Entry f        -> tf_entry var edge f
+      | Ret (r,fd)     -> tf_ret var edge r fd
+      | Test (p,b)     -> tf_test var edge p b
+      | ASM (_, _, _)  -> tf_asm var edge (* TODO: use ASM fields for something? *)
       | Skip           -> fun _ _ _ _ d -> d
-      | SelfLoop       -> tf_loop var
+      | SelfLoop       -> tf_loop var edge
     end getl sidel getg sideg d
 
   let tf var getl sidel getg sideg (_,edge) d (f,t) =
@@ -767,6 +882,9 @@ struct
       in
       apply_list (loop []) a
 
+    let leq a b =
+      leq a b || leq (join_reduce a) (join_reduce b)
+
     let binop op a b = op a b |> join_reduce
 
     let join = binop join
@@ -774,8 +892,9 @@ struct
     let widen = binop widen
     let narrow = binop narrow
 
-    let leq a b =
-      leq a b || leq (join_reduce a) (join_reduce b)
+    let invariant c s = fold (fun x a ->
+        Invariant.(a || Spec.D.invariant c x) (* TODO: || correct? *)
+      ) s Invariant.none
   end
 
   module G = Spec.G
@@ -823,6 +942,7 @@ struct
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
   let intrpt ctx        = map ctx Spec.intrpt  identity
+  let asm ctx           = map ctx Spec.asm     identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
   let fold ctx f g h a =
@@ -939,21 +1059,21 @@ struct
     let f_uk () = incr uk in
     let f k v1 =
       if not (LH.mem h2 k) then incr n2 else
-      let v2 = LH.find h2 k in
-      let b1 = D.leq v1 v2 in
-      let b2 = D.leq v2 v1 in
-      if b1 && b2 then
-        f_eq ()
-      else if b1 then begin
-        (* if get_bool "solverdiffs" then *)
-        (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2)); *)
-        f_le ()
-      end else if b2 then begin
-        (* if get_bool "solverdiffs" then *)
-        (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2)); *)
-        f_gr ()
-      end else
-        f_uk ()
+        let v2 = LH.find h2 k in
+        let b1 = D.leq v1 v2 in
+        let b2 = D.leq v2 v1 in
+        if b1 && b2 then
+          f_eq ()
+        else if b1 then begin
+          (* if get_bool "solverdiffs" then *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2)); *)
+          f_le ()
+        end else if b2 then begin
+          (* if get_bool "solverdiffs" then *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2)); *)
+          f_gr ()
+        end else
+          f_uk ()
     in
     LH.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in *)
@@ -1034,4 +1154,40 @@ struct
     in
     LH.iter verify_var sigma;
     Goblintutil.in_verifying_stage := false
+end
+
+module Reachability
+    (EQSys:GlobConstrSys)
+    (LH:Hashtbl.S with type key=EQSys.LVar.t)
+    (GH:Hashtbl.S with type key=EQSys.GVar.t)
+=
+struct
+  open EQSys
+
+  let prune (lh:D.t LH.t) (gh:G.t GH.t) (lvs:LVar.t list): unit =
+    let reachablel = LH.create (LH.length lh) in
+
+    let rec one_lvar x =
+      if not (LH.mem reachablel x) then begin
+        LH.replace reachablel x ();
+        List.iter one_constraint (system x)
+      end
+    and one_constraint rhs =
+      let getl y =
+        one_lvar y;
+        try LH.find lh y with Not_found -> D.bot ()
+      in
+      let getg y = try GH.find gh y with Not_found -> G.bot () in
+      let setl y yd = one_lvar y in
+      let setg y yd = () in
+      ignore (rhs getl setl getg setg)
+    in
+
+    List.iter one_lvar lvs;
+    LH.filteri_inplace (fun x _ ->
+        let r = LH.mem reachablel x in
+        if not r then
+          ignore (Pretty.printf "Unreachable lvar %a" LVar.pretty_trace x);
+        r
+      ) lh
 end

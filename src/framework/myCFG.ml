@@ -8,8 +8,8 @@ open Pretty
 open GobConfig
 include Node
 
-type asm_out = (string option * string * lval) list
-type asm_in  = (string option * string * exp ) list
+type asm_out = (string option * string * lval) list [@@deriving to_yojson]
+type asm_in  = (string option * string * exp ) list [@@deriving to_yojson]
 
 type edge =
   | Assign of lval * exp
@@ -32,6 +32,7 @@ type edge =
   (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop
   (** This for interrupt edges.! *)
+[@@deriving to_yojson]
 
 
 let pretty_edge () = function
@@ -169,6 +170,9 @@ let createCFG (file: file) =
           Hashtbl.add stmt_index_hack stmt.sid fd;
           if Messages.tracing then Messages.trace "cfg" "Statement at %a.\n" d_loc (get_stmtLoc stmt.skind);
           match stmt.skind with
+          (* turn pthread_exit into return? *)
+          (* | Instr [Call (_, Lval (Var {vname="pthread_exit"}, _), [ret_exp], _)] -> addCfg (Function fd.svar) (Ret (Some ret_exp,fd), Statement stmt) *)
+          (* | Instr [Call (lval, ((Lval (Var {vname="pthread_exit"}, _)) as func), ([ret_exp] as args), loc)] -> addCfg (Function fd.svar) (Proc (lval, func, args), Statement stmt) *)
           (* Normal instructions are easy. They should be a list of a single
            * instruction, either Set, Call or ASM: *)
           | Instr xs ->

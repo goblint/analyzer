@@ -25,6 +25,8 @@ sig
   val name: unit -> string
   val to_yojson : t -> json
 
+  val invariant: Invariant.context -> t -> Invariant.t
+  val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
 end
 
 module type HC = (* HashCons *)
@@ -51,6 +53,9 @@ struct
   let class_name _ = "None"
   let name () = "std"
   let trace_enabled = false
+
+  let invariant _ _ = Invariant.none
+  let tag _ = failwith "Std: no tag"
 end
 
 module Blank =
@@ -123,6 +128,8 @@ end
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
 module HConsed (Base:S) =
 struct
+  include Std (* for default invariant, tag, ... *)
+
   module HC = BatHashcons.MakeTable (Base)
   let htable = HC.create 100000
 
@@ -133,6 +140,8 @@ struct
   let relift x = HC.hashcons htable x.BatHashcons.obj
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
+  let tag x = x.BatHashcons.tag
+  let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
   let short w = lift_f (Base.short w)
   let to_yojson = lift_f (Base.to_yojson)
@@ -143,6 +152,7 @@ struct
   let isSimple = lift_f Base.isSimple
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
+  let invariant c = lift_f (Base.invariant c)
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
     if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
       if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
@@ -220,6 +230,10 @@ struct
     | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
     | `Lifted x -> Base.printXml f x
+
+  let invariant c = function
+    | `Lifted x -> Base.invariant c x
+    | `Top | `Bot -> Invariant.none
 end
 
 module Either (Base1: S) (Base2: S) =
@@ -431,6 +445,8 @@ struct
       Base2.pretty_diff () (x2,y2)
     else
       Base1.pretty_diff () (x1,y1)
+
+  let invariant c (x, y) = Invariant.(Base1.invariant c x && Base2.invariant c y)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -484,6 +500,8 @@ struct
   let pretty () x = pretty_f short () x
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let invariant c (x, y, z) = Invariant.(Base1.invariant c x && Base2.invariant c y && Base3.invariant c z)
 end
 
 module Liszt (Base: S) =

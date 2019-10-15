@@ -31,7 +31,7 @@ let classify' fn exps =
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
       | _ -> M.bailwith "pthread_join arguments are strange!"
     end
-  | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" ->
+  | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
       | _ -> M.bailwith (fn^" arguments are strange!")
