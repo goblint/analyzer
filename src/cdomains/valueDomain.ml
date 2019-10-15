@@ -595,17 +595,17 @@ struct
       |	SizeOfE _
       |	SizeOfStr _
       |	AlignOf _
+      | Lval(Var _, _)
       |	AlignOfE _ -> false
       | Question(e1, e2, e3, _) ->
         (contains_pointer e1) || (contains_pointer e2) || (contains_pointer e3)
       |	CastE(_, e)
       |	UnOp(_, e , _) -> contains_pointer e
       |	BinOp(_, e1, e2, _) -> (contains_pointer e1) || (contains_pointer e2)
-      | AddrOf _ -> true
-      | AddrOfLabel _ -> true
-      | StartOf _ -> true
+      | AddrOf _
+      | AddrOfLabel _
+      | StartOf _
       | Lval(Mem _, _) -> true
-      | Lval(Var _, _) -> false
     in
     let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
