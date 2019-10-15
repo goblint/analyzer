@@ -634,7 +634,7 @@ struct
       typeSigWithAttrs (List.filter attrFilter) t
     in
     match left, offset with
-      | Some(left), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
+      | Some(Var(_), _), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
         if not (contains_pointer exp) then
           `Lifted exp
         else
