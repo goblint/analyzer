@@ -7,6 +7,9 @@ int main(void) {
     example5();
     example6();
     example7();
+    example8();
+    example9();
+    example10();
     return 0;
 }
 
@@ -178,4 +181,66 @@ void example7(void) {
   assert(x == 4); // UNKNOWN
   assert(x == 9); // UNKNOWN
   assert(x == 10); // FAIL
+}
+
+void example8(void) {
+  int a[42][42];
+
+  for(int i = 0; i < 42; i++) {
+    for(int j=0;j < 42; j++) {
+      a[i][j] = 0;
+    }
+  }
+
+  a[14][0] = 3;
+
+  int* ptr = a[7];
+  int x = *(ptr+7);
+  assert(x == 3); //FAIL
+
+  int (*ptr2)[42];
+  ptr2 = a+7;
+  x = (*ptr2)[6];
+  assert(x == 3);  //FAIL
+  printf("x is %d\n", x);
+}
+
+struct a {
+  int x[42];
+  int y;
+};
+
+void example9() {
+  int a[42][42];
+  int (*ptr2)[42];
+  int *y;
+  int i, j, x;
+
+  for(i = 0; i < 42; i++) {
+    for(j=0;j < 42; j++) {
+      a[i][j] = 0;
+    }
+  }
+
+  a[14][0] = 3;
+  ptr2 = a+7;
+  y = (ptr2+1)[6];
+  assert(*y == 3);
+}
+
+int example10() {
+  struct a x[42];
+  int i, j, y, *ptr;
+
+  for(i = 0; i < 42; i++) {
+    for(j=0;j < 42; j++) {
+      x[i].x[j] = 0;
+    }
+  }
+  x[3].x[3] = 7;
+
+  ptr = x[3].x;
+  y = *(ptr + 3);
+  assert(y == 0); //FAIL
+  printf("y is %d", y);
 }
