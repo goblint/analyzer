@@ -153,15 +153,37 @@ struct
     let bool_top () = ID.(join (of_int 0L) (of_int 1L)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
-      match Addr.to_var_offset addr with
-      | [x,`Index (i, offs)] ->
-        Addr.from_var_offset (x, `Index (IdxDom.add i (iDtoIdx n), offs))
-      | [x,`NoOffset] ->
-        Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
-      | _ -> match addr with
+      let rec addToOffset off n =
+        match off with
+        | `Index (i, `NoOffset) ->
+          (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
+          `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
+        | `Index (i, ofs) ->
+          (* Offsets are to be added to the last Index, and this one is not the last *)
+          `Index(i, addToOffset ofs n)
+        | `Field (f, `NoOffset) ->
+          (* Simply tacking on an offset for fields is not ok here *)
+          raise (Failure "Last offset is field, adding int offset to field is nasty")
+        | `Field (f, ofs) ->
+          (* If field is not the last part, we just carry on *)
+          `Field(f, addToOffset ofs n)
+        | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
+        | x -> off
+      in
+      let default addr =
+        match addr with
         | Addr.NullPtr when ID.to_int n = Some 0L -> Addr.NullPtr
         | Addr.SafePtr | Addr.NullPtr when get_bool "exp.ptr-arith-safe" -> Addr.SafePtr
-        | _ -> Addr.UnknownPtr (* TODO fields? *)
+        | _ -> Addr.UnknownPtr
+      in
+      match Addr.to_var_offset addr with
+      | [x, offs] ->
+        begin
+          try
+            Addr.from_var_offset (x, addToOffset offs n)
+          with Failure _ -> default addr
+        end
+      | _ -> default addr
     in
     (* The main function! *)
     match a1,a2 with
