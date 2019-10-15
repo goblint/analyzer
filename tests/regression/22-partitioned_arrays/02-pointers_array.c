@@ -10,6 +10,7 @@ int main(void) {
     example8();
     example9();
     example10();
+    example11();
     return 0;
 }
 
@@ -243,4 +244,17 @@ int example10() {
   y = *(ptr + 3);
   assert(y == 0); //FAIL
   printf("y is %d", y);
+}
+
+void foo(int (*a)[40]){
+  int x = (*(a + 29))[7];
+  assert(x == 23); //UNKNOWN
+}
+
+void example11()
+{
+  int b[40][40];
+  b[7][7] = 23;
+
+  foo(b);
 }
