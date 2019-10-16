@@ -1825,7 +1825,7 @@ struct
       end
     | `Unknown "exit" ->  raise Deadcode
     | `Unknown "abort" -> raise Deadcode
-    | `Unknown "pthread_exit" -> raise Deadcode (* TODO: somehow actually return alue, pthread_join doesn't handle anyway? *)
+    | `Unknown "pthread_exit" -> raise Deadcode (* TODO: somehow actually return value, pthread_join doesn't handle anyway? *)
     | `Unknown "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)
