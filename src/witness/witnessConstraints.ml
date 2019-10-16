@@ -133,9 +133,14 @@ struct
   let query ctx q =
     match q with
     | Queries.IterPrevVars f ->
-      VES.iter (fun ((n, c), e) ->
-          f (n, Obj.repr c) e
-        ) (fst (snd ctx.local));
+      begin match fst (snd ctx.local) with
+        | VES.All ->
+          failwith (Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: witness messed up! prev vars top at %a" MyCFG.pretty_node ctx.node))
+        | VES.Set s ->
+          VES.S.iter (fun ((n, c), e) ->
+              f (n, Obj.repr c) e
+            ) s
+      end;
       `Bot
     | _ -> S.query (unlift_ctx ctx) q
 
