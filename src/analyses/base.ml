@@ -1829,7 +1829,7 @@ struct
     | `Unknown "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)
-        | _ -> M.bailwith "Strange use of '__builtin_expect' detected --- ignoring."
+        | None -> ctx.local
       end
     | `Unknown "spinlock_check" ->
       begin match lv with

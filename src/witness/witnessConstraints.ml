@@ -144,6 +144,8 @@ struct
       `Bot
     | _ -> S.query (unlift_ctx ctx) q
 
+  (* TODO: handle Bailure during tf step? *)
+
   let assign ctx lv e =
     let d = S.assign (unlift_ctx ctx) lv e in
     let w = step_ctx ctx in
