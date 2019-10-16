@@ -510,7 +510,7 @@ struct
       { ask     = query
       ; node    = fst var
       ; context = snd var
-      ; context2 = (fun () -> let context_unit: unit -> S.C.t = snd var |> Obj.obj in context_unit ())
+      ; context2 = (fun () : S.C.t -> snd var |> Obj.obj)
       ; edge    = edge
       ; local   = pval
       ; global  = getg
