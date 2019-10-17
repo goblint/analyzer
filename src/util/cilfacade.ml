@@ -69,7 +69,10 @@ let do_preprocess ast =
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 let createCFG (fileAST: file) =
-  if not (get_bool "exp.basic-blocks") then end_basic_blocks fileAST;
+  (* After adding support for VLAs, there are new VarDecl instructions at the point where a VLA was declared and    *)
+  (* its declaration is not printed at the beginning of the function. For these VarDecl putting them into their own *)
+  (* BB causes the output CIL file to no longer compile. Therefore this is not done for justcil. *)
+  if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
   (* Partial.calls_end_basic_blocks fileAST; *)
   Partial.globally_unique_vids fileAST;
   iterGlobals fileAST (fun glob ->
