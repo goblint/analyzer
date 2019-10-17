@@ -6,7 +6,7 @@ int main()
     while (1)
     {
         int x = __VERIFIER_nondet_int() % 100;
-        if (x >= 150) // goblint is bad at %, exactly 100 should work but doesn't
+        if (x >= 100)
             __VERIFIER_error();
     }
     return 0;

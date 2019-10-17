@@ -819,9 +819,9 @@ struct
               let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
-            | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v
             | `Bot ->  M.warn_each("encountered array bot, made array top"); `Array (CArrays.top ());
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
+            | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result

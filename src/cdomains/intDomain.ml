@@ -258,7 +258,6 @@ struct
   let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
 
   let neg = function None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
-  let rem x y = meet (bit Int64.rem x y) (join y (neg y))
 
   let add x y =
     match x, y with
@@ -266,6 +265,10 @@ struct
     | Some (x1,x2), Some (y1,y2) -> norm @@ Some (Int64.add x1 y1, Int64.add x2 y2)
 
   let sub i1 i2 = add i1 (neg i2)
+
+  let rem x y =
+    let y' = sub y (of_int 1L) in
+    meet (bit Int64.rem x y) (join y' (neg y'))
 
   let mul x y =
     match x, y with
