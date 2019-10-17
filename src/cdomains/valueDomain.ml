@@ -224,20 +224,19 @@ struct
     | a, b -> a = b
 
   let cast_addr t a =
-    let rec patchTypeNotVLA t =
-      match t with
-      | TPtr(t, args) -> TPtr(patchTypeNotVLA t, args)
-      | TArray(t, None, args) -> TArray(patchTypeNotVLA t, None, args)
-      | TArray(t, Some exp, args) when isConstant exp -> TArray(patchTypeNotVLA t, Some exp, args)
-      | TArray(t, Some exp, args) -> TArray(patchTypeNotVLA t, None, args)
-      | _ -> t
+    let rec stripVarLenArr = function
+      | TPtr(t, args) -> TPtr(stripVarLenArr t, args)
+      | TArray(t, None, args) -> TArray(stripVarLenArr t, None, args)
+      | TArray(t, Some exp, args) when isConstant exp -> TArray(stripVarLenArr t, Some exp, args)
+      | TArray(t, Some exp, args) -> TArray(stripVarLenArr t, None, args)
+      | t -> t
     in
     let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
       let info = Pretty.(sprint ~width:0 @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
-      match Pervasives.compare (bitsSizeOf (patchTypeNotVLA t)) (bitsSizeOf (patchTypeNotVLA ta)) with (* TODO is it enough to compare the size? -> yes? *)
+      match Pervasives.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
       | 0 ->
         M.tracel "casta" "same size\n";
         if not (typ_eq t ta) then err "Cast to different type of same size."
