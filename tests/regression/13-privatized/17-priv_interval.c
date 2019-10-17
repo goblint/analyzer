@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.int.interval true --set solver "'new'"
+// PARAM: --set ana.int.interval true --set solver "'new'"
 #include<pthread.h>
 #include<assert.h>
 
@@ -23,7 +23,7 @@ int main(void) {
   assert(glob1 == 5);
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&mutex1);
-  glob1++;
+  glob1++; 
   assert(glob1 == 6);
   glob1--;
   pthread_mutex_unlock(&mutex1);
