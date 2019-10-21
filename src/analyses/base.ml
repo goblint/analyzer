@@ -1179,7 +1179,7 @@ struct
     List.fold_left f s v_list
 
  (**************************************************************************
-   * Auxilliary functions
+   * Auxillary functions
    **************************************************************************)
 
   let invariant ctx a (gs:glob_fun) st exp tv =
@@ -1294,7 +1294,7 @@ struct
       | `Array n ->  ValueDomain.CArrays.is_bot n
       | `Blob n ->  ValueDomain.Blobs.is_bot n
       | `List n ->  ValueDomain.Lists.is_bot n
-      | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast approprietly) *)
+      | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
       | `Top -> false
     in
     let apply_invariant oldv newv =
@@ -1311,7 +1311,7 @@ struct
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
-        let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unkown position in array) *)
+        let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
         let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
         let new_val = apply_invariant oldval value in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -1917,7 +1917,7 @@ struct
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: D.t) : D.t =
     let combine_one (loc,lf,ldep as st: D.t) ((fun_st,fun_fl,fun_dep) as fun_d: D.t) =
-      (* This function does miscelaneous things, but the main task was to give the
+      (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
