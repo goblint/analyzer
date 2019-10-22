@@ -134,7 +134,11 @@ struct
     let w = snd ctx.local in
     { ctx with
       local = fst ctx.local;
-      spawn = (fun v d -> ctx.spawn v (strict (d, w)));
+      spawn = (fun v d ->
+          (* like enter *)
+          let w' = step_witness w MyCFG.Skip (FunctionEntry v, S.context d) in
+          ctx.spawn v (strict (d, w'))
+        );
       split = (fun d e tv -> ctx.split (strict (d, w)) e tv)
     }
   let part_access ctx = S.part_access (unlift_ctx ctx)
