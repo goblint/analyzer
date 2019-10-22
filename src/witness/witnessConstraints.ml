@@ -108,8 +108,7 @@ struct
         failwith s;
       end;
       step prev_node_witness ctx.edge (ctx.node, context)
-    with Failure "Global initializers have no context." ->
-      (* with Failure _ -> *)
+    with Ctx_failure _ ->
       W.bot ()
 
   (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)

@@ -437,6 +437,11 @@ type ('d,'g,'c) ctx =
   ; assign   : ?name:string -> lval -> exp -> unit
   }
 
+exception Ctx_failure of string
+(** Failure from ctx, e.g. global initializer *)
+
+let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
+
 let swap_st ctx st =
   {ctx with local=st}
 

@@ -207,8 +207,8 @@ struct
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; context = Obj.repr (fun () -> failwith "Global initializers have no context.")
-        ; context2 = (fun () -> failwith "Global initializers have no context.")
+        ; context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
+        ; context2 = (fun () -> ctx_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun _ -> Spec.G.bot ())
