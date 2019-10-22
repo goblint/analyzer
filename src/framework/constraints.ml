@@ -502,13 +502,14 @@ struct
   let full_context = get_bool "exp.full-context"
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
-  let common_ctx var edge pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
+  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
     let rec ctx =
       { ask     = query
       ; node    = fst var
+      ; prev_node = prev_node
       ; context = snd var
       ; context2 = (fun () -> let context_unit: unit -> S.C.t = snd var |> Obj.obj in context_unit ())
       ; edge    = edge
@@ -534,12 +535,12 @@ struct
     | [x]   -> x
     | x::xs -> D.join x (bigsqcup xs)
 
-  let tf_loop var edge getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+  let tf_loop var edge prev_node getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     bigsqcup ((S.intrpt ctx)::!r)
 
-  let tf_assign var edge lv e getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+  let tf_assign var edge prev_node lv e getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     bigsqcup ((S.assign ctx lv e)::!r)
 
   let normal_return r fd ctx sideg =
@@ -555,8 +556,8 @@ struct
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
 
-  let tf_ret var edge ret fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+  let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     let d =
       if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
           List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
@@ -566,12 +567,12 @@ struct
     in
     bigsqcup (d::!r)
 
-  let tf_entry var edge fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+  let tf_entry var edge prev_node fd getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     bigsqcup ((S.body ctx fd)::!r)
 
-  let tf_test var edge e tv getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+  let tf_test var edge prev_node e tv getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     bigsqcup ((S.branch ctx e tv)::!r)
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
@@ -585,8 +586,8 @@ struct
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
-  let tf_proc var edge lv e args getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+  let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
       match ctx.ask (Queries.EvalFunvar e) with
       | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
@@ -605,28 +606,28 @@ struct
       let funs = List.map one_function functions in
       bigsqcup (funs @ !r)
 
-  let tf_asm var edge getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+  let tf_asm var edge prev_node getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     bigsqcup ((S.asm ctx)::!r)
 
-  let tf var getl sidel getg sideg edge d =
+  let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
-      | Assign (lv,rv) -> tf_assign var edge lv rv
-      | Proc (r,f,ars) -> tf_proc var edge r f ars
-      | Entry f        -> tf_entry var edge f
-      | Ret (r,fd)     -> tf_ret var edge r fd
-      | Test (p,b)     -> tf_test var edge p b
-      | ASM (_, _, _)  -> tf_asm var edge (* TODO: use ASM fields for something? *)
+      | Assign (lv,rv) -> tf_assign var edge prev_node lv rv
+      | Proc (r,f,ars) -> tf_proc var edge prev_node r f ars
+      | Entry f        -> tf_entry var edge prev_node f
+      | Ret (r,fd)     -> tf_ret var edge prev_node r fd
+      | Test (p,b)     -> tf_test var edge prev_node p b
+      | ASM (_, _, _)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
       | Skip           -> fun _ _ _ _ d -> d
-      | SelfLoop       -> tf_loop var edge
+      | SelfLoop       -> tf_loop var edge prev_node
     end getl sidel getg sideg d
 
-  let tf var getl sidel getg sideg (_,edge) d (f,t) =
+  let tf var getl sidel getg sideg prev_node (_,edge) d (f,t) =
     let old_loc  = !Tracing.current_loc in
     let old_loc2 = !Tracing.next_loc in
     let _       = Tracing.current_loc := f in
     let _       = Tracing.next_loc := t in
-    let d       = tf var getl sidel getg sideg edge d in
+    let d       = tf var getl sidel getg sideg prev_node edge d in
     let _       = Tracing.current_loc := old_loc in
     let _       = Tracing.next_loc := old_loc2 in
     d
@@ -634,7 +635,7 @@ struct
   let tf (v,c) (edges, u) getl sidel getg sideg =
     let pval = getl (u,c) in
     let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (getLoc v,[]) in
-    List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg) edges) locs
+    List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg u) edges) locs
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in

@@ -206,6 +206,7 @@ struct
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
+        ; prev_node = MyCFG.dummy_node
         ; context = Obj.repr (fun () -> failwith "Global initializers have no context.")
         ; context2 = (fun () -> failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
@@ -277,6 +278,7 @@ struct
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
+        ; prev_node = MyCFG.dummy_node
         ; context = Obj.repr (fun () -> failwith "enter_func has no context.")
         ; context2 = (fun () -> failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
@@ -413,6 +415,7 @@ struct
         let rec ctx =
           { ask    = query
           ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+          ; prev_node = MyCFG.dummy_node
           ; context = Obj.repr (fun () -> failwith "No context in query context.")
           ; context2 = (fun () -> failwith "No context in query context.")
           ; edge    = MyCFG.Skip
@@ -470,6 +473,7 @@ struct
           let rec ctx =
             { ask    = query
             ; node   = fst lvar
+            ; prev_node = MyCFG.dummy_node
             ; context = Obj.repr (fun () -> snd lvar)
             ; context2 = (fun () -> snd lvar)
             ; edge    = MyCFG.Skip

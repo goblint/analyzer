@@ -85,14 +85,20 @@ struct
     | `Bot -> VES.bot ()
     | `Top -> VES.top ()
 
-  let step (from:W.t) (edge:Edge.t) (to_node:V.t): W.t =
-    let prev = set_of_flat (snd from) edge in
+  let step (from:VF.t) (edge:Edge.t) (to_node:V.t): W.t =
+    let prev = set_of_flat from edge in
     (* ignore (Pretty.printf "from: %a, prev: %a -> to_node: %a\n" W.pretty from VS.pretty prev V.pretty to_node); *)
     (prev, `Lifted to_node)
 
+  let step_witness (from:W.t) = step (snd from)
+
   let step_ctx ctx =
     try
-      step (snd ctx.local) ctx.edge (ctx.node, get_context ctx)
+      let context = get_context ctx in
+      let prev_node_witness = snd (snd ctx.local) in
+      let prev_node_ctx = `Lifted (ctx.prev_node, context) in
+      assert (VF.equal prev_node_witness prev_node_ctx);
+      step prev_node_witness ctx.edge (ctx.node, context)
     (* with Failure "Global initializers have no context." -> *)
     with Failure _ ->
       W.bot ()
@@ -185,12 +191,12 @@ struct
     let ddl = S.enter (unlift_ctx ctx) r f args in
     let w = snd ctx.local in
     List.map (fun (d1, d2) ->
-        let w' = step w MyCFG.Skip (FunctionEntry f, S.context d2) in
+        let w' = step_witness w MyCFG.Skip (FunctionEntry f, S.context d2) in
         (strict (d1, w), strict (d2, w'))
       ) ddl
 
   let combine ctx r fe f args (d', w') =
     let d = S.combine (unlift_ctx ctx) r fe f args d' in
-    let w = step w' MyCFG.Skip (ctx.node, get_context ctx) in
+    let w = step_witness w' MyCFG.Skip (ctx.node, get_context ctx) in
     strict (d, w)
 end
