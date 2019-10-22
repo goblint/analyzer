@@ -541,7 +541,7 @@ struct
   (** the one obtained by abstractly evaluating the size expression at this location for the   *)
   (** current state. If newl leq l this means that we somehow know more about the expression   *)
   (** determining the size now (e.g. because of narrowing), but this holds for all the times   *)
-  (** the decleration is visited. *)
+  (** the declaration is visited. *)
   let update_length newl (x, l) = (x, newl)
 end
 
@@ -583,7 +583,7 @@ struct
   (** the one obtained by abstractly evaluating the size expression at this location for the   *)
   (** current state. If newl leq l this means that we somehow know more about the expression   *)
   (** determining the size now (e.g. because of narrowing), but this holds for all the times   *)
-  (** the decleration is visited. *)
+  (** the declaration is visited. *)
   let update_length newl (x, l) = (x, newl)
 end
 
