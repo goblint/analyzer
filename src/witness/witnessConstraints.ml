@@ -97,10 +97,19 @@ struct
       let context = get_context ctx in
       let prev_node_witness = snd (snd ctx.local) in
       let prev_node_ctx = `Lifted (ctx.prev_node, context) in
-      assert (VF.equal prev_node_witness prev_node_ctx);
+      (* assert (VF.equal prev_node_witness prev_node_ctx); *)
+      if not (VF.equal prev_node_witness prev_node_ctx) then begin
+        let extract_node: VF.t -> MyCFG.node = function
+          | `Lifted (node, _) -> node
+          | _ -> MyCFG.dummy_node
+        in
+        let s = Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: prev_node mismatch at %a via %a: %a vs %a" MyCFG.pretty_node ctx.node Edge.pretty ctx.edge MyCFG.pretty_node (extract_node prev_node_witness) MyCFG.pretty_node (extract_node prev_node_ctx)) in
+        (* M.waitWhat s; *)
+        failwith s;
+      end;
       step prev_node_witness ctx.edge (ctx.node, context)
-    (* with Failure "Global initializers have no context." -> *)
-    with Failure _ ->
+    with Failure "Global initializers have no context." ->
+      (* with Failure _ -> *)
       W.bot ()
 
   (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
