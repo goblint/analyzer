@@ -136,12 +136,12 @@ struct
     set_inplace (A.copy a) i v
 
   let make i v =
-    match i with
+    match Idx.to_int i with
     | None -> failwith "NativeArray can not handle variable-length arrays (VLAs)"
-    | Some i -> A.make i v
+    | Some i -> A.make (Int64.to_int i) v
 
   let length a =
-    Some (A.length a)
+    Some (Idx.of_int (Int64.of_int (A.length a)))
 
   let printXml f xs =
     let print_one k v =
@@ -276,7 +276,7 @@ struct
       match A.length a with
         | Some v -> v
         | None -> failwith "Cannot get length of native array." in
-    let value_array ar va = A.make (Some (arr_len ar)) va in
+    let value_array ar va = A.make (arr_len ar) va in
       match (a,b) with
     (Value v1, Value v2) -> Value (Base.join v1 v2)
   | (Array v1, Array v2) -> Array (A.join v1 v2)
@@ -289,7 +289,7 @@ struct
       match A.length a with
         | Some v -> v
         | None -> failwith "Cannot get length of native array." in
-    let value_array ar va = A.make (Some (arr_len ar)) va in
+    let value_array ar va = A.make (arr_len ar) va in
       match (a,b) with
     (Value v1, Value v2) -> Value (Base.meet v1 v2)
   | (Array v1, Array v2) -> Array (A.meet v1 v2)
@@ -354,8 +354,8 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let make i v =
-    match i with
-    | Some i' when i' <= 25 -> Array (A.make i v)
+    match Idx.to_int i with
+    | Some i' when Int64.compare i' (Int64.of_int 25) <= 0 -> Array (A.make i v)
     | _ -> Value v
 
   let length x =
@@ -548,7 +548,9 @@ struct
       else
         add_items (cur+1) mx (set (fun x -> (Queries.Result.top ())) map ((ExpDomain.top (), Idx.of_int (Int64.of_int cur))) v) in
     match I.n with
-      | Some n -> add_items 0 (min (BatOption.default n i) n) (top ())
+      | Some n ->
+        let l = BatOption.map Int64.to_int (Idx.to_int i) in
+        add_items 0 (min (BatOption.default n l) n) (top ())
       | None -> top ()
 
   let length _ = None
@@ -775,10 +777,10 @@ struct
   let leq (map1,length1) (map2,length2) =
     (length1 == length2) && M.leq map1 map2
 
-  let length (map,len) = BatOption.map Int64.to_int (Idx.to_int len)
+  let length (map,len) = Some len
 
   let make length value =
-    (M.make value, BatOption.map_default  (fun x -> Idx.of_int (Int64.of_int x)) (Idx.top ()) length)
+    (M.make value, length)
 
   let copy p = p
 

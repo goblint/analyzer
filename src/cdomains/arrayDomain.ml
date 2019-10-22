@@ -13,18 +13,18 @@ sig
   type value
 
   val get: Q.ask -> t ->  ExpDomain.t * idx -> value
-  val set: ?length:(int64 option) -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
-  val make: int option -> value -> t
-  val length: t -> int option
+  val set: ?length:(idx option) -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
+  val make: idx-> value -> t
+  val length: t -> idx option
 
-  val move_if_affected: ?length:(int64 option) -> ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?length:(idx option) -> ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
-  val smart_join: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
-  val smart_widen: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option)  -> t -> t-> t
-  val smart_leq: ?length:(int64 option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
+  val smart_join: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
+  val smart_widen: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option)  -> t -> t-> t
+  val smart_leq: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
   val update_length: Queries.ask -> t -> Cil.typ -> t
 end
 
@@ -68,7 +68,7 @@ struct
   let update_length _ x _ = x
 end
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx:Lattice.S): S with type value = Val.t and type idx = Idx.t =
+module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.S): S with type value = Val.t and type idx = Idx.t =
 struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
@@ -227,9 +227,14 @@ struct
               match length with
               | Some l ->
                 begin
-                  match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt l)) with
-                  | `Bool false -> true (* !(e <_{may} length) => e >=_{must} length *)
-                  | _ -> false
+                  match Idx.to_int l with
+                  | Some i ->
+                    begin
+                      match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt i)) with
+                      | `Bool false -> true (* !(e <_{may} length) => e >=_{must} length *)
+                      | _ -> false
+                    end
+                  | None -> false
                 end
               | _ -> false
             in
@@ -266,7 +271,11 @@ struct
     let equals_maxIndex e =
       match length with
       | Some l ->
-          BatOption.map_default (Int64.equal (Int64.sub l Int64.one)) false (exp_value e)
+        begin
+          match Idx.to_int l with
+          | Some i -> BatOption.map_default (Int64.equal (Int64.sub i Int64.one)) false (exp_value e)
+          | None -> false
+        end
       | _ -> false
     in
     let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
@@ -371,7 +380,7 @@ struct
   (* leq needs not be given explicitly, leq from product domain works here *)
 
   let make i v =
-    if i = Some 1 then
+    if Idx.to_int i = Some Int64.one then
       (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ()))
     else if Val.is_bot v then
       (Expp.top(), (Val.top(), Val.top(), Val.top()))
@@ -388,7 +397,13 @@ struct
 
   let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
     let must_be_length_minus_one v = match length with
-      | Some l -> v = Some (Int64.sub l Int64.one)
+      | Some l ->
+        begin
+          match Idx.to_int l with
+          | Some i ->
+            v = Some (Int64.sub i Int64.one)
+          | None -> false
+        end
       | None -> false
     in
     let must_be_zero v = v = Some Int64.zero in
@@ -457,12 +472,18 @@ struct
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
     let must_be_zero v = (v = Some Int64.zero) in
     let must_be_length_minus_one v =  match length with
-      | Some l -> v = Some (Int64.sub l Int64.one)
+      | Some l ->
+        begin
+          match Idx.to_int l with
+          | Some i ->
+            v = Some (Int64.sub i Int64.one)
+          | None -> false
+        end
       | None -> false
     in
     match e1, e2 with
     | `Top, `Top ->
-      (* Those asserts ensure that for both arguments all segements are equal (as it should be) *)
+      (* Those asserts ensure that for both arguments all segments are equal (as it should be) *)
       assert(Val.leq xl1 xm1); assert(Val.leq xm1 xr1); assert(Val.leq xl2 xm2); assert(Val.leq xm2 xr2);
       assert(Val.leq xm1 xl1); assert(Val.leq xr1 xm1); assert(Val.leq xm2 xl2); assert(Val.leq xr2 xm2);
       leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))    (* TODO: should the inner joins also be smart joins? *)
@@ -502,14 +523,8 @@ struct
   type value = Val.t
   let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
   let set ?(length=None) (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
-  let make l x =
-    let l' = match l with
-      | Some i -> Idx.of_int (Int64.of_int i)
-      | _ -> Idx.top ()
-    in
-    Base.make l x, l'
-
-  let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
+  let make l x = Base.make l x, l
+  let length (_,l) = Some l
 
   let move_if_affected ?(length = None) ?(replace_with_const=false) _ x _ _ = x
   let map f (x, l):t = (Base.map f x, l)
@@ -533,28 +548,20 @@ struct
 end
 
 
-module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
+module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Partitioned (Val) (Idx)
-  module Length = IntDomain.Flattened (* We only keep one exact value or top/bot here *)
-  include Lattice.Prod (Base) (Length)
+  include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
   let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
   let set ?(length=None) ask (x,l) i v =
-    let new_l = Length.to_int l in
-    Base.set ~length:new_l ask x i v, l
-  let make l x =
-    let l' = match l with
-      | Some i -> Length.of_int (Int64.of_int i)
-      | _ -> Length.top ()
-    in
-   Base.make l x, l'
-  let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
+    Base.set ~length:(Some l) ask x i v, l
+  let make l x = Base.make l x, l
+  let length (_,l) = Some l
 
   let move_if_affected ?(length = None) ?(replace_with_const=false) ask (x,l) v i =
-    let new_l = Length.to_int l in
-    (Base.move_if_affected ~length:new_l ~replace_with_const:replace_with_const ask x v i), l
+    (Base.move_if_affected ~length:(Some l) ~replace_with_const:replace_with_const ask x v i), l
 
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
@@ -562,23 +569,23 @@ struct
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
   let smart_join ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl) =
-    let l = Length.to_int xl in
-    (Base.smart_join ~length:l x_eval_int y_eval_int x y , Length.join xl yl)
+    let l = Idx.join xl yl in
+    (Base.smart_join ~length:(Some l) x_eval_int y_eval_int x y , l)
 
   let smart_widen ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl) =
-    let l = Length.to_int xl in
-    (Base.smart_widen ~length:l x_eval_int y_eval_int x y , Length.join xl yl)
+    let l = Idx.join xl yl in
+    (Base.smart_widen ~length:(Some l) x_eval_int y_eval_int x y, l)
 
   let smart_leq ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl)  =
-    let l = Length.to_int xl in
-    Base.smart_leq ~length:l x_eval_int y_eval_int x y
+    let l = Idx.join xl yl in
+    Idx.leq xl yl && Base.smart_leq ~length:(Some l) x_eval_int y_eval_int x y
 
   let update_length (ask:Queries.ask) (x, l) t =
     match t with
     | TArray(t', Some exp, attr) ->
       let newl = match ask (Q.EvalInt exp) with
-      | `Int i -> Length.of_int i (* TODO: allow intervals here *)
-      | _ -> Length.top ()
+      | `Int i -> Idx.of_int i (* TODO: allow intervals here *)
+      | _ -> Idx.top ()
       in
       (x, newl)
     | _ -> (x, l)

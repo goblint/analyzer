@@ -615,7 +615,7 @@ struct
           begin
           match Q.LS.choose v with
           | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
-            (* The idea here is that if a must(!) point to arr and we do sth like a[i] we dont want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
+            (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
           end
@@ -795,7 +795,7 @@ struct
                       | TArray(_, l, _) ->
                         let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        `Array(CArrays.make (Some len) `Top), offs
+                        `Array(CArrays.make (IndexDomain.of_int (Int64.of_int len)) `Top), offs
                       | _ -> top (), offs (* will not happen*)
                     end
                   | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int 0L) ->
