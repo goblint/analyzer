@@ -164,14 +164,12 @@ struct
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
 
-  let update_length ask x t = match t with
-    | Cil.TArray(t', Some exp, attr) ->
-      begin
-        match ask (Queries.EvalInt exp) with
-        | `Int i ->  if i = Int64.of_int (Array.length x) then x else failwith "NativeArray can not handle variable-length arrays (VLAs)"
-        | _ -> failwith "NativeArray can not handle variable-length arrays (VLAs)"
-      end
-    | _ -> x
+  let update_length newl x =
+    if Idx.to_int newl = Some(Int64.of_int (Array.length x)) then
+      x
+    else
+      failwith "NativeArray can not handle variable-length arrays (VLAs)"
+
 end
 
 module NativeArrayEx (Base: Lattice.S) (Idx: IntDomain.S)
@@ -224,9 +222,9 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t =
+  let update_length newl x =
     match x with
-    | `Lifted x' -> `Lifted (A.update_length ask x' t)
+    | `Lifted x' -> `Lifted (A.update_length newl x')
     | _ -> x
 end
 
@@ -384,9 +382,9 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t =
+  let update_length newl x =
     match x with
-    | Array x' -> Array (A.update_length ask x' t)
+    | Array x' -> Array (A.update_length newl x')
     | _ -> x
 end
 
@@ -578,7 +576,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t = x
+  let update_length _ x = x
 end
 
 
@@ -792,14 +790,8 @@ struct
 
   let isSimple x = false
 
-  let update_length ask (x, l) t = match t with
-    | Cil.TArray(t', Some exp, attr) ->
-      let newl = match ask (Queries.EvalInt exp) with
-      | `Int i -> Idx.of_int i (* TODO: allow intervals here *)
-      | _ -> Idx.top ()
-      in
-      (x, newl)
-    | _ -> (x, l)
+  let update_length newl (x, l) =
+    (x, Idx.join newl l)
 
   let short w (map,_) =
     let strlist =
@@ -1123,9 +1115,9 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t =
+  let update_length newl x =
     match x with
-      | `Lifted x' -> `Lifted (A.update_length ask x' t)
+      | `Lifted x' -> `Lifted (A.update_length newl x')
       | __ -> x
 end
 
@@ -1182,8 +1174,8 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t =
+  let update_length newl x =
     match x with
-      | `Lifted x' -> `Lifted (A.update_length ask x' t)
+      | `Lifted x' -> `Lifted (A.update_length newl x')
       | __ -> x
 end

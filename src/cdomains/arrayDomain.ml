@@ -14,7 +14,7 @@ sig
 
   val get: Q.ask -> t ->  ExpDomain.t * idx -> value
   val set: ?length:(idx option) -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
-  val make: idx-> value -> t
+  val make: idx -> value -> t
   val length: t -> idx option
 
   val move_if_affected: ?length:(idx option) -> ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
@@ -25,7 +25,7 @@ sig
   val smart_join: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
   val smart_widen: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option)  -> t -> t-> t
   val smart_leq: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
-  val update_length: Queries.ask -> t -> Cil.typ -> t
+  val update_length: idx -> t -> t
 end
 
 module type LatticeWithSmartOps =
@@ -65,7 +65,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None)_ _ = leq
-  let update_length _ x _ = x
+  let update_length _ x = x
 end
 
 module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.S): S with type value = Val.t and type idx = Idx.t =
@@ -511,7 +511,7 @@ struct
     | _ ->
       failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
 
-    let update_length _ x _ = x
+    let update_length _ x = x
 end
 
 
@@ -536,15 +536,8 @@ struct
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
 
-  let update_length (ask:Q.ask) (x, l) t =
-    match t with
-    | TArray(t', Some exp, attr) ->
-      let newl = match ask (Q.EvalInt exp) with
-      | `Int i -> Idx.of_int i (* TODO: allow intervals here *)
-      | _ -> Idx.top ()
-      in
-      (x, newl)
-    | _ -> (x, l)
+  let update_length newl (x, l) =
+    (x, Idx.join l newl)
 end
 
 
@@ -580,15 +573,8 @@ struct
     let l = Idx.join xl yl in
     Idx.leq xl yl && Base.smart_leq ~length:(Some l) x_eval_int y_eval_int x y
 
-  let update_length (ask:Queries.ask) (x, l) t =
-    match t with
-    | TArray(t', Some exp, attr) ->
-      let newl = match ask (Q.EvalInt exp) with
-      | `Int i -> Idx.of_int i (* TODO: allow intervals here *)
-      | _ -> Idx.top ()
-      in
-      (x, newl)
-    | _ -> (x, l)
+  let update_length newl (x, l) =
+    (x, Idx.join newl l)
 end
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t =
@@ -662,7 +648,7 @@ struct
   let pretty_f _ = pretty
   let toXML_f _ = unop (P.toXML_f P.short) (T.toXML_f T.short)
 
-  let update_length ask x t = unop_to_t (fun p -> P.update_length ask p t) (fun p -> T.update_length ask p t) x
+  let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 
   let pretty_diff () ((p1,t1),(p2,t2)) = match (p1, t1),(p2, t2) with
     | (Some p1, None), (Some p2, None) -> P.pretty_diff () (p1, p2)

@@ -1522,7 +1522,7 @@ struct
     else
       let lval = eval_lv ctx.ask ctx.global ctx.local (Var v, NoOffset) in
       let current_value = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
-      let new_value = VD.update_array_lengths ctx.ask current_value v.vtype in
+      let new_value = VD.update_array_lengths (eval_rv ctx.ask ctx.global ctx.local) current_value v.vtype in
       set ctx.ask ctx.global ctx.local lval new_value None None
 
   (**************************************************************************

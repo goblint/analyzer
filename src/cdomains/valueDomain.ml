@@ -18,7 +18,7 @@ sig
   type offs
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
-  val update_array_lengths: Q.ask -> t -> Cil.typ -> t
+  val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
   val invalidate_value: Q.ask -> typ -> t -> t
@@ -865,12 +865,25 @@ struct
     | _ -> []
 
   (* Won't compile without the final :t annotation *)
-  let rec update_array_lengths ask (v:t) (typ:Cil.typ):t =
+  let rec update_array_lengths (eval_exp: exp -> t) (v:t) (typ:Cil.typ):t =
     match v, typ with
-    | `Array(n), TArray(ti, _, _) ->
-      let update_fun x = update_array_lengths ask x ti in
-      let n' = CArrays.map (update_fun) n in
-      `Array(CArrays.update_length ask n' typ)
+    | `Array(n), TArray(ti, e, _) ->
+      begin
+        let update_fun x = update_array_lengths eval_exp x ti in
+        let n' = CArrays.map (update_fun) n in
+        let newl = match e with
+          | None -> ID.top ()
+          | Some e ->
+            begin
+              let v = match eval_exp e with
+                | `Int x -> x
+                | _ -> ID.top () (* TODO:Warn *)
+              in
+              v
+            end
+        in
+        `Array(CArrays.update_length newl n')
+      end
     | _ -> v
 
 
