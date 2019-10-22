@@ -5,7 +5,7 @@ open Messages
 
 module A = Array
 (** Be really careful about using these, they might not be drop-in replacement for the domains in arrayDomain.ml **)
-(** One (maybe not the only) problem is that they might not support resizing which is needed for VLAS            **)
+(** One (maybe not the only) problem is that they might not support resizing which is needed for VLAs            **)
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
@@ -136,7 +136,9 @@ struct
     set_inplace (A.copy a) i v
 
   let make i v =
-    A.make i v
+    match i with
+    | None -> failwith "NativeArray can not handle variable-length arrays (VLAs)"
+    | Some i -> A.make i v
 
   let length a =
     Some (A.length a)
@@ -162,7 +164,14 @@ struct
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
 
-  let update_length ask x t = x (* TODO:warn *)
+  let update_length ask x t = match t with
+    | Cil.TArray(t', Some exp, attr) ->
+      begin
+        match ask (Queries.EvalInt exp) with
+        | `Int i ->  if i = Int64.of_int (Array.length x) then x else failwith "NativeArray can not handle variable-length arrays (VLAs)"
+        | _ -> failwith "NativeArray can not handle variable-length arrays (VLAs)"
+      end
+    | _ -> x
 end
 
 module NativeArrayEx (Base: Lattice.S) (Idx: IntDomain.S)
@@ -188,7 +197,7 @@ struct
       | `Bot -> `Bot
       | `Lifted a -> `Lifted (A.set ask a i v)
 
-  let make (i:int) v = `Lifted (A.make i v)
+  let make i v = `Lifted (A.make i v)
 
   let length x =
     match x with
@@ -215,7 +224,10 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t = x (* TODO:warn *)
+  let update_length ask x t =
+    match x with
+    | `Lifted x' -> `Lifted (A.update_length ask x' t)
+    | _ -> x
 end
 
 module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
@@ -264,7 +276,7 @@ struct
       match A.length a with
         | Some v -> v
         | None -> failwith "Cannot get length of native array." in
-    let value_array ar va = A.make (arr_len ar) va in
+    let value_array ar va = A.make (Some (arr_len ar)) va in
       match (a,b) with
     (Value v1, Value v2) -> Value (Base.join v1 v2)
   | (Array v1, Array v2) -> Array (A.join v1 v2)
@@ -277,7 +289,7 @@ struct
       match A.length a with
         | Some v -> v
         | None -> failwith "Cannot get length of native array." in
-    let value_array ar va = A.make (arr_len ar) va in
+    let value_array ar va = A.make (Some (arr_len ar)) va in
       match (a,b) with
     (Value v1, Value v2) -> Value (Base.meet v1 v2)
   | (Array v1, Array v2) -> Array (A.meet v1 v2)
@@ -342,10 +354,9 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let make i v =
-    if i > 25 then
-      Value v
-    else
-      Array (A.make i v)
+    match i with
+    | Some i' when i' <= 25 -> Array (A.make i v)
+    | _ -> Value v
 
   let length x =
     match x with
@@ -373,7 +384,10 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t = x (* TODO:warn *)
+  let update_length ask x t =
+    match x with
+    | Array x' -> Array (A.update_length ask x' t)
+    | _ -> x
 end
 
 
@@ -534,7 +548,7 @@ struct
       else
         add_items (cur+1) mx (set (fun x -> (Queries.Result.top ())) map ((ExpDomain.top (), Idx.of_int (Int64.of_int cur))) v) in
     match I.n with
-      | Some n -> add_items 0 (min i n) (top ())
+      | Some n -> add_items 0 (min (BatOption.default n i) n) (top ())
       | None -> top ()
 
   let length _ = None
@@ -562,7 +576,7 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t = x (* TODO:warn *)
+  let update_length ask x t = x
 end
 
 
@@ -576,7 +590,7 @@ end
   * standard map, fold
   * standard make, add
 
-  - does not care about non-int indeces
+  - does not care about non-int indices
 
  *)
 module CountingMap (Base: Lattice.S) (Idx: IntDomain.S) =
@@ -733,7 +747,7 @@ struct
 
   module M = CountingMap(Base)(Idx)
 
-  type t = M.t * int [@@deriving to_yojson]
+  type t = M.t * Idx.t [@@deriving to_yojson]
   type value = Base.t
   type idx = Idx.t
 
@@ -761,10 +775,10 @@ struct
   let leq (map1,length1) (map2,length2) =
     (length1 == length2) && M.leq map1 map2
 
-  let length (map,len) = Some len
+  let length (map,len) = BatOption.map Int64.to_int (Idx.to_int len)
 
   let make length value =
-    (M.make value, length)
+    (M.make value, BatOption.map_default  (fun x -> Idx.of_int (Int64.of_int x)) (Idx.top ()) length)
 
   let copy p = p
 
@@ -775,6 +789,15 @@ struct
   let is_bot _ = false
 
   let isSimple x = false
+
+  let update_length ask (x, l) t = match t with
+    | Cil.TArray(t', Some exp, attr) ->
+      let newl = match ask (Queries.EvalInt exp) with
+      | `Int i -> Idx.of_int i (* TODO: allow intervals here *)
+      | _ -> Idx.top ()
+      in
+      (x, newl)
+    | _ -> (x, l)
 
   let short w (map,_) =
     let strlist =
@@ -814,7 +837,8 @@ struct
     let indexed_children = M.fold map transform [] in
       Xml.Element ("Node", [("text", text)], indexed_children )
 
-  let toXML = toXML_f short
+  (* Won't compile unless we give the type *)
+  let toXML: (t -> Xml.xml) = toXML_f short
 
   let printXml _ _ = () (* TODO *)
 end
@@ -902,7 +926,6 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t = x (* TODO:warn *)
 end
 
 module LooseMapArray
@@ -1045,7 +1068,6 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t = x (* TODO:warn *)
 end
 
 
@@ -1099,7 +1121,10 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t = x (* TODO:warn *)
+  let update_length ask x t =
+    match x with
+      | `Lifted x' -> `Lifted (A.update_length ask x' t)
+      | __ -> x
 end
 
 
@@ -1155,5 +1180,8 @@ struct
   let smart_join ?(length=None) _ _ = join
   let smart_widen ?(length=None) _ _ = widen
   let smart_leq ?(length=None) _ _ = leq
-  let update_length ask x t = x (* TODO:warn *)
+  let update_length ask x t =
+    match x with
+      | `Lifted x' -> `Lifted (A.update_length ask x' t)
+      | __ -> x
 end
