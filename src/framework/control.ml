@@ -545,6 +545,7 @@ struct
 
       let find_invariant nc = Spec.D.invariant "" (get nc) in
 
+      let witness_path = get_string "exp.witness_path" in
       if svcomp_unreach_call then begin
         let module TaskResult =
         struct
@@ -555,7 +556,7 @@ struct
           let is_sink _ = false
         end
         in
-        Witness.write_file "witness.graphml" (module Task) (module TaskResult)
+        Witness.write_file witness_path (module Task) (module TaskResult)
       end else begin
         let is_violation = function
           | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
@@ -592,7 +593,7 @@ struct
           let is_sink = is_sink
         end
         in
-        Witness.write_file "witness.graphml" (module Task) (module TaskResult)
+        Witness.write_file witness_path (module Task) (module TaskResult)
       end
     end;
 

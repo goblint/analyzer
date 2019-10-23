@@ -178,6 +178,7 @@ let _ = ()
       ; reg Experimental "exp.fast_global_inits" "false" "Only generate 'a[0] = 0' for a zero-initialized array a[n]. This is only sound for our flat array domain! TODO change this once we use others!"
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
+      ; reg Experimental "exp.witness_path" "'witness.graphml'" "Witness output path"
       ; reg Experimental "exp.minwitness"        "false" "Try to minimize the witness"
       ; reg Experimental "exp.uncilwitness"      "false" "Try to undo CIL control flow transformations in witness"
       ; reg Experimental "exp.partition-arrays.enabled"  "false" "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well."
