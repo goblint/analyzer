@@ -238,7 +238,7 @@ let createCFG (file: file) =
             let handle_instrs succ = mkEdges (Statement stmt) (List.map handle_instr xs) succ in
             (* Sometimes a statement might not have a successor.
              * This can happen if the last statement of a function is a call to exit. *)
-            let succs = if stmt.succs = [] then [Function fd.svar] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
+            let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
             List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
            * it's job well and we just pick out the right successors *)
