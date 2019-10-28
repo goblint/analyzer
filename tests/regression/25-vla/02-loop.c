@@ -3,6 +3,7 @@ int main(void)
 {
   example1();
   example2();
+  example3();
 }
 
 void example1(void) {
@@ -22,5 +23,18 @@ void example2(void) {
     }
 
     assert(a[0] == 0);
+  }
+}
+
+void example3(void) {
+  for(int i = 2; i < 47; i++) {
+    int n = 1;
+    int a[1];
+
+    if(i == 2) {
+      a[0] = 42;
+    }
+
+    assert(a[0] == 42); //UNKNOWN
   }
 }

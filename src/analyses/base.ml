@@ -624,12 +624,36 @@ struct
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+          let rec contains_vla (t:typ) = match t with
+            | TPtr (t, _) -> contains_vla t
+            | TArray(t, None, args) -> true
+            | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
+            | TArray(t, Some exp, args) -> true
+            | _ -> false
+          in
           let b = Mem e, NoOffset in (* base pointer *)
           let t = typeOfLval b in (* static type of base *)
           let p = eval_lv a gs st b in (* abstract base addresses *)
           let v = (* abstract base value *)
             let open Addr in
-            if AD.for_all (function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false) p then
+            let cast_ok = function
+              | Addr a ->
+                begin
+                  match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
+                  | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
+                  | _ ->
+                    if contains_vla t || contains_vla (get_type_addr a) then
+                      begin
+                        (* TODO: Is this ok? *)
+                        M.warn "Casting involving a VLA is assumed to work";
+                        true
+                      end
+                    else
+                      false
+                end
+              | _ -> false
+            in
+            if AD.for_all cast_ok p then
               get a gs st p (Some exp)  (* downcasts are safe *)
             else
               VD.top () (* upcasts not! *)
