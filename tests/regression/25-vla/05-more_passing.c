@@ -19,6 +19,15 @@ void foo2(int n, int a[50][n]) {
   assert(a[29][7] == 0); //FAIL
 }
 
+// This is quite ugly, but valid C99
+void foo3(int n, int b[n], int a[n][b[0]]) {
+  assert(a[29][7] == 42);
+}
+
+void foo4(int n, int m, int r, int a[n][m][r]) {
+  assert(a[3][3][2] == 42);
+}
+
 int main(void)
 {
   // One-dimensional arrays
@@ -50,4 +59,16 @@ int main(void)
 
   foo2(50,c);
   fooo(50, c);
+
+  int x[50];
+  b[0] = 50;
+  foo3(50, x, c);
+
+  int n = 15;
+  int m = 47;
+  int r = 11;
+
+  int d[n][m][r];
+  d[3][3][2] = 42;
+  foo4(n,m,r,d);
 }
