@@ -18,6 +18,7 @@ sig
   type offs
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
+  val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
   val invalidate_value: Q.ask -> typ -> t -> t
@@ -223,12 +224,19 @@ struct
     | a, b -> a = b
 
   let cast_addr t a =
+    let rec stripVarLenArr = function
+      | TPtr(t, args) -> TPtr(stripVarLenArr t, args)
+      | TArray(t, None, args) -> TArray(stripVarLenArr t, None, args)
+      | TArray(t, Some exp, args) when isConstant exp -> TArray(stripVarLenArr t, Some exp, args)
+      | TArray(t, Some exp, args) -> TArray(stripVarLenArr t, None, args)
+      | t -> t
+    in
     let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
       let info = Pretty.(sprint ~width:0 @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
-      match Pervasives.compare (bitsSizeOf t) (bitsSizeOf ta) with (* TODO is it enough to compare the size? -> yes? *)
+      match Pervasives.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
       | 0 ->
         M.tracel "casta" "same size\n";
         if not (typ_eq t ta) then err "Cast to different type of same size."
@@ -266,6 +274,9 @@ struct
               M.tracel "caste" "%s\n" s;
               a (* probably garbage, but this is deref's problem *)
               (*raise (CastError s)*)
+            | SizeOfError (s,t) ->
+              M.warn_each("size of error: " ^  s ^ "\n");
+              a
           end
         | x -> x (* TODO we should also keep track of the type here *)
     in
@@ -583,17 +594,17 @@ struct
       |	SizeOfE _
       |	SizeOfStr _
       |	AlignOf _
+      | Lval(Var _, _)
       |	AlignOfE _ -> false
       | Question(e1, e2, e3, _) ->
         (contains_pointer e1) || (contains_pointer e2) || (contains_pointer e3)
       |	CastE(_, e)
       |	UnOp(_, e , _) -> contains_pointer e
       |	BinOp(_, e1, e2, _) -> (contains_pointer e1) || (contains_pointer e2)
-      | AddrOf _ -> true
-      | AddrOfLabel _ -> true
-      | StartOf _ -> true
+      | AddrOf _
+      | AddrOfLabel _
+      | StartOf _
       | Lval(Mem _, _) -> true
-      | Lval(Var _, _) -> false
     in
     let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
@@ -604,13 +615,22 @@ struct
           begin
           match Q.LS.choose v with
           | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
-            (* The idea here is that if a must(!) point to arr and we do sth like a[i] we dont want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
+            (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
           end
         | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
         end
       | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+    in
+    (* Create a typesig from a type, but drop the arraylen attribute *)
+    let typeSigWithoutArraylen t =
+      let attrFilter (attr : attribute) : bool =
+        match attr with
+        | Attr ("arraylen", _) -> false
+        | _ -> true
+      in
+      typeSigWithAttrs (List.filter attrFilter) t
     in
     match left, offset with
       | Some(Var(_), _), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
@@ -627,11 +647,11 @@ struct
               if Cil.isArrayType (Cil.typeOf (Lval v')) then
                 let expr = ptr in
                 let start_of_array = StartOf v' in
-                let start_type = Cil.typeOf start_of_array in
-                let expr_type = Cil.typeOf ptr in
+                let start_type = typeSigWithoutArraylen (Cil.typeOf start_of_array) in
+                let expr_type = typeSigWithoutArraylen (Cil.typeOf ptr) in
                 (* Comparing types for structural equality is incorrect here, use typeSig *)
                 (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
-                if Cil.typeSig start_type = Cil.typeSig expr_type then
+                if start_type = expr_type then
                   `Lifted (equiv_expr expr v')
                 else
                   (* If types do not agree here, this means that we were looking at pointers that *)
@@ -775,7 +795,7 @@ struct
                       | TArray(_, l, _) ->
                         let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        `Array(CArrays.make len `Top), offs
+                        `Array(CArrays.make (IndexDomain.of_int (Int64.of_int len)) `Top), offs
                       | _ -> top (), offs (* will not happen*)
                     end
                   | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int 0L) ->
@@ -843,6 +863,29 @@ struct
         affecting_vars v
     (* `Blob / `List can not contain Array *)
     | _ -> []
+
+  (* Won't compile without the final :t annotation *)
+  let rec update_array_lengths (eval_exp: exp -> t) (v:t) (typ:Cil.typ):t =
+    match v, typ with
+    | `Array(n), TArray(ti, e, _) ->
+      begin
+        let update_fun x = update_array_lengths eval_exp x ti in
+        let n' = CArrays.map (update_fun) n in
+        let newl = match e with
+          | None -> ID.top ()
+          | Some e ->
+            begin
+              let v = match eval_exp e with
+                | `Int x -> x
+                | _ -> ID.top () (* TODO:Warn *)
+              in
+              v
+            end
+        in
+        `Array(CArrays.update_length newl n')
+      end
+    | _ -> v
+
 
   let printXml f state =
     match state with

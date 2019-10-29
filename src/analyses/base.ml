@@ -624,12 +624,36 @@ struct
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+          let rec contains_vla (t:typ) = match t with
+            | TPtr (t, _) -> contains_vla t
+            | TArray(t, None, args) -> true
+            | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
+            | TArray(t, Some exp, args) -> true
+            | _ -> false
+          in
           let b = Mem e, NoOffset in (* base pointer *)
           let t = typeOfLval b in (* static type of base *)
           let p = eval_lv a gs st b in (* abstract base addresses *)
           let v = (* abstract base value *)
             let open Addr in
-            if AD.for_all (function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false) p then
+            let cast_ok = function
+              | Addr a ->
+                begin
+                  match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
+                  | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
+                  | _ ->
+                    if contains_vla t || contains_vla (get_type_addr a) then
+                      begin
+                        (* TODO: Is this ok? *)
+                        M.warn "Casting involving a VLA is assumed to work";
+                        true
+                      end
+                    else
+                      false
+                end
+              | _ -> false
+            in
+            if AD.for_all cast_ok p then
               get a gs st p (Some exp)  (* downcasts are safe *)
             else
               VD.top () (* upcasts not! *)
@@ -753,17 +777,11 @@ struct
     | TPtr _ -> `Address (AD.bot ())
     | TComp ({cstruct=true} as ci,_) -> `Struct (bot_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
-    | TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
-    | TArray (ai, Some exp, _) -> begin
-        let default = `Array (ValueDomain.CArrays.bot ()) in
-        match eval_rv a gs st exp with
-        | `Int n -> begin
-            match ID.to_int n with
-            | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai))
-            | _ -> default
-          end
-        | _ -> default
-      end
+    | TArray (ai, None, _) ->
+      `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value a gs st ai))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (bot_value a gs st ai))
     | TNamed ({ttype=t}, _) -> bot_value a gs st t
     | _ -> `Bot
 
@@ -779,18 +797,11 @@ struct
     | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, exp, _) ->
-      let default = `Array (ValueDomain.CArrays.top ()) in
-      (match exp with
-       | Some exp ->
-         (match eval_rv a gs st exp with
-          | `Int n -> begin
-              match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-              | _ -> default
-            end
-          | _ -> default)
-       | None -> default)
+    | TArray (ai, None, _) ->
+      `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
     | TNamed ({ttype=t}, _) -> init_value a gs st t
     | _ -> `Top
 
@@ -805,18 +816,11 @@ struct
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, exp, _) ->
-      let default = `Array (ValueDomain.CArrays.top ()) in
-      (match exp with
-       | Some exp ->
-         (match eval_rv a gs st exp with
-          | `Int n -> begin
-              match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-              | _ -> default
-            end
-          | _ -> default)
-       | None -> default)
+    | TArray (ai, None, _) ->
+      `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
     | TNamed ({ttype=t}, _) -> top_value a gs st t
     | _ -> `Top
 
@@ -1199,7 +1203,7 @@ struct
     List.fold_left f s v_list
 
  (**************************************************************************
-   * Auxilliary functions
+   * Auxillary functions
    **************************************************************************)
 
   let invariant ctx a (gs:glob_fun) st exp tv =
@@ -1314,7 +1318,7 @@ struct
       | `Array n ->  ValueDomain.CArrays.is_bot n
       | `Blob n ->  ValueDomain.Blobs.is_bot n
       | `List n ->  ValueDomain.Lists.is_bot n
-      | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast approprietly) *)
+      | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
       | `Top -> false
     in
     let apply_invariant oldv newv =
@@ -1331,7 +1335,7 @@ struct
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
-        let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unkown position in array) *)
+        let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
         let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
         let new_val = apply_invariant oldval value in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -1535,6 +1539,15 @@ struct
       | None -> nst
       | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp) None None
         (* lval_raw:None, and rval_raw:None is correct here *)
+
+  let vdecl ctx (v:varinfo) =
+    if not (Cil.isArrayType v.vtype) then
+      ctx.local
+    else
+      let lval = eval_lv ctx.ask ctx.global ctx.local (Var v, NoOffset) in
+      let current_value = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
+      let new_value = VD.update_array_lengths (eval_rv ctx.ask ctx.global ctx.local) current_value v.vtype in
+      set ctx.ask ctx.global ctx.local lval new_value None None
 
   (**************************************************************************
    * Function calls
@@ -1861,7 +1874,7 @@ struct
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 1 (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
                                   (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
         | _ -> st
       end
@@ -1928,7 +1941,7 @@ struct
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: D.t) : D.t =
     let combine_one (loc,lf,ldep as st: D.t) ((fun_st,fun_fl,fun_dep) as fun_d: D.t) =
-      (* This function does miscelaneous things, but the main task was to give the
+      (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local

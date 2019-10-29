@@ -470,6 +470,7 @@ sig
   val sync  : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
   val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
   val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
+  val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
   val branch: (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
   val body  : (D.t, G.t, C.t) ctx -> fundec -> D.t
   val return: (D.t, G.t, C.t) ctx -> exp option  -> fundec -> D.t
@@ -612,6 +613,8 @@ struct
 
   let intrpt x = x.local
   (* Just ignore. *)
+
+  let vdecl ctx _ = ctx.local
 
   let asm x =
     ignore (M.warn "ASM statement ignored.");
