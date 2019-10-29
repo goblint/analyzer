@@ -235,7 +235,13 @@ let createCFG (file: file) =
               | Call (lval,func,args,loc) -> loc, Proc (lval,func,args)
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
             in
-            let handle_instrs succ = mkEdges (Statement stmt) (List.map handle_instr xs) succ in
+            let handle_instrs' = function
+              (* Empty Instrs are weird: they have edges without any label or transfer function.
+               * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
+              | [] -> [Cil.locUnknown, Skip] (* TODO: better loc from somewhere? *)
+              | xs -> List.map handle_instr xs
+            in
+            let handle_instrs succ = mkEdges (Statement stmt) (handle_instrs' xs) succ in
             (* Sometimes a statement might not have a successor.
              * This can happen if the last statement of a function is a call to exit. *)
             let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
@@ -269,7 +275,10 @@ let createCFG (file: file) =
             end
           (* The return edges are connected to the function *)
           | Return (exp,loc) -> addCfg (Function fd.svar) (Ret (exp,fd), Statement stmt)
-          | Goto (target_ref, loc) -> addCfg (Statement !target_ref) (Skip, Statement stmt) (* TODO: remove this case again and handle empty goto loop separately somehow, this creates some unconnected nodes *)
+          (* Gotos are skipped over by realnode and usually not needed.
+           * Except goto loops with empty bodies need the Skip edge to be identified as loop heads and connected to return.
+           * This also creates some unconnected but unnecessary edges which are covered by realnode. *)
+          | Goto (target_ref, loc) -> addCfg (Statement !target_ref) (Skip, Statement stmt)
           | _ ->
             if Messages.tracing then Messages.trace "cfg" "Unknown stmtkind for %a\n" d_stmt stmt
         in
