@@ -194,6 +194,11 @@ struct
     let w = step_ctx ctx in
     strict (d, w)
 
+  let skip ctx =
+    let d = S.skip (unlift_ctx ctx) in
+    let w = step_ctx ctx in
+    strict (d, w)
+
   let special ctx r f args =
     let d = S.special (unlift_ctx ctx) r f args in
     let w = step_ctx ctx in

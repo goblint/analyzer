@@ -481,6 +481,7 @@ sig
   val return: (D.t, G.t, C.t) ctx -> exp option  -> fundec -> D.t
   val intrpt: (D.t, G.t, C.t) ctx -> D.t
   val asm   : (D.t, G.t, C.t) ctx -> D.t
+  val skip  : (D.t, G.t, C.t) ctx -> D.t
 
 
   val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
@@ -622,6 +623,8 @@ struct
   let asm x =
     ignore (M.warn "ASM statement ignored.");
     x.local (* Just ignore. *)
+
+  let skip x = x.local (* Just ignore. *)
 
   let query _ (q:Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)
