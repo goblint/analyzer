@@ -9,10 +9,10 @@ struct a{
   int qq;
 };
 
-struct a A[1] = {50, (int)&QQ} ;
-
 int main(){
   int i = 1;
+
+  struct a A[1] = {50, (int)&QQ};
 
   assert(A[0].aa == 50);
   assert(A[0].qq == &QQ); // UNKNOWN
