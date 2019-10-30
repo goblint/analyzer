@@ -824,6 +824,10 @@ struct
     | TNamed ({ttype=t}, _) -> top_value a gs st t
     | _ -> `Top
 
+  (* run eval_rv from above and keep a result that is bottom *)
+  (* this is needed for global variables *)
+  let eval_rv_keep_bot = eval_rv
+
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
   let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
@@ -1439,7 +1443,7 @@ struct
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
         begin
-        let current_val = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
+        let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
         in
         match current_val with
         | `Bot -> (* current value is VD `Bot *)
