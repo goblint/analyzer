@@ -1,4 +1,4 @@
-// PARAM: --set ana.int.interval true --set solver "'new'"
+// PARAM: --set ana.int.interval true --set solver "'td3'"
 #include<pthread.h>
 #include<assert.h>
 
