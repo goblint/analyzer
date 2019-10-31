@@ -12,19 +12,19 @@ sig
   type idx
   type value
 
-  val get: Q.ask -> t ->  ExpDomain.t * idx -> value
-  val set: ?length:(idx option) -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
+  val get: Q.ask -> t -> ExpDomain.t * idx -> value
+  val set: Q.ask -> t -> ExpDomain.t * idx -> value -> t
   val make: idx -> value -> t
   val length: t -> idx option
 
-  val move_if_affected: ?length:(idx option) -> ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
-  val smart_join: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
-  val smart_widen: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option)  -> t -> t-> t
-  val smart_leq: ?length:(idx option) -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
+  val smart_join: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
+  val smart_widen: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
+  val smart_leq: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
   val update_length: idx -> t -> t
 end
 
@@ -49,11 +49,11 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
   let get (ask: Q.ask) a i = a
-  let set ?(length=None) (ask: Q.ask) a i v = join a v
+  let set (ask: Q.ask) a i v = join a v
   let make i v = v
   let length _ = None
 
-  let move_if_affected ?(length = None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let map f x = f x
   let fold_left f a x = f a x
@@ -62,13 +62,25 @@ struct
   let set_inplace = set
   let copy a = a
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None)_ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
   let update_length _ x = x
 end
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.S): S with type value = Val.t and type idx = Idx.t =
+(** Special signature so that we can use the _with_length functions from PartitionedWithLength but still match the interface *
+  * defined for array domains *)
+module type SPartitioned =
+sig
+  include S
+  val set_with_length: idx option -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
+  val smart_join_with_length: idx option -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
+  val smart_widen_with_length: idx option -> (exp -> int64 option) -> (exp -> int64 option)  -> t -> t-> t
+  val smart_leq_with_length: idx option -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
+  val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+end
+
+module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.S):SPartitioned with type value = Val.t and type idx = Idx.t =
 struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
@@ -179,7 +191,7 @@ struct
   let fold_left2 f a (_, ((xl:value), (xm:value), (xr:value))) (_, ((yl:value), (ym:value), (yr:value))) =
     f (f (f a xl yl) xm ym) xr yr
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false) (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
+  let move_if_affected_with_length ?(replace_with_const=false) length (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
     let move (i:int option) =
       match i with
       | Some 0   ->
@@ -255,7 +267,9 @@ struct
           end
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
-  let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
+  let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
+
+  let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
     let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
     let exp_value e =
       match e with
@@ -368,6 +382,8 @@ struct
         (* If the expression used to write is not known, all segments except the empty ones will be affected *)
         (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
 
+  let set = set_with_length None
+
   let join ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) =
     let new_e = Expp.join e1 e2 in
     if Expp.is_top new_e then
@@ -461,14 +477,13 @@ struct
     | _ ->
       failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
 
-
-  let smart_join ?(length=None) x1_eval_int x2_eval_int x1 x2 =
+  let smart_join_with_length length x1_eval_int x2_eval_int x1 x2 =
     smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
-  let smart_widen ?(length=None) x1_eval_int x2_eval_int x1 x2  =
+  let smart_widen_with_length length x1_eval_int x2_eval_int x1 x2  =
     smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
-  let smart_leq ?(length=None) x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
+  let smart_leq_with_length length x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
     let must_be_zero v = (v = Some Int64.zero) in
     let must_be_length_minus_one v =  match length with
@@ -511,7 +526,11 @@ struct
     | _ ->
       failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
 
-    let update_length _ x = x
+  let smart_join = smart_join_with_length None
+  let smart_widen = smart_widen_with_length None
+  let smart_leq = smart_leq_with_length None
+
+  let update_length _ x = x
 end
 
 
@@ -522,19 +541,19 @@ struct
   type idx = Idx.t
   type value = Val.t
   let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
-  let set ?(length=None) (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
+  let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
 
-  let move_if_affected ?(length = None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
   let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e _ = []
 
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
 
   (** It is not necessary to do a least-upper bound between the old and the new length here.   *)
   (** Any array can only be declared in one location. The value for newl that we get there is  *)
@@ -553,30 +572,29 @@ struct
   type idx = Idx.t
   type value = Val.t
   let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
-  let set ?(length=None) ask (x,l) i v =
-    Base.set ~length:(Some l) ask x i v, l
+  let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
 
-  let move_if_affected ?(length = None) ?(replace_with_const=false) ask (x,l) v i =
-    (Base.move_if_affected ~length:(Some l) ~replace_with_const:replace_with_const ask x v i), l
+  let move_if_affected ?(replace_with_const=false) ask (x,l) v i =
+    (Base.move_if_affected_with_length ~replace_with_const:replace_with_const (Some l) ask x v i), l
 
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
   let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
-  let smart_join ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl) =
+  let smart_join x_eval_int y_eval_int (x,xl) (y,yl) =
     let l = Idx.join xl yl in
-    (Base.smart_join ~length:(Some l) x_eval_int y_eval_int x y , l)
+    (Base.smart_join_with_length (Some l) x_eval_int y_eval_int x y , l)
 
-  let smart_widen ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl) =
+  let smart_widen x_eval_int y_eval_int (x,xl) (y,yl) =
     let l = Idx.join xl yl in
-    (Base.smart_widen ~length:(Some l) x_eval_int y_eval_int x y, l)
+    (Base.smart_widen_with_length (Some l) x_eval_int y_eval_int x y, l)
 
-  let smart_leq ?(length=None) x_eval_int y_eval_int (x,xl) (y,yl)  =
+  let smart_leq x_eval_int y_eval_int (x,xl) (y,yl)  =
     let l = Idx.join xl yl in
-    Idx.leq xl yl && Base.smart_leq ~length:(Some l) x_eval_int y_eval_int x y
+    Idx.leq xl yl && Base.smart_leq_with_length (Some l) x_eval_int y_eval_int x y
 
   (** It is not necessary to do a least-upper bound between the old and the new length here.   *)
   (** Any array can only be declared in one location. The value for newl that we get there is  *)
@@ -642,16 +660,16 @@ struct
         else
           P.get a x (e, i)
       ) (fun x -> T.get a x (e,i)) x
-  let set ?(length=None) (ask:Q.ask) x i a = unop_to_t (fun x -> P.set ~length:length ask x i a) (fun x -> T.set ~length:length ask x i a) x
+  let set (ask:Q.ask) x i a = unop_to_t (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) x
   let length = unop P.length T.length
   let get_vars_in_e = unop P.get_vars_in_e T.get_vars_in_e
   let map f = unop_to_t (P.map f) (T.map f)
   let fold_left f s = unop (P.fold_left f s) (T.fold_left f s)
   let fold_left2 f s = binop (P.fold_left2 f s) (T.fold_left2 f s)
-  let move_if_affected ?(length=None) ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t (fun x -> P.move_if_affected ~length:length ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~length:length ~replace_with_const:replace_with_const ask x v f) x
-  let smart_join ?(length=None) f g = binop_to_t (P.smart_join ~length:length f g) (T.smart_join ~length:length f g)
-  let smart_widen ?(length=None) f g = binop_to_t (P.smart_widen ~length:length f g) (T.smart_widen ~length:length f g)
-  let smart_leq ?(length=None) f g = binop (P.smart_leq ~length:length f g) (T.smart_leq ~length:length f g)
+  let move_if_affected ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
+  let smart_join f g = binop_to_t (P.smart_join f g) (T.smart_join f g)
+  let smart_widen f g = binop_to_t (P.smart_widen f g) (T.smart_widen f g)
+  let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
 
   (* TODO: Check if these three are ok to make here *)
   let printXml f = unop (P.printXml f) (T.printXml f)

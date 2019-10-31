@@ -117,7 +117,7 @@ struct
          all possible elements *)
       folded ()
 
-  let set ?(length=None) ask a (_, i) v =
+  let set ask a (_, i) v =
     let set_inplace a i v =
       let top_value () =
         Array.map (fun x -> Base.top ()) a in
@@ -158,11 +158,11 @@ struct
     let two_in_one = Array.map2 (fun x y -> (x,y)) x y in
     Array.fold_left (fun a x -> f a (fst x) (snd x)) a two_in_one
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
 
   let update_length newl x =
     if Idx.to_int newl = Some(Int64.of_int (Array.length x)) then
@@ -189,7 +189,7 @@ struct
       | `Bot -> Base.top ()
       | `Lifted a -> A.get ask a i
 
-  let set ?(length=None) ask x i v =
+  let set ask x i v =
     match x with
       | `Top -> `Top
       | `Bot -> `Bot
@@ -217,11 +217,11 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
   let update_length newl x =
     match x with
     | `Lifted x' -> `Lifted (A.update_length newl x')
@@ -342,7 +342,7 @@ struct
       | Array v -> A.get ask v i
 
 
-  let set ?(length=None) ask a i n =
+  let set ask a i n =
     match a with
   Value v -> Value (Base.join v n)
       | Array v -> Array (A.set ask v i n)
@@ -377,11 +377,11 @@ struct
       | Value x', Value y' -> f a x' y'
       | _ -> raise (Invalid_argument "Collapsing: fold_left2 called on Array and Value")
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
   let update_length newl x =
     match x with
     | Array x' -> Array (A.update_length newl x')
@@ -530,7 +530,7 @@ struct
       | Mapping map when M.mem i map -> M.find i map
       | Mapping map -> Base.top ()
 
-  let set ?(length=None) ask x (_, i) v =
+  let set ask x (_, i) v =
     let add_map  map i v = M.add i v map in
     let join_map map v = M.map (Base.join v) map in
     match x with
@@ -571,11 +571,11 @@ struct
       | _ -> a
 
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
   let update_length _ x = x
 end
 
@@ -885,7 +885,7 @@ struct
       then a
       else map2 Base.meet a b
 
-  let set ?(length=None) ask ((map,len) as emap) (_, index) value =
+  let set ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
       let rest = M.find map (Idx.top ()) in
       if Base.equal value rest then begin
@@ -915,11 +915,11 @@ struct
     let valInY k = M.find my k in
     M.fold mx (fun k v a -> f a v (valInY k)) a
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
 end
 
 module LooseMapArray
@@ -1018,7 +1018,7 @@ struct
       then a
       else map2 Base.meet a b
 
-  let set ?(length=None) ask ((map,len) as emap) (_, index) value =
+  let set ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
       let rest = M.find map (Idx.top ()) in
       if Base.equal value rest then begin
@@ -1057,11 +1057,11 @@ struct
     let valInY k = M.find my k in
     M.fold mx (fun k v a -> f a v (valInY k)) a
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
 end
 
 
@@ -1078,7 +1078,7 @@ struct
   include Lattice.Lift (A) (struct let bot_name = "array bot"
                                    let top_name = "array top" end)
 
-  let set ?(length=None) ask a i v :t =
+  let set ask a i v :t =
     match a with
       | `Lifted l -> `Lifted (A.set ask l i v)
       | z -> z
@@ -1110,11 +1110,11 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false)  _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false)  _ x _ _ = x
   let get_vars_in_e _ = []
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
   let update_length newl x =
     match x with
       | `Lifted x' -> `Lifted (A.update_length newl x')
@@ -1135,7 +1135,7 @@ struct
   include Lattice.Lift (A) (struct let bot_name = "array bot"
                                    let top_name = "array top" end)
 
-  let set ?(length=None) ask a i v :t =
+  let set ask a i v :t =
     match a with
       | `Lifted l -> `Lifted (A.set ask l i v)
       | z -> z
@@ -1169,11 +1169,11 @@ struct
       | `Lifted x', `Lifted y' -> A.fold_left2 f a x' y'
       | _ -> a
 
-  let move_if_affected ?(length=None) ?(replace_with_const=false) _ x _ _ = x
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
-  let smart_join ?(length=None) _ _ = join
-  let smart_widen ?(length=None) _ _ = widen
-  let smart_leq ?(length=None) _ _ = leq
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
   let update_length newl x =
     match x with
       | `Lifted x' -> `Lifted (A.update_length newl x')

@@ -8,7 +8,7 @@ sig
 
   val get: Queries.ask -> t -> ExpDomain.t * idx -> value
   (** Returns the element residing at the given index. *)
-  val set: ?length:(idx option) -> Queries.ask -> t -> ExpDomain.t * idx -> value -> t
+  val set: Queries.ask -> t -> ExpDomain.t * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
   val make: idx -> value -> t
@@ -16,7 +16,7 @@ sig
     * containing the element [e]. *)
   val length: t -> idx option
   (** returns length of array if known *)
-  val move_if_affected: ?length:(idx option) -> ?replace_with_const:bool -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?replace_with_const:bool -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   (** changes the way in which the array is partitioned if this is necessitated by a change
     * to the variable **)
   val get_vars_in_e: t -> Cil.varinfo list
@@ -28,9 +28,9 @@ sig
   (** Left fold (like List.fold_left) over the arrays elements *)
   val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
   (** Left fold over the elements of two arrays (like List.fold_left2 *)
-  val smart_join: ?length:(idx option)-> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t  -> t
-  val smart_widen: ?length:(idx option) -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
-  val smart_leq: ?length:(idx option) -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t  -> bool
+  val smart_join: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t  -> t
+  val smart_widen: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
+  val smart_leq: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t  -> bool
   val update_length: idx -> t -> t
 end
 
