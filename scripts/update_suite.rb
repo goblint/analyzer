@@ -341,7 +341,7 @@ File.open(theresultfile, "w") do |f|
       check = lambda {|cond|
         if cond then correct += 1
         else
-          puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
+          puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.light_blue}:#{idx.to_s.blue}"
           ferr = idx if ferr.nil? or idx < ferr
         end
       }
