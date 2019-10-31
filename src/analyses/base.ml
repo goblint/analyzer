@@ -636,6 +636,8 @@ struct
           let p = eval_lv a gs st b in (* abstract base addresses *)
           let v = (* abstract base value *)
             let open Addr in
+            (* pre VLA: *)
+            (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
             let cast_ok = function
               | Addr a ->
                 begin
