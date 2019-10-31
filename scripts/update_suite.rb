@@ -396,6 +396,7 @@ File.open(theresultfile, "w") do |f|
         failed.push "#{p.id} #{p.name}"
         exc = if lines[0] =~ /exception/ then " (see exception above)" else "" end
         puts "#{id}" + " failed#{exc}!".red
+        puts ""
         if dump then
           puts "============== WARNINGS ==============="
           puts File.read(File.join(testresults, warnfile))
