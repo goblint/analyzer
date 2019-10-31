@@ -22,6 +22,8 @@ class String
   def pink; colorize(35) end
   def cyan; colorize(36) end
   def white; colorize(37) end
+  def bg_black; colorize(40) end # gray for me
+  def gray; colorize("38;5;240") end
 end
 class Array
   def itemize(n=2); self.map {|x| "- #{x}".indent(n)}.join() end
@@ -347,7 +349,7 @@ File.open(theresultfile, "w") do |f|
         if cond then correct += 1
         else
           puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
-          puts p.tests_line[idx].rstrip.colorize(40)
+          puts p.tests_line[idx].rstrip.gray
           ferr = idx if ferr.nil? or idx < ferr
         end
       }
