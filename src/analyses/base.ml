@@ -373,6 +373,8 @@ struct
       try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
     in
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
+    (* if VD.is_bot res then *)
+    (*   M.warn_each ("[undefined behavior] Accessing uninitialized content at " ^ sprint AD.pretty addrs ^ " (expr: " ^ Option.map_default (sprint d_exp) "?" exp ^ ")"); *)
     res
 
   let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
@@ -807,6 +809,9 @@ struct
     | TNamed ({ttype=t}, _) -> init_value a gs st t
     | _ -> `Top
 
+  (* We can't just set all to `Bot since some domains/analyses rely on the abstract value having the right type (would make 30 tests fail), so we create a bot of the right abstract type. *)
+  let init_value = bot_value
+
   let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
     let rec top_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
@@ -826,15 +831,26 @@ struct
     | TNamed ({ttype=t}, _) -> top_value a gs st t
     | _ -> `Top
 
-  (* run eval_rv from above and keep a result that is bottom *)
-  (* this is needed for global variables *)
-  let eval_rv_keep_bot = eval_rv
-
-  (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
-  (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
+  (* Accessing uninitialized objects is undefined behavior and we should warn about it!
+   * The access might happen in [get] or in [do_offs] in some sub-expression in the above [eval_rv].
+   * Since bot propagates and we don't want to warn for all sub-expressions we only warn here. *)
+  (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok.
+   * Now we want to warn about about any access to uninitialized memory and treat it as top/Unknown instead of bot/Deadcode.
+   * We could just change bot to top here, but then we would not see which values are transitively uninitialzed (int x; int y = x; // y should also be bot).
+   * So we only warn here, keep bot, and instead treat bot as top when branching. Locals are now initialized with bot instead of top.
+   * This way bot for variables means uninitalized (before we only had bot inside arrays and blobs). *)
+  (* To be sound we adjust:
+  * - [branch] such that it falls through and meets [invariant] in both branches instead of raising Deadcode if eval_rv cond is bot
+  * - asserts to return UNKNOWN
+  * - calls of expressions that evaluate to bot TODO can this happen? *)
   let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     let r = eval_rv a gs st exp in
-    if VD.is_bot r then top_value a gs st (typeOf exp) else r
+    if M.tracing then M.tracel "eval" "nonrec eval_rv (%a) = %a\n" d_exp exp VD.pretty r;
+    if VD.is_bot r then (
+      M.warn_each ("[undefined behavior] Evaluating expression with uninitialized content: " ^ sprint d_exp exp); (* TODO in which subexpression? *)
+      (* top_value a gs st (typeOf exp) *)
+    );
+    r
 
   let eval_exp x (exp:exp):int64 option =
       (* Since ctx is not available here, we need to make some adjustments *)
@@ -1445,7 +1461,7 @@ struct
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
         begin
-        let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
+        let current_val = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
         in
         match current_val with
         | `Bot -> (* current value is VD `Bot *)
@@ -1501,13 +1517,13 @@ struct
         if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
         raise Deadcode
       end
-    | `Bot ->
+    (* | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
       if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
       if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin
         locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv)
       end;
-      raise Deadcode
+      raise Deadcode *)
     (* Otherwise we try to impose an invariant: *)
     | _ ->
       if !GU.in_verifying_stage then
@@ -1708,7 +1724,7 @@ struct
           | Some true  ->  `True
           | _ -> `Top
         end
-      | `Bot -> `Bot
+      | x when VD.is_bot x -> `Bot
       | _ -> `Top
     in
     let expr = sprint d_exp e in
@@ -1731,11 +1747,9 @@ struct
     | `True ->
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
-    | `Bot ->
-      M.warn_each ~ctx:ctx.context ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
-      ctx.local
-    | `Top ->
-      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
+    | `Bot | `Top as x ->
+      let bot_info = if x = `Bot then " It is unknown because it accesses uninitialized memory which is undefined behavior." else "" in
+      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown." ^ bot_info);
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx ctx.ask ctx.global ctx.local e true in

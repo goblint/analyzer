@@ -88,7 +88,17 @@ struct
 
   exception Unsupported of string
   let bot () = `Bot
-  let is_bot x = x = `Bot
+  (* let is_bot x = x = `Bot *)
+  let is_bot = function
+    | `Bot -> true
+    | `Top -> false
+    | `Int x ->  ID.is_bot x
+    | `Address x ->  AD.is_bot x
+    | `Struct x ->  Structs.is_bot x
+    | `Union x ->  Unions.is_bot x
+    | `Array x ->  CArrays.is_bot x
+    | `Blob x ->  Blobs.is_bot x
+    | `List x ->  Lists.is_bot x
   let bot_name = "Uninitialized"
   let top () = `Top
   let is_top x = x = `Top
