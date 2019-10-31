@@ -14,12 +14,14 @@ class String
   def indent(n=2); " "*n + self end
   # colors
   def colorize(color_code); "\e[#{color_code}m#{self}\e[0m" end
+  def black; colorize(30) end
   def red; colorize(31) end
   def green; colorize(32) end
   def yellow; colorize(33) end
   def blue; colorize(34) end
   def pink; colorize(35) end
-  def light_blue; colorize(36) end
+  def cyan; colorize(36) end
+  def white; colorize(37) end
 end
 class Array
   def itemize(n=2); self.map {|x| "- #{x}".indent(n)}.join() end
@@ -53,16 +55,17 @@ failed    = [] # failed tests
 timedout  = [] # timed out tests
 
 class Project
-  attr_reader :id, :name, :group, :path, :params, :warnings
+  attr_reader :id, :name, :group, :path, :params, :tests, :tests_line
   attr_accessor :size, :ok
-  def initialize(id, name, size, group, path, params, warnings, ok)
+  def initialize(id, name, size, group, path, params, tests, tests_line, ok)
     @id       = id
     @name     = name
     @size     = size
     @group    = group
     @path     = path
     @params   = params
-    @warnings = warnings
+    @tests = tests
+    @tests_line = tests_line
     @ok = ok
   end
   def to_html
@@ -126,7 +129,8 @@ regs.sort.each do |d|
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 
-    hash = Hash.new
+    tests = Hash.new
+    tests_line = Hash.new
     i = 0
     lines.each do |obj|
       i = i + 1
@@ -134,33 +138,34 @@ regs.sort.each do |d|
         i = $1.to_i - 1
       end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
+      tests_line[i] = obj
       if obj =~ /RACE/ then
-        hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
+        tests[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /DEADLOCK/ then
-        hash[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
+        tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
       elsif obj =~ /WARN/ then
-        hash[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
+        tests[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
       elsif obj =~ /assert.*\(/ then
         debug = true
         if obj =~ /FAIL/ then
-          hash[i] = "fail"
+          tests[i] = "fail"
         elsif obj =~ /UNKNOWN/ then
-          hash[i] = "unknown"
+          tests[i] = "unknown"
         else
-          hash[i] = "assert"
+          tests[i] = "assert"
         end
       end
     end
     case lines[0]
     when /NON?TERM/
-      hash[-1] = "noterm"
+      tests[-1] = "noterm"
       debug = true
     when /TERM/
-      hash[-1] = "term"
+      tests[-1] = "term"
       debug = true
     end
     params << " --set dbg.debug true" if debug
-    p = Project.new(id,testname,0,groupname,path,params,hash,true)
+    p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, true)
     projects << p
   end
 end
@@ -337,11 +342,12 @@ File.open(theresultfile, "w") do |f|
     end
     correct = 0
     ferr = nil
-    p.warnings.each_pair do |idx, type|
+    p.tests.each_pair do |idx, type|
       check = lambda {|cond|
         if cond then correct += 1
         else
-          puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.light_blue}:#{idx.to_s.blue}"
+          puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
+          puts p.tests_line[idx].rstrip.colorize(40)
           ferr = idx if ferr.nil? or idx < ferr
         end
       }
@@ -358,7 +364,7 @@ File.open(theresultfile, "w") do |f|
         check.call warnings[idx] != "deadlock"
       end
     end
-    f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.warnings.size}</a></td>"
+    f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.tests.size}</a></td>"
 
     statsfile = File.join(p.group, p.name + ".stats.txt")
     lines = IO.readlines(File.join(testresults, statsfile))
@@ -382,7 +388,7 @@ File.open(theresultfile, "w") do |f|
 #       f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
 #     end
 
-    if correct == p.warnings.size && is_ok then
+    if correct == p.tests.size && is_ok then
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
