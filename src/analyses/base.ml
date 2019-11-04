@@ -836,7 +836,7 @@ struct
    * Since bot propagates and we don't want to warn for all sub-expressions we only warn here. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok.
    * Now we want to warn about about any access to uninitialized memory and treat it as top/Unknown instead of bot/Deadcode.
-   * We could just change bot to top here, but then we would not see which values are transitively uninitialzed (int x; int y = x; // y should also be bot).
+   * We could just change bot to top here, but then we would not see which values are transitively uninitialized (int x; int y = x; // y should also be bot).
    * So we only warn here, keep bot, and instead treat bot as top when branching. Locals are now initialized with bot instead of top.
    * This way bot for variables means uninitalized (before we only had bot inside arrays and blobs). *)
   (* To be sound we adjust:
