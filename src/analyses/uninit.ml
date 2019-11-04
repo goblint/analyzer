@@ -180,7 +180,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | `Field (f, o),    TComp (c1,_),    TComp (c2,_) when c1.cstruct && c2.cstruct ->
-      (* step into both, but check that types of prefices match*)
+      (* step into both, but check that types of prefixes match*)
       bothstruct c1.cfields f c2.cfields o
     | `Field (f, o),    TComp (c1,_),              _  when not c1.cstruct  ->
       (* step into target but not other (don't care about other) *)
