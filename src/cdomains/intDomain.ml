@@ -164,18 +164,21 @@ struct
     | Some (x1,x2), Some (y1,y2) -> norm @@ Some (max x1 y1, min x2 y2)
 
   let is_int = function Some (x,y) when Int64.compare x y = 0 -> true | _ -> false
-  let of_int x = norm @@ Some (x,x)
   let to_int = function Some (x,y) when Int64.compare x y = 0 -> Some x | _ -> None
-
   let of_interval (x,y) = norm @@ Some (x,y)
+  let of_int x = of_interval (x,x)
+  let zero = Some (0L, 0L)
+  let one  = Some (1L, 1L)
 
-  let of_bool = function true -> Some (Int64.one,Int64.one) | false -> Some (Int64.zero,Int64.zero)
-  let is_bool = function None -> false | Some (x,y) ->
-    if Int64.compare x Int64.zero = 0 && Int64.compare y Int64.zero = 0 then true
-    else not (leq (of_int Int64.zero) (Some (x,y)))
-  let to_bool = function None -> None | Some (x,y) ->
-    if Int64.compare x Int64.zero = 0 && Int64.compare y Int64.zero = 0 then Some false
-    else if leq (of_int Int64.zero) (Some (x,y)) then None else Some true
+  let of_bool = function true -> one | false -> zero
+  let is_bool x = x <> None && not (leq zero x) || x = zero
+  let to_bool = function
+    | None -> None
+    | Some (0L , 0L) -> Some false
+    | x -> if leq zero x then None else Some true
+  let to_bool_interval x = match x with
+    | None | Some (0L, 0L) -> x
+    | _ -> if leq zero x then Some (0L, 1L) else Some (1L, 1L)
 
   let starting n = norm @@ Some (n,max_int)
   let ending   n = norm @@ Some (min_int,n)
@@ -298,12 +301,9 @@ struct
           norm @@ Some ((min (min x1y1n x1y2n) (min x2y1n x2y2n)),
                         (max (max x1y1p x1y2p) (max x2y1p x2y2p)))
       end
-  let ne i1 i2 = sub i1 i2
+  let ne i1 i2 = to_bool_interval (sub i1 i2)
 
-  let eq i1 i2 =
-    match to_bool (sub i1 i2) with
-    | Some x -> of_bool (not x)
-    | None -> of_interval (0L, 1L)
+  let eq i1 i2 = to_bool_interval (lognot (sub i1 i2))
 
   let ge x y =
     match x, y with
