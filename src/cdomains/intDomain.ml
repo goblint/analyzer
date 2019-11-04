@@ -303,7 +303,7 @@ struct
   let eq i1 i2 =
     match to_bool (sub i1 i2) with
     | Some x -> of_bool (not x)
-    | None -> None
+    | None -> of_interval (0L, 1L)
 
   let ge x y =
     match x, y with
