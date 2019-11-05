@@ -169,6 +169,7 @@ struct
   let of_int x = of_interval (x,x)
   let zero = Some (0L, 0L)
   let one  = Some (1L, 1L)
+  let top_bool = Some (0L, 1L)
 
   let of_bool = function true -> one | false -> zero
   let is_bool x = x <> None && not (leq zero x) || x = zero
@@ -178,7 +179,7 @@ struct
     | x -> if leq zero x then None else Some true
   let to_bool_interval x = match x with
     | None | Some (0L, 0L) -> x
-    | _ -> if leq zero x then Some (0L, 1L) else Some (1L, 1L)
+    | _ -> if leq zero x then top_bool else one
 
   let starting n = norm @@ Some (n,max_int)
   let ending   n = norm @@ Some (min_int,n)
@@ -311,7 +312,7 @@ struct
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare y2 x1 <= 0 then of_bool true
       else if Int64.compare x2 y1 < 0 then of_bool false
-      else top ()
+      else top_bool
 
   let le x y =
     match x, y with
@@ -319,7 +320,7 @@ struct
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare x2 y1 <= 0 then of_bool true
       else if Int64.compare  y2 x1 < 0 then of_bool false
-      else top ()
+      else top_bool
 
   let gt x y =
     match x, y with
@@ -327,7 +328,7 @@ struct
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare  y2 x1 < 0 then of_bool true
       else if Int64.compare x2 y1 <= 0 then of_bool false
-      else top ()
+      else top_bool
 
   let lt x y =
     match x, y with
@@ -335,7 +336,7 @@ struct
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare x2 y1 < 0 then of_bool true
       else if Int64.compare y2 x1 <= 0 then of_bool false
-      else top ()
+      else top_bool
 
   let invariant c = function
     | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
