@@ -64,5 +64,5 @@ void example2(void) {
 
 void callee(int* arr) {
   arr[0] = 7;
-  asser(arr[0] == 7);
+  assert(arr[0] == 7);
 }
