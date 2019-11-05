@@ -819,7 +819,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt _ -> `Int (ID.top ())
+    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
