@@ -281,16 +281,8 @@ struct
     | None -> Arg.next n
 end
 
-module type MoveNode =
-sig
-  include Node
-
-  val move: t -> MyCFG.node -> t
-  val is_live: t -> bool
-end
-
-module Intra (Node: MoveNode) (ArgIntra: SIntraOpt) (Arg: S with module Node = Node):
-  S with module Node = Node =
+module Intra (ArgIntra: SIntraOpt) (Arg: S):
+  S with module Node = Arg.Node =
 struct
   include Arg
   open GobConfig
@@ -300,6 +292,8 @@ struct
     | None -> Arg.next node
     | Some next ->
       next
-      |> List.map (fun (e, to_n) -> (e, Node.move node to_n))
-      |> List.filter (fun (_, to_node) -> Node.is_live to_node)
+      |> BatList.filter_map (fun (e, to_n) ->
+          Node.move_opt node to_n
+          |> BatOption.map (fun to_node -> (e, to_node))
+        )
 end
