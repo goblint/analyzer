@@ -701,7 +701,6 @@ struct
           in
           `Address (AD.map array_start (eval_lv a gs st lval))
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
-        (* Most casts are currently just ignored, that's probably not a good idea! *)
         | CastE  (t, exp) ->
           let v = eval_rv a gs st exp in
           VD.cast ~torg:(typeOf exp) t v

@@ -65,7 +65,9 @@ module Size = struct (* size in bits as int, range as int64 *)
     | `Unsigned -> IULongLong
   let top_typ = TInt (ILongLong, [])
   let min_for x = intKindForValue (mkCilint (max (sign x)) x) (sign x = `Unsigned)
-  let bit ik = bytesSizeOfInt ik * 8 (* total bits *)
+  let bit = function (* bits needed for representation *)
+    | IBool -> 1
+    | ik -> bytesSizeOfInt ik * 8
   let is_int64_big_int x = try let _ = int64_of_big_int x in true with _ -> false
   let card ik = (* cardinality *)
     let b = bit ik in
@@ -1172,7 +1174,7 @@ struct
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
   let equal (x:t) (y:t) = x=y
   let name () = "booleans"
-  let cast_to _ x = x
+  let cast_to _ x = x (* ok since there's no smaller ikind to cast to *)
   let copy x = x
   let isSimple _ = true
   let short _ x = if x then N.truename else N.falsename
