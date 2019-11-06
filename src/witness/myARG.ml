@@ -7,6 +7,8 @@ sig
 
   val cfgnode: t -> MyCFG.node
   val to_string: t -> string
+
+  val move_opt: t -> MyCFG.node -> t option
 end
 
 (* Abstract Reachability Graph *)
@@ -28,6 +30,12 @@ struct
     nl
     |> List.map Node.to_string
     |> String.concat "@"
+
+  let move_opt nl to_node = match nl with
+    | [] -> None
+    | n :: stack ->
+      Node.move_opt n to_node
+      |> BatOption.map (fun to_n -> to_n :: stack)
 end
 
 module Stack (Cfg:CfgForward) (Arg: S):
@@ -62,15 +70,23 @@ struct
             begin match call_next with
               | [] -> failwith "StackArg.next: call next empty"
               | [(_, return_node)] ->
-                Arg.next n
-                |> List.filter (fun (edge, to_n) ->
-                    let to_cfgnode = Arg.Node.cfgnode to_n in
-                    MyCFG.Node.equal to_cfgnode return_node
-                  )
-                |> List.map (fun (edge, to_n) ->
-                    let to_n' = to_n :: call_stack in
-                    (edge, to_n')
-                  )
+                begin match Arg.Node.move_opt call_n return_node with
+                  (* TODO: Is it possible to have a calling node without a returning node? *)
+                  (* | None -> [] *)
+                  | None -> failwith "StackArg.next: no return node"
+                  | Some return_n ->
+                    (* TODO: Instead of next & filter, construct unique return_n directly. Currently edge missing. *)
+                    Arg.next n
+                    |> List.filter (fun (edge, to_n) ->
+                        (* let to_cfgnode = Arg.Node.cfgnode to_n in
+                        MyCFG.Node.equal to_cfgnode return_node *)
+                        Arg.Node.equal to_n return_n
+                      )
+                    |> List.map (fun (edge, to_n) ->
+                        let to_n' = to_n :: call_stack in
+                        (edge, to_n')
+                      )
+                end
               | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
             end
         end

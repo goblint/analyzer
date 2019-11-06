@@ -529,6 +529,13 @@ struct
 
           let move (n, c) to_n = (to_n, c)
           let is_live node = not (Spec.D.is_bot (get node))
+
+          let move_opt node to_n =
+            let to_node = move node to_n in
+            if is_live to_node then
+              Some to_node
+            else
+              None
         end
 
         let main_entry = WitnessUtil.find_main_entry entrystates
