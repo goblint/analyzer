@@ -67,7 +67,6 @@ let _ = ()
       ; reg Std "allglobs"        "false"        "Prints access information about all globals, not just races."
       ; reg Std "keepcpp"         "false"        "Keep the intermediate output of running the C preprocessor."
       ; reg Std "tempDir"         "''"           "Reuse temporary directory for preprocessed files."
-      ; reg Std "merge-conflicts" "true"         "Abort on merging conflicts."
       ; reg Std "cppflags"        "''"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
@@ -140,18 +139,10 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "true"  "Use privatization?"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
-      ; reg Experimental "exp.nested"            "false" "Use a nested constraint system."
-      ; reg Experimental "exp.field_insensitive" "false" "Control the field sensitivity of the Base analysis."
-      ; reg Experimental "exp.check"             "[]"    "Check whether there is a race involving this variable/type."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
-      ; reg Experimental "exp.write-races"       "false" "Ignores read accesses altogether in reporting races."
       ; reg Experimental "exp.failing-locks"     "false" "Takes the possible failing of locking operations into account."
-      ; reg Experimental "exp.field-insensitive" "false" "Turns off field-sensitivity."
       ; reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses."
-      (* ; reg Experimental "exp.unmerged-fields"   "false" "Does not merge accesses to possibly same fields, unsound." *)
-      (* ; reg Experimental "exp.die-on-collapse"   "false" "Raise an exception as soon as an array collapses." *)
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
-      ; reg Experimental "exp.sharir-pnueli"     "false" "Use the Sharir/Pnueli algorithm for solving."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
       ; reg Experimental "exp.full-context"      "false" "Do not side-effect function entries. If partial contexts (or ana.ctx_insens) are used, this will fail!"
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
@@ -159,7 +150,6 @@ let _ = ()
       ; reg Experimental "exp.no-interval32-context" "false" "Ignore integer values of the Interval32 domain in function contexts."
       ; reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails."
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
-      ; reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges."
       ; reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
       ; reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
       ; reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls spawn reachable functions and switch to MT-mode?"
@@ -193,10 +183,6 @@ let _ = ()
 let _ = ()
       ; reg Debugging "dbg.debug"           "false" "Debug mode: for testing the analyzer itself."
       ; reg Debugging "dbg.verbose"         "false" "Prints some status information."
-      ; reg Debugging "dbg.filter"          ""      "Regexp filtering output file."
-      (* ; reg Debugging "dbg.trace.sys"       ""      "Subsystem to show debug printfs for, such as con, sol." *)
-      (* ; reg Debugging "dbg.trace.vars"      "[]"    "Identifier name of interest for tracing." *)
-      (* ; reg Debugging "dbg.trace.locs"      "[]"    "Line number of interest for tracing." *)
       ; reg Debugging "dbg.trace.context"   "false" "Also print the context of solver variables."
       ; reg Debugging "dbg.showtemps"       "false" "Shows CIL's temporary variables when printing the state."
       ; reg Debugging "dbg.uncalled"        "false" "Display uncalled functions."
@@ -204,7 +190,6 @@ let _ = ()
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
       ; reg Debugging "dbg.timeout"         "0"     "Maximal time for analysis. (0 -- no timeout)"
       ; reg Debugging "dbg.solver-progress" "false" "Used for debugging. Prints out a symbol on solving a rhs."
-      ; reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support."
       ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
@@ -216,7 +201,7 @@ let _ = ()
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
 , 'properties' :
   { 'ana' :
@@ -259,7 +244,6 @@ let default_schema = "\
   , 'tempDir'         :
     { 'type'            : 'string'
     }
-  , 'merge-conflicts' : {}
   , 'cppflags'        : {}
   , 'kernel'          : {}
   , 'dump_globs'      : {}
