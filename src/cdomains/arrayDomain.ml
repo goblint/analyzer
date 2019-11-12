@@ -117,6 +117,18 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
 
+  let printXml f ((e, (xl, xm, xr)) as x) =
+    if is_not_partitioned x then
+      let join_over_all = Val.join (Val.join xl xm) xr in
+      BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml join_over_all
+    else
+      BatPrintf.fprintf f "<value>\n<map>\n
+          <key>Partitioned By</key>\n%a\n
+          <key>l</key>\n%a\n\n
+          <key>m</key>\n%a\n\n
+          <key>r</key>\n%a\n\n
+        </map></value>\n" Expp.printXml e Val.printXml xl Val.printXml xm Val.printXml xr
+
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) =
     match e, i with
     | `Lifted e', `Lifted i' ->
@@ -407,9 +419,6 @@ struct
 
   let set_inplace = set
   let copy a = a
-  let printXml f (e, (xl, xm, xr)) =
-    let join_over_all = Val.join (Val.join xl xm) xr in
-    BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml join_over_all
 
   let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
     let must_be_length_minus_one v = match length with
