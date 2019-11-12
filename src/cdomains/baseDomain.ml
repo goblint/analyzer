@@ -41,31 +41,36 @@ struct
   module Val = VD
 end
 
-
-module VarSet = SetDomain.Make(Basetype.Variables)
-module VarMap = MapDomain.MapBot_LiftTop(Basetype.Variables)(VarSet)
+(* Keeps track of which arrays are potentially partitioned according to an expression containing a specific variable *)
+(* Map from variables to sets of arrays: var -> {array} *)
+module PartDeps =
+struct
+  module VarSet = SetDomain.Make(Basetype.Variables)
+  include MapDomain.MapBot_LiftTop(Basetype.Variables)(VarSet)
+  let name () = "array partitioning deps"
+end
 
 module type ExpEvaluator =
 sig
-  val eval_exp: CPA.t * Flag.t * VarMap.t ->  Cil.exp -> int64 option
+  val eval_exp: CPA.t * Flag.t * PartDeps.t ->  Cil.exp -> int64 option
 end
 
 (* Takes a module specifying how expressions can be evaluated inside the domain and returns the domain *)
 module DomFunctor(ExpEval:ExpEvaluator) =
 struct
-  include Lattice.Prod3(CPA)(Flag)(VarMap)
+  include Lattice.Prod3(CPA)(Flag)(PartDeps)
 
   let join ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
     let cpa_join = CPA.join_with_fct (VD.smart_join (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
-    (cpa_join a1 a2, Flag.join b1 b2, VarMap.join c1 c2)
+    (cpa_join a1 a2, Flag.join b1 b2, PartDeps.join c1 c2)
 
   let leq ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
     let cpa_leq = CPA.leq_with_fct (VD.smart_leq (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
-    cpa_leq a1 a2 && Flag.leq b1 b2 && VarMap.leq c1 c2
+    cpa_leq a1 a2 && Flag.leq b1 b2 && PartDeps.leq c1 c2
 
   let widen ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
     let cpa_widen = CPA.widen_with_fct (VD.smart_widen (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
-    (cpa_widen a1 a2, Flag.widen b1 b2, VarMap.widen c1 c2)
+    (cpa_widen a1 a2, Flag.widen b1 b2, PartDeps.widen c1 c2)
 end
 
 

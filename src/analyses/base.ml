@@ -47,7 +47,7 @@ struct
   module VD     = BaseDomain.VD
   module CPA    = BaseDomain.CPA
   module Flag   = BaseDomain.Flag
-  module Dep    = BaseDomain.VarMap
+  module Dep    = BaseDomain.PartDeps
 
   module Dom    = BaseDomain.DomFunctor(RVEval)
 
@@ -1017,10 +1017,10 @@ struct
   (** Add dependencies between a value and the expression it (or any of its contents) are partitioned by *)
   let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st,fl,dep:store):store =
     let add_one_dep (array:varinfo) (var:varinfo) dep =
-      let vMap = try BaseDomain.VarMap.find var dep
-        with Not_found -> BaseDomain.VarSet.empty () in
-      let vMapNew = BaseDomain.VarSet.add array vMap in
-      BaseDomain.VarMap.add var vMapNew dep
+      let vMap = try Dep.find var dep
+        with Not_found -> Dep.VarSet.empty () in
+      let vMapNew = Dep.VarSet.add array vMap in
+      Dep.add var vMapNew dep
     in
     match value with
     | `Array _
@@ -1089,9 +1089,9 @@ struct
            expressions for partitioning *)
         let rec effect_on_arrays a (st, fl, dep)=
           let affected_arrays =
-            let set = try BaseDomain.VarMap.find x dep
-              with Not_found -> BaseDomain.VarSet.empty () in
-            BaseDomain.VarSet.elements set
+            let set = try Dep.find x dep
+              with Not_found -> Dep.VarSet.empty () in
+            Dep.VarSet.elements set
           in
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
@@ -1185,7 +1185,7 @@ struct
 
   let rem_many a (st,fl,dep: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
-    let g dep v = BaseDomain.VarMap.remove v dep in
+    let g dep v = Dep.remove v dep in
     List.fold_left f st v_list, fl, List.fold_left g dep v_list
 
   (* Removes all partitionings done according to this variable *)
@@ -1193,9 +1193,9 @@ struct
     (* Removes the partitioning information from all affected arrays, call before removing locals *)
     let rem_partitioning a (st,fl,dep:store) (x:varinfo):store =
       let affected_arrays =
-        let set = try BaseDomain.VarMap.find x dep
-         with Not_found -> BaseDomain.VarSet.empty () in
-        BaseDomain.VarSet.elements set
+        let set = try Dep.find x dep
+         with Not_found -> Dep.VarSet.empty () in
+        Dep.VarSet.elements set
       in
       let effect_on_array arr st =
         let v = CPA.find arr st in
