@@ -85,13 +85,14 @@ struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
   (* values from Val are identical *)
-
-  let name () = "partitioned arrays"
   module Expp = ExpDomain
   module Base = Lattice.Prod3 (Val) (Val) (Val)
   include Lattice.ProdSimple(Expp) (Base)
+
   type idx = Idx.t
   type value = Val.t
+
+  let name () = "partitioned array"
 
   let is_not_partitioned (e, _) =
     Expp.is_bot e || Expp.is_top e
