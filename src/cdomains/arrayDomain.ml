@@ -572,6 +572,9 @@ struct
   (** determining the size now (e.g. because of narrowing), but this holds for all the times   *)
   (** the declaration is visited. *)
   let update_length newl (x, l) = (x, newl)
+
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
 
@@ -613,6 +616,9 @@ struct
   (** determining the size now (e.g. because of narrowing), but this holds for all the times   *)
   (** the declaration is visited. *)
   let update_length newl (x, l) = (x, newl)
+
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t =
