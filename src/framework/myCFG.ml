@@ -46,7 +46,7 @@ let pretty_edge () = function
   | Test (p,b) -> dprintf "Test (%a,%b)" d_exp p b
   | ASM _ -> text "ASM ..."
   | Skip -> text "Skip"
-  | VDecl v -> dprintf "VDecl for %s of type %a" v.vname d_type v.vtype
+  | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
   | SelfLoop -> text "SelfLoop"
 
 let rec pretty_edges () = function
@@ -259,7 +259,7 @@ let print cfg  =
     | Ret (None,f) -> Pretty.dprintf "return"
     | ASM (_,_,_) -> Pretty.text "ASM ..."
     | Skip -> Pretty.text "skip"
-    | VDecl v -> Pretty.dprintf "VDecl for %s of type %a" v.vname d_type v.vtype
+    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
     | SelfLoop -> Pretty.text "SelfLoop"
   in
   (* escape string in label, otherwise dot might fail *)
@@ -417,7 +417,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
     | Ret (None,f) -> Pretty.dprintf "return"
     | ASM (_,_,_) -> Pretty.text "ASM ..."
     | Skip -> Pretty.text "skip"
-    | VDecl v -> Pretty.dprintf "VDecl for %s of type %a" v.vname d_type v.vtype
+    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
     | SelfLoop -> Pretty.text "SelfLoop"
   in
   let rec p_edges () = function
