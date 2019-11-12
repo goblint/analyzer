@@ -78,8 +78,7 @@ end
 module DomWithTrivialExpEval = DomFunctor(struct
   module M = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
 
-  let eval_exp x e =
-    let (x, _, _) = x in
+  let eval_exp (x, _, _) e =
     match e with
     | Lval (Var v, NoOffset) ->
       begin
