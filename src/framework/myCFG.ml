@@ -22,13 +22,18 @@ type edge =
   | Ret of exp option * fundec
   (** Return edge is between the return statement, which may optionally contain
     * a return value, and the function. The result of the call is then
-    * transfered to the function node! *)
+    * transferred to the function node! *)
   | Test of exp * bool
   (** The true-branch or false-branch of a conditional exp *)
   | ASM of string list * asm_out * asm_in
   (** Inline assembly statements, and the annotations for output and input
     * variables. *)
   | VDecl of varinfo
+  (** VDecl edge for the variable in varinfo. Whether such an edge is there for all
+    * local variables or only when it is not possible to pull the declaration up, is
+    * determined by alwaysGenerateVarDecl in cabs2cil.ml in CIL. One case in which a VDecl
+    * is always there is for VLA. If there is a VDecl edge, it is where the declaration originally
+    * appeared *)
   | Skip
   (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop
