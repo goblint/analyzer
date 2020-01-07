@@ -10,6 +10,7 @@ if [ ! -e $file ]; then
 fi
 params="`grep -oP "PARAM: \K.*" $file`"
 cmd="./goblint --enable dbg.debug --sets warnstyle \"legacy\" --enable colors --enable dbg.verbose --enable dbg.showtemps --enable dbg.regression --enable printstats --html $params ${@:3} $file"
+cmd=`echo "$cmd" | sed "s:ana.osek.oil :ana.osek.oil $(dirname $file)/:"` # regression tests are run inside the test's directory which is why we either also need to cd there or instead prepend the path to the test directory for file parameters like these .oil files
 echo "$cmd"
 eval $cmd
 echo "See result/index.xml"
