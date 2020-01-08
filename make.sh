@@ -76,7 +76,7 @@ rule() {
     ;; deps)
       opam update; opam install -y . --deps-only --locked
     ;; setup)
-      echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
+      echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git, gmp (dev)"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
       echo "For running the regression tests you also need: ruby, gem, curl"
       opam_setup
