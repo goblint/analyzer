@@ -1238,6 +1238,7 @@ module Booleans = MakeBooleans (
     let falsename = "False"
   end)
 
+(* Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
 module Enums : S = struct
   include Printable.Std (* for default invariant, tag, ... *)
 
@@ -1245,37 +1246,37 @@ module Enums : S = struct
   module I = Integers
   module R = Interval32 (* range for exclusion *)
   let size t = R.of_interval (Size.bits_i64 t)
-  type e = I.t
-  and t = Neg of e list * R.t | Pos of e list [@@deriving to_yojson]
+  type e = I.t (* element *)
+  and t = Inc of e list | Exc of e list * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
 
   let name () = "enums"
 
   let equal_to i = function
-    | Pos x ->
+    | Inc x ->
       if List.mem i x then
         if List.length x = 1 then `Eq
         else `Top
       else `Neq
-    | Neg (x, r) ->
+    | Exc (x, r) ->
       if List.mem i x then `Neq
       else `Top
 
-  let bot () = Pos []
-  let top_of ik = Neg ([], size ik)
+  let bot () = Inc []
+  let top_of ik = Exc ([], size ik)
   let top () = top_of (Size.max `Signed)
   let short _ = function
-    | Pos[] -> "bot" | Neg([],r) -> "top"
-    | Pos xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
-    | Neg (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
+    | Inc[] -> "bot" | Exc([],r) -> "top"
+    | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
+    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
 
-  let of_int x = Pos [x]
-  let cast_to t = function Pos xs -> (try Pos (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Neg _ -> top_of t
+  let of_int x = Inc [x]
+  let cast_to t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
 
-  let of_interval (x,y) =
+  let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =
       if start_num > end_num then set
       else (build_set (set @ [start_num]) (Int64.add start_num (Int64.of_int 1)) end_num) in
-    Pos (build_set [] x y)
+    Inc (build_set [] x y)
 
   let rec merge_cup a b = match a,b with
     | [],x | x,[] -> x
@@ -1301,15 +1302,15 @@ module Enums : S = struct
       )
   (* let merge_sub x y = Set.(diff (of_list x) (of_list y) |> to_list) *)
   let join = curry @@ function
-    | Pos x, Pos y -> Pos (merge_cup x y)
-    | Neg (x,r1), Neg (y,r2) -> Neg (merge_cap x y, R.join r1 r2)
-    | Neg (x,r), Pos y
-    | Pos y, Neg (x,r) -> Neg (merge_sub x y, r)
+    | Inc x, Inc y -> Inc (merge_cup x y)
+    | Exc (x,r1), Exc (y,r2) -> Exc (merge_cap x y, R.join r1 r2)
+    | Exc (x,r), Inc y
+    | Inc y, Exc (x,r) -> Exc (merge_sub x y, r)
   let meet = curry @@ function
-    | Pos x, Pos y -> Pos (merge_cap x y)
-    | Neg (x,r1), Neg (y,r2) -> Neg (merge_cup x y, R.meet r1 r2)
-    | Pos x, Neg (y,r)
-    | Neg (y,r), Pos x -> Pos (merge_sub x y)
+    | Inc x, Inc y -> Inc (merge_cap x y)
+    | Exc (x,r1), Exc (y,r2) -> Exc (merge_cup x y, R.meet r1 r2)
+    | Inc x, Exc (y,r)
+    | Exc (y,r), Inc x -> Inc (merge_sub x y)
   (* let join x y = let r = join x y in print_endline @@ "join " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
   (* let meet x y = let r = meet x y in print_endline @@ "meet " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
 
@@ -1319,67 +1320,67 @@ module Enums : S = struct
   let leq x y = join x y = y
 
   let abstr_compare = curry @@ function
-    | Neg _, Neg _ -> Pos[-1L; 0L ;1L]
-    | Pos[],_ | _,Pos[] -> Pos[]
-    | Pos x, Pos y ->
+    | Exc _, Exc _ -> Inc[-1L; 0L ;1L]
+    | Inc[],_ | _,Inc[] -> Inc[]
+    | Inc x, Inc y ->
       let x_max = List.last x in
       let x_min = List.hd x in
       let y_max = List.last y in
       let y_min = List.hd y in
-      if  x_max < y_min then Pos[-1L]
-      else if y_max < x_min then Pos[1L]
+      if  x_max < y_min then Inc[-1L]
+      else if y_max < x_min then Inc[1L]
       else if x_min = y_max then
-        if  y_min = x_max then Pos[0L]
-        else Pos[0L;1L]
-      else if y_min = x_max then Pos[-1L;0L]
-      else Pos[-1L;0L;1L]
-    | Pos l, Neg (l',r) ->
+        if  y_min = x_max then Inc[0L]
+        else Inc[0L;1L]
+      else if y_min = x_max then Inc[-1L;0L]
+      else Inc[-1L;0L;1L]
+    | Inc l, Exc (l',r) ->
       (match merge_sub l l' with
-       | [] -> Pos[-1L;1L]
-       | _ -> Pos[-1L;0L;1L]
+       | [] -> Inc[-1L;1L]
+       | _ -> Inc[-1L;0L;1L]
       )
-    | Neg (l,r), Pos l' ->
+    | Exc (l,r), Inc l' ->
       (match merge_sub l' l with
-       | [] -> Pos[-1L;1L]
-       | _ -> Pos[-1L;0L;1L]
+       | [] -> Inc[-1L;1L]
+       | _ -> Inc[-1L;0L;1L]
       )
 
   let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
   let lift1 f = function
-    | Pos[x] -> Pos[f x]
-    | Pos xs when List.length xs <= max_elems () -> Pos (List.sort_unique compare @@ List.map f xs)
+    | Inc[x] -> Inc[f x]
+    | Inc xs when List.length xs <= max_elems () -> Inc (List.sort_unique compare @@ List.map f xs)
     | _ -> top ()
   let lift2 f = curry @@ function
-    | Pos[],_| _,Pos[] -> Pos[]
-    | Pos[x],Pos[y] -> Pos[f x y]
-    | Pos xs,Pos ys ->
+    | Inc[],_| _,Inc[] -> Inc[]
+    | Inc[x],Inc[y] -> Inc[f x y]
+    | Inc xs,Inc ys ->
       let r = List.cartesian_product xs ys |> List.map (uncurry f) |> List.sort_unique compare in
-      if List.length r <= max_elems () then Pos r else top ()
+      if List.length r <= max_elems () then Inc r else top ()
     | _,_ -> top ()
   let lift2 f a b =
     try lift2 f a b with Division_by_zero -> top ()
 
   let neg  = lift1 I.neg
   let add  = curry @@ function
-    | Pos[0L],x | x,Pos[0L] -> x
+    | Inc[0L],x | x,Inc[0L] -> x
     | x,y -> lift2 I.add x y
   let sub  = lift2 I.sub
   let mul  = curry @@ function
-    | Pos[1L],x | x,Pos[1L] -> x
-    | Pos[0L],_ | _,Pos[0L] -> Pos[0L]
+    | Inc[1L],x | x,Inc[1L] -> x
+    | Inc[0L],_ | _,Inc[0L] -> Inc[0L]
     | x,y -> lift2 I.mul x y
   let div  = curry @@ function
-    | Pos[1L],x | x,Pos[1L] -> x
-    | Pos[0L],_ -> Pos[0L]
-    | _,Pos[0L] -> top ()
+    | Inc[1L],x | x,Inc[1L] -> x
+    | Inc[0L],_ -> Inc[0L]
+    | _,Inc[0L] -> top ()
     | x,y -> lift2 I.div x y
   let rem  = lift2 I.rem
   let lt = lift2 I.lt
   let gt = lift2 I.gt
   let le = lift2 I.le
   let ge = lift2 I.ge
-  let eq = lift2 I.eq (* TODO: add more precise cases for Neg, like in Trier? *)
-  let ne = lift2 I.ne (* TODO: add more precise cases for Neg, like in Trier? *)
+  let eq = lift2 I.eq (* TODO: add more precise cases for Exc, like in Trier? *)
+  let ne = lift2 I.ne (* TODO: add more precise cases for Exc, like in Trier? *)
   let bitnot = lift1 I.bitnot
   let bitand = lift2 I.bitand
   let bitor  = lift2 I.bitor
@@ -1398,44 +1399,44 @@ module Enums : S = struct
   let isSimple _  = true
   let pretty_list xs = text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")"
   let pretty_f _ _ = function
-    | Pos [] -> text "bot"
-    | Neg ([],r) -> text "top"
-    | Pos xs -> text "Pos" ++ pretty_list (List.map (I.pretty ()) xs)
-    | Neg (xs,r) -> text "Neg" ++ pretty_list (List.map (I.pretty ()) xs)
+    | Inc [] -> text "bot"
+    | Exc ([],r) -> text "top"
+    | Inc xs -> text "Inc" ++ pretty_list (List.map (I.pretty ()) xs)
+    | Exc (xs,r) -> text "Exc" ++ pretty_list (List.map (I.pretty ()) xs)
   let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
-  let of_bool x = Pos [if x then Int64.one else Int64.zero]
+  let of_bool x = Inc [if x then Int64.one else Int64.zero]
   let to_bool = function
-    | Pos [] | Neg ([],_) -> None
-    | Pos [0L] -> Some false
-    | Pos xs when List.for_all ((<>) 0L) xs -> Some true
-    | Neg (xs,_) when List.exists ((=) 0L) xs -> Some true
+    | Inc [] | Exc ([],_) -> None
+    | Inc [0L] -> Some false
+    | Inc xs when List.for_all ((<>) 0L) xs -> Some true
+    | Exc (xs,_) when List.exists ((=) 0L) xs -> Some true
     | _ -> None
   let is_bool = Option.is_some % to_bool
-  let of_int  x = Pos [x]
-  let to_int = function Pos [x] -> Some x | _ -> None
+  let of_int  x = Inc [x]
+  let to_int = function Inc [x] -> Some x | _ -> None
   let is_int = Option.is_some % to_int
 
-  let to_excl_list = function Neg (x,r) when x<>[] -> Some x | _ -> None
-  let of_excl_list t x = Neg (x, size t)
+  let to_excl_list = function Exc (x,r) when x<>[] -> Some x | _ -> None
+  let of_excl_list t x = Exc (x, size t)
   let is_excl_list = Option.is_some % to_excl_list
   let starting     x = top ()
   let ending       x = top ()
-  let maximal = function Pos xs when xs<>[] -> Some (List.last xs) | _ -> None
-  let minimal = function Pos (x::xs) -> Some x | _ -> None
+  let maximal = function Inc xs when xs<>[] -> Some (List.last xs) | _ -> None
+  let minimal = function Inc (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
 
   let invariant c = function
-    | Pos ps ->
+    | Inc ps ->
       List.fold_left (fun a x ->
           let i = Invariant.of_string (c ^ " == " ^ Int64.to_string x) in
           Invariant.(a || i)
         ) Invariant.none ps
-    | Neg (ns, _) ->
+    | Exc (ns, _) ->
       List.fold_left (fun a x ->
           let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
           Invariant.(a && i)
