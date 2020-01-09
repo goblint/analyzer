@@ -4,8 +4,8 @@ open GeneralArrayTest
 
 module I = Int64
 
-module Idx = IntDomain.Trier
-module Val = IntDomain.Trier
+module Idx = IntDomain.DefExc
+module Val = IntDomain.DefExc
 
 module D     = LooseMapArrayDomain(struct let n = Some 12 end)(Val)(Idx)
 module ATD   = ArrayTestDomain(D)
@@ -28,5 +28,3 @@ module STLMA = LMapATest(ATD)
 (* all tests together *)
 let  test () = "lMapArrayDomainTest" >:::
   GTLMA.test @ STLMA.test
-
-

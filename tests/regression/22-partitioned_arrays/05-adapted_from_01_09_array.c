@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
 #include<stdio.h>
 #include<assert.h>
 
@@ -25,14 +25,14 @@ int main () {
   int *ip;
   int (*iap)[];
 
-  // really really top 
+  // really really top
   if (i) top = (int) &top;
   else   top = 5;
 
   assert(a[0] == 2);
   assert(a[1] == 2);
   assert(a[2] == 2);
-  
+
   // writing to unknown index:
   // NB! We assume the index is in bounds!
   if (k1) i=0; else i=1;
@@ -40,7 +40,7 @@ int main () {
   assert(a[0] == 0); // UNKNOWN
   assert(a[1] == 0); // UNKNOWN
   assert(a[2] == 0); // FAIL
-  
+
   // reading from unknown index:
   b[0] = 2; b[1] = 2;
   assert(b[i] == 2);
@@ -82,7 +82,7 @@ int main () {
   // pointing into the array
   ip = &c[1];
   assert(*ip == 5);
-  
+
   // and some pointer arithmetic (tests are meaningless)
   *ip = 6;
   ip++;
@@ -93,7 +93,7 @@ int main () {
   ip = x.a;
   x.a[0] = 7;
   assert(*ip == 7);
-  
+
   // (typeless) Top index
   assert(x.a[top] == 7); // UNKNOWN
 
@@ -101,16 +101,16 @@ int main () {
   struct kala xs[5];
   xs[0] = x;
   ip = &xs[0].a[0];
-  
+
   struct kass k[1];
   k[0].v = 42;
   assert(k[0].v == 42);
-  
+
   // multi-dim arrays
   int ma[1][1];
   ma[0][0] = 42;
   assert(ma[0][0] == 42);
-  
+
   //i = hash("kala");
   //printf("Hash value: %d", i);
 

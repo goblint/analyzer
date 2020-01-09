@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']" 
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']"
 struct kala {
   int i;
   int a[5];
@@ -103,7 +103,7 @@ void example4() {
     }
   }
 
-  assert(xs[3].a[0] == 7);    
+  assert(xs[3].a[0] == 7);
 }
 
 void example5() {

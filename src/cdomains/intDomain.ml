@@ -588,7 +588,7 @@ struct
   include (Lattice.Reverse (Base) : Lattice.S with type t := Base.t)
 end
 
-module Trier = (* definite or set of excluded values *)
+module DefExc = (* definite or set of excluded values *)
 struct
   module S = SetDomain.Make (Integers)
   module R = Interval32 (* range for exclusion *)
@@ -618,7 +618,7 @@ struct
     | `Excluded (xs,xw), `Excluded (ys,yw) -> S.equal xs ys && R.equal xw yw
     | _ -> false
 
-  let name () = "trier"
+  let name () = "def_exc"
   let top_of ik = `Excluded (S.empty (), size ik)
   let top () = top_of (Size.max `Signed)
   let is_top x = x = top ()
@@ -742,7 +742,7 @@ struct
     | `Bot -> None
 
   (* Default behaviour for unary operators, simply maps the function to the
-   * Trier data structure. *)
+   * DefExc data structure. *)
   let lift1 f x = match x with
     | `Excluded (s,r) -> `Excluded (S.map f s, r)
     | `Definite x -> `Definite (f x)
@@ -1379,8 +1379,8 @@ module Enums : S = struct
   let gt = lift2 I.gt
   let le = lift2 I.le
   let ge = lift2 I.ge
-  let eq = lift2 I.eq (* TODO: add more precise cases for Exc, like in Trier? *)
-  let ne = lift2 I.ne (* TODO: add more precise cases for Exc, like in Trier? *)
+  let eq = lift2 I.eq (* TODO: add more precise cases for Exc, like in DefExc? *)
+  let ne = lift2 I.ne (* TODO: add more precise cases for Exc, like in DefExc? *)
   let bitnot = lift1 I.bitnot
   let bitand = lift2 I.bitand
   let bitor  = lift2 I.bitor
@@ -1448,7 +1448,7 @@ module IntDomTuple = struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Batteries
-  module I1 = Trier
+  module I1 = DefExc
   module I2 = Interval32
   module I3 = CircInterval
   module I4 = Enums
@@ -1466,7 +1466,7 @@ module IntDomTuple = struct
   type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "trier" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
+    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
   let mapp r (a,b,c,d) = Option.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
   let map  r (a,b,c,d) = Option.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None

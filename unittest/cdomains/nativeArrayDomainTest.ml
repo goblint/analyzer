@@ -4,8 +4,8 @@ open GeneralArrayTest
 
 module I = Int64
 
-module Idx = IntDomain.Trier
-module Val = IntDomain.Trier
+module Idx = IntDomain.DefExc
+module Val = IntDomain.DefExc
 
 module D = NativeArrayEx(Val)(Idx)
 
@@ -40,6 +40,3 @@ module STNat = NatTest(ATD)
 (* all tests together *)
 let  test () = "nativeArrayDomainTest" >:::
   GTNat.test @ STNat.test
-
-
-

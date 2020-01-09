@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation','octagon']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation','octagon']"
 void main(void) {
   example1();
   example2();
@@ -122,10 +122,10 @@ void example4(void) {
     a[i] = 9;
     int j = i+5;
     a[j] = 42;
-    
+
     // Here we know a[i] is 9 when we have MayBeEqual
     assert(a[i] == 9);
-    
+
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
       int k = a[i-1];
@@ -148,10 +148,10 @@ void example4a(void) {
     a[i] = 9;
     j = i+5;
     a[j] = 42;
-    
+
     // Here we know a[i] is 9 when we have MayBeEqual
     assert(a[i] == 9);
-    
+
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
       assert(a[i-1] == 9);
@@ -171,10 +171,10 @@ void example4b(void) {
     a[i] = 9;
     j = 5+i;
     a[j] = 42;
-    
+
     // Here we know a[i] is 9 when we have MayBeEqual
     assert(a[i] == 9);
-    
+
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
       assert(a[i-1] == 9);
@@ -249,7 +249,7 @@ void example6(void) {
 
 void example7(void) {
   int top;
-  
+
   int a[42];
   int i = 0;
 
@@ -284,7 +284,7 @@ void example8(void) {
   if(N > 40) {
     N = 40;
   }
- 
+
 
   while(i < N) {
     a[i] = 0;
@@ -294,7 +294,7 @@ void example8(void) {
     a[j] = 0;
     j++;      // Octagon knows -1 <= i-j <= -1
     i = j;    // Without octagons, we lose partitioning here because we don't know how far the move has been
-  
+
     assert(a[i-1] == 0);
     assert(a[i-2] == 0);
   }
@@ -317,7 +317,7 @@ void mineEx1(void) {
   }
 
   assert(X-N == 0);
-  // assert(X == N); // Currently not able to assert this because octagon doesn't handle it 
+  // assert(X == N); // Currently not able to assert this because octagon doesn't handle it
 
   if(X == N) {
     N = 8;

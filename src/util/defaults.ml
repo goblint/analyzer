@@ -108,7 +108,7 @@ let _ = ()
       ; reg Analyses "ana.osek.safe_isr"   "[]"    "Ignore accesses in these isr"
       ; reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags."
       ; reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure"
-      ; reg Analyses "ana.int.trier"       "true"  "Use IntDomain.Trier: definite value/exclusion set."
+      ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: int64 * int64) option."
       ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
       ; reg Analyses "ana.int.enums_max"   "1"     "Maximum number of resulting elements of operations before going to top. Widening is still just the join, so this might increase the size by n^2!"
