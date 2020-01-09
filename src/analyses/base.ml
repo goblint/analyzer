@@ -1019,8 +1019,7 @@ struct
   (** Add dependencies between a value and the expression it (or any of its contents) are partitioned by *)
   let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st,fl,dep:store):store =
     let add_one_dep (array:varinfo) (var:varinfo) dep =
-      let vMap = try Dep.find var dep
-        with Not_found -> Dep.VarSet.empty () in
+      let vMap = Dep.find_opt var dep |? Dep.VarSet.empty () in
       let vMapNew = Dep.VarSet.add array vMap in
       Dep.add var vMapNew dep
     in
@@ -1091,8 +1090,7 @@ struct
            expressions for partitioning *)
         let rec effect_on_arrays a (st, fl, dep)=
           let affected_arrays =
-            let set = try Dep.find x dep
-              with Not_found -> Dep.VarSet.empty () in
+            let set = Dep.find_opt x dep |? Dep.VarSet.empty () in
             Dep.VarSet.elements set
           in
           let movement_for_expr l' r' currentE' =
@@ -1190,8 +1188,7 @@ struct
     (* Removes the partitioning information from all affected arrays, call before removing locals *)
     let rem_partitioning a (st,fl,dep:store) (x:varinfo):store =
       let affected_arrays =
-        let set = try Dep.find x dep
-         with Not_found -> Dep.VarSet.empty () in
+        let set = Dep.find_opt x dep |? Dep.VarSet.empty () in
         Dep.VarSet.elements set
       in
       let effect_on_array arr st =
