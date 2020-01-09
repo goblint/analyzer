@@ -76,9 +76,10 @@ rule() {
     ;; deps)
       opam update; opam install -y . --deps-only --locked
     ;; setup)
-      echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git, gmp (dev)"
+      echo "Make sure you have the following installed: opam >= 1.2.2, git, patch, m4, autoconf, libgmp-dev"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
       echo "For running the regression tests you also need: ruby, gem, curl"
+      echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)
       echo "Installing opam packages for development..."
