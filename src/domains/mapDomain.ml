@@ -438,11 +438,11 @@ struct
     | `Lifted x -> `Lifted (M.remove k x)
 
   let find k = function
-    | `Bot -> Range.top ()
+    | `Bot -> Range.bot ()
     | `Lifted x -> M.find k x
 
   let find_opt k = function
-    | `Bot -> Some (Range.top ())
+    | `Bot -> Some (Range.bot ())
     | `Lifted x -> M.find_opt k x
 
   let mem k = function
