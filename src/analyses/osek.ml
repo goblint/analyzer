@@ -559,7 +559,9 @@ struct
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
     | Queries.IsPublic v ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-      if pry = min_int then begin `Bool false end else begin
+      if pry = min_int then
+        `Bool false
+      else
         let off =
           (*         if !FlagModes.Spec.flag_list = [] then begin *)
           match (ctx.global v: G.t) with
@@ -568,10 +570,9 @@ struct
           | `Top -> max_int
           (*           end else begin *)
           (*             let flagstate = get_flags ctx.presub in *)
-          (*               offpry_flags flagstate v *)
+          (*             offpry_flags flagstate v *)
           (*           end *)
         in `Bool (off > pry)
-      end
     | _ -> Queries.Result.top ()
 
   let rec conv_offset x =
