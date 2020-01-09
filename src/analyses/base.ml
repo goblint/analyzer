@@ -36,7 +36,9 @@ let privatization = ref false
 let is_private (a: Q.ask) (_,fl,_) (v: varinfo): bool =
   !privatization &&
   (not (BaseDomain.Flag.is_multi fl) && is_precious_glob v ||
-   match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false)
+   match a (Q.IsPublic v) with `Bool tv -> not tv | _ ->
+   if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
+   false)
 
 module MainFunctor(RVEval:BaseDomain.ExpEvaluator) =
 struct
@@ -1532,7 +1534,9 @@ struct
   let return ctx exp fundec =
     let (cp,fl,dep) = ctx.local in
     match fundec.svar.vname with
-    | "__goblint_dummy_init" -> cp, Flag.make_main fl, dep
+    | "__goblint_dummy_init" ->
+      publish_all ctx;
+      cp, Flag.make_main fl, dep
     | "StartupHook" ->
       publish_all ctx;
       cp, Flag.get_multi (), dep
