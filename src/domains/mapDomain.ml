@@ -14,6 +14,7 @@ sig
   val add: key -> value -> t -> t
   val remove: key -> t -> t
   val find: key -> t -> value
+  val find_opt: key -> t -> value option
   val mem: key -> t -> bool
   val iter: (key -> value -> unit) -> t -> unit
   val map: (value -> value) -> t -> t
@@ -71,6 +72,7 @@ struct
   let add = M.add
   let remove = M.remove
   let find = M.find
+  let find_opt = M.find_opt
   let mem = M.mem
   let iter = M.iter
   let map = M.map
@@ -337,6 +339,10 @@ struct
     | `Top -> Range.top ()
     | `Lifted x -> M.find k x
 
+  let find_opt k = function
+    | `Top -> Some (Range.top ())
+    | `Lifted x -> M.find_opt k x
+
   let mem k = function
     | `Top -> true
     | `Lifted x -> M.mem k x
@@ -434,6 +440,10 @@ struct
   let find k = function
     | `Bot -> Range.top ()
     | `Lifted x -> M.find k x
+
+  let find_opt k = function
+    | `Bot -> Some (Range.top ())
+    | `Lifted x -> M.find_opt k x
 
   let mem k = function
     | `Bot -> false
