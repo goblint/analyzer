@@ -1098,12 +1098,7 @@ struct
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
               match a (Q.MustBeEqual (e1, e2)) with
-              | `Bool t ->
-                begin
-                  match Q.BD.to_bool t with
-                  | Some true -> true
-                  | _ -> false
-                end
+              | `Bool t -> Q.BD.to_bool t = Some true
               | _ -> false
             in
             let newE = Basetype.CilExp.replace l' r' currentE' in
