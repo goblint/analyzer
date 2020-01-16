@@ -179,7 +179,9 @@ struct
         | Question(e1, e2, e3, _) ->
           contains_array_access e1 || contains_array_access e2 || contains_array_access e3
         |	CastE(_, e)
-        |	UnOp(_, e , _) -> contains_array_access e
+        |	UnOp(_, e , _)
+        | Real e
+        | Imag e -> contains_array_access e
         |	BinOp(_, e1, e2, _) -> contains_array_access e1 || contains_array_access e2
         | AddrOf _
         | AddrOfLabel _

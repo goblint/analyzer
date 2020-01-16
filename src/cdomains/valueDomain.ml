@@ -599,7 +599,9 @@ struct
       | Question(e1, e2, e3, _) ->
         (contains_pointer e1) || (contains_pointer e2) || (contains_pointer e3)
       |	CastE(_, e)
-      |	UnOp(_, e , _) -> contains_pointer e
+      |	UnOp(_, e , _)
+      | Real e
+      | Imag e -> contains_pointer e
       |	BinOp(_, e1, e2, _) -> (contains_pointer e1) || (contains_pointer e2)
       | AddrOf _
       | AddrOfLabel _
