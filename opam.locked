@@ -50,7 +50,7 @@ depends: [
   "zarith" {= "1.7"}
 ]
 pin-depends: [
-  [ "goblint-cil.1.7.4" "git+https://github.com/goblint/cil.git#c99" ]
+  [ "goblint-cil.1.7.4" "git+https://github.com/goblint/cil.git" ]
 ]
 synopsis: "Static analysis framework for concurrent C"
 url {
