@@ -260,7 +260,9 @@ struct
     | AddrOf _
     | StartOf _ -> []
     | UnOp (_, e, _ )
-    | CastE (_, e) -> get_vars e
+    | CastE (_, e)
+    | Real e
+    | Imag e -> get_vars e
     | BinOp (_, e1, e2, _) -> (get_vars e1)@(get_vars e2)
     | Lval (Var v, _) -> [v]
     | Lval (Mem e',_) -> (get_vars e')
@@ -285,6 +287,8 @@ struct
       | StartOf _ -> 12
       | Question _ -> 13
       | AddrOfLabel _ -> 14
+      | Real _ -> 15
+      | Imag _ -> 16
     in
     if a == b || Expcompare.compareExp a b then
       0

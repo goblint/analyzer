@@ -60,7 +60,7 @@ let lvals_of_expr =
   let rec f a = function
     | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ | AddrOfLabel _ -> a
     | Lval l | AddrOf l | StartOf l -> l :: a
-    | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> f a e
+    | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) | Imag e | Real e -> f a e
     | BinOp (_,e1,e2,_) -> f a e1 @ f a e2
     | Question (c,t,e,_) -> f a c @ f a t @ f a e
   in f []
