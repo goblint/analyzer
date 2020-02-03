@@ -228,7 +228,7 @@ module WP =
 
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
-        (* Actually destabilize all nodes contained in changed functions *)
+        (* Actually destabilize all nodes contained in changed functions. TODO only destabilize fun_... nodes *)
         HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable;
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
