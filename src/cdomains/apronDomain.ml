@@ -22,7 +22,7 @@ module D =
 struct
   type t = Man.mt A.t
 
-  let name = "APRON numerical abstract domain"
+  let name () = "APRON numerical abstract domain"
 
   let topE = A.top    Man.mgr
   let botE = A.bottom Man.mgr

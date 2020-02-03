@@ -55,7 +55,7 @@ struct
   let bot () = ()
   let is_bot _ = true
 end
-module Unit = UnitConf (struct let name = "()" end)
+module Unit = UnitConf (struct let name () = "()" end)
 
 
 module Fake (Base: Printable.S) =
@@ -105,7 +105,7 @@ struct
   let leq x y = Base.leq y x
   let join x y = Base.meet x y
   let meet x y = Base.join x y
-  let name = "Reversed (" ^ name ^ ")"
+  let name () = "Reversed (" ^ name ^ ")"
   let printXml = Base.printXml
 end
 

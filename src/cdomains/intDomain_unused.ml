@@ -116,7 +116,7 @@ struct
   include Printable.Std
   module I = InfInt
   type t = I.t * I.t
-  let name = "int intervals"
+  let name () = "int intervals"
 
   let of_interval (x,y) = (I.Fin x, I.Fin y)
   let ending   x = (I.NInf , I.Fin x)
@@ -368,7 +368,7 @@ struct
     (*    | `Bot*)
   ]
 
-  let name = "Exclusive & Inclusive Integer Intervals"
+  let name () = "Exclusive & Inclusive Integer Intervals"
 
   let cast_to _ = failwith "Not implemented!"
   let of_interval _ = failwith "Not implemented!"
@@ -666,7 +666,7 @@ struct
   include Printable.Std
   include Lattice.StdCousot
   let cast_to _ x = x
-  let name = "none"
+  let name () = "none"
   type t = unit
   let hash () = 101010
   let equal _ _ = true
@@ -735,7 +735,7 @@ struct
   include Lattice.Prod (I1) (I2)
 
   let cast_to t (a,b) = I1.cast_to t a, I2.cast_to t b
-  let name = I1.name ^ " * " ^ I2.name
+  let name () = I1.name ^ " * " ^ I2.name
 
   let equal (x1,x2) (y1,y2) =
     (I1.equal x1 y1 && I2.equal x2 y2)
@@ -929,7 +929,7 @@ struct
 
   (* constructors *)
 
-  let name = I1.name (* why do we just use the first name? *)
+  let name () = I1.name (* why do we just use the first name? *)
   let cast_to' t x = (* why do we not call this on all?? *)
     match x with
     | Trier a -> Trier (I1.cast_to t a)

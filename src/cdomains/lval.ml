@@ -63,7 +63,7 @@ struct
     | `Field (f,o) when not (is_first_field f) -> Hashtbl.hash f.fname * hash o + 13
     | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
     | `Index (_,o) -> hash o (* index might become top during fp -> might be zero offset *)
-  let name = "Offset"
+  let name () = "Offset"
 
   let from_offset x = x
   let to_offset x = [x]
@@ -167,7 +167,7 @@ struct
   type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving to_yojson]
   module Offs = Offset (Idx)
   include Printable.Std
-  let name = "Normal Lvals"
+  let name () = "Normal Lvals"
 
   let get_location = function
     | Addr (x,_) -> x.vdecl
@@ -501,7 +501,7 @@ struct
 
   let hash    = Hashtbl.hash
   let compare = Pervasives.compare
-  let name = "simplified lval"
+  let name () = "simplified lval"
   let isSimple _ = true
 
   let class_tag (v,o) =

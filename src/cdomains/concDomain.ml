@@ -46,7 +46,7 @@ module Simple = struct
     | 0,_ -> true
     | _,0 -> true
     | _   -> false
-  let name = "MT mode"
+  let name () = "MT mode"
 end
 
 (** Type to represent an abstract thread ID. *)
@@ -58,7 +58,7 @@ module Thread = struct
   let get_thread_var (f: varinfo) loc =
     try Hashtbl.find thread_hash (f,loc)
     with Not_found ->
-      let name =
+      let name () =
         match loc with
         | None -> f.vname
         | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.show l
@@ -81,7 +81,7 @@ module SimpleThreadDomain = struct
   module Lifted =
   struct
     include Lattice.Flat (Thread) (ThreadLiftNames)
-    let name = "Thread"
+    let name () = "Thread"
   end
   include Lattice.ProdSimple (Simple) (Lifted)
   let is_multi (x,_) = x > 0

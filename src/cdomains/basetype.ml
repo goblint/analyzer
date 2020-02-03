@@ -14,7 +14,7 @@ struct
   let compare x y = compare (x.file, x.line) (y.file, y.line)
   let hash x = Hashtbl.hash (x.line, x.file)
   let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S"
-  let name = "proglines"
+  let name () = "proglines"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -32,7 +32,7 @@ struct
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let name = "proglines_byte"
+  let name () = "proglines_byte"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -58,7 +58,7 @@ struct
                                                ("fun", f.svar.vname)], [])
   let show (x,a,f) = ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty_f sf () x = text (sf max_int x)
-  let name = "proglinesfun"
+  let name () = "proglinesfun"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -90,7 +90,7 @@ struct
     |  5 -> "Parameter"
     | -1 -> "Temp"
     |  _ -> "None"
-  let name = "variables"
+  let name () = "variables"
   let pretty_diff = Printable.dumb_diff name show
   let category _ = -1
   let line_nr a = a.vdecl.line
@@ -136,7 +136,7 @@ struct
     |  5 -> "Parameter"
     | -1 -> "Temp"
     |  _ -> "None"
-  let name = "variables"
+  let name () = "variables"
   let pretty_diff () = Printable.dumb_diff name show ()
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -153,7 +153,7 @@ struct
   let toXML_f sf x =
     let esc = Goblintutil.escape in
     Xml.Element ("Leaf", ["text", esc (sf 80 x)], [])
-  let name = "raw strings"
+  let name () = "raw strings"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -175,7 +175,7 @@ struct
   let hash x = Hashtbl.hash x
   let show x = sprint ~width:0 (d_exp () x)
 
-  let name = "expresssions"
+  let name () = "expresssions"
 
   let rec occurs x e =
     let rec occurs_lv (v,offs) =
@@ -239,7 +239,7 @@ struct
     | _ -> dn_stmt () x
 
   let pretty () x = pretty_f show () x
-  let name = "expressions"
+  let name () = "expressions"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -256,7 +256,7 @@ struct
   let toXML_f _ x = Xml.Element ("Fun", [("id", string_of_int x.vid)
                                         ;("text", x.vname)], [])
   let show x = x.vname
-  let name = "functions"
+  let name () = "functions"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -271,7 +271,7 @@ struct
   let equal x y = x.svar.vid = y.svar.vid
   let hash x = x.svar.vid * 3
   let show x = x.svar.vname
-  let name = "function decs"
+  let name () = "function decs"
   let dummy = dummyFunDec
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
@@ -289,7 +289,7 @@ struct
   let show x = x.fname
   let classify _ = 0
   let class_name _ = "None"
-  let name = "field"
+  let name () = "field"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -348,7 +348,7 @@ struct
     | -1 -> "Temp"
     |  _ -> "None"
 
-  let name = "variables and fields"
+  let name () = "variables and fields"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 
@@ -364,7 +364,7 @@ struct
   let hash (x:typ) = Hashtbl.hash x
   let show x = sprint ~width:0 (d_type () x)
 
-  let name = "types"
+  let name () = "types"
   let pretty_diff = Printable.dumb_diff name show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end

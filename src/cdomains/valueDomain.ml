@@ -36,7 +36,7 @@ end
 
 module Blob (Value: S) (Size: IntDomain.S) =
 struct
-  let name = "blob"
+  let name () = "blob"
   include Lattice.Prod (Value) (Size)
   type value = Value.t
   type size = Size.t
@@ -76,7 +76,7 @@ struct
 
 
   include Printable.Std
-  let name = "compound"
+  let name () = "compound"
 
   type offs = (fieldinfo,IndexDomain.t) Lval.offs
 

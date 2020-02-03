@@ -76,7 +76,7 @@ struct
   include Printable.Blank
   include Lattice.StdCousot
   include BatSet.Make(Base)
-  let name = "Set (" ^ Base.name ^ ")"
+  let name () = "Set (" ^ Base.name ^ ")"
   let empty _ = empty
   let leq  = subset
   let join = union
@@ -116,7 +116,7 @@ module SensitiveConf (C: Printable.ProdConfiguration) (Base: Lattice.S) (User: P
 struct
   module Elt = Printable.ProdConf (C) (Base) (User)
   include Make(Elt)
-  let name = "Sensitive " ^ name
+  let name () = "Sensitive " ^ name
 
   let leq s1 s2 =
     (* I want to check that forall e in x, the same key is in y with it's base
@@ -180,7 +180,7 @@ struct
   let hash = function
     | All -> 999999
     | Set x -> S.hash x
-  let name = "Topped " ^ S.name
+  let name () = "Topped " ^ S.name
   let equal x y =
     match x, y with
     | All, All -> true
@@ -321,7 +321,7 @@ struct
 
   let isSimple _ = false
 
-  let name = "Headless " ^ name
+  let name () = "Headless " ^ name
   let pretty_f _ () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
@@ -454,7 +454,7 @@ struct
     for_all (flip mem y) x
 
   (* Printable *)
-  let name = "HoarePO (" ^ E.name ^ ")"
+  let name () = "HoarePO (" ^ E.name ^ ")"
   (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
   let equal x y = leq x y && leq y x
   let hash xs = fold (fun v a -> a + E.hash v) xs 0

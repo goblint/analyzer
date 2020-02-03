@@ -6,7 +6,7 @@ module D = LvalMapDomain
 module Val =
 struct
   type s = string
-  let name = "Spec value"
+  let name () = "Spec value"
   let var_state = ""
   let string_of_state s = s
 

@@ -12,7 +12,7 @@ include Lattice.StdCousot
 *)
 
 
-let name = "Transactionality tupels"
+let name () = "Transactionality tupels"
 
 let is_bot_c x = (x = Bot)
 
@@ -46,7 +46,7 @@ let pretty () x = pretty_f short () x
 
 let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-(* include Printable.PrintSimple (struct type t' = t let short = short let name = name end) *)
+(* include Printable.PrintSimple (struct type t' = t let short = short let name () = name end) *)
 (* let pretty () x = Pretty.nil *)
 
 let min_t' a b = match (a,b) with

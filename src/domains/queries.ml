@@ -68,7 +68,7 @@ struct
   include Printable.Std
   type t = result [@@deriving to_yojson]
 
-  let name = "query result domain"
+  let name () = "query result domain"
 
   let bot () = `Bot
   let is_bot x = x = `Bot

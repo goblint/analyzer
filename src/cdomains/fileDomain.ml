@@ -7,7 +7,7 @@ module Val =
 struct
   type mode = Read | Write
   type s = Open of string*mode | Closed | Error
-  let name = "File handles"
+  let name () = "File handles"
   let var_state = Closed
   let string_of_mode = function Read -> "Read" | Write -> "Write"
   let string_of_state = function
