@@ -189,6 +189,7 @@ let _ = ()
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
       ; reg Debugging "dbg.timeout"         "0"     "Maximal time for analysis. (0 -- no timeout)"
+      ; reg Debugging "dbg.solver-signal"   "'sigint'" "Signal to interrupt the solver to print statistics. Can be sigint (Ctrl+C, default), sigtstp (Ctrl+Z), or sigquit (Ctrl+\\)."
       ; reg Debugging "dbg.solver-progress" "false" "Used for debugging. Prints out a symbol on solving a rhs."
       ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."

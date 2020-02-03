@@ -403,7 +403,13 @@ struct
       flush stdout;
       (* if read_line () = "n" then raise Break *)
     in
-    set_signal sigquit (Signal_handle handler);
+    let signal = match get_string "dbg.solver-signal" with
+      | "sigint" -> sigint
+      | "sigtstp" -> sigtstp
+      | "sigquit" -> sigquit
+      | _ -> failwith "Invalid value for dbg.solver-signal!"
+    in
+    set_signal signal (Signal_handle handler);
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
