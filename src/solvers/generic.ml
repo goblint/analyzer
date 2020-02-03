@@ -254,75 +254,6 @@ struct
       write_all hl hg
 end
 
-module SolverStatsWGlob (S:GlobConstrSys) (HM:Hash.H with type key = S.LVar.t) =
-struct
-  open S
-  open Messages
-
-  module GU = Goblintutil
-
-  let trace s x fms =
-    (*current_loc := { Cil.line = S.LVar.line_nr x; file = S.LVar.file_name x; byte = -1};*)
-    tracel s fms
-
-
-  let stack_d = ref 0
-  let full_trace = true
-  let start_c = 0
-  let max_c   : int ref = ref (-1)
-  let max_var : LVar.t option ref = ref None
-
-  let is_some = function
-    | Some _ -> true
-    | _ -> false
-
-  let from_some = function
-    | Some x -> x
-    | None -> raise Not_found
-
-  let histo = HM.create 1024
-  let increase (v:LVar.t) =
-    let set v c =
-      if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (LVar.equal (from_some !max_var) v))) then begin
-        if tracing then trace "sol" v "Switched tracing to %a\n" LVar.pretty_trace v;
-        max_c := c;
-        max_var := Some v
-      end
-    in
-    try let c = HM.find histo v in
-      set v (c+1);
-      HM.replace histo v (c+1)
-    with Not_found -> begin
-        set v 1;
-        HM.add histo v 1
-      end
-
-  let start_event () = ()
-  let stop_event () = ()
-
-  let new_var_event x =
-    Goblintutil.vars := !Goblintutil.vars + 1;
-    if tracing then trace "sol" x "New %a\n" LVar.pretty_trace x
-
-  let get_var_event x =
-    if full_trace then trace "sol" x "Querying %a\n" LVar.pretty_trace x
-
-
-  let eval_rhs_event x i =
-    if full_trace then trace "sol" x "(Re-)evaluating %a (%d)\n" LVar.pretty_trace x i;
-    if Config.tracking then M.track "eval";
-    Goblintutil.evals := !Goblintutil.evals + 1;
-    if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
-
-  let update_var_event x o n =
-    (* if tracing then increase x; *)
-    if full_trace || ((not (D.is_bot o)) && is_some !max_var && LVar.equal (from_some !max_var) x) then begin
-      if tracing then trace "sol" x "(%d) Update to %a.\n" !max_c LVar.pretty_trace x;
-      if tracing then trace "sol" x "%a\n\n" D.pretty_diff (n, o)
-    end
-
-end
-
 module SolverStats (S:EqConstrSys) (HM:Hash.H with type key = S.v) =
 struct
   open S
@@ -371,10 +302,9 @@ struct
   let get_var_event x =
     if full_trace then trace "sol" "Querying %a\n" Var.pretty_trace x
 
-
   let eval_rhs_event x =
-    if full_trace
-    then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
+    if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
+    if Config.tracking then M.track "eval";
     Goblintutil.evals := !Goblintutil.evals + 1;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
