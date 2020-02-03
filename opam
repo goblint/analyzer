@@ -9,7 +9,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 build: [make]
 run-test: [make "test"]
 depends: [
-  "ocaml" {>= "4.04.1" & < "4.08"}
+  "ocaml" {>= "4.04.1"}
   "ocamlbuild" {build}
   "ocamlfind" {build}
   "goblint-cil" {build}
@@ -20,7 +20,7 @@ depends: [
   "ppx_import"
   "ppx_deriving"
   "ppx_deriving_yojson"
-  "ounit" {with-test}
+  "ounit2" {with-test}
 ]
 pin-depends: [
   [ "goblint-cil.1.7.4" "git+https://github.com/goblint/cil.git" ]
