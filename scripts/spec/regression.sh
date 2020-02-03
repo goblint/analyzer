@@ -4,7 +4,7 @@ n=0
 c=0
 dir=${2-"tests/regression/18-file"}
 for f in $dir/*.c; do
-	./scripts/check.sh $f ${1-"file"} 2>/dev/null | python scripts/regression.py $f && ((c++))
+	./scripts/spec/check.sh $f ${1-"file"} 2>/dev/null | python scripts/spec/regression.py $f && ((c++))
 	((n++))
 done
 debug=$debug_tmp
