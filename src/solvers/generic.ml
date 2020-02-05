@@ -267,18 +267,10 @@ struct
   let max_c   : int ref = ref (-1)
   let max_var : Var.t option ref = ref None
 
-  let is_some = function
-    | Some _ -> true
-    | _ -> false
-
-  let from_some = function
-    | Some x -> x
-    | None -> raise Not_found
-
   let histo = HM.create 1024
   let increase (v:Var.t) =
     let set v c =
-      if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (Var.equal (from_some !max_var) v))) then begin
+      if not full_trace && (c > start_c && c > !max_c && (Option.is_none !max_var || not (Var.equal (Option.get !max_var) v))) then begin
         if tracing then trace "sol" "Switched tracing to %a\n" Var.pretty_trace v;
         max_c := c;
         max_var := Some v
@@ -310,7 +302,7 @@ struct
 
   let update_var_event x o n =
     if tracing then increase x;
-    if full_trace || ((not (Dom.is_bot o)) && is_some !max_var && Var.equal (from_some !max_var) x) then begin
+    if full_trace || ((not (Dom.is_bot o)) && Option.is_some !max_var && Var.equal (Option.get !max_var) x) then begin
       if tracing then tracei "sol_max" "(%d) Update to %a.\n" !max_c Var.pretty_trace x;
       if tracing then traceu "sol_max" "%a\n\n" Dom.pretty_diff (n, o)
     end
