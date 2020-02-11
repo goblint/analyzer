@@ -656,7 +656,7 @@ struct
     | `Bot, _ -> true
     (* Anything except bot <= bot is always false *)
     | _, `Bot -> false
-    (* Two known values are leq whenver equal *)
+    (* Two known values are leq whenever equal *)
     | `Definite x, `Definite y -> x = y
     (* A definite value is leq all exclusion sets that don't contain it *)
     | `Definite x, `Excluded (s,r) -> not (S.mem x s)
@@ -789,7 +789,7 @@ struct
   let ne x y = match x,y with
     (* Not much to do with two exclusion sets: *)
     | `Excluded _, `Excluded _ -> top ()
-    (* Is x inequal to an exclusion set, if it is a member then Yes otherwise we
+    (* Is x unequal to an exclusion set, if it is a member then Yes otherwise we
      * don't know: *)
     | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool true else top ()
     | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool true else top ()
