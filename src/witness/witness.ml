@@ -87,7 +87,14 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   GML.write_metadata g "specification" Task.specification;
   let programfile = (getLoc (N.cfgnode main_entry)).file in
   GML.write_metadata g "programfile" programfile;
-  (* TODO: programhash *)
+  let programhash =
+    (* TODO: calculate SHA-256 hash without external process *)
+    let in_channel = Unix.open_process_in ("sha256sum " ^ programfile) in
+    let line = really_input_string in_channel 64 in
+    close_in in_channel;
+    line
+  in
+  GML.write_metadata g "programhash" programhash;
   (* TODO: architecture *)
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
 
