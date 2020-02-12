@@ -181,6 +181,7 @@ let _ = ()
       ; reg Experimental "exp.witness_path" "'witness.graphml'" "Witness output path"
       ; reg Experimental "exp.minwitness"        "false" "Try to minimize the witness"
       ; reg Experimental "exp.uncilwitness"      "false" "Try to undo CIL control flow transformations in witness"
+      ; reg Experimental "exp.architecture"      "'64bit'" "Architecture for analysis, currently for witness"
       ; reg Experimental "exp.partition-arrays.enabled"  "false" "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well."
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"

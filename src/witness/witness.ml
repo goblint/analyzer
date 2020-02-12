@@ -95,7 +95,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
     line
   in
   GML.write_metadata g "programhash" programhash;
-  (* TODO: architecture *)
+  GML.write_metadata g "architecture" (get_string "exp.architecture");
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
 
   let write_node ?(entry=false) node =
