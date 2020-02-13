@@ -89,7 +89,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   GML.write_metadata g "programfile" programfile;
   let programhash =
     (* TODO: calculate SHA-256 hash without external process *)
-    let in_channel = Unix.open_process_in ("sha256sum " ^ programfile) in
+    let in_channel = Unix.open_process_in (Printf.sprintf "sha256sum '%s'" programfile) in (* TODO: pass filename as proper argument instead of through shell, open_process_args_in requires OCaml 4.08.0 *)
     let line = really_input_string in_channel 64 in
     close_in in_channel;
     line
