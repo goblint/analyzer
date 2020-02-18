@@ -565,6 +565,11 @@ struct
           | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
           | _, _ -> false
         in
+        (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
+        let is_violation n =
+          Arg.next n
+          |> List.exists (fun (_, to_n) -> is_violation to_n)
+        in
         let is_sink =
           (* TODO: somehow move this to witnessUtil *)
           let non_sinks = LHT.create 100 in
