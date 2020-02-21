@@ -209,11 +209,14 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+    | Statement {sid; skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
+      (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
+      (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
+      (* TODO: need to handle longer loops? *)
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | Statement {skind=If (_, _, _, loc2)}, _ when loc = loc2 ->
+        | Statement {sid=sid2; skind=If (_, _, _, loc2)}, _ when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
@@ -225,7 +228,7 @@ struct
           else
             None
         (* || *)
-        | _, Statement {skind=If (_, _, _, loc2)} when loc = loc2 ->
+        | _, Statement {sid=sid2; skind=If (_, _, _, loc2)} when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
