@@ -412,14 +412,14 @@ struct
     iter (Base.printXml f) xs
 end
 
-(* Hoare hash set for partial orders: keeps uncomparable elements separate
+(* Hoare hash set for partial orders: keeps incomparable elements separate
    - All comparable elements must have the same hash so that they land in the same bucket!
    - Pairwise operations like join then only need to be done per bucket.
-   - E should throw Lattice.Uncomparable if an operation is not defined for two elements.
+   - E should throw Lattice.Incomparable if an operation is not defined for two elements.
      In this case the operation will be done on the level of the set instead.
    - Hoare set means that for comparable elements, we only keep the biggest one.
      -> We only need to find the first comparable element for a join etc.
-     -> There should only be one element per bucket except for hash collissions.
+     -> There should only be one element per bucket except for hash collisions.
 *)
 module HoarePO (E : Lattice.PO) =
 struct

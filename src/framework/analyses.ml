@@ -52,7 +52,7 @@ struct
     | MyCFG.Function      f -> dprintf "call of %s" f.vname
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
 
-  let pretty_trace () x =  dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
+  let pretty_trace () x =  dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare n1 n2 =
     match n1, n2 with
@@ -122,7 +122,7 @@ struct
 
   let pretty_trace () (n,c as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
-    else dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
+    else dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare (n1,d1) (n2,d2) =
     let comp =
