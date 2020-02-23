@@ -1,5 +1,4 @@
 open BatteriesExceptionless
-(* https://bitbucket.org/camlspotter/ppx_monadic *)
 
 type 'a e = 'a * string (* some expression and its promela representation *)
 type _ t = (* promela types *)

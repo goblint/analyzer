@@ -16,7 +16,7 @@ depends: [
   "batteries" {build}
   "xml-light" {build}
   "ppx_distr_guards"
-  "ppx_monadic"
+  "ocaml-monadic"
   "ppx_import"
   "ppx_deriving"
   "ppx_deriving_yojson"
