@@ -1,13 +1,11 @@
-(jbuild_version 1)
-
 (executable
- ((name maingoblint)
-  (libraries (ppx_import batteries cil xml-light))
-  (preprocess (pps (ppx_import ppx_deriving ppx_deriving.std ppx_deriving_yojson ppx_distr_guards))) ; ppx_deriving.std since 4.2?
+ (name maingoblint)
+ (libraries ppx_import batteries cil xml-light)
+ (preprocess (pps ppx_deriving ppx_deriving.std ppx_deriving_yojson ppx_distr_guards)) ; ppx_deriving.std since 4.2?
   ; jbuilder expects all files in the same directory...
   ; https://github.com/janestreet/jbuilder/issues/109
   ; (copy_files# subdir/*.{ml,mli})
- ))
+ )
 
 ; since beta14: (copy_files# sample-src-folder1/*)
 ; see https://discuss.ocaml.org/t/jbuilder-templates/958

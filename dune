@@ -1,0 +1,10 @@
+; http://rgrinberg.com/posts/dune-upcoming-1-1/
+
+; (include_subdirs unqualified)
+
+; http://rgrinberg.com/posts/dune-upcoming-1-1/#faster-compilation-in-development-mode
+; -opaque used per default now? cmp default build (dev?) vs. `--profile release`
+
+(library
+ (name goblint)
+ (preprocess (staged_pps ppx_import)))
