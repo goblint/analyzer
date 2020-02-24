@@ -125,7 +125,7 @@ struct
     | `ExprSet x, `ExprSet y -> ES.compare x y
     | `ExpTriples x, `ExpTriples y -> PS.compare x y
     | `TypeSet x, `TypeSet y -> TS.compare x y
-    | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
+    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
     match state with

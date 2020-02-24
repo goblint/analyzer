@@ -145,7 +145,7 @@ struct
         end
       | kd -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [kd; Range.toXML st])
     in
-    let module IMap = Map.Make (struct type t = int let compare = Pervasives.compare end) in
+    let module IMap = Map.Make (struct type t = int let compare = Stdlib.compare end) in
     let groups =
       let add_grpd k v m =
         let group = Domain.classify k in

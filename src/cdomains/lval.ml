@@ -89,7 +89,7 @@ struct
   let rec compare o1 o2 = match o1, o2 with
     | `NoOffset, `NoOffset -> 0
     | `Field (f1,o1), `Field (f2,o2) ->
-      let c = Pervasives.compare f1.fname f2.fname in
+      let c = Stdlib.compare f1.fname f2.fname in
       if c=0 then compare o1 o2 else c
     | `Index (i1,o1), `Index (i2,o2) ->
       let c = Idx.compare i1 i2 in

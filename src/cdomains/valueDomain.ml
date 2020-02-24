@@ -135,7 +135,7 @@ struct
     | `Array x, `Array y -> CArrays.compare x y
     | `List x, `List y -> Lists.compare x y
     | `Blob x, `Blob y -> Blobs.compare x y
-    | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
+    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f _ () state =
     match state with
@@ -236,7 +236,7 @@ struct
       let info = Pretty.(sprint ~width:0 @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
-      match Pervasives.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
+      match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
       | 0 ->
         M.tracel "casta" "same size\n";
         if not (typ_eq t ta) then err "Cast to different type of same size."

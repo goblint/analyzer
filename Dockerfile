@@ -7,7 +7,7 @@ FROM ocaml/opam2
 # {ruby, gem, locale} needed for `make test`
 RUN sudo apt-get update && sudo apt-get install -yq m4 libgmp-dev ruby
 RUN sudo gem install parallel
-RUN opam switch 4.07
+RUN opam switch 4.09
 # First we only copy files needed for setup. If we added all here, it would invalidate the cache on every change and the following steps would have to be rerun.
 COPY --chown=opam make.sh /home/opam/analyzer/
 # Change workdir after first copy, otherwise wrong permissions.

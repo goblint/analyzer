@@ -69,7 +69,7 @@ struct
       A.is_leq (Man.mgr) x y
 
   let hash (x:t) = Hashtbl.hash x
-  let compare (x:t) y = Pervasives.compare x y
+  let compare (x:t) y = Stdlib.compare x y
   let isSimple x = true
   let short n x =
     A.print Legacy.Format.str_formatter x;
@@ -346,15 +346,15 @@ struct
   let get_int_interval_for_cil_exp d cil_exp =
     let get_int_for_apron_scalar (scalar: Scalar.t) =
       match scalar with
-      | Float scalar -> Some (Pervasives.int_of_float scalar)
+      | Float scalar -> Some (Stdlib.int_of_float scalar)
       | Mpqf scalar ->
         begin
           match Mpqf.to_string scalar with
           (* apron has an internal representation of -1/0 as -infinity and 1/0 as infinity.*)
           | "-1/0" | "1/0" -> None
-          | _ -> Some (Pervasives.int_of_float (Mpqf.to_float scalar))
+          | _ -> Some (Stdlib.int_of_float (Mpqf.to_float scalar))
         end
-      | Mpfrf scalar -> Some (Pervasives.int_of_float (Mpfrf.to_float scalar)) in
+      | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
     try
       let linexpr1, _  = cil_exp_to_apron_linexpr1 (A.env d) cil_exp false in
       match linexpr1 with

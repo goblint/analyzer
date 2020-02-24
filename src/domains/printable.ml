@@ -142,7 +142,7 @@ struct
   let hash x = x.BatHashcons.hcode
   let tag x = x.BatHashcons.tag
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
-  let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
+  let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
   let short w = lift_f (Base.short w)
   let to_yojson = lift_f (Base.to_yojson)
   let pretty_f sf () = lift_f (Base.pretty_f (fun w x -> sf w (lift x)) ())

@@ -122,7 +122,7 @@ struct
 
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) y = x=y
-  let compare = Pervasives.compare
+  let compare = Stdlib.compare
   let short _ = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
   let isSimple _ = true
   let name () = "32bit intervals"

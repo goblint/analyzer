@@ -36,7 +36,7 @@ struct
   type t = MyCFG.edge [@@deriving to_yojson]
 
   let equal = Util.equals
-  let compare = Pervasives.compare
+  let compare = Stdlib.compare
   let hash = Hashtbl.hash
 
   let short w x = Pretty.sprint w (MyCFG.pretty_edge () x)
