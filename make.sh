@@ -28,6 +28,9 @@ rule() {
     clean)
       rm -rf goblint goblint.byte arinc doclist.odocl $TARGET.ml;
       ocb -clean
+    ;; dune)
+      dune build src/maingoblint.exe &&
+      cp _build/default/src/maingoblint.exe goblint
     ;; opt | nat*)
       ocb -no-plugin $TARGET.native &&
       cp _build/$TARGET.native goblint

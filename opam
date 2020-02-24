@@ -12,6 +12,7 @@ depends: [
   "ocaml" {>= "4.04.1"}
   "ocamlbuild" {build}
   "ocamlfind" {build}
+  "dune" {build}
   "goblint-cil" {build}
   "batteries" {build}
   "xml-light" {build}
