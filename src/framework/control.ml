@@ -10,29 +10,36 @@ open Constraints
 
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
-let get_spec () : (module Spec) =
+let get_spec () : (module SpecHC) =
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
-  (module (val
+  let module S1 = (val
             (module MCP.MCP2 : Spec)
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
+            |> lift (get_bool "ana.opt.hashcons") (module HashconsContextLifter)
+            (* hashcons contexts before witness to reduce duplicates, because witness re-uses contexts in domain *)
+            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter)
             |> lift true (module PathSensitive2)
-            |> lift (get_bool "ana.hashcons") (module HashconsLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
-          ))
+            |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
+          ) in
+  (module (val if get_bool "ana.opt.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
-  (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =
+    (** The main function to preform the selected analyses. *)
+    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
+
+    let module Inc = struct let increment = increment end in
+
     (** The Equation system *)
-    let module EQSys = FromSpec (Spec) (Cfg) in
+    let module EQSys = FromSpec (Spec) (Cfg) (Inc) in
 
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in
@@ -66,9 +73,10 @@ struct
       let add_one (l,n,f) v =
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-        if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v then begin
+        let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
+        if is_dead then begin
           dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines;
-          Deadcode.Locmap.add dead_locations l ()
+          Deadcode.Locmap.add dead_locations l ();
         end else begin
           live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
           NH.add live_nodes n ()
@@ -100,11 +108,13 @@ struct
         printf "File '%s':\n" f;
         StringMap.iter print_func
       in
-      if StringMap.is_empty !dead_lines
-      then printf "No dead code found!\n"
-      else begin
-        StringMap.iter print_file !dead_lines;
-        printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
+      if get_bool "dbg.print_dead_code" then begin
+        if StringMap.is_empty !dead_lines
+        then printf "No dead code found!\n"
+        else begin
+          StringMap.iter print_file !dead_lines;
+          printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
+        end
       end;
       let str = function true -> "then" | false -> "else" in
       let report tv loc dead =
@@ -130,7 +140,7 @@ struct
 
       (* Adding the state at each system variable to the final result *)
       let add_local_var (n,es) state =
-        let loc = MyCFG.getLoc n in
+        let loc = Tracing.getLoc n in
         if loc <> locUnknown then try
             let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
             if Result.mem res p then
@@ -142,7 +152,8 @@ struct
               Result.add res p (LT.singleton (es,state,fundec))
           (* If the function is not defined, and yet has been included to the
            * analysis result, we generate a warning. *)
-          with Not_found -> Messages.warn ("Undefined function has escaped.")
+          with Not_found ->
+            Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint MyCFG.pretty_node n)
       in
       LHT.iter add_local_var h;
       res
@@ -196,6 +207,8 @@ struct
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
         ; context = Obj.repr (fun () -> failwith "Global initializers have no context.")
+        ; context2 = (fun () -> failwith "Global initializers have no context.")
+        ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun _ -> Spec.G.bot ())
         ; presub  = []
@@ -239,7 +252,7 @@ struct
     in
 
     let print_globals glob =
-      let out = M.get_out Spec.name !GU.out in
+      let out = M.get_out (Spec.name ()) !GU.out in
       let print_one v st =
         ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v Spec.G.pretty st)
       in
@@ -265,6 +278,8 @@ struct
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
         ; context = Obj.repr (fun () -> failwith "enter_func has no context.")
+        ; context2 = (fun () -> failwith "enter_func has no context.")
+        ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun _ -> Spec.G.bot ())
         ; presub  = []
@@ -313,11 +328,22 @@ struct
       List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
 
 
+    let module Task =
+    struct
+      let file = file
+      let specification = Svcomp.unreach_call_specification
+
+      module Cfg = Cfg
+    end
+    in
+
     let local_xml = ref (Result.create 0) in
     let global_xml = ref (GHT.create 0) in
+    let lh_ref = ref (LHT.create 0) in
     let do_analyze_using_solver () =
       if get_bool "dbg.earlywarn" then Goblintutil.may_narrow := false;
       let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
+      lh_ref := lh;
 
       if not (get_string "comparesolver"="") then begin
         let compare_with (module S2 :  GenericGlobSolver) =
@@ -337,31 +363,30 @@ struct
       local_xml := solver2source_result lh;
       global_xml := gh;
 
-      let module S = Set.Make (Int) in
-      if (get_bool "dbg.uncalled") then
+      if get_bool "dbg.uncalled" then
         begin
           let out = M.get_out "uncalled" Legacy.stdout in
-          let f =
-            let insrt k _ s = match k with
-              | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then S.add fn.vid s else s
-              | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then S.add fn.vid s else s
-              | _ -> s
-            in
-            (* set of ids of called functions *)
-            let calledFuns = LHT.fold insrt lh S.empty in
-            let is_bad_uncalled fn loc =
-              not (S.mem fn.vid calledFuns) &&
-              not (Str.last_chars loc.file 2 = ".h") &&
-              not (LibraryFunctions.is_safe_uncalled fn.vname)
-            in function
-              | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
-                begin
-                  let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
-                  ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
-                end
-              | _ -> ()
+          let insrt k _ s = match k with
+            | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+            | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+            | _ -> s
           in
-          List.iter f file.globals;
+          (* set of ids of called functions *)
+          let calledFuns = LHT.fold insrt lh Set.Int.empty in
+          let is_bad_uncalled fn loc =
+            not (Set.Int.mem fn.vid calledFuns) &&
+            not (Str.last_chars loc.file 2 = ".h") &&
+            not (LibraryFunctions.is_safe_uncalled fn.vname)
+          in
+          let print_uncalled = function
+            | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+              begin
+                let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+              end
+            | _ -> ()
+          in
+          List.iter print_uncalled file.globals
         end;
 
       (* check for dead code at the last state: *)
@@ -389,6 +414,8 @@ struct
           { ask    = query
           ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
           ; context = Obj.repr (fun () -> failwith "No context in query context.")
+          ; context2 = (fun () -> failwith "No context in query context.")
+          ; edge    = MyCFG.Skip
           ; local  = Hashtbl.find joined loc
           ; global = GHT.find gh
           ; presub = []
@@ -415,8 +442,155 @@ struct
       (fun () -> Messages.waitWhat "Timeout reached!");
 
     let liveness = ref (fun _ -> true) in
-    if (get_bool "dbg.print_dead_code") then
+    if (get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp") then
       liveness := print_dead_code !local_xml;
+
+    if get_bool "ana.sv-comp" then begin
+      let svcomp_unreach_call =
+        let dead_verifier_error (l, n, f) v acc =
+          match n with
+          (* FunctionEntry isn't used for extern __VERIFIER_error... *)
+          | FunctionEntry f when f.vname = Svcomp.verifier_error ->
+            let is_dead = not (!liveness n) in
+            acc && is_dead
+          | _ -> acc
+        in
+        Result.fold dead_verifier_error !local_xml true
+      in
+      Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
+
+      let module Reach = Reachability (EQSys) (LHT) (GHT) in
+      Reach.prune !lh_ref !global_xml startvars';
+
+      let (witness_prev, witness_next) =
+        let lh = !lh_ref in
+        let gh = !global_xml in
+        let ask_local (lvar:EQSys.LVar.t) local =
+          (* build a ctx for using the query system *)
+          let rec ctx =
+            { ask    = query
+            ; node   = fst lvar
+            ; context = Obj.repr (fun () -> snd lvar)
+            ; context2 = (fun () -> snd lvar)
+            ; edge    = MyCFG.Skip
+            ; local  = local
+            ; global = GHT.find gh
+            ; presub = []
+            ; postsub= []
+            ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+            ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
+            ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
+            ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
+            }
+          and query x = Spec.query ctx x in
+          Spec.query ctx
+        in
+        (* let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in *)
+
+        let prev = LHT.create 100 in
+        let next = LHT.create 100 in
+        LHT.iter (fun lvar local ->
+            ignore (ask_local lvar local (Queries.IterPrevVars (fun (prev_node, prev_c_obj) edge ->
+                let prev_lvar: LHT.key = (prev_node, Obj.obj prev_c_obj) in
+                LHT.modify_def [] lvar (fun prevs -> (edge, prev_lvar) :: prevs) prev;
+                LHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar) :: nexts) next
+              )))
+          ) lh;
+
+        ((fun n ->
+            LHT.find_default prev n []), (* main entry is not in prev at all *)
+         (fun n ->
+            LHT.find_default next n [])) (* main return is not in next at all *)
+      in
+
+      let get: node * Spec.C.t -> Spec.D.t =
+        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+      in
+
+      let module Arg =
+      struct
+        module Node =
+        struct
+          include EQSys.LVar
+
+          let cfgnode = node
+
+          let to_string (n, c) =
+            (* copied from NodeCtxStackGraphMlWriter *)
+            let c_tag = Spec.C.tag c in
+            match n with
+            | Statement stmt  -> Printf.sprintf "s%d(%d)" stmt.sid c_tag
+            | Function f      -> Printf.sprintf "ret%d%s(%d)" f.vid f.vname c_tag
+            | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)" f.vid f.vname c_tag
+
+          let move (n, c) to_n = (to_n, c)
+          let is_live node = not (Spec.D.is_bot (get node))
+        end
+
+        let main_entry = WitnessUtil.find_main_entry entrystates
+        let next = witness_next
+      end
+      in
+      let module Arg =
+      struct
+        open MyARG
+        module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (Cfg)))
+        include Intra (Arg.Node) (ArgIntra) (Arg)
+      end
+      in
+
+      let find_invariant nc = Spec.D.invariant "" (get nc) in
+
+      if svcomp_unreach_call then begin
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = true
+          let invariant = find_invariant
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        Witness.write_file "witness.graphml" (module Task) (module TaskResult)
+      end else begin
+        let is_violation = function
+          | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
+          | _, _ -> false
+        in
+        let is_sink =
+          (* TODO: somehow move this to witnessUtil *)
+          let non_sinks = LHT.create 100 in
+
+          (* DFS *)
+          let rec iter_node node =
+            if not (LHT.mem non_sinks node) then begin
+              LHT.replace non_sinks node ();
+              List.iter (fun (_, prev_node) ->
+                  iter_node prev_node
+                ) (witness_prev node)
+            end
+          in
+
+          LHT.iter (fun lvar _ ->
+              if is_violation lvar then
+                iter_node lvar
+            ) !lh_ref;
+
+          fun n ->
+            not (LHT.mem non_sinks n)
+        in
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = false
+          let invariant _ = Invariant.none
+          let is_violation = is_violation
+          let is_sink = is_sink
+        end
+        in
+        Witness.write_file "witness.graphml" (module Task) (module TaskResult)
+      end
+    end;
 
     if (get_bool "exp.cfgdot") then
       MyCFG.dead_code_cfg file (module Cfg:CfgBidir) !liveness;
@@ -427,12 +601,12 @@ struct
     Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
 
 
-  let analyze file fs =
-    analyze file fs (get_spec ())
+  let analyze file fs change_info =
+    analyze file fs (get_spec ()) change_info
 end
 
 (** The main function to perform the selected analyses. *)
-let analyze (file: file) fs =
+let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
@@ -442,4 +616,4 @@ let analyze (file: file) fs =
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
   let module CFG = struct let prev = cfgB let next = cfgF end in
   let module A = AnalyzeCFG (CFG) in
-  A.analyze file fs
+  A.analyze file fs change_info

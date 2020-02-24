@@ -1,0 +1,3 @@
+basic/*.c
+eq/*.c
+cfg/multicall_*.c

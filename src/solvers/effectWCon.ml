@@ -12,7 +12,20 @@ module Make2
 struct
   open S
   include Generic.SolverInteractiveWGlob (S) (LH) (GH)
-  include Generic.SolverStatsWGlob (S)
+  (* include Generic.SolverStatsWGlob (S) (LH) *)
+  (* The above module was a copy of SolverStats that just operated on S.LVar and S.D. *)
+  (* Got rid of the copy and instead make an [EqConstrSys] that ignores the global part here (no stats on globals). *)
+  module LS = struct
+    type v = S.LVar.t
+    type d = S.D.t
+    module Var = S.LVar
+    module Dom = S.D
+    let no _ = failwith "do not use!"
+    let box = no
+    let system = no
+    let increment = S.increment
+  end
+  include Generic.SolverStats (LS) (LH)
 
   let lh_find_default t x a = try LH.find t x with Not_found -> a
   let gh_find_default t x a = try GH.find t x with Not_found -> a
@@ -74,7 +87,7 @@ struct
               GH.remove gInfl g
             end
           in
-          eval_rhs_event x i;
+          eval_rhs_event x (* i *);
           let nls = f (vEval ((x,f),i)) local_side (gEval ((x,f),i)) global_side in
           local_state := D.join !local_state nls
         in

@@ -26,6 +26,9 @@ struct
   let meet x y = ES_r.join x y
 end
 
+type iterprevvar = (MyCFG.node * Obj.t) -> MyCFG.edge -> unit
+let iterprevvar_to_yojson _ = `Null
+
 type t = ExpEq of exp * exp
        | EqualSet of exp
        | MayPointTo of exp
@@ -37,13 +40,19 @@ type t = ExpEq of exp * exp
        | IsPublic of varinfo
        | SingleThreaded
        | IsNotUnique
-       | EvalLength of exp
        | EvalFunvar of exp
        | EvalInt of exp
        | EvalStr of exp
+       | EvalLength of exp (* length of an array or string *)
+       | BlobSize of exp (* size of a dynamically allocated `Blob pointed to by exp *)
        | PrintFullState
        | CondVars of exp
        | Access of exp * bool * bool * int
+       | IterPrevVars of iterprevvar
+       | InInterval of exp * IntDomain.Interval32.t
+       | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
+       | MayBeEqual of exp * exp (* may two expressions be equal? *)
+       | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
        | TheAnswerToLifeUniverseAndEverything
 [@@deriving to_yojson]
 
@@ -116,7 +125,7 @@ struct
     | `ExprSet x, `ExprSet y -> ES.compare x y
     | `ExpTriples x, `ExpTriples y -> PS.compare x y
     | `TypeSet x, `TypeSet y -> TS.compare x y
-    | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
+    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
     match state with

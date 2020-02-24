@@ -1,9 +1,9 @@
 open OUnit
 open Int64
 
-module IntTest (I:IntDomain.S) = 
+module IntTest (I:IntDomain.S) =
 struct
-  let izero      = I.of_int zero 
+  let izero      = I.of_int zero
   let ione       = I.of_int one
   let iminus_one = I.of_int minus_one
   let itwo       = I.of_int (of_int 2)
@@ -14,7 +14,7 @@ struct
   let i42        = I.of_int (of_int 42)
   let itrue      = I.of_bool true
   let ifalse     = I.of_bool false
-    
+
 
   let test_int_comp () =
     assert_equal ~printer:(I.short 80) izero (I.of_int zero);
@@ -27,7 +27,7 @@ struct
     assert_equal (Some zero) (I.to_int izero);
     assert_equal (Some zero) (I.to_int ifalse)
 
-      
+
   let test_bool () =
     assert_equal (Some true ) (I.to_bool ione);
     assert_equal (Some false) (I.to_bool izero);
@@ -41,33 +41,33 @@ struct
     assert_equal ~printer:(I.short 80) ifalse (I.ge izero itwo);
     assert_equal ~printer:(I.short 80) itrue  (I.eq izero izero);
     assert_equal ~printer:(I.short 80) ifalse (I.ne ione  ione)
-      
-      
+
+
   let test_neg () =
     assert_equal ~printer:(I.short 80) in5 (I.neg i5);
     assert_equal ~printer:(I.short 80) i5 (I.neg (I.neg i5));
     assert_equal ~printer:(I.short 80) izero (I.neg izero)
-      
+
 
   let test_add () =
     assert_equal ~printer:(I.short 80) ione (I.add izero ione);
     assert_equal ~printer:(I.short 80) ione (I.add ione  izero);
     assert_equal ~printer:(I.short 80) izero(I.add izero izero)
 
-    
+
   let test_sub () =
     assert_equal ~printer:(I.short 80) ione (I.sub izero iminus_one);
     assert_equal ~printer:(I.short 80) ione (I.sub ione  izero);
     assert_equal ~printer:(I.short 80) izero(I.sub izero izero)
 
-      
-  let test_mul () = 
+
+  let test_mul () =
     assert_equal ~printer:(I.short 80) izero(I.mul izero iminus_one);
     assert_equal ~printer:(I.short 80) izero(I.mul izero izero);
     assert_equal ~printer:(I.short 80) ione (I.mul ione  ione);
     assert_equal ~printer:(I.short 80) i42  (I.mul ione  i42)
 
-      
+
   let test_div () =
     assert_equal ~printer:(I.short 80) ione (I.div ione ione);
     assert_equal ~printer:(I.short 80) ione (I.div i5 i5);
@@ -75,13 +75,13 @@ struct
     assert_equal ~printer:(I.short 80) in5  (I.div i5 iminus_one);
     assert_bool "div_by_0" (try I.is_bot (I.div i5 izero) with Division_by_zero -> true)
 
-      
+
   let test_rem () =
     assert_equal ~printer:(I.short 80) ione (I.rem ione  i5);
     assert_equal ~printer:(I.short 80) izero(I.rem izero i5);
     assert_equal ~printer:(I.short 80) itwo (I.rem i42   i5);
     assert_equal ~printer:(I.short 80) itwo (I.rem i42   in5)
-      
+
 
   let test_bit () =
     assert_equal ~printer:(I.short 80) iminus_one (I.bitnot izero);
@@ -97,25 +97,28 @@ struct
 
 
   let test () =
-  [ ("test_int_comp" >:: test_int_comp );
-    ("test_bool"     >:: test_bool     );
-    ("test_neg"      >:: test_neg      );
-    ("test_add"      >:: test_add      );
-    ("test_sub"      >:: test_sub      );
-    ("test_mul"      >:: test_mul      );
-    ("test_div"      >:: test_div      );
-    ("test_rem"      >:: test_rem      );
-    ("test_bit"      >:: test_bit      );
-  ]
+    [ ("test_int_comp" >:: test_int_comp );
+      ("test_bool"     >:: test_bool     );
+      ("test_neg"      >:: test_neg      );
+      ("test_add"      >:: test_add      );
+      ("test_sub"      >:: test_sub      );
+      ("test_mul"      >:: test_mul      );
+      ("test_div"      >:: test_div      );
+      ("test_rem"      >:: test_rem      );
+      ("test_bit"      >:: test_bit      );
+    ]
 
-end      
+end
 
 module A = IntTest (IntDomain.Integers)
 module B = IntTest (IntDomain.Flattened)
-module C = IntTest (IntDomain.Trier)
-module T = IntDomain.Trier
- 
-let tzero      = T.of_int zero 
+module C = IntTest (IntDomain.DefExc)
+module T = struct
+  include IntDomain.DefExc
+  let of_excl_list xs = of_excl_list Cil.ILong xs
+end
+
+let tzero      = T.of_int zero
 let tone       = T.of_int one
 let tminus_one = T.of_int minus_one
 let ttwo       = T.of_int (of_int 2)
@@ -132,7 +135,7 @@ let tex0       = T.of_excl_list [zero]
 let tex1       = T.of_excl_list [one ]
 let tex10      = T.of_excl_list [zero; one]
 let tex01      = T.of_excl_list [one; zero]
-    
+
 let test_bot () =
   assert_bool "bot != bot" (T.is_bot tbot);
   assert_bool "top != top" (T.is_top ttop);
@@ -180,7 +183,7 @@ let test_meet () =
   assert_equal ~printer:(T.short 80) tex0 (T.meet tex0  tex0);
   assert_equal ~printer:(T.short 80) tex1 (T.meet tex1  tex1);
   assert_equal ~printer:(T.short 80) tex10(T.meet tex1  tex0);
-  assert_equal ~printer:(T.short 80) tex01(T.meet tex0  tex1); 
+  assert_equal ~printer:(T.short 80) tex01(T.meet tex0  tex1);
   assert_equal ~printer:(T.short 80) tzero(T.meet tex1  tzero);
   assert_equal ~printer:(T.short 80) tone (T.meet tex0  tone );
   assert_equal ~printer:(T.short 80) tzero(T.meet tex1  tzero);
@@ -197,11 +200,11 @@ let test_ex_set () =
   assert_equal None (T.to_bool tex1)
 
 let test () = "intDomainTest" >:::
-  [ "int_Integers"  >::: A.test ();
-    "int_Flattened" >::: B.test ();
-    "int_Trier"     >::: C.test ();
-    "test_bot"      >::  test_bot;
-    "test_join"     >::  test_join;
-    "test_meet"     >::  test_meet;
-    "test_excl_list">::  test_ex_set;
-  ]
+              [ "int_Integers"  >::: A.test ();
+                "int_Flattened" >::: B.test ();
+                "int_DefExc"     >::: C.test ();
+                "test_bot"      >::  test_bot;
+                "test_join"     >::  test_join;
+                "test_meet"     >::  test_meet;
+                "test_excl_list">::  test_ex_set;
+              ]

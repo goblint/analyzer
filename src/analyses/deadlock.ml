@@ -11,7 +11,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "deadlock"
+  let name () = "deadlock"
 
   (* The domain for the analysis *)
   module D = DeadlockDomain.Lockset (* MayLockset *)

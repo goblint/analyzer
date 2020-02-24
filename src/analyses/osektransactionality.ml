@@ -10,14 +10,15 @@ struct
 
   let violations = ref false (*print negative warnings? *)
 
-  let name = "OSEK2"
+  let name () = "OSEK2"
   module D = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
   module C = D
   module G = Lattice.Unit
-  module StringSet = Set.Make (String)
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
-  let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((StringSet.empty  )  , Osektupel.bot())
+  let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((Set.String.empty  )  , Osektupel.bot())
+
+  let should_join x y = D.equal x y
 
   let get_lockset ctx = Obj.obj (List.assoc "OSEK" ctx.postsub)
   let get_stack   ctx = Obj.obj (List.assoc "stack_trace_set" ctx.postsub)
@@ -43,7 +44,7 @@ struct
     let b2 = access_one_top ctx.ask false rval in
     let stack = get_stack ctx in
     let addvars var fn = let (vars,t) = Hashtbl.find funs fn.vname in
-      let _ = Hashtbl.replace funs fn.vname (StringSet.add var vars , Osektupel.join t ctxr) in
+      let _ = Hashtbl.replace funs fn.vname (Set.String.add var vars , Osektupel.join t ctxr) in
       (* let _ = print_endline("Adding " ^ var ^ " to accessset of" ^ fn.vname) in *)
       fn
     in
@@ -73,7 +74,7 @@ struct
     (* let _ = print_endline ( "Body " ^f.svar.vname) in  *)
     let _ = if Hashtbl.mem funs f.svar.vname then () else
         (*let _ = print_endline ( "Adding to funs " ^f.svar.vname) in *)
-        Hashtbl.add funs f.svar.vname ((StringSet.empty  )  ,Osektupel.bot()) in D.bot()
+        Hashtbl.add funs f.svar.vname ((Set.String.empty  )  ,Osektupel.bot()) in D.bot()
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let ((_,ctxr): D.t) = ctx.local in
@@ -154,7 +155,7 @@ struct
           print_endline ("versus a defensive overall priority of " ^ (string_of_int pryd) ^ " .")
         end else ()
     in
-    let warnings = StringSet.fold (helper pryd) vars [] in
+    let warnings = Set.String.fold (helper pryd) vars [] in
     printwarnings warnings
 
 

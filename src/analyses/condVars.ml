@@ -16,7 +16,7 @@ module Domain = struct
   and var_in_expr p = function
     | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> true
     | Lval l | AddrOf l | StartOf l -> var_in_lval p l
-    | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> var_in_expr p e
+    | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) | Imag e | Real e -> var_in_expr p e
     | BinOp (_,e1,e2,_) -> var_in_expr p e1 && var_in_expr p e2
     | Question (c,t,e,_) -> var_in_expr p c && var_in_expr p t && var_in_expr p e
     | AddrOfLabel _ -> true
@@ -51,7 +51,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "condvars"
+  let name () = "condvars"
   module D = Domain
   module C = Domain
   module G = Lattice.Unit

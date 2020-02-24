@@ -20,7 +20,7 @@ struct
   module C = LockDomain.Symbolic
   module G = Lattice.Unit
 
-  let name = "symb_locks"
+  let name () = "symb_locks"
 
   let startstate v = D.top ()
   let otherstate v = D.top ()
@@ -106,7 +106,7 @@ struct
   let type_inv (c:compinfo) : Lval.CilLval.t list =
     try [Hashtbl.find type_inv_tbl c,`NoOffset]
     with Not_found ->
-      let i = makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[])) in
+      let i = Goblintutil.create_var (makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[]))) in
       Hashtbl.add type_inv_tbl c i;
       [i, `NoOffset]
 

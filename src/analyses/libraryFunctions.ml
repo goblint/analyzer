@@ -7,8 +7,9 @@ open Goblintutil
 module M = Messages
 
 type categories = [
-  | `Malloc
-  | `Calloc
+  | `Malloc       of exp
+  | `Calloc       of exp
+  | `Realloc      of exp * exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
@@ -30,8 +31,26 @@ let classify' fn exps =
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
       | _ -> M.bailwith "pthread_join arguments are strange!"
     end
-  | "malloc" | "kmalloc"  | "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> `Malloc
-  | "calloc" -> `Calloc
+  | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
+    begin match exps with
+      | size::_ -> `Malloc size
+      | _ -> M.bailwith (fn^" arguments are strange!")
+    end
+  | "kzalloc" ->
+    begin match exps with
+      | size::_ -> `Calloc size
+      | _ -> M.bailwith (fn^" arguments are strange!")
+    end
+  | "calloc" ->
+    begin match exps with
+      | n::size::_ -> `Calloc Cil.(BinOp (Mult, n, size, typeOf one))
+      | _ -> M.bailwith (fn^" arguments are strange!")
+    end
+  | "realloc" ->
+    begin match exps with
+      | p::size::_ -> `Realloc (p, size)
+      | _ -> M.bailwith (fn^" arguments are strange!")
+    end
   | "assert" ->
     begin match exps with
       | [e] -> `Assert e
@@ -129,7 +148,8 @@ let writesAll a x =
   | `Write -> x
   | `Read  -> []
 
-(* just add your library functions here *)
+(* Data races: which arguments are read/written?
+ * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 let invalidate_actions = ref [
     "GetResource", readsAll;
     "ReleaseResource", readsAll;
@@ -431,17 +451,16 @@ let get_threadsafe_inv_ac name =
 
 
 
-module StringSet = Set.Make(String)
-let lib_funs = ref (StringSet.of_list ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_trylock"; "spin_unlock_irqrestore"])
-let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs
-let use_special fn_name = StringSet.mem fn_name !lib_funs
+let lib_funs = ref (Set.String.of_list ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_trylock"; "spin_unlock_irqrestore"])
+let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
+let use_special fn_name = Set.String.mem fn_name !lib_funs
 
 let effects = ref []
 let add_effects f = effects := f :: !effects
 let effects_for fname args = List.filter_map (fun f -> f fname args) !effects
 
-let kernel_safe_uncalled = StringSet.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
+let kernel_safe_uncalled = Set.String.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
 let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]
 let is_safe_uncalled fn_name =
-  StringSet.mem fn_name kernel_safe_uncalled ||
+  Set.String.mem fn_name kernel_safe_uncalled ||
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex

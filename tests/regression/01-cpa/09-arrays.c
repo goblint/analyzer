@@ -120,5 +120,14 @@ int main () {
   // It's not possible to analyze this:
   // a[3] = 666;
 
+  // Check that undefined behavior (accessing array with no defined elements)
+  // does not cause false unreachability
+  int not_init[20];
+
+  if(not_init[5] == 0) {
+    assert(1==1);
+  }
+
+
   return 0;
 }

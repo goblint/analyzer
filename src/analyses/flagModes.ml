@@ -8,7 +8,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "fmode"
+  let name () = "fmode"
   module D = FlagModeDomain.Dom
   module C = FlagModeDomain.Dom
   module G = Lattice.Unit

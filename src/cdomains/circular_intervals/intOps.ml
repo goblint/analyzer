@@ -67,7 +67,7 @@ struct
   let logor = (lor)
   let lognot = (lnot)
 
-  let compare = (compare)
+  let compare = compare
   let top_range a b = (a = min_int) && (b = max_int)
 
   let of_int x = x

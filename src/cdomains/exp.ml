@@ -9,7 +9,6 @@ struct
 
   let equal = Expcompare.compareExp
   let hash = Hashtbl.hash
-  let compare = Pervasives.compare
   let classify _ = 0
   let class_name _ = "None"
   let name () = "Cil expressions"
@@ -275,7 +274,6 @@ struct
 
   let equal = Util.equals
   let hash = Hashtbl.hash
-  let compare = Pervasives.compare
   let classify _ = 0
   let class_name _ = "None"
   let name () = "Per-Element locking triple"
@@ -322,9 +320,9 @@ struct
     *)	| EAddr :: EDeref :: x -> ees_to_offs x
     | EDeref :: EAddr :: x -> ees_to_offs x
     | EField f :: x -> `Field (f,ees_to_offs x)
-    | EIndex (Const (CInt64 (i,_,_))) :: x -> `Index (ValueDomain.IndexDomain.of_int i,ees_to_offs x)
-    | EIndex i :: x -> `NoOffset
-    | x  -> raise NotSimpleEnough
+    | EIndex (Const (CInt64 (i,_,_))) :: x -> `Index (IntDomain.IntDomTuple.of_int i,ees_to_offs x)
+    | EIndex i :: x -> `NoOffset              (* Ideally this would be ValueDomain.IntDomain but that leads to issues *)
+    | x  -> raise NotSimpleEnough             (* with a cylic build *)
 
   let toEl exp =
     let rec conv_o o =

@@ -1,7 +1,6 @@
 open Cil
 open Pretty
 
-
 let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
@@ -22,109 +21,38 @@ end
 
 module AddressSet (Idx: IntDomain.S) =
 struct
+  include Printable.Std (* for default invariant, tag, ... *)
+
   module Addr = Lval.NormalLat (Idx)
-  include SetDomain.Hoare (Addr) (struct let topname = "Anywhere" end)
+  include SetDomain.HoarePO (Addr)
 
   type field = Addr.field
   type idx = Idx.t
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
-  let null_ptr ()    = singleton (Addr.null_ptr ())
-  let str_ptr ()     = singleton (Addr.str_ptr ())
-  let safe_ptr ()    = singleton (Addr.safe_ptr ())
-  let unknown_ptr () = singleton (Addr.unknown_ptr ())
-  let top_ptr ()     = Addr.(of_list [unknown_ptr (); null_ptr (); safe_ptr ()])
-  let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x)
-  let may_be_unknown x = exists Addr.is_unknown x
-  let is_null x = cardinal x = 1 && Addr.is_null (choose x)
-  let is_not_null x = for_all (Batteries.neg Addr.is_null) x
-  let to_bool x = if is_null x then Some false else if is_not_null x then Some true else None
-  let has_unknown x = mem Addr.UnknownPtr x
+  let null_ptr       = singleton Addr.NullPtr
+  let safe_ptr       = singleton Addr.SafePtr
+  let unknown_ptr    = singleton Addr.UnknownPtr
+  let not_null       = unknown_ptr
+  let top_ptr        = of_list Addr.([UnknownPtr; NullPtr])
+  let is_unknown x   = is_element Addr.UnknownPtr x
+  let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
+  let is_null x      = is_element Addr.NullPtr x
+  let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
+  let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
+  let has_unknown x  = mem Addr.UnknownPtr x
 
   let of_int (type a) (module ID : IntDomain.S with type t = a) i =
     match ID.to_int i with
-    | Some 0L -> null_ptr ()
+    | Some 0L -> null_ptr
     | _ -> match ID.to_excl_list i with
-      | Some xs when List.mem 0L xs -> Addr.(of_list [safe_ptr (); unknown_ptr ()])
-      | _ -> top_ptr ()
+      | Some xs when List.mem 0L xs -> not_null
+      | _ -> top_ptr
 
   let get_type xs =
     try Addr.get_type (choose xs)
     with (* WTF? Returns TVoid when it is unknown and stuff??? *)
     | _ -> voidType
-
-  (* The basic strategy for the join and meet operations is to first just take
-   * the union and intersection and then collapse the values. (Does the meet
-   * operation actually need any of this? Probably not, but who cares...)
-   * The basic thing is to deal with {&a[3]} join {&a[4]} so the set doesn't
-   * grow during loops.  *)
-  let merge op x y =
-    let merge_addr op (v1,ofs1) (v2,ofs2) =
-      let rec merge_offs x y =
-        match x,y with
-        | `NoOffset, `NoOffset -> `NoOffset
-        | `Field (f1,of1), `Field (_,of2) -> `Field (f1, merge_offs of1 of2)
-        | `Index (i1,of1), `Index (i2,of2)-> `Index (op i1 i2, merge_offs of1 of2)
-        | x, _ -> x
-      in
-      v1, merge_offs ofs1 ofs2
-    in
-    match (Addr.to_var_offset x, Addr.to_var_offset y) with
-    | [x],[y]  -> Addr.from_var_offset (merge_addr op x y)
-    | _ -> failwith "This should never happen!"
-
-  (* A function to find the addresses that need to be merged. Those that have
-   * the same shape.  *)
-  let same_mod_idx x y =
-    let same_mod_idx_addr (v1,ofs1) (v2,ofs2) =
-      let rec same_offs x y =
-        match x,y with
-        | `NoOffset, `NoOffset -> true
-        | `Index (_,x), `Index (_,y) -> same_offs x y
-        | `Field (f1,x), `Field (f2,y) when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname=f2.fname -> same_offs x y
-        | _ -> false
-      in
-      v1.vid = v2.vid && same_offs ofs1 ofs2
-    in
-    match Addr.to_var_offset x, Addr.to_var_offset y with
-    | [x],[y]  -> same_mod_idx_addr x y
-    | _ -> false
-
-  (* reduce elements in the same partition (specified by same_mod_idx) *)
-  let reduce op a =
-    let rec loop js = function
-      | [] -> js
-      | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
-          if same_mod_idx x j then op x j, r else j, x::r
-        ) (x,[]) xs in
-        loop (j::js) r
-    in
-    apply_list (loop []) a
-
-  (*
-  let merge_idxs op (s:t) : t =
-    let rec f xs acc =
-      if is_empty xs then begin acc
-      end else
-        let x = choose xs in
-        let xs = remove x xs in
-        let (fit,rest) =  partition (same_mod_idx x) xs in
-        let merged = fold (merge op) fit x in
-        f rest (add merged acc)
-    in
-    try f s (empty ()) with SetDomain.Unsupported _ -> top ()
-  *)
-
-  let merge_idxs op (s:t) : t = reduce (merge op) s
-
-  let join (s1:t) (s2:t) = merge_idxs Idx.join (join s1 s2)
-  let meet (s1:t) (s2:t) = merge_idxs Idx.meet  (meet s1 s2)
-  let widen (s1:t) (s2:t) = merge_idxs Idx.widen (widen s1 s2)
-  let narrow (s1:t) (s2:t) = merge_idxs Idx.narrow (narrow s1 s2)
-  let leq (s1:t) (s2:t) = match (s1,s2) with
-    | _, All -> true
-    | All, _ -> false
-    | Set s1, Set s2 -> S.for_all (fun x -> S.exists (Addr.leq x) s2) s1
 
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
@@ -147,8 +75,7 @@ struct
 
   let pretty_f w () x =
     try
-      let elts = elements x in
-      let content = List.map (Addr.pretty_f short_addr ()) elts in
+      let content = List.map (Addr.pretty_f short_addr ()) (elements x) in
       let rec separate x =
         match x with
         | [] -> []
@@ -177,6 +104,7 @@ struct
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
+  (*
   let leq = if not fast_addr_sets then leq else fun x y ->
       match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
       | true, false -> false
@@ -188,6 +116,23 @@ struct
       match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
       | true, false
       | false, true
-      | true, true -> unknown_ptr ()
+      | true, true -> unknown_ptr
       | false, false -> join x y
+  *)
+
+  let is_top a = mem Addr.UnknownPtr a
+
+  let merge uop cop x y =
+    let no_null x y =
+      if mem Addr.NullPtr y then x
+      else remove Addr.NullPtr x
+    in
+    match is_top x, is_top y with
+    | true, true -> uop x y
+    | false, true -> no_null x y
+    | true, false -> no_null y x
+    | false, false -> cop x y
+
+  let meet x y   = merge join meet x y
+  let narrow x y = merge widen narrow x y
 end

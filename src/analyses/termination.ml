@@ -27,7 +27,7 @@ class loopCounterVisitor (fd : fundec) = object(self)
         (* insert loop counter variable *)
         let name = "term"^string_of_int loc.line in
         let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-        let v = makeLocalVar fd name ~init:(SingleInit zero) typ in
+        let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
         (* make an init stmt since the init above is apparently ignored *)
         let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc) in
         (* increment it every iteration *)
@@ -60,7 +60,7 @@ let lvals_of_expr =
   let rec f a = function
     | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ | AddrOfLabel _ -> a
     | Lval l | AddrOf l | StartOf l -> l :: a
-    | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> f a e
+    | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) | Imag e | Real e -> f a e
     | BinOp (_,e1,e2,_) -> f a e1 @ f a e2
     | Question (c,t,e,_) -> f a c @ f a t @ f a e
   in f []
@@ -95,7 +95,7 @@ let makeVar fd loc name =
   try List.find (fun v -> v.vname = id) fd.slocals
   with Not_found ->
     let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-    makeLocalVar fd id ~init:(SingleInit zero) typ
+    Goblintutil.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
 let f_commit = Lval (var (emptyFunction "__goblint_commit").svar)
 let f_check  = Lval (var (emptyFunction "__goblint_check").svar)
 class loopInstrVisitor (fd : fundec) = object(self)
@@ -189,7 +189,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "term"
+  let name () = "term"
   module D = TermDomain
   module C = TermDomain
   module G = Lattice.Unit
@@ -250,10 +250,10 @@ end
 
 let _ =
   (* Cilfacade.register_preprocess Spec.name (new loopCounterVisitor); *)
-  Cilfacade.register_preprocess Spec.name (new loopBreaksVisitor);
-  Cilfacade.register_preprocess Spec.name (new loopVarsVisitor);
-  Cilfacade.register_preprocess Spec.name (new loopInstrVisitor);
-  Cilfacade.register_preprocess Spec.name (new recomputeVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopVarsVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopInstrVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new recomputeVisitor);
   Hashtbl.clear loopBreaks; (* because the sids are now different *)
-  Cilfacade.register_preprocess Spec.name (new loopBreaksVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
   MCP.register_analysis (module Spec : Spec)

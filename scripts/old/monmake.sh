@@ -14,7 +14,7 @@ while change=$(inotifywait -r -q -e modify src); do
   if [ $? -eq 0 ]; then
     notify-send "Build ok!"
     if [ $1 ]; then # type of regression tests to run, e.g. "file"
-        ./scripts/regression.sh $1
+        ./scripts/spec/regression.sh $1
     fi
     if [ $? -eq 0 ]; then
       paplay /usr/share/sounds/freedesktop/stereo/complete.oga

@@ -13,7 +13,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "shape"
+  let name () = "shape"
   module LD = ShapeDomain.Dom
   module D  = Lattice.Prod (LD) (Re.D)
   module C  = Lattice.Prod (LD) (Re.D)
@@ -61,7 +61,7 @@ struct
     in
     S.elements (cv e)
 
-  let re_context (ctx: (D.t,G.t) ctx) (re:Re.D.t): (Re.D.t, Re.G.t) ctx =
+  let re_context (ctx: (D.t,G.t,C.t) ctx) (re:Re.D.t): (Re.D.t, Re.G.t,C.t) ctx =
     let ge v = let a,b = ctx.global v in b in
     let spawn f v x = f v (LD.singleton (SHMap.top ()), x) in
     let geffect f v d = f v (false, d) in

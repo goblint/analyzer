@@ -5,7 +5,6 @@
 if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     brew update
     brew install ocaml opam gcc
-    brew link --overwrite gcc
 else
     if test -e "make.sh"; then # travis-ci
         echo "already in repository"
@@ -32,7 +31,7 @@ else
     fi
 
     # install ocaml and friends, see http://anil.recoil.org/2013/09/30/travis-and-ocaml.html
-    ppa=avsm/ocaml42+opam12
+    ppa=avsm/ppa
 
     echo 'yes' | sudo add-apt-repository ppa:$ppa
     sudo apt-get update -qq
@@ -40,7 +39,7 @@ else
 fi
 
 # install dependencies
-OPAMYES=1 ./make.sh setup
+SANDBOXING=--disable-sandboxing ./make.sh setup
 eval `opam config env`
 # compile
 ./make.sh nat

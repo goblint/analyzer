@@ -15,6 +15,7 @@ sig
   val is_int: t -> bool
   (** Checks if the element is a definite integer value. If this function
     * returns [true], the above [to_int] should return a real value. *)
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   (** Give a boolean interpretation of an abstract value if possible, otherwise
@@ -130,13 +131,13 @@ module Lifted : S with type t = [`Top | `Lifted of int64 | `Bot]
 (** Artificially bounded integers in their natural ordering. *)
 
 module Interval32 : S
-module Trier
+module DefExc
   : S with type t = [
       | `Excluded of SetDomain.Make(Integers).t * Interval32.t
       | `Definite of Integers.t
       | `Bot
     ]
-(** The Trier domain. The Flattened integer domain is topped by exclusion sets.
+(** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
 
 

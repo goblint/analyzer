@@ -67,7 +67,6 @@ let _ = ()
       ; reg Std "allglobs"        "false"        "Prints access information about all globals, not just races."
       ; reg Std "keepcpp"         "false"        "Keep the intermediate output of running the C preprocessor."
       ; reg Std "tempDir"         "''"           "Reuse temporary directory for preprocessed files."
-      ; reg Std "merge-conflicts" "true"         "Abort on merging conflicts."
       ; reg Std "cppflags"        "''"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
@@ -76,7 +75,7 @@ let _ = ()
       ; reg Std "solver"          "'effectWCon'" "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
-      ; reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main)."
+      ; reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main). This requires exp.earlyglobs!"
       ; reg Std "nonstatic"       "false"        "Analyzes all non-static functions."
       ; reg Std "colors"          "false"        "Colored output."
       ; reg Std "g2html"          "false"        "Run g2html.jar on the generated xml."
@@ -87,7 +86,7 @@ let _ = ()
 
 (* {4 category [Analyses]} *)
 let _ = ()
-      ; reg Analyses "ana.activated"  "['base','escape','mutex']"  "Lists of activated analyses in this phase."
+      ; reg Analyses "ana.activated"  "['expRelation','base','escape','mutex']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
@@ -103,20 +102,20 @@ let _ = ()
       ; reg Analyses "ana.osek.intrpts"    "false" "Enable constraints for interrupts."
       ; reg Analyses "ana.osek.check"      "false" "Check if (assumed) OSEK conventions are fullfilled."
       ; reg Analyses "ana.osek.names"      "[]"    "OSEK API function (re)names for the analysed program"
-      ; reg Analyses "ana.osek.warnfiles"  "false" "Print all warning types to seperate file"
+      ; reg Analyses "ana.osek.warnfiles"  "false" "Print all warning types to separate file"
       ; reg Analyses "ana.osek.safe_vars"  "[]"    "Suppress warnings on these vars"
       ; reg Analyses "ana.osek.safe_task"  "[]"    "Ignore accesses in these tasks"
       ; reg Analyses "ana.osek.safe_isr"   "[]"    "Ignore accesses in these isr"
       ; reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags."
       ; reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure"
-      ; reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain."
-      ; reg Analyses "ana.int.interval"    "false" "Interval based integer domain."
-      ; reg Analyses "ana.int.cinterval"   "false" "Wrapped, Signedness agnostic intervals."
-      ; reg Analyses "ana.int.enums"       "false" "Pos/Neg-Constants"
+      ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
+      ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: int64 * int64) option."
+      ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
       ; reg Analyses "ana.int.enums_max"   "1"     "Maximum number of resulting elements of operations before going to top. Widening is still just the join, so this might increase the size by n^2!"
+      ; reg Analyses "ana.int.cinterval"   "false" "Use IntDomain.CircInterval: Wrapped, Signedness agnostic intervals."
       ; reg Analyses "ana.int.cdebug"      "false" "Debugging output for wrapped interval analysis."
-      ; reg Analyses "ana.int.cwiden"      "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'double')"
-      ; reg Analyses "ana.int.cnarrow"     "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'half')"
+      ; reg Analyses "ana.int.cwiden"      "'basic'" "Widening variant to use for wrapped interval analysis ('basic', 'double')"
+      ; reg Analyses "ana.int.cnarrow"     "'basic'" "Narrowing variant to use for wrapped interval analysis ('basic', 'half')"
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
       ; reg Analyses "ana.pml.debug"       "true"  "Insert extra assertions into Promela code for debugging."
@@ -125,9 +124,11 @@ let _ = ()
       ; reg Analyses "ana.arinc.validate"    "true" "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables."
       ; reg Analyses "ana.arinc.export"    "true" "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way."
       ; reg Analyses "ana.arinc.merge_globals" "false"  "Merge all global return code variables into one."
-      ; reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
+      ; reg Analyses "ana.opt.hashcons"        "true"  "Should we try to save memory and speed up equality by hashconsing?"
+      ; reg Analyses "ana.opt.equal"       "true"  "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags)."
       ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
       ; reg Analyses "ana.mutex.disjoint_types" "true" "Do not propagate basic type writes to all struct fields"
+      ; reg Analyses "ana.sv-comp"         "false" "SV-COMP mode"
 
 (* {4 category [Transformations]} *)
 let _ = ()
@@ -138,29 +139,20 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "true"  "Use privatization?"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
-      ; reg Experimental "exp.nested"            "false" "Use a nested constraint system."
-      ; reg Experimental "exp.field_insensitive" "false" "Control the field sensitivity of the Base analysis."
-      ; reg Experimental "exp.check"             "[]"    "Check whether there is a race involving this variable/type."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
-      ; reg Experimental "exp.write-races"       "false" "Ignores read accesses altogether in reporting races."
       ; reg Experimental "exp.failing-locks"     "false" "Takes the possible failing of locking operations into account."
-      ; reg Experimental "exp.field-insensitive" "false" "Turns off field-sensitivity."
       ; reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses."
-      (* ; reg Experimental "exp.unmerged-fields"   "false" "Does not merge accesses to possibly same fields, unsound." *)
-      (* ; reg Experimental "exp.die-on-collapse"   "false" "Raise an exception as soon as an array collapses." *)
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
-      ; reg Experimental "exp.sharir-pnueli"     "false" "Use the Sharir/Pnueli algorithm for solving."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
-      ; reg Experimental "exp.full-context"      "false" "Do not side-effect function entries."
+      ; reg Experimental "exp.full-context"      "false" "Do not side-effect function entries. If partial contexts (or ana.ctx_insens) are used, this will fail!"
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
       ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
       ; reg Experimental "exp.no-interval32-context" "false" "Ignore integer values of the Interval32 domain in function contexts."
       ; reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails."
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
-      ; reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges."
       ; reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
       ; reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
-      ; reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls switch to MT-mode?"
+      ; reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls spawn reachable functions and switch to MT-mode?"
       ; reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs."
       ; reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
       ; reg Experimental "exp.g2html_path"       "'.'"   "Location of the g2html.jar file."
@@ -169,25 +161,36 @@ let _ = ()
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Method depends on exp.full-context - costly if true."
-      ; reg Experimental "exp.solver.wp.restore" "true" "Should the wp solver restore values for non-widening-points?"
-      ; reg Experimental "exp.fast_global_inits" "true" "Only generate 'a[0] = 0' for a zero-initialized array a[n]. This is only sound for our flat array domain! TODO change this once we use others!"
+      ; reg Experimental "exp.solver.td3.term"  "true" "Should the td3 solver use the phased/terminating strategy?"
+      ; reg Experimental "exp.solver.td3.space" "false" "Should the td3 solver only keep values at widening points?"
+      ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
+      ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Needed for inspecting output!"
+      ; reg Experimental "exp.fast_global_inits" "false" "Only generate 'a[0] = 0' for a zero-initialized array a[n]. This is only sound for our flat array domain! TODO change this once we use others!"
+      ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null."
+      ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
+      ; reg Experimental "exp.minwitness"        "false" "Try to minimize the witness"
+      ; reg Experimental "exp.uncilwitness"      "false" "Try to undo CIL control flow transformations in witness"
+      ; reg Experimental "exp.partition-arrays.enabled"  "false" "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well."
+      ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
+      ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
+      ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
+      ; reg Experimental "exp.incremental.mode"  "'off'" "Use incremental analysis in the TD3 solver. Values: off (default), incremental (analyze based on data from a previous commit or fresh if there is none), complete (discard loaded data and start fresh)."
+      ; reg Experimental "exp.incremental.stable" "true" "Reuse the stable set and selectively destabilize it."
+      ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
+      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc-6'" "Location of gcc-6. Used to combine source files with cilly."
 
 (* {4 category [Debugging]} *)
 let _ = ()
       ; reg Debugging "dbg.debug"           "false" "Debug mode: for testing the analyzer itself."
       ; reg Debugging "dbg.verbose"         "false" "Prints some status information."
-      ; reg Debugging "dbg.filter"          ""      "Regexp filtering output file."
-      (* ; reg Debugging "dbg.trace.sys"       ""      "Subsystem to show debug printfs for, such as con, sol." *)
-      (* ; reg Debugging "dbg.trace.vars"      "[]"    "Identifier name of interest for tracing." *)
-      (* ; reg Debugging "dbg.trace.locs"      "[]"    "Line number of interest for tracing." *)
       ; reg Debugging "dbg.trace.context"   "false" "Also print the context of solver variables."
       ; reg Debugging "dbg.showtemps"       "false" "Shows CIL's temporary variables when printing the state."
       ; reg Debugging "dbg.uncalled"        "false" "Display uncalled functions."
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
       ; reg Debugging "dbg.timeout"         "0"     "Maximal time for analysis. (0 -- no timeout)"
+      ; reg Debugging "dbg.solver-signal"   "'sigint'" "Signal to interrupt the solver to print statistics. Can be sigint (Ctrl+C, default), sigtstp (Ctrl+Z), or sigquit (Ctrl+\\)."
       ; reg Debugging "dbg.solver-progress" "false" "Used for debugging. Prints out a symbol on solving a rhs."
-      ; reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support."
       ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
@@ -199,7 +202,7 @@ let _ = ()
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
 , 'properties' :
   { 'ana' :
@@ -242,7 +245,6 @@ let default_schema = "\
   , 'tempDir'         :
     { 'type'            : 'string'
     }
-  , 'merge-conflicts' : {}
   , 'cppflags'        : {}
   , 'kernel'          : {}
   , 'dump_globs'      : {}

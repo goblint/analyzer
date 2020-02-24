@@ -215,12 +215,12 @@ let get_spinlock name =
 
 let make_lock name =
   if tracing then trace "osek" "Generating lock for resource %s\n" name;
-  let varinfo = makeGlobalVar name voidType in
+  let varinfo = Goblintutil.create_var (makeGlobalVar name voidType) in
   AddrOf (Var varinfo,NoOffset)
 
 let make_spinlock name =
   if tracing then trace "osek" "Generating spinlock %s\n" name;
-  let varinfo = makeGlobalVar name voidType in
+  let varinfo = Goblintutil.create_var (makeGlobalVar name voidType) in
   AddrOf (Var varinfo,NoOffset)
 
 let find_name id =

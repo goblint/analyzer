@@ -14,7 +14,7 @@ module type Test = sig
   val name : string
   type t
   val d : t
-  val to_yojson : t -> Yojson.Safe.json
+  val to_yojson : t -> Yojson.Safe.t
 end
 
 module AssocList : Test = struct

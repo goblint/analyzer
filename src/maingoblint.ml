@@ -17,7 +17,7 @@ let print_version ch =
   printf "Goblint version: %s\n" goblint;
   printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
   printf "Configuration:   tracing %a, tracking %a\n" f tracing f tracking ;
-  raise BailFromMain
+  raise Exit
 
 (** Print helpful messages. *)
 let print_help ch =
@@ -62,9 +62,9 @@ let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
   let add_int    l = let f str = l := str :: !l in Arg.Int f in
   let set_trace sys =
-    let msg = "Goblin has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
+    let msg = "Goblint has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
     if Config.tracing then Tracing.addsystem sys
-    else (prerr_endline msg; raise BailFromMain)
+    else (prerr_endline msg; raise Exit)
   in
   let oil file =
     set_string "ana.osek.oil" file;
@@ -93,8 +93,8 @@ let option_spec_list =
   ; "--conf"               , Arg.String merge_file, ""
   ; "--writeconf"          , Arg.String (fun fn -> writeconf:=true;writeconffile:=fn), ""
   ; "--version"            , Arg.Unit print_version, ""
-  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise BailFromMain), ""
-  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise BailFromMain), ""
+  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise Exit), ""
+  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise Exit), ""
   ; "--trace"              , Arg.String set_trace, ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
@@ -126,7 +126,7 @@ let parse_arguments () =
     else cFileNames := fname :: !cFileNames
   in
   Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
-  if !writeconf then begin File.with_file_out !writeconffile print; raise BailFromMain end
+  if !writeconf then begin File.with_file_out !writeconffile print; raise Exit end
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -160,7 +160,7 @@ let preprocess_one_file cppflags includes fname =
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
-    let rm_and_exit () = remove_temp_dir (); raise BailFromMain in
+    let rm_and_exit () = remove_temp_dir (); raise Exit in
     try match Unix.system command with
       | Unix.WEXITED 0 -> nname
       | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
@@ -205,9 +205,35 @@ let preprocess_files () =
   (* reverse the files again *)
   cFileNames := List.rev !cFileNames;
 
+  (* If the first file given is a Makefile, we use it to combine files *)
+  if List.length !cFileNames >= 1 then (
+    let firstFile = List.first !cFileNames in
+    if Filename.basename firstFile = "Makefile" then (
+      let makefile = firstFile in
+      let path = Filename.dirname makefile in
+      (* make sure the Makefile exists or try to generate it *)
+      if not (Sys.file_exists makefile) then (
+        print_endline ("Given " ^ makefile ^ " does not exist!");
+        let configure = Filename.concat path "configure" in
+        if Sys.file_exists configure then (
+          print_endline ("Trying to run " ^ configure ^ " to generate Makefile");
+          let exit_code, output = MakefileUtil.exec_command ~path "./configure" in
+          print_endline (configure ^ MakefileUtil.string_of_process_status exit_code ^ ". Output: " ^ output);
+          if not (Sys.file_exists makefile) then failwith ("Running " ^ configure ^ " did not generate a Makefile - abort!")
+        ) else failwith ("Could neither find given " ^ makefile ^ " nor " ^ configure ^ " - abort!")
+      );
+      let _ = MakefileUtil.run_cilly path in
+      let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
+      cFileNames := file :: (List.drop 1 !cFileNames);
+    );
+  );
+
   (* possibly add our lib.c to the files *)
   if get_bool "custom_libc" then
     cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
+
+  if get_bool "ana.sv-comp" then
+    cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then begin
@@ -247,7 +273,7 @@ let merge_preprocessed cpp_file_names =
     | [one] -> Cilfacade.callConstructors one
     | [] -> prerr_endline "No arguments for Goblint?";
       prerr_endline "Try `goblint --help' for more information.";
-      raise BailFromMain
+      raise Exit
     | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
   in
 
@@ -261,7 +287,7 @@ let merge_preprocessed cpp_file_names =
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
-let do_analyze merged_AST =
+let do_analyze change_info merged_AST =
   let module L = Printable.Liszt (Basetype.CilFundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
@@ -286,7 +312,7 @@ let do_analyze merged_AST =
           print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
-        try Control.analyze ast funs
+        try Control.analyze change_info ast funs
         with x ->
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
@@ -326,6 +352,15 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   end
 
+let check_arguments () =
+  let fail m = failwith ("Option clash: " ^ m) in
+  let info m = eprintf "Option info: %s\n" m in
+  let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval32-context" in
+  if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval32-context)";
+  let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
+  if ctx_insens && get_bool "exp.full-context" then info "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
+  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; info "allfuns enables exp.earlyglobs.\n")
+
 let handle_extraspecials () =
   let f xs = function
     | String x -> x::xs
@@ -334,23 +369,81 @@ let handle_extraspecials () =
   let funs = List.fold_left f [] (get_list "exp.extraspecials") in
   LibraryFunctions.add_lib_funs funs
 
+let src_path () = Git.git_directory (List.first !cFileNames)
+let data_path () = Filename.concat (src_path ()) ".gob"
+
+let update_map old_file new_file =
+  let dir = Serialize.gob_directory () in
+  VersionLookup.restore_map dir old_file new_file
+
+let store_map updated_map max_ids = (* Creates the directory for the commit *)
+  match Serialize.current_commit_dir () with
+  | Some commit_dir ->
+    let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
+    Serialize.marshal (updated_map, max_ids) map_file_name
+  | None -> ()
+
+(* Detects changes and renames vids and sids. *)
+let diff_and_rename file =
+  Serialize.src_direcotry := src_path ();
+
+  let change_info = (match Serialize.current_commit () with
+      | Some current_commit -> ((* "put the preparation for incremental analysis here!" *)
+          if get_bool "dbg.verbose" then print_endline ("incremental mode running on commit " ^ current_commit);
+          let (changes, last_analyzed_commit) =
+            (match Serialize.last_analyzed_commit () with
+             | Some last_analyzed_commit -> (match Serialize.load_latest_cil !cFileNames with
+                 | Some file2 ->
+                   let (version_map, changes, max_ids) = update_map file2 file in
+                   let max_ids = UpdateCil.update_ids file2 max_ids file version_map current_commit changes in
+                   store_map version_map max_ids;
+                   (changes, last_analyzed_commit)
+                 | None -> failwith "No ast.data from previous analysis found!"
+               )
+             | None -> (match Serialize.current_commit_dir () with
+                 | Some commit_dir ->
+                   let (version_map, max_ids) = VersionLookup.create_map file current_commit in
+                   store_map version_map max_ids;
+                   (CompareAST.empty_change_info (), "")
+                 | None -> failwith "Directory for storing the results of the current run could not be created!")
+            ) in
+          Serialize.save_cil file;
+          let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
+          let current_commit_dir = Filename.concat (data_path ()) current_commit in
+          Cilfacade.print_to_file (Filename.concat current_commit_dir "cil.c") file;
+          if "" <> last_analyzed_commit then (
+            CompareAST.check_file_changed analyzed_commit_dir current_commit_dir;
+            (* Note: Global initializers/start state changes are not considered here: *)
+            CompareAST.check_any_changed changes
+          );
+          {Analyses.changes = changes; analyzed_commit_dir; current_commit_dir}
+        )
+      | None -> failwith "Failure! Working directory is not clean")
+  in change_info
+
+
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
-    if !main_running then () else
-      let _ = main_running := true in
+    if not !main_running then (
+      main_running := true;
       try
         Stats.reset Stats.SoftwareTimer;
         Cilfacade.init ();
         parse_arguments ();
+        check_arguments ();
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
-        preprocess_files () |> merge_preprocessed |> do_analyze;
+        let file = preprocess_files () |> merge_preprocessed in
+        let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
+        file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();
-        if !verified = Some false then exit 3 (* verifier failed! *)
-      with BailFromMain -> ()
+        if !verified = Some false then exit 3;  (* verifier failed! *)
+        if !Messages.worldStopped then exit 124 (* timeout! *)
+      with Exit -> ()
+    )
 
 let _ =
   at_exit main
