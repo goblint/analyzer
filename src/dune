@@ -7,29 +7,10 @@
   (name maingoblint)
   (libraries cil.default-features batteries xml-light)
   (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
-  ;  (preprocess (pps ppx_deriving ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic)) ; ppx_deriving.std since 4.2?
-  ; jbuilder expects all files in the same directory...
-  ; https://github.com/janestreet/jbuilder/issues/109
-  ; (copy_files# subdir/*.{ml,mli})
-  )
-
+)
 
 (env
   (dev
     (flags (:standard -warn-error -A)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )
-
-; since beta14: (copy_files# sample-src-folder1/*)
-; see https://discuss.ocaml.org/t/jbuilder-templates/958
-; (copy_files# analyses/*)
-; (copy_files# cdomains/*)
-; (copy_files# cdomains/circular_intervals/*)
-; (copy_files# domains/*)
-; (copy_files# extract/*)
-; (copy_files# framework/*)
-; (copy_files# solvers/*)
-; (copy_files# spec/*)
-; (copy_files# transform/*)
-; (copy_files# util/*)
-; (copy_files# util/html_template/*)
