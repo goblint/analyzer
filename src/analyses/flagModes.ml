@@ -52,7 +52,7 @@ struct
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     if ctx.local = D.bot() then ctx.local else begin
-      match (tv, (constFold false exp)) with (* TODO make match%distr (ppx_distr_guards) work, otherwise the below warnings 57 are actually bugs *)
+      match%distr (tv, (constFold false exp)) with
       | false, BinOp(Ne,ex,Lval (Var f, NoOffset),_) (*not neq*)
       | false, BinOp(Ne,Lval (Var f, NoOffset), ex,_) (*not neq*)
       | true, BinOp(Eq,ex,Lval (Var f, NoOffset),_)

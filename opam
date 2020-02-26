@@ -16,7 +16,7 @@ depends: [
   "goblint-cil" {build}
   "batteries" {build}
   "xml-light" {build}
-  "ppx_distr_guards"
+  "ppx_distr_guards" {>= "0.2"}
   "ocaml-monadic"
   "ppx_import"
   "ppx_deriving"
