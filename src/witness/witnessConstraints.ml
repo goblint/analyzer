@@ -115,8 +115,12 @@ struct
   let strict (d, w) = (d, w) (* analysis is strict as long as witness lifter inside dead code lifter *)
 
   let should_inline f =
+    let loc = f.vdecl in
+    let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
+    let is_verifier = String.starts_with f.vname "__VERIFIER" in
     (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
-    f.vname = Svcomp.verifier_error || not (String.starts_with f.vname "__VERIFIER")
+    let should_not_inline = is_svcomp && is_verifier && f.vname <> Svcomp.verifier_error in
+    not should_not_inline
 
   let name () = S.name () ^ " witnessed"
 
