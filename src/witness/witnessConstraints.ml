@@ -114,6 +114,10 @@ struct
   (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
   let strict (d, w) = (d, w) (* analysis is strict as long as witness lifter inside dead code lifter *)
 
+  let should_inline f =
+    (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
+    f.vname = Svcomp.verifier_error || not (String.starts_with f.vname "__VERIFIER")
+
   let name () = S.name () ^ " witnessed"
 
   let init = S.init
@@ -135,7 +139,14 @@ struct
       local = fst ctx.local;
       spawn = (fun v d ->
           (* like enter *)
-          let w' = step_witness w MyCFG.Skip (FunctionEntry v, S.context d) in
+          (* TODO: don't duplicate logic with enter *)
+          let to_node = (MyCFG.FunctionEntry v, S.context d) in
+          let w' =
+            if should_inline v then
+              step_witness w MyCFG.Skip to_node
+            else
+              (VES.bot (), `Lifted to_node)
+          in
           ctx.spawn v (strict (d, w'))
         );
       split = (fun d e tv -> ctx.split (strict (d, w)) e tv)
@@ -208,12 +219,23 @@ struct
     let ddl = S.enter (unlift_ctx ctx) r f args in
     let w = snd ctx.local in
     List.map (fun (d1, d2) ->
-        let w' = step_witness w MyCFG.Skip (FunctionEntry f, S.context d2) in
+        let to_node = (MyCFG.FunctionEntry f, S.context d2) in
+        let w' =
+          if should_inline f then
+            step_witness w MyCFG.Skip to_node
+          else
+            (VES.bot (), `Lifted to_node)
+        in
         (strict (d1, w), strict (d2, w'))
       ) ddl
 
   let combine ctx r fe f args (d', w') =
     let d = S.combine (unlift_ctx ctx) r fe f args d' in
-    let w = step_witness w' MyCFG.Skip (ctx.node, get_context ctx) in
+    let w =
+      if should_inline f then
+        step_witness w' MyCFG.Skip (ctx.node, get_context ctx)
+      else
+        step_ctx ctx
+    in
     strict (d, w)
 end
