@@ -85,20 +85,42 @@ struct
     | `Bot -> VES.bot ()
     | `Top -> VES.top ()
 
-  let step (from:W.t) (edge:Edge.t) (to_node:V.t): W.t =
-    let prev = set_of_flat (snd from) edge in
+  let step (from:VF.t) (edge:Edge.t) (to_node:V.t): W.t =
+    let prev = set_of_flat from edge in
     (* ignore (Pretty.printf "from: %a, prev: %a -> to_node: %a\n" W.pretty from VS.pretty prev V.pretty to_node); *)
     (prev, `Lifted to_node)
 
+  let step_witness (from:W.t) = step (snd from)
+
   let step_ctx ctx =
     try
-      step (snd ctx.local) ctx.edge (ctx.node, get_context ctx)
-    (* with Failure "Global initializers have no context." -> *)
-    with Failure _ ->
+      let context = get_context ctx in
+      let prev_node_witness = snd (snd ctx.local) in
+      let prev_node_ctx = `Lifted (ctx.prev_node, context) in
+      (* assert (VF.equal prev_node_witness prev_node_ctx); *)
+      if not (VF.equal prev_node_witness prev_node_ctx) then begin
+        let extract_node: VF.t -> MyCFG.node = function
+          | `Lifted (node, _) -> node
+          | _ -> MyCFG.dummy_node
+        in
+        let s = Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: prev_node mismatch at %a via %a: %a vs %a" MyCFG.pretty_node ctx.node Edge.pretty ctx.edge MyCFG.pretty_node (extract_node prev_node_witness) MyCFG.pretty_node (extract_node prev_node_ctx)) in
+        (* M.waitWhat s; *)
+        failwith s;
+      end;
+      step prev_node_witness ctx.edge (ctx.node, context)
+    with Ctx_failure _ ->
       W.bot ()
 
   (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
   let strict (d, w) = (d, w) (* analysis is strict as long as witness lifter inside dead code lifter *)
+
+  let should_inline f =
+    let loc = f.vdecl in
+    let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
+    let is_verifier = String.starts_with f.vname "__VERIFIER" in
+    (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
+    let should_not_inline = is_svcomp && is_verifier && f.vname <> Svcomp.verifier_error in
+    not should_not_inline
 
   let name () = S.name () ^ " witnessed"
 
@@ -119,7 +141,18 @@ struct
     let w = snd ctx.local in
     { ctx with
       local = fst ctx.local;
-      spawn = (fun v d -> ctx.spawn v (strict (d, w)));
+      spawn = (fun v d ->
+          (* like enter *)
+          (* TODO: don't duplicate logic with enter *)
+          let to_node = (MyCFG.FunctionEntry v, S.context d) in
+          let w' =
+            if should_inline v then
+              step_witness w MyCFG.Skip to_node
+            else
+              (VES.bot (), `Lifted to_node)
+          in
+          ctx.spawn v (strict (d, w'))
+        );
       split = (fun d e tv -> ctx.split (strict (d, w)) e tv)
     }
   let part_access ctx = S.part_access (unlift_ctx ctx)
@@ -133,11 +166,18 @@ struct
   let query ctx q =
     match q with
     | Queries.IterPrevVars f ->
-      VES.iter (fun ((n, c), e) ->
-          f (n, Obj.repr c) e
-        ) (fst (snd ctx.local));
+      begin match fst (snd ctx.local) with
+        | VES.All ->
+          failwith (Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: witness messed up! prev vars top at %a" MyCFG.pretty_node ctx.node))
+        | VES.Set s ->
+          VES.S.iter (fun ((n, c), e) ->
+              f (n, Obj.repr c) e
+            ) s
+      end;
       `Bot
     | _ -> S.query (unlift_ctx ctx) q
+
+  (* TODO: handle Bailure during tf step? *)
 
   let assign ctx lv e =
     let d = S.assign (unlift_ctx ctx) lv e in
@@ -174,6 +214,11 @@ struct
     let w = step_ctx ctx in
     strict (d, w)
 
+  let skip ctx =
+    let d = S.skip (unlift_ctx ctx) in
+    let w = step_ctx ctx in
+    strict (d, w)
+
   let special ctx r f args =
     let d = S.special (unlift_ctx ctx) r f args in
     let w = step_ctx ctx in
@@ -183,12 +228,23 @@ struct
     let ddl = S.enter (unlift_ctx ctx) r f args in
     let w = snd ctx.local in
     List.map (fun (d1, d2) ->
-        let w' = step w MyCFG.Skip (FunctionEntry f, S.context d2) in
+        let to_node = (MyCFG.FunctionEntry f, S.context d2) in
+        let w' =
+          if should_inline f then
+            step_witness w MyCFG.Skip to_node
+          else
+            (VES.bot (), `Lifted to_node)
+        in
         (strict (d1, w), strict (d2, w'))
       ) ddl
 
   let combine ctx r fe f args (d', w') =
     let d = S.combine (unlift_ctx ctx) r fe f args d' in
-    let w = step w' MyCFG.Skip (ctx.node, get_context ctx) in
+    let w =
+      if should_inline f then
+        step_witness w' MyCFG.Skip (ctx.node, get_context ctx)
+      else
+        step_ctx ctx
+    in
     strict (d, w)
 end

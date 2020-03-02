@@ -7,6 +7,8 @@ sig
 
   val cfgnode: t -> MyCFG.node
   val to_string: t -> string
+
+  val move_opt: t -> MyCFG.node -> t option
 end
 
 (* Abstract Reachability Graph *)
@@ -28,6 +30,12 @@ struct
     nl
     |> List.map Node.to_string
     |> String.concat "@"
+
+  let move_opt nl to_node = match nl with
+    | [] -> None
+    | n :: stack ->
+      Node.move_opt n to_node
+      |> BatOption.map (fun to_n -> to_n :: stack)
 end
 
 module Stack (Cfg:CfgForward) (Arg: S):
@@ -62,15 +70,23 @@ struct
             begin match call_next with
               | [] -> failwith "StackArg.next: call next empty"
               | [(_, return_node)] ->
-                Arg.next n
-                |> List.filter (fun (edge, to_n) ->
-                    let to_cfgnode = Arg.Node.cfgnode to_n in
-                    MyCFG.Node.equal to_cfgnode return_node
-                  )
-                |> List.map (fun (edge, to_n) ->
-                    let to_n' = to_n :: call_stack in
-                    (edge, to_n')
-                  )
+                begin match Arg.Node.move_opt call_n return_node with
+                  (* TODO: Is it possible to have a calling node without a returning node? *)
+                  (* | None -> [] *)
+                  | None -> failwith "StackArg.next: no return node"
+                  | Some return_n ->
+                    (* TODO: Instead of next & filter, construct unique return_n directly. Currently edge missing. *)
+                    Arg.next n
+                    |> List.filter (fun (edge, to_n) ->
+                        (* let to_cfgnode = Arg.Node.cfgnode to_n in
+                        MyCFG.Node.equal to_cfgnode return_node *)
+                        Arg.Node.equal to_n return_n
+                      )
+                    |> List.map (fun (edge, to_n) ->
+                        let to_n' = to_n :: call_stack in
+                        (edge, to_n')
+                      )
+                end
               | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
             end
         end
@@ -149,6 +165,12 @@ struct
   let next_opt _ = None
 end
 
+(* Exps can contain compinfo <-> fieldinfo loops in TComp typ which make using (=) impossible.
+ * Ideally should manually define equality for exps to define equality for typs.
+ * Should probably be used elsewhere besides partition_if_next as well.
+ * There is CompareAST.eq_exp but it has the same issue. *)
+let is_equal_exp exp1 exp2 = exp1 == exp2
+
 let partition_if_next if_next_n =
   (* TODO: refactor, check extra edges for error *)
   let test_next b = List.find (function
@@ -158,7 +180,7 @@ let partition_if_next if_next_n =
   in
   (* assert (List.length if_next <= 2); *)
   match test_next true, test_next false with
-  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when e_true = e_false ->
+  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when is_equal_exp e_true e_false ->
     (e_true, if_true_next_n, if_false_next_n)
   | _, _ -> failwith "partition_if_next: bad branches"
 
@@ -187,11 +209,14 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+    | Statement {sid; skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
+      (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
+      (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
+      (* TODO: need to handle longer loops? *)
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | Statement {skind=If (_, _, _, loc2)}, _ when loc = loc2 ->
+        | Statement {sid=sid2; skind=If (_, _, _, loc2)}, _ when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
@@ -203,7 +228,7 @@ struct
           else
             None
         (* || *)
-        | _, Statement {skind=If (_, _, _, loc2)} when loc = loc2 ->
+        | _, Statement {sid=sid2; skind=If (_, _, _, loc2)} when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
@@ -259,16 +284,8 @@ struct
     | None -> Arg.next n
 end
 
-module type MoveNode =
-sig
-  include Node
-
-  val move: t -> MyCFG.node -> t
-  val is_live: t -> bool
-end
-
-module Intra (Node: MoveNode) (ArgIntra: SIntraOpt) (Arg: S with module Node = Node):
-  S with module Node = Node =
+module Intra (ArgIntra: SIntraOpt) (Arg: S):
+  S with module Node = Arg.Node =
 struct
   include Arg
   open GobConfig
@@ -278,6 +295,8 @@ struct
     | None -> Arg.next node
     | Some next ->
       next
-      |> List.map (fun (e, to_n) -> (e, Node.move node to_n))
-      |> List.filter (fun (_, to_node) -> Node.is_live to_node)
+      |> BatList.filter_map (fun (e, to_n) ->
+          Node.move_opt node to_n
+          |> BatOption.map (fun to_node -> (e, to_node))
+        )
 end

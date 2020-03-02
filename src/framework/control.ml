@@ -206,8 +206,9 @@ struct
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
-        ; context = Obj.repr (fun () -> failwith "Global initializers have no context.")
-        ; context2 = (fun () -> failwith "Global initializers have no context.")
+        ; prev_node = MyCFG.dummy_node
+        ; context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
+        ; context2 = (fun () -> ctx_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun _ -> Spec.G.bot ())
@@ -277,6 +278,7 @@ struct
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
+        ; prev_node = MyCFG.dummy_node
         ; context = Obj.repr (fun () -> failwith "enter_func has no context.")
         ; context2 = (fun () -> failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
@@ -413,6 +415,7 @@ struct
         let rec ctx =
           { ask    = query
           ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+          ; prev_node = MyCFG.dummy_node
           ; context = Obj.repr (fun () -> failwith "No context in query context.")
           ; context2 = (fun () -> failwith "No context in query context.")
           ; edge    = MyCFG.Skip
@@ -470,6 +473,7 @@ struct
           let rec ctx =
             { ask    = query
             ; node   = fst lvar
+            ; prev_node = MyCFG.dummy_node
             ; context = Obj.repr (fun () -> snd lvar)
             ; context2 = (fun () -> snd lvar)
             ; edge    = MyCFG.Skip
@@ -525,6 +529,9 @@ struct
 
           let move (n, c) to_n = (to_n, c)
           let is_live node = not (Spec.D.is_bot (get node))
+          let move_opt node to_n =
+            let to_node = move node to_n in
+            BatOption.filter is_live (Some to_node)
         end
 
         let main_entry = WitnessUtil.find_main_entry entrystates
@@ -535,12 +542,13 @@ struct
       struct
         open MyARG
         module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (Cfg)))
-        include Intra (Arg.Node) (ArgIntra) (Arg)
+        include Intra (ArgIntra) (Arg)
       end
       in
 
       let find_invariant nc = Spec.D.invariant "" (get nc) in
 
+      let witness_path = get_string "exp.witness_path" in
       if svcomp_unreach_call then begin
         let module TaskResult =
         struct
@@ -551,11 +559,16 @@ struct
           let is_sink _ = false
         end
         in
-        Witness.write_file "witness.graphml" (module Task) (module TaskResult)
+        Witness.write_file witness_path (module Task) (module TaskResult)
       end else begin
         let is_violation = function
           | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
           | _, _ -> false
+        in
+        (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
+        let is_violation n =
+          Arg.next n
+          |> List.exists (fun (_, to_n) -> is_violation to_n)
         in
         let is_sink =
           (* TODO: somehow move this to witnessUtil *)
@@ -588,7 +601,7 @@ struct
           let is_sink = is_sink
         end
         in
-        Witness.write_file "witness.graphml" (module Task) (module TaskResult)
+        Witness.write_file witness_path (module Task) (module TaskResult)
       end
     end;
 

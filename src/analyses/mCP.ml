@@ -428,6 +428,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -456,6 +457,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -492,6 +494,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -585,6 +588,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -645,6 +649,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -676,6 +681,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -707,6 +713,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -738,6 +745,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -760,6 +768,38 @@ struct
     let d = do_assigns ctx !assigns d in
     if q then raise Deadcode else d
 
+  let skip (ctx:(D.t, G.t, C.t) ctx) =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let assigns = ref [] in
+    let f post_all (n,(module S:Spec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+        { local  = obj d
+        ; node   = ctx.node
+        ; prev_node = ctx.prev_node
+        ; context = ctx.context
+        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; edge   = ctx.edge
+        ; ask    = query ctx
+        ; presub = filter_presubs n ctx.local
+        ; postsub= filter_presubs n post_all
+        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
+        }
+      in
+      n, repr @@ S.skip ctx'
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    let d = do_assigns ctx !assigns d in
+    if q then raise Deadcode else d
+
   let special (ctx:(D.t, G.t, C.t) ctx) r f a =
     let spawns = ref [] in
     let splits = ref [] in
@@ -769,6 +809,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -799,6 +840,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -828,6 +870,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -856,6 +899,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
