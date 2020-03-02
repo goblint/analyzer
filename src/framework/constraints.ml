@@ -563,8 +563,8 @@ struct
     let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     bigsqcup ((S.assign ctx lv e)::!r)
 
-  let tf_vdecl var edge v getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
+  let tf_vdecl var edge prev_node v getl sidel getg sideg d =
+    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
     bigsqcup ((S.vdecl ctx v)::!r)
 
   let normal_return r fd ctx sideg =
@@ -641,7 +641,7 @@ struct
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
       | Assign (lv,rv) -> tf_assign var edge prev_node lv rv
-      | VDecl (v)      -> tf_vdecl var edge v
+      | VDecl (v)      -> tf_vdecl var edge prev_node v
       | Proc (r,f,ars) -> tf_proc var edge prev_node r f ars
       | Entry f        -> tf_entry var edge prev_node f
       | Ret (r,fd)     -> tf_ret var edge prev_node r fd

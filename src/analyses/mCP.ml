@@ -619,6 +619,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; context = ctx.context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
