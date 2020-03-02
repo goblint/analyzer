@@ -1832,7 +1832,7 @@ struct
     | `Unknown "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)
-        | None -> ctx.local
+        | None -> ctx.local (* just calling __builtin_expect(...) without assigning is a nop, since the arguments are CIl exp and therefore have no side-effects *)
       end
     | `Unknown "spinlock_check" ->
       begin match lv with
