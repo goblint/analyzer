@@ -423,6 +423,7 @@ end
 type ('d,'g,'c) ctx =
   { ask      : Queries.t -> Queries.Result.t
   ; node     : MyCFG.node
+  ; prev_node: MyCFG.node
   ; context  : Obj.t (** represented type: unit -> (Control.get_spec ()).C.t *)
   ; context2 : unit -> 'c
   ; edge     : MyCFG.edge
@@ -435,6 +436,11 @@ type ('d,'g,'c) ctx =
   ; sideg    : varinfo -> 'g -> unit
   ; assign   : ?name:string -> lval -> exp -> unit
   }
+
+exception Ctx_failure of string
+(** Failure from ctx, e.g. global initializer *)
+
+let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 
 let swap_st ctx st =
   {ctx with local=st}
@@ -476,6 +482,7 @@ sig
   val return: (D.t, G.t, C.t) ctx -> exp option  -> fundec -> D.t
   val intrpt: (D.t, G.t, C.t) ctx -> D.t
   val asm   : (D.t, G.t, C.t) ctx -> D.t
+  val skip  : (D.t, G.t, C.t) ctx -> D.t
 
 
   val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
@@ -619,6 +626,8 @@ struct
   let asm x =
     ignore (M.warn "ASM statement ignored.");
     x.local (* Just ignore. *)
+
+  let skip x = x.local (* Just ignore. *)
 
   let query _ (q:Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)
