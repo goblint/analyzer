@@ -1283,21 +1283,23 @@ struct
       | _      -> `Int (ID.of_int 0L)
     in
     let rec derived_invariant exp tv =
+      let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
-      (* Since we only handle equalities the order is not important *) (* TODO make independent of ordering *)
-      | BinOp(op, Lval x, rval, typ)
-      | BinOp(op, rval, Lval x, typ) -> helper op x (VD.cast (typeOfLval x) (eval_rv a gs st rval)) tv
+      (* Since we handle not only equalities, the order is important *)
+      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (typeOfLval x) (eval_rv a gs st rval)) tv
+      | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
-      | BinOp(op, CastE (TInt (ik, _), Lval x), rval, typ)
-      | BinOp(op, rval, CastE (TInt (ik, _), Lval x), typ) ->
-        (match eval_rv a gs st (Lval x) with
+      | BinOp(op, CastE (TInt (ik, _), Lval x), rval, typ) ->
+          (match eval_rv a gs st (Lval x) with
          | `Int v ->
            if ID.cast_to ik v = v then
              derived_invariant (BinOp (op, Lval x, rval, typ)) tv
            else
              None
          | _ -> None)
+      | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
+        derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       (* Cases like if (x) are treated like if (x != 0) *)
       | Lval x ->
         (* There are two correct ways of doing it: "if ((int)x != 0)" or "if (x != (typeof(x))0))"
@@ -1490,7 +1492,7 @@ struct
           locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv)
       end;
       (* Eliminate the dead branch and just propagate to the true branch *)
-      if v == tv then ctx.local else begin
+      if v = tv then ctx.local else begin
         if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
         raise Deadcode
       end
