@@ -874,14 +874,12 @@ struct
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
         let newl = match e with
-          | None -> ID.top ()
+          | None -> ID.top () (* TODO: must be non-negative, top is overly cautious *)
           | Some e ->
             begin
-              let v = match eval_exp e with
-                | `Int x -> x
-                | _ -> ID.top () (* TODO:Warn *)
-              in
-              v
+              match eval_exp e with
+              | `Int x -> x
+              | _ -> ID.top () (* TODO:Warn *)
             end
         in
         `Array(CArrays.update_length newl n')
