@@ -11,7 +11,7 @@
 
 (rule
   (targets goblint.ml config.ml version.ml)
-  (mode fallback)
+  (mode fallback) ; do nothing if all targets already exist
   (deps ../scripts/set_version.sh)
   (action (chdir .. (run ./make.sh gen)))
 )

@@ -3,20 +3,11 @@ set -e # exit immediately if a command fails
 set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
 TARGET=src/goblint
-FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
-OCAMLBUILD=ocamlbuild
-EXCLUDE="_build|goblint.ml|apronDomain|poly"
 
-gen() { # generate files
+gen() { # generate configuration files and goblint.ml which opens all modules in src/ such that they will be linked and executed without the need to be referenced somewhere else
   scripts/set_version.sh # generate the version file
-  ls -1 src/**/*.ml | egrep -v $EXCLUDE | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
+  ls -1 src/**/*.ml | egrep -v "goblint.ml|apronDomain|poly" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
   echo "open Maingoblint" >> $TARGET.ml
-}
-
-ocb() {
-  command -v opam >/dev/null 2>&1 && eval $(opam config env)
-  gen
-  $OCAMLBUILD $FLAGS $*
 }
 
 opam_setup() {
@@ -27,26 +18,36 @@ opam_setup() {
   # opam install camlp4 mongo # camlp4 needed for mongo
 }
 
+# deprecated, use dune which is much faster
+OCBFLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
+ocb() {
+  command -v opam >/dev/null 2>&1 && eval $(opam config env)
+  gen
+  ocamlbuild $OCBFLAGS $*
+}
+
 rule() {
   case $1 in
+    # new rules using dune
     clean)
-      rm -rf goblint goblint.byte arinc doclist.odocl $TARGET.ml;
-      # ocb -clean
+      git clean -X -f
       dune clean
     ;; gen) gen
-    ;; dune)
-      dune build src/goblint.exe &&
-      cp _build/default/src/goblint.exe goblint
-    ;; opt | nat*)
+    ;; nat*)
+      dune build $TARGET.exe &&
+      cp _build/default/$TARGET.exe goblint
+    ;; release)
+      dune build --profile release $TARGET.exe &&
+      cp _build/default/$TARGET.exe goblint
+    # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
+
+    # old rules using ocamlbuild
+    ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
       cp _build/$TARGET.native goblint
     ;; debug)
       ocb -tag debug $TARGET.d.byte &&
       cp _build/$TARGET.d.byte goblint.byte
-    ;; warn)
-      # be pedantic and show all warnings
-      $OCAMLBUILD $FLAGS -no-plugin -cflags "-w +a" $TARGET.native && # copied b/c passing a quoted argument to a function does not work
-      cp _build/$TARGET.native goblint
     ;; profile)
       # gprof (run only generates gmon.out). use: gprof goblint
       ocb -tag profile $TARGET.p.native &&
@@ -55,14 +56,14 @@ rule() {
       # gprof & ocamlprof (run also generates ocamlprof.dump). use: ocamlprof src/goblint.ml
       ocb -ocamlopt ocamloptp $TARGET.p.native &&
       cp _build/$TARGET.p.native goblint
-    ;; docs)
-      rm -rf doc;
-      ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
-      ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
-      rm doclist.odocl;
-      ln -sf _build/doclist.docdir doc
-    ;; tag*)
-      otags -vi `find src/ -iregex [^.]*\.mli?`
+    # ;; docs)
+    #   rm -rf doc;
+    #   ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
+    #   ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
+    #   rm doclist.odocl;
+    #   ln -sf _build/doclist.docdir doc
+    # ;; tag*)
+    #   otags -vi `find src/ -iregex [^.]*\.mli?`
     ;; poly)
       echo "open ApronDomain" >> $TARGET.ml
       echo "open Poly" >> $TARGET.ml
@@ -71,18 +72,8 @@ rule() {
     ;; arinc)
       ocb src/mainarinc.native &&
       cp _build/src/mainarinc.native arinc
-    ;; npm)
-      if test ! -e "webapp/package.json"; then
-        git submodule update --init --recursive webapp
-      fi
-      cd webapp && npm install && npm start
-    ;; jar)
-      echo "Make sure you have the following installed: javac, ant"
-      if test ! -e "g2html/build.xml"; then
-        git submodule update --init --recursive g2html
-      fi
-      cd g2html && ant jar && cd .. &&
-      cp g2html/g2html.jar .
+
+    # setup, dependencies
     ;; deps)
       opam update; opam install -y . --deps-only --locked
     ;; setup)
@@ -99,10 +90,6 @@ rule() {
       cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
-    ;; lock)
-      opam lock
-    ;; watch)
-      fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; headers)
       curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
       tar xf master.tar.gz && rm master.tar.gz
@@ -111,10 +98,30 @@ rule() {
       cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc7.h
       cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc8.h
       cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc9.h
+    ;; lock)
+      opam lock
+    ;; npm)
+      if test ! -e "webapp/package.json"; then
+        git submodule update --init --recursive webapp
+      fi
+      cd webapp && npm install && npm start
+    ;; jar)
+      echo "Make sure you have the following installed: javac, ant"
+      if test ! -e "g2html/build.xml"; then
+        git submodule update --init --recursive g2html
+      fi
+      cd g2html && ant jar && cd .. &&
+      cp g2html/g2html.jar .
+    # ;; watch)
+    #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
+
+    # tests, CI
     ;; test)
       ./scripts/update_suite.rb # run regression tests
+    ;; unit)
+      ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native
     ;; testci)
-      ruby scripts/update_suite.rb -s -d
+      ruby scripts/update_suite.rb -s -d # -s: run tests sequentially instead of in parallel such that output is not scrambled, -d shows some stats?
     ;; travis) # run a travis docker container with the files tracked by git - intended to debug setup problems on travis-ci.com
       echo "run ./scripts/travis-ci.sh to setup ocaml"
       # echo "bind-mount cwd: beware that cwd of host can be modified and IO is very slow!"
@@ -125,18 +132,17 @@ rule() {
     ;; docker) # build and run a docker image
       docker build --pull -t goblint . | ts -i
       docker run -it goblint bash
-    ;; unit)
-      ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native
     ;; server)
       rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
       ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
+
     ;; *)
       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac;
 }
 
 if [ $# -eq 0 ]; then
-  rule nat
+  rule native
 else
   while [ $# -gt 0 ]; do
     rule $1;
