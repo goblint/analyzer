@@ -54,8 +54,6 @@ struct
   let tag _ = failwith "Edge: no tag"
 end
 
-module FlatBot (Base: Printable.S) = Lattice.LiftBot (Lattice.Fake (Base))
-
 
 module WitnessLifter (S:Spec): Spec =
 struct
@@ -111,9 +109,6 @@ struct
     with Ctx_failure _ ->
       W.bot ()
 
-  (* let strict (d, w) = if S.D.is_bot d then D.bot () else (d, w) *)
-  let strict (d, w) = (d, w) (* analysis is strict as long as witness lifter inside dead code lifter *)
-
   let should_inline f =
     let loc = f.vdecl in
     let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
@@ -151,9 +146,9 @@ struct
             else
               (VES.bot (), `Lifted to_node)
           in
-          ctx.spawn v (strict (d, w'))
+          ctx.spawn v (d, w')
         );
-      split = (fun d e tv -> ctx.split (strict (d, w)) e tv)
+      split = (fun d e tv -> ctx.split (d, w) e tv)
     }
   let part_access ctx = S.part_access (unlift_ctx ctx)
 
@@ -161,7 +156,7 @@ struct
     let (d, l) = S.sync (unlift_ctx ctx) in
     (* let w = step_ctx ctx in *)
     let w = snd ctx.local in
-    (strict (d, w), l)
+    (d, w), l
 
   let query ctx q =
     match q with
@@ -182,47 +177,47 @@ struct
   let assign ctx lv e =
     let d = S.assign (unlift_ctx ctx) lv e in
     let w = step_ctx ctx in
-    strict (d, w)
+    d, w
 
   let vdecl ctx v =
     let d = S.vdecl (unlift_ctx ctx) v in
     let w = step_ctx ctx in
-    strict (d, w)
+    d, w
 
   let branch ctx e tv =
     let d = S.branch (unlift_ctx ctx) e tv in
     let w = step_ctx ctx in
-    strict (d, w)
+    d, w
 
   let body ctx f =
     let d = S.body (unlift_ctx ctx) f in
     let w = step_ctx ctx in
-    strict (d, w)
+    d, w
 
   let return ctx r f =
     let d = S.return (unlift_ctx ctx) r f in
     let w = step_ctx ctx in
-    strict (d, w)
+    d, w
 
   let intrpt ctx =
     let d = S.intrpt (unlift_ctx ctx) in
     let w = snd ctx.local in (* interrupt is a self-loop and doesn't step to next node *)
-    strict (d, w)
+    d, w
 
   let asm ctx =
     let d = S.asm (unlift_ctx ctx) in
     let w = step_ctx ctx in
-    strict (d, w)
+    d, w
 
   let skip ctx =
     let d = S.skip (unlift_ctx ctx) in
     let w = step_ctx ctx in
-    strict (d, w)
+    d, w
 
   let special ctx r f args =
     let d = S.special (unlift_ctx ctx) r f args in
     let w = step_ctx ctx in
-    strict (d, w)
+    d, w
 
   let enter ctx r f args =
     let ddl = S.enter (unlift_ctx ctx) r f args in
@@ -235,7 +230,7 @@ struct
           else
             (VES.bot (), `Lifted to_node)
         in
-        (strict (d1, w), strict (d2, w'))
+        (d1, w), (d2, w')
       ) ddl
 
   let combine ctx r fe f args (d', w') =
@@ -246,5 +241,5 @@ struct
       else
         step_ctx ctx
     in
-    strict (d, w)
+    d, w
 end
