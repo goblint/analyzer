@@ -5,7 +5,7 @@
 
 (executable
   (name maingoblint)
-  (libraries cil.default-features batteries xml-light)
+  (libraries goblint-cil batteries xml-light)
   (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
 )
 
