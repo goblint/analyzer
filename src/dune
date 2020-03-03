@@ -4,7 +4,7 @@
 (include_subdirs unqualified)
 
 (executable
-  (name goblint)
+  (public_name goblint)
   (libraries goblint-cil batteries xml-light)
   (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
 )
