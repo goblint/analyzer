@@ -8,7 +8,6 @@ git:
 cache:
   directories:
   - $HOME/.opam
-  - _opam
 install: bash -x scripts/travis-ci.sh
 script: ./make.sh headers testci
 addons:
