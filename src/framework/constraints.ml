@@ -616,6 +616,68 @@ struct
     | `L x -> List.map conv (S.system x)
 end
 
+module Side =
+  module Var = struct
+    module Set = struct
+
+    end
+    module Eff = struct
+
+    end
+  end
+  module Dom = struct
+    module Set = struct
+
+    end
+    module Eff = struct
+
+    end
+  end
+end
+
+(** Translate a [GlobConstrSys] into a [IneqConstrSys] *)
+module SideIneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
+  : IneqConstrSys with type v = Var2(S.LVar)(S.GVar).t
+                   and type d = Lattice.Either(S.G)(S.D).t
+                   and module Var = Var2(S.LVar)(S.GVar)
+                   and module Dom = Lattice.Either(S.G)(S.D)
+=
+struct
+  module Var' = Var2(S.LVar)(GVar)
+  (* original LVar/GVar * Set * Eff *)
+  module Var = Var3 (Var') (Var') (VarPair (S.LVar) (Var'))
+  (* module Dom' =
+  struct
+    include Lattice.Either(S.G)(S.D)
+    let printXml f = function
+      | `Left  a -> S.G.printXml f a
+      | `Right a -> S.D.printXml f a
+  end
+  module Dom =
+  struct
+    include Lattice.Either (Side.Dom.Set) (Dom')
+  end *)
+  module Dom = Lattice.Variants3 (S.D) (S.G) (Set (S.LVar))
+
+  type v = Var.t
+  type d = Dom.t
+
+  let box f x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
+
+  let l, g = (fun x -> `V1 (`L x)), (fun x -> `V1 (`G x))
+  let eff x y = `V3 (x, y)
+  let sets y = `V2 y
+
+  let conv x f get set =
+    f (Dom.v1 % get % l) (fun y v -> set (eff x (`L y)) (le v); set (sets (`L y)) (Side.Dom.Set.singleton x))
+      (Dom.v2 % get % g) (fun y v -> set (eff x (`G y)) (ri v); set (sets (`G y)) (Side.Dom.Set.singleton x))
+    |> le
+
+  let sides x = [fun get set -> let ys = get (sets x) in Set.fold (fun a z -> Dom'.join a (get (eff z x))) (Dom'.bot ()) ys]
+  let system = function
+    | `G x -> sides (`G x)
+    | `L x -> let fs = S.system x in if fs = [] then sides (`L x) else List.map (conv x) fs
+end
 
 (** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
@@ -693,6 +755,46 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
         let split_vars = function
           | `L x -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
           | `G x -> fun y -> GH.replace g' x (getR y)
+        in
+        VH.iter split_vars hm;
+        (l', g')
+    end
+
+(** Transforms a [GenericIneqBoxSolver] into a [GenericGlobSolver] with side adjusted. *)
+module SideGlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
+  : GenericGlobSolver
+  = functor (S:GlobConstrSys) ->
+    functor (LH:Hash.H with type key=S.LVar.t) ->
+    functor (GH:Hash.H with type key=S.GVar.t) ->
+    struct
+      module IneqSys = SideIneqConstrSysFromGlobConstrSys (S)
+
+      module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
+      module Sol' = Sol (IneqSys) (VH)
+
+      let getG v = function
+        | `Left x -> x
+        | `Right x ->
+          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
+          (* undefined () *) (* TODO this only happens for test 17/02 arinc/unique_proc *)
+          S.G.bot ()
+
+      let getL v = function
+        | `Right x -> x
+        | `Left x ->
+          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
+          undefined ()
+
+      let solve ls gs l =
+        let vs = List.map (fun (x,v) -> `L x, `Right v) ls
+                 @ List.map (fun (x,v) -> `G x, `Left v) gs in
+        let sv = List.map (fun x -> `L x) l in
+        let hm = Sol'.solve IneqSys.box vs sv in
+        let l' = LH.create 113 in
+        let g' = GH.create 113 in
+        let split_vars = function
+          | `L x -> fun y -> LH.replace l' x (getL x y)
+          | `G x -> fun y -> GH.replace g' x (getG x y)
         in
         VH.iter split_vars hm;
         (l', g')

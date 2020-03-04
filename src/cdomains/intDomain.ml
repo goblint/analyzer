@@ -554,6 +554,222 @@ end
 module Flattened = Flat (Integers)
 module Lifted    = Lift (Integers)
 
+(*
+module BigInterval_base =
+struct
+  open Batteries.Big_int
+  open Compare
+
+  (* type t = (Big_int.big_int * Big_int.big_int) option [@@deriving to_yojson] *)
+  type t = Big_int.big_int * Big_int.big_int
+
+  let equal_to i (a, b) = let i = big_int_of_int64 i in if a = b && b = i then `Eq else if a <= i && i <= b then `Top else `Neq
+
+
+  let hash (x:t) = Hashtbl.hash x
+  let equal (x:t) y = x=y
+  let compare (x:t) y = Pervasives.compare x y
+  let short _ = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
+  let isSimple _ = true
+  let name () = "Big_int intervals"
+  let pretty_f sh () x = text (sh 80 x)
+  let pretty = pretty_f short
+  let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
+  let toXML = toXML_f short
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
+
+
+  let norm (x, y) = if x > y then None else Some (x, y)
+
+  (* let equal = equal *)
+
+  let leq (x1,x2) (y1,y2) = x1 >= y1 && x2 <= y2
+
+  let join (x1,x2) (y1,y2) = min_big_int x1 y1, max_big_int x2 y2
+  
+  let meet (x1,x2) (y1,y2) =
+    match norm (max_big_int x1 y1, min_big_int x2 y2) with
+    | None -> raise Lattice.Uncomparable
+    | Some r -> r
+
+  let is_int (x,y) = x = y
+  let of_int x = big_int_of_int64 x, big_int_of_int64 x
+  let to_int (x,y) = if x=y then try Some (int64_of_big_int x) with _ -> None else None
+
+  let of_interval (x,y) = norm (x,y)
+
+  let of_bool = function true -> I (one, one) | false -> I (zero, zero)
+  let is_bool = function Bot -> false | I (x,y) ->
+    if compare x zero = 0 && compare y zero = 0 then true
+    else not (leq (of_int Int64.zero) (Some (x,y)))
+  let to_bool = function None -> None | Some (x,y) ->
+    if Int64.compare x Int64.zero = 0 && Int64.compare y Int64.zero = 0 then Some false
+    else if leq (of_int Int64.zero) (Some (x,y)) then None else Some true
+
+  let starting n = norm @@ Some (n,max_int)
+  let ending   n = norm @@ Some (min_int,n)
+  let maximal = function None -> None | Some (x,y) -> Some y
+  let minimal = function None -> None | Some (x,y) -> Some x
+
+  let to_excl_list _ = None
+  let of_excl_list t _ = top ()
+  let is_excl_list _ = false
+
+  let cast_to t = function
+    | None -> None
+    | Some (x,y) ->
+      try
+        let a = Size.cast t x in
+        let b = Size.cast t y in
+        let a,b = if x<>a || y<>b then Size.range t else a,b in
+        norm @@ Some (a, b)
+      with Size.Not_in_int64 -> top () (* TODO top not safe b/c range too small *)
+
+  let widen x y =
+    match x, y with
+    | None, z | z, None -> z
+    | Some (l0,u0), Some (l1,u1) ->
+      let l2 = if Int64.compare l0 l1 = 0 then l0 else min l1 min_int in
+      let u2 = if Int64.compare u0 u1 = 0 then u0 else max u1 max_int in
+      norm @@ Some (l2,u2)
+
+  let narrow x y =
+    match x, y with
+    | _,None | None, _ -> None
+    | Some (x1,x2), Some (y1,y2) ->
+      let lr = if Int64.compare min_int x1 = 0 then y1 else x1 in
+      let ur = if Int64.compare max_int x2 = 0 then y2 else x2 in
+      norm @@ Some (lr,ur)
+
+  let log f i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, _
+    | _   , true -> bot ()
+    | _ ->
+      match to_bool i1, to_bool i2 with
+      | Some x, Some y -> of_bool (f x y)
+      | _              -> top ()
+
+  let logor  = log (||)
+  let logand = log (&&)
+
+  let log1 f i1 =
+    if is_bot i1 then
+      bot ()
+    else
+      match to_bool i1 with
+      | Some x -> of_bool (f x)
+      | _      -> top ()
+
+  let lognot = log1 not
+
+  let bit f i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, _
+    | _   , true -> bot ()
+    | _ ->
+      match to_int i1, to_int i2 with
+      | Some x, Some y -> (try norm (of_int (f x y)) with Division_by_zero -> top ())
+      | _              -> top ()
+
+  let bitxor = bit Int64.logxor
+  let bitand = bit Int64.logand
+  let bitor  = bit Int64.logor
+
+  let bit1 f i1 =
+    if is_bot i1 then
+      bot ()
+    else
+      match to_int i1 with
+      | Some x -> of_int (f x)
+      | _      -> top ()
+
+  let bitnot = bit1 Int64.lognot
+  let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y))
+  let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
+
+  let neg = function None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
+  let rem x y = meet (bit Int64.rem x y) (join y (neg y))
+
+  let add x y =
+    match x, y with
+    | None, _ | _, None -> None
+    | Some (x1,x2), Some (y1,y2) -> norm @@ Some (Int64.add x1 y1, Int64.add x2 y2)
+
+  let sub i1 i2 = add i1 (neg i2)
+
+  let mul x y =
+    match x, y with
+    | None, _ | _, None -> bot ()
+    | Some (x1,x2), Some (y1,y2) ->
+      let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
+      let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
+      norm @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
+                    (max (max x1y1 x1y2) (max x2y1 x2y2)))
+
+  let rec div x y =
+    match x, y with
+    | None, _ | _, None -> bot ()
+    | Some (x1,x2), Some (y1,y2) ->
+      begin match y1, y2 with
+        | 0L, 0L       -> bot ()
+        | 0L, _        -> div (Some (x1,x2)) (Some (1L,y2))
+        | _      , 0L  -> div (Some (x1,x2)) (Some (y1,(-1L)))
+        | _ when leq (of_int 0L) (Some (y1,y2)) -> top ()
+        | _ ->
+          let x1y1n = (Int64.div x1 y1) in let x1y2n = (Int64.div x1 y2) in
+          let x2y1n = (Int64.div x2 y1) in let x2y2n = (Int64.div x2 y2) in
+          let x1y1p = (Int64.div x1 y1) in let x1y2p = (Int64.div x1 y2) in
+          let x2y1p = (Int64.div x2 y1) in let x2y2p = (Int64.div x2 y2) in
+          norm @@ Some ((min (min x1y1n x1y2n) (min x2y1n x2y2n)),
+                        (max (max x1y1p x1y2p) (max x2y1p x2y2p)))
+      end
+  let ne i1 i2 = sub i1 i2
+
+  let eq i1 i2 =
+    match to_bool (sub i1 i2) with
+    | Some x -> of_bool (not x)
+    | None -> None
+
+  let ge x y =
+    match x, y with
+    | None, _ | _, None -> None
+    | Some (x1,x2), Some (y1,y2) ->
+      if Int64.compare y2 x1 <= 0 then of_bool true
+      else if Int64.compare x2 y1 < 0 then of_bool false
+      else top ()
+
+  let le x y =
+    match x, y with
+    | None, _ | _, None -> None
+    | Some (x1,x2), Some (y1,y2) ->
+      if Int64.compare x2 y1 <= 0 then of_bool true
+      else if Int64.compare  y2 x1 < 0 then of_bool false
+      else top ()
+
+  let gt x y =
+    match x, y with
+    | None, _ | _, None -> None
+    | Some (x1,x2), Some (y1,y2) ->
+      if Int64.compare  y2 x1 < 0 then of_bool true
+      else if Int64.compare x2 y1 <= 0 then of_bool false
+      else top ()
+
+  let lt x y =
+    match x, y with
+    | None, _ | _, None -> None
+    | Some (x1,x2), Some (y1,y2) ->
+      if Int64.compare x2 y1 < 0 then of_bool true
+      else if Int64.compare y2 x1 <= 0 then of_bool false
+      else top ()
+end
+
+module BigInterval = struct
+  include Flat (Lattice.Fake (BigInterval_base))
+end
+*)
+
 module Reverse (Base: S) =
 struct
   include Base

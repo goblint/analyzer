@@ -130,6 +130,7 @@ module Lifted : S with type t = [`Top | `Lifted of int64 | `Bot]
 (** Artificially bounded integers in their natural ordering. *)
 
 module Interval32 : S
+(* module BigInterval : S *)
 module Trier
   : S with type t = [
       | `Excluded of SetDomain.Make(Integers).t * Interval32.t

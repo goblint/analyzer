@@ -22,6 +22,17 @@ struct
   let narrow x y = x
 end
 
+(* generate a Lattice that performs binary ops on the same variant constructors, lifts unary ops and throws otherwise *)
+(* module VariantLattice (VS : sig
+    type t
+    val module_of : t -> (module S)
+    val leq : t -> t -> bool
+  end) = struct
+
+end
+
+VariantLattice (struct type t = V1 of V1.t | V2 of V2.t let module_of = function V1 _ -> module V1 ) *)
+
 exception TopValue
 exception BotValue
 exception Unsupported of string

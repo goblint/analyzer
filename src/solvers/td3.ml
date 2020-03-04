@@ -5,7 +5,53 @@ open Analyses
 open Constraints
 open Messages
 
-module WP =
+module Side () =
+  functor (S:EqConstrSys) -> (* EqConstrSys = MonSystem with option *)
+  functor (HM:Hash.H with type key = S.v) ->
+  struct
+    module Var = struct
+      type t = Var of S.Var.t | Set of S.Var.t | Eff of S.Var.t * S.Var.t
+      let todo () = failwith "todo"
+      let pretty_trace () = todo ()
+      let compare x y = match x, y with
+        | Var x, Var y
+        | Set x, Set y
+          -> S.Var.compare x y
+        | Eff (a,b), Eff (c,d) -> let x = S.Var.compare a c in if x = 0 then S.Var.compare b d else x
+        | Var _, _
+        | Set _, Eff _ -> 1
+        | _ -> -1
+      let category = function
+        | Var x -> S.Var.category x
+        | _ -> -1
+      let printXml o = function
+        | Var x -> S.Var.printXml o x
+        | _ -> ()
+      let var_id = function
+        | Var x -> S.Var.var_id x
+        | Set x -> "Side.Set " ^ S.Var.var_id x
+        | Eff _ -> "Side.Eff"
+      let file_name = function
+        | Var x -> S.Var.file_name x
+        | Set _ -> "Side.Set"
+        | Eff _ -> "Side.Eff"
+      let line_nr = function
+        | Var x -> S.Var.line_nr x
+        | Set _ -> -1
+        | Eff _ -> -1
+      let node = function
+        | Var x -> S.Var.node x
+        | Set _ -> todo ()
+        | Eff _ -> todo ()
+    end
+
+    module Dom = struct
+      type t = Dom of S.Dom.t | Set of S.Var.t Set.t
+
+    end
+end
+
+module WP = (* GenericEqBoxSolver *)
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
   struct
@@ -205,5 +251,10 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
+  (* WP : GenericEqBoxSolver
+  * module JoinContr (Sol: GenericEqBoxSolver) = ... include Sol (Generic.SimpleSysConverter (S)) (HM)
+  * module SimpleSysConverter (S:IneqConstrSys) (* Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
+  * module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver) (* Transforms a [GenericIneqBoxSolver] into a [GenericGlobSolver]. => split up in locals/globals with their own hash table. *)
+  *)
+  let module WP = SideGlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
   Selector.add_solver ("td3", (module WP : GenericGlobSolver));

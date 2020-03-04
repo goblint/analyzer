@@ -47,23 +47,23 @@ module SLR3 =
       let infl   = HM.create  10 in
       let set    = HM.create  10 in
       let rho    = HM.create  10 in
-      let rho'   = HPM.create 10 in
       let q      = ref H.empty in
 
       let add_infl y x = HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
-      let add_set x y d = HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty)); HPM.add rho' (x,y) d in
       let make_wpoint x = HM.replace wpoint x () in
       let rec solve x =
-        if not (HM.mem stable x) then begin
+        if not (HM.mem stable x) && S.system x <> None then begin
           let wpx = HM.mem wpoint x in
           HM.remove wpoint x;
           HM.replace stable x ();
           let old = HM.find rho x in
-          let tmp = eq x (eval x) (side x) in
-          let tmp = S.Dom.join tmp (sides x) in
+          let tmp = eq x (eval x) side in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
-          let tmp = if wpx then box x old tmp else tmp in
+          let tmp =
+            if wpx then box x old tmp
+            else tmp
+          in
           if not (S.Dom.equal old tmp) then begin
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
@@ -77,61 +77,51 @@ module SLR3 =
           while (H.size !q <> 0) && (min_key q <= get_key x) do
             solve (extract_min q)
           done;
-        end;
-        assert (HM.mem stable x)
+          assert (HM.mem stable x)
+        end
       and eq x get set =
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
-        | Some f ->
-          let effects = ref Set.empty in
-          let sidef y d =
-            if not (Set.mem y !effects) then (
-              HPM.replace rho' (x,y) (S.Dom.bot ());
-              effects := Set.add y !effects
-            );
-            set y d
-          in
-          f get sidef
+        | Some f -> f get side
       and eval x y =
         get_var_event y;
         if not (HM.mem rho y) then init y;
         if get_key x <= get_key y then make_wpoint y else solve y;
         add_infl y x;
         HM.find rho y
-      and sides x =
-        let w = try HM.find set x with Not_found -> VS.empty in
-        Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
-      and side x y d =
-        if not (HM.mem rho y) then begin
-          init y;
-          add_set x y d;
-          solve y
-        end else begin
-          let old = HPM.find rho' (x,y) in
-          if not (S.Dom.equal old d) then begin
-            add_set x y (S.Dom.join old d);
-            HM.remove stable y;
-            make_wpoint y;
-            q := H.add y !q
-          end
-        end
+      and side y d =
+        assert (not (S.Dom.is_bot d));
+        init y;
+        let old = HM.find rho y in
+        if not (S.Dom.leq d old) then (
+          let newd = S.Dom.widen old (S.Dom.join old d) in
+          HM.replace rho y newd;
+          (* trace "sol" "SIDE-upd: Var: %a\nFrom: %a\nOld: %a\nVal: %a\n" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty newd; *)
+          let w = try HM.find infl y with Not_found -> VS.empty in
+          (* trace "sol" "SIDE-q: Var: %a\nVal: %a\n" S.Var.pretty_trace y H.pretty !q; *)
+          q := Enum.fold (fun x y -> let _ = Pretty.printf "add to q: %a\n" S.Var.pretty_trace y in H.add y x) !q (VS.enum w);
+          HM.replace infl y VS.empty;
+          Enum.iter (HM.remove stable) (VS.enum w);
+          HM.replace stable y ()
+        );
       and init x =
         if not (HM.mem rho x) then begin
           new_var_event x;
           let _ = get_key x in
           HM.replace rho  x (S.Dom.bot ());
-          HM.replace infl x (VS.add x VS.empty)
+          (* HM.replace infl x (VS.add x VS.empty) *)
+          HM.replace infl x VS.empty
         end
       in
 
       let set_start (x,d) =
         init x;
-        (* HM.replace rho x d; *)
+        HM.replace rho x d;
+        HM.replace stable x ();
         (* HM.replace set x (VS.add x VS.empty); *)
         (* HPM.add rho' (x,x) d *)
-        add_set x x d;
-        solve x
+        (* solve x *)
       in
 
       start_event ();
@@ -167,7 +157,6 @@ module SLR3 =
       HM.clear stable;
       HM.clear infl  ;
       HM.clear set   ;
-      HPM.clear rho'  ;
 
       rho
 

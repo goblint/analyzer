@@ -116,6 +116,7 @@ struct
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
+  (* let equal x y = x.BatHashcons.tag = y.BatHashcons.tag || Base.equal (unlift x) (unlift y) TODO better rely on tag -> sort lists in HoarePO *)
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
   let short w = lift_f (Base.short w)
