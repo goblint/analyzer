@@ -22,7 +22,7 @@ RUN opam repository set-url default https://opam.ocaml.org/
 RUN ./make.sh deps
 # add the rest to the image (~11s), .dockerignore is symlinked to .gitignore
 COPY --chown=opam . /home/opam/analyzer
-RUN make
+RUN eval $(opam config env) && make
 # need UTF-8 for test script, image's default is US-ASCII
 ENV LC_ALL=C.UTF-8
 # RUN make test
