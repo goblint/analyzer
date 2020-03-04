@@ -1,4 +1,5 @@
-# goblint &nbsp; [![Travis-CI](https://travis-ci.com/goblint/analyzer.png)](https://travis-ci.com/goblint/analyzer/branches) [![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer)
+# goblint
+[![Travis Build Status](https://travis-ci.com/goblint/analyzer.svg?branch=master)](https://travis-ci.com/goblint/analyzer) <!-- [![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer) --> [![Docker Build Status](https://img.shields.io/docker/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
 
 ## Setup
 [Install opam](http://opam.ocaml.org/doc/Install.html), and then do `opam install goblint` to install the latest release.
