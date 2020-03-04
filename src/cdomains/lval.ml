@@ -56,7 +56,7 @@ struct
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
     | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
 
-  let pretty_diff () = Printable.dumb_diff name show ()
+  let pretty_diff () = Printable.dumb_diff (name ()) show ()
 
   let rec hash = function
     | `NoOffset -> 1
@@ -284,7 +284,7 @@ struct
 
   let toXML = toXML_f show
   let pretty = pretty_f show
-  let pretty_diff = Printable.dumb_diff name show
+  let pretty_diff = Printable.dumb_diff (name ()) show
   let to_exp (f:idx -> exp) x =
     let rec to_cil c =
       match c with
@@ -371,7 +371,7 @@ struct
     in
     (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
 
-  let pretty_diff () = Printable.dumb_diff name show ()
+  let pretty_diff () = Printable.dumb_diff (name ()) show ()
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
@@ -542,7 +542,7 @@ struct
 
   let show (v,o) = short_offs o (GU.demangle v.vname)
 
-  let pretty_diff = Printable.dumb_diff name show
+  let pretty_diff = Printable.dumb_diff (name ()) show
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end

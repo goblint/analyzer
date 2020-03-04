@@ -5,8 +5,8 @@ open Pretty
 type json = Yojson.Safe.t
 let json_to_yojson x = x
 
-let dumb_diff name short () (x, y) =
-  dprintf "%s: %s not leq %s" name (short x) (short y)
+let dumb_diff name show () (x, y) =
+  dprintf "%s: %s not leq %s" name (show x) (show y)
 
 module type S =
 sig
@@ -245,10 +245,10 @@ struct
     second := Base2.show y;
     "(" ^ !first ^ ", " ^ !second ^ ")"
 
-  let name () = Base1.name ^ " * " ^ Base2.name
+  let name () = Base1.name () ^ " * " ^ Base2.name ()
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape Base1.name) Base1.printXml x (Goblintutil.escape Base2.name) Base2.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y
 
   let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc =
     if Base1.equal x1 y1 then
@@ -276,11 +276,11 @@ struct
     third  := Base3.show z;
     "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
 
-  let pretty_diff = dumb_diff name show
+  let pretty_diff = dumb_diff (name ()) show
   let printXml f (x,y,z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape Base1.name) Base1.printXml x (Goblintutil.escape Base2.name) Base2.printXml y (Goblintutil.escape Base3.name) Base3.printXml z
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y (Goblintutil.escape (Base3.name ())) Base3.printXml z
 
-  let name () = Base1.name ^ " * " ^ Base2.name ^ " * " ^ Base3.name
+  let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 end
 
 module Liszt (Base: S) =
@@ -294,8 +294,8 @@ struct
     let elems = List.map Base.show x in
     "[" ^ (String.concat ", " elems) ^ "]"
 
-  let name () = Base.name ^ " list"
-  let pretty_diff = dumb_diff name show
+  let name () = Base.name () ^ " list"
+  let pretty_diff = dumb_diff (name ()) show
   let printXml f xs =
     let rec loop n = function
       | [] -> ()
@@ -322,7 +322,7 @@ struct
   let hash x = x-5284
   let equal (x:int) (y:int) = x=y
 
-  let pretty_diff = dumb_diff name show
+  let pretty_diff = dumb_diff (name ()) show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%d\n</data>\n</value>\n" x
 end
 
@@ -346,10 +346,10 @@ struct
   let show state =
     match state with
     | `Lifted n ->  Base.show n
-    | `Bot -> "bot of " ^ Base.name
+    | `Bot -> "bot of " ^ Base.name ()
 
-  let name () = "bottom or " ^ Base.name
-  let pretty_diff () = dumb_diff name show ()
+  let name () = "bottom or " ^ Base.name ()
+  let pretty_diff () = dumb_diff (name ()) show ()
   let printXml f = function
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Lifted n -> Base.printXml f n
@@ -375,13 +375,13 @@ struct
   let show state =
     match state with
     | `Lifted n ->  Base.show n
-    | `Top -> "top of " ^ Base.name
+    | `Top -> "top of " ^ Base.name ()
 
-  let name () = "top or " ^ Base.name
+  let name () = "top or " ^ Base.name ()
   let pretty_diff () (x,y) =
     match (x,y) with
     | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
-    | _ -> dumb_diff name show () (x,y)
+    | _ -> dumb_diff (name ()) show () (x,y)
 
   let printXml f = function
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
@@ -398,7 +398,7 @@ struct
   let pretty () n = text n
   let show n = n
   let name () = "String"
-  let pretty_diff = dumb_diff name show
+  let pretty_diff = dumb_diff (name ()) show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
 end
 

@@ -548,21 +548,7 @@ module ResultType2 (S:Spec) =
 struct
   open S
   include Printable.Prod3 (C) (D) (Basetype.CilFundec)
-  let isSimple _ = false
   let show (es,x,f:t) = call_descr f es
-  let toXML (es,x,_ as st:t) =
-    let open Xml in
-    let flatten_single = function
-      | Element (_,_,[x]) | x ->  x in
-    let try_replace_text s = function
-      | Element (tag, attr, children) -> Element (tag, ["text", s], children)
-      | x -> x
-    in
-    let esc = Goblintutil.escape in
-    let ctx = try_replace_text "Context" (flatten_single (C.toXML es)) in
-    let res = try_replace_text "Value" (flatten_single (D.toXML x)) in
-    Element ("Node",["text",esc (show st)],[ctx;res])
-  let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end

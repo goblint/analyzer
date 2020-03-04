@@ -120,18 +120,6 @@ struct
     | `TypeSet x, `TypeSet y -> TS.compare x y
     | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
 
-  let pretty_f s () state =
-    match state with
-    | `Int n ->  ID.pretty () n
-    | `Str s ->  text s
-    | `Bool n ->  BD.pretty () n
-    | `LvalSet n ->  LS.pretty () n
-    | `ExprSet n ->  ES.pretty () n
-    | `ExpTriples n ->  PS.pretty () n
-    | `TypeSet n -> TS.pretty () n
-    | `Bot -> text bot_name
-    | `Top -> text top_name
-
   let rec show state =
     match state with
     | `Int n ->  ID.show n
@@ -144,31 +132,7 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let isSimple x =
-    match x with
-    | `Int n ->  ID.isSimple n
-    | `Bool n ->  BD.isSimple n
-    | `LvalSet n ->  LS.isSimple n
-    | `ExprSet n ->  ES.isSimple n
-    | `ExpTriples n ->  PS.isSimple n
-    | `TypeSet n -> TS.isSimple n
-    | _ -> true
-
-  let toXML_f sf state =
-    match state with
-    | `Int n -> ID.toXML n
-    | `Str s -> Xml.Element ("Leaf", [("text", s)],[])
-    | `Bool n -> BD.toXML n
-    | `LvalSet n -> LS.toXML n
-    | `ExprSet n -> ES.toXML n
-    | `ExpTriples n -> PS.toXML n
-    | `TypeSet n -> TS.toXML n
-    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
-
-  let pretty () x = pretty_f short () x
-  let toXML s = toXML_f short s
-  let pretty_diff = Printable.dumb_diff name show
+  let pretty_diff = Printable.dumb_diff (name ()) show
 
   let leq x y =
     match (x,y) with
@@ -239,5 +203,5 @@ struct
     | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
     | (x,_) -> x
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (show0 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end

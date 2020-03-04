@@ -719,7 +719,7 @@ struct
           let p t = not (mem t s2) in
           let evil = choose (filter p s1) in
           let other = choose s2 in
-          (* dprintf "%s has a problem with %a not leq %a because %a" (name)
+          (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
              Spec.D.pretty evil Spec.D.pretty other
              Spec.D.pretty_diff (evil,other) *)
           Spec.D.pretty_diff () (evil,other)

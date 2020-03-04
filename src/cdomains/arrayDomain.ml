@@ -26,7 +26,7 @@ struct
 
   let show x = "Array: " ^ Val.short (w - 7) x
   let pretty () x = text "Array: " ++ pretty_f short () x
-  let pretty_diff = Printable.dumb_diff name show
+  let pretty_diff = Printable.dumb_diff (name ()) show
   let toXML m = toXML_f short m
   let get a i = a
   let set a i v = join a v

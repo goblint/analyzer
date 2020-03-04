@@ -14,7 +14,7 @@ sig
   val to_int: t -> int64 option
   val of_int: int64 -> t
   val is_int: t -> bool
-  val equal_to: int64 -> t -> [`Eq | `Neq | `Top] 
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   val of_bool: bool -> t
@@ -398,7 +398,7 @@ struct
   let lognot n1    = of_bool (not (to_bool' n1))
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let cast_to t x = Size.cast t x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
@@ -1052,7 +1052,7 @@ struct
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf
                                               Goblintutil.summary_length x)],[])
   let toXML = toXML_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 
   (* Widen
@@ -1198,7 +1198,7 @@ struct
   let lognot = (not)
   let logand = (&&)
   let logor  = (||)
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end
 

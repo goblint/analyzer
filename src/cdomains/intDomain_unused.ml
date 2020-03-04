@@ -167,7 +167,7 @@ struct
   let pretty = pretty_f short
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML = toXML_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 
   let leq  (x1,x2) (y1,y2) = I.leq y1 x1 && I.leq x2 y2
   let join (x1,x2) (y1,y2) = (I.min x1 y1, I.max x2 y2)
@@ -409,7 +409,7 @@ struct
   let toXML_f sf (x:t) = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 
   let top () : t = `Included (I.top ())
   let bot () : t = `Included (I.bot ())
@@ -722,7 +722,7 @@ struct
   let lognot n1    = ()
   let logand n1 n2 = ()
   let logor  n1 n2 = ()
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show0 x)
 end
 

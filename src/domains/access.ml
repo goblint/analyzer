@@ -29,7 +29,7 @@ struct
   let isSimple _ = true
   let show x = x
   let name () = "strings"
-  let pretty_diff = Printable.dumb_diff name show
+  let pretty_diff = Printable.dumb_diff (name ()) show
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
       (Goblintutil.escape (show x))

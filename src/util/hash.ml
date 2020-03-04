@@ -108,10 +108,9 @@ struct
       fold ch y true
     in length x = length y && forall2 Range.equal x y
   let hash xs = fold (fun k v xs -> xs lxor (Domain.hash k) lxor (Range.hash v)) xs 0
-  let show x = "mapping"
-  let isSimple _ = false
+  let show (x:t) = "mapping"
 
-  let toXML_f sf mapping =
+  (* let toXML_f sf mapping =
     let f (key,st) =
       match Domain.toXML key with
       | Xml.Element ("Loc",attr,[]) ->
@@ -135,9 +134,9 @@ struct
     let assoclist = fold (fun x y rest -> (x,y)::rest) mapping [] in
     (* let default = Xml.Element ("Default", [], [Range.toXML defval]) in *)
     let children = List.rev_map f assoclist in
-    Xml.Element ("Node", [("text", sf Goblintutil.summary_length mapping)], children)
+    Xml.Element ("Node", [("text", sf Goblintutil.summary_length mapping)], children) *)
 
-  open Pretty
+  (* open Pretty
   let pretty_f _ () mapping =
     let f key st dok =
       dok ++ (if Range.isSimple st then dprintf "%a -> @[%a@]\n" else
@@ -147,9 +146,8 @@ struct
     let defline () = dprintf "OTHERS -> Not available\n" in
     dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
 
-  let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
-  let pretty_diff = Printable.dumb_diff name showy
+  let pretty () x = pretty_f short () x *)
+  let pretty_diff = Printable.dumb_diff (name ()) show
   let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%a</key>\n%a" Domain.printXml k Range.printXml v

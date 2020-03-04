@@ -152,7 +152,7 @@ struct
     | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
     | (`List x, `List y) -> Lists.pretty_diff () (x,y)
     | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %s not same type as %s" (name) (show x) (show y)
+    | _ -> dprintf "%s: %s not same type as %s" (name ()) (show x) (show y)
 
   (************************************************************
    * Functions for getting state out of a compound:

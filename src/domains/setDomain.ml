@@ -76,7 +76,7 @@ struct
   include Printable.Blank
   include Lattice.StdCousot
   include BatSet.Make(Base)
-  let name () = "Set (" ^ Base.name ^ ")"
+  let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
   let leq  = subset
   let join = union
@@ -116,7 +116,7 @@ module SensitiveConf (C: Printable.ProdConfiguration) (Base: Lattice.S) (User: P
 struct
   module Elt = Printable.ProdConf (C) (Base) (User)
   include Make(Elt)
-  let name () = "Sensitive " ^ name
+  let name () = "Sensitive " ^ name ()
 
   let leq s1 s2 =
     (* I want to check that forall e in x, the same key is in y with it's base
@@ -180,7 +180,7 @@ struct
   let hash = function
     | All -> 999999
     | Set x -> S.hash x
-  let name () = "Topped " ^ S.name
+  let name () = "Topped " ^ S.name ()
   let equal x y =
     match x, y with
     | All, All -> true
@@ -242,7 +242,7 @@ struct
   (*  let map f = schema (fun t -> Set (S.map f t)) "map"*)
   let fold f x e = schema (fun t -> S.fold f t e) "fold on All" x
   let for_all f = schema_default false (S.for_all f)
-  let exists f = schema_default true (S.exists f) 
+  let exists f = schema_default true (S.exists f)
   let filter f = schema (fun t -> Set (S.filter f t)) "filter on All"
   let elements = schema S.elements "elements on All"
   let of_list xs = Set (List.fold_right S.add xs (S.empty ()))
@@ -276,7 +276,7 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
     | Set x, Set y -> S.pretty_diff () (x,y)
-    | _ -> Printable.dumb_diff name show () (x,y)
+    | _ -> Printable.dumb_diff (name ()) show () (x,y)
   let printXml f = function
     | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n"
     | Set s ->
@@ -300,7 +300,7 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
     | Set x, Set y -> S.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not leq %a" (name) pretty x pretty y
+    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let meet x y =
     let f y r =
@@ -337,7 +337,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%s: %a not leq %a" (name) pretty x pretty y
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f xs =
     iter (Base.printXml f) xs
 end *)
@@ -393,7 +393,7 @@ struct
         | None, Some x when op = `Join -> Some x
         | _ -> None
       ) x y
-  
+
   let merge_meet f x y =
     Map.merge (fun i a b -> match a, b with
         | Some a, Some b ->
@@ -454,7 +454,7 @@ struct
     for_all (flip mem y) x
 
   (* Printable *)
-  let name () = "HoarePO (" ^ E.name ^ ")"
+  let name () = "HoarePO (" ^ E.name () ^ ")"
   (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
   let equal x y = leq x y && leq y x
   let hash xs = fold (fun v a -> a + E.hash v) xs 0
@@ -466,7 +466,7 @@ struct
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let pretty_diff = Printable.dumb_diff name show
+  let pretty_diff = Printable.dumb_diff (name ()) show
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<set>\n";
     List.iter (E.printXml f) (elements x);
