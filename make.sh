@@ -16,11 +16,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  if [[ -d "_opam" ]]; then # install deps into existing local switch
-    opam install -y . --deps-only --locked
-  else # create a new local switch and install deps
-    opam switch -y create . --deps-only ocaml-base-compiler.4.09.0 --locked
-  fi
+  opam switch -y create . --deps-only ocaml-base-compiler.4.09.0 --locked
   # opam install camlp4 mongo # camlp4 needed for mongo
 }
 

@@ -39,15 +39,20 @@ else
 fi
 
 # install dependencies
-SANDBOXING=--disable-sandboxing ./make.sh setup
+if [[ -d "_opam/lib/ocaml" ]]; then # install deps into existing cached local switch
+  ./make.sh deps
+else # create a new local switch and install deps
+  rm -rf _opam
+  SANDBOXING=--disable-sandboxing ./make.sh setup
+fi
 eval `opam config env`
 # compile
   # debug missing files in src/
   ls src
   echo "### 1 ###"
   ls -1 src/**/*.ml
-  echo "### 2 ###"
-  find src -name '*.ml'
+  # echo "### 2 ###"
+  # find src -name '*.ml'
   echo "### 3 ###"
   ./make.sh gen
   ls src
