@@ -42,4 +42,13 @@ fi
 SANDBOXING=--disable-sandboxing ./make.sh setup
 eval `opam config env`
 # compile
+  # debug missing files in src/
+  ls src
+  echo "### 1 ###"
+  ls -1 src/**/*.ml
+  echo "### 2 ###"
+  find src -name '*.ml'
+  echo "### 3 ###"
+  ./make.sh gen
+  ls src
 ./make.sh nat
