@@ -1396,23 +1396,19 @@ struct
         )
       (*BatHashtbl.modify_def "" lv (fun s -> Bytes.set s i c) char_array*)
       | _ -> ()
-    in char_array_hack ();
+    in
+    char_array_hack ();
     let is_list_init () =
       match lval, rval with
       | (Var a, Field (fi,NoOffset)), AddrOf((Var b, NoOffset))
         when !GU.global_initialization && a.vid = b.vid
              && fi.fcomp.cname = "list_head"
-             && (fi.fname = "prev" || fi.fname = "next")
-        -> Some a
+             && (fi.fname = "prev" || fi.fname = "next") -> Some a
       | _ -> None
     in
     match is_list_init () with
     | Some a when (get_bool "exp.list-type") ->
-      begin
-        set ctx.ask ctx.global ctx.local
-          (AD.singleton (Addr.from_var a))
-          (`List (ValueDomain.Lists.bot ()))
-      end
+        set ctx.ask ctx.global ctx.local (AD.singleton (Addr.from_var a)) (`List (ValueDomain.Lists.bot ()))
     | _ ->
       let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
       let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
@@ -1426,36 +1422,31 @@ struct
         in
         AD.is_top xs || AD.exists not_local xs
       in
-      begin match rval_val, lval_val with
-        | `Address adrs, lval
-          when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
-          let find_fps e xs = Addr.to_var_must e @ xs in
-          let vars = AD.fold find_fps adrs [] in
-          let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-          List.iter (fun x -> ctx.spawn x (threadstate x)) funs
-        | _ -> ()
-      end;
+      (match rval_val, lval_val with
+      | `Address adrs, lval
+        when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+        let find_fps e xs = Addr.to_var_must e @ xs in
+        let vars = AD.fold find_fps adrs [] in
+        let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
+        List.iter (fun x -> ctx.spawn x (threadstate x)) funs
+      | _ -> ()
+      );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
-        begin
-        let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
-        in
-        match current_val with
+        let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
+        (match current_val with
         | `Bot -> (* current value is VD `Bot *)
-          begin
-            match Addr.to_var_offset (AD.choose lval_val) with
-            | [(x,offs)] ->
-              begin
-                let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
-                let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
-                set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
-              end
-            | _ ->
-              set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-          end
+          (match Addr.to_var_offset (AD.choose lval_val) with
+          | [(x,offs)] ->
+            let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
+            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
+            set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
+          | _ ->
+            set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
+          )
         | _ ->
           set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-        end
+        )
       | _ ->
         set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
 
