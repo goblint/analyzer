@@ -3,8 +3,8 @@
 
 # setup base system and clone goblint if not running in travis-ci
 if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-    brew update
-    brew install ocaml opam gcc
+    # brew update # takes ~5min, travis VMs are updated from time to time; could also cache: https://discourse.brew.sh/t/best-practice-for-homebrew-on-travis-brew-update-is-5min-to-build-time/5215/13
+    brew install opam gcc
 else
     if test -e "make.sh"; then # travis-ci
         echo "already in repository"
@@ -35,7 +35,7 @@ else
 
     echo 'yes' | sudo add-apt-repository ppa:$ppa
     sudo apt-get update -qq
-    sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
+    sudo apt-get install -qq opam
 fi
 
 # install dependencies
