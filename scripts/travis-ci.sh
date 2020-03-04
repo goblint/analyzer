@@ -47,13 +47,4 @@ else # create a new local switch and install deps
 fi
 eval `opam config env`
 # compile
-  # debug missing files in src/
-  ls src
-  echo "### 1 ###"
-  ls -1 src/**/*.ml
-  # echo "### 2 ###"
-  # find src -name '*.ml'
-  echo "### 3 ###"
-  ./make.sh gen
-  ls src
-./make.sh nat
+./make.sh gen nat # src/goblint.ml needs to be generated before dune build b/c somehow on travis it does not copy/ls all files in src/ whereas it does if run locally
