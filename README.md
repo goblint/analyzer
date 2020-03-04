@@ -19,12 +19,9 @@ For Windows 10 we recommend using [WSL](https://docs.microsoft.com/de-de/windows
 For older versions you can try to build using [these scripts](https://github.com/goblint/analyzer/tree/master/scripts/old/cygwin) for Cygwin, or use a virtual machine.
 
 ### Docker / Virtual machine
-You can run Goblint in a [Docker container](https://hub.docker.com/r/voglerr/goblint/) using:
+You can run Goblint in a [Docker container](https://hub.docker.com/r/voglerr/goblint/) using: `docker run -it voglerr/goblint ./goblint --help`.
 
-    docker run -it voglerr/goblint ./goblint --help
-A virtual machine containing Goblint can be set up using [Vagrant](http://www.vagrantup.com/):
-
-    vagrant up && vagrant ssh
+A virtual machine containing Goblint can be set up using [Vagrant](http://www.vagrantup.com/): `vagrant up && vagrant ssh`.
 
 ### Web frontend
 The analysis results are printed to stdout by default.
