@@ -12,6 +12,11 @@ cache:
 install: bash -x scripts/travis-ci.sh
 script: ./make.sh headers testci
 addons:
+  homebrew:
+    # this does not run `brew update` which takes ~5min, as opposed to a `brew install` in install script
+    packages:
+    - opam
+    - gcc
   apt:
     update: true
 notifications:
