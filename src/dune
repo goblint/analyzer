@@ -1,0 +1,23 @@
+; http://rgrinberg.com/posts/dune-upcoming-1-1/#faster-compilation-in-development-mode
+; -opaque used per default now? cmp default build (dev?) vs. `--profile release`
+
+(include_subdirs unqualified)
+
+(executable
+  (public_name goblint)
+  (libraries goblint-cil batteries xml-light)
+  (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+)
+
+(rule
+  (targets goblint.ml config.ml version.ml)
+  (mode fallback) ; do nothing if all targets already exist
+  (deps ../scripts/set_version.sh)
+  (action (chdir .. (run ./make.sh gen)))
+)
+
+(env
+  (dev
+    (flags (:standard -warn-error -A -w -27)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  )
+)
