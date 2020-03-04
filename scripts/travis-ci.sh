@@ -4,8 +4,7 @@
 # setup base system and clone goblint if not running in travis-ci
 if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     # brew update # takes ~5min, travis VMs are updated from time to time; could also cache: https://discourse.brew.sh/t/best-practice-for-homebrew-on-travis-brew-update-is-5min-to-build-time/5215/13
-    # brew install opam gcc # installed via homebrew addon in .travis.yml since it does not update
-    echo "Dependencies installed via travis homebrew addon."
+    brew install opam gcc # this also triggers an update; tried installing via homebrew addon in .travis.yml which is supposed to not update, but it only works with update... see https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/18
 else
     if test -e "make.sh"; then # travis-ci
         echo "already in repository"
