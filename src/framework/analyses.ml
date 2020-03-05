@@ -66,7 +66,7 @@ struct
 
   let kind = function
     | MyCFG.Function f                         -> `ExitOfProc f
-    | MyCFG.Statement {skind = Instr [Call _]} -> `ProcCall
+    | MyCFG.Statement {skind = Instr [Call _]; _} -> `ProcCall
     | _ -> `Other
 
   let printXml f n =

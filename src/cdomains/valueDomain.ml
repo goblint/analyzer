@@ -252,7 +252,7 @@ struct
         if d = Some true then err "Ptr-cast to type of incompatible size!" else
           begin match ta, t with
             (* struct to its first field *)
-            | TComp ({cfields = fi::_}, _), _ ->
+            | TComp ({cfields = fi::_; _}, _), _ ->
               M.tracel "casta" "cast struct to its first field\n";
               adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
             (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
@@ -266,7 +266,7 @@ struct
           end
     in
     let one_addr = let open Addr in function
-        | Addr ({ vtype = TVoid _ } as v, `NoOffset) -> (* we had no information about the type (e.g. malloc), so we add it TODO what about offsets? *)
+        | Addr ({ vtype = TVoid _; _} as v, `NoOffset) -> (* we had no information about the type (e.g. malloc), so we add it TODO what about offsets? *)
           Addr ({ v with vtype = t }, `NoOffset)
         | Addr (v, o) as a ->
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
@@ -305,7 +305,7 @@ struct
                 (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
               | _ -> log_top __POS__; ID.top ()
             ))
-        | TEnum ({ekind=ik},_) ->
+        | TEnum ({ekind=ik; _},_) ->
           `Int (ID.cast_to ik (match v with
               | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
               | _ -> log_top __POS__; ID.top ()
@@ -538,10 +538,10 @@ struct
     match t with
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
     | TPtr _ -> `Address AD.unknown_ptr
-    | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
-    | TComp ({cstruct=false},_) -> `Union (Unions.top ())
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
+    | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray _ -> `Array (CArrays.top ())
-    | TNamed ({ttype=t}, _) -> top_value t
+    | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
   let rec invalidate_value (ask:Q.ask) typ (state:t) : t =

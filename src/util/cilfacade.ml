@@ -141,7 +141,7 @@ let callConstructors ast =
     let cons = ref [] in
     iterGlobals ast (fun glob ->
         match glob with
-        | GFun({svar={vattr=attr}} as def, _) when hasAttribute "constructor" attr ->
+        | GFun({svar={vattr=attr; _}; _} as def, _) when hasAttribute "constructor" attr ->
           cons := def::!cons
         | _ -> ()
       );
@@ -155,7 +155,7 @@ let getFun fun_name =
   try
     iterGlobals !ugglyImperativeHack (fun glob ->
         match glob with
-        | GFun({svar={vname=vn}} as def,_) when vn = fun_name -> raise (Found def)
+        | GFun({svar={vname=vn; _}; _} as def,_) when vn = fun_name -> raise (Found def)
         | _ -> ()
       );
     failwith ("Function "^ fun_name ^ " not found!")
@@ -183,7 +183,7 @@ exception MyException of varinfo
 let find_module_init funs fileAST =
   try iterGlobals fileAST (
       function
-      | GVar ({vattr=attr}, {init=Some (SingleInit exp) }, _) when is_initptr attr ->
+      | GVar ({vattr=attr; _}, {init=Some (SingleInit exp) }, _) when is_initptr attr ->
         raise (MyException (get_varinfo exp))
       | _ -> ()
     );
@@ -200,15 +200,15 @@ let getFuns fileAST : startfuns =
   let add_other f (m,e,o) = (m,e,f::o) in
   let f acc glob =
     match glob with
-    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
-    | GFun({svar={vname=mn}} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
-    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
-    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
-    | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_init attr ->
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
+    | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
       Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
-    | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_exit attr ->
+    | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
-    | GFun ({svar={vstorage=NoStorage}} as def, _) when (get_bool "nonstatic") -> add_other def acc
+    | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
     | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
     | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
     | _ -> acc
@@ -222,7 +222,7 @@ let dec_make () : unit =
   Hashtbl.clear dec_table;
   iterGlobals !ugglyImperativeHack (fun glob ->
       match glob with
-      | GFun({svar={vid=vid}} as def,_) -> Hashtbl.add dec_table vid def
+      | GFun({svar={vid=vid; _}; _} as def,_) -> Hashtbl.add dec_table vid def
       | _ -> ()
     )
 

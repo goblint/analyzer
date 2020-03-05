@@ -282,9 +282,9 @@ struct
       Printf.printf "\n";
       iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
       Printf.printf "\n";*)
-    iter (fun (_,{spec=(module S:Spec)}) -> S.init ()) !analyses_list
+    iter (fun (_,{spec=(module S:Spec); _}) -> S.init ()) !analyses_list
 
-  let finalize () = iter (fun (_,{spec=(module S:Spec)}) -> S.finalize ()) !analyses_list
+  let finalize () = iter (fun (_,{spec=(module S:Spec); _}) -> S.finalize ()) !analyses_list
 
   let spec x = (assoc x !analyses_list).spec
   let spec_list xs =
@@ -320,9 +320,9 @@ struct
     let zipped = zip3 specs xs ys in
     List.for_all should_join zipped
 
-  let otherstate v = map (fun (n,{spec=(module S:Spec)}) -> n, repr @@ S.otherstate v) !analyses_list
-  let exitstate  v = map (fun (n,{spec=(module S:Spec)}) -> n, repr @@ S.exitstate  v) !analyses_list
-  let startstate v = map (fun (n,{spec=(module S:Spec)}) -> n, repr @@ S.startstate v) !analyses_list
+  let otherstate v = map (fun (n,{spec=(module S:Spec); _}) -> n, repr @@ S.otherstate v) !analyses_list
+  let exitstate  v = map (fun (n,{spec=(module S:Spec); _}) -> n, repr @@ S.exitstate  v) !analyses_list
+  let startstate v = map (fun (n,{spec=(module S:Spec); _}) -> n, repr @@ S.startstate v) !analyses_list
   let morphstate v x = map (fun (n,(module S:Spec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
   let call_descr f xs =

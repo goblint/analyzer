@@ -187,11 +187,11 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+    | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | Statement {skind=If (_, _, _, loc2)}, _ when loc = loc2 ->
+        | Statement {skind=If (_, _, _, loc2); _}, _ when loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
@@ -203,7 +203,7 @@ struct
           else
             None
         (* || *)
-        | _, Statement {skind=If (_, _, _, loc2)} when loc = loc2 ->
+        | _, Statement {skind=If (_, _, _, loc2); _} when loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
@@ -238,7 +238,7 @@ struct
       Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e_cond dn_exp e_true dn_exp e_false)))
 
   let rec next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+    | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
       if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with

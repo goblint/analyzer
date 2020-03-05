@@ -770,14 +770,14 @@ struct
     match t with
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true} as ci,_) -> `Struct (bot_comp ci)
-    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (bot_comp ci)
+    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.bot ())
     | TArray (ai, None, _) ->
       `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value a gs st ai))
     | TArray (ai, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
       `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (bot_value a gs st ai))
-    | TNamed ({ttype=t}, _) -> bot_value a gs st t
+    | TNamed ({ttype=t; _}, _) -> bot_value a gs st t
     | _ -> `Bot
 
   let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
@@ -790,14 +790,14 @@ struct
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
     | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
-    | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
-    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
+    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
     | TArray (ai, None, _) ->
       `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
     | TArray (ai, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
       `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t}, _) -> init_value a gs st t
+    | TNamed ({ttype=t; _}, _) -> init_value a gs st t
     | _ -> `Top
 
   let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
@@ -809,14 +809,14 @@ struct
     match t with
     | TInt _ -> `Int (ID.top ())
     | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
-    | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
+    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
     | TArray (ai, None, _) ->
       `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
     | TArray (ai, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
       `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t}, _) -> top_value a gs st t
+    | TNamed ({ttype=t; _}, _) -> top_value a gs st t
     | _ -> `Top
 
   (* run eval_rv from above and keep a result that is bottom *)

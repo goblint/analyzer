@@ -224,7 +224,7 @@ struct
       let drop_raw_lock x =
         let rec drop_offs o =
           match o with
-          | `Field ({fname="raw_lock"},`NoOffset) -> `NoOffset
+          | `Field ({fname="raw_lock"; _},`NoOffset) -> `NoOffset
           | `Field (f1,o1) -> `Field (f1, drop_offs o1)
           | `Index (i1,o1) -> `Index (i1, drop_offs o1)
           | `NoOffset -> `NoOffset
