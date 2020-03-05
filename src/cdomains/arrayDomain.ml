@@ -567,12 +567,12 @@ struct
   let smart_widen _ _ = widen
   let smart_leq _ _ = leq
 
-  (** It is not necessary to do a least-upper bound between the old and the new length here.   *)
-  (** Any array can only be declared in one location. The value for newl that we get there is  *)
-  (** the one obtained by abstractly evaluating the size expression at this location for the   *)
-  (** current state. If newl leq l this means that we somehow know more about the expression   *)
-  (** determining the size now (e.g. because of narrowing), but this holds for all the times   *)
-  (** the declaration is visited. *)
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
   let update_length newl (x, l) = (x, newl)
 
   let printXml f (x,y) =
@@ -611,12 +611,12 @@ struct
     let l = Idx.join xl yl in
     Idx.leq xl yl && Base.smart_leq_with_length (Some l) x_eval_int y_eval_int x y
 
-  (** It is not necessary to do a least-upper bound between the old and the new length here.   *)
-  (** Any array can only be declared in one location. The value for newl that we get there is  *)
-  (** the one obtained by abstractly evaluating the size expression at this location for the   *)
-  (** current state. If newl leq l this means that we somehow know more about the expression   *)
-  (** determining the size now (e.g. because of narrowing), but this holds for all the times   *)
-  (** the declaration is visited. *)
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
   let update_length newl (x, l) = (x, newl)
 
   let printXml f (x,y) =

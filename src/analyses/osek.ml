@@ -896,7 +896,6 @@ struct
 
   (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsMap = Map.Make (Offs)
-  (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsSet = Set.Make (Offs)
 
   let get_acc_map gl =

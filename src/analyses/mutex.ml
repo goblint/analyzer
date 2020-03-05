@@ -20,6 +20,7 @@ open GobConfig
 
 (** only report write races *)
 let no_read = ref false
+
 (** Only report races on these variables/types. *)
 let vips = ref ([]: string list)
 

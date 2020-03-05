@@ -7,8 +7,10 @@ open Json
 
 (** command port for eclipse debuger support *)
 let command_port = ref (-1)
+
 (** event port for eclipse debuger support *)
 let event_port = ref (-1)
+
 let command_socket = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
 let event_socket   = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
 let command_in  = ref stdin

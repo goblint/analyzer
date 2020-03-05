@@ -8,8 +8,11 @@ module GU = Goblintutil
 module type S =
 sig
   include Lattice.S
-  type key (** The type of the map keys. *)
-  type value (** The type of the values. *)
+  type key
+  (** The type of the map keys. *)
+
+  type value
+  (** The type of the values. *)
 
   val add: key -> value -> t -> t
   val remove: key -> t -> t

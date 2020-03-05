@@ -504,19 +504,22 @@ let empty_increment_data () = {
 (** A side-effecting system. *)
 module type MonSystem =
 sig
-  type v    (** variables *)
-  type d    (** values    *)
-  type 'a m (** basically a monad carrier *)
+  type v    (* variables *)
+  type d    (* values    *)
+  type 'a m (* basically a monad carrier *)
 
   (** Variables must be hashable, comparable, etc.  *)
   module Var : VarType with type t = v
+
   (** Values must form a lattice. *)
   module Dom : Lattice.S with type t = d
+
   (** box --- needed here for transformations *)
   val box : v -> d -> d -> d
 
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
+
   (** Data used for incremental analysis *)
   val increment : increment_data
 end

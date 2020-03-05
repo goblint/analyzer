@@ -366,7 +366,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
           Option.may (fun f -> set x (f (eval x) set)) (S.system x)
         end
 
-      (** return the value for [y] and mark its influence on [x] *)
+      (* return the value for [y] and mark its influence on [x] *)
       and eval x y =
         (* solve variable [y] *)
         get_var_event y;
@@ -449,7 +449,7 @@ module SoundBoxSolverImpl =
           H.remove called x
         end
 
-      (** return the value for [y] and mark its influence on [x] *)
+      (* return the value for [y] and mark its influence on [x] *)
       and eval x y =
         (* solve variable [y] *)
         get_var_event y;
@@ -556,7 +556,7 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
           H.remove called x
         end
 
-      (** return the value for [y] and mark its influence on [x] *)
+      (* return the value for [y] and mark its influence on [x] *)
       and eval x y =
         (* solve variable [y] *)
         get_var_event y;

@@ -151,10 +151,13 @@ struct
 
   (** Generate a string value. *)
   let string x = String x
+
   (** Generate a int value. *)
   let number n = Number (num_of_int n)
+
   (** Generate a array value. *)
   let array x = Array (ref (List.map ref x))
+
   (** Generate a null. *)
   let null = Null
 end
