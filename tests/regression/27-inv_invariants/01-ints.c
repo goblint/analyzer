@@ -18,4 +18,6 @@ int main() {
     assert(x == 3); // TODO y == 6
   if (2+(3-x)*4/5 == 6 && 2*y >= x+4)
     assert(x == -2 && y >= 1);
+  if (x > 1 && x < 5 && x % 2 == 1)
+    assert(x != 2); // [2,4] -> [3,4] TODO x % 2 == 1
 }

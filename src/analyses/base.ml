@@ -1360,6 +1360,7 @@ struct
       | Mult   -> meet_com ID.div
       | MinusA -> meet_non ID.add ID.sub
       | Div    -> meet_non ID.mul ID.div
+      | Mod    -> ID.meet a (ID.add c (ID.mul b (ID.div a b))), ID.meet b (ID.div (ID.sub a c) (ID.div a b))
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
