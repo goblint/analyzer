@@ -86,7 +86,6 @@ struct
 
   type offs = (fieldinfo,IndexDomain.t) Lval.offs
 
-  exception Unsupported of string
   let bot () = `Bot
   let is_bot x = x = `Bot
   let bot_name = "Uninitialized"
