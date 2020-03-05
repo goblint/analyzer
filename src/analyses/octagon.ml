@@ -7,7 +7,7 @@ module BV = Basetype.Variables
 let stripCastsDeep e =
   let v = object
     inherit nopCilVisitor
-    method vexpr e = ChangeTo (stripCasts e)
+    method! vexpr e = ChangeTo (stripCasts e)
   end
   in visitCilExpr v e
 
