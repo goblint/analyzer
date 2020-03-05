@@ -47,4 +47,4 @@ else # create a new local switch and install deps
 fi
 eval `opam config env`
 # compile
-./make.sh gen nat # src/goblint.ml needs to be generated before dune build b/c somehow on travis it does not copy/ls all files in src/ whereas it does if run locally
+./make.sh nat
