@@ -53,7 +53,7 @@ end
 
 (* if the given block contains a goto while_break.* we have the termination condition for a loop *)
 let exits = function
-  | { bstmts = [{ skind = Goto (stmt, loc) }] } -> Hashtbl.find_option loopBreaks !stmt.sid
+  | { bstmts = [{ skind = Goto (stmt, loc); _ }]; _ } -> Hashtbl.find_option loopBreaks !stmt.sid
   | _ -> None (* TODO handle return (need to find out what loop we are in) *)
 
 let lvals_of_expr =
