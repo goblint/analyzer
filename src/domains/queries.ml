@@ -1,6 +1,5 @@
 (** Structures for the querying subsystem. *)
 
-open Cil
 open Deriving.Cil
 open Pretty
 

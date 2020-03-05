@@ -1,7 +1,6 @@
 open Prelude
 open Analyses
 open Constraints
-open Messages
 
 module Make =
   functor (S:EqConstrSys) ->

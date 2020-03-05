@@ -1,5 +1,3 @@
-open MyCFG
-
 module type GraphMlWriter =
 sig
   type t

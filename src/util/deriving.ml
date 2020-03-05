@@ -17,8 +17,6 @@ module Pretty = struct
   let pp_doc x = assert false
 end
 module Cil = struct
-  open Cil (* can't include because of type defintions below... *)
-
   (* let stmt_to_yojson x = `Int (x.sid) *)
   (* let varinfo_to_yojson x = `String (x.vname) *)
 

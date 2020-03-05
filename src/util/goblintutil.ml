@@ -1,12 +1,9 @@
 (** Globally accessible flags and utility functions. *)
 
 open Cil
-open Pretty
 open GobConfig
 
 open Json
-open JsonParser
-open JsonLexer
 
 (** command port for eclipse debuger support *)
 let command_port = ref (-1)

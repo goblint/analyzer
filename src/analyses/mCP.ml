@@ -199,21 +199,18 @@ end
 
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
-  open Tuple4
   let assoc_dom n = (List.assoc n !analyses_list).dom
   let domain_list () = List.map (fun (n,p) -> n, p.dom) !analyses_list
 end
 
 module GlobalDomainListSpec : DomainListLatticeSpec =
 struct
-  open Tuple4
   let assoc_dom n = (List.assoc n !analyses_list).glob
   let domain_list () = List.map (fun (n,p) -> n, p.glob) !analyses_list
 end
 
 module ContextListSpec : DomainListPrintableSpec =
 struct
-  open Tuple4
   let assoc_dom n = (List.assoc n !analyses_list).cont
   let domain_list () = List.map (fun (n,p) -> n, p.cont) !analyses_list
 end
@@ -518,7 +515,6 @@ struct
 
   and do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
-    let open Access in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
       Access.add e w conf vo oo (po,pd)

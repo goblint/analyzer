@@ -3,7 +3,6 @@
 open Prelude
 open Cil
 open MyCFG
-open Pretty
 open Analyses
 open GobConfig
 open Constraints
@@ -67,7 +66,7 @@ struct
       let live_nodes : unit NH.t = NH.create 10 in
       let count = ref 0 in
       let module StringMap = BatMap.Make (String) in
-      let open BatMap in let open BatPrintf in
+      let open BatPrintf in
       let live_lines = ref StringMap.empty in
       let dead_lines = ref StringMap.empty in
       let add_one (l,n,f) v =

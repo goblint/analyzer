@@ -1,7 +1,3 @@
-open Pretty
-open Cil
-module ME = Messages
-
 module Stack (VD: Lattice.S) =
 struct
   module Map = MapDomain.MapTop (Basetype.Variables) (VD)

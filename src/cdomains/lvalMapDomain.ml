@@ -1,6 +1,5 @@
 open Prelude
 open Cil
-open Pretty
 
 module M = Messages
 

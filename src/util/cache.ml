@@ -1,7 +1,5 @@
 (** Simple cache, used in solvers. *)
 
-open Cil
-
 module OneVar (V : Hashtbl.HashedType) =
 struct
   let cached fn =
