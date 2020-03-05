@@ -1353,14 +1353,15 @@ struct
     in
     (* inverse values for binary operation a `op` b == c *)
     let inv_bin_int (a, b) c =
-      let meet_com oi    = ID.meet a (oi c b), ID.meet b (oi c a) in (* commutative *)
-      let meet_non oi oo = ID.meet a (oi c b), ID.meet b (oo a c) in (* non-commutative *)
+      let meet_bin a' b'  = ID.meet a a', ID.meet b b' in
+      let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
+      let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
       function
       | PlusA  -> meet_com ID.sub
       | Mult   -> meet_com ID.div
       | MinusA -> meet_non ID.add ID.sub
       | Div    -> meet_non ID.mul ID.div
-      | Mod    -> ID.meet a (ID.add c (ID.mul b (ID.div a b))), ID.meet b (ID.div (ID.sub a c) (ID.div a b))
+      | Mod    -> meet_bin (ID.add c (ID.mul b (ID.div a b))) (ID.div (ID.sub a c) (ID.div a b))
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
@@ -1379,13 +1380,13 @@ struct
         | Some l1, Some u1, Some l2, Some u2 ->
           (match op, ID.to_bool c with
           | Le, Some true
-          | Gt, Some false -> ID.meet a (ID.ending u2), ID.meet b (ID.starting l1)
+          | Gt, Some false -> meet_bin (ID.ending u2) (ID.starting l1)
           | Ge, Some true
-          | Lt, Some false -> ID.meet a (ID.starting l2), ID.meet b (ID.ending u1)
+          | Lt, Some false -> meet_bin (ID.starting l2) (ID.ending u1)
           | Lt, Some true
-          | Ge, Some false -> ID.meet a (ID.ending (Int64.pred u2)), ID.meet b (ID.starting (Int64.succ l1))
+          | Ge, Some false -> meet_bin (ID.ending (Int64.pred u2)) (ID.starting (Int64.succ l1))
           | Gt, Some true
-          | Le, Some false -> ID.meet a (ID.starting (Int64.succ l2)), ID.meet b (ID.ending (Int64.pred u1))
+          | Le, Some false -> meet_bin (ID.starting (Int64.succ l2)) (ID.ending (Int64.pred u1))
           | _, _ -> a, b)
         | _ -> a, b)
       | op ->
