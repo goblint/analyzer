@@ -41,6 +41,9 @@ rule() {
       dune build --profile release $TARGET.exe &&
       cp _build/default/$TARGET.exe goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
+    ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
+      dune build $TARGET.bc.js &&
+      node _build/default/$TARGET.bc.js
     ;; watch)
       dune build -w $TARGET.exe
       # dune runtest -w --no-buffer
