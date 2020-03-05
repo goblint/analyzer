@@ -37,7 +37,7 @@ let rmTemps fileAST =
 
 class allBBVisitor = object (* puts every instruction into its own basic block *)
   inherit nopCilVisitor
-  method vstmt s =
+  method! vstmt s =
     match s.skind with
     | Instr(il) ->
       let list_of_stmts =
@@ -46,10 +46,10 @@ class allBBVisitor = object (* puts every instruction into its own basic block *
       ChangeDoChildrenPost(s, (fun _ -> s.skind <- Block(block); s))
     | _ -> DoChildren
 
-  method vvdec _ = SkipChildren
-  method vexpr _ = SkipChildren
-  method vlval _ = SkipChildren
-  method vtype _ = SkipChildren
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 let end_basic_blocks f =
@@ -112,7 +112,7 @@ let getAST fileName =
 class addConstructors cons = object
   inherit nopCilVisitor
   val mutable cons1 = cons
-  method vfunc fd =
+  method! vfunc fd =
     if List.mem fd.svar.vname (List.map string (get_list "mainfun")) then begin
       let loc = try get_stmtLoc (List.hd fd.sbody.bstmts).skind with Failure _ -> locUnknown in
       let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
@@ -122,11 +122,11 @@ class addConstructors cons = object
       ChangeTo fd
     end else SkipChildren
 
-  method vstmt _ = SkipChildren
-  method vvdec _ = SkipChildren
-  method vexpr _ = SkipChildren
-  method vlval _ = SkipChildren
-  method vtype _ = SkipChildren
+  method! vstmt _ = SkipChildren
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 let getMergedAST fileASTs =
