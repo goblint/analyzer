@@ -762,7 +762,7 @@ struct
       end
 
   let rec bot_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let rec bot_comp compinfo: ValueDomain.Structs.t =
+    let bot_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
       let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype) in
       List.fold_left bot_field nstruct compinfo.cfields
@@ -781,7 +781,7 @@ struct
     | _ -> `Bot
 
   let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
-    let rec init_comp compinfo: ValueDomain.Structs.t =
+    let init_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
       let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
       List.fold_left init_field nstruct compinfo.cfields
@@ -801,7 +801,7 @@ struct
     | _ -> `Top
 
   let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let rec top_comp compinfo: ValueDomain.Structs.t =
+    let top_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
       let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype) in
       List.fold_left top_field nstruct compinfo.cfields
@@ -1080,7 +1080,7 @@ struct
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
-        let rec effect_on_arrays a (st, fl, dep)=
+        let effect_on_arrays a (st, fl, dep)=
           let affected_arrays =
             let set = Dep.find_opt x dep |? Dep.VarSet.empty () in
             Dep.VarSet.elements set

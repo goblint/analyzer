@@ -209,7 +209,7 @@ struct
   let name () = "expresssions"
 
   let rec occurs x e =
-    let rec occurs_lv (v,offs) =
+    let occurs_lv (v,offs) =
       let rec occurs_offs offs = match offs with
         | Index (e,offs) -> occurs x e || occurs_offs offs
         | Field (_,offs) -> occurs_offs offs

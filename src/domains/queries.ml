@@ -138,7 +138,7 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let rec short w state =
+  let short w state =
     match state with
     | `Int n ->  ID.short w n
     | `Str s ->  s

@@ -296,7 +296,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   let inits = Hashtbl.create 13 in
   let fast_global_inits = get_bool "exp.fast_global_inits" in
   let rec doInit lval loc init is_zero =
-    let rec initoffs offs init typ lval =
+    let initoffs offs init typ lval =
       doInit (addOffsetLval offs lval) loc init is_zero;
       lval
     in

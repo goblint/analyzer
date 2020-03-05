@@ -161,7 +161,7 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let rec isSimple x =
+  let isSimple x =
     match x with
     | `Int n ->  ID.isSimple n
     | `Address n ->  AD.isSimple n
@@ -287,7 +287,7 @@ struct
    * 1. normal casts
    * 2. dereferencing pointers (needed?)
   *)
-  let rec cast ?torg t v =
+  let cast ?torg t v =
     (*if v = `Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
     if v = `Bot then v else
       let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
@@ -530,7 +530,7 @@ struct
       x
 
   let rec top_value (t: typ) =
-    let rec top_comp compinfo: Structs.t =
+    let top_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
       let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype) in
       List.fold_left top_field nstruct compinfo.cfields
@@ -546,7 +546,7 @@ struct
 
   let rec invalidate_value (ask:Q.ask) typ (state:t) : t =
     let typ = unrollType typ in
-    let rec invalid_struct compinfo old =
+    let invalid_struct compinfo old =
       let nstruct = Structs.top () in
       let top_field nstruct fd =
         Structs.replace nstruct fd (invalidate_value ask fd.ftype (Structs.get old fd))
@@ -586,7 +586,7 @@ struct
       end
     | _ -> None, None
 
-  let rec determine_offset ask left offset exp v =
+  let determine_offset ask left offset exp v =
     let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
       match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
@@ -736,7 +736,7 @@ struct
     in
     do_eval_offset ask f x offs exp l o v
 
-  let rec update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval): t =
+  let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval): t =
     let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval):t =
       let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
       match x, offs with
@@ -767,7 +767,7 @@ struct
                 `Struct (Structs.replace str fld value')
               end
             | `Bot ->
-              let rec init_comp compinfo =
+              let init_comp compinfo =
                 let nstruct = Structs.top () in
                 let init_field nstruct fd = Structs.replace nstruct fd `Bot in
                 List.fold_left init_field nstruct compinfo.cfields

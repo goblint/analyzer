@@ -316,7 +316,7 @@ struct
       true
 
   let get_inherited_from fn =
-    let rec add_classes c l =
+    let add_classes c l =
       try (List.filter (fun x -> (*not (isnot_mainclass x)*) true) (Hashtbl.find derived c)) @l with _ -> l
     in
     match Goblintutil.get_class fn with
@@ -954,7 +954,7 @@ struct
     else false
 
   (*analog to may_be_.._global, prints warnings*)
-  let rec warn_bad_dereference e fromFun (fd, st,df) fs ss = (**)
+  let warn_bad_dereference e fromFun (fd, st,df) fs ss = (**)
 
     if (maybe_deref e) then
       let warn_exp e =

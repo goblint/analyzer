@@ -439,7 +439,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
-  let rec printInnerXml f = function
+  let printInnerXml f = function
     | [] -> ()
     | (`Left x :: xs) ->
       BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
@@ -487,7 +487,7 @@ struct
     | (x::xs) -> x :: kill v xs
     | [] -> []
 
-  let rec replace x exp ofs =
+  let replace x exp ofs =
     let f o = match o with
       | `Right e -> `Right (I.replace x exp e)
       | x -> x

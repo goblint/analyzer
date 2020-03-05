@@ -486,7 +486,7 @@ struct
     let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
     let sides  = ref [] in
     let f (po,lo) (n, (module S: Spec), d) : part =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; context = ctx.context

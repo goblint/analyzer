@@ -115,7 +115,7 @@ struct
     split' 0
 
   (** Parse an index. *)
-  let rec parse_index s =
+  let parse_index s =
     try if s = "+" then App
       else if s = "*" then New
       else Int (int_of_string s)
@@ -280,7 +280,7 @@ struct
 
 
   (** A convenience functions for writing values. *)
-  let rec set_auto' st v =
+  let set_auto' st v =
     if v = "null" then set_null st else
       try set_bool st (bool_of_string v)
       with Invalid_argument _ ->
@@ -290,7 +290,7 @@ struct
 
   (** The ultimate convenience function for writing values. *)
   let one_quote = Str.regexp "\'"
-  let rec set_auto st s =
+  let set_auto st s =
     if s="null" then set_null st else
     if s="" then set_string st "" else
       try

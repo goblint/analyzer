@@ -237,7 +237,7 @@ struct
       (* CIL has no exp for ternary at all..., this string constant is just decorative *)
       Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e_cond dn_exp e_true dn_exp e_false)))
 
-  let rec next_opt' n = match n with
+  let next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
       if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
