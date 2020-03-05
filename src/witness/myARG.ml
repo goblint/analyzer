@@ -271,7 +271,6 @@ module Intra (Node: MoveNode) (ArgIntra: SIntraOpt) (Arg: S with module Node = N
   S with module Node = Node =
 struct
   include Arg
-  open GobConfig
 
   let next node =
     match ArgIntra.next_opt (Node.cfgnode node) with

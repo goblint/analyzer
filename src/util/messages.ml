@@ -1,6 +1,5 @@
 open Cil
 open Pretty
-open Htmlutil
 open Htmldump
 open GobConfig
 module GU = Goblintutil

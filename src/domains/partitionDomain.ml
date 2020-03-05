@@ -1,7 +1,5 @@
 (** Partitioning domains. *)
 
-open Pretty
-
 module GU = Goblintutil
 
 module type Collapse = sig

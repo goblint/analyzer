@@ -1,7 +1,4 @@
 open Analyses
-open GobConfig
-open Messages
-open Pretty
 
 module Make =
   functor (S:EqConstrSys) ->

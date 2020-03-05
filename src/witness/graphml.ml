@@ -1,5 +1,3 @@
-open MyCFG
-
 module type GraphMlWriter =
 sig
   type t
@@ -100,6 +98,8 @@ struct
       H.add added_nodes node ();
       M.write_node delegate node datas
     end
+
   let write_edge {delegate; _} = M.write_edge delegate
   let stop {delegate; _} = M.stop delegate
+
 end

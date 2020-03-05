@@ -1,7 +1,5 @@
-open Cil
 open Deriving.Cil
 open Pretty
-open Printf
 
 type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location} [@@deriving to_yojson]
 

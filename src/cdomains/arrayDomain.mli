@@ -1,5 +1,4 @@
 (** Abstract domains representing arrays. *)
-open Pretty
 module type S =
 sig
   include Lattice.S
