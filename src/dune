@@ -5,6 +5,7 @@
 
 (executable
   (public_name goblint)
+  (modules :standard \ apronDomain poly)
   (libraries goblint-cil batteries xml-light)
   (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
 )
@@ -14,6 +15,12 @@
   (mode fallback) ; do nothing if all targets already exist
   (deps ../scripts/set_version.sh)
   (action (chdir .. (run ./make.sh gen)))
+)
+
+(rule
+  (alias runtest)
+  (deps ../scripts/update_suite.rb ../goblint ../Makefile (source_tree ../tests))
+  (action (chdir .. (run ./make.sh test)))
 )
 
 (env

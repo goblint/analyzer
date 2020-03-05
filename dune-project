@@ -1,4 +1,4 @@
-(lang dune 1.11)
+(lang dune 2.3)
 (name goblint)
 ; build failed with: Files src/.maingoblint.eobjs/native/mutex.cmx and _opam/lib/ocaml/threads/threads.cmxa both define a module named Mutex
 ; maybe related: https://github.com/ocaml/dune/issues/1727, https://github.com/ocaml/dune/issues/597
