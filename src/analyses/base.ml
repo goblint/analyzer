@@ -123,35 +123,45 @@ struct
 
   let iDtoIdx n =
     match ID.to_int n with
-      None -> IdxDom.top ()
+    | None -> IdxDom.top ()
     | Some n -> IdxDom.of_int n
+
+  let unop_ID = function
+    | Neg  -> ID.neg
+    | BNot -> ID.bitnot
+    | LNot -> ID.lognot
+
+  (* Evaluating Cil's unary operators. *)
+  let evalunop op = function
+    | `Int v1 -> `Int (unop_ID op v1)
+    | `Bot -> `Bot
+    | _ -> VD.top ()
+
+  let binop_ID = function
+    | PlusA -> ID.add
+    | MinusA -> ID.sub
+    | Mult -> ID.mul
+    | Div -> ID.div
+    | Mod -> ID.rem
+    | Lt -> ID.lt
+    | Gt -> ID.gt
+    | Le -> ID.le
+    | Ge -> ID.ge
+    | Eq -> ID.eq
+    | Ne -> ID.ne
+    | BAnd -> ID.bitand
+    | BOr -> ID.bitor
+    | BXor -> ID.bitxor
+    | Shiftlt -> ID.shift_left
+    | Shiftrt -> ID.shift_right
+    | LAnd -> ID.logand
+    | LOr -> ID.logor
+    | _ -> (fun x y -> (ID.top ()))
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value): value =
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
-    let the_op =
-      match op with
-      | PlusA -> ID.add
-      | MinusA -> ID.sub
-      | Mult -> ID.mul
-      | Div -> ID.div
-      | Mod -> ID.rem
-      | Lt -> ID.lt
-      | Gt -> ID.gt
-      | Le -> ID.le
-      | Ge -> ID.ge
-      | Eq -> ID.eq
-      | Ne -> ID.ne
-      | BAnd -> ID.bitand
-      | BOr -> ID.bitor
-      | BXor -> ID.bitxor
-      | Shiftlt -> ID.shift_left
-      | Shiftrt -> ID.shift_right
-      | LAnd -> ID.logand
-      | LOr -> ID.logor
-      | _ -> (fun x y -> (ID.top ()))
-    in
     let bool_top () = ID.(join (of_int 0L) (of_int 1L)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
@@ -177,7 +187,7 @@ struct
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
-    | `Int v1, `Int v2 -> `Int (the_op v1 v2)
+    | `Int v1, `Int v2 -> `Int (binop_ID op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -239,20 +249,6 @@ struct
     | _, `Bot -> `Bot
     | _ -> VD.top ()
 
-
-  (* Evaluating Cil's unary operators. Yes, this is easy! *)
-  let evalunop op a1 =
-    let the_op =
-      match op with
-      | Neg  -> ID.neg
-      | BNot -> ID.bitnot
-      | LNot -> ID.lognot
-    in
-    match a1 with
-    | `Int v1 -> `Int (the_op v1)
-    | `Bot -> `Bot
-    | _ -> VD.top ()
-
   (* Auxiliary function to append an additional offset to a given offset. *)
   let rec add_offset ofs add =
     match ofs with
@@ -295,9 +291,6 @@ struct
     match exp with
     | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
     | _ -> None
-
-
-
 
 
   (**************************************************************************
@@ -404,14 +397,12 @@ struct
     in
     List.fold_right f vals []
 
-  (* Hmm... top level?  Watch out ... *)
-  let empty = AD.empty ()
-
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_address (ask: Q.ask) (gs:glob_fun) st (adr: address): address =
     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
+    let empty = AD.empty () in
     let rec reachable_from_value (value: value) =
       if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
       match value with
@@ -445,6 +436,7 @@ struct
    * and the workset of visited addresses. *)
   let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
     if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!\n" (d_list ", " AD.pretty) args;
+    let empty = AD.empty () in
     (* We begin looking at the parameters: *)
     let argset = List.fold_right (AD.join) args empty in
     let workset = ref argset in
@@ -463,7 +455,6 @@ struct
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
-
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
@@ -536,6 +527,7 @@ struct
 
   let reachable_top_pointers_types ctx (ps: AD.t) : Queries.TS.t =
     let module TS = Queries.TS in
+    let empty = AD.empty () in
     let reachable_from_address (adr: address) =
       let with_type t = function
         | (ad,ts,true) ->
@@ -1205,6 +1197,18 @@ struct
    * Auxillary functions
    **************************************************************************)
 
+  let is_some_bot x =
+    match x with
+    | `Int n ->  ID.is_bot n
+    | `Address n ->  AD.is_bot n
+    | `Struct n ->  ValueDomain.Structs.is_bot n
+    | `Union n ->  ValueDomain.Unions.is_bot n
+    | `Array n ->  ValueDomain.CArrays.is_bot n
+    | `Blob n ->  ValueDomain.Blobs.is_bot n
+    | `List n ->  ValueDomain.Lists.is_bot n
+    | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
+    | `Top -> false
+
   let invariant ctx a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
@@ -1310,18 +1314,6 @@ struct
         if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" d_plainexp exp;
         None
     in
-    let is_some_bot x =
-      match x with
-      | `Int n ->  ID.is_bot n
-      | `Address n ->  AD.is_bot n
-      | `Struct n ->  ValueDomain.Structs.is_bot n
-      | `Union n ->  ValueDomain.Unions.is_bot n
-      | `Array n ->  ValueDomain.CArrays.is_bot n
-      | `Blob n ->  ValueDomain.Blobs.is_bot n
-      | `List n ->  ValueDomain.Lists.is_bot n
-      | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
-      | `Top -> false
-    in
     let apply_invariant oldv newv =
       match oldv, newv with
       (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
@@ -1352,6 +1344,84 @@ struct
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
       st
+
+  let invariant ctx a gs st exp tv =
+    let open Deriving.Cil in
+    let fallback reason =
+      if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
+      Tuple3.first (invariant ctx a gs st exp tv)
+    in
+    (* inverse values for binary operation a `op` b == c *)
+    let inv_bin_int (a, b) c =
+      let meet_com oi    = ID.meet a (oi c b), ID.meet b (oi c a) in (* commutative *)
+      let meet_non oi oo = ID.meet a (oi c b), ID.meet b (oo a c) in (* non-commutative *)
+      function
+      | PlusA  -> meet_com ID.sub
+      | Mult   -> meet_com ID.div
+      | MinusA -> meet_non ID.add ID.sub
+      | Div    -> meet_non ID.mul ID.div
+      | Eq | Ne as op ->
+        let both x = x, x in
+        let m = ID.meet a b in
+        (match op, ID.to_bool c with
+        | Eq, Some true
+        | Ne, Some false -> both m (* def. equal *)
+        | Eq, Some false
+        | Ne, Some true -> (* def. unequal *)
+          (match ID.to_int m with
+          | Some i -> both (ID.of_excl_list ILongLong [i])
+          | None -> a, b)
+        | _, _ -> a, b
+        )
+      | Lt | Le | Ge | Gt as op ->
+        (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
+        | Some l1, Some u1, Some l2, Some u2 ->
+          (match op, ID.to_bool c with
+          | Le, Some true
+          | Gt, Some false -> ID.meet a (ID.ending u2), ID.meet b (ID.starting l1)
+          | Ge, Some true
+          | Lt, Some false -> ID.meet a (ID.starting l2), ID.meet b (ID.ending u1)
+          | Lt, Some true
+          | Ge, Some false -> ID.meet a (ID.ending (Int64.pred u2)), ID.meet b (ID.starting (Int64.succ l1))
+          | Gt, Some true
+          | Le, Some false -> ID.meet a (ID.starting (Int64.succ l2)), ID.meet b (ID.ending (Int64.pred u1))
+          | _, _ -> a, b)
+        | _ -> a, b)
+      | op ->
+        if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
+        a, b
+    in
+    let eval e = eval_rv a gs st e in
+    let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
+    let set' lval v = Tuple3.first (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
+    let rec inv_exp c = function
+      | UnOp (op, e, _) -> inv_exp (unop_ID op c) e
+      | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
+        inv_exp c (BinOp (op, c1, c2, t))
+      | BinOp (op, e1, e2, _) as e ->
+        if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty c;
+        (match eval e1, eval e2 with
+        | `Int a, `Int b ->
+          let a', b' = inv_bin_int (a, b) c op in
+          CPA.meet (inv_exp a' e1) (inv_exp b' e2)
+        (* | `Address a, `Address b -> ... *)
+        | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
+      | Lval x -> (* meet x with c *)
+        let c' = match typeOfLval x with
+          | TPtr _ -> `Address (AD.of_int (module ID) c)
+          | _ -> `Int c
+        in
+        let oldv = eval (Lval x) in
+        let v = VD.meet oldv c' in
+        if is_some_bot v then raise Deadcode
+        else
+          if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
+          set' x v
+      | Const _ -> Tuple3.first st (* nothing to do *)
+      | e -> fallback (sprint d_plainexp e ^ " not implemeted")
+    in
+    if eval_bool exp = Some tv then raise Deadcode
+    else Tuple3.map1 (fun _ -> inv_exp (ID.of_bool tv) exp) st
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
     match v with
