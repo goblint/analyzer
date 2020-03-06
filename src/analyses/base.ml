@@ -1420,7 +1420,7 @@ struct
           if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
           set' x v
       | Const _ -> Tuple3.first st (* nothing to do *)
-      | e -> fallback (sprint d_plainexp e ^ " not implemeted")
+      | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
     if eval_bool exp = Some tv then raise Deadcode
     else Tuple3.map1 (fun _ -> inv_exp (ID.of_bool tv) exp) st

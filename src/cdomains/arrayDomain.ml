@@ -105,6 +105,13 @@ struct
     else
       result
 
+  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array *)
+  let normalize ((e, (xl, xm , xr)) as x) =
+    if Val.equal xl xm && Val.equal xm xr then
+      (Expp.top (), (xl, xm, xr))
+    else
+      x
+
   let short w ((e,(xl, xm, xr)) as x) =
     if is_not_partitioned x then
       "Array (no part.): " ^ Val.short (w - 18) xl
@@ -198,7 +205,7 @@ struct
 
 
   let map f (e, (xl, xm, xr)) =
-    (e, (f xl, f xm, f xr))
+    normalize @@ (e, (f xl, f xm, f xr))
 
   let fold_left f a (_, ((xl:value), (xm:value), (xr:value))) =
     f (f (f a xl) xm) xr
@@ -207,6 +214,7 @@ struct
     f (f (f a xl yl) xm ym) xr yr
 
   let move_if_affected_with_length ?(replace_with_const=false) length (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
+    normalize @@
     let move (i:int option) =
       match i with
       | Some 0   ->
@@ -285,6 +293,7 @@ struct
   let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
+    normalize @@
     let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
     let exp_value e =
       match e with
@@ -400,7 +409,7 @@ struct
   let set = set_with_length None
 
   let join ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) =
-    let new_e = Expp.join e1 e2 in
+    normalize @@ let new_e = Expp.join e1 e2 in
     if Expp.is_top new_e then
       (* At least one of them was not partitioned, or e <> f *)
       let join_over_all = Val.join (join_of_all_parts x1) (join_of_all_parts x2) in
@@ -424,6 +433,7 @@ struct
   let copy a = a
 
   let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
+    normalize @@
     let must_be_length_minus_one v = match length with
       | Some l ->
         begin
@@ -511,8 +521,7 @@ struct
     match e1, e2 with
     | `Top, `Top ->
       (* Those asserts ensure that for both arguments all segments are equal (as it should be) *)
-      assert(Val.leq xl1 xm1); assert(Val.leq xm1 xr1); assert(Val.leq xl2 xm2); assert(Val.leq xm2 xr2);
-      assert(Val.leq xm1 xl1); assert(Val.leq xr1 xm1); assert(Val.leq xm2 xl2); assert(Val.leq xr2 xm2);
+      assert(Val.equal xl1 xm1); assert(Val.equal xm1 xr1); assert(Val.equal xl2 xm2); assert(Val.equal xm2 xr2);
       leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))    (* TODO: should the inner joins also be smart joins? *)
     | `Lifted _, `Top -> leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))
     | `Lifted e1e, `Lifted e2e ->
@@ -542,12 +551,8 @@ struct
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
-  let meet a b =
-    let (e,(r1,r2,r3)) = meet a b in
-    if Val.leq r1 r2 && Val.leq r2 r1 && Val.leq r2 r3 && Val.leq r3 r2 then
-      (Expp.top (), (r1,r1,r1))
-    else
-      (e,(r1,r2,r3))
+  let meet a b = normalize @@ meet a b
+
   let update_length _ x = x
 end
 
