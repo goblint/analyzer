@@ -542,6 +542,12 @@ struct
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
+  let meet a b =
+    let (e,(r1,r2,r3)) = meet a b in
+    if Val.leq r1 r2 && Val.leq r2 r1 && Val.leq r2 r3 && Val.leq r3 r2 then
+      (Expp.top (), (r1,r1,r1))
+    else
+      (e,(r1,r2,r3))
   let update_length _ x = x
 end
 
