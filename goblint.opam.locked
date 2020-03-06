@@ -51,6 +51,7 @@ depends: [
   "xml-light" {= "2.4"}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.9.1"}
+  "zarith_stubs_js" {= "v0.13.0"}
 ]
 build: [
   ["dune" "subst"] {pinned}
