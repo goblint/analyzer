@@ -1378,6 +1378,7 @@ struct
       | Lt | Le | Ge | Gt as op ->
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
         | Some l1, Some u1, Some l2, Some u2 ->
+          (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
           (match op, ID.to_bool c with
           | Le, Some true
           | Gt, Some false -> meet_bin (ID.ending u2) (ID.starting l1)

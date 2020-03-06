@@ -621,7 +621,9 @@ struct
 
   let name () = "def_exc"
   let top_of ik = `Excluded (S.empty (), size ik)
-  let top () = top_of (Size.max `Signed)
+  let top_size = Size.max `Signed
+  let top_range = size top_size
+  let top () = top_of top_size
   let is_top x = x = top ()
   let bot () = `Bot
   let is_bot x = x = `Bot
@@ -703,7 +705,19 @@ struct
      * just DeMorgans Law *)
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.union x y, R.meet wx wy)
 
-  let of_bool x = `Definite (Integers.of_bool x)
+  let of_int  x = `Definite (Integers.of_int x)
+  let to_int  x = match x with
+    | `Definite x -> Integers.to_int x
+    | _ -> None
+  let is_int  x = match x with
+    | `Definite x -> true
+    | _ -> false
+
+  let zero = of_int 0L
+  let not_zero = `Excluded (S.singleton 0L, top_range)
+
+  let of_bool x = if x then not_zero else zero
+  let of_bool_cmp x = of_int (if x then 1L else 0L)
   let to_bool x =
     match x with
     | `Definite x -> Integers.to_bool x
@@ -715,25 +729,27 @@ struct
     | `Excluded (s,r) -> S.mem Int64.zero s
     | _ -> false
 
-  let of_int  x = `Definite (Integers.of_int x)
-  let to_int  x = match x with
-    | `Definite x -> Integers.to_int x
-    | _ -> None
-  let is_int  x = match x with
-    | `Definite x -> true
-    | _ -> false
-
   let of_interval (x,y) = if Int64.compare x y == 0 then of_int x else top ()
-  let ending   x = top ()
-  let starting x = top ()
+  let starting x = if x > 0L then not_zero else top ()
+  let ending x = if x < 0L then not_zero else top ()
 
-  let maximal x = match x with
+  let max_of_range r = Option.map (fun i -> Int64.(pred @@ shift_left 1L (to_int i))) (R.maximal r)
+  let min_of_range r = Option.map (fun i -> Int64.(neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
+  let maximal : t -> int64 option = function
     | `Definite x -> Integers.to_int x
-    | _ -> None
+    | `Excluded (s,r) ->
+      if S.is_empty s
+      then max_of_range r
+      else Some (Int64.succ (S.max_elt s))
+    | `Bot -> None
 
-  let minimal x = match x with
+  let minimal = function
     | `Definite x -> Integers.to_int x
-    | _ -> None
+    | `Excluded (s,r) ->
+      if S.is_empty s
+      then min_of_range r
+      else Some (Int64.pred(S.min_elt s))
+    | `Bot -> None
 
   let of_excl_list t l = `Excluded (List.fold_right S.add l (S.empty ()), size t)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
@@ -781,7 +797,7 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool false else top ()
     | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool false else top ()
     (* The good case: *)
-    | `Definite x, `Definite y -> of_bool (x=y)
+    | `Definite x, `Definite y -> of_bool_cmp (x=y)
     (* If either one of them is bottom, we return bottom *)
     | _ -> `Bot
 
@@ -794,7 +810,7 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool true else top ()
     | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool true else top ()
     (* The good case: *)
-    | `Definite x, `Definite y -> of_bool (x<>y)
+    | `Definite x, `Definite y -> of_bool_cmp (x<>y)
     (* If either one of them is bottom, we return bottom *)
     | _ -> `Bot
 
