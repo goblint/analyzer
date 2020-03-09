@@ -349,7 +349,7 @@ let print cfg  =
   in
   let printNodeStyle (n:node) () =
     match n with
-    | Statement {skind=If (_,_,_,_)} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
+    | Statement {skind=If (_,_,_,_); _} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
     | Statement stmt  -> ()
     | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.vname)
     | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.vname)
@@ -370,7 +370,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   let inits = Hashtbl.create 13 in
   let fast_global_inits = get_bool "exp.fast_global_inits" in
   let rec doInit lval loc init is_zero =
-    let rec initoffs offs init typ lval =
+    let initoffs offs init typ lval =
       doInit (addOffsetLval offs lval) loc init is_zero;
       lval
     in
@@ -392,7 +392,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   in
   let f glob =
     match glob with
-    | GVar ({vtype=vtype} as v, init, loc) -> begin
+    | GVar ({vtype=vtype; _} as v, init, loc) -> begin
         let init, is_zero = match init.init with
           | None -> makeZeroInit vtype, true
           | Some x -> x, false
@@ -507,7 +507,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
     let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
     let kind_style =
       match n with
-      | Statement {skind=If (_,_,_,_)}  -> "shape=diamond"
+      | Statement {skind=If (_,_,_,_); _}  -> "shape=diamond"
       | Statement stmt  -> ""
       | Function f      -> "label =\"return of "^f.vname^"()\",shape=box"
       | FunctionEntry f -> "label =\""^f.vname^"()\",shape=box"

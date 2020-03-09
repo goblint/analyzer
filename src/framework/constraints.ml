@@ -511,9 +511,9 @@ module FromSpec (S:SpecHC) (Cfg:CfgBackward) (I: Increment)
 =
 struct
   type lv = MyCFG.node * S.C.t
-  type gv = varinfo
+  (* type gv = varinfo *)
   type ld = S.D.t
-  type gd = S.G.t
+  (* type gd = S.G.t *)
   module LVar = VarF (S.C)
   module GVar = Basetype.Variables
   module D = S.D
@@ -866,6 +866,7 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
     end
 
 module N = struct let topname = "Top" end
+
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec

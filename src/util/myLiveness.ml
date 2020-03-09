@@ -88,7 +88,7 @@ let all_stmts = ref []
 class nullAdderClass = object(self)
   inherit nopCilVisitor
 
-  method vstmt s =
+  method! vstmt s =
     all_stmts := s :: (!all_stmts);
     IH.add LiveFlow.stmtStartData s.sid VS.empty;
     DoChildren
@@ -151,7 +151,7 @@ class livenessVisitorClass (out : bool) = object(self)
 
   val mutable cur_liv_dat = None
 
-  method vstmt stm =
+  method! vstmt stm =
     sid <- stm.sid;
     match getLiveSet sid with
     | None -> begin
@@ -171,7 +171,7 @@ class livenessVisitorClass (out : bool) = object(self)
           end
       end
 
-  method vinst i =
+  method! vinst i =
     if liv_dat_lst = [] then (if !debug then E.log "livnessVisitor: il liv_dat_lst mismatch\n")
     else begin
       let data = List.hd liv_dat_lst in
@@ -197,7 +197,7 @@ let match_label lbl = match lbl with
 class doFeatureClass = object(self)
   inherit nopCilVisitor
 
-  method vfunc fd =
+  method! vfunc fd =
     if String.compare fd.svar.vname (!live_func) = 0 then
       (Cfg.clearCFGinfo fd;
        ignore(Cfg.cfgFun fd);
@@ -209,7 +209,7 @@ class doFeatureClass = object(self)
        else DoChildren)
     else SkipChildren
 
-  method vstmt s =
+  method! vstmt s =
     if List.exists match_label s.labels then try
         let vs = IH.find LiveFlow.stmtStartData s.sid in
         (printer := min_print;

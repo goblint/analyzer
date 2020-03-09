@@ -15,14 +15,14 @@ WORKDIR /home/opam/analyzer
 # Download linux-headers before installing dependencies, so that this can be cached separately.
 RUN ./make.sh headers
 # dependencies and their locked versions; upgraded versions will only be installed after a change to opam.locked
-COPY --chown=opam opam opam.locked /home/opam/analyzer/
+COPY --chown=opam goblint.opam goblint.opam.locked /home/opam/analyzer/
 # The base image uses a local opam repository which can (did) lag behind the online one. If we upgraded locally, we also want it to work in the container and not wait until the change made it into the base image. Thus, add the online version as default before we update.
 RUN opam repository set-url default https://opam.ocaml.org/
 # install locked dependencies
 RUN ./make.sh deps
 # add the rest to the image (~11s), .dockerignore is symlinked to .gitignore
 COPY --chown=opam . /home/opam/analyzer
-RUN make
+RUN eval $(opam config env) && make
 # need UTF-8 for test script, image's default is US-ASCII
 ENV LC_ALL=C.UTF-8
 # RUN make test

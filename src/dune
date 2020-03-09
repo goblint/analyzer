@@ -1,0 +1,31 @@
+; http://rgrinberg.com/posts/dune-upcoming-1-1/#faster-compilation-in-development-mode
+; -opaque used per default now? cmp default build (dev?) vs. `--profile release`
+
+(include_subdirs unqualified)
+
+(executable
+  (public_name goblint)
+  (modes native js) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
+  (modules :standard \ apronDomain poly)
+  (libraries goblint-cil batteries xml-light zarith_stubs_js)
+  (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+)
+
+(rule
+  (targets goblint.ml config.ml version.ml)
+  (mode fallback) ; do nothing if all targets already exist
+  (deps ../scripts/set_version.sh (source_tree .)) ; also depend on src/ such that all files are copied before goblint.ml is generated. Otherwise dune runs this rule in parallel and might be in the middle of building, i.e., some files might not be reached and copied yet.
+  (action (chdir .. (run ./make.sh gen)))
+)
+
+(rule
+  (alias runtest)
+  (deps ../scripts/update_suite.rb ../goblint ../Makefile (source_tree ../tests))
+  (action (chdir .. (run ./make.sh test)))
+)
+
+(env
+  (dev
+    (flags (:standard -warn-error -A -w -6-27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  )
+)

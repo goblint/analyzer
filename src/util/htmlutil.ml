@@ -38,7 +38,7 @@ let rec row ?(rp=[]) = function
   | []     -> fun _ -> ()
   | xs::xss -> tag "tr" (col ~rp:rp xs) <:> row xss
 
-let rec hrow ?(rp=[]) = function
+let hrow ?(rp=[]) = function
   | []     -> fun _ -> ()
   | xs::xss -> tag "tr" (hcol ~rp:rp xs) <:> row xss
 

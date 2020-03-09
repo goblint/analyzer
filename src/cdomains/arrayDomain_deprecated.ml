@@ -4,8 +4,8 @@ open Pretty
 open Messages
 
 module A = Array
-(** Be really careful about using these, they might not be drop-in replacement for the domains in arrayDomain.ml **)
-(** One (maybe not the only) problem is that they might not support resizing which is needed for VLAs            **)
+(* Be really careful about using these, they might not be drop-in replacement for the domains in arrayDomain.ml *)
+(* One (maybe not the only) problem is that they might not support resizing which is needed for VLAs            *)
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct

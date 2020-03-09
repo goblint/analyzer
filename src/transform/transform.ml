@@ -16,11 +16,11 @@ module PartialEval = struct
   let loc = ref locUnknown (* when we visit an expression, we need the current location -> store at stmts *)
   class visitor ask = object
     inherit nopCilVisitor
-    method vstmt s =
+    method! vstmt s =
       loc := get_stmtLoc s.skind;
       (* ignore @@ Pretty.printf "Set loc at stmt %a to %a\n" d_stmt s d_loc !loc; *)
       DoChildren
-    method vexpr e =
+    method! vexpr e =
       let eval e = match ask !loc (Queries.EvalInt e) with
         | `Int i ->
           let e' = integer @@ i64_to_int i in

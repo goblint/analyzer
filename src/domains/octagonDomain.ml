@@ -216,7 +216,7 @@ struct
         | Infinity -> print_string "Inf"
         | Val el -> print_float el) ; print_string "\t") a; print_newline ()) oct
 
-  let rec set_constraint oct const =
+  let set_constraint oct const =
     let oct = copy_oct oct in
     (match const with
      | Some (sign1, v1), sign2, v2, upper, Val c ->

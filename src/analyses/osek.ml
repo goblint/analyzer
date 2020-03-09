@@ -326,7 +326,7 @@ struct
 
   let strip_flags acc_list = List.map proj2_1 acc_list
 
-  let rec get_flags state: Flags.t =
+  let get_flags state: Flags.t =
     Obj.obj (List.assoc "fmode" state)
 
   (*/flagstuff*)
@@ -896,7 +896,6 @@ struct
 
   (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsMap = Map.Make (Offs)
-  (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsSet = Set.Make (Offs)
 
   let get_acc_map gl =

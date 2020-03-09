@@ -3,7 +3,6 @@
 open Prelude
 open Cil
 open MyCFG
-open Pretty
 open Analyses
 open GobConfig
 open Constraints
@@ -38,36 +37,36 @@ struct
 
     let module Inc = struct let increment = increment end in
 
-    (** The Equation system *)
+    (* The Equation system *)
     let module EQSys = FromSpec (Spec) (Cfg) (Inc) in
 
-    (** Hashtbl for locals *)
+    (* Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in
-    (** Hashtbl for globals *)
+    (* Hashtbl for globals *)
     let module GHT   = BatHashtbl.Make (EQSys.GVar) in
 
-    (** The solver *)
+    (* The solver *)
     let module Slvr  = Selector.Make (EQSys) (LHT) (GHT) in
-    (** The verifyer *)
+    (* The verifyer *)
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
-    (** The comparator *)
+    (* The comparator *)
     let module Comp = Compare (Spec) (EQSys) (LHT) (GHT) in
 
-    (** Triple of the function, context, and the local value. *)
+    (* Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
-    (** Set of triples [RT] *)
+    (* Set of triples [RT] *)
     let module LT = SetDomain.HeadlessSet (RT) in
-    (** Analysis result structure---a hashtable from program points to [LT] *)
+    (* Analysis result structure---a hashtable from program points to [LT] *)
     let module Result = Analyses.Result (LT) (struct let result_name = "analysis" end) in
 
-    (** print out information about dead code *)
+    (* print out information about dead code *)
     let print_dead_code (xs:Result.t) =
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
       let module NH = Hashtbl.Make (MyCFG.Node) in
       let live_nodes : unit NH.t = NH.create 10 in
       let count = ref 0 in
       let module StringMap = BatMap.Make (String) in
-      let open BatMap in let open BatPrintf in
+      let open BatPrintf in
       let live_lines = ref StringMap.empty in
       let dead_lines = ref StringMap.empty in
       let add_one (l,n,f) v =
@@ -133,7 +132,7 @@ struct
       NH.mem live_nodes
     in
 
-    (** convert result that can be out-put *)
+    (* convert result that can be out-put *)
     let solver2source_result h : Result.t =
       (* processed result *)
       let res = Result.create 113 in
@@ -159,7 +158,7 @@ struct
       res
     in
 
-    (** exctract global xml from result *)
+    (* exctract global xml from result *)
     let make_global_xml g =
       let one_glob k v =
         let k = Xml.PCData k.vname in
@@ -174,7 +173,7 @@ struct
       let collect_globals k v b = one_glob k v :: b in
       Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
     in
-    (** exctract global xml from result *)
+    (* exctract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
@@ -183,7 +182,7 @@ struct
       GHT.iter print_globals g
     in
 
-    (** add extern variables to local state *)
+    (* add extern variables to local state *)
     let do_extern_inits ctx (file : file) : Spec.D.t =
       let module VS = Set.Make (Basetype.Variables) in
       let add_glob s = function
@@ -201,7 +200,7 @@ struct
       foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
     in
 
-    (** analyze cil's global-inits function to get a starting state *)
+    (* analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())

@@ -21,7 +21,7 @@ end
 
 class loopCounterVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
-  method vstmt s =
+  method! vstmt s =
     let action s = match s.skind with
       | Loop (b, loc, _, _) ->
         (* insert loop counter variable *)
@@ -43,7 +43,7 @@ end
 let loopBreaks : (int, location) Hashtbl.t = Hashtbl.create 13 (* break stmt sid -> corresponding loop *)
 class loopBreaksVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
-  method vstmt s =
+  method! vstmt s =
     (match s.skind with
      | Loop (b, loc, Some continue, Some break) -> Hashtbl.add loopBreaks break.sid loc
      | Loop _ -> failwith "Termination.preprocess: every loop should have a break and continue stmt after prepareCFG"
@@ -53,7 +53,7 @@ end
 
 (* if the given block contains a goto while_break.* we have the termination condition for a loop *)
 let exits = function
-  | { bstmts = [{ skind = Goto (stmt, loc) }] } -> Hashtbl.find_option loopBreaks !stmt.sid
+  | { bstmts = [{ skind = Goto (stmt, loc); _ }]; _ } -> Hashtbl.find_option loopBreaks !stmt.sid
   | _ -> None (* TODO handle return (need to find out what loop we are in) *)
 
 let lvals_of_expr =
@@ -68,7 +68,7 @@ let lvals_of_expr =
 let loopVars : (location, lval) Hashtbl.t = Hashtbl.create 13 (* loop location -> lval used for exit *)
 class loopVarsVisitor (fd : fundec) = object
   inherit nopCilVisitor
-  method vstmt s =
+  method! vstmt s =
     let add_exit_cond e loc =
       match lvals_of_expr e with
       | [lval] when typeOf e |> isArithmeticType -> Hashtbl.add loopVars loc lval
@@ -83,7 +83,7 @@ end
 let stripCastsDeep e =
   let v = object
     inherit nopCilVisitor
-    method vexpr e = ChangeTo (stripCasts e)
+    method! vexpr e = ChangeTo (stripCasts e)
   end
   in visitCilExpr v e
 
@@ -100,7 +100,7 @@ let f_commit = Lval (var (emptyFunction "__goblint_commit").svar)
 let f_check  = Lval (var (emptyFunction "__goblint_check").svar)
 class loopInstrVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
-  method vstmt s =
+  method! vstmt s =
     (match s.skind with
      | Loop (_, loc, _, _) ->
        cur_loop' := !cur_loop;
@@ -243,7 +243,7 @@ end
 
 class recomputeVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
-  method vfunc fd =
+  method! vfunc fd =
     computeCFGInfo fd true;
     SkipChildren
 end

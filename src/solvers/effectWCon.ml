@@ -1,7 +1,5 @@
 open Analyses
-open GobConfig
 open Messages
-open Pretty
 
 module GU = Goblintutil
 

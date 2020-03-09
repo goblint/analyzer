@@ -2,7 +2,6 @@
 
 open Prelude.Ana
 open GobConfig
-open Goblintutil
 
 module M = Messages
 

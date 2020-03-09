@@ -164,7 +164,7 @@ struct
     match q with
     | _ -> Queries.Result.top ()
 
-  let rec add_per_element_access ctx e rw =
+  let add_per_element_access ctx e rw =
     let module LSSet = Access.LSSet in
     (* Per-element returns a triple of exps, first are the "element" pointers,
        in the second and third positions are the respectively access and mutex.

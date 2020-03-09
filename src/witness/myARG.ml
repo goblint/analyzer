@@ -203,14 +203,14 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {sid; skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+    | Statement {sid; skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
       (* TODO: need to handle longer loops? *)
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | Statement {sid=sid2; skind=If (_, _, _, loc2)}, _ when sid <> sid2 && loc = loc2 ->
+        | Statement {sid=sid2; skind=If (_, _, _, loc2); _}, _ when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
@@ -222,7 +222,7 @@ struct
           else
             None
         (* || *)
-        | _, Statement {sid=sid2; skind=If (_, _, _, loc2)} when sid <> sid2 && loc = loc2 ->
+        | _, Statement {sid=sid2; skind=If (_, _, _, loc2); _} when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
@@ -255,8 +255,8 @@ struct
     else
       Question(e_cond, e_true, e_false, typeOf e_false)
 
-  let rec next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc)} when GobConfig.get_bool "exp.uncilwitness" ->
+  let next_opt' n = match n with
+    | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
       if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
@@ -281,15 +281,14 @@ module Intra (ArgIntra: SIntraOpt) (Arg: S):
   S with module Node = Arg.Node =
 struct
   include Arg
-  open GobConfig
 
   let next node =
     match ArgIntra.next_opt (Node.cfgnode node) with
     | None -> Arg.next node
     | Some next ->
       next
-      |> BatList.filter_map (fun (e, to_n) ->
+      |> List.filter_map (fun (e, to_n) ->
           Node.move_opt node to_n
-          |> BatOption.map (fun to_node -> (e, to_node))
+          |> Option.map (fun to_node -> (e, to_node))
         )
 end

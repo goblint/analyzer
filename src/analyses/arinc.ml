@@ -217,7 +217,7 @@ struct
             (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
             (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
             (match env.node with
-             | MyCFG.Statement({ skind = If(e, bt, bf, loc) } as stmt) ->
+             | MyCFG.Statement({ skind = If(e, bt, bf, loc); _ } as stmt) ->
                (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
                (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
                let then_node = NodeTbl.get @@ Branch (List.hd bt.bstmts) in

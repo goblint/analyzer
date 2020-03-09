@@ -86,7 +86,6 @@ struct
 
   type offs = (fieldinfo,IndexDomain.t) Lval.offs
 
-  exception Unsupported of string
   let bot () = `Bot
   let is_bot x = x = `Bot
   let bot_name = "Uninitialized"
@@ -161,7 +160,7 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let rec isSimple x =
+  let isSimple x =
     match x with
     | `Int n ->  ID.isSimple n
     | `Address n ->  AD.isSimple n
@@ -252,7 +251,7 @@ struct
         if d = Some true then err "Ptr-cast to type of incompatible size!" else
           begin match ta, t with
             (* struct to its first field *)
-            | TComp ({cfields = fi::_}, _), _ ->
+            | TComp ({cfields = fi::_; _}, _), _ ->
               M.tracel "casta" "cast struct to its first field\n";
               adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
             (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
@@ -266,7 +265,7 @@ struct
           end
     in
     let one_addr = let open Addr in function
-        | Addr ({ vtype = TVoid _ } as v, `NoOffset) -> (* we had no information about the type (e.g. malloc), so we add it TODO what about offsets? *)
+        | Addr ({ vtype = TVoid _; _} as v, `NoOffset) -> (* we had no information about the type (e.g. malloc), so we add it TODO what about offsets? *)
           Addr ({ v with vtype = t }, `NoOffset)
         | Addr (v, o) as a ->
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
@@ -287,7 +286,7 @@ struct
    * 1. normal casts
    * 2. dereferencing pointers (needed?)
   *)
-  let rec cast ?torg t v =
+  let cast ?torg t v =
     (*if v = `Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
     if v = `Bot then v else
       let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
@@ -305,7 +304,7 @@ struct
                 (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
               | _ -> log_top __POS__; ID.top ()
             ))
-        | TEnum ({ekind=ik},_) ->
+        | TEnum ({ekind=ik; _},_) ->
           `Int (ID.cast_to ik (match v with
               | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
               | _ -> log_top __POS__; ID.top ()
@@ -530,7 +529,7 @@ struct
       x
 
   let rec top_value (t: typ) =
-    let rec top_comp compinfo: Structs.t =
+    let top_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
       let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype) in
       List.fold_left top_field nstruct compinfo.cfields
@@ -538,15 +537,15 @@ struct
     match t with
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
     | TPtr _ -> `Address AD.unknown_ptr
-    | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
-    | TComp ({cstruct=false},_) -> `Union (Unions.top ())
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
+    | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray _ -> `Array (CArrays.top ())
-    | TNamed ({ttype=t}, _) -> top_value t
+    | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
   let rec invalidate_value (ask:Q.ask) typ (state:t) : t =
     let typ = unrollType typ in
-    let rec invalid_struct compinfo old =
+    let invalid_struct compinfo old =
       let nstruct = Structs.top () in
       let top_field nstruct fd =
         Structs.replace nstruct fd (invalidate_value ask fd.ftype (Structs.get old fd))
@@ -586,7 +585,7 @@ struct
       end
     | _ -> None, None
 
-  let rec determine_offset ask left offset exp v =
+  let determine_offset ask left offset exp v =
     let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
       match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
@@ -736,7 +735,7 @@ struct
     in
     do_eval_offset ask f x offs exp l o v
 
-  let rec update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval): t =
+  let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval): t =
     let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval):t =
       let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
       match x, offs with
@@ -767,7 +766,7 @@ struct
                 `Struct (Structs.replace str fld value')
               end
             | `Bot ->
-              let rec init_comp compinfo =
+              let init_comp compinfo =
                 let nstruct = Structs.top () in
                 let init_field nstruct fd = Structs.replace nstruct fd `Bot in
                 List.fold_left init_field nstruct compinfo.cfields

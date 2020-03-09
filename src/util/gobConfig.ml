@@ -37,29 +37,41 @@ module type S =
 sig
   (** Functions to query conf variable of type int. *)
   val get_int    : string -> int
+
   (** Functions to modify conf variables of type int. *)
   val set_int    : string -> int    -> unit
+
   (** Functions to query conf variable of type bool. *)
   val get_bool   : string -> bool
+
   (** Functions to modify conf variables of type bool. *)
   val set_bool   : string -> bool   -> unit
+
   (** Functions to query conf variable of type string. *)
   val get_string : string -> string
+
   (** Functions to modify conf variables of type string. *)
   val set_string : string -> string -> unit
+
   (** Functions to modify conf variables by trying to parse the value.
       The second argument must be valid Json exept single quotes represent double quotes. *)
   val set_auto   : string -> string -> unit
+
   (** Get a list of values *)
   val get_list : string -> jvalue list
+
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
+
   (** Functions to query the length of conf array variable. *)
   val get_length : string -> int
+
   (** Functions to modify conf array variables to drop one index. *)
   val drop_index : string -> int    -> unit
+
   (** Merge configurations form a file with current. *)
   val merge_file : string -> unit
+
   (** Add a schema to the conf*)
   val addenum_sch: jvalue -> unit
 
@@ -115,7 +127,7 @@ struct
     split' 0
 
   (** Parse an index. *)
-  let rec parse_index s =
+  let parse_index s =
     try if s = "+" then App
       else if s = "*" then New
       else Int (int_of_string s)
@@ -251,13 +263,9 @@ struct
 
   (** Convenience functions for reading values. *)
   let get_int    = get_path_string number "int"
-  (** Convenience functions for reading values. *)
   let get_bool   = get_path_string bool   "bool"
-  (** Convenience functions for reading values. *)
   let get_string = get_path_string string "string"
-  (** Convenience functions for reading values. *)
   let get_length = List.length % (!) % get_path_string array "array"
-  (** Convenience functions for reading lists. *)
   let get_list = List.map (!) % (!) % get_path_string array "array"
 
   (** Helper functions for writing values. *)
@@ -271,16 +279,12 @@ struct
 
   (** Convenience functions for writing values. *)
   let set_int    st i = set_path_string_trace st (Build.number i)
-  (** Convenience functions for writing values. *)
   let set_bool   st i = set_path_string_trace st (Build.bool i)
-  (** Convenience functions for writing values. *)
   let set_string st i = set_path_string_trace st (Build.string i)
-  (** Convenience functions for writing values. *)
   let set_null   st   = set_path_string_trace st Build.null
 
-
   (** A convenience functions for writing values. *)
-  let rec set_auto' st v =
+  let set_auto' st v =
     if v = "null" then set_null st else
       try set_bool st (bool_of_string v)
       with Invalid_argument _ ->
@@ -290,7 +294,7 @@ struct
 
   (** The ultimate convenience function for writing values. *)
   let one_quote = Str.regexp "\'"
-  let rec set_auto st s =
+  let set_auto st s =
     if s="null" then set_null st else
     if s="" then set_string st "" else
       try

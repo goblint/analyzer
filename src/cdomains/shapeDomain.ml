@@ -406,7 +406,7 @@ let kill_vars ask gl upd lvs sm =
   in
   SHMap.fold kill_adrs sm sm
 
-let rec add_alias ask gl upd (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list =
+let add_alias ask gl upd (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list =
   let sm = kill ask gl upd lhs sm in
   let (rhs_prev,rhs_next,rhs_eq) = SHMap.find ask gl rhs sm in
   match side, rhs_prev, rhs_next with
