@@ -105,10 +105,13 @@ struct
     else
       result
 
-  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array *)
+  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array and all unpartitioned arrays
+    * have the same three values for Val  *)
   let normalize ((e, (xl, xm , xr)) as x) =
     if Val.equal xl xm && Val.equal xm xr then
       (Expp.top (), (xl, xm, xr))
+    else if Expp.is_top e then
+      (Expp.top(), (join_of_all_parts x, join_of_all_parts x, join_of_all_parts x))
     else
       x
 
@@ -552,6 +555,7 @@ struct
   let smart_leq = smart_leq_with_length None
 
   let meet a b = normalize @@ meet a b
+  let narrow a b = normalize @@ narrow a b
 
   let update_length _ x = x
 end
