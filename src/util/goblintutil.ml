@@ -5,10 +5,13 @@ open GobConfig
 
 open Json
 
-(** command port for eclipse debuger support *)
+(* This code was only used by solvers/interactive.ml which is currently broken and commented out anyway. This code causes
+   an issue when using it with Js_of_OCaml, because Unix is not available there. If solvers/interactive.ml is fixed,
+   we need to uncomment this and specify a way to exclude it when compiling with Js_of_OCaml *
+(** command port for eclipse debugger support *)
 let command_port = ref (-1)
 
-(** event port for eclipse debuger support *)
+(** event port for eclipse debugger support *)
 let event_port = ref (-1)
 
 let command_socket = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
@@ -35,6 +38,7 @@ let open_sockets i =
   event_out  := Unix.out_channel_of_descr client;
   set_binary_mode_out !event_out false;
   ignore (Printf.printf "done.\n")
+*)
 
 
 (** Outputs information about what the goblin is doing *)
