@@ -16,7 +16,7 @@ struct
 
   let m = Array.length pattern
 
-  let next_inner prefix q x =
+  (* let next_inner prefix q x =
     let q' = ref q in
     while !q' > 0 && not (equal pattern.(!q') x) do
       q' := prefix.(!q' - 1)
@@ -24,7 +24,14 @@ struct
     if equal pattern.(!q') x then begin
       q' := !q' + 1
     end;
-    !q'
+    !q' *)
+  let rec next_inner prefix q x =
+    if q > 0 && not (equal pattern.(q) x) then
+      next_inner prefix prefix.(q - 1) x
+    else if equal pattern.(q) x then
+      q + 1
+    else
+      q
 
   (* CLRS *)
   let prefix: int array =
