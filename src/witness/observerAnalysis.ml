@@ -16,17 +16,22 @@ struct
 
   let m = Array.length pattern
 
+  let next_inner prefix q x =
+    let q' = ref q in
+    while !q' > 0 && not (equal pattern.(!q') x) do
+      q' := prefix.(!q' - 1)
+    done;
+    if equal pattern.(!q') x then begin
+      q' := !q' + 1
+    end;
+    !q'
+
   (* CLRS *)
   let prefix: int array =
     let pi = Array.make m 0 in
     let k = ref 0 in
     for q = 2 to m do
-      while !k > 0 && not (equal pattern.(!k) pattern.(q - 1)) do
-        k := pi.(!k - 1)
-      done;
-      if equal pattern.(!k) pattern.(q - 1) then begin
-        k := !k + 1
-      end;
+      k := next_inner pi !k pattern.(q - 1);
       pi.(q - 1) <- !k
     done;
     pi
@@ -34,16 +39,8 @@ struct
   let next (q: int) (x: t): int =
     if q = m then
       m
-    else begin
-      let q' = ref q in
-      while !q' > 0 && not (equal pattern.(!q') x) do
-        q' := prefix.(!q' - 1)
-      done;
-      if equal pattern.(!q') x then begin
-        q' := !q' + 1
-      end;
-      !q'
-    end
+    else
+      next_inner prefix q x
 end
 
 module Spec : Analyses.Spec =
