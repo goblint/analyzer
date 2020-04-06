@@ -29,6 +29,8 @@ let get_spec () : (module SpecHC) =
           ) in
   (module (val if get_bool "ana.opt.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
 
+exception Found
+
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
@@ -570,6 +572,60 @@ struct
           Arg.next n
           |> List.exists (fun (_, to_n) -> is_violation to_n)
         in
+        let violations =
+          let violations = LHT.create 10 in
+
+          LHT.iter (fun lvar _ ->
+              if is_violation lvar then begin
+                LHT.replace violations lvar ();
+                ignore (Pretty.printf "VIOLATION: %a\n" EQSys.LVar.pretty lvar)
+              end
+            ) !lh_ref;
+
+          violations
+        in
+        let () =
+          let find_path node =
+            (* TODO: non-crap find_path *)
+            let next_nodes = LHT.create 100 in
+
+            let itered_nodes = LHT.create 100 in
+            (* DFS *)
+            (* TODO: replace with BFS for short paths *)
+            let rec iter_node node =
+              if EQSys.LVar.equal node Arg.main_entry then
+                raise Found
+              else if not (LHT.mem itered_nodes node) then begin
+                LHT.replace itered_nodes node ();
+                List.iter (fun (edge, prev_node) ->
+                    LHT.replace next_nodes prev_node (edge, node);
+                    iter_node prev_node
+                  ) (witness_prev node)
+              end
+            in
+
+            let rec trace_path node2 =
+              if not (EQSys.LVar.equal node node2) then begin
+                (* ignore (Pretty.printf "PATH: %a\n" EQSys.LVar.pretty node2); *)
+                let (edge, next_node) = LHT.find next_nodes node2 in
+                (* ignore (Pretty.printf "  %a\n" MyCFG.pretty_edge edge); *)
+                (node2, edge, next_node) :: trace_path next_node
+              end
+              else
+                []
+            in
+
+            try iter_node node with
+            | Found ->
+              let path = trace_path Arg.main_entry in
+              List.iter (fun (n1, e, n2) ->
+                  ignore (Pretty.printf "  %a =[%a]=> %a\n" EQSys.LVar.pretty n1 MyCFG.pretty_edge e EQSys.LVar.pretty n2)
+                ) path
+          in
+
+          find_path (BatEnum.get_exn (LHT.keys violations));
+          ()
+        in
         let is_sink =
           (* TODO: somehow move this to witnessUtil *)
           let non_sinks = LHT.create 100 in
@@ -585,9 +641,8 @@ struct
           in
 
           LHT.iter (fun lvar _ ->
-              if is_violation lvar then
-                iter_node lvar
-            ) !lh_ref;
+              iter_node lvar
+            ) violations;
 
           fun n ->
             not (LHT.mem non_sinks n)
