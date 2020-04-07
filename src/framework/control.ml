@@ -573,16 +573,22 @@ struct
           |> List.exists (fun (_, to_n) -> is_violation to_n)
         in
         let violations =
-          let violations = LHT.create 10 in
-
-          LHT.iter (fun lvar _ ->
+          LHT.fold (fun lvar _ acc ->
               if is_violation lvar then begin
-                LHT.replace violations lvar ();
-                ignore (Pretty.printf "VIOLATION: %a\n" EQSys.LVar.pretty lvar)
+                ignore (Pretty.printf "VIOLATION: %a\n" EQSys.LVar.pretty lvar);
+                lvar :: acc
               end
-            ) !lh_ref;
+              else
+                acc
+            ) !lh_ref []
+        in
+        let module ViolationArg =
+        struct
+          include Arg
 
-          violations
+          let prev = witness_prev
+          let violations = violations
+        end
         in
         let () =
           let find_path node =
@@ -623,30 +629,10 @@ struct
                 ) path
           in
 
-          find_path (BatEnum.get_exn (LHT.keys violations));
+          find_path (List.hd violations);
           ()
         in
-        let is_sink =
-          (* TODO: somehow move this to witnessUtil *)
-          let non_sinks = LHT.create 100 in
-
-          (* DFS *)
-          let rec iter_node node =
-            if not (LHT.mem non_sinks node) then begin
-              LHT.replace non_sinks node ();
-              List.iter (fun (_, prev_node) ->
-                  iter_node prev_node
-                ) (witness_prev node)
-            end
-          in
-
-          LHT.iter (fun lvar _ ->
-              iter_node lvar
-            ) violations;
-
-          fun n ->
-            not (LHT.mem non_sinks n)
-        in
+        let is_sink = Violation.find_sinks (module ViolationArg) in
         let module TaskResult =
         struct
           module Arg = Arg
