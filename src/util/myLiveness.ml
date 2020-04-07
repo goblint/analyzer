@@ -1,6 +1,6 @@
 
 (* Calculate which variables are live at
- * each statememnt.
+ * each statement.
  *
  * copied from ../cil/ext/liveness.ml with minor changes to compute a big hash
  * for all sids all over the program.

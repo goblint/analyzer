@@ -1210,7 +1210,7 @@ struct
       (*dbg_report ((sprint 160 (d_lval () lval))^" cft "^(string_of_bool cft)^" fse "^(string_of_bool fse));*)
       if  (mcft && fse) || (not cft) then
         begin
-          let vars = get_vars e in (*not very exact for huge compount statements*)
+          let vars = get_vars e in (*not very exact for huge compound statements*)
           List.fold_left
             (fun y x->(*dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
                if not (is_safe_name x.vname) then danger_assign x args y false fs else y) (fd,st,gd) vars

@@ -211,7 +211,7 @@ struct
   let without_special_vars m = filter (fun k v -> not @@ is_special_var k) m
 
   (* functions needed for enter & combine *)
-  (* only keep globals, aliases to them and special veriables *)
+  (* only keep globals, aliases to them and special variables *)
   let only_globals m = filter (fun k v ->  (fst k).vglob || V.is_alias v && (fst (V.get_alias v)).vglob || is_special_var k) m
   (* adds all the bindings from m2 to m1 (overwrites!) *)
   let add_all m1 m2 = add_list (MDMap.bindings m2) m1
