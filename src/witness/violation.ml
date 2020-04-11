@@ -101,10 +101,16 @@ struct
     let func_decl = Expr.get_func_decl expr in
     FuncDecl.get_name func_decl
 
+
+  type 'a result =
+    | Feasible
+    | Infeasible of ('a * MyCFG.edge * 'a) list
+    | Unknown
+
   let wp_path path =
     let solver = Solver.mk_simple_solver ctx in
     let rec iter_wp revpath i env = match revpath with
-      | [] -> Solver.SATISFIABLE
+      | [] -> Feasible
       | step :: revpath' ->
         let (env', expr) = wp_assert env step in
         Printf.printf "%d: %s\n" i (Expr.to_string expr);
@@ -118,6 +124,7 @@ struct
         | Solver.SATISFIABLE ->
           Printf.printf "%d: %s\n" i (Model.to_string (BatOption.get @@ Solver.get_model solver));
           iter_wp revpath' (i - 1) env'
+
         | Solver.UNSATISFIABLE ->
           (* TODO: this doesn't exist in Z3 API? *)
           let extract_track expr =
@@ -127,16 +134,22 @@ struct
             Symbol.get_int symbol
           in
           let unsat_core = Solver.get_unsat_core solver in
-          unsat_core
-          |> List.map extract_track
+          let unsat_core_is =
+            unsat_core
+            |> List.map extract_track
+            |> List.sort compare
+          in
+          unsat_core_is
           |> List.map string_of_int
-          |> List.sort compare
           |> String.concat " "
           |> print_endline;
 
-          Solver.UNSATISFIABLE
+          let (mini, maxi) = BatList.min_max unsat_core_is in
+          let unsat_path = BatList.filteri (fun i _ -> mini <= i && i <= maxi) path in (* TODO: optimize subpath *)
+          Infeasible unsat_path
+
         | Solver.UNKNOWN ->
-          Solver.UNKNOWN
+          Unknown
     in
     iter_wp (List.rev path) (List.length path - 1) Env.empty
 end
@@ -195,7 +208,15 @@ let find_path (module Arg:ViolationArg) =
   begin match find_path Arg.violations with
     | Some path ->
       print_path path;
-      ignore (WP.wp_path path)
+      begin match WP.wp_path path with
+      | WP.Feasible ->
+        print_endline "feasible"
+      | WP.Infeasible subpath ->
+        print_endline "infeasible";
+        print_path subpath
+      | WP.Unknown ->
+        print_endline "unknown"
+      end
     | None ->
       ()
   end
