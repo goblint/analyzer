@@ -163,32 +163,7 @@ let find_path (module Arg:ViolationArg) =
       ) path
   in
 
-  let find_path node =
-    (* TODO: delete crap find_path *)
-    let next_nodes = NHT.create 100 in
-
-    let itered_nodes = NHT.create 100 in
-    (* DFS *)
-    (* TODO: replace with BFS for short paths *)
-    let rec iter_node node =
-      if Arg.Node.equal node Arg.main_entry then
-        raise Found
-      else if not (NHT.mem itered_nodes node) then begin
-        NHT.replace itered_nodes node ();
-        List.iter (fun (edge, prev_node) ->
-            NHT.replace next_nodes prev_node (edge, node);
-            iter_node prev_node
-          ) (Arg.prev node)
-      end
-    in
-
-    try iter_node node with
-    | Found ->
-      let path = trace_path next_nodes Arg.main_entry in
-      print_path path
-  in
-
-  let find_path2 nodes =
+  let find_path nodes =
     let next_nodes = NHT.create 100 in
 
     let itered_nodes = NHT.create 100 in
@@ -216,9 +191,7 @@ let find_path (module Arg:ViolationArg) =
       Some (trace_path next_nodes Arg.main_entry)
   in
 
-  (* find_path (List.hd Arg.violations);
-  print_endline (String.make 80 '='); *)
-  begin match find_path2 Arg.violations with
+  begin match find_path Arg.violations with
     | Some path ->
       print_path path;
       ignore (WP.wp_path path)
