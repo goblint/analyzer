@@ -27,6 +27,53 @@ let find_sinks (type node) (module Arg:ViolationArg with type Node.t = node) =
     not (NHT.mem non_sinks n)
 
 
+
+module WP =
+struct
+  open Z3
+
+  let cfg = [
+    ("model", "true");
+    ("unsat_core", "true");
+    (* TODO: do these do anything? are these necessary? *)
+    (* ("smt.core.minimize", "true");
+    ("sat.core.minimize", "true"); *)
+  ]
+  let ctx = mk_context cfg
+
+  let rec exp_to_expr = function
+    | Cil.Const (Cil.CInt64 (i, _, _)) ->
+      Arithmetic.Integer.mk_numeral_s ctx (Int64.to_string i)
+    | Cil.Lval (Cil.Var v, Cil.NoOffset) ->
+      Arithmetic.Integer.mk_const_s ctx v.vname
+    | Cil.BinOp (Cil.PlusA, e1, e2, Cil.TInt _) ->
+      Arithmetic.mk_add ctx [exp_to_expr e1; exp_to_expr e2]
+    | Cil.BinOp (Cil.Eq, e1, e2, Cil.TInt _) ->
+      Boolean.mk_ite ctx (Boolean.mk_eq ctx (exp_to_expr e1) (exp_to_expr e2)) (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
+    | Cil.BinOp (Cil.Ne, e1, e2, Cil.TInt _) ->
+      Boolean.mk_ite ctx (Boolean.mk_distinct ctx [exp_to_expr e1; exp_to_expr e2]) (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
+    | _ ->
+      failwith "exp_to_expr"
+
+  let wp_step (_, edge, _) = match edge with
+    | MyCFG.Assign ((Cil.Var v, Cil.NoOffset), e) ->
+      Boolean.mk_eq ctx (Arithmetic.Integer.mk_const_s ctx v.vname) (exp_to_expr e)
+    | MyCFG.Test (e, true) ->
+      Boolean.mk_distinct ctx [exp_to_expr e; Arithmetic.Integer.mk_numeral_i ctx 0]
+    | MyCFG.Test (e, false) ->
+      Boolean.mk_eq ctx (exp_to_expr e) (Arithmetic.Integer.mk_numeral_i ctx 0)
+    | _ ->
+      Boolean.mk_true ctx
+
+  let wp_path path =
+    let asserts = List.map wp_step path in
+    List.iter (fun a -> print_endline (Expr.to_string a)) asserts;
+
+    let solver = Solver.mk_simple_solver ctx in
+    print_endline (Solver.string_of_status (Solver.check solver asserts))
+end
+
+
 exception Found
 
 let find_path (module Arg:ViolationArg) =
@@ -102,60 +149,12 @@ let find_path (module Arg:ViolationArg) =
       Some (trace_path next_nodes Arg.main_entry)
   in
 
-  let wp_path path =
-    let open Z3 in
-    let cfg = [
-      ("model", "true");
-      ("unsat_core", "true");
-      (* TODO: do these do anything? are these necessary? *)
-      (* ("smt.core.minimize", "true");
-      ("sat.core.minimize", "true"); *)
-    ]
-    in
-    let ctx = mk_context cfg in
-
-    let rec exp_to_expr = function
-      | Cil.Const (Cil.CInt64 (i, _, _)) ->
-        Arithmetic.Integer.mk_numeral_s ctx (Int64.to_string i)
-      | Cil.Lval (Cil.Var v, Cil.NoOffset) ->
-        Arithmetic.Integer.mk_const_s ctx v.vname
-      | Cil.BinOp (Cil.PlusA, e1, e2, Cil.TInt _) ->
-        Arithmetic.mk_add ctx [exp_to_expr e1; exp_to_expr e2]
-      | Cil.BinOp (Cil.Eq, e1, e2, Cil.TInt _) ->
-        Boolean.mk_ite ctx (Boolean.mk_eq ctx (exp_to_expr e1) (exp_to_expr e2)) (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
-      | Cil.BinOp (Cil.Ne, e1, e2, Cil.TInt _) ->
-        Boolean.mk_ite ctx (Boolean.mk_distinct ctx [exp_to_expr e1; exp_to_expr e2]) (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
-      | _ ->
-        failwith "exp_to_expr"
-    in
-
-    let wp_step (_, edge, _) = match edge with
-      | MyCFG.Assign ((Cil.Var v, Cil.NoOffset), e) ->
-        Boolean.mk_eq ctx (Arithmetic.Integer.mk_const_s ctx v.vname) (exp_to_expr e)
-      | MyCFG.Test (e, true) ->
-        Boolean.mk_distinct ctx [exp_to_expr e; Arithmetic.Integer.mk_numeral_i ctx 0]
-      | MyCFG.Test (e, false) ->
-        Boolean.mk_eq ctx (exp_to_expr e) (Arithmetic.Integer.mk_numeral_i ctx 0)
-      | _ ->
-        Boolean.mk_true ctx
-    in
-
-    path
-    |> List.map wp_step
-    (* |> List.map Expr.to_string
-    |> List.iter print_endline *)
-    |> (fun asserts ->
-      let solver = Solver.mk_simple_solver ctx in
-      print_endline (Solver.string_of_status (Solver.check solver asserts))
-    )
-  in
-
   (* find_path (List.hd Arg.violations);
   print_endline (String.make 80 '='); *)
   begin match find_path2 Arg.violations with
     | Some path ->
       print_path path;
-      wp_path path
+      WP.wp_path path
     | None ->
       ()
   end
