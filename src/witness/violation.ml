@@ -93,7 +93,8 @@ struct
     | MyCFG.Test (e, false) ->
       (env, Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0))
     | _ ->
-      (env, Boolean.mk_true ctx)
+      (* (env, Boolean.mk_true ctx) *)
+      failwith "wp_assert"
 
   let const_get_symbol (expr: Expr.expr): Symbol.symbol =
     assert (Expr.is_const expr);
