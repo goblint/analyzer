@@ -31,6 +31,7 @@ let find_sinks (type node) (module Arg:ViolationArg with type Node.t = node) =
 module WP =
 struct
   open Z3
+  open Cil
 
   let cfg = [
     ("model", "true");
@@ -41,36 +42,102 @@ struct
   ]
   let ctx = mk_context cfg
 
-  let rec exp_to_expr = function
-    | Cil.Const (Cil.CInt64 (i, _, _)) ->
+  type var = string
+
+  module type Env =
+  sig
+      type t
+      val empty: t
+      val get_const: t -> var -> Expr.expr
+      val freshen: t -> var -> t
+  end
+
+  module Env: Env =
+  struct
+      module StringMap = Map.Make (String)
+
+      type t = Expr.expr StringMap.t
+      let empty = StringMap.empty
+      let get_const m x =
+          match StringMap.find_opt x m with
+          | Some x -> x
+          | None -> Arithmetic.Integer.mk_const_s ctx x
+      let sort = Arithmetic.Integer.mk_sort ctx
+      let freshen env x =
+          StringMap.add x (Expr.mk_fresh_const ctx x sort) env
+  end
+
+  let bool_to_int expr =
+    Boolean.mk_ite ctx expr (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
+
+  let rec exp_to_expr env = function
+    | Const (CInt64 (i, _, _)) ->
       Arithmetic.Integer.mk_numeral_s ctx (Int64.to_string i)
-    | Cil.Lval (Cil.Var v, Cil.NoOffset) ->
-      Arithmetic.Integer.mk_const_s ctx v.vname
-    | Cil.BinOp (Cil.PlusA, e1, e2, Cil.TInt _) ->
-      Arithmetic.mk_add ctx [exp_to_expr e1; exp_to_expr e2]
-    | Cil.BinOp (Cil.Eq, e1, e2, Cil.TInt _) ->
-      Boolean.mk_ite ctx (Boolean.mk_eq ctx (exp_to_expr e1) (exp_to_expr e2)) (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
-    | Cil.BinOp (Cil.Ne, e1, e2, Cil.TInt _) ->
-      Boolean.mk_ite ctx (Boolean.mk_distinct ctx [exp_to_expr e1; exp_to_expr e2]) (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
+    | Lval (Var v, NoOffset) ->
+      Env.get_const env v.vname
+    | BinOp (PlusA, e1, e2, TInt _) ->
+      Arithmetic.mk_add ctx [exp_to_expr env e1; exp_to_expr env e2]
+    | BinOp (Eq, e1, e2, TInt _) ->
+      bool_to_int (Boolean.mk_eq ctx (exp_to_expr env e1) (exp_to_expr env e2))
+    | BinOp (Ne, e1, e2, TInt _) ->
+      bool_to_int (Boolean.mk_distinct ctx [exp_to_expr env e1; exp_to_expr env e2])
     | _ ->
       failwith "exp_to_expr"
 
-  let wp_step (_, edge, _) = match edge with
-    | MyCFG.Assign ((Cil.Var v, Cil.NoOffset), e) ->
-      Boolean.mk_eq ctx (Arithmetic.Integer.mk_const_s ctx v.vname) (exp_to_expr e)
+  let wp_assert env (_, edge, _) = match edge with
+    | MyCFG.Assign ((Var v, NoOffset), e) ->
+      let env' = Env.freshen env v.vname in
+      (env', Boolean.mk_eq ctx (Env.get_const env v.vname) (exp_to_expr env' e))
     | MyCFG.Test (e, true) ->
-      Boolean.mk_distinct ctx [exp_to_expr e; Arithmetic.Integer.mk_numeral_i ctx 0]
+      (env, Boolean.mk_distinct ctx [exp_to_expr env e; Arithmetic.Integer.mk_numeral_i ctx 0])
     | MyCFG.Test (e, false) ->
-      Boolean.mk_eq ctx (exp_to_expr e) (Arithmetic.Integer.mk_numeral_i ctx 0)
+      (env, Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0))
     | _ ->
-      Boolean.mk_true ctx
+      (env, Boolean.mk_true ctx)
+
+  let const_get_symbol (expr: Expr.expr): Symbol.symbol =
+    assert (Expr.is_const expr);
+    let func_decl = Expr.get_func_decl expr in
+    FuncDecl.get_name func_decl
 
   let wp_path path =
-    let asserts = List.map wp_step path in
-    List.iter (fun a -> print_endline (Expr.to_string a)) asserts;
-
     let solver = Solver.mk_simple_solver ctx in
-    print_endline (Solver.string_of_status (Solver.check solver asserts))
+    let rec iter_wp revpath i env = match revpath with
+      | [] -> Solver.SATISFIABLE
+      | step :: revpath' ->
+        let (env', expr) = wp_assert env step in
+        Printf.printf "%d: %s\n" i (Expr.to_string expr);
+
+        let track_const = Boolean.mk_const ctx (Symbol.mk_int ctx i) in
+        Solver.assert_and_track solver expr track_const;
+
+        let status = Solver.check solver [] in
+        Printf.printf "%d: %s\n" i (Solver.string_of_status status);
+        match Solver.check solver [] with
+        | Solver.SATISFIABLE ->
+          Printf.printf "%d: %s\n" i (Model.to_string (BatOption.get @@ Solver.get_model solver));
+          iter_wp revpath' (i - 1) env'
+        | Solver.UNSATISFIABLE ->
+          (* TODO: this doesn't exist in Z3 API? *)
+          let extract_track expr =
+            assert (Expr.is_const expr);
+            let symbol = const_get_symbol expr in
+            assert (Symbol.is_int_symbol symbol);
+            Symbol.get_int symbol
+          in
+          let unsat_core = Solver.get_unsat_core solver in
+          unsat_core
+          |> List.map extract_track
+          |> List.map string_of_int
+          |> List.sort compare
+          |> String.concat " "
+          |> print_endline;
+
+          Solver.UNSATISFIABLE
+        | Solver.UNKNOWN ->
+          Solver.UNKNOWN
+    in
+    iter_wp (List.rev path) (List.length path - 1) Env.empty
 end
 
 
@@ -154,7 +221,7 @@ let find_path (module Arg:ViolationArg) =
   begin match find_path2 Arg.violations with
     | Some path ->
       print_path path;
-      WP.wp_path path
+      ignore (WP.wp_path path)
     | None ->
       ()
   end
