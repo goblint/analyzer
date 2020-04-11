@@ -9,6 +9,8 @@ open OilParser
 open OilLexer
 open OilUtil
 
+module Mutex = MutexAnalysis
+
 module LockingPattern = Exp.LockingPattern
 
 

@@ -97,13 +97,22 @@ let find_path (module Arg:ViolationArg) =
         | _ -> bfs nexts []
     in
 
-    try bfs nodes [] with
+    try bfs nodes []; None with
     | Found ->
-      let path = trace_path next_nodes Arg.main_entry in
-      print_path path
+      Some (trace_path next_nodes Arg.main_entry)
+  in
+
+  let wp_path path =
+    let open Z3 in
+    ()
   in
 
   (* find_path (List.hd Arg.violations);
   print_endline (String.make 80 '='); *)
-  find_path2 Arg.violations;
-  ()
+  begin match find_path2 Arg.violations with
+    | Some path ->
+      print_path path;
+      wp_path path
+    | None ->
+      ()
+  end

@@ -4,6 +4,8 @@ open Prelude.Ana
 open Analyses
 open OilUtil
 
+module Mutex = MutexAnalysis
+
 module Spec =
 struct
   include Analyses.DefaultSpec

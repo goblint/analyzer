@@ -3,6 +3,8 @@
 open Prelude.Ana
 open Analyses
 
+module Mutex = MutexAnalysis
+
 module Spec =
 struct
   include Analyses.DefaultSpec
