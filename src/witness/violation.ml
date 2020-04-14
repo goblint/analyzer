@@ -213,7 +213,24 @@ let find_path (module Arg:ViolationArg) =
         print_endline "feasible"
       | WP.Infeasible subpath ->
         print_endline "infeasible";
-        print_path subpath
+        print_path subpath;
+
+        let get_sid = function
+          | MyCFG.Statement s -> s.sid
+          | _ -> -1
+        in
+        let observer_path = List.map (fun (n1, e, n2) ->
+            (get_sid (Arg.Node.cfgnode n1), get_sid (Arg.Node.cfgnode n2))
+          ) subpath
+        in
+        let module Spec = ObserverAnalysis.MakeSpec (
+          struct
+            let path = observer_path
+          end
+        )
+        in
+        MCP.register_analysis (module Spec)
+
       | WP.Unknown ->
         print_endline "unknown"
       end

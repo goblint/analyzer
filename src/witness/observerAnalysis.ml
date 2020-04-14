@@ -50,7 +50,12 @@ struct
       next_inner prefix q x
 end
 
-module Spec : Analyses.Spec =
+module type Arg =
+sig
+  val path: (int * int) list
+end
+
+module MakeSpec (Arg: Arg) : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
@@ -58,7 +63,7 @@ struct
 
   module ChainParams =
   struct
-    let n = 2
+    let n = List.length Arg.path
     let names x = "state " ^ string_of_int x
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
@@ -72,7 +77,8 @@ struct
       type t = int * int
       let equal (p1, n1) (p2, n2) = p1 = p2 && n1 = n2
 
-      let pattern = [| (22, 24); (24, 25) |]
+      (* let pattern = [| (22, 24); (24, 25) |] *)
+      let pattern = Array.of_list Arg.path
     end
   )
 
@@ -138,5 +144,13 @@ struct
   let exitstate  v = D.top ()
 end
 
-let _ =
-  MCP.register_analysis (module Spec : Spec)
+(* let _ =
+  MCP.register_analysis (module Spec : Spec) *)
+(* let _ =
+  let module Spec = MakeSpec (
+    struct
+      let path = [(23, 24); (24, 25)]
+    end
+  )
+  in
+  MCP.register_analysis (module Spec) *)
