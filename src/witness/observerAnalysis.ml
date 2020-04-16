@@ -152,8 +152,10 @@ let _ =
       (* let path = [(23, 24); (24, 25)] *)
       (* let path = [(30, 32); (32, 34); (34, 26); (26, 29)] *)
 
-      (* junker, nofun, observer 1 *)
-      let path = [(1, 2); (2, 6); (6, 8); (8, 10)]
+      (* junker, nofun, no-SV, observer 1 *)
+      (* let path = [(1, 2); (2, 6); (6, 8); (8, 10)] *)
+      (* junker, nofun, SV, observer 1 *)
+      let path = [(17, 18); (18, 22); (22, 24); (24, 26)]
       (* junker, observer 3 *)
       (* let path = [(14, 16); (16, 18); (18, 10); (10, 13)] *)
     end

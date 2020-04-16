@@ -171,7 +171,7 @@ struct
           failwith (Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: witness messed up! prev vars top at %a" MyCFG.pretty_node ctx.node))
         | VES.Set s ->
           VES.S.iter (fun ((n, c), e) ->
-              f (n, Obj.repr c) e
+              f None (n, Obj.repr c, None) e
             ) s
       end;
       `Bot
@@ -438,7 +438,21 @@ struct
     fold' ctx Spec.sync identity (fun (a,b) (a',b') -> D.add a' (R.bot ()) a, b'@b) (D.empty (), [])
 
   let query ctx q =
-    fold' ctx Spec.query identity (fun x f -> Queries.Result.meet x (f q)) `Top
+    match q with
+    | Queries.IterPrevVars f ->
+      begin match ctx.local with
+        | `Lifted s ->
+          D.S.elements s
+          |> List.iteri (fun i (x, r) ->
+              R.iter (fun (((n, c), j), e) ->
+                f (Some i) (n, Obj.repr c, Some (Int64.to_int j)) e
+              ) r
+            )
+        | `Top -> failwith "prev messed up: top"
+      end;
+      `Bot
+    | _ ->
+      fold' ctx Spec.query identity (fun x f -> Queries.Result.meet x (f q)) `Top
 
   let enter ctx l f a =
     (* R.bot () isn't right here *)

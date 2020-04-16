@@ -26,7 +26,7 @@ struct
   let meet x y = ES_r.join x y
 end
 
-type iterprevvar = (MyCFG.node * Obj.t) -> MyCFG.edge -> unit
+type iterprevvar = int option -> (MyCFG.node * Obj.t * int option) -> MyCFG.edge -> unit
 let iterprevvar_to_yojson _ = `Null
 
 type t = ExpEq of exp * exp

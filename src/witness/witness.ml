@@ -132,11 +132,12 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
           else
             []
         end;
-        [("goblintNode", match cfgnode with
+        (* [("goblintNode", match cfgnode with
            | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
            | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
            | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
-          )]
+          )] *)
+        [("goblintNode", N.to_string node)]
       ])
   in
   let write_edge from_node edge to_node =

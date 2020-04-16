@@ -120,7 +120,7 @@ struct
   let query ctx q =
     match q with
     | Queries.IterPrevVars f ->
-      let g (n, c) e = f (n, Obj.repr (C.lift (Obj.obj c))) e in
+      let g i (n, c, j) e = f i (n, Obj.repr (C.lift (Obj.obj c)), j) e in
       S.query (conv ctx) (Queries.IterPrevVars g)
     | _ -> S.query (conv ctx) q
 

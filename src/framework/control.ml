@@ -20,7 +20,7 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             |> lift (get_bool "ana.opt.hashcons") (module HashconsContextLifter)
             (* hashcons contexts before witness to reduce duplicates, because witness re-uses contexts in domain *)
-            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter)
+            (* |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter) *)
             (* |> lift true (module PathSensitive2) *)
             |> lift true (module WitnessConstraints.PathSensitive3)
             |> lift true (module DeadCodeLifter)
@@ -466,6 +466,39 @@ struct
       let module Reach = Reachability (EQSys) (LHT) (GHT) in
       Reach.prune !lh_ref !global_xml startvars';
 
+      let get: node * Spec.C.t -> Spec.D.t =
+        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+      in
+      let module Node =
+      struct
+        type t = MyCFG.node * Spec.C.t * int option
+
+        let equal (n1, c1, i1) (n2, c2, i2) =
+          EQSys.LVar.equal (n1, c1) (n2, c2) && i1 = i2
+
+        let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + Option.map_default (fun x -> x) 0 i
+
+        let cfgnode (n, c, i) = n
+
+        let to_string (n, c, i) =
+          (* copied from NodeCtxStackGraphMlWriter *)
+          let c_tag = Spec.C.tag c in
+          let i_str = Option.map_default string_of_int "-" i in
+          match n with
+          | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
+          | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.vid f.vname c_tag i_str
+          | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.vid f.vname c_tag i_str
+
+        let move (n, c, i) to_n = (to_n, c, i)
+        let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
+        let move_opt node to_n =
+          let to_node = move node to_n in
+          BatOption.filter is_live (Some to_node)
+      end
+      in
+
+      let module NHT = BatHashtbl.Make (Node) in
+
       let (witness_prev, witness_next) =
         let lh = !lh_ref in
         let gh = !global_xml in
@@ -492,50 +525,31 @@ struct
         in
         (* let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in *)
 
-        let prev = LHT.create 100 in
-        let next = LHT.create 100 in
+        let prev = NHT.create 100 in
+        let next = NHT.create 100 in
         LHT.iter (fun lvar local ->
-            ignore (ask_local lvar local (Queries.IterPrevVars (fun (prev_node, prev_c_obj) edge ->
-                let prev_lvar: LHT.key = (prev_node, Obj.obj prev_c_obj) in
-                LHT.modify_def [] lvar (fun prevs -> (edge, prev_lvar) :: prevs) prev;
-                LHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar) :: nexts) next
+            ignore (ask_local lvar local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
+                let lvar' = (fst lvar, snd lvar, i) in
+                let option_to_string = Option.map_default string_of_int "-" in
+                Printf.printf "PREV: %s -> %s\n" (option_to_string i) (option_to_string j);
+                let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
+                NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
+                NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
               )))
           ) lh;
 
         ((fun n ->
-            LHT.find_default prev n []), (* main entry is not in prev at all *)
+            NHT.find_default prev n []), (* main entry is not in prev at all *)
          (fun n ->
-            LHT.find_default next n [])) (* main return is not in next at all *)
-      in
-
-      let get: node * Spec.C.t -> Spec.D.t =
-        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+            NHT.find_default next n [])) (* main return is not in next at all *)
       in
 
       let module Arg =
       struct
-        module Node =
-        struct
-          include EQSys.LVar
-
-          let cfgnode = node
-
-          let to_string (n, c) =
-            (* copied from NodeCtxStackGraphMlWriter *)
-            let c_tag = Spec.C.tag c in
-            match n with
-            | Statement stmt  -> Printf.sprintf "s%d(%d)" stmt.sid c_tag
-            | Function f      -> Printf.sprintf "ret%d%s(%d)" f.vid f.vname c_tag
-            | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)" f.vid f.vname c_tag
-
-          let move (n, c) to_n = (to_n, c)
-          let is_live node = not (Spec.D.is_bot (get node))
-          let move_opt node to_n =
-            let to_node = move node to_n in
-            BatOption.filter is_live (Some to_node)
-        end
-
-        let main_entry = WitnessUtil.find_main_entry entrystates
+        module Node = Node
+        let main_entry =
+          let (n, c) = WitnessUtil.find_main_entry entrystates in
+          (n, c, Some 0)
         let next = witness_next
       end
       in
@@ -547,7 +561,7 @@ struct
       end
       in
 
-      let find_invariant nc = Spec.D.invariant "" (get nc) in
+      let find_invariant (n, c, i) = Spec.D.invariant "" (get (n, c)) in
 
       let witness_path = get_string "exp.witness_path" in
       if svcomp_unreach_call then begin
@@ -563,8 +577,8 @@ struct
         Witness.write_file witness_path (module Task) (module TaskResult)
       end else begin
         let is_violation = function
-          | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
-          | _, _ -> false
+          | FunctionEntry f, _, _ when f.vname = Svcomp.verifier_error -> true
+          | _, _, _ -> false
         in
         (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
         let is_violation n =
@@ -573,9 +587,10 @@ struct
         in
         let violations =
           LHT.fold (fun lvar _ acc ->
-              if is_violation lvar then begin
+              let lvar' = (fst lvar, snd lvar, Some 0) in
+              if is_violation lvar' then begin
                 ignore (Pretty.printf "VIOLATION: %a\n" EQSys.LVar.pretty lvar);
-                lvar :: acc
+                lvar' :: acc
               end
               else
                 acc
@@ -589,8 +604,9 @@ struct
           let violations = violations
         end
         in
-        let () = Violation.find_path (module ViolationArg) in
-        let is_sink = Violation.find_sinks (module ViolationArg) in
+        (* let () = Violation.find_path (module ViolationArg) in *)
+        (* let is_sink = Violation.find_sinks (module ViolationArg) in *)
+        let is_sink _ = false in (* TODO: put back sinks after function calls handled *)
         let module TaskResult =
         struct
           module Arg = Arg
