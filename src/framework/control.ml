@@ -499,7 +499,7 @@ struct
 
       let module NHT = BatHashtbl.Make (Node) in
 
-      let (witness_prev, witness_next) =
+      let (witness_prev_map, witness_prev, witness_next) =
         let lh = !lh_ref in
         let gh = !global_xml in
         let ask_local (lvar:EQSys.LVar.t) local =
@@ -536,7 +536,8 @@ struct
               )))
           ) lh;
 
-        ((fun n ->
+        (prev,
+         (fun n ->
             NHT.find_default prev n []), (* main entry is not in prev at all *)
          (fun n ->
             NHT.find_default next n [])) (* main return is not in next at all *)
@@ -584,16 +585,12 @@ struct
           |> List.exists (fun (_, to_n) -> is_violation to_n)
         in
         let violations =
-          LHT.fold (fun lvar _ acc ->
-              (* TODO: don't look for violations on path 0 only *)
-              let lvar' = (fst lvar, snd lvar, 0) in
-              if is_violation lvar' then begin
-                ignore (Pretty.printf "VIOLATION: %a\n" EQSys.LVar.pretty lvar);
-                lvar' :: acc
-              end
+          NHT.fold (fun lvar _ acc ->
+              if is_violation lvar then
+                lvar :: acc
               else
                 acc
-            ) !lh_ref []
+            ) witness_prev_map []
         in
         let module ViolationArg =
         struct
