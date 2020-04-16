@@ -208,10 +208,10 @@ struct
 end
 
 
-module MapBot (Domain: Groupable) (Range: Lattice.S): S with
+module MapBot (Domain: Groupable) (Range: Lattice.S) (*: S with
   type key = Domain.t and
 type value = Range.t and
-type t = Range.t Map.Make(Domain).t =
+type t = Range.t Map.Make(Domain).t *) =
 struct
   include PMap (Domain) (Range)
 
@@ -315,9 +315,9 @@ end
 
 exception Fn_over_All of string
 
-module MapBot_LiftTop (Domain: Groupable) (Range: Lattice.S): S with
+module MapBot_LiftTop (Domain: Groupable) (Range: Lattice.S) (* : S with
   type key = Domain.t and
-type value = Range.t =
+type value = Range.t *) =
 struct
   module M = MapBot (Domain) (Range)
   include Lattice.LiftTop (M)

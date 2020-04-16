@@ -250,14 +250,45 @@ module N = struct let topname = "Top" end
 (** Add path sensitivity to a analysis *)
 module PathSensitive3 (Spec:Spec)
   : Spec
-    with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
+    (* with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
      and module G = Spec.G
-     and module C = Spec.C
+     and module C = Spec.C *)
 =
 struct
   module D =
   struct
-    include SetDomain.ToppedSet (Spec.D) (N) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    module SpecDGroupable =
+    struct
+      include Printable.Std
+      include Spec.D
+    end
+    include MapDomain.MapBot_LiftTop (SpecDGroupable) (Lattice.Unit)
+
+    (* TODO: get rid of these value-ignoring set-mimicing hacks *)
+    let cardinal (s: t): int = match s with
+      | `Top -> failwith "cardinal"
+      | `Lifted s -> M.M.cardinal s
+    let choose (s: t): Spec.D.t = match s with
+      | `Top -> failwith "choose"
+      | `Lifted s -> fst (M.M.choose s)
+    let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
+    let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
+    let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
+    let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
+    let singleton (x: key): t = `Lifted (M.M.singleton x ())
+    let empty (): t = `Lifted M.M.empty
+    let add (x: key) (s: t): t = add x () s
+    let map (f: key -> key) (s: t): t = match s with
+      | `Top -> `Top
+      | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (Lattice.Unit.join v (M.find (f x) acc)) acc) s (M.M.empty))
+
+    module S =
+    struct
+      let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
+      let elements (s: M.t): key list = List.map fst (M.M.bindings s)
+      let of_list (l: key list): M.t = M.add_list_set l () M.M.empty
+    end
+
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
@@ -284,15 +315,15 @@ struct
 
     (* copied from SetDomain.Hoare *)
     let mem x = function
-      | All -> true
-      | Set s -> S.exists (Spec.D.leq x) s
+      | `Top -> true
+      | `Lifted s -> S.exists (Spec.D.leq x) s
     let leq a b =
       match a with
-      | All -> b = All
+      | `Top -> b = `Top
       | _ -> for_all (fun x -> mem x b) a (* mem uses B.leq! *)
     let apply_list f = function
-      | All -> All
-      | Set s -> Set (S.elements s |> f |> S.of_list)
+      | `Top -> `Top
+      | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)
     (* join elements in the same partition (specified by should_join) *)
     let join_reduce a =
       let rec loop js = function
