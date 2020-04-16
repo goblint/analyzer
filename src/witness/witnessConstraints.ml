@@ -243,3 +243,166 @@ struct
     in
     strict (d, w)
 end
+
+
+
+module N = struct let topname = "Top" end
+(** Add path sensitivity to a analysis *)
+module PathSensitive3 (Spec:Spec)
+  : Spec
+    with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
+     and module G = Spec.G
+     and module C = Spec.C
+=
+struct
+  module D =
+  struct
+    include SetDomain.ToppedSet (Spec.D) (N) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    let name () = "PathSensitive (" ^ name () ^ ")"
+
+    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
+      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
+        try
+          let p t = not (mem t s2) in
+          let evil = choose (filter p s1) in
+          let other = choose s2 in
+          (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
+             Spec.D.pretty evil Spec.D.pretty other
+             Spec.D.pretty_diff (evil,other) *)
+          Spec.D.pretty_diff () (evil,other)
+        with _ ->
+          dprintf "choose failed b/c of empty set s1: %d s2: %d"
+          (cardinal s1)
+          (cardinal s2)
+      end
+
+    let printXml f x =
+      let print_one x =
+        BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x
+      in
+      iter print_one x
+
+    (* copied from SetDomain.Hoare *)
+    let mem x = function
+      | All -> true
+      | Set s -> S.exists (Spec.D.leq x) s
+    let leq a b =
+      match a with
+      | All -> b = All
+      | _ -> for_all (fun x -> mem x b) a (* mem uses B.leq! *)
+    let apply_list f = function
+      | All -> All
+      | Set s -> Set (S.elements s |> f |> S.of_list)
+    (* join elements in the same partition (specified by should_join) *)
+    let join_reduce a =
+      let rec loop js = function
+        | [] -> js
+        | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
+            if Spec.should_join x j then Spec.D.join x j, r else j, x::r
+          ) (x,[]) xs in
+          loop (j::js) r
+      in
+      apply_list (loop []) a
+
+    let leq a b =
+      leq a b || leq (join_reduce a) (join_reduce b)
+
+    let binop op a b = op a b |> join_reduce
+
+    let join = binop join
+    let meet = binop meet
+    let widen = binop widen
+    let narrow = binop narrow
+
+    let invariant c s = fold (fun x a ->
+        Invariant.(a || Spec.D.invariant c x) (* TODO: || correct? *)
+      ) s Invariant.none
+  end
+
+  module G = Spec.G
+  module C = Spec.C
+
+  let name () = "PathSensitive3("^Spec.name ()^")"
+
+  let init = Spec.init
+  let finalize = Spec.finalize
+
+  let should_join x y = true
+
+  let otherstate v = D.singleton (Spec.otherstate v)
+  let exitstate  v = D.singleton (Spec.exitstate  v)
+  let startstate v = D.singleton (Spec.startstate v)
+  let morphstate v d = D.map (Spec.morphstate v) d
+
+  let call_descr = Spec.call_descr
+
+  let val_of = D.singleton % Spec.val_of
+  let context l =
+    if D.cardinal l <> 1 then
+      failwith "PathSensitive3.context must be called with a singleton set."
+    else
+      Spec.context @@ D.choose l
+
+  let conv ctx x =
+    let rec ctx' = { ctx with ask   = query
+                            ; local = x
+                            ; spawn = (fun v -> ctx.spawn v % D.singleton )
+                            ; split = (ctx.split % D.singleton) }
+    and query x = Spec.query ctx' x in
+    ctx'
+
+  let map ctx f g =
+    let h x xs =
+      try D.add (g (f (conv ctx x))) xs
+      with Deadcode -> xs
+    in
+    let d = D.fold h ctx.local (D.empty ()) in
+    if D.is_bot d then raise Deadcode else d
+
+  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
+  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
+  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
+  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
+  let intrpt ctx        = map ctx Spec.intrpt  identity
+  let asm ctx           = map ctx Spec.asm     identity
+  let skip ctx          = map ctx Spec.skip    identity
+  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  let fold ctx f g h a =
+    let k x a =
+      try h a @@ g @@ f @@ conv ctx x
+      with Deadcode -> a
+    in
+    let d = D.fold k ctx.local a in
+    if D.is_bot d then raise Deadcode else d
+
+  let fold' ctx f g h a =
+    let k x a =
+      try h a @@ g @@ f @@ conv ctx x
+      with Deadcode -> a
+    in
+    D.fold k ctx.local a
+
+  let sync ctx =
+    fold' ctx Spec.sync identity (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
+
+  let query ctx q =
+    fold' ctx Spec.query identity (fun x f -> Queries.Result.meet x (f q)) `Top
+
+  let enter ctx l f a =
+    let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in
+    fold' ctx Spec.enter (fun h -> h l f a) g []
+
+  let combine ctx l fe f a d =
+    assert (D.cardinal ctx.local = 1);
+    let cd = D.choose ctx.local in
+    let k x y =
+      try D.add (Spec.combine (conv ctx cd) l fe f a x) y
+      with Deadcode -> y
+    in
+    let d = D.fold k d (D.bot ()) in
+    if D.is_bot d then raise Deadcode else d
+
+  let part_access _ _ _ _ =
+    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
+end
