@@ -392,8 +392,8 @@ struct
 
   let map ctx f g =
     let h x xs =
-      (* TODO: R.bot () isn't right here *)
-      try D.add (g (f (conv ctx x))) (R.bot ()) xs
+      let r = R.singleton ctx.prev_node in
+      try D.add (g (f (conv ctx x))) r xs
       with Deadcode -> xs
     in
     let d = D.fold h ctx.local (D.empty ()) in

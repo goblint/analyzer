@@ -146,11 +146,17 @@ end
 
 (* let _ =
   MCP.register_analysis (module Spec : Spec) *)
-(* let _ =
+let _ =
   let module Spec = MakeSpec (
     struct
-      let path = [(23, 24); (24, 25)]
+      (* let path = [(23, 24); (24, 25)] *)
+      (* let path = [(30, 32); (32, 34); (34, 26); (26, 29)] *)
+
+      (* junker, nofun, observer 1 *)
+      let path = [(1, 2); (2, 6); (6, 8); (8, 10)]
+      (* junker, observer 3 *)
+      (* let path = [(14, 16); (16, 18); (18, 10); (10, 13)] *)
     end
   )
   in
-  MCP.register_analysis (module Spec) *)
+  MCP.register_analysis (module Spec)
