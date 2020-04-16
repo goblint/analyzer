@@ -255,9 +255,8 @@ module PathSensitive3 (Spec:Spec)
      and module C = Spec.C *)
 =
 struct
-  module V = Printable.Prod (PrintableVar) (Spec.C)
   module I = IntDomain.Integers
-  module VI = Printable.Prod (V) (I)
+  module VI = Printable.Prod3 (PrintableVar) (Spec.C) (I)
   module VIE = Printable.Prod (VI) (Edge)
   module VIES = SetDomain.ToppedSet (VIE) (struct let topname = "VIES top" end)
 
@@ -399,7 +398,7 @@ struct
     let h x (i, xs) =
       let r =
         try
-          R.singleton (((ctx.prev_node, get_context ctx), Int64.of_int i), ctx.edge)
+          R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int i), ctx.edge)
         with Ctx_failure _ ->
           R.bot ()
       in
@@ -444,7 +443,7 @@ struct
         | `Lifted s ->
           D.S.elements s
           |> List.iteri (fun i (x, r) ->
-              R.iter (fun (((n, c), j), e) ->
+              R.iter (fun ((n, c, j), e) ->
                 f i (n, Obj.repr c, Int64.to_int j) e
               ) r
             )
