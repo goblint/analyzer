@@ -328,7 +328,7 @@ struct
         Messages.xml_file_name := fn;
         BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
         BatPrintf.fprintf f "<run><parameters>%a</parameters><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
-        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
+        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
         BatPrintf.fprintf f "%a" printXml (Lazy.force table);
         gtfxml f gtable;
         printXmlWarning f ();
@@ -412,7 +412,7 @@ end
 
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
-   the same order as writen in the dependencies list (in MCP).
+   the same order as written in the dependencies list (in MCP).
 
    The foreign states when calling special_fn or enter are joined if the foreign
    analysis tries to be path-sensitive in these functions. First try to only
