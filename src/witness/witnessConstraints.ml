@@ -255,6 +255,11 @@ module PathSensitive3 (Spec:Spec)
      and module C = Spec.C *)
 =
 struct
+  (* TODO: complete tracking with C and E from WitnessLifter *)
+  module V = PrintableVar
+  module VS = SetDomain.ToppedSet (V) (struct let topname = "VS top" end)
+  module R = VS
+
   module D =
   struct
     module SpecDGroupable =
@@ -262,7 +267,7 @@ struct
       include Printable.Std
       include Spec.D
     end
-    include MapDomain.MapBot_LiftTop (SpecDGroupable) (Lattice.Unit)
+    include MapDomain.MapBot_LiftTop (SpecDGroupable) (R)
 
     (* TODO: get rid of these value-ignoring set-mimicing hacks *)
     let cardinal (s: t): int = match s with
@@ -272,21 +277,22 @@ struct
       | `Top -> failwith "choose"
       | `Lifted s -> fst (M.M.choose s)
     let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
+    let iter' = iter
     let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
     let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
     let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
-    let singleton (x: key): t = `Lifted (M.M.singleton x ())
+    let singleton (x: key) (r: R.t): t = `Lifted (M.M.singleton x r)
     let empty (): t = `Lifted M.M.empty
-    let add (x: key) (s: t): t = add x () s
+    let add (x: key) (r: R.t) (s: t): t = add x r s
     let map (f: key -> key) (s: t): t = match s with
       | `Top -> `Top
-      | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (Lattice.Unit.join v (M.find (f x) acc)) acc) s (M.M.empty))
+      | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
 
     module S =
     struct
       let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
-      let elements (s: M.t): key list = List.map fst (M.M.bindings s)
-      let of_list (l: key list): M.t = M.add_list_set l () M.M.empty
+      let elements (s: M.t): (key * R.t) list = M.M.bindings s
+      let of_list (l: (key * R.t) list): M.t = M.add_list l M.M.empty
     end
 
     let name () = "PathSensitive (" ^ name () ^ ")"
@@ -308,10 +314,11 @@ struct
       end
 
     let printXml f x =
-      let print_one x =
-        BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x
+      let print_one x r =
+        (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
+        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
       in
-      iter print_one x
+      iter' print_one x
 
     (* copied from SetDomain.Hoare *)
     let mem x = function
@@ -328,10 +335,10 @@ struct
     let join_reduce a =
       let rec loop js = function
         | [] -> js
-        | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
-            if Spec.should_join x j then Spec.D.join x j, r else j, x::r
-          ) (x,[]) xs in
-          loop (j::js) r
+        | (x, xr)::xs -> let ((j, jr),r) = List.fold_left (fun ((j, jr),r) (x,xr) ->
+            if Spec.should_join x j then (Spec.D.join x j, R.join xr jr), r else (j, jr), (x, xr)::r
+          ) ((x, xr),[]) xs in
+          loop ((j, jr)::js) r
       in
       apply_list (loop []) a
 
@@ -360,14 +367,14 @@ struct
 
   let should_join x y = true
 
-  let otherstate v = D.singleton (Spec.otherstate v)
-  let exitstate  v = D.singleton (Spec.exitstate  v)
-  let startstate v = D.singleton (Spec.startstate v)
+  let otherstate v = D.singleton (Spec.otherstate v) (R.bot ())
+  let exitstate  v = D.singleton (Spec.exitstate  v) (R.bot ())
+  let startstate v = D.singleton (Spec.startstate v) (R.bot ())
   let morphstate v d = D.map (Spec.morphstate v) d
 
   let call_descr = Spec.call_descr
 
-  let val_of = D.singleton % Spec.val_of
+  let val_of c = D.singleton (Spec.val_of c) (R.bot ())
   let context l =
     if D.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."
@@ -375,16 +382,18 @@ struct
       Spec.context @@ D.choose l
 
   let conv ctx x =
+    (* TODO: R.bot () isn't right here *)
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            ; spawn = (fun v -> ctx.spawn v % D.singleton )
-                            ; split = (ctx.split % D.singleton) }
+                            ; spawn = (fun v -> ctx.spawn v % (fun x -> D.singleton x (R.bot ())) )
+                            ; split = (ctx.split % (fun x -> D.singleton x (R.bot ()))) }
     and query x = Spec.query ctx' x in
     ctx'
 
   let map ctx f g =
     let h x xs =
-      try D.add (g (f (conv ctx x))) xs
+      (* TODO: R.bot () isn't right here *)
+      try D.add (g (f (conv ctx x))) (R.bot ()) xs
       with Deadcode -> xs
     in
     let d = D.fold h ctx.local (D.empty ()) in
@@ -415,20 +424,23 @@ struct
     D.fold k ctx.local a
 
   let sync ctx =
-    fold' ctx Spec.sync identity (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
+    (* TODO: R.bot () isn't right here *)
+    fold' ctx Spec.sync identity (fun (a,b) (a',b') -> D.add a' (R.bot ()) a, b'@b) (D.empty (), [])
 
   let query ctx q =
     fold' ctx Spec.query identity (fun x f -> Queries.Result.meet x (f q)) `Top
 
   let enter ctx l f a =
-    let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in
+    (* R.bot () isn't right here *)
+    let g xs ys = (List.map (fun (x,y) -> D.singleton x (R.bot ()), D.singleton y (R.bot ())) ys) @ xs in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
   let combine ctx l fe f a d =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
-      try D.add (Spec.combine (conv ctx cd) l fe f a x) y
+      (* TODO: R.bot () isn't right here *)
+      try D.add (Spec.combine (conv ctx cd) l fe f a x) (R.bot ()) y
       with Deadcode -> y
     in
     let d = D.fold k d (D.bot ()) in
