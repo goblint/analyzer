@@ -171,7 +171,7 @@ struct
           failwith (Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: witness messed up! prev vars top at %a" MyCFG.pretty_node ctx.node))
         | VES.Set s ->
           VES.S.iter (fun ((n, c), e) ->
-              f None (n, Obj.repr c, None) e
+              f 0 (n, Obj.repr c, 0) e
             ) s
       end;
       `Bot
@@ -445,7 +445,7 @@ struct
           D.S.elements s
           |> List.iteri (fun i (x, r) ->
               R.iter (fun (((n, c), j), e) ->
-                f (Some i) (n, Obj.repr c, Some (Int64.to_int j)) e
+                f i (n, Obj.repr c, Int64.to_int j) e
               ) r
             )
         | `Top -> failwith "prev messed up: top"

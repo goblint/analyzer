@@ -471,19 +471,19 @@ struct
       in
       let module Node =
       struct
-        type t = MyCFG.node * Spec.C.t * int option
+        type t = MyCFG.node * Spec.C.t * int
 
         let equal (n1, c1, i1) (n2, c2, i2) =
           EQSys.LVar.equal (n1, c1) (n2, c2) && i1 = i2
 
-        let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + Option.map_default (fun x -> x) 0 i
+        let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + i
 
         let cfgnode (n, c, i) = n
 
         let to_string (n, c, i) =
           (* copied from NodeCtxStackGraphMlWriter *)
           let c_tag = Spec.C.tag c in
-          let i_str = Option.map_default string_of_int "-" i in
+          let i_str = string_of_int i in
           match n with
           | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
           | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.vid f.vname c_tag i_str
@@ -530,8 +530,6 @@ struct
         LHT.iter (fun lvar local ->
             ignore (ask_local lvar local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
                 let lvar' = (fst lvar, snd lvar, i) in
-                let option_to_string = Option.map_default string_of_int "-" in
-                Printf.printf "PREV: %s -> %s\n" (option_to_string i) (option_to_string j);
                 let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
                 NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
                 NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
@@ -549,7 +547,7 @@ struct
         module Node = Node
         let main_entry =
           let (n, c) = WitnessUtil.find_main_entry entrystates in
-          (n, c, Some 0)
+          (n, c, 0)
         let next = witness_next
       end
       in
@@ -587,7 +585,8 @@ struct
         in
         let violations =
           LHT.fold (fun lvar _ acc ->
-              let lvar' = (fst lvar, snd lvar, Some 0) in
+              (* TODO: don't look for violations on path 0 only *)
+              let lvar' = (fst lvar, snd lvar, 0) in
               if is_violation lvar' then begin
                 ignore (Pretty.printf "VIOLATION: %a\n" EQSys.LVar.pretty lvar);
                 lvar' :: acc
