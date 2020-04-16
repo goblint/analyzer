@@ -257,8 +257,10 @@ module PathSensitive3 (Spec:Spec)
 struct
   (* TODO: complete tracking with C and E from WitnessLifter *)
   module V = PrintableVar
-  module VS = SetDomain.ToppedSet (V) (struct let topname = "VS top" end)
-  module R = VS
+  module I = IntDomain.Integers
+  module VI = Printable.Prod (V) (I)
+  module VIS = SetDomain.ToppedSet (VI) (struct let topname = "VIS top" end)
+  module R = VIS
 
   module D =
   struct
@@ -391,12 +393,12 @@ struct
     ctx'
 
   let map ctx f g =
-    let h x xs =
-      let r = R.singleton ctx.prev_node in
-      try D.add (g (f (conv ctx x))) r xs
-      with Deadcode -> xs
+    let h x (i, xs) =
+      let r = R.singleton (ctx.prev_node, Int64.of_int i) in
+      try (succ i, D.add (g (f (conv ctx x))) r xs)
+      with Deadcode -> (succ i, xs)
     in
-    let d = D.fold h ctx.local (D.empty ()) in
+    let (_, d) = D.fold h ctx.local (0, D.empty ()) in
     if D.is_bot d then raise Deadcode else d
 
   let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
