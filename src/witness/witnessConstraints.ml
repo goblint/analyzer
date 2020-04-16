@@ -255,12 +255,13 @@ module PathSensitive3 (Spec:Spec)
      and module C = Spec.C *)
 =
 struct
-  (* TODO: complete tracking with C and E from WitnessLifter *)
-  module V = PrintableVar
+  module V = Printable.Prod (PrintableVar) (Spec.C)
   module I = IntDomain.Integers
   module VI = Printable.Prod (V) (I)
-  module VIS = SetDomain.ToppedSet (VI) (struct let topname = "VIS top" end)
-  module R = VIS
+  module VIE = Printable.Prod (VI) (Edge)
+  module VIES = SetDomain.ToppedSet (VIE) (struct let topname = "VIES top" end)
+
+  module R = VIES
 
   module D =
   struct
@@ -392,9 +393,16 @@ struct
     and query x = Spec.query ctx' x in
     ctx'
 
+  let get_context ctx = ctx.context2 ()
+
   let map ctx f g =
     let h x (i, xs) =
-      let r = R.singleton (ctx.prev_node, Int64.of_int i) in
+      let r =
+        try
+          R.singleton (((ctx.prev_node, get_context ctx), Int64.of_int i), ctx.edge)
+        with Ctx_failure _ ->
+          R.bot ()
+      in
       try (succ i, D.add (g (f (conv ctx x))) r xs)
       with Deadcode -> (succ i, xs)
     in
