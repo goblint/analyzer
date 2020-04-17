@@ -233,8 +233,8 @@ struct
         (strict (d1, w), strict (d2, w'))
       ) ddl
 
-  let combine ctx r fe f args (d', w') =
-    let d = S.combine (unlift_ctx ctx) r fe f args d' in
+  let combine ctx r fe f args fc (d', w') =
+    let d = S.combine (unlift_ctx ctx) r fe f args fc d' in
     let w =
       if should_inline f then
         step_witness w' MyCFG.Skip (ctx.node, get_context ctx)
@@ -458,13 +458,13 @@ struct
     let g xs ys = (List.map (fun (x,y) -> D.singleton x (R.bot ()), D.singleton y (R.bot ())) ys) @ xs in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
-  let combine ctx l fe f a d =
+  let combine ctx l fe f a fc d =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
       (* TODO: R.bot () isn't right here *)
-      try D.add (Spec.combine (conv ctx cd) l fe f a x) (R.bot ()) y
       with Deadcode -> y
+      try D.add (Spec.combine (conv ctx cd) l fe f a fc x) (R.bot ()) y
     in
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d

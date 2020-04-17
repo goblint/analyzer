@@ -486,7 +486,7 @@ sig
 
   val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
+  val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> C.t -> D.t -> D.t
 end
 
 module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)

@@ -41,7 +41,7 @@ struct
       [ctx.local,new_fl]
     | _ -> [ctx.local,ctx.local]
 
-  let combine ctx lval fexp f args st2 = st2
+  let combine ctx lval fexp f args fc st2 = st2
 
   let special ctx lval f args =
     match LF.classify f.vname args with

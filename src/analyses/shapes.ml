@@ -220,7 +220,7 @@ struct
     let es' = Re.enter (re_context ctx re) lval f args in
     List.map (fun (x,y) -> (st,x),(es,y)) es'
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st  =

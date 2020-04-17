@@ -76,8 +76,8 @@ struct
   let special ctx r f args =
     D.lift @@ S.special (conv ctx) r f args
 
-  let combine ctx r fe f args es =
-    D.lift @@ S.combine (conv ctx) r fe f args (D.unlift es)
+  let combine ctx r fe f args fc es =
+    D.lift @@ S.combine (conv ctx) r fe f args fc (D.unlift es)
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -151,8 +151,8 @@ struct
   let special ctx r f args =
     S.special (conv ctx) r f args
 
-  let combine ctx r fe f args es =
-    S.combine (conv ctx) r fe f args es
+  let combine ctx r fe f args fc es =
+    S.combine (conv ctx) r fe f args (C.unlift fc) es
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -233,7 +233,7 @@ struct
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
-  let combine' ctx r fe f args es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args (fst es))
+  let combine' ctx r fe f args fc es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es))
 
   let leq0 = function
     | `Top -> false
@@ -255,13 +255,13 @@ struct
     else
       enter' {ctx with local=(d, sub1 l)} r f args
 
-  let combine ctx r fe f args es =
+  let combine ctx r fe f args fc es =
     let (d,l) = ctx.local in
     let l = add1 l in
     if leq0 l then
       (d, l)
     else
-      let d',_ = combine' ctx r fe f args es in
+      let d',_ = combine' ctx r fe f args fc es in
       (d', l)
 
   let query ctx = function
@@ -368,7 +368,7 @@ struct
     in
     S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
 
-  let combine ctx r fe f args es = lift_fun ctx S.combine (fun p -> p r fe f args (fst es))
+  let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args (fst fc) (fst es))
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -417,7 +417,7 @@ struct
     in
     S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
 
-  let combine ctx r fe f args es = lift_fun ctx S.combine (fun p -> p r fe f args (fst es))
+  let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args fc (fst es))
 end
 
 
@@ -478,7 +478,7 @@ struct
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
-  let combine ctx r fe f args es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args (D.unlift es)) `Bot
+  let combine ctx r fe f args fc es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es)) `Bot
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -586,11 +586,12 @@ struct
     bigsqcup ((S.branch ctx e tv)::!r)
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
-    let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
+    let combine (cd, fc, fd) = S.combine {ctx with local = cd} lv e f args fc fd in
     let paths = S.enter ctx lv f args in
-    let _     = if not full_context then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, S.context v) v) paths in
-    let paths = List.map (fun (c,v) -> (c, if S.D.is_bot v then v else getl (Function f, S.context v))) paths in
-    let paths = List.filter (fun (c,v) -> not (D.is_bot v)) paths in
+    let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
+    let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
+    let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     let paths = List.map combine paths in
     List.fold_left D.join (D.bot ()) paths
 
@@ -986,11 +987,11 @@ struct
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
-  let combine ctx l fe f a d =
+  let combine ctx l fe f a fc d =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
-      try D.add (Spec.combine (conv ctx cd) l fe f a x) y
+      try D.add (Spec.combine (conv ctx cd) l fe f a fc x) y
       with Deadcode -> y
     in
     let d = D.fold k d (D.bot ()) in

@@ -861,7 +861,7 @@ struct
     do_spawns ctx !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine (ctx:(D.t, G.t, C.t) ctx) r fe f a fd =
+  let combine (ctx:(D.t, G.t, C.t) ctx) r fe f a fc fd =
     let spawns = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
@@ -883,7 +883,7 @@ struct
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
-      n, repr @@ S.combine ctx' r fe f a @@ obj @@ assoc n fd
+      n, repr @@ S.combine ctx' r fe f a (obj (assoc n fc)) (obj (assoc n fd))
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;

@@ -761,8 +761,8 @@ struct
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (M.enter ctx (lval: lval option) (f:varinfo) (args:exp list))
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    M.combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) au
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+    M.combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let fvname = get_api_names f.vname in

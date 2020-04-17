@@ -262,7 +262,7 @@ struct
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
-  let combine ctx lv fexp f args al =
+  let combine ctx lv fexp f args fc al =
     access_one_top ctx false false fexp;
     begin match lv with
       | None      -> ()

@@ -195,7 +195,7 @@ struct
     List.iter (warn_deref_exp ctx.ask ctx.local) args;
     [ctx.local,nst]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     let cal_st = remove_unreachable ctx.ask args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in
     let new_u =
