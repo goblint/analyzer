@@ -287,7 +287,9 @@ struct
     let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
     let singleton (x: key) (r: R.t): t = `Lifted (M.M.singleton x r)
     let empty (): t = `Lifted M.M.empty
-    let add (x: key) (r: R.t) (s: t): t = add x r s
+    let add (x: key) (r: R.t) (s: t): t = match s with
+      | `Top -> `Top
+      | `Lifted s -> `Lifted (M.M.add x (R.join r (M.find x s)) s)
     let map (f: key -> key) (s: t): t = match s with
       | `Top -> `Top
       | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
