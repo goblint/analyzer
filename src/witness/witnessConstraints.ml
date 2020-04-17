@@ -281,6 +281,7 @@ struct
     let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
     let iter' = iter
     let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
+    let for_all' = for_all
     let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
     let fold' = fold
     let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
@@ -323,14 +324,17 @@ struct
       in
       iter' print_one x
 
-    (* copied from SetDomain.Hoare *)
-    let mem x = function
+    (* copied & modified from SetDomain.Hoare *)
+    let mem x xr = function
       | `Top -> true
-      | `Lifted s -> S.exists (Spec.D.leq x) s
+      (* | `Lifted s -> S.exists (Spec.D.leq x) s *)
+      (* exists check per previous VIE.t in R.t *)
+      (* seems to be necessary for correct ARG but why? *)
+      | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr
     let leq a b =
       match a with
       | `Top -> b = `Top
-      | _ -> for_all (fun x -> mem x b) a (* mem uses B.leq! *)
+      | _ -> for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
     let apply_list f = function
       | `Top -> `Top
       | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)

@@ -93,7 +93,9 @@ struct
         let n = get_sid ctx.node in
         let q' = KMP.next q (p, n) in
         if q' = KMP.m then
-          raise Deadcode
+          (* raise Deadcode *)
+          (* TODO: undo. currently observer doesn't kill paths, just splits for nice ARG viewing purposes *)
+          `Lifted q'
         else
           `Lifted q'
       end
