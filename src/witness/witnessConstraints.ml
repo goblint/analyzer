@@ -359,9 +359,13 @@ struct
     let widen = binop widen
     let narrow = binop narrow
 
-    let invariant c s = fold (fun x a ->
-        Invariant.(a || Spec.D.invariant c x) (* TODO: || correct? *)
-      ) s Invariant.none
+    let invariant c s =
+      match s with
+      | `Top -> failwith "invariant Top"
+      | `Lifted s ->
+        (* TODO: optimize indexing *)
+        let (d, _) = List.at (S.elements s) c.Invariant.i in
+        Spec.D.invariant c d
   end
 
   module G = Spec.G

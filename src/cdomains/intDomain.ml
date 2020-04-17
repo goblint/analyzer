@@ -335,7 +335,9 @@ struct
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top ()
 
-  let invariant c = function
+  let invariant c x =
+    let c = c.Invariant.var in
+    match x with
     | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
       Invariant.of_string (c ^ " == " ^ Int64.to_string x1)
     | Some (x1, x2) ->
@@ -820,7 +822,9 @@ struct
   let lognot = eq (of_int 0L)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
-  let invariant c (x:t) = match x with
+  let invariant c (x:t) =
+    let c = c.Invariant.var in
+    match x with
     | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
     | `Excluded (s, _) ->
       S.fold (fun x a ->
@@ -1427,7 +1431,9 @@ module Enums : S = struct
   let minimal = function Pos (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
 
-  let invariant c = function
+  let invariant c x =
+    let c = c.Invariant.var in
+    match x with
     | Pos ps ->
       List.fold_left (fun a x ->
           let i = Invariant.of_string (c ^ " == " ^ Int64.to_string x) in

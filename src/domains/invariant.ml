@@ -1,4 +1,7 @@
-type context = string
+type context = {
+  i: int;
+  var: string;
+}
 
 type t = string option
 
