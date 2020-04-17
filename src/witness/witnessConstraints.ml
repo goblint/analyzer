@@ -282,6 +282,7 @@ struct
     let iter' = iter
     let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
     let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
+    let fold' = fold
     let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
     let singleton (x: key) (r: R.t): t = `Lifted (M.M.singleton x r)
     let empty (): t = `Lifted M.M.empty
@@ -432,9 +433,16 @@ struct
     in
     D.fold k ctx.local a
 
+  let fold'' ctx f g h a =
+    let k x r a =
+      try h a r @@ g @@ f @@ conv ctx x
+      with Deadcode -> a
+    in
+    D.fold' k ctx.local a
+
   let sync ctx =
-    (* TODO: R.bot () isn't right here *)
-    fold' ctx Spec.sync identity (fun (a,b) (a',b') -> D.add a' (R.bot ()) a, b'@b) (D.empty (), [])
+    (* TODO: no idea if this is right *)
+    fold'' ctx Spec.sync identity (fun (a,b) r (a',b') -> D.add a' r a, b'@b) (D.empty (), [])
 
   let query ctx q =
     match q with
@@ -454,19 +462,31 @@ struct
       fold' ctx Spec.query identity (fun x f -> Queries.Result.meet x (f q)) `Top
 
   let enter ctx l f a =
-    (* R.bot () isn't right here *)
-    let g xs ys = (List.map (fun (x,y) -> D.singleton x (R.bot ()), D.singleton y (R.bot ())) ys) @ xs in
-    fold' ctx Spec.enter (fun h -> h l f a) g []
+    let g (i, xs) ys =
+      let ys' = List.map (fun (x,y) ->
+          (* R.bot () isn't right here? doesn't actually matter? *)
+          let yr =
+            try
+              R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int 0), Skip)
+            with Ctx_failure _ ->
+              R.bot ()
+          in
+          (D.singleton x (R.bot ()), D.singleton y yr)
+        ) ys
+      in
+      (succ i, ys' @ xs)
+    in
+    snd @@ fold' ctx Spec.enter (fun h -> h l f a) g (0, [])
 
   let combine ctx l fe f a fc d =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
-    let k x y =
-      (* TODO: R.bot () isn't right here *)
-      with Deadcode -> y
-      try D.add (Spec.combine (conv ctx cd) l fe f a fc x) (R.bot ()) y
+    let k x (i, y) =
+      let r = R.singleton ((Function f, fc, Int64.of_int i), Skip) in
+      try (succ i, D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y)
+      with Deadcode -> (succ i, y)
     in
-    let d = D.fold k d (D.bot ()) in
+    let (_, d) = D.fold k d (0, D.bot ()) in
     if D.is_bot d then raise Deadcode else d
 
   let part_access _ _ _ _ =
