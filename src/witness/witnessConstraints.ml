@@ -298,7 +298,7 @@ struct
     struct
       let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
       let elements (s: M.t): (key * R.t) list = M.M.bindings s
-      let of_list (l: (key * R.t) list): M.t = M.add_list l M.M.empty
+      let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.M.add x (R.join r (M.find x acc)) acc) M.M.empty l
     end
 
     let name () = "PathSensitive (" ^ name () ^ ")"
