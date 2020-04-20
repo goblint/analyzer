@@ -225,7 +225,7 @@ struct
         let to_node = (MyCFG.FunctionEntry f, S.context d2) in
         let w' =
           if should_inline f then
-            step_witness w (InlineEntry []) to_node (* TODO: args *)
+            step_witness w (InlineEntry args) to_node
           else
             (VES.bot (), `Lifted to_node)
         in
@@ -236,7 +236,7 @@ struct
     let d = S.combine (unlift_ctx ctx) r fe f args fc d' in
     let w =
       if should_inline f then
-        step_witness w' (InlineReturn None) (ctx.node, get_context ctx) (* TODO: return *)
+        step_witness w' (InlineReturn r) (ctx.node, get_context ctx)
       else
         step_ctx ctx
     in
@@ -476,7 +476,7 @@ struct
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             try
-              R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int 0), InlineEntry []) (* TODO: args *)
+              R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int 0), InlineEntry a)
             with Ctx_failure _ ->
               R.bot ()
           in
@@ -491,7 +491,7 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x (i, y) =
-      let r = R.singleton ((Function f, fc, Int64.of_int i), InlineReturn None) in (* TODO: return *)
+      let r = R.singleton ((Function f, fc, Int64.of_int i), InlineReturn l) in
       try (succ i, D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y)
       with Deadcode -> (succ i, y)
     in
