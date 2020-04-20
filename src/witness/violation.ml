@@ -91,6 +91,8 @@ struct
     | e ->
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "exp_to_expr: %a" Cil.d_exp e
 
+  let get_arg_vname i = "_arg" ^ string_of_int i
+
   let wp_assert env (from_node, edge, _) = match edge with
     | MyCFG.Assign ((Var v, NoOffset), e) ->
       let env' = Env.freshen env v.vname in
@@ -100,18 +102,31 @@ struct
     | MyCFG.Test (e, false) ->
       (env, Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0))
     | MyCFG.Entry fd ->
-      let v = List.hd fd.sformals in (* TODO: support other than one arg *)
-      (* TODO: copied from Assign case *)
-      let env' = Env.freshen env v.vname in
-      (env', Boolean.mk_eq ctx (Env.get_const env v.vname) (Env.get_const env' "_arg0"))
+      let env' = List.fold_left (fun acc formal ->
+          Env.freshen acc formal.vname
+        ) env fd.sformals
+      in
+      let eqs = List.mapi (fun i formal ->
+          let arg_vname = get_arg_vname i in
+          Boolean.mk_eq ctx (Env.get_const env formal.vname) (Env.get_const env' arg_vname)
+        ) fd.sformals
+      in
+      (env', Boolean.mk_and ctx eqs)
     | MyCFG.Skip ->
       begin match Node.cfgnode from_node with
       (* TODO: remove Cil-based hack to get args *)
       | MyCFG.Statement {skind=Instr [Call (_, _, args, _)]} ->
-        let arg = List.hd args in (* TODO: support other than one arg *)
-        (* TODO: copied from Assign case *)
-        let env' = Env.freshen env "_arg0" in
-        (env', Boolean.mk_eq ctx (Env.get_const env "_arg0") (exp_to_expr env' arg))
+        let env' = BatList.fold_lefti (fun acc i arg ->
+            let arg_vname = get_arg_vname i in
+            Env.freshen acc arg_vname
+          ) env args
+        in
+        let eqs = List.mapi (fun i arg ->
+            let arg_vname = get_arg_vname i in
+            Boolean.mk_eq ctx (Env.get_const env arg_vname) (exp_to_expr env' arg)
+          ) args
+        in
+        (env', Boolean.mk_and ctx eqs)
       | _ ->
         (env, Boolean.mk_true ctx)
       end
