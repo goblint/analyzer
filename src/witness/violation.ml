@@ -81,6 +81,8 @@ struct
       bool_to_int (Boolean.mk_eq ctx (exp_to_expr env e1) (exp_to_expr env e2))
     | BinOp (Ne, e1, e2, TInt _) ->
       bool_to_int (Boolean.mk_distinct ctx [exp_to_expr env e1; exp_to_expr env e2])
+    | BinOp (Gt, e1, e2, TInt _) ->
+      bool_to_int (Arithmetic.mk_gt ctx (exp_to_expr env e1) (exp_to_expr env e2))
     | e ->
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "exp_to_expr: %a" Cil.d_exp e
 
