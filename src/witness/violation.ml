@@ -28,7 +28,7 @@ let find_sinks (type node) (module Arg:ViolationArg with type Node.t = node) =
 
 
 
-module WP =
+module WP (Node: MyARG.Node) =
 struct
   open Z3
   open Cil
@@ -70,6 +70,9 @@ struct
   let bool_to_int expr =
     Boolean.mk_ite ctx expr (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
 
+  let int_to_bool expr =
+    Boolean.mk_distinct ctx [expr; Arithmetic.Integer.mk_numeral_i ctx 0]
+
   let rec exp_to_expr env = function
     | Const (CInt64 (i, _, _)) ->
       Arithmetic.Integer.mk_numeral_s ctx (Int64.to_string i)
@@ -83,10 +86,12 @@ struct
       bool_to_int (Boolean.mk_distinct ctx [exp_to_expr env e1; exp_to_expr env e2])
     | BinOp (Gt, e1, e2, TInt _) ->
       bool_to_int (Arithmetic.mk_gt ctx (exp_to_expr env e1) (exp_to_expr env e2))
+    | UnOp (LNot, e, TInt _) ->
+      bool_to_int (Boolean.mk_not ctx (int_to_bool (exp_to_expr env e)))
     | e ->
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "exp_to_expr: %a" Cil.d_exp e
 
-  let wp_assert env (_, edge, _) = match edge with
+  let wp_assert env (from_node, edge, _) = match edge with
     | MyCFG.Assign ((Var v, NoOffset), e) ->
       let env' = Env.freshen env v.vname in
       (env', Boolean.mk_eq ctx (Env.get_const env v.vname) (exp_to_expr env' e))
@@ -94,6 +99,22 @@ struct
       (env, Boolean.mk_distinct ctx [exp_to_expr env e; Arithmetic.Integer.mk_numeral_i ctx 0])
     | MyCFG.Test (e, false) ->
       (env, Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0))
+    | MyCFG.Entry fd ->
+      let v = List.hd fd.sformals in (* TODO: support other than one arg *)
+      (* TODO: copied from Assign case *)
+      let env' = Env.freshen env v.vname in
+      (env', Boolean.mk_eq ctx (Env.get_const env v.vname) (Env.get_const env' "_arg0"))
+    | MyCFG.Skip ->
+      begin match Node.cfgnode from_node with
+      (* TODO: remove Cil-based hack to get args *)
+      | MyCFG.Statement {skind=Instr [Call (_, _, args, _)]} ->
+        let arg = List.hd args in (* TODO: support other than one arg *)
+        (* TODO: copied from Assign case *)
+        let env' = Env.freshen env "_arg0" in
+        (env', Boolean.mk_eq ctx (Env.get_const env "_arg0") (exp_to_expr env' arg))
+      | _ ->
+        (env, Boolean.mk_true ctx)
+      end
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyCFG.pretty_edge edge
@@ -208,6 +229,7 @@ let find_path (module Arg:ViolationArg) =
       Some (trace_path next_nodes Arg.main_entry)
   in
 
+  let module WP = WP (Arg.Node) in
   begin match find_path Arg.violations with
     | Some path ->
       print_path path;
