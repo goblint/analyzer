@@ -42,7 +42,14 @@ struct
   ]
   let ctx = mk_context cfg
 
-  type var = string
+  type var = varinfo
+
+  module Var =
+  struct
+    type t = var
+    let equal x y = x.vid = y.vid
+    let compare x y = compare x.vid y.vid
+  end
 
   module type Env =
   sig
@@ -54,17 +61,18 @@ struct
 
   module Env: Env =
   struct
-    module StringMap = Map.Make (String)
+    module VarMap = Map.Make (Var)
 
-    type t = Expr.expr StringMap.t
-    let empty = StringMap.empty
+    type t = Expr.expr VarMap.t
+    let empty = VarMap.empty
+    let get_name x = x.vname
     let get_const m x =
-      match StringMap.find_opt x m with
+      match VarMap.find_opt x m with
       | Some x -> x
-      | None -> Arithmetic.Integer.mk_const_s ctx x
+      | None -> Arithmetic.Integer.mk_const_s ctx (get_name x)
     let sort = Arithmetic.Integer.mk_sort ctx
     let freshen env x =
-      StringMap.add x (Expr.mk_fresh_const ctx x sort) env
+      VarMap.add x (Expr.mk_fresh_const ctx (get_name x) sort) env
   end
 
   let bool_to_int expr =
@@ -77,7 +85,7 @@ struct
     | Const (CInt64 (i, _, _)) ->
       Arithmetic.Integer.mk_numeral_s ctx (Int64.to_string i)
     | Lval (Var v, NoOffset) ->
-      Env.get_const env v.vname
+      Env.get_const env v
     | BinOp (PlusA, e1, e2, TInt _) ->
       Arithmetic.mk_add ctx [exp_to_expr env e1; exp_to_expr env e2]
     | BinOp (Eq, e1, e2, TInt _) ->
@@ -93,25 +101,25 @@ struct
     | e ->
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "exp_to_expr: %a" Cil.d_exp e
 
-  let get_arg_vname i = "_arg" ^ string_of_int i
-  let return_vname = "_return"
+  let get_arg_vname i = Goblintutil.create_var (Cil.makeVarinfo false ("_arg" ^ string_of_int i) Cil.intType) (* TODO: correct type in general *)
+  let return_vname = Goblintutil.create_var (Cil.makeVarinfo false "_return" Cil.intType) (* TODO: correct type in general *)
 
   let wp_assert env (from_node, (edge: MyARG.inline_edge), _) = match edge with
     | MyARG.CFGEdge (MyCFG.Assign ((Var v, NoOffset), e)) ->
-      let env' = Env.freshen env v.vname in
-      (env', [Boolean.mk_eq ctx (Env.get_const env v.vname) (exp_to_expr env' e)])
+      let env' = Env.freshen env v in
+      (env', [Boolean.mk_eq ctx (Env.get_const env v) (exp_to_expr env' e)])
     | MyARG.CFGEdge (MyCFG.Test (e, true)) ->
       (env, [Boolean.mk_distinct ctx [exp_to_expr env e; Arithmetic.Integer.mk_numeral_i ctx 0]])
     | MyARG.CFGEdge (MyCFG.Test (e, false)) ->
       (env, [Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0)])
     | MyARG.CFGEdge (MyCFG.Entry fd) ->
       let env' = List.fold_left (fun acc formal ->
-          Env.freshen acc formal.vname
+          Env.freshen acc formal
         ) env fd.sformals
       in
       let eqs = List.mapi (fun i formal ->
           let arg_vname = get_arg_vname i in
-          Boolean.mk_eq ctx (Env.get_const env formal.vname) (Env.get_const env' arg_vname)
+          Boolean.mk_eq ctx (Env.get_const env formal) (Env.get_const env' arg_vname)
         ) fd.sformals
       in
       (env', eqs)
@@ -135,8 +143,8 @@ struct
     | MyARG.InlineReturn None ->
       (env, [])
     | MyARG.InlineReturn (Some (Var v, NoOffset)) ->
-      let env' = Env.freshen env v.vname in
-      (env', [Boolean.mk_eq ctx (Env.get_const env v.vname) (Env.get_const env' return_vname)])
+      let env' = Env.freshen env v in
+      (env', [Boolean.mk_eq ctx (Env.get_const env v) (Env.get_const env' return_vname)])
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
