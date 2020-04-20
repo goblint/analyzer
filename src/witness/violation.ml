@@ -46,25 +46,25 @@ struct
 
   module type Env =
   sig
-      type t
-      val empty: t
-      val get_const: t -> var -> Expr.expr
-      val freshen: t -> var -> t
+    type t
+    val empty: t
+    val get_const: t -> var -> Expr.expr
+    val freshen: t -> var -> t
   end
 
   module Env: Env =
   struct
-      module StringMap = Map.Make (String)
+    module StringMap = Map.Make (String)
 
-      type t = Expr.expr StringMap.t
-      let empty = StringMap.empty
-      let get_const m x =
-          match StringMap.find_opt x m with
-          | Some x -> x
-          | None -> Arithmetic.Integer.mk_const_s ctx x
-      let sort = Arithmetic.Integer.mk_sort ctx
-      let freshen env x =
-          StringMap.add x (Expr.mk_fresh_const ctx x sort) env
+    type t = Expr.expr StringMap.t
+    let empty = StringMap.empty
+    let get_const m x =
+      match StringMap.find_opt x m with
+      | Some x -> x
+      | None -> Arithmetic.Integer.mk_const_s ctx x
+    let sort = Arithmetic.Integer.mk_sort ctx
+    let freshen env x =
+      StringMap.add x (Expr.mk_fresh_const ctx x sort) env
   end
 
   let bool_to_int expr =
