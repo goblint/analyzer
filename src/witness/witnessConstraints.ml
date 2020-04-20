@@ -30,16 +30,15 @@ struct
   let tag _ = failwith "PrintableVar: no tag"
 end
 
-(* TODO: move this to MyCFG *)
-module Edge: Printable.S with type t = MyCFG.edge =
+module Edge: Printable.S with type t = MyARG.inline_edge =
 struct
-  type t = MyCFG.edge [@@deriving to_yojson]
+  type t = MyARG.inline_edge [@@deriving to_yojson]
 
   let equal = Util.equals
   let compare = Pervasives.compare
   let hash = Hashtbl.hash
 
-  let short w x = Pretty.sprint w (MyCFG.pretty_edge () x)
+  let short w x = Pretty.sprint w (MyARG.pretty_inline_edge () x)
   let name () = "edge"
 
   include Printable.PrintSimple (
@@ -103,11 +102,11 @@ struct
           | `Lifted (node, _) -> node
           | _ -> MyCFG.dummy_node
         in
-        let s = Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: prev_node mismatch at %a via %a: %a vs %a" MyCFG.pretty_node ctx.node Edge.pretty ctx.edge MyCFG.pretty_node (extract_node prev_node_witness) MyCFG.pretty_node (extract_node prev_node_ctx)) in
+        let s = Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: prev_node mismatch at %a via %a: %a vs %a" MyCFG.pretty_node ctx.node MyCFG.pretty_edge ctx.edge MyCFG.pretty_node (extract_node prev_node_witness) MyCFG.pretty_node (extract_node prev_node_ctx)) in
         (* M.waitWhat s; *)
         failwith s;
       end;
-      step prev_node_witness ctx.edge (ctx.node, context)
+      step prev_node_witness (CFGEdge ctx.edge) (ctx.node, context)
     with Ctx_failure _ ->
       W.bot ()
 
@@ -147,7 +146,7 @@ struct
           let to_node = (MyCFG.FunctionEntry v, S.context d) in
           let w' =
             if should_inline v then
-              step_witness w MyCFG.Skip to_node
+              step_witness w (InlineEntry []) to_node (* TODO: args *)
             else
               (VES.bot (), `Lifted to_node)
           in
@@ -226,7 +225,7 @@ struct
         let to_node = (MyCFG.FunctionEntry f, S.context d2) in
         let w' =
           if should_inline f then
-            step_witness w MyCFG.Skip to_node
+            step_witness w (InlineEntry []) to_node (* TODO: args *)
           else
             (VES.bot (), `Lifted to_node)
         in
@@ -237,7 +236,7 @@ struct
     let d = S.combine (unlift_ctx ctx) r fe f args fc d' in
     let w =
       if should_inline f then
-        step_witness w' MyCFG.Skip (ctx.node, get_context ctx)
+        step_witness w' (InlineReturn None) (ctx.node, get_context ctx) (* TODO: return *)
       else
         step_ctx ctx
     in
@@ -409,7 +408,7 @@ struct
     let h x (i, xs) =
       let r =
         try
-          R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int i), ctx.edge)
+          R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int i), CFGEdge ctx.edge)
         with Ctx_failure _ ->
           R.bot ()
       in
@@ -477,7 +476,7 @@ struct
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             try
-              R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int 0), Skip)
+              R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int 0), InlineEntry []) (* TODO: args *)
             with Ctx_failure _ ->
               R.bot ()
           in
@@ -492,7 +491,7 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x (i, y) =
-      let r = R.singleton ((Function f, fc, Int64.of_int i), Skip) in
+      let r = R.singleton ((Function f, fc, Int64.of_int i), InlineReturn None) in (* TODO: return *)
       try (succ i, D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y)
       with Deadcode -> (succ i, y)
     in

@@ -14,11 +14,44 @@ end
 module type Edge =
 sig
   type t
+
+  val embed: MyCFG.edge -> t
+  val cfgedge: t -> MyCFG.edge option
+  val to_string: t -> string
 end
 
-module CFGEdge =
+module CFGEdge: Edge with type t = MyCFG.edge =
 struct
   type t = edge
+
+  let embed e = e
+  let cfgedge e = Some e
+  let to_string e = Pretty.sprint 80 (pretty_edge () e)
+end
+
+type inline_edge =
+  | CFGEdge of edge
+  | InlineEntry of Deriving.Cil.exp list
+  | InlineReturn of Deriving.Cil.lval option
+  [@@deriving to_yojson]
+
+let pretty_inline_edge () = function
+  | CFGEdge e -> MyCFG.pretty_edge () e
+  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
+  | InlineReturn None -> Pretty.dprintf "InlineReturn"
+  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+
+module InlineEdge: Edge with type t = inline_edge =
+struct
+  type t = inline_edge [@@deriving to_yojson]
+
+  let embed e = CFGEdge e
+
+  let cfgedge = function
+    | CFGEdge e -> Some e
+    | _ -> None
+
+  let to_string e = Pretty.sprint 80 (pretty_inline_edge () e)
 end
 
 (* Abstract Reachability Graph *)
@@ -297,7 +330,7 @@ struct
     | None -> Arg.next n
 end
 
-module Intra (ArgIntra: SIntraOpt) (Arg: S with module Edge = CFGEdge):
+module Intra (ArgIntra: SIntraOpt) (Arg: S):
   S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
   include Arg
@@ -310,6 +343,6 @@ struct
       next
       |> BatList.filter_map (fun (e, to_n) ->
           Node.move_opt node to_n
-          |> BatOption.map (fun to_node -> (e, to_node))
+          |> BatOption.map (fun to_node -> (Edge.embed e, to_node))
         )
 end

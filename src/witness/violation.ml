@@ -1,8 +1,8 @@
 module type ViolationArg =
 sig
-  include MyARG.S
+  include MyARG.S with module Edge = MyARG.InlineEdge
 
-  val prev: Node.t -> (MyCFG.edge * Node.t) list
+  val prev: Node.t -> (Edge.t * Node.t) list
   val violations: Node.t list
 end
 
@@ -93,15 +93,15 @@ struct
 
   let get_arg_vname i = "_arg" ^ string_of_int i
 
-  let wp_assert env (from_node, edge, _) = match edge with
-    | MyCFG.Assign ((Var v, NoOffset), e) ->
+  let wp_assert env (from_node, (edge: MyARG.inline_edge), _) = match edge with
+    | MyARG.CFGEdge (MyCFG.Assign ((Var v, NoOffset), e)) ->
       let env' = Env.freshen env v.vname in
       (env', Boolean.mk_eq ctx (Env.get_const env v.vname) (exp_to_expr env' e))
-    | MyCFG.Test (e, true) ->
+    | MyARG.CFGEdge (MyCFG.Test (e, true)) ->
       (env, Boolean.mk_distinct ctx [exp_to_expr env e; Arithmetic.Integer.mk_numeral_i ctx 0])
-    | MyCFG.Test (e, false) ->
+    | MyARG.CFGEdge (MyCFG.Test (e, false)) ->
       (env, Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0))
-    | MyCFG.Entry fd ->
+    | MyARG.CFGEdge (MyCFG.Entry fd) ->
       let env' = List.fold_left (fun acc formal ->
           Env.freshen acc formal.vname
         ) env fd.sformals
@@ -112,7 +112,7 @@ struct
         ) fd.sformals
       in
       (env', Boolean.mk_and ctx eqs)
-    | MyCFG.Skip ->
+    | MyARG.InlineEntry args ->
       begin match Node.cfgnode from_node with
       (* TODO: remove Cil-based hack to get args *)
       | MyCFG.Statement {skind=Instr [Call (_, _, args, _)]} ->
@@ -132,7 +132,7 @@ struct
       end
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
-      failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyCFG.pretty_edge edge
+      failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
 
   let const_get_symbol (expr: Expr.expr): Symbol.symbol =
     assert (Expr.is_const expr);
@@ -140,9 +140,9 @@ struct
     FuncDecl.get_name func_decl
 
 
-  type 'a result =
+  type result =
     | Feasible
-    | Infeasible of ('a * MyCFG.edge * 'a) list
+    | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
     | Unknown
 
   let wp_path path =
@@ -211,7 +211,7 @@ let find_path (module Arg:ViolationArg) =
 
   let print_path path =
     List.iter (fun (n1, e, n2) ->
-        ignore (Pretty.printf "  %s =[%a]=> %s\n" (Arg.Node.to_string n1) MyCFG.pretty_edge e (Arg.Node.to_string n2))
+        ignore (Pretty.printf "  %s =[%s]=> %s\n" (Arg.Node.to_string n1) (Arg.Edge.to_string e) (Arg.Node.to_string n2))
       ) path
   in
 

@@ -4,7 +4,7 @@ open Graphml
 open Svcomp
 open GobConfig
 
-module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.CFGEdge
+module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
   let module Cfg = Task.Cfg in
@@ -27,7 +27,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       else if WitnessUtil.NH.mem loop_heads to_cfgnode then
         true
       else begin match edge with
-        | Test _ -> true
+        | MyARG.CFGEdge (Test _) -> true
         | _ -> false
       end || begin match to_cfgnode, TaskResult.invariant to_node with
           | Statement _, Some _ -> true
@@ -177,17 +177,17 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         begin match edge with
           (* control actually only allowed in violation witness *)
-          | Test (_, b) ->
+          | MyARG.CFGEdge (Test (_, b)) ->
             [("control", "condition-" ^ string_of_bool b)]
           (* enter and return on other side of nodes,
              more correct loc (startline) but had some scope problem? *)
-          | Entry f ->
+          | MyARG.CFGEdge (Entry f) ->
             [("enterFunction2", f.svar.vname)]
-          | Ret (_, f) ->
+          | MyARG.CFGEdge (Ret (_, f)) ->
             [("returnFromFunction2", f.svar.vname)]
           | _ -> []
         end;
-        [("goblintEdge", Pretty.sprint 80 (pretty_edge () edge))]
+        [("goblintEdge", Arg.Edge.to_string edge)]
       ])
   in
 
