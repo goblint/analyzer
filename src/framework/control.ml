@@ -546,6 +546,7 @@ struct
       let module Arg =
       struct
         module Node = Node
+        module Edge = MyARG.CFGEdge
         let main_entry =
           let (n, c) = WitnessUtil.find_main_entry entrystates in
           (n, c, 0)

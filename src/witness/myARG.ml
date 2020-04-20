@@ -11,13 +11,24 @@ sig
   val move_opt: t -> MyCFG.node -> t option
 end
 
+module type Edge =
+sig
+  type t
+end
+
+module CFGEdge =
+struct
+  type t = edge
+end
+
 (* Abstract Reachability Graph *)
 module type S =
 sig
   module Node: Node
+  module Edge: Edge
 
   val main_entry: Node.t
-  val next: Node.t -> (MyCFG.edge * Node.t) list
+  val next: Node.t -> (Edge.t * Node.t) list
 end
 
 module StackNode (Node: Node):
@@ -39,9 +50,10 @@ struct
 end
 
 module Stack (Cfg:CfgForward) (Arg: S):
-  S with module Node = StackNode (Arg.Node) =
+  S with module Node = StackNode (Arg.Node) and module Edge = Arg.Edge =
 struct
   module Node = StackNode (Arg.Node)
+  module Edge = Arg.Edge
 
   let main_entry = [Arg.main_entry]
 
@@ -105,11 +117,12 @@ end
 module type IsInteresting =
 sig
   type node
-  val is_interesting: node -> MyCFG.edge -> node -> bool
+  type edge
+  val is_interesting: node -> edge -> node -> bool
 end
 
-module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t):
-  S with module Node = Arg.Node =
+module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t and type edge := Arg.Edge.t):
+  S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
   include Arg
 
@@ -284,8 +297,8 @@ struct
     | None -> Arg.next n
 end
 
-module Intra (ArgIntra: SIntraOpt) (Arg: S):
-  S with module Node = Arg.Node =
+module Intra (ArgIntra: SIntraOpt) (Arg: S with module Edge = CFGEdge):
+  S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
   include Arg
   open GobConfig

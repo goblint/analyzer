@@ -4,7 +4,9 @@ open Graphml
 open Svcomp
 open GobConfig
 
-let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
+module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.CFGEdge
+
+let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
   let module Cfg = Task.Cfg in
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
@@ -12,7 +14,8 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   let module N = TaskResult.Arg.Node in
   let module IsInteresting =
   struct
-    type t = N.t
+    type node = N.t
+    type edge = TaskResult.Arg.Edge.t
     let minwitness = get_bool "exp.minwitness"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
