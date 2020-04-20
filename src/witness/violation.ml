@@ -99,11 +99,11 @@ struct
   let wp_assert env (from_node, (edge: MyARG.inline_edge), _) = match edge with
     | MyARG.CFGEdge (MyCFG.Assign ((Var v, NoOffset), e)) ->
       let env' = Env.freshen env v.vname in
-      (env', Boolean.mk_eq ctx (Env.get_const env v.vname) (exp_to_expr env' e))
+      (env', [Boolean.mk_eq ctx (Env.get_const env v.vname) (exp_to_expr env' e)])
     | MyARG.CFGEdge (MyCFG.Test (e, true)) ->
-      (env, Boolean.mk_distinct ctx [exp_to_expr env e; Arithmetic.Integer.mk_numeral_i ctx 0])
+      (env, [Boolean.mk_distinct ctx [exp_to_expr env e; Arithmetic.Integer.mk_numeral_i ctx 0]])
     | MyARG.CFGEdge (MyCFG.Test (e, false)) ->
-      (env, Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0))
+      (env, [Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0)])
     | MyARG.CFGEdge (MyCFG.Entry fd) ->
       let env' = List.fold_left (fun acc formal ->
           Env.freshen acc formal.vname
@@ -114,7 +114,7 @@ struct
           Boolean.mk_eq ctx (Env.get_const env formal.vname) (Env.get_const env' arg_vname)
         ) fd.sformals
       in
-      (env', Boolean.mk_and ctx eqs)
+      (env', eqs)
     | MyARG.InlineEntry args ->
       let env' = BatList.fold_lefti (fun acc i arg ->
           let arg_vname = get_arg_vname i in
@@ -126,17 +126,17 @@ struct
           Boolean.mk_eq ctx (Env.get_const env arg_vname) (exp_to_expr env' arg)
         ) args
       in
-      (env', Boolean.mk_and ctx eqs)
+      (env', eqs)
     | MyARG.CFGEdge (MyCFG.Ret (None, fd)) ->
-      (env, Boolean.mk_true ctx)
+      (env, [])
     | MyARG.CFGEdge (MyCFG.Ret (Some e, fd)) ->
       let env' = Env.freshen env return_vname in
-      (env', Boolean.mk_eq ctx (Env.get_const env return_vname) (exp_to_expr env' e))
+      (env', [Boolean.mk_eq ctx (Env.get_const env return_vname) (exp_to_expr env' e)])
     | MyARG.InlineReturn None ->
-      (env, Boolean.mk_true ctx)
+      (env, [])
     | MyARG.InlineReturn (Some (Var v, NoOffset)) ->
       let env' = Env.freshen env v.vname in
-      (env', Boolean.mk_eq ctx (Env.get_const env v.vname) (Env.get_const env' return_vname))
+      (env', [Boolean.mk_eq ctx (Env.get_const env v.vname) (Env.get_const env' return_vname)])
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
@@ -157,44 +157,53 @@ struct
     let rec iter_wp revpath i env = match revpath with
       | [] -> Feasible
       | step :: revpath' ->
-        let (env', expr) = wp_assert env step in
-        Printf.printf "%d: %s\n" i (Expr.to_string expr);
+        let (env', asserts) = wp_assert env step in
+        begin match asserts with
+          | [] -> iter_wp revpath' (i - 1) env'
+          | [expr] -> do_assert revpath' i env' expr
+          | exprs ->
+            let expr = Boolean.mk_and ctx exprs in
+            do_assert revpath' i env' expr
+        end
 
-        let track_const = Boolean.mk_const ctx (Symbol.mk_int ctx i) in
-        Solver.assert_and_track solver expr track_const;
+    and do_assert revpath' i env' expr =
+      Printf.printf "%d: %s\n" i (Expr.to_string expr);
 
-        let status = Solver.check solver [] in
-        Printf.printf "%d: %s\n" i (Solver.string_of_status status);
-        match Solver.check solver [] with
-        | Solver.SATISFIABLE ->
-          Printf.printf "%d: %s\n" i (Model.to_string (BatOption.get @@ Solver.get_model solver));
-          iter_wp revpath' (i - 1) env'
+      let track_const = Boolean.mk_const ctx (Symbol.mk_int ctx i) in
+      Solver.assert_and_track solver expr track_const;
 
-        | Solver.UNSATISFIABLE ->
-          (* TODO: this doesn't exist in Z3 API? *)
-          let extract_track expr =
-            assert (Expr.is_const expr);
-            let symbol = const_get_symbol expr in
-            assert (Symbol.is_int_symbol symbol);
-            Symbol.get_int symbol
-          in
-          let unsat_core = Solver.get_unsat_core solver in
-          let unsat_core_is =
-            unsat_core
-            |> List.map extract_track
-            |> List.sort compare
-          in
-          unsat_core_is
-          |> List.map string_of_int
-          |> String.concat " "
-          |> print_endline;
+      let status = Solver.check solver [] in
+      Printf.printf "%d: %s\n" i (Solver.string_of_status status);
+      match Solver.check solver [] with
+      | Solver.SATISFIABLE ->
+        Printf.printf "%d: %s\n" i (Model.to_string (BatOption.get @@ Solver.get_model solver));
+        iter_wp revpath' (i - 1) env'
 
-          let (mini, maxi) = BatList.min_max unsat_core_is in
-          let unsat_path = BatList.filteri (fun i _ -> mini <= i && i <= maxi) path in (* TODO: optimize subpath *)
-          Infeasible unsat_path
+      | Solver.UNSATISFIABLE ->
+        (* TODO: this doesn't exist in Z3 API? *)
+        let extract_track expr =
+          assert (Expr.is_const expr);
+          let symbol = const_get_symbol expr in
+          assert (Symbol.is_int_symbol symbol);
+          Symbol.get_int symbol
+        in
+        let unsat_core = Solver.get_unsat_core solver in
+        let unsat_core_is =
+          unsat_core
+          |> List.map extract_track
+          |> List.sort compare
+        in
+        unsat_core_is
+        |> List.map string_of_int
+        |> String.concat " "
+        |> print_endline;
 
-        | Solver.UNKNOWN ->
-          Unknown
+        let (mini, maxi) = BatList.min_max unsat_core_is in
+        let unsat_path = BatList.filteri (fun i _ -> mini <= i && i <= maxi) path in (* TODO: optimize subpath *)
+        Infeasible unsat_path
+
+      | Solver.UNKNOWN ->
+        Unknown
     in
     iter_wp (List.rev path) (List.length path - 1) Env.empty
 end

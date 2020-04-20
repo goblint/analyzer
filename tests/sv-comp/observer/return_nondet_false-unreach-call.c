@@ -7,9 +7,17 @@ void __VERIFIER_assert(int cond) {
     return;
 }
 
+int lt(int x, int y)
+{
+    return x < y;
+}
+
 int main()
 {
     int x = __VERIFIER_nondet_int();
-    __VERIFIER_assert(x < 1000);
+    // __VERIFIER_assert(x < 1000);
+
+    int b = lt(x, 1000);
+    __VERIFIER_assert(b);
     return 0;
 }
