@@ -113,23 +113,17 @@ struct
       in
       (env', Boolean.mk_and ctx eqs)
     | MyARG.InlineEntry args ->
-      begin match Node.cfgnode from_node with
-      (* TODO: remove Cil-based hack to get args *)
-      | MyCFG.Statement {skind=Instr [Call (_, _, args, _)]} ->
-        let env' = BatList.fold_lefti (fun acc i arg ->
-            let arg_vname = get_arg_vname i in
-            Env.freshen acc arg_vname
-          ) env args
-        in
-        let eqs = List.mapi (fun i arg ->
-            let arg_vname = get_arg_vname i in
-            Boolean.mk_eq ctx (Env.get_const env arg_vname) (exp_to_expr env' arg)
-          ) args
-        in
-        (env', Boolean.mk_and ctx eqs)
-      | _ ->
-        (env, Boolean.mk_true ctx)
-      end
+      let env' = BatList.fold_lefti (fun acc i arg ->
+          let arg_vname = get_arg_vname i in
+          Env.freshen acc arg_vname
+        ) env args
+      in
+      let eqs = List.mapi (fun i arg ->
+          let arg_vname = get_arg_vname i in
+          Boolean.mk_eq ctx (Env.get_const env arg_vname) (exp_to_expr env' arg)
+        ) args
+      in
+      (env', Boolean.mk_and ctx eqs)
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
