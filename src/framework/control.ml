@@ -601,8 +601,7 @@ struct
         end
         in
         (* let () = Violation.find_path (module ViolationArg) in *)
-        (* let is_sink = Violation.find_sinks (module ViolationArg) in *)
-        let is_sink _ = false in (* TODO: put back sinks after function calls handled *)
+        let is_sink = Violation.find_sinks (module ViolationArg) in
         let module TaskResult =
         struct
           module Arg = Arg
