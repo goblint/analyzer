@@ -81,8 +81,8 @@ struct
       bool_to_int (Boolean.mk_eq ctx (exp_to_expr env e1) (exp_to_expr env e2))
     | BinOp (Ne, e1, e2, TInt _) ->
       bool_to_int (Boolean.mk_distinct ctx [exp_to_expr env e1; exp_to_expr env e2])
-    | _ ->
-      failwith "exp_to_expr"
+    | e ->
+      failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "exp_to_expr: %a" Cil.d_exp e
 
   let wp_assert env (_, edge, _) = match edge with
     | MyCFG.Assign ((Var v, NoOffset), e) ->
@@ -94,7 +94,7 @@ struct
       (env, Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0))
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
-      failwith "wp_assert"
+      failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyCFG.pretty_edge edge
 
   let const_get_symbol (expr: Expr.expr): Symbol.symbol =
     assert (Expr.is_const expr);
