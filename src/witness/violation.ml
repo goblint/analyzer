@@ -86,12 +86,15 @@ struct
       bool_to_int (Boolean.mk_distinct ctx [exp_to_expr env e1; exp_to_expr env e2])
     | BinOp (Gt, e1, e2, TInt _) ->
       bool_to_int (Arithmetic.mk_gt ctx (exp_to_expr env e1) (exp_to_expr env e2))
+    | BinOp (Lt, e1, e2, TInt _) ->
+      bool_to_int (Arithmetic.mk_lt ctx (exp_to_expr env e1) (exp_to_expr env e2))
     | UnOp (LNot, e, TInt _) ->
       bool_to_int (Boolean.mk_not ctx (int_to_bool (exp_to_expr env e)))
     | e ->
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "exp_to_expr: %a" Cil.d_exp e
 
   let get_arg_vname i = "_arg" ^ string_of_int i
+  let return_vname = "_return"
 
   let wp_assert env (from_node, (edge: MyARG.inline_edge), _) = match edge with
     | MyARG.CFGEdge (MyCFG.Assign ((Var v, NoOffset), e)) ->
@@ -124,6 +127,16 @@ struct
         ) args
       in
       (env', Boolean.mk_and ctx eqs)
+    | MyARG.CFGEdge (MyCFG.Ret (None, fd)) ->
+      (env, Boolean.mk_true ctx)
+    | MyARG.CFGEdge (MyCFG.Ret (Some e, fd)) ->
+      let env' = Env.freshen env return_vname in
+      (env', Boolean.mk_eq ctx (Env.get_const env return_vname) (exp_to_expr env' e))
+    | MyARG.InlineReturn None ->
+      (env, Boolean.mk_true ctx)
+    | MyARG.InlineReturn (Some (Var v, NoOffset)) ->
+      let env' = Env.freshen env v.vname in
+      (env', Boolean.mk_eq ctx (Env.get_const env v.vname) (Env.get_const env' return_vname))
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
       failwith @@ Pretty.sprint ~width:80 @@ Pretty.dprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
