@@ -600,7 +600,7 @@ struct
           let violations = violations
         end
         in
-        (* let () = Violation.find_path (module ViolationArg) in *)
+        let () = Violation.find_path (module ViolationArg) in
         let is_sink = Violation.find_sinks (module ViolationArg) in
         let module TaskResult =
         struct

@@ -188,7 +188,8 @@ let find_path (module Arg:ViolationArg) =
         else if not (NHT.mem itered_nodes node) then begin
           NHT.replace itered_nodes node ();
           List.iter (fun (edge, prev_node) ->
-              NHT.replace next_nodes prev_node (edge, node)
+              if not (NHT.mem itered_nodes prev_node) then
+                NHT.replace next_nodes prev_node (edge, node)
             ) (Arg.prev node);
           bfs curs' (List.map snd (Arg.prev node) @ nexts)
         end
