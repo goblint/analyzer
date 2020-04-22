@@ -499,7 +499,7 @@ struct
 
       let module NHT = BatHashtbl.Make (Node) in
 
-      let (witness_prev_map, witness_prev, witness_next) =
+      let (witness_prev_map, witness_prev, witness_next, witness_main) =
         let lh = !lh_ref in
         let gh = !global_xml in
         let ask_local (lvar:EQSys.LVar.t) local =
@@ -535,21 +535,32 @@ struct
                 NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
               )))
           ) lh;
+        let main =
+          let lvar = WitnessUtil.find_main_entry entrystates in
+          let local = get lvar in
+          (* TODO: get rid of this hack for getting index of entry state *)
+          let mains = NHT.create 1 in
+          ignore (ask_local lvar local (Queries.IterVars (fun i ->
+              let lvar' = (fst lvar, snd lvar, i) in
+              NHT.replace mains lvar' ()
+            )));
+          assert (NHT.length mains = 1);
+          fst (List.hd (NHT.to_list mains))
+        in
 
         (prev,
          (fun n ->
             NHT.find_default prev n []), (* main entry is not in prev at all *)
          (fun n ->
-            NHT.find_default next n [])) (* main return is not in next at all *)
+            NHT.find_default next n []), (* main return is not in next at all *)
+          main)
       in
 
       let module Arg =
       struct
         module Node = Node
         module Edge = MyARG.InlineEdge
-        let main_entry =
-          let (n, c) = WitnessUtil.find_main_entry entrystates in
-          (n, c, 0)
+        let main_entry = witness_main
         let next = witness_next
       end
       in

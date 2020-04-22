@@ -254,10 +254,25 @@ module PathSensitive3 (Spec:Spec)
      and module C = Spec.C *)
 =
 struct
-  module I = IntDomain.Integers
+  (* module I = IntDomain.Integers *)
+  module I = Spec.D
   module VI = Printable.Prod3 (PrintableVar) (Spec.C) (I)
-  module VIE = Printable.Prod (VI) (Edge)
-  module VIES = SetDomain.ToppedSet (VIE) (struct let topname = "VIES top" end)
+  module VIE =
+  struct
+    include Printable.Prod (VI) (Edge)
+
+    let leq ((v, c, x'), e) ((w, d, y'), f) =
+      PrintableVar.equal v w && Spec.C.equal c d && I.leq x' y' && Edge.equal e f
+    let join _ _ = failwith "VIE join"
+    let meet _ _ = failwith "VIE meet"
+    let widen _ _ = failwith "VIE widen"
+    let narrow _ _ = failwith "VIE narrow"
+    let top () = failwith "VIE top"
+    let is_top _ = failwith "VIE is_top"
+    let bot () = failwith "VIE bot"
+    let is_bot ((_, _, x'), _) = I.is_bot x'
+  end
+  module VIES = SetDomain.Hoare (VIE) (struct let topname = "VIES top" end)
 
   module R = VIES
 
@@ -331,6 +346,8 @@ struct
       (* | `Lifted s -> S.exists (Spec.D.leq x) s *)
       (* exists check per previous VIE.t in R.t *)
       (* seems to be necessary for correct ARG but why? *)
+      (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr *)
+      (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.exists (fun vie' -> VIE.leq vie vie') yr) s) xr *)
       | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr
     let leq a b =
       match a with
@@ -365,7 +382,8 @@ struct
       | `Top -> failwith "invariant Top"
       | `Lifted s ->
         (* TODO: optimize indexing *)
-        let (d, _) = List.at (S.elements s) c.Invariant.i in
+        (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
+        let (d, _) = List.find (fun (x, _) -> Spec.D.hash x = c.Invariant.i) (S.elements s) in
         Spec.D.invariant c d
   end
 
@@ -404,11 +422,14 @@ struct
 
   let get_context ctx = ctx.context2 ()
 
+  (* let prev_i i x = Int64.of_int i *)
+  let prev_i i x = x
+
   let map ctx f g =
     let h x (i, xs) =
       let r =
         try
-          R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int i), CFGEdge ctx.edge)
+          R.singleton ((ctx.prev_node, get_context ctx, prev_i i x), CFGEdge ctx.edge)
         with Ctx_failure _ ->
           R.bot ()
       in
@@ -437,21 +458,21 @@ struct
 
   let fold' ctx f g h a =
     let k x a =
-      try h a @@ g @@ f @@ conv ctx x
+      try h a x @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
     D.fold k ctx.local a
 
   let fold'' ctx f g h a =
     let k x r a =
-      try h a r @@ g @@ f @@ conv ctx x
+      try h a x r @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
     D.fold' k ctx.local a
 
   let sync ctx =
     (* TODO: no idea if this is right *)
-    fold'' ctx Spec.sync identity (fun (a,b) r (a',b') -> D.add a' r a, b'@b) (D.empty (), [])
+    fold'' ctx Spec.sync identity (fun (a,b) _ r (a',b') -> D.add a' r a, b'@b) (D.empty (), [])
 
   let query ctx q =
     match q with
@@ -461,22 +482,34 @@ struct
           D.S.elements s
           |> List.iteri (fun i (x, r) ->
               R.iter (fun ((n, c, j), e) ->
-                f i (n, Obj.repr c, Int64.to_int j) e
+                (* f i (n, Obj.repr c, Int64.to_int j) e *)
+                f (Spec.D.hash x) (n, Obj.repr c, Spec.D.hash j) e
               ) r
             )
         | `Top -> failwith "prev messed up: top"
       end;
       `Bot
+    | Queries.IterVars f ->
+      begin match ctx.local with
+        | `Lifted s ->
+          D.S.elements s
+          |> List.iteri (fun i (x, r) ->
+              (* f i *)
+              f (Spec.D.hash x)
+            )
+        | `Top -> failwith "prev messed up: top"
+      end;
+      `Bot
     | _ ->
-      fold' ctx Spec.query identity (fun x f -> Queries.Result.meet x (f q)) `Top
+      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.meet x (f q)) `Top
 
   let enter ctx l f a =
-    let g (i, xs) ys =
+    let g (i, xs) x' ys =
       let ys' = List.map (fun (x,y) ->
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             try
-              R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int i), InlineEntry a)
+              R.singleton ((ctx.prev_node, get_context ctx, prev_i i x'), InlineEntry a)
             with Ctx_failure _ ->
               R.bot ()
           in
@@ -491,7 +524,7 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x (i, y) =
-      let r = R.singleton ((Function f, fc, Int64.of_int i), InlineReturn l) in
+      let r = R.singleton ((Function f, fc, prev_i i x), InlineReturn l) in
       try (succ i, D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y)
       with Deadcode -> (succ i, y)
     in
