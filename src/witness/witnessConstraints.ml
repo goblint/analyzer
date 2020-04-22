@@ -255,7 +255,14 @@ module PathSensitive3 (Spec:Spec)
 =
 struct
   (* module I = IntDomain.Integers *)
-  module I = Spec.D
+  module I =
+  struct
+    include Spec.D
+
+    (* TODO: use something less collision-prone, e.g. tag *)
+    (* tag requires hashcons domain inside *)
+    let to_int = hash
+  end
   module VI = Printable.Prod3 (PrintableVar) (Spec.C) (I)
   module VIE =
   struct
@@ -383,7 +390,7 @@ struct
       | `Lifted s ->
         (* TODO: optimize indexing *)
         (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
-        let (d, _) = List.find (fun (x, _) -> Spec.D.hash x = c.Invariant.i) (S.elements s) in
+        let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (S.elements s) in
         Spec.D.invariant c d
   end
 
@@ -483,7 +490,7 @@ struct
           |> List.iteri (fun i (x, r) ->
               R.iter (fun ((n, c, j), e) ->
                 (* f i (n, Obj.repr c, Int64.to_int j) e *)
-                f (Spec.D.hash x) (n, Obj.repr c, Spec.D.hash j) e
+                f (I.to_int x) (n, Obj.repr c, I.to_int j) e
               ) r
             )
         | `Top -> failwith "prev messed up: top"
@@ -495,7 +502,7 @@ struct
           D.S.elements s
           |> List.iteri (fun i (x, r) ->
               (* f i *)
-              f (Spec.D.hash x)
+              f (I.to_int x)
             )
         | `Top -> failwith "prev messed up: top"
       end;
