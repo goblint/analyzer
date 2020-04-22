@@ -476,7 +476,7 @@ struct
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             try
-              R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int 0), InlineEntry a)
+              R.singleton ((ctx.prev_node, get_context ctx, Int64.of_int i), InlineEntry a)
             with Ctx_failure _ ->
               R.bot ()
           in
