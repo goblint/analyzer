@@ -28,7 +28,11 @@ The analysis results are printed to stdout by default.
 Adding `--html` saves the results as XML, which is then transformed to be viewable in a web browser.
 Use `make jar` to build the needed Java program.
 
-    ./goblint --html path/to/file.c && firefox result/index.xml
+    ./goblint --html path/to/file.c
+
+Open `result/index.xml` in a browser of your choice.
+Depending on the browser security settings, it might be necessary to serve the result directory from a webserver to access it.
+This can be done by e.g. running `python3 -m http.server` in the `result` directory. The results should then be accessible at `http://localhost:8000`
 
 <!-- ### Web frontend -->
 <!-- Use `make npm` to setup the web frontend and start serving on <http://localhost:3000>. -->
