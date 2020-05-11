@@ -130,6 +130,7 @@ let _ = ()
       ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
       ; reg Analyses "ana.mutex.disjoint_types" "true" "Do not propagate basic type writes to all struct fields"
       ; reg Analyses "ana.sv-comp"         "false" "SV-COMP mode"
+      ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
 
 (* {4 category [Transformations]} *)
 let _ = ()
