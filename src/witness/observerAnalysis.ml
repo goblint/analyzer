@@ -82,6 +82,11 @@ struct
     end
   )
 
+  (* let () = Arg.path
+    |> List.map (fun (p, n) -> Printf.sprintf "(%d, %d)" p n)
+    |> String.concat "; "
+    |> Printf.printf "observer path: [%s]\n" *)
+
   let step ctx =
     match ctx.local with
     | `Lifted q -> begin
@@ -93,9 +98,9 @@ struct
         let n = get_sid ctx.node in
         let q' = KMP.next q (p, n) in
         if q' = KMP.m then
-          (* raise Deadcode *)
+          raise Deadcode
           (* TODO: undo. currently observer doesn't kill paths, just splits for nice ARG viewing purposes *)
-          `Lifted q'
+          (* `Lifted q' *)
         else
           `Lifted q'
       end
@@ -161,8 +166,12 @@ let _ =
       (* junker, observer 3 *)
       (* let path = [(14, 16); (16, 18); (18, 10); (10, 13)] *)
       (* junker, SV, observer 3 *)
-      let path = [(30, 32); (32, 34); (34, 26); (26, 29)]
+      (* let path = [(30, 32); (32, 34); (34, 26); (26, 29)] *)
+
+      (* FSE15, nofun, swapped a *)
+      let path = [(20, 22); (22, 24); (24, 28); (28, 29); (29, 30); (30, 32)]
     end
   )
   in
-  MCP.register_analysis (module Spec)
+  (* MCP.register_analysis (module Spec) *)
+  ()

@@ -613,6 +613,7 @@ struct
         end
         in
         let () = Violation.find_path (module ViolationArg) in
+        (* TODO: exclude sinks before find_path? *)
         let is_sink = Violation.find_sinks (module ViolationArg) in
         let module TaskResult =
         struct

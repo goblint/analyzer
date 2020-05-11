@@ -88,6 +88,10 @@ struct
       Env.get_const env v
     | BinOp (PlusA, e1, e2, TInt _) ->
       Arithmetic.mk_add ctx [exp_to_expr env e1; exp_to_expr env e2]
+    | BinOp (MinusA, e1, e2, TInt _) ->
+      Arithmetic.mk_sub ctx [exp_to_expr env e1; exp_to_expr env e2]
+    | BinOp (Mult, e1, e2, TInt _) ->
+      Arithmetic.mk_mul ctx [exp_to_expr env e1; exp_to_expr env e2]
     | BinOp (Eq, e1, e2, TInt _) ->
       bool_to_int (Boolean.mk_eq ctx (exp_to_expr env e1) (exp_to_expr env e2))
     | BinOp (Ne, e1, e2, TInt _) ->
@@ -96,6 +100,10 @@ struct
       bool_to_int (Arithmetic.mk_gt ctx (exp_to_expr env e1) (exp_to_expr env e2))
     | BinOp (Lt, e1, e2, TInt _) ->
       bool_to_int (Arithmetic.mk_lt ctx (exp_to_expr env e1) (exp_to_expr env e2))
+    | BinOp (Ge, e1, e2, TInt _) ->
+      bool_to_int (Arithmetic.mk_ge ctx (exp_to_expr env e1) (exp_to_expr env e2))
+    | BinOp (Le, e1, e2, TInt _) ->
+      bool_to_int (Arithmetic.mk_le ctx (exp_to_expr env e1) (exp_to_expr env e2))
     | UnOp (LNot, e, TInt _) ->
       bool_to_int (Boolean.mk_not ctx (int_to_bool (exp_to_expr env e)))
     | e ->
