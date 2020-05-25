@@ -109,7 +109,7 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
-  let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
+  let heap_var (type_sig: typsig) = AD.from_var (BaseDomain.get_heap_var type_sig)
 
   let init () =
     privatization := get_bool "exp.privatization";
@@ -696,6 +696,7 @@ struct
           `Address (AD.map array_start (eval_lv a gs st lval))
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
         | CastE  (t, exp) ->
+          print_endline @@ "Casting " ^ (sprint d_exp exp) ^ " to " ^ (sprint d_type t) ;
           let v = eval_rv a gs st exp in
           VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()
@@ -1522,9 +1523,29 @@ struct
         | _ ->
           set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
         )
-      | _ ->
+      | _ -> (
+        print_endline "assign";
+        print_endline (sprint d_lval lval);
+        print_endline (sprint d_exp rval);
+        let is_malloc_pointer e =
+          let rv =  eval_rv_keep_bot ctx.ask ctx.global ctx.local e in
+          print_endline @@ "VALUE: " ^ VD.short 1000 rv;
+          VD.is_bot rv || is_some_bot rv
+        in
+        let is_malloc_assignment rval =
+          match rval with
+          | CastE (t, e) -> is_malloc_pointer e
+          | _ -> false
+        in
+        if is_malloc_assignment rval then (
+          print_endline "Requires special treatment";
+          let heap_var = heap_var (rval |> typeOf |> typeSig) in
+          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
+          set_many ctx.ask ctx.global ctx.local [(heap_var, `Blob (VD.bot (), IdxDom.top ()));
+                                   (eval_lv ctx.ask ctx.global ctx.local lval, `Address heap_var) ]
+        ) else
         set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-
+      )
 
   module Locmap = Deadcode.Locmap
 
@@ -1812,6 +1833,8 @@ struct
     List.iter (uncurry ctx.spawn) forks;
     let cpa,fl,dep as st = ctx.local in
     let gs = ctx.global in
+    print_endline (match lv with Some l -> sprint d_lval l | None -> "None");
+    print_endline (f.vname);
     match LF.classify f.vname args with
     | `Unknown "F59" (* strcpy *)
     | `Unknown "F60" (* strncpy *)
@@ -1927,22 +1950,26 @@ struct
     | `Malloc size -> begin
         match lv with
         | Some lv ->
-          let heap_var =
+          (* let heap_var =
             if (get_bool "exp.malloc-fail")
             then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
             else heap_var !Tracing.current_loc
-          in
+          in *)
+          print_endline @@ "Malloc: " ^ (AD.short 100  (eval_lv ctx.ask gs st lv));
+          print_endline @@ "Malloc value: " ^ (VD.short 100  (VD.bot ()));
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
-                                  (eval_lv ctx.ask gs st lv, `Address heap_var)]
+          set_many ctx.ask gs st [(*(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));*)
+                                  (eval_lv ctx.ask gs st lv, VD.bot ())]
         | _ -> st
       end
     | `Calloc size ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
+          (* let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
           set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
+                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))] *)
+          set_many ctx.ask gs st [(*(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));*)
+                                  (eval_lv ctx.ask gs st lv, VD.bot ())]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->

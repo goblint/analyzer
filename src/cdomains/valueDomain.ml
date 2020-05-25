@@ -314,6 +314,7 @@ struct
             ))
         | TPtr (t,_) when isVoidType t || isVoidPtrType t -> v (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
+           (* TODO: Do something here  ? *)
           `Address (match v with
               | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr
               | `Int x -> AD.top_ptr
