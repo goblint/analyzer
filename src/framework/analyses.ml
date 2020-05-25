@@ -327,7 +327,19 @@ struct
       let write_file f fn =
         Messages.xml_file_name := fn;
         BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
-        BatPrintf.fprintf f "<run><parameters>%a</parameters><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+        BatPrintf.fprintf f "<run>";
+        BatPrintf.fprintf f "<parameters>%a</parameters>" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+        BatPrintf.fprintf f "<statistics>";
+        (* FIXME: This is a super ridiculous hack we needed because BatIO has no way to get the raw channel CIL expects here. *)
+        let name, chn = Filename.open_temp_file "stat" "goblint" in
+        Stats.print chn "";
+        close_out chn;
+        let f_in = BatFile.open_in name in
+        let s = BatIO.read_all f_in in
+        BatIO.close_in f_in;
+        BatPrintf.fprintf f "%s" s;
+        BatPrintf.fprintf f "</statistics>";
+        BatPrintf.fprintf f "<result>\n";
         BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
         BatPrintf.fprintf f "%a" printXml (Lazy.force table);
         gtfxml f gtable;
