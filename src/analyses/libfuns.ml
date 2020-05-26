@@ -69,7 +69,37 @@ struct
   (* val sync  : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
   val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t *)
   (* val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t *)
-  let assign ctx lv e = ctx.local
+  let rec get_written_var ((host, offset): lval) = match host with
+    | Mem e -> (match e with
+                | Lval l -> get_written_var l
+                | _ -> failwith "Keine Ahnung")
+    | Var v -> v
+
+  let rec possible_heap_pointer_from_lval ((host, offset): lval) = match host with
+    | Mem e -> (match e with
+                | Lval l -> possible_heap_pointer_from_lval l
+                | _ -> failwith "Keine Ahnung")
+    | Var v -> `Address (Base.AD.from_var (BaseDomain.get_heap_var (v.vtype |> typeSig)))
+
+  let assign ctx lv e =
+    let base = List.assoc "base" ctx.presub in
+    let (cpa, f, dep) : (BaseDomain.CPA.t * BaseDomain.Flag.t * BaseDomain.PartDeps.t) = Obj.obj base in
+    (* Find type of the pointer that is written here (if any)*)
+    let heap_l = possible_heap_pointer_from_lval lv in
+    (*let heap_r = BaseDomain.get_heap_var (e |> typeOf |> typeSig) in *)
+    let left_value = BaseDomain.CPA.find (get_written_var lv) cpa in
+    (* let right_value = BaseDomain.CPA.find heap_r cpa in *)
+
+    (* Könnte das, was geschrieben wurde, ein Heappointer sein? *)
+    print_endline @@ "heap_l:" ^ ValueDomain.Compound.short 100 heap_l;
+    print_endline @@ "Left:" ^ ValueDomain.Compound.short 100 left_value;
+
+    if ValueDomain.Compound.leq heap_l left_value then (
+        print_endline "Heap value might be written here!"
+    );
+
+    (* print_endline @@ "Right:" ^ ValueDomain.Compound.short 100 right_value; *)
+    ctx.local
   let branch ctx e b = ctx.local
   let body   ctx f = ctx.local
   let return ctx e f = ctx.local

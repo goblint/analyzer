@@ -266,7 +266,7 @@ struct
     | _ -> ad
 
   (* evaluate value using our "query functions" *)
-  let eval_rv_pre (ask: Q.ask) exp pr =
+  let eval_rv_pre (ask: Q.ask) exp _ =
     let binop op e1 e2 =
       let equality () =
         match ask (Q.ExpEq (e1,e2)) with
