@@ -1540,6 +1540,10 @@ struct
         if is_malloc_assignment rval then (
           (* print_endline "Requires special treatment"; *)
           let heap_var = heap_var (rval |> typeOf |> typeSig) in
+          let heap_var = if (get_bool "exp.malloc-fail")
+              then AD.join (heap_var) AD.null_ptr
+              else heap_var
+          in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask ctx.global ctx.local [(heap_var, `Blob (VD.bot (), IdxDom.top ()));
                                    (eval_lv ctx.ask ctx.global ctx.local lval, `Address heap_var) ]
