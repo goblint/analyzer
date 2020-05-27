@@ -696,7 +696,7 @@ struct
           `Address (AD.map array_start (eval_lv a gs st lval))
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
         | CastE  (t, exp) ->
-          print_endline @@ "Casting " ^ (sprint d_exp exp) ^ " to " ^ (sprint d_type t) ;
+          (* print_endline @@ "Casting " ^ (sprint d_exp exp) ^ " to " ^ (sprint d_type t) ; *)
           let v = eval_rv a gs st exp in
           VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()
@@ -1522,12 +1522,12 @@ struct
           set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
         )
       | _ -> (
-        print_endline "assign";
+        (* print_endline "assign";
         print_endline (sprint d_lval lval);
-        print_endline (sprint d_exp rval);
+        print_endline (sprint d_exp rval); *)
         let is_malloc_pointer e =
           let rv =  eval_rv_keep_bot ctx.ask ctx.global ctx.local e in
-          print_endline @@ "VALUE: " ^ VD.short 1000 rv;
+          (* print_endline @@ "VALUE: " ^ VD.short 1000 rv; *)
           VD.is_bot rv || is_some_bot rv
         in
         let is_malloc_assignment rval =
@@ -1536,7 +1536,7 @@ struct
           | _ -> false
         in
         if is_malloc_assignment rval then (
-          print_endline "Requires special treatment";
+          (* print_endline "Requires special treatment"; *)
           let heap_var = heap_var (rval |> typeOf |> typeSig) in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask ctx.global ctx.local [(heap_var, `Blob (VD.bot (), IdxDom.top ()));
@@ -1831,8 +1831,8 @@ struct
     List.iter (uncurry ctx.spawn) forks;
     let cpa,fl,dep as st = ctx.local in
     let gs = ctx.global in
-    print_endline (match lv with Some l -> sprint d_lval l | None -> "None");
-    print_endline (f.vname);
+    (* print_endline (match lv with Some l -> sprint d_lval l | None -> "None");
+    print_endline (f.vname); *)
     match LF.classify f.vname args with
     | `Unknown "F59" (* strcpy *)
     | `Unknown "F60" (* strncpy *)
@@ -1953,8 +1953,8 @@ struct
             then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
             else heap_var !Tracing.current_loc
           in *)
-          print_endline @@ "Malloc: " ^ (AD.short 100  (eval_lv ctx.ask gs st lv));
-          print_endline @@ "Malloc value: " ^ (VD.short 100  (VD.bot ()));
+          (* print_endline @@ "Malloc: " ^ (AD.short 100  (eval_lv ctx.ask gs st lv));
+          print_endline @@ "Malloc value: " ^ (VD.short 100  (VD.bot ())); *)
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask gs st [(*(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));*)
                                   (eval_lv ctx.ask gs st lv, VD.bot ())]
@@ -2107,6 +2107,7 @@ module type MainSpec = sig
   val return_varinfo: unit -> Cil.varinfo
   type extra = (varinfo * Offs.t * bool) list
   val context_cpa: D.t -> BaseDomain.CPA.t
+  val eval_lv: Q.ask -> (Basetype.Variables.t -> G.t) ->  (BaseDomain.CPA.t * BaseDomain.Flag.t * BaseDomain.PartDeps.t) -> lval -> ValueDomain.AD.t
 end
 
 module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)

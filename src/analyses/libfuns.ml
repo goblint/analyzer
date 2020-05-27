@@ -85,16 +85,21 @@ struct
     let base = List.assoc "base" ctx.presub in
     let (cpa, f, dep) : (BaseDomain.CPA.t * BaseDomain.Flag.t * BaseDomain.PartDeps.t) = Obj.obj base in
     (* Find type of the pointer that is written here (if any)*)
-    let heap_l = possible_heap_pointer_from_lval lv in
+    let written = possible_heap_pointer_from_lval lv in
     (*let heap_r = BaseDomain.get_heap_var (e |> typeOf |> typeSig) in *)
-    let left_value = BaseDomain.CPA.find (get_written_var lv) cpa in
+    let d = BaseDomain.CPA.find (get_written_var lv) cpa in
     (* let right_value = BaseDomain.CPA.find heap_r cpa in *)
+    let glob_fun = fun a -> failwith "unimplemented" in
+    let l = Base.Main.eval_lv ctx.ask glob_fun (cpa, f, dep) lv in
 
-    (* Könnte das, was geschrieben wurde, ein Heappointer sein? *)
-    print_endline @@ "heap_l:" ^ ValueDomain.Compound.short 100 heap_l;
-    print_endline @@ "Left:" ^ ValueDomain.Compound.short 100 left_value;
 
-    if ValueDomain.Compound.leq heap_l left_value then (
+    print_endline @@ (sprint d_lval lv) ^ " :=" ^ (sprint d_exp e);
+    print_endline @@ "LValue evaluated:" ^ (sprint ValueDomain.AD.pretty l);
+
+    (* Könnte das, was beschrieben wurde, ein Heappointer sein? *)
+    print_endline @@ "written:" ^ ValueDomain.Compound.short 100 written;
+    print_endline @@ "d:" ^ ValueDomain.Compound.short 100 d;
+    if ValueDomain.Compound.leq written d then (
         print_endline "Heap value might be written here!"
     );
 
