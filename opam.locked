@@ -18,6 +18,7 @@ depends: [
   "conf-gmp" {= "1"}
   "conf-m4" {= "1"}
   "conf-perl" {= "1"}
+  "conf-python-2-7" {= "1.1"}
   "conf-which" {= "1"}
   "cppo" {= "1.6.6"}
   "dune" {= "1.10.0"}
@@ -47,6 +48,7 @@ depends: [
   "stdio" {= "v0.12.0"}
   "xml-light" {= "2.4"}
   "yojson" {= "1.7.0"}
+  "z3" {= "4.8.7"}
   "zarith" {= "1.7"}
 ]
 synopsis: "Static analysis framework for concurrent C"

@@ -15,6 +15,7 @@ depends: [
   "goblint-cil" {build}
   "batteries" {build}
   "xml-light" {build}
+  "z3" {build}
   "ppx_distr_guards"
   "ppx_monadic"
   "ppx_import"
