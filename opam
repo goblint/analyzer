@@ -22,9 +22,6 @@ depends: [
   "ppx_deriving_yojson"
   "ounit" {with-test}
 ]
-pin-depends: [
-  [ "goblint-cil.1.7.4" "git+https://github.com/goblint/cil.git" ]
-]
 synopsis: "Static analysis framework for concurrent C"
 url {
   src: "https://github.com/goblint/analyzer/archive/goblint-1.0.0.tar.gz"
