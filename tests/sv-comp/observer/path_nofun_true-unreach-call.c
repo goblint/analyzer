@@ -20,3 +20,5 @@ int main()
         __VERIFIER_error();
     return 0;
 }
+
+// ./goblint --enable ana.sv-comp --enable ana.wp --enable exp.uncilwitness --disable ana.int.trier --enable ana.int.interval --set ana.activated '["base"]' --set phases '[{}, {"ana": {"activated": ["base", "observer"], "path_sens": ["observer"]}}]' --html tests/sv-comp/observer/path_nofun_true-unreach-call.c
