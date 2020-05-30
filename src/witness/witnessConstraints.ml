@@ -447,6 +447,7 @@ struct
     if D.is_bot d then raise Deadcode else d
 
   let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
+  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
