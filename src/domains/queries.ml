@@ -25,8 +25,10 @@ struct
   let meet x y = ES_r.join x y
 end
 
-type iterprevvar = (MyCFG.node * Obj.t) -> MyCFG.edge -> unit
+type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 let iterprevvar_to_yojson _ = `Null
+type itervar = int -> unit
+let itervar_to_yojson _ = `Null
 
 type t = ExpEq of exp * exp
        | EqualSet of exp
@@ -48,6 +50,7 @@ type t = ExpEq of exp * exp
        | CondVars of exp
        | Access of exp * bool * bool * int
        | IterPrevVars of iterprevvar
+       | IterVars of itervar
        | InInterval of exp * IntDomain.Interval32.t
        | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
        | MayBeEqual of exp * exp (* may two expressions be equal? *)

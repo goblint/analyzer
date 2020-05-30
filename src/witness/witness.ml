@@ -4,7 +4,9 @@ open Graphml
 open Svcomp
 open GobConfig
 
-let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit =
+module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
+
+let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
   let module Cfg = Task.Cfg in
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
@@ -12,7 +14,8 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
   let module N = TaskResult.Arg.Node in
   let module IsInteresting =
   struct
-    (* type t = N.t *)
+    type node = N.t
+    type edge = TaskResult.Arg.Edge.t
     let minwitness = get_bool "exp.minwitness"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
@@ -24,7 +27,7 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
       else if WitnessUtil.NH.mem loop_heads to_cfgnode then
         true
       else begin match edge with
-        | Test _ -> true
+        | MyARG.CFGEdge (Test _) -> true
         | _ -> false
       end || begin match to_cfgnode, TaskResult.invariant to_node with
           | Statement _, Some _ -> true
@@ -132,11 +135,12 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
           else
             []
         end;
-        [("goblintNode", match cfgnode with
+        (* [("goblintNode", match cfgnode with
            | Statement stmt  -> Printf.sprintf "s%d" stmt.sid
            | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
            | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
-          )]
+          )] *)
+        [("goblintNode", N.to_string node)]
       ])
   in
   let write_edge from_node edge to_node =
@@ -173,17 +177,17 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
         end;
         begin match edge with
           (* control actually only allowed in violation witness *)
-          | Test (_, b) ->
+          | MyARG.CFGEdge (Test (_, b)) ->
             [("control", "condition-" ^ string_of_bool b)]
           (* enter and return on other side of nodes,
              more correct loc (startline) but had some scope problem? *)
-          | Entry f ->
+          | MyARG.CFGEdge (Entry f) ->
             [("enterFunction2", f.svar.vname)]
-          | Ret (_, f) ->
+          | MyARG.CFGEdge (Ret (_, f)) ->
             [("returnFromFunction2", f.svar.vname)]
           | _ -> []
         end;
-        [("goblintEdge", Pretty.sprint 80 (pretty_edge () edge))]
+        [("goblintEdge", Arg.Edge.to_string edge)]
       ])
   in
 

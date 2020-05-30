@@ -472,7 +472,7 @@ struct
     | true -> raise Analyses.Deadcode
     | false -> [ctx.local,nst]
 
-  let combine ctx lval fexp f args st2 =
+  let combine ctx lval fexp f args fc st2 =
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
     | false ->

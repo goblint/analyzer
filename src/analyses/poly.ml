@@ -39,7 +39,7 @@ struct
       [ctx.local, newd]
 
 
-  let combine ctx r fe f args d =
+  let combine ctx r fe f args fc d =
     if D.is_bot ctx.local || D.is_bot d then D.bot () else
       let f = Cilfacade.getdec f in
       match r with

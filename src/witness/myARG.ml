@@ -11,13 +11,57 @@ sig
   val move_opt: t -> MyCFG.node -> t option
 end
 
+module type Edge =
+sig
+  type t
+
+  val embed: MyCFG.edge -> t
+  val cfgedge: t -> MyCFG.edge option
+  val to_string: t -> string
+end
+
+module CFGEdge: Edge with type t = MyCFG.edge =
+struct
+  type t = edge
+
+  let embed e = e
+  let cfgedge e = Some e
+  let to_string e = Pretty.sprint 80 (pretty_edge () e)
+end
+
+type inline_edge =
+  | CFGEdge of edge
+  | InlineEntry of Deriving.Cil.exp list
+  | InlineReturn of Deriving.Cil.lval option
+  [@@deriving to_yojson]
+
+let pretty_inline_edge () = function
+  | CFGEdge e -> MyCFG.pretty_edge () e
+  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
+  | InlineReturn None -> Pretty.dprintf "InlineReturn"
+  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+
+module InlineEdge: Edge with type t = inline_edge =
+struct
+  type t = inline_edge [@@deriving to_yojson]
+
+  let embed e = CFGEdge e
+
+  let cfgedge = function
+    | CFGEdge e -> Some e
+    | _ -> None
+
+  let to_string e = Pretty.sprint 80 (pretty_inline_edge () e)
+end
+
 (* Abstract Reachability Graph *)
 module type S =
 sig
   module Node: Node
+  module Edge: Edge
 
   val main_entry: Node.t
-  val next: Node.t -> (MyCFG.edge * Node.t) list
+  val next: Node.t -> (Edge.t * Node.t) list
 end
 
 module StackNode (Node: Node):
@@ -39,9 +83,10 @@ struct
 end
 
 module Stack (Cfg:CfgForward) (Arg: S):
-  S with module Node = StackNode (Arg.Node) =
+  S with module Node = StackNode (Arg.Node) and module Edge = Arg.Edge =
 struct
   module Node = StackNode (Arg.Node)
+  module Edge = Arg.Edge
 
   let main_entry = [Arg.main_entry]
 
@@ -105,11 +150,12 @@ end
 module type IsInteresting =
 sig
   type node
-  val is_interesting: node -> MyCFG.edge -> node -> bool
+  type edge
+  val is_interesting: node -> edge -> node -> bool
 end
 
-module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t):
-  S with module Node = Arg.Node =
+module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t and type edge := Arg.Edge.t):
+  S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
   include Arg
 
@@ -278,7 +324,7 @@ struct
 end
 
 module Intra (ArgIntra: SIntraOpt) (Arg: S):
-  S with module Node = Arg.Node =
+  S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
   include Arg
 
@@ -289,6 +335,6 @@ struct
       next
       |> List.filter_map (fun (e, to_n) ->
           Node.move_opt node to_n
-          |> Option.map (fun to_node -> (e, to_node))
+          |> Option.map (fun to_node -> (Edge.embed e, to_node))
         )
 end

@@ -248,7 +248,7 @@ struct
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (MDMap.bindings m)
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
-    M.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
+    Messages.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -267,7 +267,7 @@ struct
     in
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    M.debug @@ "MayPointTo "^sprint d_exp exp^" = ["
+    Messages.debug @@ "MayPointTo "^sprint d_exp exp^" = ["
                ^String.concat ", " (List.map string_of_key xs)^"]";
     xs
 end

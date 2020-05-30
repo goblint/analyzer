@@ -19,8 +19,9 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             |> lift (get_bool "ana.opt.hashcons") (module HashconsContextLifter)
             (* hashcons contexts before witness to reduce duplicates, because witness re-uses contexts in domain *)
-            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter)
-            |> lift true (module PathSensitive2)
+            (* |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter) *)
+            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.PathSensitive3)
+            |> lift (not (get_bool "ana.sv-comp")) (module PathSensitive2)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -278,8 +279,8 @@ struct
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; context = Obj.repr (fun () -> failwith "enter_func has no context.")
-        ; context2 = (fun () -> failwith "enter_func has no context.")
+        ; context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; context2 = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun _ -> Spec.G.bot ())
@@ -415,8 +416,8 @@ struct
           { ask    = query
           ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
           ; prev_node = MyCFG.dummy_node
-          ; context = Obj.repr (fun () -> failwith "No context in query context.")
-          ; context2 = (fun () -> failwith "No context in query context.")
+          ; context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+          ; context2 = (fun () -> ctx_failwith "No context in query context.")
           ; edge    = MyCFG.Skip
           ; local  = Hashtbl.find joined loc
           ; global = GHT.find gh
@@ -464,7 +465,40 @@ struct
       let module Reach = Reachability (EQSys) (LHT) (GHT) in
       Reach.prune !lh_ref !global_xml startvars';
 
-      let (witness_prev, witness_next) =
+      let get: node * Spec.C.t -> Spec.D.t =
+        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+      in
+      let module Node =
+      struct
+        type t = MyCFG.node * Spec.C.t * int
+
+        let equal (n1, c1, i1) (n2, c2, i2) =
+          EQSys.LVar.equal (n1, c1) (n2, c2) && i1 = i2
+
+        let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + i
+
+        let cfgnode (n, c, i) = n
+
+        let to_string (n, c, i) =
+          (* copied from NodeCtxStackGraphMlWriter *)
+          let c_tag = Spec.C.tag c in
+          let i_str = string_of_int i in
+          match n with
+          | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
+          | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.vid f.vname c_tag i_str
+          | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.vid f.vname c_tag i_str
+
+        let move (n, c, i) to_n = (to_n, c, i)
+        let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
+        let move_opt node to_n =
+          let to_node = move node to_n in
+          BatOption.filter is_live (Some to_node)
+      end
+      in
+
+      let module NHT = BatHashtbl.Make (Node) in
+
+      let (witness_prev_map, witness_prev, witness_next, witness_main) =
         let lh = !lh_ref in
         let gh = !global_xml in
         let ask_local (lvar:EQSys.LVar.t) local =
@@ -490,50 +524,42 @@ struct
         in
         (* let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in *)
 
-        let prev = LHT.create 100 in
-        let next = LHT.create 100 in
+        let prev = NHT.create 100 in
+        let next = NHT.create 100 in
         LHT.iter (fun lvar local ->
-            ignore (ask_local lvar local (Queries.IterPrevVars (fun (prev_node, prev_c_obj) edge ->
-                let prev_lvar: LHT.key = (prev_node, Obj.obj prev_c_obj) in
-                LHT.modify_def [] lvar (fun prevs -> (edge, prev_lvar) :: prevs) prev;
-                LHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar) :: nexts) next
+            ignore (ask_local lvar local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
+                let lvar' = (fst lvar, snd lvar, i) in
+                let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
+                NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
+                NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
               )))
           ) lh;
+        let main =
+          let lvar = WitnessUtil.find_main_entry entrystates in
+          let local = get lvar in
+          (* TODO: get rid of this hack for getting index of entry state *)
+          let mains = NHT.create 1 in
+          ignore (ask_local lvar local (Queries.IterVars (fun i ->
+              let lvar' = (fst lvar, snd lvar, i) in
+              NHT.replace mains lvar' ()
+            )));
+          assert (NHT.length mains = 1);
+          fst (List.hd (NHT.to_list mains))
+        in
 
-        ((fun n ->
-            LHT.find_default prev n []), (* main entry is not in prev at all *)
+        (prev,
          (fun n ->
-            LHT.find_default next n [])) (* main return is not in next at all *)
-      in
-
-      let get: node * Spec.C.t -> Spec.D.t =
-        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+            NHT.find_default prev n []), (* main entry is not in prev at all *)
+         (fun n ->
+            NHT.find_default next n []), (* main return is not in next at all *)
+          main)
       in
 
       let module Arg =
       struct
-        module Node =
-        struct
-          include EQSys.LVar
-
-          let cfgnode = node
-
-          let to_string (n, c) =
-            (* copied from NodeCtxStackGraphMlWriter *)
-            let c_tag = Spec.C.tag c in
-            match n with
-            | Statement stmt  -> Printf.sprintf "s%d(%d)" stmt.sid c_tag
-            | Function f      -> Printf.sprintf "ret%d%s(%d)" f.vid f.vname c_tag
-            | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)" f.vid f.vname c_tag
-
-          let move (n, c) to_n = (to_n, c)
-          let is_live node = not (Spec.D.is_bot (get node))
-          let move_opt node to_n =
-            let to_node = move node to_n in
-            BatOption.filter is_live (Some to_node)
-        end
-
-        let main_entry = WitnessUtil.find_main_entry entrystates
+        module Node = Node
+        module Edge = MyARG.InlineEdge
+        let main_entry = witness_main
         let next = witness_next
       end
       in
@@ -545,7 +571,7 @@ struct
       end
       in
 
-      let find_invariant nc = Spec.D.invariant "" (get nc) in
+      let find_invariant (n, c, i) = Spec.D.invariant {i; var=""} (get (n, c)) in
 
       let witness_path = get_string "exp.witness_path" in
       if svcomp_unreach_call then begin
@@ -561,36 +587,34 @@ struct
         Witness.write_file witness_path (module Task) (module TaskResult)
       end else begin
         let is_violation = function
-          | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
-          | _, _ -> false
+          | FunctionEntry f, _, _ when f.vname = Svcomp.verifier_error -> true
+          | _, _, _ -> false
         in
         (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
         let is_violation n =
           Arg.next n
           |> List.exists (fun (_, to_n) -> is_violation to_n)
         in
-        let is_sink =
-          (* TODO: somehow move this to witnessUtil *)
-          let non_sinks = LHT.create 100 in
-
-          (* DFS *)
-          let rec iter_node node =
-            if not (LHT.mem non_sinks node) then begin
-              LHT.replace non_sinks node ();
-              List.iter (fun (_, prev_node) ->
-                  iter_node prev_node
-                ) (witness_prev node)
-            end
-          in
-
-          LHT.iter (fun lvar _ ->
+        let violations =
+          NHT.fold (fun lvar _ acc ->
               if is_violation lvar then
-                iter_node lvar
-            ) !lh_ref;
-
-          fun n ->
-            not (LHT.mem non_sinks n)
+                lvar :: acc
+              else
+                acc
+            ) witness_prev_map []
         in
+        let module ViolationArg =
+        struct
+          include Arg
+
+          let prev = witness_prev
+          let violations = violations
+        end
+        in
+        if get_bool "ana.wp" then
+          Violation.find_path (module ViolationArg);
+        (* TODO: exclude sinks before find_path? *)
+        let is_sink = Violation.find_sinks (module ViolationArg) in
         let module TaskResult =
         struct
           module Arg = Arg

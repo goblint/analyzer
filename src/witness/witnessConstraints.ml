@@ -30,16 +30,15 @@ struct
   let tag _ = failwith "PrintableVar: no tag"
 end
 
-(* TODO: move this to MyCFG *)
-module Edge: Printable.S with type t = MyCFG.edge =
+module Edge: Printable.S with type t = MyARG.inline_edge =
 struct
-  type t = MyCFG.edge [@@deriving to_yojson]
+  type t = MyARG.inline_edge [@@deriving to_yojson]
 
   let equal = Util.equals
   let compare = Stdlib.compare
   let hash = Hashtbl.hash
 
-  let short w x = Pretty.sprint w (MyCFG.pretty_edge () x)
+  let short w x = Pretty.sprint w (MyARG.pretty_inline_edge () x)
   let name () = "edge"
 
   include Printable.PrintSimple (
@@ -101,11 +100,11 @@ struct
           | `Lifted (node, _) -> node
           | _ -> MyCFG.dummy_node
         in
-        let s = Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: prev_node mismatch at %a via %a: %a vs %a" MyCFG.pretty_node ctx.node Edge.pretty ctx.edge MyCFG.pretty_node (extract_node prev_node_witness) MyCFG.pretty_node (extract_node prev_node_ctx)) in
+        let s = Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: prev_node mismatch at %a via %a: %a vs %a" MyCFG.pretty_node ctx.node MyCFG.pretty_edge ctx.edge MyCFG.pretty_node (extract_node prev_node_witness) MyCFG.pretty_node (extract_node prev_node_ctx)) in
         (* M.waitWhat s; *)
         failwith s;
       end;
-      step prev_node_witness ctx.edge (ctx.node, context)
+      step prev_node_witness (CFGEdge ctx.edge) (ctx.node, context)
     with Ctx_failure _ ->
       W.bot ()
 
@@ -142,7 +141,7 @@ struct
           let to_node = (MyCFG.FunctionEntry v, S.context d) in
           let w' =
             if should_inline v then
-              step_witness w MyCFG.Skip to_node
+              step_witness w (InlineEntry []) to_node (* TODO: args *)
             else
               (VES.bot (), `Lifted to_node)
           in
@@ -166,7 +165,7 @@ struct
           failwith (Pretty.sprint 80 (Pretty.dprintf "WitnessLifter: witness messed up! prev vars top at %a" MyCFG.pretty_node ctx.node))
         | VES.Set s ->
           VES.S.iter (fun ((n, c), e) ->
-              f (n, Obj.repr c) e
+              f 0 (n, Obj.repr c, 0) e
             ) s
       end;
       `Bot
@@ -226,20 +225,319 @@ struct
         let to_node = (MyCFG.FunctionEntry f, S.context d2) in
         let w' =
           if should_inline f then
-            step_witness w MyCFG.Skip to_node
+            step_witness w (InlineEntry args) to_node
           else
             (VES.bot (), `Lifted to_node)
         in
         (d1, w), (d2, w')
       ) ddl
 
-  let combine ctx r fe f args (d', w') =
-    let d = S.combine (unlift_ctx ctx) r fe f args d' in
+  let combine ctx r fe f args fc (d', w') =
+    let d = S.combine (unlift_ctx ctx) r fe f args fc d' in
     let w =
       if should_inline f then
-        step_witness w' MyCFG.Skip (ctx.node, get_context ctx)
+        step_witness w' (InlineReturn r) (ctx.node, get_context ctx)
       else
         step_ctx ctx
     in
     d, w
+end
+
+
+
+module N = struct let topname = "Top" end
+(** Add path sensitivity to a analysis *)
+module PathSensitive3 (Spec:Spec)
+  : Spec
+    (* with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
+     and module G = Spec.G
+     and module C = Spec.C *)
+=
+struct
+  (* module I = IntDomain.Integers *)
+  module I =
+  struct
+    include Spec.D
+
+    (* TODO: use something less collision-prone, e.g. tag *)
+    (* tag requires hashcons domain inside *)
+    let to_int = hash
+  end
+  module VI = Printable.Prod3 (PrintableVar) (Spec.C) (I)
+  module VIE =
+  struct
+    include Printable.Prod (VI) (Edge)
+
+    let leq ((v, c, x'), e) ((w, d, y'), f) =
+      PrintableVar.equal v w && Spec.C.equal c d && I.leq x' y' && Edge.equal e f
+    let join _ _ = failwith "VIE join"
+    let meet _ _ = failwith "VIE meet"
+    let widen _ _ = failwith "VIE widen"
+    let narrow _ _ = failwith "VIE narrow"
+    let top () = failwith "VIE top"
+    let is_top _ = failwith "VIE is_top"
+    let bot () = failwith "VIE bot"
+    let is_bot ((_, _, x'), _) = I.is_bot x'
+  end
+  module VIES = SetDomain.Hoare (VIE) (struct let topname = "VIES top" end)
+
+  module R = VIES
+
+  module D =
+  struct
+    module SpecDGroupable =
+    struct
+      include Printable.Std
+      include Spec.D
+    end
+    include MapDomain.MapBot_LiftTop (SpecDGroupable) (R)
+
+    (* TODO: get rid of these value-ignoring set-mimicing hacks *)
+    let cardinal (s: t): int = match s with
+      | `Top -> failwith "cardinal"
+      | `Lifted s -> M.M.cardinal s
+    let choose (s: t): Spec.D.t = match s with
+      | `Top -> failwith "choose"
+      | `Lifted s -> fst (M.M.choose s)
+    let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
+    let iter' = iter
+    let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
+    let for_all' = for_all
+    let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
+    let fold' = fold
+    let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
+    let singleton (x: key) (r: R.t): t = `Lifted (M.M.singleton x r)
+    let empty (): t = `Lifted M.M.empty
+    let add (x: key) (r: R.t) (s: t): t = match s with
+      | `Top -> `Top
+      | `Lifted s -> `Lifted (M.M.add x (R.join r (M.find x s)) s)
+    let map (f: key -> key) (s: t): t = match s with
+      | `Top -> `Top
+      | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
+
+    module S =
+    struct
+      let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
+      let elements (s: M.t): (key * R.t) list = M.M.bindings s
+      let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.M.add x (R.join r (M.find x acc)) acc) M.M.empty l
+    end
+
+    let name () = "PathSensitive (" ^ name () ^ ")"
+
+    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
+      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
+        try
+          let p t = not (mem t s2) in
+          let evil = choose (filter p s1) in
+          let other = choose s2 in
+          (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
+             Spec.D.pretty evil Spec.D.pretty other
+             Spec.D.pretty_diff (evil,other) *)
+          Spec.D.pretty_diff () (evil,other)
+        with _ ->
+          dprintf "choose failed b/c of empty set s1: %d s2: %d"
+          (cardinal s1)
+          (cardinal s2)
+      end
+
+    let printXml f x =
+      let print_one x r =
+        (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
+        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
+      in
+      iter' print_one x
+
+    (* copied & modified from SetDomain.Hoare *)
+    let mem x xr = function
+      | `Top -> true
+      (* | `Lifted s -> S.exists (Spec.D.leq x) s *)
+      (* exists check per previous VIE.t in R.t *)
+      (* seems to be necessary for correct ARG but why? *)
+      (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr *)
+      (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.exists (fun vie' -> VIE.leq vie vie') yr) s) xr *)
+      | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr
+    let leq a b =
+      match a with
+      | `Top -> b = `Top
+      | _ -> for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
+    let apply_list f = function
+      | `Top -> `Top
+      | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)
+    (* join elements in the same partition (specified by should_join) *)
+    let join_reduce a =
+      let rec loop js = function
+        | [] -> js
+        | (x, xr)::xs -> let ((j, jr),r) = List.fold_left (fun ((j, jr),r) (x,xr) ->
+            if Spec.should_join x j then (Spec.D.join x j, R.join xr jr), r else (j, jr), (x, xr)::r
+          ) ((x, xr),[]) xs in
+          loop ((j, jr)::js) r
+      in
+      apply_list (loop []) a
+
+    let leq a b =
+      leq a b || leq (join_reduce a) (join_reduce b)
+
+    let binop op a b = op a b |> join_reduce
+
+    let join = binop join
+    let meet = binop meet
+    let widen = binop widen
+    let narrow = binop narrow
+
+    let invariant c s =
+      match s with
+      | `Top -> failwith "invariant Top"
+      | `Lifted s ->
+        (* TODO: optimize indexing *)
+        (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
+        let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (S.elements s) in
+        Spec.D.invariant c d
+  end
+
+  module G = Spec.G
+  module C = Spec.C
+
+  let name () = "PathSensitive3("^Spec.name ()^")"
+
+  let init = Spec.init
+  let finalize = Spec.finalize
+
+  let should_join x y = true
+
+  let otherstate v = D.singleton (Spec.otherstate v) (R.bot ())
+  let exitstate  v = D.singleton (Spec.exitstate  v) (R.bot ())
+  let startstate v = D.singleton (Spec.startstate v) (R.bot ())
+  let morphstate v d = D.map (Spec.morphstate v) d
+
+  let call_descr = Spec.call_descr
+
+  let val_of c = D.singleton (Spec.val_of c) (R.bot ())
+  let context l =
+    if D.cardinal l <> 1 then
+      failwith "PathSensitive3.context must be called with a singleton set."
+    else
+      Spec.context @@ D.choose l
+
+  let conv ctx x =
+    (* TODO: R.bot () isn't right here *)
+    let rec ctx' = { ctx with ask   = query
+                            ; local = x
+                            ; spawn = (fun v -> ctx.spawn v % (fun x -> D.singleton x (R.bot ())) )
+                            ; split = (ctx.split % (fun x -> D.singleton x (R.bot ()))) }
+    and query x = Spec.query ctx' x in
+    ctx'
+
+  let get_context ctx = ctx.context2 ()
+
+  (* let prev_i i x = Int64.of_int i *)
+  let prev_i i x = x
+
+  let map ctx f g =
+    let h x (i, xs) =
+      let r =
+        try
+          R.singleton ((ctx.prev_node, get_context ctx, prev_i i x), CFGEdge ctx.edge)
+        with Ctx_failure _ ->
+          R.bot ()
+      in
+      try (succ i, D.add (g (f (conv ctx x))) r xs)
+      with Deadcode -> (succ i, xs)
+    in
+    let (_, d) = D.fold h ctx.local (0, D.empty ()) in
+    if D.is_bot d then raise Deadcode else d
+
+  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
+  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
+  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
+  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
+  let intrpt ctx        = map ctx Spec.intrpt  identity
+  let asm ctx           = map ctx Spec.asm     identity
+  let skip ctx          = map ctx Spec.skip    identity
+  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  let fold ctx f g h a =
+    let k x a =
+      try h a @@ g @@ f @@ conv ctx x
+      with Deadcode -> a
+    in
+    let d = D.fold k ctx.local a in
+    if D.is_bot d then raise Deadcode else d
+
+  let fold' ctx f g h a =
+    let k x a =
+      try h a x @@ g @@ f @@ conv ctx x
+      with Deadcode -> a
+    in
+    D.fold k ctx.local a
+
+  let fold'' ctx f g h a =
+    let k x r a =
+      try h a x r @@ g @@ f @@ conv ctx x
+      with Deadcode -> a
+    in
+    D.fold' k ctx.local a
+
+  let sync ctx =
+    (* TODO: no idea if this is right *)
+    fold'' ctx Spec.sync identity (fun (a,b) _ r (a',b') -> D.add a' r a, b'@b) (D.empty (), [])
+
+  let query ctx q =
+    match q with
+    | Queries.IterPrevVars f ->
+      begin match ctx.local with
+        | `Lifted s ->
+          D.S.elements s
+          |> List.iteri (fun i (x, r) ->
+              R.iter (fun ((n, c, j), e) ->
+                (* f i (n, Obj.repr c, Int64.to_int j) e *)
+                f (I.to_int x) (n, Obj.repr c, I.to_int j) e
+              ) r
+            )
+        | `Top -> failwith "prev messed up: top"
+      end;
+      `Bot
+    | Queries.IterVars f ->
+      begin match ctx.local with
+        | `Lifted s ->
+          D.S.elements s
+          |> List.iteri (fun i (x, r) ->
+              (* f i *)
+              f (I.to_int x)
+            )
+        | `Top -> failwith "prev messed up: top"
+      end;
+      `Bot
+    | _ ->
+      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.meet x (f q)) `Top
+
+  let enter ctx l f a =
+    let g (i, xs) x' ys =
+      let ys' = List.map (fun (x,y) ->
+          (* R.bot () isn't right here? doesn't actually matter? *)
+          let yr =
+            try
+              R.singleton ((ctx.prev_node, get_context ctx, prev_i i x'), InlineEntry a)
+            with Ctx_failure _ ->
+              R.bot ()
+          in
+          (D.singleton x (R.bot ()), D.singleton y yr)
+        ) ys
+      in
+      (succ i, ys' @ xs)
+    in
+    snd @@ fold' ctx Spec.enter (fun h -> h l f a) g (0, [])
+
+  let combine ctx l fe f a fc d =
+    assert (D.cardinal ctx.local = 1);
+    let cd = D.choose ctx.local in
+    let k x (i, y) =
+      let r = R.singleton ((Function f, fc, prev_i i x), InlineReturn l) in
+      try (succ i, D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y)
+      with Deadcode -> (succ i, y)
+    in
+    let (_, d) = D.fold k d (0, D.bot ()) in
+    if D.is_bot d then raise Deadcode else d
+
+  let part_access _ _ _ _ =
+    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
