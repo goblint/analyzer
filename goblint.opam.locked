@@ -20,6 +20,7 @@ depends: [
   "conf-gmp" {= "1"}
   "conf-m4" {= "1"}
   "conf-perl" {= "1"}
+  "conf-python-2-7" {= "1.1"}
   "cppo" {= "1.6.6"}
   "dune" {= "2.5.1"}
   "dune-configurator" {= "2.5.1"}
@@ -48,6 +49,7 @@ depends: [
   "stdlib-shims" {= "0.1.0"}
   "xml-light" {= "2.4"}
   "yojson" {= "1.7.0"}
+  "z3" {= "4.8.8-1"}
   "zarith" {= "1.9.1"}
   "zarith_stubs_js" {= "v0.13.0"}
 ]
