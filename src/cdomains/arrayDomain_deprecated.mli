@@ -11,7 +11,7 @@ module Collapsing (Base: Lattice.S) (Idx: IntDomain.S): S with type value = Base
 
 module MapArray (I: sig val n: int option end) (Base: Lattice.S) (Idx: IntDomain.S) : S with type value = Base.t and type idx = Idx.t
 (** Arrays as maps -- stores definite values in a map. First argument is nr. of items
-    to pre-allocate. Does not store array's length. Gives top on non-int indeces *)
+    to pre-allocate. Does not store array's length. Gives top on non-int indices *)
 
 module PreciseMapArrayDomain
   (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)

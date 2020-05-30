@@ -44,7 +44,9 @@ module WP =
                      "|stable|="^string_of_int (HM.length data.stable) ^ "\n" ^
                      "|infl|="^string_of_int (HM.length data.infl) ^ "\n" ^
                      "|wpoint|="^string_of_int (HM.length data.wpoint)
-                    );
+                    )
+
+    let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
     module P =
     struct
@@ -148,31 +150,23 @@ module WP =
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
-      and side x y d = (* only to variables y w/o rhs *)
-        if tracing then trace "sol2" "side to %a (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (HM.mem rho y) S.Dom.pretty d;
-        add_infl x y;
+      and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
+        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
         if S.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (S.system y = None);
         init y;
+        let op = if HM.mem wpoint y then fun a b -> S.Dom.widen a (S.Dom.join a b) else S.Dom.join in
         let old = HM.find rho y in
-        if not (S.Dom.leq d old) then (
-          let j = S.Dom.join old d in
-          let w = S.Dom.widen old j in
-          let fail reason a b =
-            if not (S.Dom.leq a b) then
-              ignore @@ Pretty.printf "FAIL (%s): %a is not leq %a. old: %a, d: %a\n" reason S.Dom.pretty a S.Dom.pretty b S.Dom.pretty old S.Dom.pretty d in
-          fail "old j" old j;
-          fail "old w" old w;
-          fail "j w" j w;
-          (* assert (S.Dom.leq old j);
-          assert (S.Dom.leq old w);
-          assert (S.Dom.leq j w); *)
-          HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d));
-          HM.replace stable y ();
+        let tmp = op old d in
+        HM.replace stable y ();
+        if not (S.Dom.leq tmp old) then (
+          (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
+          HM.replace rho y tmp;
           destabilize y;
-          if not (HM.mem stable y) then HM.replace wpoint y ()
+          (* if not (HM.mem stable y) then HM.replace wpoint y () *)
+          if exists_key (neg (HM.mem stable)) called then HM.replace wpoint y ()
         )
       and init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;

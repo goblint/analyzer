@@ -1,0 +1,45 @@
+name: build and run tests
+# https://github.com/avsm/setup-ocaml
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+        ocaml-version:
+          - 4.10.0
+          - 4.09.1
+          - 4.08.1
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Cache # https://github.com/marketplace/actions/cache
+        uses: actions/cache@v2.0.0
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: |
+            ~/.opam
+            _opam
+          # An explicit key for restoring and saving the cache
+          key: ${{ runner.os }}-${{ hashFiles('goblint.opam.locked') }}
+
+      - name: Use OCaml ${{ matrix.ocaml-version }}
+        uses: avsm/setup-ocaml@v1
+        with:
+          ocaml-version: ${{ matrix.ocaml-version }}
+
+      - run: bash -x scripts/travis-ci.sh
+
+      - run: ./make.sh headers testci
