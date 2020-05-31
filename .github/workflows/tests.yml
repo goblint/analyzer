@@ -6,18 +6,18 @@ on:
   - pull_request
 
 jobs:
-  build:
+  tests:
     strategy:
       fail-fast: false
       matrix:
         os:
           - macos-latest
           - ubuntu-latest
-          - windows-latest
+          # - windows-latest
         ocaml-version:
           - 4.10.0
-          - 4.09.1
-          - 4.08.1
+          # - 4.09.1
+          # - 4.08.1
 
     runs-on: ${{ matrix.os }}
 
@@ -35,11 +35,16 @@ jobs:
           # An explicit key for restoring and saving the cache
           key: ${{ runner.os }}-${{ hashFiles('goblint.opam.locked') }}
 
-      - name: Use OCaml ${{ matrix.ocaml-version }}
+      - name: Setup OCaml ${{ matrix.ocaml-version }}
         uses: avsm/setup-ocaml@v1
         with:
           ocaml-version: ${{ matrix.ocaml-version }}
 
-      - run: bash -x scripts/travis-ci.sh
+      # Split build and tests into separate jobs and let build job upload the goblint binary as an artifact?
+      # https://help.github.com/en/actions/configuring-and-managing-workflows/persisting-workflow-data-using-artifacts#passing-data-between-jobs-in-a-workflow
 
-      - run: ./make.sh headers testci
+      - name: Setup goblint (dependencies, build)
+        run: bash -x scripts/travis-ci.sh
+
+      - name: Run regression tests
+        run: ./make.sh headers testci
