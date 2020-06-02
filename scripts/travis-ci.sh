@@ -40,7 +40,7 @@ fi
 
 # install dependencies
 if [[ -d "_opam/lib/ocaml" ]]; then # install deps into existing cached local switch
-  travis_wait 60 ./make.sh deps
+  ./make.sh deps
 else # create a new local switch and install deps
   rm -rf _opam
   SANDBOXING=--disable-sandboxing ./make.sh setup
