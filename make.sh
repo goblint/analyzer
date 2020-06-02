@@ -82,7 +82,7 @@ rule() {
 
     # setup, dependencies
     ;; deps)
-      opam update; opam install -y . --deps-only --locked
+      opam update; opam install -y . --deps-only --locked --unlock-base
     ;; setup)
       echo "Make sure you have the following installed: opam >= 1.2.2, git, patch, m4, autoconf, libgmp-dev"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
