@@ -282,7 +282,8 @@ let find_path (module Arg:ViolationArg) =
       print_path path;
       begin match WP.wp_path path with
       | WP.Feasible ->
-        print_endline "feasible"
+        print_endline "feasible";
+        false
       | WP.Infeasible subpath ->
         print_endline "infeasible";
         print_path subpath;
@@ -301,11 +302,15 @@ let find_path (module Arg:ViolationArg) =
           end
         )
         in
-        MCP.register_analysis (module Spec)
-
+        MCP.register_analysis (module Spec);
+        (* TODO: don't modify JSON but have ref vars for these instead *)
+        GobConfig.set_list "ana.activated" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.activated");
+        GobConfig.set_list "ana.path_sens" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.path_sens");
+        true
       | WP.Unknown ->
-        print_endline "unknown"
+        print_endline "unknown";
+        false
       end
     | None ->
-      ()
+      false
   end

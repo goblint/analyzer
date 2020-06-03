@@ -34,7 +34,7 @@ module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
     (** The main function to preform the selected analyses. *)
-    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
+    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) (rerun: bool ref) =
 
     let module Inc = struct let increment = increment end in
 
@@ -611,8 +611,11 @@ struct
           let violations = violations
         end
         in
-        if get_bool "ana.wp" then
-          Violation.find_path (module ViolationArg);
+        if get_bool "ana.wp" then begin
+          let require_rerun = Violation.find_path (module ViolationArg) in
+          if require_rerun then
+            rerun := true
+        end;
         (* TODO: exclude sinks before find_path? *)
         let is_sink = Violation.find_sinks (module ViolationArg) in
         let module TaskResult =
@@ -637,8 +640,14 @@ struct
     Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
 
 
-  let analyze file fs change_info =
-    analyze file fs (get_spec ()) change_info
+  let analyze file fs change_info rerun =
+    analyze file fs (get_spec ()) change_info rerun
+
+  let rec analyze_loop file fs change_info =
+    let rerun = ref false in
+    analyze file fs change_info rerun;
+    if !rerun then
+      analyze_loop file fs change_info
 end
 
 (** The main function to perform the selected analyses. *)
@@ -652,4 +661,4 @@ let analyze change_info (file: file) fs =
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
   let module CFG = struct let prev = cfgB let next = cfgF end in
   let module A = AnalyzeCFG (CFG) in
-  A.analyze file fs change_info
+  A.analyze_loop file fs change_info
