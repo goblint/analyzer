@@ -55,11 +55,20 @@ sig
   val path: (int * int) list
 end
 
+(* TODO: instead of multiple observer analyses, use single list-domained observer analysis? *)
+let get_fresh_spec_id =
+  let fresh_id = ref 0 in
+  fun () ->
+    let return_id = !fresh_id in
+    fresh_id := return_id + 1;
+    return_id
+
 module MakeSpec (Arg: Arg) : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "observer"
+  let id = get_fresh_spec_id ()
+  let name () = "observer" ^ string_of_int id
 
   module ChainParams =
   struct
@@ -152,8 +161,6 @@ struct
 end
 
 (* let _ =
-  MCP.register_analysis (module Spec : Spec) *)
-let _ =
   let module Spec = MakeSpec (
     struct
       (* let path = [(23, 24); (24, 25)] *)
@@ -177,5 +184,4 @@ let _ =
     end
   )
   in
-  (* MCP.register_analysis (module Spec) *)
-  ()
+  MCP.register_analysis (module Spec) *)
