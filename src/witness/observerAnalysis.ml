@@ -94,10 +94,10 @@ struct
     |> String.concat "; "
     |> Printf.printf "observer path: [%s]\n" *)
 
-  let step ctx =
-    match ctx.local with
+  let step d prev_node node =
+    match d with
     | `Lifted q -> begin
-        let q' = KMP.next q (ctx.prev_node, ctx.node) in
+        let q' = KMP.next q (prev_node, node) in
         if q' = KMP.m then
           raise Deadcode
           (* TODO: undo. currently observer doesn't kill paths, just splits for nice ARG viewing purposes *)
@@ -105,8 +105,9 @@ struct
         else
           `Lifted q'
       end
-    | _ -> ctx.local
+    | _ -> d
 
+  let step_ctx ctx = step ctx.local ctx.prev_node ctx.node
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -119,7 +120,10 @@ struct
       end
     | _ ->
       ctx.local *)
-    step ctx
+    step_ctx ctx
+
+  let vdecl ctx (_:varinfo) : D.t =
+    step_ctx ctx
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     (* match ctx.node with
@@ -130,22 +134,23 @@ struct
       end
     | _ ->
       ctx.local *)
-    step ctx
+    step_ctx ctx
 
   let body ctx (f:fundec) : D.t =
-    ctx.local
+    step_ctx ctx
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
+    step_ctx ctx
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, ctx.local]
+    (* ctx.local doesn't matter here? *)
+    [ctx.local, step ctx.local ctx.prev_node (FunctionEntry f)]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    au
+    step au (Function f) ctx.node
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+    step_ctx ctx
 
   let startstate v = `Lifted 0
   let otherstate v = D.top ()
