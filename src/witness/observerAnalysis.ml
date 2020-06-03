@@ -52,7 +52,7 @@ end
 
 module type Arg =
 sig
-  val path: (int * int) list
+  val path: (node * node) list
 end
 
 (* TODO: instead of multiple observer analyses, use single list-domained observer analysis? *)
@@ -83,10 +83,8 @@ struct
 
   module KMP = KMP (
     struct
-      type t = int * int
-      let equal (p1, n1) (p2, n2) = p1 = p2 && n1 = n2
-
-      (* let pattern = [| (22, 24); (24, 25) |] *)
+      type t = node * node
+      let equal (p1, n1) (p2, n2) = Node.equal p1 p2 && Node.equal n1 n2
       let pattern = Array.of_list Arg.path
     end
   )
@@ -99,13 +97,7 @@ struct
   let step ctx =
     match ctx.local with
     | `Lifted q -> begin
-        let get_sid = function
-          | Statement s -> s.sid
-          | _ -> -1
-        in
-        let p = get_sid ctx.prev_node in
-        let n = get_sid ctx.node in
-        let q' = KMP.next q (p, n) in
+        let q' = KMP.next q (ctx.prev_node, ctx.node) in
         if q' = KMP.m then
           raise Deadcode
           (* TODO: undo. currently observer doesn't kill paths, just splits for nice ARG viewing purposes *)
