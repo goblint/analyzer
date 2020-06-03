@@ -6,11 +6,12 @@ int main()
     int p = 1; // malloc
     for (x = 10; x > 0; x--)
     {
-        if (p != 1)  // check against use-after-free
+        if (p != 1) // check against use-after-free
             __VERIFIER_error();
         if (x == 1)
         {
-            // __VERIFIER_assert(p == 1); // could check against double-free
+            if (p != 1) // check against double-free
+                __VERIFIER_error();
             p = 0; // free
         }
     }
