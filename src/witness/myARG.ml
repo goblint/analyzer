@@ -9,6 +9,7 @@ sig
   val to_string: t -> string
 
   val move_opt: t -> MyCFG.node -> t option
+  val equal_node_context: t -> t -> bool
 end
 
 module type Edge =
@@ -80,6 +81,7 @@ struct
     | n :: stack ->
       Node.move_opt n to_node
       |> BatOption.map (fun to_n -> to_n :: stack)
+  let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
 module Stack (Cfg:CfgForward) (Arg: S):
@@ -125,7 +127,7 @@ struct
                     |> List.filter (fun (edge, to_n) ->
                         (* let to_cfgnode = Arg.Node.cfgnode to_n in
                         MyCFG.Node.equal to_cfgnode return_node *)
-                        Arg.Node.equal to_n return_n
+                        Arg.Node.equal_node_context to_n return_n
                       )
                     |> List.map (fun (edge, to_n) ->
                         let to_n' = to_n :: call_stack in

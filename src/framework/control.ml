@@ -493,6 +493,8 @@ struct
         let move_opt node to_n =
           let to_node = move node to_n in
           BatOption.filter is_live (Some to_node)
+        let equal_node_context (n1, c1, i1) (n2, c2, i2) =
+          EQSys.LVar.equal (n1, c1) (n2, c2)
       end
       in
 
