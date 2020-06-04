@@ -468,6 +468,36 @@ struct
       let get: node * Spec.C.t -> Spec.D.t =
         fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
       in
+      let ask_local (lvar:EQSys.LVar.t) local =
+        (* build a ctx for using the query system *)
+        let rec ctx =
+          { ask    = query
+          ; node   = fst lvar
+          ; prev_node = MyCFG.dummy_node
+          ; context = Obj.repr (fun () -> snd lvar)
+          ; context2 = (fun () -> snd lvar)
+          ; edge    = MyCFG.Skip
+          ; local  = local
+          ; global = GHT.find !global_xml
+          ; presub = []
+          ; postsub= []
+          ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+          ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
+          ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
+          ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
+          }
+        and query x = Spec.query ctx x in
+        Spec.query ctx
+      in
+      let ask_indices lvar =
+        let local = get lvar in
+        let indices = ref [] in
+        ignore (ask_local lvar local (Queries.IterVars (fun i ->
+            indices := i :: !indices
+          )));
+        !indices
+      in
+
       let module Node =
       struct
         type t = MyCFG.node * Spec.C.t * int
@@ -488,11 +518,16 @@ struct
           | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.vid f.vname c_tag i_str
           | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.vid f.vname c_tag i_str
 
-        let move (n, c, i) to_n = (to_n, c, i)
+        (* TODO: less hacky way (without ask_indices) to move node *)
         let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
-        let move_opt node to_n =
-          let to_node = move node to_n in
-          BatOption.filter is_live (Some to_node)
+        let move_opt (n, c, i) to_n =
+          match ask_indices (to_n, c) with
+          | [] -> None
+          | [to_i] ->
+            let to_node = (to_n, c, to_i) in
+            Option.filter is_live (Some to_node)
+          | _ :: _ :: _ ->
+            failwith "Node.move_opt: ambiguous moved index"
         let equal_node_context (n1, c1, i1) (n2, c2, i2) =
           EQSys.LVar.equal (n1, c1) (n2, c2)
       end
@@ -500,32 +535,7 @@ struct
 
       let module NHT = BatHashtbl.Make (Node) in
 
-      let (witness_prev_map, witness_prev, witness_next, witness_main) =
-        let lh = !lh_ref in
-        let gh = !global_xml in
-        let ask_local (lvar:EQSys.LVar.t) local =
-          (* build a ctx for using the query system *)
-          let rec ctx =
-            { ask    = query
-            ; node   = fst lvar
-            ; prev_node = MyCFG.dummy_node
-            ; context = Obj.repr (fun () -> snd lvar)
-            ; context2 = (fun () -> snd lvar)
-            ; edge    = MyCFG.Skip
-            ; local  = local
-            ; global = GHT.find gh
-            ; presub = []
-            ; postsub= []
-            ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-            ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
-            ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
-            ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
-            }
-          and query x = Spec.query ctx x in
-          Spec.query ctx
-        in
-        (* let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in *)
-
+      let (witness_prev_map, witness_prev, witness_next) =
         let prev = NHT.create 100 in
         let next = NHT.create 100 in
         LHT.iter (fun lvar local ->
@@ -535,26 +545,21 @@ struct
                 NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
                 NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
               )))
-          ) lh;
-        let main =
-          let lvar = WitnessUtil.find_main_entry entrystates in
-          let local = get lvar in
-          (* TODO: get rid of this hack for getting index of entry state *)
-          let mains = NHT.create 1 in
-          ignore (ask_local lvar local (Queries.IterVars (fun i ->
-              let lvar' = (fst lvar, snd lvar, i) in
-              NHT.replace mains lvar' ()
-            )));
-          assert (NHT.length mains = 1);
-          fst (List.hd (NHT.to_list mains))
-        in
+          ) !lh_ref;
 
         (prev,
          (fun n ->
             NHT.find_default prev n []), (* main entry is not in prev at all *)
          (fun n ->
-            NHT.find_default next n []), (* main return is not in next at all *)
-          main)
+            NHT.find_default next n [])) (* main return is not in next at all *)
+      in
+      let witness_main =
+        let lvar = WitnessUtil.find_main_entry entrystates in
+        let main_indices = ask_indices lvar in
+        (* TODO: get rid of this hack for getting index of entry state *)
+        assert (List.length main_indices = 1);
+        let main_index = List.hd main_indices in
+        (fst lvar, snd lvar, main_index)
       in
 
       let module Arg =
