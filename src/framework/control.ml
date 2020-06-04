@@ -618,23 +618,40 @@ struct
           let violations = violations
         end
         in
+        let write_violation_witness = ref true in
         if get_bool "ana.wp" then begin
-          let require_rerun = Violation.find_path (module ViolationArg) in
-          if require_rerun then
+          match Violation.find_path (module ViolationArg) with
+          | Feasible (module PathArg) ->
+            (* TODO: add assumptions *)
+            let module TaskResult =
+            struct
+              module Arg = PathArg
+              let result = false
+              let invariant _ = Invariant.none
+              let is_violation = is_violation
+              let is_sink _ = false
+            end
+            in
+            Witness.write_file witness_path (module Task) (module TaskResult);
+            write_violation_witness := false
+          | Infeasible ->
             rerun := true
+          | Unknown -> ()
         end;
-        (* TODO: exclude sinks before find_path? *)
-        let is_sink = Violation.find_sinks (module ViolationArg) in
-        let module TaskResult =
-        struct
-          module Arg = Arg
-          let result = false
-          let invariant _ = Invariant.none
-          let is_violation = is_violation
-          let is_sink = is_sink
+        if !write_violation_witness then begin
+          (* TODO: exclude sinks before find_path? *)
+          let is_sink = Violation.find_sinks (module ViolationArg) in
+          let module TaskResult =
+          struct
+            module Arg = Arg
+            let result = false
+            let invariant _ = Invariant.none
+            let is_violation = is_violation
+            let is_sink = is_sink
+          end
+          in
+          Witness.write_file witness_path (module Task) (module TaskResult)
         end
-        in
-        Witness.write_file witness_path (module Task) (module TaskResult)
       end
     end;
 

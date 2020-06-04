@@ -227,7 +227,14 @@ end
 
 exception Found
 
-let find_path (module Arg:ViolationArg) =
+module type PathArg = MyARG.S with module Edge = MyARG.InlineEdge
+
+type 'node result =
+  | Feasible of (module PathArg with type Node.t = 'node)
+  | Infeasible
+  | Unknown
+
+let find_path (type node) (module Arg:ViolationArg with type Node.t = node): node result =
   let module NHT = BatHashtbl.Make (Arg.Node) in
 
   let rec trace_path next_nodes node2 =
@@ -283,7 +290,25 @@ let find_path (module Arg:ViolationArg) =
       begin match WP.wp_path path with
       | WP.Feasible ->
         print_endline "feasible";
-        false
+
+        let module PathArg =
+        struct
+          module Node = Arg.Node
+          module Edge = Arg.Edge
+
+          let main_entry = BatTuple.Tuple3.first (List.hd path)
+
+          let next =
+            let module NHT = BatHashtbl.Make (Node) in
+            let next = NHT.create (List.length path) in
+            List.iter (fun (n1, e, n2) ->
+                NHT.modify_def [] n1 (fun nexts -> (e, n2) :: nexts) next
+              ) path;
+
+            (fun n -> NHT.find_default next n [])
+        end
+        in
+        Feasible (module PathArg)
       | WP.Infeasible subpath ->
         print_endline "infeasible";
         print_path subpath;
@@ -305,11 +330,11 @@ let find_path (module Arg:ViolationArg) =
         (* TODO: don't append to end; currently done to get observer order to be nice *)
         GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [Json.Build.string (Spec.name ())]);
         GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [Json.Build.string (Spec.name ())]);
-        true
+        Infeasible
       | WP.Unknown ->
         print_endline "unknown";
-        false
+        Unknown
       end
     | None ->
-      false
+      Unknown
   end
