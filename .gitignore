@@ -44,3 +44,4 @@ _opam/
 cfgs/
 
 *.graphml
+goblint.bc.js
