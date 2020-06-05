@@ -578,7 +578,7 @@ struct
       end
       in
 
-      let find_invariant (n, c, i) = Spec.D.invariant {i; var=""} (get (n, c)) in
+      let find_invariant (n, c, i) = Spec.D.invariant {i; varinfo=None} (get (n, c)) in
 
       let witness_path = get_string "exp.witness_path" in
       if svcomp_unreach_call then begin

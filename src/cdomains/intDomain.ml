@@ -339,14 +339,14 @@ struct
       else top_bool
 
   let invariant c x =
-    let c = c.Invariant.var in
+    let c = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
     match x with
     | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
-      Invariant.of_string (c ^ " == " ^ Int64.to_string x1)
+      Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x1, intType))
     | Some (x1, x2) ->
       let open Invariant in
-      let i1 = if Int64.compare min_int x1 <> 0 then of_string (Int64.to_string x1 ^ " <= " ^ c) else none in
-      let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <= " ^ Int64.to_string x2) else none in
+      let i1 = if Int64.compare min_int x1 <> 0 then of_exp Cil.(BinOp (Le, kinteger64 IInt x1, c, intType)) else none in
+      let i2 = if Int64.compare x2 max_int <> 0 then of_exp Cil.(BinOp (Le, c, kinteger64 IInt x2, intType)) else none in
       i1 && i2
     | None -> None
 end
@@ -842,12 +842,12 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c (x:t) =
-    let c = c.Invariant.var in
+    let c = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
     match x with
-    | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
+    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType))
     | `Excluded (s, _) ->
       S.fold (fun x a ->
-          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kinteger64 IInt x, intType)) in
           Invariant.(a && i)
         ) s Invariant.none
     | `Bot -> Invariant.none
@@ -1452,16 +1452,16 @@ module Enums : S = struct
   (* let of_incl_list xs = failwith "TODO" *)
 
   let invariant c x =
-    let c = c.Invariant.var in
+    let c = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
     match x with
     | Inc ps ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_string (c ^ " == " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType)) in
           Invariant.(a || i)
         ) Invariant.none ps
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kinteger64 IInt x, intType)) in
           Invariant.(a && i)
         ) Invariant.none ns
 end

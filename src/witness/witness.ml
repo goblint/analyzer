@@ -111,7 +111,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         begin match cfgnode, TaskResult.invariant node with
           | Statement _, Some i ->
-            [("invariant", i);
+            [("invariant", Pretty.sprint 800 (Cil.dn_exp () i));
              ("invariant.scope", (getFun cfgnode).svar.vname)]
           | _ ->
             (* ignore entry and return invariants, variables of wrong scopes *)
