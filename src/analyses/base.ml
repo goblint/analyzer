@@ -29,6 +29,9 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
+(* The unknown pointer arguments for these functions should get a special treatment (?) *)
+let mainfuns () = Set.of_list @@ List.map Json.string (get_list "mainfun")
+
 let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
@@ -60,12 +63,12 @@ struct
 
 
   let name () = "base"
-  let startstate v = CPA.bot (), Flag.bot (), Dep.bot ()
-  let otherstate v = CPA.bot (), Flag.start_multi v, Dep.bot ()
-  let exitstate  v = CPA.bot (), Flag.start_main v, Dep.bot ()
+  let startstate v = print_endline "start"; CPA.bot (), Flag.bot (), Dep.bot ()
+  let otherstate v = print_endline "other";CPA.bot (), Flag.start_multi v, Dep.bot ()
+  let exitstate  v = print_endline "exit";CPA.bot (), Flag.start_main v, Dep.bot ()
 
 
-  let morphstate v (cpa,fl,dep) = cpa, Flag.start_single v, dep
+  let morphstate v (cpa,fl,dep) = print_endline @@ (sprint CPA.pretty cpa) ^"\n\n\n"^ (sprint Flag.pretty fl) ^"\n"^ (sprint Dep.pretty dep);print_endline "morph"; cpa, Flag.start_single v, dep
   let create_tid v =
     let loc = !Tracing.current_loc in
     Flag.spawn_thread loc v
@@ -1533,7 +1536,7 @@ struct
         let is_malloc_assignment rval =
           match rval with
           | CastE (t, e) -> is_malloc_pointer e
-          | _ -> false
+          | e -> is_malloc_pointer e
         in
         if is_malloc_assignment rval then (
           (* print_endline "Requires special treatment"; *)
@@ -1690,17 +1693,48 @@ struct
     in
     List.concat (List.map do_exp exps)
 
+  let is_main_call fn args =
+     (get_bool "allfuns" || Set.mem fn.vname (mainfuns ())) &&
+      List.for_all (fun arg -> MyCFG.unknown_exp = arg) args
+
+  let get_arg_types (fn: varinfo) = match fn.vtype with
+    | TFun (_, None, _, _) -> []
+    | TFun (_, Some args, vararg, _) -> if vararg then failwith "varargs not handled yet" else List.map snd_triple args
+    | _ -> failwith "Not a function type"
+
+  let heapify_pointers (fn: varinfo) (e: exp list) =
+    let create_val typ =
+                        let heap_var = heap_var (typ |> typeSig) in
+                        `Address (if (get_bool "exp.malloc-fail")
+                                    then AD.join (heap_var) AD.null_ptr
+                                    else heap_var)
+    in
+    let arg_types = get_arg_types fn in
+    let values = List.fold_left (fun acc t ->  (create_val t)::acc) [] arg_types in
+    let fundec = Cilfacade.getdec fn in
+    let pa = zip fundec.sformals values in
+    (values, pa)
 
   let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) ?nfl:(nfl=(snd_triple ctx.local)) fn args: D.t =
-    let (cpa,fl,dep) as st = ctx.local in
     (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+    let (cpa,fl,dep) as st = ctx.local in
+
+    if is_main_call fn args then ();
+
+    let vals, pa =
+      if is_main_call fn args then
+        let (vals, pa) =  heapify_pointers fn args in
+        (vals, pa)
+      else
+        let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+        let fundec = Cilfacade.getdec fn in
+        let pa = zip fundec.sformals vals in
+        (vals, pa)
+    in
     (* generate the entry states *)
-    let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
-    let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
@@ -1708,6 +1742,10 @@ struct
     new_cpa, nfl, dep
 
   let enter ctx lval fn args : (D.t * D.t) list =
+    if Set.mem fn.vname (mainfuns ()) then
+      print_endline @@ fn.vname ^ " ist eine Startfunktion";
+    (* TODO: We need to add special treatment args that are equal to MyCFG.unknown_exp *)
+    (* These might be the arguments to a "startfunction" -- the pointers for these need to be Pointers to Heap \/ Null  *)
     [ctx.local, make_entry ctx fn args]
 
 
