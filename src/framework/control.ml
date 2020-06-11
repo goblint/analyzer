@@ -207,8 +207,8 @@ struct
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
-        ; context2 = (fun () -> ctx_failwith "Global initializers have no context.")
+        ; control_context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
+        ; context = (fun () -> ctx_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun _ -> Spec.G.bot ())
@@ -279,8 +279,8 @@ struct
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
-        ; context2 = (fun () -> ctx_failwith "enter_func has no context.")
+        ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun _ -> Spec.G.bot ())
@@ -416,8 +416,8 @@ struct
           { ask    = query
           ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
           ; prev_node = MyCFG.dummy_node
-          ; context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
-          ; context2 = (fun () -> ctx_failwith "No context in query context.")
+          ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+          ; context = (fun () -> ctx_failwith "No context in query context.")
           ; edge    = MyCFG.Skip
           ; local  = Hashtbl.find joined loc
           ; global = GHT.find gh
@@ -474,8 +474,8 @@ struct
           { ask    = query
           ; node   = fst lvar
           ; prev_node = MyCFG.dummy_node
-          ; context = Obj.repr (fun () -> snd lvar)
-          ; context2 = (fun () -> snd lvar)
+          ; control_context = Obj.repr (fun () -> snd lvar)
+          ; context = (fun () -> snd lvar)
           ; edge    = MyCFG.Skip
           ; local  = local
           ; global = GHT.find !global_xml
