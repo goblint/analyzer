@@ -1778,10 +1778,10 @@ struct
           let expected = let open Str in if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
           if expected <> annot then (
             let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
-            M.warn_each ~ctx:ctx.context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
+            M.warn_each ~ctx:ctx.control_context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
           )
         ) else
-          M.warn_each ~ctx:ctx.context msg
+          M.warn_each ~ctx:ctx.control_context msg
     in
     match check_assert e ctx.local with
     | `False ->
@@ -1791,7 +1791,7 @@ struct
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.warn_each ~ctx:ctx.context ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.warn_each ~ctx:ctx.control_context ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
       warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");

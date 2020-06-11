@@ -519,7 +519,7 @@ struct
     let rec ctx =
       { ask     = query
       ; node    = fst var
-      ; context = snd var
+      ; control_context = snd var
       ; context2 = snd var |> Obj.obj
       ; edge    = edge
       ; local   = pval

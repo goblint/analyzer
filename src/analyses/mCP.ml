@@ -425,7 +425,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -453,7 +453,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -489,7 +489,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -581,7 +581,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -611,7 +611,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -641,7 +641,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -672,7 +672,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -703,7 +703,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -734,7 +734,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -765,7 +765,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -795,7 +795,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -824,7 +824,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
@@ -852,7 +852,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
-        ; context = ctx.context
+        ; control_context = ctx.control_context
         ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx

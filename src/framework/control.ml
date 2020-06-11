@@ -205,7 +205,7 @@ struct
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
-        ; context = Obj.repr (fun () -> failwith "Global initializers have no context.")
+        ; control_context = Obj.repr (fun () -> failwith "Global initializers have no context.")
         ; context2 = (fun () -> failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
@@ -276,7 +276,7 @@ struct
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
-        ; context = Obj.repr (fun () -> failwith "enter_func has no context.")
+        ; control_context = Obj.repr (fun () -> failwith "enter_func has no context.")
         ; context2 = (fun () -> failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
@@ -412,7 +412,7 @@ struct
         let rec ctx =
           { ask    = query
           ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
-          ; context = Obj.repr (fun () -> failwith "No context in query context.")
+          ; control_context = Obj.repr (fun () -> failwith "No context in query context.")
           ; context2 = (fun () -> failwith "No context in query context.")
           ; edge    = MyCFG.Skip
           ; local  = Hashtbl.find joined loc
@@ -469,7 +469,7 @@ struct
           let rec ctx =
             { ask    = query
             ; node   = fst lvar
-            ; context = Obj.repr (fun () -> snd lvar)
+            ; control_context = Obj.repr (fun () -> snd lvar)
             ; context2 = (fun () -> snd lvar)
             ; edge    = MyCFG.Skip
             ; local  = local
