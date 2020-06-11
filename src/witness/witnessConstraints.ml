@@ -271,16 +271,22 @@ struct
 
     let leq ((v, c, x'), e) ((w, d, y'), f) =
       PrintableVar.equal v w && Spec.C.equal c d && I.leq x' y' && Edge.equal e f
+
+    (* TODO: join and meet can be implemented, but are they necessary at all? *)
     let join _ _ = failwith "VIE join"
     let meet _ _ = failwith "VIE meet"
-    let widen _ _ = failwith "VIE widen"
-    let narrow _ _ = failwith "VIE narrow"
+    (* widen and narrow are needed for Hoare widen and narrow *)
+    let widen x y = y
+    let narrow x y = x
     let top () = failwith "VIE top"
     let is_top _ = failwith "VIE is_top"
     let bot () = failwith "VIE bot"
-    let is_bot ((_, _, x'), _) = I.is_bot x'
+    let is_bot _ = failwith "VIE is_bot"
   end
-  module VIES = SetDomain.Hoare (VIE) (struct let topname = "VIES top" end)
+  (* Bot is needed for Hoare widen *)
+  (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
+  module VIEB = Lattice.LiftBot (VIE)
+  module VIES = SetDomain.Hoare (VIEB) (struct let topname = "VIES top" end)
 
   module R = VIES
 
@@ -437,7 +443,7 @@ struct
     let h x (i, xs) =
       let r =
         try
-          R.singleton ((ctx.prev_node, get_context ctx, prev_i i x), CFGEdge ctx.edge)
+          R.singleton (`Lifted ((ctx.prev_node, get_context ctx, prev_i i x), CFGEdge ctx.edge))
         with Ctx_failure _ ->
           R.bot ()
       in
@@ -490,10 +496,13 @@ struct
         | `Lifted s ->
           D.S.elements s
           |> List.iteri (fun i (x, r) ->
-              R.iter (fun ((n, c, j), e) ->
-                (* f i (n, Obj.repr c, Int64.to_int j) e *)
-                f (I.to_int x) (n, Obj.repr c, I.to_int j) e
-              ) r
+              R.iter (function
+                  | `Lifted ((n, c, j), e) ->
+                    (* f i (n, Obj.repr c, Int64.to_int j) e *)
+                    f (I.to_int x) (n, Obj.repr c, I.to_int j) e
+                  | `Bot ->
+                    failwith "PathSensitive3.query: range contains bot"
+                ) r
             )
         | `Top -> failwith "prev messed up: top"
       end;
@@ -518,7 +527,7 @@ struct
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             try
-              R.singleton ((ctx.prev_node, get_context ctx, prev_i i x'), InlineEntry a)
+              R.singleton (`Lifted ((ctx.prev_node, get_context ctx, prev_i i x'), InlineEntry a))
             with Ctx_failure _ ->
               R.bot ()
           in
@@ -533,7 +542,7 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x (i, y) =
-      let r = R.singleton ((Function f, fc, prev_i i x), InlineReturn l) in
+      let r = R.singleton (`Lifted ((Function f, fc, prev_i i x), InlineReturn l)) in
       try (succ i, D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y)
       with Deadcode -> (succ i, y)
     in
