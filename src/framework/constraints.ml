@@ -111,7 +111,7 @@ struct
   let call_descr f = S.call_descr f % C.unlift
 
   let conv ctx =
-    { ctx with context2 = (fun () -> C.unlift (ctx.context2 ())) }
+    { ctx with context = (fun () -> C.unlift (ctx.context ())) }
 
   let sync ctx =
     let d, diff = S.sync (conv ctx) in
@@ -340,7 +340,7 @@ struct
   let call_descr f (c,m) = S.call_descr f c
 
   let conv ctx =
-    { ctx with context2 = (fun () -> fst (ctx.context2 ()))
+    { ctx with context = (fun () -> fst (ctx.context ()))
              ; local = fst ctx.local
              ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
              ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
@@ -520,7 +520,7 @@ struct
       { ask     = query
       ; node    = fst var
       ; control_context = snd var
-      ; context2 = snd var |> Obj.obj
+      ; context = snd var |> Obj.obj
       ; edge    = edge
       ; local   = pval
       ; global  = getg

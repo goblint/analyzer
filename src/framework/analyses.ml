@@ -436,7 +436,7 @@ type ('d,'g,'c) ctx =
   { ask      : Queries.t -> Queries.Result.t
   ; node     : MyCFG.node
   ; control_context : Obj.t (** (Control.get_spec ()) context, represented type: unit -> (Control.get_spec ()).C.t *)
-  ; context2 : unit -> 'c
+  ; context  : unit -> 'c (** current Spec context *)
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : varinfo -> 'g

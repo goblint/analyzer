@@ -78,7 +78,7 @@ struct
   module G = S.G
   module C = S.C
 
-  let get_context ctx = ctx.context2 ()
+  let get_context ctx = ctx.context ()
 
   let set_of_flat (x:VF.t) (edge:Edge.t): VES.t = match x with
     | `Lifted x -> VES.singleton (x, edge)

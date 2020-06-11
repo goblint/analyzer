@@ -426,7 +426,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -454,7 +454,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -490,7 +490,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -582,7 +582,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -612,7 +612,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -642,7 +642,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -673,7 +673,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -704,7 +704,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -735,7 +735,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -766,7 +766,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -796,7 +796,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -825,7 +825,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -853,7 +853,7 @@ struct
         { local  = obj d
         ; node   = ctx.node
         ; control_context = ctx.control_context
-        ; context2 = (fun () -> ctx.context2 () |> assoc n |> obj)
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
