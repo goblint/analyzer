@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 1.9//EN" "https://www.sosy-lab.org/benchexec/benchmark-1.9.dtd">
+<benchmark tool="goblint" timelimit="30 s" hardtimelimit="32 s" memlimit="7 GB" cpuCores="2">
+
+
+  <resultfiles>**.graphml</resultfiles>
+
+  <option name="--enable">ana.sv-comp</option>
+  <option name="--disable">ana.int.trier</option>
+  <option name="--enable">ana.int.enums</option>
+  <option name="--enable">ana.int.interval</option>
+  <!-- <option name="-sets solver td3"/> -->
+  <option name="--enable">exp.widen-context</option>
+  <option name="--enable">exp.malloc-fail</option>
+  <option name="--enable">exp.partition-arrays.enabled</option>
+
+<rundefinition name="sv-comp20_prop-reachsafety">
+  <tasks name="SoftwareSystems-DeviceDriversLinux64-ReachSafety">
+    <includesfile>/home/simmo/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64-ReachSafety.set</includesfile>
+    <propertyfile>/home/simmo/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+    <!-- <option name="-sets exp.architecture 64bit"/> -->
+  </tasks>
+</rundefinition>
+
+</benchmark>

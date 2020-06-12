@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 1.9//EN" "https://www.sosy-lab.org/benchexec/benchmark-1.9.dtd">
+<benchmark tool="cpachecker" timelimit="90 s" hardtimelimit="96 s" memlimit="3 GB" cpuCores="2">
+
+
+  <resultfiles>**.graphml</resultfiles>
+
+  <option name="-witnessValidation"/>
+  <option name="-setprop">witness.checkProgramHash=false</option>
+  <option name="-heap">5000m</option>
+  <option name="-benchmark"/>
+  <option name="-setprop">cpa.predicate.memoryAllocationsAlwaysSucceed=true</option>
+
+  <option name="-setprop">cpa.smg.memoryAllocationFunctions=malloc,__kmalloc,kmalloc,kzalloc,kzalloc_node,ldv_zalloc,ldv_malloc</option>
+  <option name="-setprop">cpa.smg.arrayAllocationFunctions=calloc,kmalloc_array,kcalloc</option>
+  <option name="-setprop">cpa.smg.zeroingMemoryAllocation=calloc,kzalloc,kcalloc,kzalloc_node,ldv_zalloc</option>
+  <option name="-setprop">cpa.smg.deallocationFunctions=free,kfree,kfree_const</option>
+
+<rundefinition name="sv-comp20_prop-reachsafety">
+	<!-- <requiredfiles>/home/simmo/benchexec/uautomizer-gob.2020-02-05_1431.files/${rundefinition_name}/${taskdef_name}/witness.graphml</requiredfiles>
+  <option name="-witness">/home/simmo/benchexec/uautomizer-gob.2020-02-05_1431.files/${rundefinition_name}/${taskdef_name}/witness.graphml</option> -->
+  <!-- <requiredfiles>/home/simmo/benchexec/tools/goblint/results/goblint-gob.2020-02-07_1331.files/${rundefinition_name}/${taskdef_name}/witness.graphml</requiredfiles>
+  <option name="-witness">/home/simmo/benchexec/tools/goblint/results/goblint-gob.2020-02-07_1331.files/${rundefinition_name}/${taskdef_name}/witness.graphml</option> -->
+  <requiredfiles>RESULTSDIR/LOGDIR/${rundefinition_name}/${taskdef_name}/witness.graphml</requiredfiles>
+  <option name="-witness">RESULTSDIR/LOGDIR/${rundefinition_name}/${taskdef_name}/witness.graphml</option>
+
+  <tasks name="Goblint-Tests-Basic-ReachSafety">
+	  <includesfile>/home/simmo/benchexec/goblint-tests/ReachSafety-Basic.set</includesfile>
+	  <propertyfile expectedverdict="false">/home/simmo/benchexec/goblint-tests/unreach-call.prp</propertyfile>
+	  <option name="-64"/>
+  </tasks>
+</rundefinition>
+
+</benchmark>
