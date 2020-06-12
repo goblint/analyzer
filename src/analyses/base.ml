@@ -1707,13 +1707,19 @@ struct
 
   let heapify_pointers (fn: varinfo) (e: exp list) =
     let create_val typ =
-                        let heap_var = heap_var (typ |> typeSig) in
-                        `Address (if (get_bool "exp.malloc-fail")
-                                    then AD.join (heap_var) AD.null_ptr
-                                    else heap_var)
+        (* TODO: do some sepcial treatment for types containing arrays/pointers*)
+        if isPointerType typ then (
+           let heap_var = argument_var (typ |> typeSig) in
+           `Address (if (get_bool "exp.malloc-fail")
+                       then AD.join (heap_var) AD.null_ptr
+                       else heap_var))
+
+        else (
+          (* Assuming the parameters have unknown value *)
+          VD.top ())
     in
     let arg_types = get_arg_types fn in
-    let values = List.fold_left (fun acc t ->  (create_val t)::acc) [] arg_types in
+    let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
     let fundec = Cilfacade.getdec fn in
     let pa = zip fundec.sformals values in
     (values, pa)
@@ -1721,9 +1727,6 @@ struct
   let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) ?nfl:(nfl=(snd_triple ctx.local)) fn args: D.t =
     (* Evaluate the arguments. *)
     let (cpa,fl,dep) as st = ctx.local in
-
-    if is_main_call fn args then ();
-
     let vals, pa =
       if is_main_call fn args then
         let (vals, pa) =  heapify_pointers fn args in
