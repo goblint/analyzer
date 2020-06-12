@@ -425,7 +425,7 @@ struct
     (* TODO: R.bot () isn't right here *)
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            ; spawn = (fun v -> ctx.spawn v % (fun x -> D.singleton x (R.bot ())) )
+                            ; spawn = (fun v -> ctx.spawn v % (fun x -> D.singleton x (R.bot ())) ) (* TODO: use enter-like behavior for spawn, as in WitnessLifter *)
                             ; split = (ctx.split % (fun x -> D.singleton x (R.bot ()))) }
     and query x = Spec.query ctx' x in
     ctx'
@@ -517,14 +517,23 @@ struct
     | _ ->
       fold' ctx Spec.query identity (fun x _ f -> Queries.Result.meet x (f q)) `Top
 
+  let should_inline f =
+    (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
+    not (Svcomp.is_special_function f) || Svcomp.is_error_function f *)
+    (* TODO: don't inline __VERIFIER functions for CPAchecker, but inlining needed for WP *)
+    true
+
   let enter ctx l f a =
     let g (i, xs) x' ys =
       let ys' = List.map (fun (x,y) ->
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
-            try
-              R.singleton (`Lifted ((ctx.prev_node, get_context ctx, prev_i i x'), InlineEntry a))
-            with Ctx_failure _ ->
+            if should_inline f then
+              try
+                R.singleton (`Lifted ((ctx.prev_node, get_context ctx, prev_i i x'), InlineEntry a))
+              with Ctx_failure _ ->
+                R.bot ()
+            else
               R.bot ()
           in
           (D.singleton x (R.bot ()), D.singleton y yr)
@@ -538,7 +547,12 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x (i, y) =
-      let r = R.singleton (`Lifted ((Function f, fc, prev_i i x), InlineReturn l)) in
+      let r =
+        if should_inline f then
+          R.singleton (`Lifted ((Function f, fc, prev_i i x), InlineReturn l))
+        else
+          R.singleton (`Lifted ((ctx.prev_node, get_context ctx, prev_i 0 cd), CFGEdge ctx.edge))
+      in
       try (succ i, D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y)
       with Deadcode -> (succ i, y)
     in
