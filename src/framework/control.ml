@@ -453,7 +453,7 @@ struct
         let dead_verifier_error (l, n, f) v acc =
           match n with
           (* FunctionEntry isn't used for extern __VERIFIER_error... *)
-          | FunctionEntry f when f.vname = Svcomp.verifier_error ->
+          | FunctionEntry f when Svcomp.is_error_function f ->
             let is_dead = not (!liveness n) in
             acc && is_dead
           | _ -> acc
@@ -594,7 +594,7 @@ struct
         Witness.write_file witness_path (module Task) (module TaskResult)
       end else begin
         let is_violation = function
-          | FunctionEntry f, _, _ when f.vname = Svcomp.verifier_error -> true
+          | FunctionEntry f, _, _ when Svcomp.is_error_function f -> true
           | _, _, _ -> false
         in
         (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)

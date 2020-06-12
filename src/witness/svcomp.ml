@@ -1,7 +1,13 @@
+open Cil
+
 type specification = string
+(* TODO: don't hardcode specification *)
 let unreach_call_specification = "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
 
-let verifier_error = "__VERIFIER_error"
+let is_error_function f = match f.vname with
+  | "__VERIFIER_error" (* old error function *)
+  | "reach_error" -> true (* new error function (https://github.com/sosy-lab/sv-benchmarks/pull/1077) *)
+  | _ -> false
 
 
 module type Task =
