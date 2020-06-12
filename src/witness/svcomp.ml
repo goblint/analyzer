@@ -1,4 +1,5 @@
 open Cil
+open Batteries
 
 type specification = string
 (* TODO: don't hardcode specification *)
@@ -8,6 +9,16 @@ let is_error_function f = match f.vname with
   | "__VERIFIER_error" (* old error function *)
   | "reach_error" -> true (* new error function (https://github.com/sosy-lab/sv-benchmarks/pull/1077) *)
   | _ -> false
+
+let is_special_function f =
+  let loc = f.vdecl in
+  let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
+  let is_verifier = match f.vname with
+    | fname when String.starts_with fname "__VERIFIER" -> true
+    | "reach_error" -> true
+    | _ -> false
+  in
+  is_svcomp && is_verifier
 
 
 module type Task =
