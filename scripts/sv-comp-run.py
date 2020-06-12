@@ -15,6 +15,12 @@ OVERVIEW = False # with True Goblint isn't executed
 GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --disable ana.int.trier --enable ana.int.enums --enable ana.int.interval --sets solver td3 --enable exp.widen-context --enable exp.malloc-fail --enable exp.partition-arrays.enabled {code_filename}"
 TIMEOUT = 30 # with some int that's Goblint timeout for single execution
 START = 1
+EXIT_ON_ERROR = True
+
+
+def error_exit(code=1):
+    if EXIT_ON_ERROR:
+        sys.exit(code)
 
 
 def str2bool(s):
@@ -75,7 +81,7 @@ try:
                 p = subprocess.run(shlex.split(GOBLINT_COMMAND.format(code_filename=code_filename)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=TIMEOUT)
                 if "Fatal error: exception " in p.stdout:
                     print(p.stdout)
-                    exit(1)
+                    error_exit(1)
                 result = extract_bool(r"SV-COMP \(unreach-call\): (false|true)", p.stdout)
             except subprocess.TimeoutExpired:
                 result = "timeout"
@@ -91,7 +97,7 @@ try:
                 print(f"MISSING FUNC {m.group(1)}")
 
             if missing_funcs:
-                sys.exit(1)
+                error_exit(2)
 
         text = None
         if expected is None:
