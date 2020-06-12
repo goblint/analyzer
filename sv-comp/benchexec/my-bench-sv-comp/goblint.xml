@@ -6,12 +6,11 @@
   <resultfiles>**.graphml</resultfiles>
 
   <option name="--enable">ana.sv-comp</option>
-  <option name="--disable">ana.int.trier</option>
+  <option name="--disable">ana.int.def_exc</option>
   <option name="--enable">ana.int.enums</option>
   <option name="--enable">ana.int.interval</option>
   <!-- <option name="-sets solver td3"/> -->
   <option name="--enable">exp.widen-context</option>
-  <option name="--enable">exp.malloc-fail</option>
   <option name="--enable">exp.partition-arrays.enabled</option>
 
 <rundefinition name="sv-comp20_prop-reachsafety">
