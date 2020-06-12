@@ -113,6 +113,7 @@ struct
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
   let heap_var (type_sig: typsig) = AD.from_var (BaseDomain.get_heap_var type_sig)
+  let argument_var (type_sig: typsig) = AD.from_var (BaseDomain.get_heap_var type_sig ~arg: true)
 
   let init () =
     privatization := get_bool "exp.privatization";
