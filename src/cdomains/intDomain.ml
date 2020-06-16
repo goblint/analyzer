@@ -1322,7 +1322,7 @@ module Enums : S = struct
     | Inc x, Inc y -> Inc (merge_cup x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (merge_cap x y, R.join r1 r2)
     | Exc (x,r), Inc y
-    | Inc y, Exc (x,r) -> Exc (merge_sub x y, r)
+    | Inc y, Exc (x,r) -> Exc (merge_sub x y, if y = [] then r else R.join r (R.of_interval (List.hd y, List.last y)))
   let meet = curry @@ function
     | Inc x, Inc y -> Inc (merge_cap x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (merge_cup x y, R.meet r1 r2)
