@@ -283,7 +283,7 @@ void t2() {
         arr[255] = 5;
     }
 
-    for(i=0; i < 512; i++) { }
+    for(i=0; i < 511; i++) { }
     int j = arr[i];
     assert(j==5); //UNKNOWN
 }
