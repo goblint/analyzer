@@ -1748,7 +1748,7 @@ struct
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
-    (* Add values for memory cells pointed to by arguments. Not sure if necessary -- otherwise it would be bottom, which we evaluate to top ;) *)
+    (* Add values for memory cells pointed to by arguments.*)
     let new_cpa = fst_triple @@ set_many ctx.ask ctx.global (new_cpa, fl, dep) heap_mem in
     new_cpa, nfl, dep
 
