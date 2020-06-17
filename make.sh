@@ -47,6 +47,9 @@ rule() {
     ;; watch)
       dune build -w $TARGET.exe
       # dune runtest -w --no-buffer
+    ;; domaintest)
+      dune build src/maindomaintest.exe &&
+      cp _build/default/src/maindomaintest.exe goblint.domaintest
 
     # old rules using ocamlbuild
     ;; ocbnat*)
@@ -63,9 +66,6 @@ rule() {
       # gprof & ocamlprof (run also generates ocamlprof.dump). use: ocamlprof src/goblint.ml
       ocb -ocamlopt ocamloptp $TARGET.p.native &&
       cp _build/$TARGET.p.native goblint
-    ;; domaintest) # TODO: port to dune
-      ocb -no-plugin src/maindomaintest.native &&
-      cp _build/src/maindomaintest.native goblint.domaintest
     # ;; docs)
     #   rm -rf doc;
     #   ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;

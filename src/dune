@@ -3,8 +3,9 @@
 
 (include_subdirs unqualified)
 
-(executable
-  (public_name goblint)
+(executables
+  (names goblint maindomaintest) ; TODO: separate domaintest executable?
+  (public_names goblint -)
   (modes native js) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules :standard \ apronDomain poly)
   (libraries goblint-cil.all-features batteries xml-light zarith_stubs_js qcheck)
