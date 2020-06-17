@@ -1549,7 +1549,7 @@ struct
               else heap_var
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ctx.ask ctx.global ctx.local [(heap_var, `Blob (VD.bot (), IdxDom.top ()));
+          set_many ctx.ask ctx.global ctx.local [(heap_var, `Blob (VD.top (), IdxDom.top ()));
                                    (eval_lv ctx.ask ctx.global ctx.local lval, `Address heap_var) ]
         ) else
         set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
@@ -1710,32 +1710,36 @@ struct
         (* TODO: do some sepcial treatment for types containing arrays/pointers*)
         if isPointerType typ then (
            let heap_var = argument_var (typ |> typeSig) in
-           `Address (if (get_bool "exp.malloc-fail")
-                       then AD.join (heap_var) AD.null_ptr
-                       else heap_var))
+           true, `Address (if (get_bool "exp.malloc-fail")
+                           then AD.join (heap_var) AD.null_ptr
+                           else heap_var))
 
-        else (
+        else (false,
           (* Assuming the parameters have unknown value *)
           VD.top ())
     in
     let arg_types = get_arg_types fn in
     let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
+    let heap_cells = List.filter fst values |> List.map snd in
+    let heap_mem = List.map (fun c -> match c with `Address a -> (a, `Blob (VD.top (), IdxDom.top ())) | _ -> failwith "huh?") heap_cells in
     let fundec = Cilfacade.getdec fn in
+    let values = List.map snd values in
     let pa = zip fundec.sformals values in
-    (values, pa)
+    (* Argument values, parameters -> values, argument memory cells -> values *)
+    (values, pa, heap_mem)
 
   let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) ?nfl:(nfl=(snd_triple ctx.local)) fn args: D.t =
     (* Evaluate the arguments. *)
     let (cpa,fl,dep) as st = ctx.local in
-    let vals, pa =
+    let vals, pa, heap_mem =
+      (* if this is a start call, we have to handle the pointer arguments sepcially *)
       if is_main_call fn args then
-        let (vals, pa) =  heapify_pointers fn args in
-        (vals, pa)
+        heapify_pointers fn args
       else
         let vals = List.map (eval_rv ctx.ask ctx.global st) args in
         let fundec = Cilfacade.getdec fn in
         let pa = zip fundec.sformals vals in
-        (vals, pa)
+        (vals, pa, [])
     in
     (* generate the entry states *)
     (* If we need the globals, add them *)
@@ -1745,6 +1749,8 @@ struct
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
+    let new_cpa = fst_triple @@ set_many ctx.ask ctx.global (new_cpa, fl, dep) heap_mem in
+    print_endline @@ sprint CPA.pretty new_cpa;
     new_cpa, nfl, dep
 
   let enter ctx lval fn args : (D.t * D.t) list =
