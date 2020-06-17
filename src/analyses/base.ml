@@ -1531,7 +1531,6 @@ struct
         print_endline (sprint d_exp rval); *)
         let is_malloc_pointer e =
           let rv =  eval_rv_keep_bot ctx.ask ctx.global ctx.local e in
-          (* print_endline @@ "VALUE: " ^ VD.short 1000 rv; *)
           VD.is_bot rv || is_some_bot rv
         in
         let is_malloc_assignment rval =
@@ -1747,8 +1746,8 @@ struct
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
+    (* Add values for memory cells pointed to by arguments. Not sure if necessary -- otherwise it would be bottom, which we evaluate to top ;) *)
     let new_cpa = fst_triple @@ set_many ctx.ask ctx.global (new_cpa, fl, dep) heap_mem in
-    print_endline @@ sprint CPA.pretty new_cpa;
     new_cpa, nfl, dep
 
   let enter ctx lval fn args : (D.t * D.t) list =
