@@ -1,6 +1,4 @@
 open Prelude
-open GobConfig
-open Analyses
 
 let goblint_dirname = ".gob"
 

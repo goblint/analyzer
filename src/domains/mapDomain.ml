@@ -8,12 +8,16 @@ module GU = Goblintutil
 module type S =
 sig
   include Lattice.S
-  type key (** The type of the map keys. *)
-  type value (** The type of the values. *)
+  type key
+  (** The type of the map keys. *)
+
+  type value
+  (** The type of the values. *)
 
   val add: key -> value -> t -> t
   val remove: key -> t -> t
   val find: key -> t -> value
+  val find_opt: key -> t -> value option
   val mem: key -> t -> bool
   val iter: (key -> value -> unit) -> t -> unit
   val map: (value -> value) -> t -> t
@@ -71,6 +75,7 @@ struct
   let add = M.add
   let remove = M.remove
   let find = M.find
+  let find_opt = M.find_opt
   let mem = M.mem
   let iter = M.iter
   let map = M.map
@@ -143,7 +148,7 @@ struct
         end
       | kd -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [kd; Range.toXML st])
     in
-    let module IMap = Map.Make (struct type t = int let compare = Pervasives.compare end) in
+    let module IMap = Map.Make (struct type t = int let compare = Stdlib.compare end) in
     let groups =
       let add_grpd k v m =
         let group = Domain.classify k in
@@ -337,6 +342,10 @@ struct
     | `Top -> Range.top ()
     | `Lifted x -> M.find k x
 
+  let find_opt k = function
+    | `Top -> Some (Range.top ())
+    | `Lifted x -> M.find_opt k x
+
   let mem k = function
     | `Top -> true
     | `Lifted x -> M.mem k x
@@ -432,8 +441,12 @@ struct
     | `Lifted x -> `Lifted (M.remove k x)
 
   let find k = function
-    | `Bot -> Range.top ()
+    | `Bot -> Range.bot ()
     | `Lifted x -> M.find k x
+
+  let find_opt k = function
+    | `Bot -> Some (Range.bot ())
+    | `Lifted x -> M.find_opt k x
 
   let mem k = function
     | `Bot -> false

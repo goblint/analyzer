@@ -1,6 +1,5 @@
 (** Structures for the querying subsystem. *)
 
-open Cil
 open Deriving.Cil
 open Pretty
 
@@ -125,7 +124,7 @@ struct
     | `ExprSet x, `ExprSet y -> ES.compare x y
     | `ExpTriples x, `ExpTriples y -> PS.compare x y
     | `TypeSet x, `TypeSet y -> TS.compare x y
-    | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
+    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
     match state with
@@ -139,7 +138,7 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let rec short w state =
+  let short w state =
     match state with
     | `Int n ->  ID.short w n
     | `Str s ->  s

@@ -572,7 +572,7 @@ struct
   let top () = raise (Unsupported "top?")
   let is_bot _ = false
 
-  let rec leq =
+  let leq =
     let f acc x y = Base.leq x y && acc in
     List.fold_left2 f true
 

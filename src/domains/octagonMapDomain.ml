@@ -730,7 +730,7 @@ module MapOctagonBot : S
     | `Bot -> INV.top ()
     | `Lifted x -> MapOctagon.projection key key2 x
 
-  let rec get_relation i j oct =
+  let get_relation i j oct =
     match oct with
     | `Bot -> None, None, false
     | `Lifted x -> MapOctagon.get_relation i j x

@@ -2,7 +2,6 @@
 
 open Prelude.Ana
 open Analyses
-open GobConfig
 
 module Spec =
 struct

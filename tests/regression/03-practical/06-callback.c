@@ -9,7 +9,7 @@ void callme(void)  {
   x = 5;
 }
 
-void callfun(void (*fun)()) { 
+void callfun(void (*fun)()) {
   fun();
   return;
 }
@@ -19,4 +19,3 @@ int main() {
   assert(x == 5);
   return 0;
 }
-

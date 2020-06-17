@@ -45,6 +45,7 @@ struct
   let of_int (type a) (module ID : IntDomain.S with type t = a) i =
     match ID.to_int i with
     | Some 0L -> null_ptr
+    | Some 1L -> not_null
     | _ -> match ID.to_excl_list i with
       | Some xs when List.mem 0L xs -> not_null
       | _ -> top_ptr

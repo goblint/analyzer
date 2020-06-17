@@ -19,7 +19,7 @@ struct
 end
 
 (* domain is (reversed) integers *)
-module Int  = IntDomain.Trier
+module Int  = IntDomain.DefExc
 module IntR = Lattice.Reverse(Int)
 
 module ConstrSys = struct

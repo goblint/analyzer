@@ -1,6 +1,5 @@
 {
   open SpecParser        (* The type token is defined in specParser.mli *)
-  open Big_int
   exception Token of string
   let line = ref 1
 }
@@ -63,6 +62,6 @@ rule token = parse
   | (w+ as n) s+ str
       { NODE(n, s) }
   | (w+ as a) s* "-" ((w+ ("," w+)*)? as ws) (">"? as fwd) ">" s* (w+ as b) s+
-      { EDGE(a, BatString.nsplit ws ",", fwd=">", b) }
+      { EDGE(a, BatString.split_on_string "," ws, fwd=">", b) }
   | eof            { EOF }
   | _ as x         { raise(Token (Char.escaped x^": unknown token in line "^string_of_int !line)) }

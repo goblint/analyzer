@@ -35,7 +35,7 @@ struct
     M.debug @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
                ^String.concat ", " (List.map D.string_of_key xs)^"]"
 
-  let rec eval_fv ask exp: varinfo option =
+  let eval_fv ask exp: varinfo option =
     match query_lv ask exp with
     | [(v,_)] -> Some v
     | _ -> None

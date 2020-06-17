@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']" 
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']"
 int global;
 
 int main(void)
@@ -99,7 +99,7 @@ void example5(void) {
         assert(a[5] == 2); //UNKNOWN
         i++;
     }
-  
+
     assert(a[0] == 2);
     assert(a[41] == 2);
     assert(b[0] == 0);

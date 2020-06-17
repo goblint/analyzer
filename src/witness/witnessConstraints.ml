@@ -36,7 +36,7 @@ struct
   type t = MyCFG.edge [@@deriving to_yojson]
 
   let equal = Util.equals
-  let compare = Pervasives.compare
+  let compare = Stdlib.compare
   let hash = Hashtbl.hash
 
   let short w x = Pretty.sprint w (MyCFG.pretty_edge () x)
@@ -78,7 +78,7 @@ struct
   module G = S.G
   module C = S.C
 
-  let get_context ctx = ctx.context2 ()
+  let get_context ctx = ctx.context ()
 
   let set_of_flat (x:VF.t) (edge:Edge.t): VES.t = match x with
     | `Lifted x -> VES.singleton (x, edge)

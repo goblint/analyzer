@@ -59,7 +59,7 @@ struct
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
 
-  let rec const_equal c1 c2 =
+  let const_equal c1 c2 =
     match c1, c2 with
     |	CStr s1  , CStr s2	 -> s1 = s2
     |	CWStr is1, CWStr is2 -> is1 = is2

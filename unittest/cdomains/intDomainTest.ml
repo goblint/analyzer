@@ -112,9 +112,9 @@ end
 
 module A = IntTest (IntDomain.Integers)
 module B = IntTest (IntDomain.Flattened)
-module C = IntTest (IntDomain.Trier)
+module C = IntTest (IntDomain.DefExc)
 module T = struct
-  include IntDomain.Trier
+  include IntDomain.DefExc
   let of_excl_list xs = of_excl_list Cil.ILong xs
 end
 
@@ -202,7 +202,7 @@ let test_ex_set () =
 let test () = "intDomainTest" >:::
               [ "int_Integers"  >::: A.test ();
                 "int_Flattened" >::: B.test ();
-                "int_Trier"     >::: C.test ();
+                "int_DefExc"     >::: C.test ();
                 "test_bot"      >::  test_bot;
                 "test_join"     >::  test_join;
                 "test_meet"     >::  test_meet;

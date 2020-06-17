@@ -4,8 +4,8 @@ open GeneralArrayTest
 
 module I = Int64
 
-module Idx = IntDomain.Trier
-module Val = IntDomain.Trier
+module Idx = IntDomain.DefExc
+module Val = IntDomain.DefExc
 
 module D     = PreciseMapArrayDomain(struct let n = Some 12 end)(Val)(Idx)
 module ATD   = ArrayTestDomain(D)
@@ -29,6 +29,3 @@ module STPMA = PMapATest(ATD)
 (* all tests together *)
 let  test () = "pMapArrayDomainTest" >:::
   GTPMA.test @ STPMA.test
-
-
-

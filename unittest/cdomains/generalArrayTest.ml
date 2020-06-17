@@ -3,8 +3,8 @@ open ArrayDomain
 
 module I = Int64
 
-module Idx = IntDomain.Trier
-module Val = IntDomain.Trier
+module Idx = IntDomain.DefExc
+module Val = IntDomain.DefExc
 
 module S = SetDomain.Make(IntDomain.Integers)
 
@@ -12,7 +12,7 @@ module S = SetDomain.Make(IntDomain.Integers)
 module type S =
 sig
   type t
-  val get_int_d: int -> IntDomain.Trier.t
+  val get_int_d: int -> IntDomain.DefExc.t
   val set_v: t -> int -> int -> t
   val get_v: t -> int -> int
   val enc  : int array -> t
@@ -262,4 +262,3 @@ struct
    ]
 
 end
-

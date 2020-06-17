@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] deadlock
+//PARAM: --sets ana.activated[+] deadlock
 #include <pthread.h>
 #include <stdio.h>
 

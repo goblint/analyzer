@@ -5,8 +5,12 @@ open Cil
 module type S =
 sig
   include Lattice.S
-  type field (** The abstract representation of field names. *)
-  type value (** The abstract domain of values stored in the struct. *)
+  type field
+  (** The abstract representation of field names. *)
+
+  type value
+  (** The abstract domain of values stored in the struct. *)
+
   val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a

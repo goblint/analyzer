@@ -12,7 +12,7 @@ from timeit import default_timer as timer
 
 
 OVERVIEW = False # with True Goblint isn't executed
-GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --disable ana.int.trier --enable ana.int.enums --enable ana.int.interval --sets solver td3 --enable exp.widen-context --enable exp.malloc-fail --enable exp.partition-arrays.enabled {code_filename}"
+GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --disable ana.int.def_exc --enable ana.int.enums --enable ana.int.interval --sets solver td3 --enable exp.widen-context --enable exp.malloc-fail --enable exp.partition-arrays.enabled {code_filename}"
 TIMEOUT = 30 # with some int that's Goblint timeout for single execution
 START = 1
 

@@ -96,11 +96,11 @@ struct
       | [] -> acc
       | f :: fs ->
         match unrollType f.ftype with
-        | TComp ({cfields=ffs},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
+        | TComp ({cfields=ffs; _},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
         | _                       -> add_fields base fs ((Addr.from_var_offset (v,make_offs (f::base))) :: acc)
     in
     match unrollType v.vtype with
-    | TComp ({cfields=fs},_) -> add_fields [] fs []
+    | TComp ({cfields=fs; _},_) -> add_fields [] fs []
     | _ -> [Addr.from_var v]
 
   (* Remove null values from state that are unreachable from exp.*)

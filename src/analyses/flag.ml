@@ -32,7 +32,9 @@ struct
     | SizeOfStr _
     | AlignOf _
     | AlignOfE _  -> ()
-    | UnOp (_,e,_) -> no_addr_of_flag e
+    | UnOp (_,e,_)
+    | Real e
+    | Imag e -> no_addr_of_flag e
     | BinOp (_,e1,e2,_) -> no_addr_of_flag e1; no_addr_of_flag e2
     | Lval (Var _,o) -> ()
     | AddrOf (Var vinfo,o)

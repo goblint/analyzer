@@ -85,13 +85,14 @@ struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
   (* values from Val are identical *)
-
-  let name () = "partitioned arrays"
   module Expp = ExpDomain
   module Base = Lattice.Prod3 (Val) (Val) (Val)
   include Lattice.ProdSimple(Expp) (Base)
+
   type idx = Idx.t
   type value = Val.t
+
+  let name () = "partitioned array"
 
   let is_not_partitioned (e, _) =
     Expp.is_bot e || Expp.is_top e
@@ -103,6 +104,16 @@ struct
       Val.top()
     else
       result
+
+  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array and all unpartitioned arrays
+    * have the same three values for Val  *)
+  let normalize ((e, (xl, xm , xr)) as x) =
+    if Val.equal xl xm && Val.equal xm xr then
+      (Expp.top (), (xl, xm, xr))
+    else if Expp.is_top e then
+      (Expp.top(), (join_of_all_parts x, join_of_all_parts x, join_of_all_parts x))
+    else
+      x
 
   let short w ((e,(xl, xm, xr)) as x) =
     if is_not_partitioned x then
@@ -116,6 +127,18 @@ struct
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
+
+  let printXml f ((e, (xl, xm, xr)) as x) =
+    if is_not_partitioned x then
+      let join_over_all = Val.join (Val.join xl xm) xr in
+      BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml join_over_all
+    else
+      BatPrintf.fprintf f "<value>\n<map>\n
+          <key>Partitioned By</key>\n%a\n
+          <key>l</key>\n%a\n\n
+          <key>m</key>\n%a\n\n
+          <key>r</key>\n%a\n\n
+        </map></value>\n" Expp.printXml e Val.printXml xl Val.printXml xm Val.printXml xr
 
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) =
     match e, i with
@@ -166,7 +189,9 @@ struct
         | Question(e1, e2, e3, _) ->
           contains_array_access e1 || contains_array_access e2 || contains_array_access e3
         |	CastE(_, e)
-        |	UnOp(_, e , _) -> contains_array_access e
+        |	UnOp(_, e , _)
+        | Real e
+        | Imag e -> contains_array_access e
         |	BinOp(_, e1, e2, _) -> contains_array_access e1 || contains_array_access e2
         | AddrOf _
         | AddrOfLabel _
@@ -183,7 +208,7 @@ struct
 
 
   let map f (e, (xl, xm, xr)) =
-    (e, (f xl, f xm, f xr))
+    normalize @@ (e, (f xl, f xm, f xr))
 
   let fold_left f a (_, ((xl:value), (xm:value), (xr:value))) =
     f (f (f a xl) xm) xr
@@ -192,6 +217,7 @@ struct
     f (f (f a xl yl) xm ym) xr yr
 
   let move_if_affected_with_length ?(replace_with_const=false) length (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
+    normalize @@
     let move (i:int option) =
       match i with
       | Some 0   ->
@@ -270,6 +296,7 @@ struct
   let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
+    normalize @@
     let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
     let exp_value e =
       match e with
@@ -385,7 +412,7 @@ struct
   let set = set_with_length None
 
   let join ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) =
-    let new_e = Expp.join e1 e2 in
+    normalize @@ let new_e = Expp.join e1 e2 in
     if Expp.is_top new_e then
       (* At least one of them was not partitioned, or e <> f *)
       let join_over_all = Val.join (join_of_all_parts x1) (join_of_all_parts x2) in
@@ -407,11 +434,9 @@ struct
 
   let set_inplace = set
   let copy a = a
-  let printXml f (e, (xl, xm, xr)) =
-    let join_over_all = Val.join (Val.join xl xm) xr in
-    BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml join_over_all
 
   let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
+    normalize @@
     let must_be_length_minus_one v = match length with
       | Some l ->
         begin
@@ -499,8 +524,7 @@ struct
     match e1, e2 with
     | `Top, `Top ->
       (* Those asserts ensure that for both arguments all segments are equal (as it should be) *)
-      assert(Val.leq xl1 xm1); assert(Val.leq xm1 xr1); assert(Val.leq xl2 xm2); assert(Val.leq xm2 xr2);
-      assert(Val.leq xm1 xl1); assert(Val.leq xr1 xm1); assert(Val.leq xm2 xl2); assert(Val.leq xr2 xm2);
+      assert(Val.equal xl1 xm1); assert(Val.equal xm1 xr1); assert(Val.equal xl2 xm2); assert(Val.equal xm2 xr2);
       leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))    (* TODO: should the inner joins also be smart joins? *)
     | `Lifted _, `Top -> leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))
     | `Lifted e1e, `Lifted e2e ->
@@ -530,6 +554,9 @@ struct
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
+  let meet a b = normalize @@ meet a b
+  let narrow a b = normalize @@ narrow a b
+
   let update_length _ x = x
 end
 
@@ -555,13 +582,16 @@ struct
   let smart_widen _ _ = widen
   let smart_leq _ _ = leq
 
-  (** It is not necessary to do a least-upper bound between the old and the new length here.   *)
-  (** Any array can only be declared in one location. The value for newl that we get there is  *)
-  (** the one obtained by abstractly evaluating the size expression at this location for the   *)
-  (** current state. If newl leq l this means that we somehow know more about the expression   *)
-  (** determining the size now (e.g. because of narrowing), but this holds for all the times   *)
-  (** the declaration is visited. *)
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
   let update_length newl (x, l) = (x, newl)
+
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
 
@@ -596,13 +626,16 @@ struct
     let l = Idx.join xl yl in
     Idx.leq xl yl && Base.smart_leq_with_length (Some l) x_eval_int y_eval_int x y
 
-  (** It is not necessary to do a least-upper bound between the old and the new length here.   *)
-  (** Any array can only be declared in one location. The value for newl that we get there is  *)
-  (** the one obtained by abstractly evaluating the size expression at this location for the   *)
-  (** current state. If newl leq l this means that we somehow know more about the expression   *)
-  (** determining the size now (e.g. because of narrowing), but this holds for all the times   *)
-  (** the declaration is visited. *)
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
   let update_length newl (x, l) = (x, newl)
+
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t =

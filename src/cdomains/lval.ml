@@ -89,7 +89,7 @@ struct
   let rec compare o1 o2 = match o1, o2 with
     | `NoOffset, `NoOffset -> 0
     | `Field (f1,o1), `Field (f2,o2) ->
-      let c = Pervasives.compare f1.fname f2.fname in
+      let c = Stdlib.compare f1.fname f2.fname in
       if c=0 then compare o1 o2 else c
     | `Index (i1,o1), `Index (i2,o2) ->
       let c = Idx.compare i1 i2 in
@@ -157,15 +157,20 @@ sig
 
   val from_var: varinfo -> t
   (** Creates an address from variable. *)
+
   val from_var_offset: (varinfo * (field,idx) offs) -> t
   (** Creates an address from a variable and offset. *)
+
   val to_var_offset: t -> (varinfo * (field,idx) offs) list
   (** Get the offset *)
+
   val to_var: t -> varinfo list
   (** Strips the varinfo out of the address representation. *)
+
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   (** Strips the varinfo out of the address representation. *)
+
   val get_type: t -> typ
   (** Finds the type of the address location. *)
 end
@@ -439,7 +444,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
-  let rec printInnerXml f = function
+  let printInnerXml f = function
     | [] -> ()
     | (`Left x :: xs) ->
       BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
@@ -487,7 +492,7 @@ struct
     | (x::xs) -> x :: kill v xs
     | [] -> []
 
-  let rec replace x exp ofs =
+  let replace x exp ofs =
     let f o = match o with
       | `Right e -> `Right (I.replace x exp e)
       | x -> x

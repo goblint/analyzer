@@ -22,13 +22,18 @@ type edge =
   | Ret of exp option * fundec
   (** Return edge is between the return statement, which may optionally contain
     * a return value, and the function. The result of the call is then
-    * transfered to the function node! *)
+    * transferred to the function node! *)
   | Test of exp * bool
   (** The true-branch or false-branch of a conditional exp *)
   | ASM of string list * asm_out * asm_in
   (** Inline assembly statements, and the annotations for output and input
     * variables. *)
   | VDecl of varinfo
+  (** VDecl edge for the variable in varinfo. Whether such an edge is there for all
+    * local variables or only when it is not possible to pull the declaration up, is
+    * determined by alwaysGenerateVarDecl in cabs2cil.ml in CIL. One case in which a VDecl
+    * is always there is for VLA. If there is a VDecl edge, it is where the declaration originally
+    * appeared *)
   | Skip
   (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop
@@ -46,7 +51,7 @@ let pretty_edge () = function
   | Test (p,b) -> dprintf "Test (%a,%b)" d_exp p b
   | ASM _ -> text "ASM ..."
   | Skip -> text "Skip"
-  | VDecl v -> dprintf "VDecl for %s of type %a" v.vname d_type v.vtype
+  | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
   | SelfLoop -> text "SelfLoop"
 
 let rec pretty_edges () = function
@@ -259,7 +264,7 @@ let print cfg  =
     | Ret (None,f) -> Pretty.dprintf "return"
     | ASM (_,_,_) -> Pretty.text "ASM ..."
     | Skip -> Pretty.text "skip"
-    | VDecl v -> Pretty.dprintf "VDecl for %s of type %a" v.vname d_type v.vtype
+    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
     | SelfLoop -> Pretty.text "SelfLoop"
   in
   (* escape string in label, otherwise dot might fail *)
@@ -270,7 +275,7 @@ let print cfg  =
   in
   let printNodeStyle (n:node) () =
     match n with
-    | Statement {skind=If (_,_,_,_)} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
+    | Statement {skind=If (_,_,_,_); _} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
     | Statement stmt  -> ()
     | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.vname)
     | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.vname)
@@ -291,7 +296,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   let inits = Hashtbl.create 13 in
   let fast_global_inits = get_bool "exp.fast_global_inits" in
   let rec doInit lval loc init is_zero =
-    let rec initoffs offs init typ lval =
+    let initoffs offs init typ lval =
       doInit (addOffsetLval offs lval) loc init is_zero;
       lval
     in
@@ -313,7 +318,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   in
   let f glob =
     match glob with
-    | GVar ({vtype=vtype} as v, init, loc) -> begin
+    | GVar ({vtype=vtype; _} as v, init, loc) -> begin
         let init, is_zero = match init.init with
           | None -> makeZeroInit vtype, true
           | Some x -> x, false
@@ -417,7 +422,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
     | Ret (None,f) -> Pretty.dprintf "return"
     | ASM (_,_,_) -> Pretty.text "ASM ..."
     | Skip -> Pretty.text "skip"
-    | VDecl v -> Pretty.dprintf "VDecl for %s of type %a" v.vname d_type v.vtype
+    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
     | SelfLoop -> Pretty.text "SelfLoop"
   in
   let rec p_edges () = function
@@ -428,7 +433,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
     let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
     let kind_style =
       match n with
-      | Statement {skind=If (_,_,_,_)}  -> "shape=diamond"
+      | Statement {skind=If (_,_,_,_); _}  -> "shape=diamond"
       | Statement stmt  -> ""
       | Function f      -> "label =\"return of "^f.vname^"()\",shape=box"
       | FunctionEntry f -> "label =\""^f.vname^"()\",shape=box"

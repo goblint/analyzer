@@ -1,0 +1,3 @@
+pin-depends: [
+  [ "goblint-cil.1.7.5" "git+https://github.com/goblint/cil.git" ]
+]

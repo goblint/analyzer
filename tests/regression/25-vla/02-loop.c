@@ -1,9 +1,10 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.trier --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
 int main(void)
 {
   example1();
   example2();
   example3();
+  example4();
 }
 
 void example1(void) {
@@ -36,5 +37,24 @@ void example3(void) {
     }
 
     assert(a[0] == 42); //UNKNOWN
+  }
+}
+
+void example4(void) {
+  int top;
+  int l = 5;
+
+  if(top) {
+    l = 6;
+  }
+
+  int a[l];
+
+  for(int i=0; i < l-1; i++) {
+    a[i] = 42;
+  }
+
+  for(int i=0; i < 4; i++) {
+    assert(a[i] == 42);
   }
 }

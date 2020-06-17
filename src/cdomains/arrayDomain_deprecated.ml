@@ -4,8 +4,8 @@ open Pretty
 open Messages
 
 module A = Array
-(** Be really careful about using these, they might not be drop-in replacement for the domains in arrayDomain.ml **)
-(** One (maybe not the only) problem is that they might not support resizing which is needed for VLAs            **)
+(* Be really careful about using these, they might not be drop-in replacement for the domains in arrayDomain.ml *)
+(* One (maybe not the only) problem is that they might not support resizing which is needed for VLAs            *)
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
@@ -647,7 +647,7 @@ struct
   module Rev_int =
   struct
     type t = int * Idx.t
-    let compare (a,_) (b,_) = Pervasives.compare a b
+    let compare (a,_) (b,_) = Stdlib.compare a b
     let value (_,i) = i
     let make i v = (i,v)
   end
@@ -720,7 +720,7 @@ struct
     if len1 == len2 then
       M.compare Base.compare map1 map2
     else
-      Pervasives.compare len1 len2
+      Stdlib.compare len1 len2
 
   let leq (a:t) (b:t) : bool =
     (fold (mapi a (fun (i:Idx.t) (v:Base.t)  -> Base.leq v (find b i))) (fun _ -> (&&)) true) &&
@@ -770,7 +770,7 @@ struct
     if length1 == length2 then
       M.compare map1 map2
     else
-      Pervasives.compare length1 length2
+      Stdlib.compare length1 length2
 
   let leq (map1,length1) (map2,length2) =
     (length1 == length2) && M.leq map1 map2

@@ -52,7 +52,7 @@ struct
     | MyCFG.Function      f -> dprintf "call of %s" f.vname
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
 
-  let pretty_trace () x =  dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
+  let pretty_trace () x =  dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare n1 n2 =
     match n1, n2 with
@@ -66,7 +66,7 @@ struct
 
   let kind = function
     | MyCFG.Function f                         -> `ExitOfProc f
-    | MyCFG.Statement {skind = Instr [Call _]} -> `ProcCall
+    | MyCFG.Statement {skind = Instr [Call _]; _} -> `ProcCall
     | _ -> `Other
 
   let printXml f n =
@@ -122,7 +122,7 @@ struct
 
   let pretty_trace () (n,c as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
-    else dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
+    else dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare (n1,d1) (n2,d2) =
     let comp =
@@ -327,8 +327,20 @@ struct
       let write_file f fn =
         Messages.xml_file_name := fn;
         BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
-        BatPrintf.fprintf f "<run><parameters>%a</parameters><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
-        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
+        BatPrintf.fprintf f "<run>";
+        BatPrintf.fprintf f "<parameters>%a</parameters>" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+        BatPrintf.fprintf f "<statistics>";
+        (* FIXME: This is a super ridiculous hack we needed because BatIO has no way to get the raw channel CIL expects here. *)
+        let name, chn = Filename.open_temp_file "stat" "goblint" in
+        Stats.print chn "";
+        close_out chn;
+        let f_in = BatFile.open_in name in
+        let s = BatIO.read_all f_in in
+        BatIO.close_in f_in;
+        BatPrintf.fprintf f "%s" s;
+        BatPrintf.fprintf f "</statistics>";
+        BatPrintf.fprintf f "<result>\n";
+        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
         BatPrintf.fprintf f "%a" printXml (Lazy.force table);
         gtfxml f gtable;
         printXmlWarning f ();
@@ -412,7 +424,7 @@ end
 
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
-   the same order as writen in the dependencies list (in MCP).
+   the same order as written in the dependencies list (in MCP).
 
    The foreign states when calling special_fn or enter are joined if the foreign
    analysis tries to be path-sensitive in these functions. First try to only
@@ -423,8 +435,8 @@ end
 type ('d,'g,'c) ctx =
   { ask      : Queries.t -> Queries.Result.t
   ; node     : MyCFG.node
-  ; context  : Obj.t (** represented type: unit -> (Control.get_spec ()).C.t *)
-  ; context2 : unit -> 'c
+  ; control_context : Obj.t (** (Control.get_spec ()) context, represented type: unit -> (Control.get_spec ()).C.t *)
+  ; context  : unit -> 'c (** current Spec context *)
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : varinfo -> 'g
@@ -504,19 +516,22 @@ let empty_increment_data () = {
 (** A side-effecting system. *)
 module type MonSystem =
 sig
-  type v    (** variables *)
-  type d    (** values    *)
-  type 'a m (** basically a monad carrier *)
+  type v    (* variables *)
+  type d    (* values    *)
+  type 'a m (* basically a monad carrier *)
 
   (** Variables must be hashable, comparable, etc.  *)
   module Var : VarType with type t = v
+
   (** Values must form a lattice. *)
   module Dom : Lattice.S with type t = d
+
   (** box --- needed here for transformations *)
   val box : v -> d -> d -> d
 
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
+
   (** Data used for incremental analysis *)
   val increment : increment_data
 end

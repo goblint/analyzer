@@ -71,7 +71,7 @@ module Thread = struct
   let spawn_thread l v: t = get_thread_var v (Some l)
 end
 
-(** The basic thread domain that distinguishes singlthreaded mode, a single
+(** The basic thread domain that distinguishes singlethreaded mode, a single
   * thread ID, and otherwise goes to top. *)
 module SimpleThreadDomain = struct
   module ThreadLiftNames = struct

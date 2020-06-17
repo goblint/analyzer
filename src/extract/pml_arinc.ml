@@ -17,38 +17,40 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   let nsema   = fst @@ var (Byte nsema) "nsema" in
   let nevent  = fst @@ var (Byte nevent) "nevent" in
   let nbboard = fst @@ var (Byte nbboard) "nbboard" in
-  Pml.do_; (* from now on ; is bind *)
+  (* Pml.do_; (* ppx_monadic: from now on ; is bind *) *)
+  (* switched to ocaml-monadic because ppx_monadic was constraining us to ocaml <4.08, now have to use ;%bind instead of just ; and `let%bind x = e in` instead of `x <-- e;` *)
+
   (* type delcarations, TODO generate this? *)
   (* TODO might need adjustment if there are enums with gaps or enums not starting at 0 *)
-  enum return_code_of_enum show_return_code "return_code";
-  enum partition_mode_of_enum show_partition_mode "partition_mode";
-  enum status_of_enum show_status "status";
-  enum waiting_for_of_enum show_waiting_for "waiting_for";
-  enum queuing_discipline_of_enum show_queuing_discipline "queuing_discipline";
+  enum return_code_of_enum show_return_code "return_code";%bind
+  enum partition_mode_of_enum show_partition_mode "partition_mode";%bind
+  enum status_of_enum show_status "status";%bind
+  enum waiting_for_of_enum show_waiting_for "waiting_for";%bind
+  enum queuing_discipline_of_enum show_queuing_discipline "queuing_discipline";%bind
   (* variable declarations *)
   (* TODO inject: let%s status = arr nprocNOTCREATED in *)
-  partition_mode <-- var (Enum (COLD_START, show_partition_mode)) "partition_mode";
-  lock_level  <-- var (Byte 0) "lock_level"; (* scheduling only takes place if this is 0 *)
-  exclusive   <-- var (Byte 0) "exclusive"; (* id of process that has exclusive privilige toecute if lockLevel > 0 *)
-  status      <-- arr !nproc (Enum (NOTCREATED, show_status)) "status";
+  let%bind partition_mode = var (Enum (COLD_START, show_partition_mode)) "partition_mode" in
+  let%bind lock_level  = var (Byte 0) "lock_level" in (* scheduling only takes place if this is 0 *)
+  let%bind exclusive   = var (Byte 0) "exclusive" in (* id of process that has exclusive privilige toecute if lockLevel > 0 *)
+  let%bind status      = arr !nproc (Enum (NOTCREATED, show_status)) "status" in
   (* TODO type for structured data types *)
-  waiting_for <-- arr !nproc (Enum (NONE, show_waiting_for)) "waiting_for";
-  waiting_id  <-- arr !nproc (Byte 0) "waiting_id";
-  Macro._if !nsema;
-  semas       <-- arr !nsema (Byte 0) "semas";
-  semas_max   <-- arr !nsema (Byte 0) "semas_max";
-  semas_chan  <-- arr !nsema (Chan.create !nproc (Byte 0)) "semas_chan";
-  Macro._endif;
-  Macro._if !nevent;
-  events      <-- arr !nevent (Bool false) "events";
-  Macro._endif;
-  Macro._if !nbboard;
-  bboards     <-- arr !nbboard (Bool false) "bboards";
-  Macro._endif;
+  let%bind waiting_for = arr !nproc (Enum (NONE, show_waiting_for)) "waiting_for" in
+  let%bind waiting_id  = arr !nproc (Byte 0) "waiting_id" in
+  Macro._if !nsema;%bind
+  let%bind semas       = arr !nsema (Byte 0) "semas" in
+  let%bind semas_max   = arr !nsema (Byte 0) "semas_max" in
+  let%bind semas_chan  = arr !nsema (Chan.create !nproc (Byte 0)) "semas_chan" in
+  Macro._endif;%bind
+  Macro._if !nevent;%bind
+  let%bind events      = arr !nevent (Bool false) "events" in
+  Macro._endif;%bind
+  Macro._if !nbboard;%bind
+  let%bind bboards     = arr !nbboard (Bool false) "bboards" in
+  Macro._endif;%bind
 
   (* just for asserts *)
-  tasks_created <-- var (Byte 0) "tasks_created";
-  semas_created <-- var (Byte 0) "semas_created";
+  let%bind tasks_created = var (Byte 0) "tasks_created" in
+  let%bind semas_created = var (Byte 0) "semas_created" in
 
   (* dummy variables for use in arguments *)
   let tid,tid_decl = var (Byte 0) "tid" in (* this is the id we give out for every new task *)
@@ -58,97 +60,90 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   (*let r,_    = var (Enum (SUCCESS, show_return_code)) "r" in*)
 
   (* macros - used in extracted pml *)
-  Macro.define "can_run" @@ A1 (id, fun id -> (!status !id == e READY show_status) && (!lock_level == i 0 || !exclusive == !id) && (!partition_mode == e NORMAL show_partition_mode || !id == i 0));
+  Macro.define "can_run" @@ A1 (id, fun id -> (!status !id == e READY show_status) && (!lock_level == i 0 || !exclusive == !id) && (!partition_mode == e NORMAL show_partition_mode || !id == i 0));%bind
 
   (* helpers - these get inlined *)
   let task_info id = s "status["^i2s id^s "] = "^e2s (!status id)^s ", waiting_for[] = "^e2s (!waiting_for id)^s ", waiting_id[] = "^i2s (!waiting_id id) in
   let sema_info id = s "semas["^i2s id^s "] = "^i2s (!semas id) in
-  let set_waiting id wfor wid = Pml.do_;
-    println (s "set_waiting: process "^i2s id^s " will wait for "^i2s wid);
-    waiting_for := id, (e wfor show_waiting_for);
-    waiting_id  := id, wid;
+  let set_waiting id wfor wid =
+    println (s "set_waiting: process "^i2s id^s " will wait for "^i2s wid);%bind
+    waiting_for := id, (e wfor show_waiting_for);%bind
+    waiting_id  := id, wid;%bind
     status      := id, (e WAITING show_status)
   in
-  let set_ready id = Pml.do_;
-    println (s "set_ready: process "^i2s id^s " set to ready. "^task_info id);
-    waiting_for := id, (e NONE show_waiting_for);
-    waiting_id  := id, i 0;
+  let set_ready id =
+    println (s "set_ready: process "^i2s id^s " set to ready. "^task_info id);%bind
+    waiting_for := id, (e NONE show_waiting_for);%bind
+    waiting_id  := id, i 0;%bind
     status      := id, (e READY show_status)
   in
   let is_waiting id wfor wid = !status id == e WAITING show_status && !waiting_for id == e wfor show_waiting_for && !waiting_id id == wid in
-  let remove_waiting id = Pml.do_;
+  let remove_waiting id =
     if has_semas then
       _foreach semas (fun j _ ->
           _ift (poll `Any (!semas_chan j) id) (recv `Any (!semas_chan j) id)
         )
-    else nop;
-    waiting_for := id, e NONE show_waiting_for;
+    else nop;%bind
+    waiting_for := id, e NONE show_waiting_for
   in
 
   (* preemption *)
   let mode,_ = var (Enum (COLD_START, show_partition_mode)) "mode" in
   extract "LockPreemption" @@ A0 (
-    Pml.do_;
-    incr lock_level;
-    exclusive := !tid; (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
-  );
+    incr lock_level;%bind
+    exclusive := !tid (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
+  );%bind
   extract "UnlockPreemption" @@ A0 (
     _ift (!lock_level > i 0) (decr lock_level)
-  );
+  );%bind
   extract "SetPartitionMode" @@ A1 (mode, fun mode ->
       partition_mode := !mode
-    );
+    );%bind
 
   (* processes *)
   extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id ->
-      Pml.do_;
-      _assert (!status !id == e NOTCREATED show_status);
-      status := !id, e STOPPED show_status;
-      waiting_for := !id, e NONE show_waiting_for;
-      incr tasks_created;
-    );
+      _assert (!status !id == e NOTCREATED show_status);%bind
+      status := !id, e STOPPED show_status;%bind
+      waiting_for := !id, e NONE show_waiting_for;%bind
+      incr tasks_created
+    );%bind
   (* CreateErrorHandler *)
   extract "Start" @@ A1 (id, fun id ->
-      Pml.do_;
-      _assert (!status !id != e NOTCREATED show_status);
-      remove_waiting !id;
-      status := !id, e READY show_status;
-    );
+      _assert (!status !id != e NOTCREATED show_status);%bind
+      remove_waiting !id;%bind
+      status := !id, e READY show_status
+    );%bind
   extract "Stop" @@ A1 (id, fun id ->
-      Pml.do_;
-      _assert (!status !id != e NOTCREATED show_status);
-      remove_waiting !id;
-      status := !id, e STOPPED show_status;
-    );
+      _assert (!status !id != e NOTCREATED show_status);%bind
+      remove_waiting !id;%bind
+      status := !id, e STOPPED show_status
+    );%bind
   extract "Suspend" @@ A1 (id, fun id ->
-      Pml.do_;
-      _assert (!status !id != e NOTCREATED show_status);
-      status := !id, e SUSPENDED show_status;
-    );
+      _assert (!status !id != e NOTCREATED show_status);%bind
+      status := !id, e SUSPENDED show_status
+    );%bind
   extract "Resume" @@ A1 (id, fun id ->
-      Pml.do_;
-      _assert (!status !id != e NOTCREATED show_status);
+      _assert (!status !id != e NOTCREATED show_status);%bind
       _ift (!status !id == e SUSPENDED show_status) (
         _ifte (!waiting_for !id == e NONE show_waiting_for)
           (status := !id, e READY show_status)
           (status := !id, e WAITING show_status)
-      );
-      status := !id, e SUSPENDED show_status;
-    );
+      );%bind
+      status := !id, e SUSPENDED show_status
+    );%bind
 
   (* semaphores *)
   let cur,_   = var (Byte 0) "cur" in
   let max,_   = var (Byte 0) "max" in
   let queuing,_ = var (Enum (FIFO, show_queuing_discipline)) "queuing" in
   extract "CreateSemaphore" ~id:(4,0,"sema") @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id ->
-      Pml.do_;
-      println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing);
-      _assert (!queuing == e FIFO show_queuing_discipline);
-      semas := !id, !cur;
-      semas_max := !id, !max;
-      incr semas_created;
-    );
-  extract "GetSemaphoreId" ~id:(1,0,"sema") @@ A2 (name, id, fun name id -> skip);
+      println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing);%bind
+      _assert (!queuing == e FIFO show_queuing_discipline);%bind
+      semas := !id, !cur;%bind
+      semas_max := !id, !max;%bind
+      incr semas_created
+    );%bind
+  extract "GetSemaphoreId" ~id:(1,0,"sema") @@ A2 (name, id, fun name id -> skip);%bind
   extract "WaitSemaphore" @@ A1 (id, fun id ->
       let id = !id in
       let sema = !semas id in
@@ -167,7 +162,7 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
         sema < i 0,
         fail (s "WaitSema: count<0: "^sema_info id)
       ]
-    );
+    );%bind
   extract "SignalSemaphore" @@ A1 (id, fun id ->
       let id = !id in
       let sema = !semas id in
@@ -189,6 +184,6 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
             )
           )
       ]
-    );
+    )
 
   (* events *)

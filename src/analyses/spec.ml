@@ -208,7 +208,7 @@ struct
       Queries.LS.elements l
     | _ -> []
 
-  let rec eval_fv ask exp: varinfo option =
+  let eval_fv ask exp: varinfo option =
     match query_lv ask exp with
     | [(v,_)] -> Some v
     | _ -> None
