@@ -23,7 +23,9 @@ struct
   type trans_out = D.t
   type transfer  = trans_in -> trans_out
 
-  let name = "uninit"
+  let name () = "uninit"
+
+  let should_join x y = D.equal x y
 
   let startstate v : D.t = D.empty ()
   let otherstate v : D.t = D.empty ()
@@ -95,10 +97,7 @@ struct
 
   (* list accessed addresses *)
   let varoffs a (rval:exp) =
-    let f vs (v,o,_) =
-      match o with
-      | Offs.Offs o -> (v,o) :: vs
-      | _ -> vs in
+    let f vs (v,o,_) = (v,o) :: vs in
     List.fold_left f [] (access_one_byval a false rval)
 
   let vars a (rval:exp) : Addr.t list =
@@ -181,7 +180,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | `Field (f, o),    TComp (c1,_),    TComp (c2,_) when c1.cstruct && c2.cstruct ->
-      (* step into both, but check that types of prefices match*)
+      (* step into both, but check that types of prefixes match*)
       bothstruct c1.cfields f c2.cfields o
     | `Field (f, o),    TComp (c1,_),              _  when not c1.cstruct  ->
       (* step into target but not other (don't care about other) *)
@@ -213,12 +212,12 @@ struct
       | [] -> acc
       | f :: fs ->
         match unrollType f.ftype with
-        | TComp ({cfields=ffs},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
+        | TComp ({cfields=ffs; _},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
         | _                       -> add_fields base fs ((Addr.from_var_offset (v,make_offs (f::base))) :: acc)
 
     in
     match unrollType v.vtype with
-    | TComp ({cfields=fs},_) -> add_fields [] fs []
+    | TComp ({cfields=fs; _},_) -> add_fields [] fs []
     | _ -> [Addr.from_var v]
 
 

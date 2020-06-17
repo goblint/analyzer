@@ -16,7 +16,7 @@ struct
   module C = Flag
   module G = Lattice.Unit
 
-  let name = "mtflag"
+  let name () = "mtflag"
 
   let startstate v = Flag.bot ()
   let otherstate v = Flag.top ()

@@ -7,14 +7,14 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "file"
+  let name () = "file"
   module D = FileDomain.Dom
   module C = FileDomain.Dom
   module G = Lattice.Unit
 
   (* special variables *)
-  let return_var    = Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let unclosed_var  = Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
+  let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
+  let unclosed_var  = Goblintutil.create_var @@ Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
 
   (* keys that were already warned about; needed for multiple returns (i.e. can't be kept in D) *)
   let warned_unclosed = ref Set.empty
@@ -35,7 +35,7 @@ struct
     M.debug @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
                ^String.concat ", " (List.map D.string_of_key xs)^"]"
 
-  let rec eval_fv ask exp: varinfo option =
+  let eval_fv ask exp: varinfo option =
     match query_lv ask exp with
     | [(v,_)] -> Some v
     | _ -> None

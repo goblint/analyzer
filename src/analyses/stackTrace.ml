@@ -8,7 +8,7 @@ module Spec (D: StackDomain.S) (P: sig val name : string end)=
 struct
   include Analyses.DefaultSpec
 
-  let name = P.name
+  let name () = P.name
   module D = D
   module C = D
   module G = Lattice.Unit
@@ -44,7 +44,7 @@ module SpecLoc =
 struct
   include Analyses.DefaultSpec
 
-  let name = "stack_loc"
+  let name () = "stack_loc"
   module D = StackDomain.Dom3
   module C = StackDomain.Dom3
   module G = Lattice.Unit

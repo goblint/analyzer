@@ -11,7 +11,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "extract_osek"
+  let name () = "extract_osek"
 
   let init () =
     LibraryFunctions.add_lib_funs (Pml.special_funs ())
@@ -32,7 +32,7 @@ struct
   module C = D
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
-  let tasks_var = makeGlobalVar "__GOBLINT_OSEK_TASKS" voidPtrType
+  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_OSEK_TASKS" voidPtrType)
 
   type pname = string (* process name *)
   type fname = string (* function name *)
@@ -78,7 +78,7 @@ struct
     let get (resource,name as k) =
       Option.default_delayed (fun () ->
           let vname = resource^":"^name in
-          let v = makeGlobalVar vname voidPtrType in
+          let v = Goblintutil.create_var (makeGlobalVar vname voidPtrType) in
           let i = Hashtbl.keys resources |> List.of_enum |> List.filter (fun x -> fst x = resource) |> List.length in
           Hashtbl.replace resources k (v,i);
           v,i) (Hashtbl.find resources k)
@@ -208,7 +208,7 @@ struct
     match List.assoc "base" ctx.presub with
     | Some base ->
       let pid, ctxh, pred = ctx.local in
-      let base_context = fst @@ Base.Main.context @@ Obj.obj base in
+      let base_context = Base.Main.context_cpa @@ Obj.obj base in
       let context_hash = Hashtbl.hash (base_context, pid) in
       pid, Ctx.of_int (Int64.of_int context_hash), pred
     | None -> ctx.local (* TODO when can this happen? *)

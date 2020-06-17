@@ -316,7 +316,7 @@ struct
       true
 
   let get_inherited_from fn =
-    let rec add_classes c l =
+    let add_classes c l =
       try (List.filter (fun x -> (*not (isnot_mainclass x)*) true) (Hashtbl.find derived c)) @l with _ -> l
     in
     match Goblintutil.get_class fn with
@@ -954,7 +954,7 @@ struct
     else false
 
   (*analog to may_be_.._global, prints warnings*)
-  let rec warn_bad_dereference e fromFun (fd, st,df) fs ss = (**)
+  let warn_bad_dereference e fromFun (fd, st,df) fs ss =
 
     if (maybe_deref e) then
       let warn_exp e =
@@ -999,7 +999,7 @@ struct
 
 
   (*analog to may_be_.._global, prints warnings*)
-  let has_bad_reachables ask args fromFun (fd, st,df) fs ss = (**)
+  let has_bad_reachables ask args fromFun (fd, st,df) fs ss =
 
     let warn_exp e =
       (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
@@ -1052,7 +1052,7 @@ struct
     | _ -> false
 
   (*analog to may_be_.._global, prints warnings*)
-  let warn_bad_reachables ask args fromFun (fd, st,df) fs ss glob= (**)
+  let warn_bad_reachables ask args fromFun (fd, st,df) fs ss glob =
 
     let warn_exp e =
       (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
@@ -1174,7 +1174,6 @@ struct
         begin
           if cft then
             begin
-              (**)
               let this = get_this st e in
               ArgSet.fold (fun x y ->
                   if not ((FieldVars.get_var x).vglob)
@@ -1211,7 +1210,7 @@ struct
       (*dbg_report ((sprint 160 (d_lval () lval))^" cft "^(string_of_bool cft)^" fse "^(string_of_bool fse));*)
       if  (mcft && fse) || (not cft) then
         begin
-          let vars = get_vars e in (*not very exact for huge compount statements*)
+          let vars = get_vars e in (*not very exact for huge compound statements*)
           List.fold_left
             (fun y x->(*dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
                if not (is_safe_name x.vname) then danger_assign x args y false fs else y) (fd,st,gd) vars

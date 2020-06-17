@@ -44,7 +44,7 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "arinc"
+  let name () = "arinc"
 
   let init () =
     LibraryFunctions.add_lib_funs Functions.special;
@@ -60,7 +60,7 @@ struct
     try Hashtbl.find resources k
     with Not_found ->
       let vname = ArincUtil.show_resource resource^":"^name in
-      let v = makeGlobalVar vname voidPtrType in
+      let v = Goblintutil.create_var (makeGlobalVar vname voidPtrType) in
       Hashtbl.replace resources k v;
       v
   let get_by_id (id:id) : (resource*string) option =
@@ -108,7 +108,7 @@ struct
   let is_single ctx =
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
     not (BaseDomain.Flag.is_multi fl)
-  let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
+  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
   type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }
@@ -217,7 +217,7 @@ struct
             (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
             (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
             (match env.node with
-             | MyCFG.Statement({ skind = If(e, bt, bf, loc) } as stmt) ->
+             | MyCFG.Statement({ skind = If(e, bt, bf, loc); _ } as stmt) ->
                (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
                (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
                let then_node = NodeTbl.get @@ Branch (List.hd bt.bstmts) in
@@ -260,7 +260,7 @@ struct
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
-    let base_context = fst @@ Base.Main.context @@ Obj.obj @@ List.assoc "base" ctx.presub in
+    let base_context = Base.Main.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub in
     let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
     { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
 

@@ -228,7 +228,7 @@ struct
   module Flags = FlagModes.Spec.D
   module Acc = Hashtbl.Make (Basetype.Variables)
   module AccKeySet = Set.Make (Basetype.Variables)
-  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Base.Main.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
+  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BaseDomain.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
   module AccValSet = Set.Make (Printable.Prod (AccLoc) (Flags))
   let acc     : AccValSet.t Acc.t = Acc.create 100
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty
@@ -241,8 +241,8 @@ struct
   let off_pry_with_flag : (string,(Flags.t*int) list) Hashtbl.t = Hashtbl.create 16
 
   (* task resource handling *)
-  let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType
-  let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" voidType
+  let dummy_release f = Goblintutil.create_var (makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType)
+  let dummy_get f = Goblintutil.create_var (makeLocalVar f ?insert:(Some false) "GetResource" voidType)
   let is_task_res' lock = is_task_res (names lock)
   let partition = D.ReverseAddrSet.partition is_task_res'
   let lockset_to_task lockset =
@@ -326,7 +326,7 @@ struct
 
   let strip_flags acc_list = List.map proj2_1 acc_list
 
-  let rec get_flags state: Flags.t =
+  let get_flags state: Flags.t =
     Obj.obj (List.assoc "fmode" state)
 
   (*/flagstuff*)
@@ -440,7 +440,7 @@ struct
   let type_inv (c:compinfo) : Lval.CilLval.t list =
     try [Hashtbl.find type_inv_tbl c.ckey,`NoOffset]
     with Not_found ->
-      let i = makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[])) in
+      let i = Goblintutil.create_var (makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[]))) in
       Hashtbl.add type_inv_tbl c.ckey i;
       [i, `NoOffset]
 
@@ -528,7 +528,7 @@ struct
 
   let add_accesses ctx (accessed: accesses) (flagstate: Flags.t) (ust:D.t) =
     let fl = Mutex.get_flag ctx.presub in
-    if Base.Main.Flag.is_multi fl then
+    if BaseDomain.Flag.is_multi fl then
       let loc = !Tracing.current_loc in
       let dispatch ax =
         match ax with
@@ -559,7 +559,9 @@ struct
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
     | Queries.IsPublic v ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-      if pry = min_int then begin `Bool false end else begin
+      if pry = min_int then
+        `Bool false
+      else
         let off =
           (*         if !FlagModes.Spec.flag_list = [] then begin *)
           match (ctx.global v: G.t) with
@@ -568,10 +570,9 @@ struct
           | `Top -> max_int
           (*           end else begin *)
           (*             let flagstate = get_flags ctx.presub in *)
-          (*               offpry_flags flagstate v *)
+          (*             offpry_flags flagstate v *)
           (*           end *)
         in `Bool (off > pry)
-      end
     | _ -> Queries.Result.top ()
 
   let rec conv_offset x =
@@ -866,10 +867,10 @@ struct
     | _ -> M.special ctx lval f arglist
   (* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
 
-  let name = "OSEK"
+  let name () = "OSEK"
   let es_to_string f _ = f.svar.vname
 
-  let should_join _ _ = true
+  let should_join x y = D.equal x y
 
   (** Finalization and other result printing functions: *)
 
@@ -895,7 +896,6 @@ struct
 
   (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsMap = Map.Make (Offs)
-  (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsSet = Set.Make (Offs)
 
   let get_acc_map gl =
@@ -909,25 +909,9 @@ struct
       in
       AccValSet.fold f accesses_map (OffsMap.empty, OffsSet.empty)
     in
-    (* join map elements, that we cannot be sure are logically separate *)
-    let regroup_map (map,set) =
-      let f offs (group_offs, access_list, new_map) =
-        let new_offs = ValueDomain.Offs.definite offs in
-        let new_gr_offs = ValueDomain.Offs.join new_offs group_offs in
-        (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
-        if (ValueDomain.Offs.leq new_offs group_offs || (ValueDomain.Offs.is_bot group_offs))
-        then (new_gr_offs, OffsMap.find offs map @ access_list, new_map)
-        else (   new_offs, OffsMap.find offs map, OffsMap.add group_offs access_list new_map)
-      in
-      let (last_offs,last_set, map) = OffsSet.fold f set (ValueDomain.Offs.bot (), [], OffsMap.empty) in
-      if ValueDomain.Offs.is_bot last_offs
-      then map
-      else OffsMap.add last_offs last_set map
-    in
     let acc = Acc.find acc gl in
     let acc_info = create_map acc in
-    let acc_map = if !Mutex.unmerged_fields then proj2_1 acc_info else regroup_map acc_info in
-    acc_map
+    proj2_1 acc_info
 
   let suppressed = ref 0
   let filtered = ref 0
@@ -952,7 +936,7 @@ struct
         List.fold_left f (Lockset.bot ()) acc_list
       in
       let rw ((_,_,x),_,_) = x in
-      let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
+      let non_main ((_,x,_),_,_) = BaseDomain.Flag.is_bad x in
       let is_race_no_flags acc_list =
         let offpry = offpry acc_list in
         let minpry = minpry acc_list in
@@ -1119,7 +1103,7 @@ struct
           let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
           let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
           let action = if write then "write" else "read" in
-          let thread = "\"" ^ Base.Main.Flag.short 80 fl ^ "\"" in
+          let thread = "\"" ^ BaseDomain.Flag.short 80 fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in
           (warn,loc)
         in (*/f*)

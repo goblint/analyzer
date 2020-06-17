@@ -27,18 +27,39 @@ struct
       | x -> x
 
     let toXML s  = toXML_f short s
+
+    let invariant c ss =
+      let string_of_exp e = Exp.short 100 e in
+      fold (fun s a ->
+          if B.mem MyCFG.unknown_exp s then
+            a
+          else
+            let module B_prod = BatSet.Make2 (Exp) (Exp) in
+            let s_prod = B_prod.cartesian_product s s in
+            let i = B_prod.Product.fold (fun (x, y) a ->
+                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) then (* each equality only one way, no self-equalities *)
+                  let xname = string_of_exp x in
+                  let yname = string_of_exp y in
+                  let eq = xname ^ " == " ^ yname in
+                  Invariant.(a && of_string eq)
+                else
+                  a
+              ) s_prod Invariant.none
+            in
+            Invariant.(a && i)
+        ) ss Invariant.none
   end
 
   module C = D
   module G = Lattice.Unit
 
-  let name = "var_eq"
+  let name () = "var_eq"
 
   let startstate v = D.top ()
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
 
-  let rec const_equal c1 c2 =
+  let const_equal c1 c2 =
     match c1, c2 with
     |	CStr s1  , CStr s2	 -> s1 = s2
     |	CWStr is1, CWStr is2 -> is1 = is2

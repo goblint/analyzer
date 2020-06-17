@@ -10,7 +10,7 @@ module WP =
   functor (HM:Hash.H with type key = S.v) ->
   struct
 
-    include Generic.SolverStats (S)
+    include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
     module P =
@@ -20,8 +20,8 @@ module WP =
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
-    type phase = Widen | Narrow      
-    
+    type phase = Widen | Narrow
+
     let solve box st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
@@ -37,7 +37,10 @@ module WP =
         if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) w
+        VS.iter (fun y ->
+          HM.remove stable y;
+          (* if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y); *)
+          if not (HM.mem called y) then destabilize y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
@@ -48,8 +51,8 @@ module WP =
           let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
-          let tmp = match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp in
           HM.remove called x;
+          let tmp = if S.system x <> None then match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp else tmp in
           if not (S.Dom.equal old tmp) then (
             (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
             update_var_event x old tmp;
@@ -59,8 +62,8 @@ module WP =
             destabilize x;
             (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then (
-            (solve[@tailcall]) x phase;
-          ) else if phase = Widen then (
+            (solve[@tailcall]) x Widen;
+          ) else if phase = Widen && S.system x <> None then (
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;
           );
@@ -73,6 +76,7 @@ module WP =
         | Some f -> f get set
       and simple_solve x y =
         if tracing then trace "sol2" "simple_solve %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
+        if S.system y = None then init y;
         if HM.mem rho y then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.find rho y)
         else (
@@ -86,13 +90,12 @@ module WP =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
         let tmp = simple_solve x y in
-        add_infl y x;
+        if HM.mem rho y then add_infl y x;
         tmp
       and side y d =
-        if tracing then trace "sol2" "side to %a on %i (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
         let old = try HM.find rho' y with Not_found -> S.Dom.bot () in
         if not (S.Dom.leq d old) then (
-          HM.replace rho' y (S.Dom.join old d);
+          HM.replace rho' y (S.Dom.widen old d);
           HM.remove stable y;
           init y;
           solve y Widen;
@@ -119,7 +122,7 @@ module WP =
       (* iterate until there are no unstable variables
        * after termination, only those variables are stable which are
        * - reachable from any of the queried variables vs, or
-       * - effected by side-effects and have no constraints on their own (this should not be the case for any of our analyses)
+       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses)
        *)
       let rec solve_sidevs () =
         let non_stable = List.filter (neg (HM.mem stable)) vs in
@@ -194,6 +197,7 @@ module WP =
 
       HM.clear stable;
       HM.clear infl  ;
+      HM.clear rho'  ;
 
       rho
 

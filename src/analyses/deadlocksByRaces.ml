@@ -7,14 +7,14 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "oslo"
+  let name () = "oslo"
   module MSpec = Mutex.Spec
   module D = MSpec.D
   module G = MSpec.G
   module C = MSpec.C
 
-  let extra_var = makeGlobalVar "__deadlock_variable" intType
-  let gate_var = makeGlobalVar "__gatelock_variable" intType
+  let extra_var = Goblintutil.create_var (makeGlobalVar "__deadlock_variable" intType)
+  let gate_var = Goblintutil.create_var (makeGlobalVar "__gatelock_variable" intType)
 
   let init     () = MSpec.init ()
   let finalize () = MSpec.finalize ()
@@ -29,7 +29,7 @@ struct
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = MSpec.enter ctx lval f args
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = MSpec.combine ctx lval fexp f args au
 
-  let fake_unlock = makeGlobalVar "pthread_mutex_unlock" intType
+  let fake_unlock = Goblintutil.create_var (makeGlobalVar "pthread_mutex_unlock" intType)
 
   let add_access may must tid = true
   let add_gatelock may must tid = true

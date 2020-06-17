@@ -10,7 +10,7 @@ module WP =
   functor (HM:Hash.H with type key = S.v) ->
   struct
 
-    include Generic.SolverStats (S)
+    include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
     module P =
@@ -31,7 +31,7 @@ module WP =
       let rho    = HM.create  10 in
       let rho'   = HPM.create 10 in (* x,y -> d *)
       let wpoint = HM.create  10 in
-      
+
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
@@ -49,13 +49,13 @@ module WP =
         VS.iter (fun y ->
           HM.remove stable y;
           if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
-          destabilize y) w
+          if not (HM.mem called y) then destabilize y) w
       and solve x =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
-          let wpx = HM.mem wpoint x in          
+          let wpx = HM.mem wpoint x in
           init x;
           let old = HM.find rho x in
           let tmp' = eq x (eval x) (side x) in
@@ -92,7 +92,7 @@ module WP =
       and eval x y =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
-        if HM.mem called y then HM.replace wpoint y ();
+        if HM.mem called y || S.system y = None then HM.replace wpoint y ();
         solve y;
         add_infl y x;
         HM.find rho y

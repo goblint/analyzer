@@ -1,5 +1,4 @@
-opt :
+native :
 
 % :
 	@./make.sh $@
-

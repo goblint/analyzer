@@ -1,8 +1,3 @@
-open Cil
-open Pretty
-
-module M = Messages
-
 module EscapedVars  =
 struct
   include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)

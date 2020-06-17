@@ -1,4 +1,4 @@
-// SKIP? PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
+//PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -36,7 +36,7 @@ int main () {
   int j, k;
   struct s *p;
   pthread_t t1;
- 
+
   slot[j] = new(1);
   list_add(new(2), slot[j]);
 
@@ -49,7 +49,7 @@ int main () {
   list_add(p, slot[k]);
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  
+
   pthread_mutex_lock(&mutex[j]);
   p = slot[j]->next; // NORACE
   printf("%d\n", p->datum);

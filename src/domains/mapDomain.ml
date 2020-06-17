@@ -8,12 +8,16 @@ module GU = Goblintutil
 module type S =
 sig
   include Lattice.S
-  type key (** The type of the map keys. *)
-  type value (** The type of the values. *)
+  type key
+  (** The type of the map keys. *)
+
+  type value
+  (** The type of the values. *)
 
   val add: key -> value -> t -> t
   val remove: key -> t -> t
   val find: key -> t -> value
+  val find_opt: key -> t -> value option
   val mem: key -> t -> bool
   val iter: (key -> value -> unit) -> t -> unit
   val map: (value -> value) -> t -> t
@@ -31,6 +35,13 @@ sig
   val long_map2: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
   (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
+
+  val widen_with_fct: (value -> value -> value) -> t -> t -> t
+  (* Widen using a custom widening function for value rather than the default one for value *)
+  val join_with_fct: (value -> value -> value) -> t -> t -> t
+  (* Join using a custom join function for value rather than the default one for value *)
+  val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
+  (* Leq test using a custom leq function for value rather than the default one provided for value *)
 end
 
 module type Groupable =
@@ -51,10 +62,7 @@ end
 
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
-  module M = struct
-    include Map.Make (Domain)
-    let to_yojson poly_v x = [%to_yojson: (Domain.t * 'v) list] (bindings x) (* TODO pull this into Prelude *)
-  end
+  module M = Deriving.Map.Make (Domain)
 
   include Printable.Std
   type key = Domain.t
@@ -67,6 +75,7 @@ struct
   let add = M.add
   let remove = M.remove
   let find = M.find
+  let find_opt = M.find_opt
   let mem = M.mem
   let iter = M.iter
   let map = M.map
@@ -76,18 +85,11 @@ struct
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal = for_all2 Range.equal
+  let compare x y = if equal x y then 0 else M.compare Range.compare x y
   let merge = M.merge
+  let for_all = M.for_all
+  let find_first = M.find_first
   let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
-
-  exception Done
-  let for_all p m =
-    let f key value = if p key value then () else raise Done in
-    try iter f m; true with Done -> false
-
-  exception Found of key
-  let find_first p m =
-    let f key value = if p key value then raise (Found key) else () in
-    try iter f m; raise Not_found with Found x -> x
 
 
   let add_list keyvalues m =
@@ -146,7 +148,7 @@ struct
         end
       | kd -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [kd; Range.toXML st])
     in
-    let module IMap = Map.Make (struct type t = int let compare = Pervasives.compare end) in
+    let module IMap = Map.Make (struct type t = int let compare = Stdlib.compare end) in
     let groups =
       let add_grpd k v m =
         let group = Domain.classify k in
@@ -220,12 +222,14 @@ type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
-  let leq m1 m2 =
+  let leq_with_fct f m1 m2 =
     (* For each key-value in m1, the same key must be in m2 with a geq value: *)
     let p key value =
-      try Range.leq value (find key m2) with Not_found -> false
+      try f value (find key m2) with Not_found -> false
     in
     m1 == m2 || for_all p m1
+
+  let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.bot ()
   let top () = Lattice.unsupported "partial map top"
@@ -251,8 +255,15 @@ struct
     | None -> Pretty.dprintf "No binding grew."
 
   let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
-  let join m1 m2 = if m1 == m2 then m1 else long_map2 Range.join m1 m2
-  let widen  = long_map2 Range.widen
+
+  let join_with_fct f m1 m2 =
+    if m1 == m2 then m1 else long_map2 f m1 m2
+  let join = join_with_fct Range.join
+
+  let widen_with_fct f =  long_map2 f
+  let widen  = widen_with_fct Range.widen
+
+
   let narrow = map2 Range.narrow
 end
 
@@ -263,12 +274,14 @@ type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
-  let leq m1 m2 =
+  let leq_with_fct f m1 m2 = (* TODO use merge or sth faster? *)
     (* For each key-value in m2, the same key must be in m1 with a leq value: *)
     let p key value =
-      try Range.leq (find key m1) value with Not_found -> false
+      try f (find key m1) value with Not_found -> false
     in
     m1 == m2 || for_all p m2
+
+  let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.top ()
   let top () = M.empty
@@ -276,10 +289,17 @@ struct
   let is_top = M.is_empty
   let is_bot _ = false
 
+  (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)
   let meet m1 m2 = if m1 == m2 then m1 else long_map2 Range.meet m1 m2
-  let join m1 m2 = if m1 == m2 then m1 else map2 Range.join m1 m2
 
-  let widen  = map2 Range.widen
+  let join_with_fct f m1 m2 =
+    if m1 == m2 then m1 else map2 f m1 m2
+
+  let join = join_with_fct Range.join
+
+  let widen_with_fct f = map2 f
+  let widen = widen_with_fct Range.widen
+
   let narrow = long_map2 Range.narrow
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
@@ -323,6 +343,10 @@ struct
   let find k = function
     | `Top -> Range.top ()
     | `Lifted x -> M.find k x
+
+  let find_opt k = function
+    | `Top -> Some (Range.top ())
+    | `Lifted x -> M.find_opt k x
 
   let mem k = function
     | `Top -> true
@@ -380,6 +404,24 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
     | _ -> raise (Fn_over_All "merge")
+
+  let leq_with_fct f x y =
+    match (x,y) with
+    | (_, `Top) -> true
+    | (`Top, _) -> false
+    | (`Lifted x, `Lifted y) -> M.leq_with_fct f x y
+
+  let join_with_fct f x y =
+    match (x,y) with
+    | (`Top, x) -> `Top
+    | (x, `Top) -> `Top
+    | (`Lifted x, `Lifted y) -> `Lifted (M.join_with_fct f x y)
+
+  let widen_with_fct f x y =
+    match (x,y) with
+    | (`Lifted x, `Lifted y) -> `Lifted (M.widen_with_fct f x y)
+    | _ -> y
+
 end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
@@ -401,8 +443,12 @@ struct
     | `Lifted x -> `Lifted (M.remove k x)
 
   let find k = function
-    | `Bot -> Range.top ()
+    | `Bot -> Range.bot ()
     | `Lifted x -> M.find k x
+
+  let find_opt k = function
+    | `Bot -> Some (Range.bot ())
+    | `Lifted x -> M.find_opt k x
 
   let mem k = function
     | `Bot -> false
@@ -460,4 +506,21 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
     | _ -> raise (Fn_over_All "merge")
+
+  let join_with_fct f x y =
+    match (x,y) with
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Lifted x, `Lifted y) -> `Lifted (M.join_with_fct f x y)
+
+  let widen_with_fct f x y =
+    match (x,y) with
+    | (`Lifted x, `Lifted y) -> `Lifted(M.widen_with_fct f x y)
+    | _ -> y
+
+  let leq_with_fct f x y =
+    match (x,y) with
+    | (`Bot, _) -> true
+    | (_, `Bot) -> false
+    | (`Lifted x, `Lifted y) -> M.leq_with_fct f x y
 end

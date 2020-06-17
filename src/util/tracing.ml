@@ -4,9 +4,13 @@
 
 open Pretty
 open Cil
+open Node
 
 module Strs = Set.Make (String)
+module NodeMap = Hashtbl.Make(Node)
 
+let location_map = ref (NodeMap.create 103: location NodeMap.t)
+let current_node = ref (None: node option)
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
@@ -14,6 +18,16 @@ let activated = ref Strs.empty
 let active_dep = Hashtbl.create 9
 let tracevars = ref ([]: string list)
 let tracelocs = ref ([]: int list)
+
+let getLoc (node: node) =
+  (* In case this belongs to a changed function, we will find the true location in the map*)
+  try
+    NodeMap.find !location_map node
+  with e ->
+    match node with
+    | Statement stmt -> get_stmtLoc stmt.skind
+    | Function fv -> fv.vdecl
+    | FunctionEntry fv -> fv.vdecl
 
 let addsystem sys = trace_sys := Strs.add sys !trace_sys
 let activate (sys:string) (subsys: string list): unit =
@@ -101,21 +115,28 @@ let gtrace always f sys var ?loc do_subsys fmt =
   end else
     mygprintf fmt
 
-let trace sys ?var fmt = gtrace true printtrace sys var (fun x -> x) fmt
+let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
+
+(* trace*
+ * l: include location
+ * i: indent after print, optionally activate subsys for sys
+ * u: outdent after print, deactivate subsys of sys
+ * c: continue/normal print w/o indent-change
+*)
 
 let tracel sys ?var fmt =
   let loc = !current_loc in
   let docloc sys doc =
     printtrace sys (dprintf "(%s:%d)@?" loc.file loc.line ++ indent 2 doc);
   in
-  gtrace true docloc sys var ~loc:loc.line (fun x -> x) fmt
+  gtrace true docloc sys var ~loc:loc.line ignore fmt
 
 let tracei (sys:string) ?var ?(subsys=[]) fmt =
   let f sys d = printtrace sys d; traceIndent () in
   let g () = activate sys subsys in
   gtrace true f sys var g fmt
 
-let tracec sys fmt = gtrace false printtrace sys None (fun x -> x) fmt
+let tracec sys fmt = gtrace false printtrace sys None ignore fmt
 
 let traceu sys fmt =
   let f sys d = printtrace sys d; traceOutdent () in

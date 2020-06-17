@@ -19,7 +19,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "containment"
+  let name () = "containment"
 
   module D =
   struct
@@ -333,7 +333,6 @@ struct
         (*true*)
         let vars = D.get_vars rval in
         List.fold_left (fun y x -> if y || not (is_ext x.vname glob) then true else y ) false vars
-        (**)
       end
     else false
 

@@ -6,68 +6,10 @@ open Cil
 open Deriving.Cil
 open Pretty
 open GobConfig
+include Node
 
-module BISet = BatSet.Make (BatInt)
-
-(** A node in the Control Flow Graph is either a statement or function. Think of
- * the function node as last node that all the returning nodes point to.  So
- * the result of the function call is contained in the function node. *)
-type node =
-  | Statement of stmt
-  (** The statements as identified by CIL *)
-  | FunctionEntry of varinfo
-  (** *)
-  | Function of varinfo
-  (** The variable information associated with the function declaration. *)
-[@@deriving to_yojson]
-
-let write_cfgs : ((node -> bool) -> unit) ref = ref (fun _ -> ())
-
-let pretty_node () = function
-  | Statement s -> text "Statement " ++ dn_stmt () s
-  | Function f -> text "Function " ++ text f.vname
-  | FunctionEntry f -> text "FunctionEntry " ++ text f.vname
-
-
-let pretty_short_node () = function
-  | Statement s -> text "Statement @ " ++ d_loc () (get_stmtLoc s.skind)
-  | Function f -> text "Function " ++ text f.vname
-  | FunctionEntry f -> text "FunctionEntry " ++ text f.vname
-
-let node_compare n1 n2 =
-  match n1, n2 with
-  | FunctionEntry f, FunctionEntry g -> compare f.vid g.vid
-  | _                    , FunctionEntry g -> -1
-  | FunctionEntry g, _                     -> 1
-  | Statement _, Function _  -> -1
-  | Function  _, Statement _ -> 1
-  | Statement s, Statement l -> compare s.sid l.sid
-  | Function  f, Function g  -> compare f.vid g.vid
-
-module Node :
-sig
-  include Hashtbl.HashedType with type t = node
-  include Set.OrderedType with type t := node
-end =
-struct
-  type t = node
-  let equal x y =
-    match x,y with
-    | Statement s1, Statement s2 -> s1.sid = s2.sid
-    | Function f1, Function f2 -> f1.vid = f2.vid
-    | FunctionEntry f1, FunctionEntry f2 -> f1.vid = f2.vid
-    | _ -> false
-  let hash x =
-    match x with
-    | Statement s     -> s.sid * 17
-    | Function f      -> f.vid
-    | FunctionEntry f -> -f.vid
-
-  let compare = node_compare
-end
-
-type asm_out = (string option * string * lval) list
-type asm_in  = (string option * string * exp ) list
+type asm_out = (string option * string * lval) list [@@deriving to_yojson]
+type asm_in  = (string option * string * exp ) list [@@deriving to_yojson]
 
 type edge =
   | Assign of lval * exp
@@ -80,16 +22,23 @@ type edge =
   | Ret of exp option * fundec
   (** Return edge is between the return statement, which may optionally contain
     * a return value, and the function. The result of the call is then
-    * transfered to the function node! *)
+    * transferred to the function node! *)
   | Test of exp * bool
   (** The true-branch or false-branch of a conditional exp *)
   | ASM of string list * asm_out * asm_in
   (** Inline assembly statements, and the annotations for output and input
     * variables. *)
+  | VDecl of varinfo
+  (** VDecl edge for the variable in varinfo. Whether such an edge is there for all
+    * local variables or only when it is not possible to pull the declaration up, is
+    * determined by alwaysGenerateVarDecl in cabs2cil.ml in CIL. One case in which a VDecl
+    * is always there is for VLA. If there is a VDecl edge, it is where the declaration originally
+    * appeared *)
   | Skip
   (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop
   (** This for interrupt edges.! *)
+[@@deriving to_yojson]
 
 
 let pretty_edge () = function
@@ -102,6 +51,7 @@ let pretty_edge () = function
   | Test (p,b) -> dprintf "Test (%a,%b)" d_exp p b
   | ASM _ -> text "ASM ..."
   | Skip -> text "Skip"
+  | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
   | SelfLoop -> text "SelfLoop"
 
 let rec pretty_edges () = function
@@ -117,6 +67,7 @@ let pretty_edge_kind () = function
   | Test (p,b) -> dprintf "Test"
   | ASM _ -> text "ASM"
   | Skip -> text "Skip"
+  | VDecl _ -> text "VDecl"
   | SelfLoop -> text "SelfLoop"
 
 type cfg = node -> ((location * edge) list * node) list
@@ -227,6 +178,9 @@ let createCFG (file: file) =
           Hashtbl.add stmt_index_hack stmt.sid fd;
           if Messages.tracing then Messages.trace "cfg" "Statement at %a.\n" d_loc (get_stmtLoc stmt.skind);
           match stmt.skind with
+          (* turn pthread_exit into return? *)
+          (* | Instr [Call (_, Lval (Var {vname="pthread_exit"}, _), [ret_exp], _)] -> addCfg (Function fd.svar) (Ret (Some ret_exp,fd), Statement stmt) *)
+          (* | Instr [Call (lval, ((Lval (Var {vname="pthread_exit"}, _)) as func), ([ret_exp] as args), loc)] -> addCfg (Function fd.svar) (Proc (lval, func, args), Statement stmt) *)
           (* Normal instructions are easy. They should be a list of a single
            * instruction, either Set, Call or ASM: *)
           | Instr xs ->
@@ -235,6 +189,7 @@ let createCFG (file: file) =
               | Set (lval,exp,loc) -> loc, Assign (lval, exp)
               | Call (lval,func,args,loc) -> loc, Proc (lval,func,args)
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
+              | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let handle_instrs succ = mkEdges (Statement stmt) (List.map handle_instr xs) succ in
             (* Sometimes a statement might not have a successor.
@@ -267,7 +222,9 @@ let createCFG (file: file) =
                * the [Call] node. *)
               | Not_found ->
                 let newst = mkStmt (Return (None, locUnknown)) in
-                newst.sid <- new_sid ();
+                let start_id = 10_000_000_000 in (* TODO get max_sid? *)
+                let sid = Hashtbl.hash loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
+                newst.sid <- if sid < start_id then sid + start_id else sid;
                 mkEdge (realnode true stmt) (Test (one, false)) newst;
                 addCfg (Function fd.svar) (Ret (None,fd), Statement newst);
             end
@@ -307,6 +264,7 @@ let print cfg  =
     | Ret (None,f) -> Pretty.dprintf "return"
     | ASM (_,_,_) -> Pretty.text "ASM ..."
     | Skip -> Pretty.text "skip"
+    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
     | SelfLoop -> Pretty.text "SelfLoop"
   in
   (* escape string in label, otherwise dot might fail *)
@@ -317,7 +275,7 @@ let print cfg  =
   in
   let printNodeStyle (n:node) () =
     match n with
-    | Statement {skind=If (_,_,_,_)} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
+    | Statement {skind=If (_,_,_,_); _} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
     | Statement stmt  -> ()
     | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.vname)
     | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.vname)
@@ -338,7 +296,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   let inits = Hashtbl.create 13 in
   let fast_global_inits = get_bool "exp.fast_global_inits" in
   let rec doInit lval loc init is_zero =
-    let rec initoffs offs init typ lval =
+    let initoffs offs init typ lval =
       doInit (addOffsetLval offs lval) loc init is_zero;
       lval
     in
@@ -360,7 +318,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   in
   let f glob =
     match glob with
-    | GVar ({vtype=vtype} as v, init, loc) -> begin
+    | GVar ({vtype=vtype; _} as v, init, loc) -> begin
         let init, is_zero = match init.init with
           | None -> makeZeroInit vtype, true
           | Some x -> x, false
@@ -464,6 +422,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
     | Ret (None,f) -> Pretty.dprintf "return"
     | ASM (_,_,_) -> Pretty.text "ASM ..."
     | Skip -> Pretty.text "skip"
+    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
     | SelfLoop -> Pretty.text "SelfLoop"
   in
   let rec p_edges () = function
@@ -474,7 +433,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
     let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
     let kind_style =
       match n with
-      | Statement {skind=If (_,_,_,_)}  -> "shape=diamond"
+      | Statement {skind=If (_,_,_,_); _}  -> "shape=diamond"
       | Statement stmt  -> ""
       | Function f      -> "label =\"return of "^f.vname^"()\",shape=box"
       | FunctionEntry f -> "label =\""^f.vname^"()\",shape=box"

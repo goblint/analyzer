@@ -1,13 +1,10 @@
 open Analyses
-open GobConfig
-open Messages
-open Pretty
 
 module Make =
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
   struct
-    include Generic.SolverStats (S)
+    include Generic.SolverStats (S) (HM)
     module VS = BatSet.Make (S.Var)
 
     let solve _ st vs =

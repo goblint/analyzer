@@ -43,7 +43,7 @@ class debugCilPrinterClass =
   object (self)
     inherit defaultCilPrinterClass as super
 
-    method pStmtKind (next: stmt) () =
+    method! pStmtKind (next: stmt) () =
       function
       | Instr _ as x ->
         enclose "INSTR LIST" (super#pStmtKind next () x)

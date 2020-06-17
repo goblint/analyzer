@@ -1,9 +1,5 @@
-open Pretty
 open Printf
-open Xml
 open Cil
-open Unix
-open Lazy
 open Html_template
 
 let size = 50 (* also change the value in js_template.ml *)
@@ -404,4 +400,3 @@ let print_html chan xmlNode (file: file) gtable =
   List.iter (fun fileEntry -> List.iter (fun chan -> closeAnalysisFile chan) !(fileEntry.analysis_out) ) !fileList;
 
   (*printf "End: %f \n" (Unix.time ());*)
-

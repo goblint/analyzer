@@ -7,7 +7,7 @@ let domains: (module Lattice.S) list = [
       (module IntDomain.Interval32);
       (module IntDomain.Booleans);
       (module IntDomain.CircInterval);
-      (module IntDomain.Trier);
+      (module IntDomain.DefExc);
       (module IntDomain.Enums);
       (module IntDomain.IntDomTuple); *)
   (module IntDomainProperties.IntegerSet)
@@ -20,7 +20,7 @@ let intDomains: (module IntDomain.S) list = [
   (module IntDomain.Interval32);
   (module IntDomain.Booleans);
   (module IntDomain.CircInterval);
-  (module IntDomain.Trier);
+  (module IntDomain.DefExc);
   (module IntDomain.Enums);
   (module IntDomain.IntDomTuple)
 ]

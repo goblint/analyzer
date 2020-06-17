@@ -2,7 +2,7 @@
 
 open Pretty
 
-type json = Yojson.Safe.json
+type json = Yojson.Safe.t
 let json_to_yojson x = x
 
 module type S =
@@ -24,18 +24,40 @@ sig
   (* This is for debugging *)
   val name: unit -> string
   val to_yojson : t -> json
+
+  val invariant: Invariant.context -> t -> Invariant.t
+  val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
+
   val arbitrary: unit -> t QCheck.arbitrary
+end
+
+module type HC = (* HashCons *)
+sig
+  include S
+  (* For hashconsing together with incremental we need to re-hashcons old values.
+   * For HashconsLifter.D this is done on any lattice operation, so we can replace x with `join bot x` to hashcons it again and get a new tag for it.
+   * For HashconsLifter.C we call hashcons only in `context` which is in Analyses.Spec but not in Analyses.GlobConstrSys, i.e. not visible to the solver. *)
+  (* The default for this should be identity, except for HConsed below where we want to have the side-effect and return a value with the updated tag. *)
+  val relift: t -> t
+end
+
+module HC (X: S) = struct
+  include X
+  let relift x = x
 end
 
 module Std =
 struct
   (*  let equal = Util.equals
       let hash = Hashtbl.hash*)
-  let compare = Pervasives.compare
+  let compare = compare (* Beware that this does not terminate on cyclic data! *)
   let classify _ = 0
   let class_name _ = "None"
   let name () = "std"
   let trace_enabled = false
+
+  let invariant _ _ = Invariant.none
+  let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
 end
 
@@ -111,7 +133,7 @@ end
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
 module HConsed (Base:S) =
 struct
-  include Std (* for property-based testing *)
+  include Std (* for default invariant, tag, ... *)
 
   module HC = BatHashcons.MakeTable (Base)
   let htable = HC.create 100000
@@ -120,10 +142,12 @@ struct
   let unlift x = x.BatHashcons.obj
   let lift = HC.hashcons htable
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
+  let relift x = HC.hashcons htable x.BatHashcons.obj
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
+  let tag x = x.BatHashcons.tag
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
-  let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
+  let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
   let short w = lift_f (Base.short w)
   let to_yojson = lift_f (Base.to_yojson)
   let pretty_f sf () = lift_f (Base.pretty_f (fun w x -> sf w (lift x)) ())
@@ -134,6 +158,21 @@ struct
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
 
+  let invariant c = lift_f (Base.invariant c)
+  let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
+    if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
+      if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
+        ignore @@ Pretty.printf "tags are equal but values are not for %a and %a\n" pretty x pretty y;
+      assert (Base.equal x.BatHashcons.obj y.BatHashcons.obj);
+      true
+    ) else (
+      if Base.equal x.BatHashcons.obj y.BatHashcons.obj then
+        ignore @@ Pretty.printf "tags are not equal but values are for %a and %a\n" pretty x pretty y;
+      assert (not (Base.equal x.BatHashcons.obj y.BatHashcons.obj));
+      false
+    )
+  let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
+  (* let equal = equal_debug *)
   let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 end
 
@@ -156,6 +195,17 @@ struct
     | (`Bot, `Bot) -> true
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
+
+  let compare x y =
+    match (x, y) with
+    | (`Top, `Top) -> 0
+    | (`Bot, `Bot) -> 0
+    | (`Top, _) -> 1
+    | (`Bot, _) -> -1
+    | (_, `Top) -> -1
+    | (_, `Bot) -> 1
+    | (`Lifted x, `Lifted y) -> Base.compare x y
+    | _ -> raise @@ invalid_arg "Invalid argument for Lift.compare"
 
   let short w state =
     match state with
@@ -190,6 +240,10 @@ struct
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
     | `Lifted x -> Base.printXml f x
 
+  let invariant c = function
+    | `Lifted x -> Base.invariant c x
+    | `Top | `Bot -> Invariant.none
+
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
@@ -219,6 +273,14 @@ struct
     | (`Left x, `Left y) -> Base1.equal x y
     | (`Right x, `Right y) -> Base2.equal x y
     | _ -> false
+
+  let compare x y = if equal x y then 0 else
+    match (x, y) with
+    | (`Left _), (`Right _) -> -1
+    | (`Right _), (`Left _) -> 1
+    | (`Right x), (`Right y) -> Base2.compare x y
+    | (`Left x), (`Left y) -> Base1.compare x y
+    | _, _ -> raise @@ Invalid_argument "Invalid argument for Either.compare"
 
   let pretty_f _ () (state:t) =
     match state with
@@ -269,6 +331,25 @@ struct
     | (`Lifted1 x, `Lifted1 y) -> Base1.equal x y
     | (`Lifted2 x, `Lifted2 y) -> Base2.equal x y
     | _ -> false
+
+  let compare x y =
+    let order x = match x with
+      | `Top -> 0
+      | `Bot -> 1
+      | `Lifted1 _ -> 2
+      | `Lifted2 _ -> 3
+    in
+    if equal x y
+      then 0
+      else
+        let compareOrder = compare (order x) (order y) in
+        if compareOrder != 0
+          then compareOrder
+          else
+           match (x, y) with
+            | (`Lifted1 a, `Lifted1 b) -> Base1.compare a b
+            | (`Lifted2 x, `Lifted2 y) -> Base2.compare x y
+            | _, _ -> raise @@ Failure "compare Lift2 failed"
 
   let hash state =
     match state with
@@ -387,6 +468,7 @@ struct
     else
       Base1.pretty_diff () (x1,y1)
 
+  let invariant c (x, y) = Invariant.(Base1.invariant c x && Base2.invariant c y)
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
 end
 
@@ -400,6 +482,15 @@ struct
   let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
   let equal (x1,x2,x3) (y1,y2,y3) =
     Base1.equal x1 y1 && Base2.equal x2 y2 && Base3.equal x3 y3
+  let compare (x1,x2,x3) (y1,y2,y3) =
+    let comp1 = Base1.compare x1 y1 in
+    if comp1 <> 0
+      then comp1
+      else let comp2 = Base2.compare x2 y2 in
+      if comp2 <> 0
+      then comp2
+      else Base3.compare x3 y3
+
   let short w (x,y,z) =
     let first = ref "" in
     let second= ref "" in
@@ -433,6 +524,7 @@ struct
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
+  let invariant c (x, y, z) = Invariant.(Base1.invariant c x && Base2.invariant c y && Base3.invariant c z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
 
@@ -441,6 +533,7 @@ struct
   type t = Base.t list [@@deriving to_yojson]
   include Std
   let equal x y = try List.for_all2 Base.equal x y with Invalid_argument _ -> false
+  let compare x y = BatList.compare Base.compare x y
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
   let short _ x =
@@ -491,7 +584,6 @@ struct
   let isSimple _ = true
   let hash x = x-5284
   let equal (x:int) (y:int) = x=y
-
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
@@ -560,6 +652,13 @@ struct
     | (`Top, `Top) -> true
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
+
+  let compare x y =
+    match (x, y) with
+    | `Top, `Top -> 0
+    | `Top, _ -> 1
+    | _, `Top -> -1
+    | `Lifted x, `Lifted y -> Base.compare x y
 
   let hash = function
     | `Top -> 7890

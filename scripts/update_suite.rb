@@ -14,12 +14,16 @@ class String
   def indent(n=2); " "*n + self end
   # colors
   def colorize(color_code); "\e[#{color_code}m#{self}\e[0m" end
+  def black; colorize(30) end
   def red; colorize(31) end
   def green; colorize(32) end
   def yellow; colorize(33) end
   def blue; colorize(34) end
   def pink; colorize(35) end
-  def light_blue; colorize(36) end
+  def cyan; colorize(36) end
+  def white; colorize(37) end
+  def bg_black; colorize(40) end # gray for me
+  def gray; colorize("38;5;240") end
 end
 class Array
   def itemize(n=2); self.map {|x| "- #{x}".indent(n)}.join() end
@@ -53,20 +57,22 @@ failed    = [] # failed tests
 timedout  = [] # timed out tests
 
 class Project
-  attr_reader :id, :name, :group, :path, :params, :warnings
-  attr_writer :size
-  def initialize(id, name, size, group, path, params, warnings)
+  attr_reader :id, :name, :group, :path, :params, :tests, :tests_line
+  attr_accessor :size, :ok
+  def initialize(id, name, size, group, path, params, tests, tests_line, ok)
     @id       = id
     @name     = name
     @size     = size
     @group    = group
     @path     = path
     @params   = params
-    @warnings = warnings
+    @tests = tests
+    @tests_line = tests_line
+    @ok = ok
   end
   def to_html
-    orgfile = name + ".c.html"
-    cilfile = name + ".cil.txt"
+    orgfile = File.join(group, name + ".c.html")
+    cilfile = File.join(group, name + ".cil.txt")
     "<td>#{@id}</td>\n" +
     "<td><a href=\"#{orgfile}\">#{@name}</a></td>\n" +
     "<td><a href=\"#{cilfile}\">#{@size} lines</a></td>\n"
@@ -118,7 +124,6 @@ regs.sort.each do |d|
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
     lines = IO.readlines(path)
-    size = 0
     debug = true
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
@@ -126,7 +131,8 @@ regs.sort.each do |d|
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 
-    hash = Hash.new
+    tests = Hash.new
+    tests_line = Hash.new
     i = 0
     lines.each do |obj|
       i = i + 1
@@ -134,33 +140,34 @@ regs.sort.each do |d|
         i = $1.to_i - 1
       end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
+      tests_line[i] = obj
       if obj =~ /RACE/ then
-        hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
+        tests[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /DEADLOCK/ then
-        hash[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
+        tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
       elsif obj =~ /WARN/ then
-        hash[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
+        tests[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
       elsif obj =~ /assert.*\(/ then
         debug = true
         if obj =~ /FAIL/ then
-          hash[i] = "fail"
+          tests[i] = "fail"
         elsif obj =~ /UNKNOWN/ then
-          hash[i] = "unknown"
+          tests[i] = "unknown"
         else
-          hash[i] = "assert"
+          tests[i] = "assert"
         end
       end
     end
     case lines[0]
     when /NON?TERM/
-      hash[-1] = "noterm"
+      tests[-1] = "noterm"
       debug = true
     when /TERM/
-      hash[-1] = "term"
+      tests[-1] = "term"
       debug = true
     end
     params << " --set dbg.debug true" if debug
-    p = Project.new(id,testname,size,groupname,path,params,hash)
+    p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, true)
     projects << p
   end
 end
@@ -194,12 +201,17 @@ doproject = lambda do |p|
   clearline
   id = "#{p.id} #{p.group}/#{p.name}"
   print "Testing #{id}"
-  warnfile = File.join(testresults, p.name + ".warn.txt")
-  statsfile = File.join(testresults, p.name + ".stats.txt")
-#   confile = File.join(testresults, p.name + ".con.txt")
-#   solfile = File.join(testresults, p.name + ".sol.txt")
-  cilfile = File.join(testresults, p.name + ".cil.txt")
-  orgfile = File.join(testresults, p.name + ".c.html")
+  begin
+    Dir.mkdir(File.join(testresults, p.group)) unless Dir.exist?(File.join(testresults, p.group))
+  rescue
+    # if we run into this, the directory was created in the time between exist? and mkdir => we can just continue
+  end
+  warnfile = File.join(testresults, p.group, p.name + ".warn.txt")
+  statsfile = File.join(testresults, p.group, p.name + ".stats.txt")
+#   confile = File.join(testresults, p.group, p.name + ".con.txt")
+#   solfile = File.join(testresults, p.group, p.name + ".sol.txt")
+  cilfile = File.join(testresults, p.group, p.name + ".cil.txt")
+  orgfile = File.join(testresults, p.group, p.name + ".c.html")
   if report then
     system(highlighter.call(filename, orgfile))
     `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
@@ -245,20 +257,22 @@ doproject = lambda do |p|
     f.puts "Goblint params: #{cmd}"
     f.puts vrsn
   end
-  status == 0
+  p.ok = status == 0
+  p
 end
 if sequential then
-  alliswell = projects.map(&doproject).all?
+  projects = projects.map(&doproject)
 else
   begin
     require 'parallel'
     # globals are protected from change when running processes instead of threads
-    alliswell = Parallel.map(projects, &doproject).all?
+    projects = Parallel.map(projects, &doproject)
   rescue LoadError => e
     puts "Missing dependency. Please run: gem install parallel"
     raise e
   end
 end
+alliswell = projects.map{|p| p.ok}.all?
 clearline
 
 #Outputting
@@ -295,7 +309,7 @@ File.open(theresultfile, "w") do |f|
     f.puts "<tr>"
     f.puts p.to_html
 
-    warnfile = p.name + ".warn.txt"
+    warnfile = File.join(p.group, p.name + ".warn.txt")
     warnings = Hash.new
     warnings[-1] = "term"
     lines = IO.readlines(File.join(testresults, warnfile))
@@ -330,11 +344,12 @@ File.open(theresultfile, "w") do |f|
     end
     correct = 0
     ferr = nil
-    p.warnings.each_pair do |idx, type|
+    p.tests.each_pair do |idx, type|
       check = lambda {|cond|
         if cond then correct += 1
         else
-          puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
+          puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
+          puts p.tests_line[idx].rstrip.gray
           ferr = idx if ferr.nil? or idx < ferr
         end
       }
@@ -351,9 +366,9 @@ File.open(theresultfile, "w") do |f|
         check.call warnings[idx] != "deadlock"
       end
     end
-    f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.warnings.size}</a></td>"
+    f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.tests.size}</a></td>"
 
-    statsfile = p.name + ".stats.txt"
+    statsfile = File.join(p.group, p.name + ".stats.txt")
     lines = IO.readlines(File.join(testresults, statsfile))
     res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
     errors = lines.grep(/Error:/)
@@ -375,14 +390,15 @@ File.open(theresultfile, "w") do |f|
 #       f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
 #     end
 
-    if correct == p.warnings.size && is_ok then
+    if correct == p.tests.size && is_ok then
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
       if not timedout.include? id then
-        failed.push p.name
+        failed.push "#{p.id} #{p.name}"
         exc = if lines[0] =~ /exception/ then " (see exception above)" else "" end
         puts "#{id}" + " failed#{exc}!".red
+        puts ""
         if dump then
           puts "============== WARNINGS ==============="
           puts File.read(File.join(testresults, warnfile))
@@ -394,7 +410,7 @@ File.open(theresultfile, "w") do |f|
       if not is_ok or ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
       else
-        whataglorifiedmess = p.name + ".c.html"
+        whataglorifiedmess = File.join(p.group, p.name + ".c.html")
         f.puts "<td><a href=\"#{whataglorifiedmess}#line#{ferr}\" style =\"color: red\">LINE #{ferr}</a></td>"
       end
     end
@@ -420,9 +436,8 @@ if report then
   puts ("Results: " + theresultfile)
 end
 if alliswell then
-  puts "All is well!".green
+  puts "No errors :)".green
 else
-  puts "All is not well!".red
-  # puts "failed tests: #{failed}"
+  puts "#{failed.length} tests failed: #{failed}".red
 end
 exit alliswell

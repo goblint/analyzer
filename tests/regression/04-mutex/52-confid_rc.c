@@ -20,20 +20,20 @@ void *t_fun(void *arg) {
   int uk;
   int *p = &g2;
   if (uk) p = (int)rantom();
-  
+
   struct s sx;
   sx.p  = &g3;
   sx.qp = rantom();
-  
+
   // This regression test is here to document
-  // the conficende levels of accesses:
-  
+  // the confidence levels of accesses:
+
   g      = 10;              // syntactically unambigous access:            RACE @ conf. 110
   *(&g1) = 20;              // through a P.T.-set with no unknown element: RACE @ conf. 110
   *p     = 20;              // through a P.T.-set with an unknown element: RACE @ conf. 100
   mystery_fn((int *)&sx);   // through possible reachability:              RACE @ conf. 80
                             //           additionally: (struct q).i gets a race @ conf. 60
-  
+
   return NULL;
 }
 

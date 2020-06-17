@@ -9,14 +9,14 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "spec"
+  let name()  = "spec"
   module D = SpecDomain.Dom
   module C = SpecDomain.Dom
   module G = Lattice.Unit
 
   (* special variables *)
-  let return_var    = Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let global_var    = Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
+  let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
+  let global_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
 
   (* spec data *)
   let nodes = ref []
@@ -208,7 +208,7 @@ struct
       Queries.LS.elements l
     | _ -> []
 
-  let rec eval_fv ask exp: varinfo option =
+  let eval_fv ask exp: varinfo option =
     match query_lv ask exp with
     | [(v,_)] -> Some v
     | _ -> None

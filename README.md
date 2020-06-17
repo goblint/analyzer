@@ -1,54 +1,39 @@
-# goblint &nbsp; [![Travis-CI](https://travis-ci.org/goblint/analyzer.png)](https://travis-ci.org/goblint/analyzer/branches) [![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer) [![In Progress](https://badge.waffle.io/goblint/analyzer.svg?label=In%20Progress&title=In%20Progress)](https://waffle.io/goblint/analyzer) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/goblint)
+# goblint
+[![Travis Build Status](https://travis-ci.com/goblint/analyzer.svg?branch=master)](https://travis-ci.com/goblint/analyzer) <!-- [![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer) --> [![Docker Build Status](https://img.shields.io/docker/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
 
 ## Setup
-### Linux 
-[Install opam](http://opam.ocaml.org/doc/Install.html) and then do
+[Install opam](http://opam.ocaml.org/doc/Install.html), and then do `opam install goblint` to install the latest release.
 
-    git clone https://github.com/goblint/analyzer.git
-    cd analyzer
-    make setup
+For development, use `make setup` to install OCaml and all dependencies, and `make` to build.
 
-to install OCaml and the latest versions of the dependencies for the current user.
-After that you can build goblint:
+Run goblint: `./goblint tests/regression/04-mutex/01-simple_rc.c`.
 
-    make
+If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example Ubuntu/macOS setup.
 
-If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example setup.
-You may now try running goblint: `./goblint tests/regression/04-mutex/01-simple_rc.c`.
+### macOS
+Goblint relies on GNU `cpp` to preprocess source files - the default clang `cpp` on macOS will not work.
+You can install it with `brew install gcc` (first do `xcode-select --install` if you don't want to build from source). You can check src/config.ml to see what command is used to call `cpp`.
 
-### Mac OS X
+### Windows
+For Windows 10 we recommend using [WSL](https://docs.microsoft.com/de-de/windows/wsl/install-win10).
+For older versions you can try to build using [these scripts](https://github.com/goblint/analyzer/tree/master/scripts/old/cygwin) for Cygwin, or use a virtual machine.
 
-The above instructions for Linux work just as well for Mac OS X. Goblint
-successfully compiles, but it may fail to parse files. We need `cpp` in order
-to preprocess source files and current versions of the clang frontend will not
-work with goblint. You therefore have to do, e.g., `brew install gcc` (first do `xcode-select --install` if you don't want to build from source). You can check src/config.ml to see what command is used to call `cpp`.
+### Docker / Virtual machine
+You can run Goblint in a [Docker container](https://hub.docker.com/r/voglerr/goblint/) using: `docker run -it voglerr/goblint ./goblint --help`.
 
-
-### Windows/Cygwin
-For a goblint binary package, follow [these instructions](http://goblint.in.tum.de/download.html).
-For building from source, install Cygwin using [setup-cygwin-dev.bat](scripts/setup-cygwin-dev.bat) and then do
-
-    wget "https://raw.githubusercontent.com/goblint/analyzer/master/scripts/setup-cygwin-dev.sh" && source setup-cygwin-dev.sh
-
-### Virtual machine
-A ready-to-use virtual machine can be set up using [Vagrant](http://www.vagrantup.com/):
-
-    vagrant up
-    vagrant ssh
-    sudo su -
-    cd analyzer
-
-### Docker container
-Running goblint in a [Docker](http://www.docker.com/) container is even faster since everything is already installed:
-
-    docker pull voglerr/goblint
-    docker run voglerr/goblint /analyzer/goblint --help
+A virtual machine containing Goblint can be set up using [Vagrant](http://www.vagrantup.com/): `vagrant up && vagrant ssh`.
 
 ### Web frontend
-Use `make npm` to setup the web frontend and start serving on <http://localhost:3000>.
-See its [README](https://github.com/vogler/goblint-webapp) for details.
+The analysis results are printed to stdout by default.
+Adding `--html` saves the results as XML, which is then transformed to be viewable in a web browser.
+Use `make jar` to build the needed Java program.
 
-### g2html
-Use `make jar` to build `g2html.jar`, which can be used like so
+    ./goblint --html path/to/file.c
 
-    ./goblint --html -o result path/to/file.c && firefox result/index.xml
+Open `result/index.xml` in a browser of your choice.
+Depending on the browser security settings, it might be necessary to serve the result directory from a webserver to access it.
+This can be done by e.g. running `python3 -m http.server` in the `result` directory. The results should then be accessible at `http://localhost:8000`
+
+<!-- ### Web frontend -->
+<!-- Use `make npm` to setup the web frontend and start serving on <http://localhost:3000>. -->
+<!-- See its [README](https://github.com/vogler/goblint-webapp) for details. -->

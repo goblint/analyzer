@@ -1,4 +1,4 @@
-// SKIP: This is a known problem! 
+// SKIP: This is a known problem! For arrays, it is addressed by enabling the partitioned arrays.
 // But we assume uninitialized stuff is not used.
 
 #include<stdio.h>

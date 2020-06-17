@@ -10,7 +10,7 @@ module WP =
   functor (HM:Hash.H with type key = S.v) ->
   struct
 
-    include Generic.SolverStats (S)
+    include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
     module P =
@@ -48,10 +48,10 @@ module WP =
           let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          HM.remove called x;
           let tmp = box x old tmp in
           if tracing then trace "cache" "cache size %d for %a on %i\n" (HM.length l) S.Var.pretty_trace x (S.Var.line_nr x);
           cache_sizes := HM.length l :: !cache_sizes;
-          (* HM.remove called x; *)
           if not (S.Dom.equal old tmp) then (
             (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
             update_var_event x old tmp;
@@ -60,7 +60,6 @@ module WP =
             HM.replace rho x tmp;
             destabilize x;
           );
-          HM.remove called x;
           (solve[@tailcall]) x;
         )
       and eq x get set =
@@ -70,7 +69,8 @@ module WP =
         | None -> S.Dom.bot ()
         | Some f -> f get set
       and simple_solve l x y =
-        if tracing then trace "sol2" "simple_solve %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
+        if tracing then trace "sol2" "simple_solve %a on %i (rhs: %b)\n" S.Var.pretty_trace y (S.Var.line_nr y) (S.system y <> None);
+        if S.system y = None then init y;
         if HM.mem rho y then (solve y; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
         if HM.mem l y then HM.find l y
@@ -85,7 +85,7 @@ module WP =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
         let tmp = simple_solve l x y in
-        add_infl y x;
+        if HM.mem rho y then add_infl y x;
         tmp
       and side l y d =
         if tracing then trace "sol2" "side to %a on %i (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
@@ -119,7 +119,7 @@ module WP =
       (* iterate until there are no unstable variables
        * after termination, only those variables are stable which are
        * - reachable from any of the queried variables vs, or
-       * - effected by side-effects and have no constraints on their own (this should not be the case for any of our analyses)
+       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses)
        *)
       let rec solve_sidevs () =
         let non_stable = List.filter (neg (HM.mem stable)) vs in

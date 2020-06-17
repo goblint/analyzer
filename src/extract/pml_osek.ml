@@ -12,22 +12,23 @@ let init oil =
   let nproc     = fst @@ var (Byte (Hashtbl.length OilUtil.tasks)) "nproc" in
   let nresource = fst @@ var (Byte (Hashtbl.length OilUtil.resources)) "nresource" in
   (*let nevent    = fst @@ var (Byte (Hashtbl.length OilUtil.events)) "nevent" in*)
+  (* Pml.do_; (* ppx_monadic: from now on ; is bind *) *)
+  (* switched to ocaml-monadic because ppx_monadic was constraining us to ocaml <4.08, now have to use ;%bind instead of just ; and `let%bind x = e in` instead of `x <-- e;` *)
 
-  Pml.do_; (* from now on ; is bind *)
   (* type delcarations, TODO generate this? *)
   (* TODO might need adjustment if there are enums with gaps or enums not starting at 0 *)
-  enum state_of_enum show_state "state";
-  enum waiting_for_of_enum show_waiting_for "waiting_for";
+  enum state_of_enum show_state "state";%bind
+  enum waiting_for_of_enum show_waiting_for "waiting_for";%bind
   (* variable declarations *)
-  state       <-- arr !nproc (Enum (SUSPENDED, show_state)) "state";
-  waiting_for <-- arr !nproc (Enum (NONE, show_waiting_for)) "waiting_for";
-  waiting_id  <-- arr !nproc (Byte 0) "waiting_id";
-  resources   <-- arr !nresource (Byte 0) "resources";
-  resources_max <-- arr !nresource (Byte 0) "resources_max";
-  resources_chan  <-- arr !nresource (Chan.create !nproc (Byte 0)) "resources_chan";
-  events      <-- arr !nproc (Byte 0) "events";
-  events_chan <-- arr !nproc (Chan.create !nproc (Byte 0)) "events_chan";
-  events_max  <-- arr !nproc (Byte 0) "events_max";
+  let%bind state       = arr !nproc (Enum (SUSPENDED, show_state)) "state" in
+  let%bind waiting_for = arr !nproc (Enum (NONE, show_waiting_for)) "waiting_for" in
+  let%bind waiting_id  = arr !nproc (Byte 0) "waiting_id" in
+  let%bind resources   = arr !nresource (Byte 0) "resources" in
+  let%bind resources_max = arr !nresource (Byte 0) "resources_max" in
+  let%bind resources_chan  = arr !nresource (Chan.create !nproc (Byte 0)) "resources_chan" in
+  let%bind events      = arr !nproc (Byte 0) "events" in
+  let%bind events_chan = arr !nproc (Chan.create !nproc (Byte 0)) "events_chan" in
+  let%bind events_max  = arr !nproc (Byte 0) "events_max" in
 
   (* task and argument variables *)
   let tid,tid_decl = var (Byte 0) "tid" in (* used inside a task to refer to its id *)
@@ -35,104 +36,90 @@ let init oil =
   (*let name,_   = var (String "") "name" in*)
 
   (* macros - used in extracted pml *)
-  Macro.define "can_run" @@ A1 (id, fun id -> (!state !id == e READY show_state));
+  Macro.define "can_run" @@ A1 (id, fun id -> (!state !id == e READY show_state));%bind
 
   (* helpers - these get inlined *)
   let task_info id = s "state["^i2s id^s "] = "^e2s (!state id)^s ", waiting_for[] = "^e2s (!waiting_for id)^s ", waiting_id[] = "^i2s (!waiting_id id) in
   let resource_info id = s "resources["^i2s id^s "] = "^i2s (!resources id) in
   let event_info id = s "events["^i2s id^s "] = "^i2s (!events id) in
-  let set_waiting id wfor wid = Pml.do_;
-    println (s "set_waiting: process "^i2s id^s " will wait for "^i2s wid);
-    waiting_for := id, (e wfor show_waiting_for);
-    waiting_id  := id, wid;
+  let set_waiting id wfor wid =
+    println (s "set_waiting: process "^i2s id^s " will wait for "^i2s wid);%bind
+    waiting_for := id, (e wfor show_waiting_for);%bind
+    waiting_id  := id, wid;%bind
     state      := id, (e WAITING show_state)
   in
-  let set_ready id = Pml.do_;
-    println (s "set_ready: process "^i2s id^s " set to ready. "^task_info id);
-    waiting_for := id, (e NONE show_waiting_for);
-    waiting_id  := id, i 0;
+  let set_ready id =
+    println (s "set_ready: process "^i2s id^s " set to ready. "^task_info id);%bind
+    waiting_for := id, (e NONE show_waiting_for);%bind
+    waiting_id  := id, i 0;%bind
     state      := id, (e READY show_state)
   in
   let is_waiting id wfor wid = !state id == e WAITING show_state && !waiting_for id == e wfor show_waiting_for && !waiting_id id == wid in
-  (*let remove_waiting id = Pml.do_;
+  (*let remove_waiting id =
     if has_resources then
       _foreach resources (fun j _ ->
           _ift (poll `Any (!resources_chan j) id) (recv `Any (!resources_chan j) id)
         )
-    else nop;
-    waiting_for := id, e NONE show_waiting_for;
-    in*)
+    else nop;%bind
+    waiting_for := id, e NONE show_waiting_for
+  in*)
 
   (* Specification of operating system services *)
   (* Task management *)
-  (*extract "DeclareTask" @@ A1 (id, fun id -> Pml.do_;
+  (*extract "DeclareTask" @@ A1 (id, fun id ->
     nop
     );*)
   extract "ActivateTask" @@ A1 (id, fun id ->
-      Pml.do_;
       state := !id, (e READY show_state)
       (* TODO When an extended task is transferred from suspended state into ready state all its events are cleared. *)
-    );
+    );%bind
   extract "TerminateTask" @@ A0 (
-    Pml.do_;
     state := !tid, (e SUSPENDED show_state)
     (* TODO NON release internal resource *)
-  );
+  );%bind
   extract "ChainTask" @@ A1 (id, fun id ->
-      Pml.do_;
-      state := !tid, (e SUSPENDED show_state);
+      state := !tid, (e SUSPENDED show_state);%bind
       state := !id, (e READY show_state)
       (* TODO NON ensures that the succeeding task starts to run at the earliest?, release internal resource *)
-    );
+    );%bind
   extract "Schedule" @@ A0 (
-    Pml.do_;
     nop
     (* TODO NON release internal resource *)
-  );
+  );%bind
   extract "GetTaskID" @@ A1 (id, fun id ->
-      Pml.do_;
       (* TODO ANA assign tid to id *)
       nop
-    );
+    );%bind
   extract "GetTaskState" @@ A1 (id,(* state, *) fun id ->
-      Pml.do_;
       (* TODO ANA Returns the state of a task (running, ready, waiting, suspended) at the time of calling GetTaskState. *)
       nop
-    );
+    );%bind
 
   (* Interrupt handling *)
   extract "EnableAllInterrupts" @@ A0 (
-    Pml.do_;
     nop
-  );
+  );%bind
   extract "DisableAllInterrupts" @@ A0 (
-    Pml.do_;
     nop
-  );
+  );%bind
   extract "ResumeAllInterrupts" @@ A0 (
-    Pml.do_;
     nop
-  );
+  );%bind
   extract "SuspendAllInterrupts" @@ A0 (
-    Pml.do_;
     nop
-  );
+  );%bind
   extract "ResumeOSInterrupts" @@ A0 (
-    Pml.do_;
     nop
-  );
+  );%bind
   extract "SuspendOSInterrupts" @@ A0 (
-    Pml.do_;
     nop
-  );
+  );%bind
 
   (* Resource management *)
   (*extract "DeclareResource" @@ A1 (id, fun id ->
-    Pml.do_;
     nop
-    );*)
+    );%bind*)
   extract "GetResource" @@ A1 (id, fun id ->
-      Pml.do_;
       let id = !id in
       let resource = !resources id in
       let chan = !resources_chan id in
@@ -150,9 +137,8 @@ let init oil =
         resource < i 0,
         fail (s "GetResource: count<0: "^resource_info id)
       ]
-    );
+    );%bind
   extract "ReleaseResource" @@ A1 (id, fun id ->
-      Pml.do_;
       let id = !id in
       let resource = !resources id in
       let chan = !resources_chan id in
@@ -173,20 +159,17 @@ let init oil =
             )
           )
       ]
-    );
+    );%bind
 
   (* Event control *)
   let mask,_ = var (Byte 0) "mask" in
   (*extract "DeclareEvent" @@ A1 (id, fun id ->
-    Pml.do_;
     nop
-    );*)
+    );%bind*)
   extract "SetEvent" @@ A2 (id, mask, fun id mask ->
-      Pml.do_;
       events := !id, !mask
-    );
+    );%bind
   extract "ClearEvent" @@ A1 (mask, fun mask ->
-      Pml.do_;
       (*events := !id, mask*)
       let id = !tid in
       let event = !events id in
@@ -208,14 +191,12 @@ let init oil =
             )
           )
       ]
-    );
+    );%bind
   extract "GetEvent" @@ A2 (id, mask, fun id mask ->
-      Pml.do_;
       (* TODO ANA? *)
       !events !id
-    );
+    );%bind
   extract "WaitEvent" @@ A1 (mask, fun mask ->
-      Pml.do_;
       let id = !id in
       let resource = !resources id in
       let chan = !resources_chan id in
@@ -233,35 +214,29 @@ let init oil =
         resource < i 0,
         fail (s "WaitEvent: count<0: "^event_info id)
       ]
-    );
+    );%bind
 
   (* Alarms *)
   (*extract "DeclareAlarm" @@ A1 (id, fun id ->
-    Pml.do_;
     nop
-    );*)
+    );%bind*)
   extract "GetAlarmBase" @@ A1 (id,(* info, *) fun id ->
-      Pml.do_;
       (* TODO ANA *)
       nop
-    );
+    );%bind
   extract "GetAlarm" @@ A1 (id,(* tick, *) fun id ->
-      Pml.do_;
       (* TODO ANA *)
       nop
-    );
+    );%bind
   extract "SetRelAlarm" @@ A1 (id,(* increment, cycle, *) fun id ->
-      Pml.do_;
       (* TODO *)
       nop
-    );
+    );%bind
   extract "SetAbsAlarm" @@ A1 (id,(* start, cycle, *) fun id ->
-      Pml.do_;
       (* TODO *)
       nop
-    );
+    );%bind
   extract "CancelAlarm" @@ A1 (id, fun id ->
-      Pml.do_;
       (* TODO *)
       nop
-    );
+    )

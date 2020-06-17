@@ -10,88 +10,121 @@ sig
   val to_int: t -> int64 option
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
+
   val of_int: int64 -> t
   (** Transform an integer literal to your internal domain representation. *)
+
   val is_int: t -> bool
   (** Checks if the element is a definite integer value. If this function
     * returns [true], the above [to_int] should return a real value. *)
 
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
+
   val to_bool: t -> bool option
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
+
   val of_bool: bool -> t
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
+
   val is_bool: t -> bool
   (** Checks if the element is a definite boolean value. If this function
     * returns [true], the above [to_bool] should return a real value. *)
+
   val to_excl_list: t -> int64 list option
   (* Gives a list representation of the excluded values if possible. *)
+
   val of_excl_list: Cil.ikind -> int64 list -> t
   (* Creates a exclusion set from a given list of integers. *)
+
   val is_excl_list: t -> bool
   (* Checks if the element is an exclusion set. *)
+
   val of_interval: int64 * int64 -> t
   val starting   : int64 -> t
   val ending     : int64 -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
+
   (** {b Arithmetic operators} *)
 
   val neg: t -> t
   (** Negating an integer value: [-x] *)
+
   val add: t -> t -> t
   (** Addition: [x + y] *)
+
   val sub: t -> t -> t
   (** Subtraction: [x - y] *)
+
   val mul: t -> t -> t
   (** Multiplication: [x * y] *)
+
   val div: t -> t -> t
   (** Division: [x / y] *)
+
   val rem: t -> t -> t
   (** Integer remainder: [x % y] *)
+
 
   (** {b Comparison operators} *)
 
   val lt: t -> t -> t
   (** Less than: [x < y] *)
+
   val gt: t -> t -> t
   (** Greater than: [x > y] *)
+
   val le: t -> t -> t
   (** Less than or equal: [x <= y] *)
+
   val ge: t -> t -> t
   (** Greater than or equal: [x >= y] *)
+
   val eq: t -> t -> t
   (** Equal to: [x == y] *)
+
   val ne: t -> t -> t
   (** Not equal to: [x != y] *)
+
 
   (** {b Bit operators} *)
 
   val bitnot: t -> t
   (** Bitwise not (one's complement): [~x] *)
+
   val bitand: t -> t -> t
   (** Bitwise and: [x & y] *)
+
   val bitor : t -> t -> t
   (** Bitwise or: [x | y] *)
+
   val bitxor: t -> t -> t
   (** Bitwise exclusive or: [x ^ y] *)
+
   val shift_left : t -> t -> t
   (** Shifting bits left: [x << y] *)
+
   val shift_right: t -> t -> t
   (** Shifting bits right: [x >> y] *)
+
 
   (** {b Logical operators} *)
 
   val lognot: t -> t
   (** Logical not: [!x] *)
+
   val logand: t -> t -> t
   (** Logical and: [x && y] *)
+
   val logor : t -> t -> t
   (** Logical or: [x || y] *)
 
+
   (** {b Cast} *)
+
   val cast_to: Cil.ikind -> t -> t
   (** Cast interval/integer to type of the given width. *)
 end
@@ -130,13 +163,13 @@ module Lifted : S with type t = [`Top | `Lifted of int64 | `Bot]
 (** Artificially bounded integers in their natural ordering. *)
 
 module Interval32 : S
-module Trier
+module DefExc
   : S with type t = [
       | `Excluded of SetDomain.Make(Integers).t * Interval32.t
       | `Definite of Integers.t
       | `Bot
     ]
-(** The Trier domain. The Flattened integer domain is topped by exclusion sets.
+(** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
 
 module CircInterval: S (* for property-based testing *)
@@ -173,8 +206,11 @@ end
 
 module type BooleansNames =
 sig
-  val truename: string (** The name of the [true] abstract value *)
-  val falsename: string (** The name of the [false] abstract value *)
+  val truename: string
+  (** The name of the [true] abstract value *)
+
+  val falsename: string
+  (** The name of the [false] abstract value *)
 end
 (** Parameter signature for the [MakeBooleans] functor. *)
 

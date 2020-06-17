@@ -1,3 +1,0 @@
-PKG batteries cil xml-light ppx_deriving ppx_deriving.std ppx_deriving_yojson ppx_import ppx_monadic mongo qcheck
-S src/**
-B _build/src/**

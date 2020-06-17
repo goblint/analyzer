@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<styles>
+  <style name="SV-COMP" scope="node" selectionOnly="false">
+    <mapping>
+      <source name="entry" origin="customProperty" type="boolean"/>
+      <target name="fillColor" type="color">
+        <hints/>
+      </target>
+      <conversion type="discrete">
+        <discrete>
+          <value>true</value>
+          <result>#00ff00</result>
+        </discrete>
+      </conversion>
+    </mapping>
+    <mapping>
+      <source name="sink" origin="customProperty" type="boolean"/>
+      <target name="fillColor" type="color">
+        <hints/>
+      </target>
+      <conversion type="discrete">
+        <discrete>
+          <value>true</value>
+          <result>#808080</result>
+        </discrete>
+      </conversion>
+    </mapping>
+    <mapping>
+      <source name="violation" origin="customProperty" type="boolean"/>
+      <target name="fillColor" type="color">
+        <hints/>
+      </target>
+      <conversion type="discrete">
+        <discrete>
+          <value>true</value>
+          <result>#ff0000</result>
+        </discrete>
+      </conversion>
+    </mapping>
+    <mapping>
+      <source name="goblintNode" origin="customProperty" type="string"/>
+      <target name="labelText" type="string">
+        <hints>
+          <hint type="boolean">true</hint>
+          <hint type="int">0</hint>
+        </hints>
+      </target>
+      <conversion type="asIs"/>
+    </mapping>
+    <mapping>
+      <source name="invariant" origin="customProperty" type="string"/>
+      <target name="tooltip" type="string">
+        <hints/>
+      </target>
+      <conversion type="asIs"/>
+    </mapping>
+  </style>
+  <style name="SV-COMP" scope="edge" selectionOnly="false">
+    <mapping>
+      <source name="control" origin="customProperty" type="string"/>
+      <target name="lineColor" type="color">
+        <hints/>
+      </target>
+      <conversion type="discrete">
+        <discrete>
+          <value>condition-true</value>
+          <result>#00ff00</result>
+        </discrete>
+        <discrete>
+          <value>condition-false</value>
+          <result>#ff0000</result>
+        </discrete>
+      </conversion>
+    </mapping>
+    <mapping>
+      <source name="enterLoopHead" origin="customProperty" type="boolean"/>
+      <target name="lineColor" type="color">
+        <hints/>
+      </target>
+      <conversion type="discrete">
+        <discrete>
+          <value>true</value>
+          <result>#0000ff</result>
+        </discrete>
+      </conversion>
+    </mapping>
+    <mapping>
+      <source name="goblintEdge" origin="customProperty" type="string"/>
+      <target name="labelText" type="string">
+        <hints>
+          <hint type="int">0</hint>
+        </hints>
+      </target>
+      <conversion type="asIs"/>
+    </mapping>
+    <mapping>
+      <source name="enterFunction" origin="customProperty" type="string"/>
+      <target name="labelText" type="string">
+        <hints>
+          <hint type="int">1</hint>
+        </hints>
+      </target>
+      <conversion type="regexp">
+        <regexp>
+          <pattern xml:space="preserve"><![CDATA[(.*)]]></pattern>
+          <replacement xml:space="preserve"><![CDATA[enter: $1]]></replacement>
+          <replaceAll>false</replaceAll>
+          <replaceAlways>true</replaceAlways>
+        </regexp>
+      </conversion>
+    </mapping>
+    <mapping>
+      <source name="returnFromFunction" origin="customProperty" type="string"/>
+      <target name="labelText" type="string">
+        <hints>
+          <hint type="int">1</hint>
+        </hints>
+      </target>
+      <conversion type="regexp">
+        <regexp>
+          <pattern xml:space="preserve"><![CDATA[(.*)]]></pattern>
+          <replacement xml:space="preserve"><![CDATA[return: $1]]></replacement>
+          <replaceAll>false</replaceAll>
+          <replaceAlways>true</replaceAlways>
+        </regexp>
+      </conversion>
+    </mapping>
+  </style>
+</styles>

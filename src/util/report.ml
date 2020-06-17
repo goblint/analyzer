@@ -2,7 +2,6 @@ open Prelude
 open GobConfig
 open Htmlutil
 open Printf
-open Json
 
 module GU = Goblintutil
 module M = Messages
@@ -25,16 +24,6 @@ let do_stats fileNames =
   let cont x = List.mem x cn |> not in
   let path x = List.mem x sn in
   let sens x = if x then str "Sensitive" else str "Insensitive" in
-  (*let yesno x = if x then str "Yes" else str "No" in
-    let intd =
-    let tr = get_bool "ana.int.trier" in
-    let inv = get_bool "ana.int.interval" in
-    match tr, inv with
-      | true , true  -> str "Kildall domain with exclusion sets & intervals"
-      | true , false -> str "Kildall domain with exclusion sets "
-      | false, true  -> str "intervals"
-      | false, false -> str "disabled"
-    in*)
   let phaseTbl = (* TODO actually take phases into account *)
     List.map (fun name -> name, cont name, path name) an
   in
@@ -121,6 +110,5 @@ let do_stats fileNames =
     ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
     flush_all ();
     prerr_endline "Solver stats:";
-    prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");
     Stats.print (M.get_out "timing" Legacy.stderr) "Timings:\n"
   | _ -> ()

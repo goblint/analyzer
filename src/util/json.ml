@@ -34,7 +34,7 @@ and print_object ch = function
   | m when Object.is_empty m -> BatPrintf.fprintf ch "{}"
   | m ->
     let prnt_str ch (x:string) = BatPrintf.fprintf ch "%S" x in
-    let ident ch = for i = 1 to !identCount do BatPrintf.fprintf ch " " done in
+    let ident ch = for _ = 1 to !identCount do BatPrintf.fprintf ch " " done in
     let n, i = Object.cardinal m, ref 1 in
     let print_one k v =
       let sep = if !i<n then "," else "" in
@@ -151,10 +151,13 @@ struct
 
   (** Generate a string value. *)
   let string x = String x
+
   (** Generate a int value. *)
   let number n = Number (num_of_int n)
+
   (** Generate a array value. *)
   let array x = Array (ref (List.map ref x))
+
   (** Generate a null. *)
   let null = Null
 end

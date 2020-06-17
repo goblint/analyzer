@@ -18,6 +18,8 @@ struct
   module C = ValueDomain.AddrSetDomain
   module G = Lattice.Unit
 
+  let should_join x y = D.equal x y
+
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
   let rec conv_offset x =
@@ -94,11 +96,11 @@ struct
       | [] -> acc
       | f :: fs ->
         match unrollType f.ftype with
-        | TComp ({cfields=ffs},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
+        | TComp ({cfields=ffs; _},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
         | _                       -> add_fields base fs ((Addr.from_var_offset (v,make_offs (f::base))) :: acc)
     in
     match unrollType v.vtype with
-    | TComp ({cfields=fs},_) -> add_fields [] fs []
+    | TComp ({cfields=fs; _},_) -> add_fields [] fs []
     | _ -> [Addr.from_var v]
 
   (* Remove null values from state that are unreachable from exp.*)
@@ -166,7 +168,7 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
-  let return_addr_ = ref (Addr.null_ptr ())
+  let return_addr_ = ref Addr.NullPtr
   let return_addr () = !return_addr_
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -221,7 +223,7 @@ struct
       end
     | _ -> ctx.local
 
-  let name = "malloc_null"
+  let name () = "malloc_null"
 
   let startstate v = D.empty ()
   let otherstate v = D.empty ()
@@ -229,7 +231,7 @@ struct
 
   let init () =
     set_bool "exp.malloc-fail" true;
-    return_addr_ :=  Addr.from_var (makeVarinfo false "RETURN" voidType)
+    return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

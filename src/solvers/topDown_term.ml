@@ -10,7 +10,7 @@ module WP =
   functor (HM:Hash.H with type key = S.v) ->
   struct
 
-    include Generic.SolverStats (S)
+    include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
     module P =
@@ -20,63 +20,53 @@ module WP =
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
-    module HPM = Hashtbl.Make (P)
+    type phase = Widen | Narrow
 
-    type phase = Widen | Narrow      
-    
     let solve box st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
-      let set    = HM.create  10 in (* y -> xs *)
-      let sidevs = HM.create  10 in (* side-effected variables *)
       let called = HM.create  10 in
       let rho    = HM.create  10 in
-      let rho'   = HPM.create 10 in (* x,y -> d *)
+      let rho'   = HM.create  10 in
       let wpoint = HM.create  10 in
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
-      let add_set x y d =
-        HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
-        HPM.add rho' (x,y) d;
-        HM.replace sidevs y ()
-      in
-      let is_side x = HM.mem set x in
       let rec destabilize x =
-        (* if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x); *)
+        if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
           HM.remove stable y;
-          if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
+          (* if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y); *)
           if not (HM.mem called y) then destabilize y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
-          let wpx = HM.mem wpoint x in          
+          let wpx = HM.mem wpoint x in
           init x;
           let old = HM.find rho x in
-          let tmp' = eq x (eval x) (side x) in
-          let tmp = S.Dom.join tmp' (sides x) in
+          let tmp = eq x (eval x) side in
+          let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
-          let tmp = if is_side x then S.Dom.widen old (S.Dom.join old tmp) else if wpx then box x old tmp else tmp in
           HM.remove called x;
+          let tmp = if wpx then match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp else tmp in
           if not (S.Dom.equal old tmp) then (
-            if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp));
+            (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
-            if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old;
+            (* if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old; *)
             HM.replace rho x tmp;
             destabilize x;
-            (solve[@tailcall]) x phase;            
-          ) else if not (HM.mem stable x) then (
             (solve[@tailcall]) x phase;
-          ) else if phase = Widen && neg is_side x then (
+          ) else if not (HM.mem stable x) then (
+            (solve[@tailcall]) x Widen;
+          ) else if phase = Widen && S.system x <> None then (
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;
           );
@@ -86,16 +76,7 @@ module WP =
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
-        | Some f ->
-          let effects = ref Set.empty in
-          let sidef y d =
-            if not (Set.mem y !effects) then (
-              HPM.replace rho' (x,y) (S.Dom.bot ()); (* TODO needed? tests also work without this... *)
-              effects := Set.add y !effects
-            );
-            set y d
-          in
-          f get sidef
+        | Some f -> f get set
       and eval x y =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
@@ -103,17 +84,12 @@ module WP =
         solve y Widen;
         add_infl y x;
         HM.find rho y
-      and sides x =
-        let w = try HM.find set x with Not_found -> VS.empty in
-        let d = Enum.fold (fun d y -> let r = try S.Dom.join d (HPM.find rho' (y,x)) with Not_found -> d in if tracing then trace "sol2" "sides: side %a from %a: %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty r; r) (S.Dom.bot ()) (VS.enum w) in
-        if tracing then trace "sol2" "sides %a on %i ## %a\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Dom.pretty d;
-        d
-      and side x y d =
-        if tracing then trace "sol2" "side %a on %i ## %a on %i (wpx: %b) ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
-        let old = try HPM.find rho' (x,y) with Not_found -> S.Dom.bot () in
-        if not (S.Dom.equal old d) then (
-          add_set x y (S.Dom.join old d);
+      and side y d =
+        let old = try HM.find rho' y with Not_found -> S.Dom.bot () in
+        if not (S.Dom.leq d old) then (
+          HM.replace rho' y (S.Dom.widen old d);
           HM.remove stable y;
+          init y;
           solve y Widen;
         )
       and init x =
@@ -127,7 +103,7 @@ module WP =
       let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a on %i ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Dom.pretty d;
         init x;
-        add_set x x d;
+        HM.replace rho x d;
         solve x Widen
       in
 
@@ -135,17 +111,15 @@ module WP =
       List.iter set_start st;
       List.iter init vs;
       List.iter (fun x -> solve x Widen) vs;
-      let keys h = HM.fold (fun k _ a -> k::a) h [] in
-      let n = ref 1 in
-      (* iterate until there are no more new side-effects *)
+      (* iterate until there are no unstable variables
+       * after termination, only those variables are stable which are
+       * - reachable from any of the queried variables vs, or
+       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses)
+       *)
       let rec solve_sidevs () =
-        let gs = keys sidevs in
-        HM.clear sidevs;
-        if gs <> [] then (
-          if tracing then trace "sol2" "Round %d: %d side-effected variables to solve\n" !n (List.length gs);
-          incr n;
-          List.iter (fun x -> solve x Widen) gs;
-          List.iter (fun x -> solve x Widen) vs;
+        let non_stable = List.filter (neg (HM.mem stable)) vs in
+        if non_stable <> [] then (
+          List.iter (fun x -> solve x Widen) non_stable;
           solve_sidevs ()
         )
       in
@@ -171,8 +145,7 @@ module WP =
 
       HM.clear stable;
       HM.clear infl  ;
-      HM.clear set   ;
-      HPM.clear rho'  ;
+      HM.clear rho'  ;
 
       rho
 

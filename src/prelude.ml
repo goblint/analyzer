@@ -23,6 +23,7 @@ module Ana = struct
   include All
   (* CIL *)
   include Cil
+  let d_varinfo () x = d_lval () (Var x, NoOffset)
   include Pretty
   let sprint f x = Pretty.sprint 80 (f () x)
   (* Analyses.Spec etc. *)

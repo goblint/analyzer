@@ -22,6 +22,10 @@ let showtemps = ref false
 let parse fileName =
   Frontc.parse fileName ()
 
+let print_to_file (fileName: string) (fileAST: file) =
+  let oc = Stdlib.open_out fileName in
+  dumpFile defaultCilPrinter oc fileName fileAST
+
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
 
@@ -33,7 +37,7 @@ let rmTemps fileAST =
 
 class allBBVisitor = object (* puts every instruction into its own basic block *)
   inherit nopCilVisitor
-  method vstmt s =
+  method! vstmt s =
     match s.skind with
     | Instr(il) ->
       let list_of_stmts =
@@ -42,10 +46,10 @@ class allBBVisitor = object (* puts every instruction into its own basic block *
       ChangeDoChildrenPost(s, (fun _ -> s.skind <- Block(block); s))
     | _ -> DoChildren
 
-  method vvdec _ = SkipChildren
-  method vexpr _ = SkipChildren
-  method vlval _ = SkipChildren
-  method vtype _ = SkipChildren
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 let end_basic_blocks f =
@@ -65,7 +69,14 @@ let do_preprocess ast =
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 let createCFG (fileAST: file) =
-  if not (get_bool "exp.basic-blocks") then end_basic_blocks fileAST;
+  (* The analyzer keeps values only for blocks. So if you want a value for every program point, each instruction      *)
+  (* needs to be in its own block. end_basic_blocks does that.                                                        *)
+  (* After adding support for VLAs, there are new VarDecl instructions at the point where a variable was declared and *)
+  (* its declaration is no longer printed at the beginning of the function. Putting these VarDecl into their own      *)
+  (* BB causes the output CIL file to no longer compile.                                                              *)
+  (* Since we want the output of justcil to compile, we do not run allBB visitor if justcil is enable, regardless of  *)
+  (* exp.basic-blocks. This does not matter, as we will not run any analysis anyway, when justcil is enabled.         *)
+  if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
   (* Partial.calls_end_basic_blocks fileAST; *)
   Partial.globally_unique_vids fileAST;
   iterGlobals fileAST (fun glob ->
@@ -101,7 +112,7 @@ let getAST fileName =
 class addConstructors cons = object
   inherit nopCilVisitor
   val mutable cons1 = cons
-  method vfunc fd =
+  method! vfunc fd =
     if List.mem fd.svar.vname (List.map string (get_list "mainfun")) then begin
       let loc = try get_stmtLoc (List.hd fd.sbody.bstmts).skind with Failure _ -> locUnknown in
       let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
@@ -111,11 +122,11 @@ class addConstructors cons = object
       ChangeTo fd
     end else SkipChildren
 
-  method vstmt _ = SkipChildren
-  method vvdec _ = SkipChildren
-  method vexpr _ = SkipChildren
-  method vlval _ = SkipChildren
-  method vtype _ = SkipChildren
+  method! vstmt _ = SkipChildren
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 let getMergedAST fileASTs =
@@ -130,7 +141,7 @@ let callConstructors ast =
     let cons = ref [] in
     iterGlobals ast (fun glob ->
         match glob with
-        | GFun({svar={vattr=attr}} as def, _) when hasAttribute "constructor" attr ->
+        | GFun({svar={vattr=attr; _}; _} as def, _) when hasAttribute "constructor" attr ->
           cons := def::!cons
         | _ -> ()
       );
@@ -144,7 +155,7 @@ let getFun fun_name =
   try
     iterGlobals !ugglyImperativeHack (fun glob ->
         match glob with
-        | GFun({svar={vname=vn}} as def,_) when vn = fun_name -> raise (Found def)
+        | GFun({svar={vname=vn; _}; _} as def,_) when vn = fun_name -> raise (Found def)
         | _ -> ()
       );
     failwith ("Function "^ fun_name ^ " not found!")
@@ -172,7 +183,7 @@ exception MyException of varinfo
 let find_module_init funs fileAST =
   try iterGlobals fileAST (
       function
-      | GVar ({vattr=attr}, {init=Some (SingleInit exp) }, _) when is_initptr attr ->
+      | GVar ({vattr=attr; _}, {init=Some (SingleInit exp) }, _) when is_initptr attr ->
         raise (MyException (get_varinfo exp))
       | _ -> ()
     );
@@ -189,15 +200,15 @@ let getFuns fileAST : startfuns =
   let add_other f (m,e,o) = (m,e,f::o) in
   let f acc glob =
     match glob with
-    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
-    | GFun({svar={vname=mn}} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
-    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
-    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
-    | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_init attr ->
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
+    | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
       Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
-    | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_exit attr ->
+    | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
-    | GFun ({svar={vstorage=NoStorage}} as def, _) when (get_bool "nonstatic") -> add_other def acc
+    | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
     | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
     | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
     | _ -> acc
@@ -211,7 +222,7 @@ let dec_make () : unit =
   Hashtbl.clear dec_table;
   iterGlobals !ugglyImperativeHack (fun glob ->
       match glob with
-      | GFun({svar={vid=vid}} as def,_) -> Hashtbl.add dec_table vid def
+      | GFun({svar={vid=vid; _}; _} as def,_) -> Hashtbl.add dec_table vid def
       | _ -> ()
     )
 

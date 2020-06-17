@@ -23,11 +23,13 @@ sig
   val file_name : t -> string
   val line_nr   : t -> int
   val node      : t -> MyCFG.node
+  val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
 end
 
 module Var =
 struct
   type t = MyCFG.node
+  let relift x = x
 
   let category = function
     | MyCFG.Statement     s -> 1
@@ -50,7 +52,7 @@ struct
     | MyCFG.Function      f -> dprintf "call of %s" f.vname
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
 
-  let pretty_trace () x =  dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
+  let pretty_trace () x =  dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare n1 n2 =
     match n1, n2 with
@@ -64,7 +66,7 @@ struct
 
   let kind = function
     | MyCFG.Function f                         -> `ExitOfProc f
-    | MyCFG.Statement {skind = Instr [Call _]} -> `ProcCall
+    | MyCFG.Statement {skind = Instr [Call _]; _} -> `ProcCall
     | _ -> `Other
 
   let printXml f n =
@@ -91,9 +93,10 @@ struct
 end
 
 
-module VarF (LD: Printable.S) =
+module VarF (LD: Printable.HC) =
 struct
   type t = MyCFG.node * LD.t
+  let relift (n,x) = n, LD.relift x
 
   let category = function
     | (MyCFG.Statement     s,_) -> 1
@@ -118,8 +121,8 @@ struct
     | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
 
   let pretty_trace () (n,c as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a)" pretty x LD.pretty c
-    else pretty () x
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
+    else dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare (n1,d1) (n2,d2) =
     let comp =
@@ -324,8 +327,20 @@ struct
       let write_file f fn =
         Messages.xml_file_name := fn;
         BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
-        BatPrintf.fprintf f "<run><parameters>%a</parameters><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
-        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
+        BatPrintf.fprintf f "<run>";
+        BatPrintf.fprintf f "<parameters>%a</parameters>" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+        BatPrintf.fprintf f "<statistics>";
+        (* FIXME: This is a super ridiculous hack we needed because BatIO has no way to get the raw channel CIL expects here. *)
+        let name, chn = Filename.open_temp_file "stat" "goblint" in
+        Stats.print chn "";
+        close_out chn;
+        let f_in = BatFile.open_in name in
+        let s = BatIO.read_all f_in in
+        BatIO.close_in f_in;
+        BatPrintf.fprintf f "%s" s;
+        BatPrintf.fprintf f "</statistics>";
+        BatPrintf.fprintf f "<result>\n";
+        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
         BatPrintf.fprintf f "%a" printXml (Lazy.force table);
         gtfxml f gtable;
         printXmlWarning f ();
@@ -374,17 +389,17 @@ struct
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
     (* | "mongo" ->
-      let open Deriving.Cil in
-      Printf.printf "Connecting to local MongoDB... ";
-      let db = Db.connect () in
-      let insert (loc,n,fd) v =
-        Db.insert db (MyCFG.node_to_yojson n, location_to_yojson loc, Range.to_yojson v)
-      in
-      let t = Unix.gettimeofday () in
-      Printf.printf "Inserting %d entries... " (length (Lazy.force table));
-      iter insert (Lazy.force table);
-      let t1 = Unix.gettimeofday () -. t in
-      Printf.printf "Done in %fs!\n" t1 *)
+       let open Deriving.Cil in
+       Printf.printf "Connecting to local MongoDB... ";
+       let db = Db.connect () in
+       let insert (loc,n,fd) v =
+         Db.insert db (MyCFG.node_to_yojson n, location_to_yojson loc, Range.to_yojson v)
+       in
+       let t = Unix.gettimeofday () in
+       Printf.printf "Inserting %d entries... " (length (Lazy.force table));
+       iter insert (Lazy.force table);
+       let t1 = Unix.gettimeofday () -. t in
+       Printf.printf "Done in %fs!\n" t1 *)
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -409,7 +424,7 @@ end
 
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
-   the same order as writen in the dependencies list (in MCP).
+   the same order as written in the dependencies list (in MCP).
 
    The foreign states when calling special_fn or enter are joined if the foreign
    analysis tries to be path-sensitive in these functions. First try to only
@@ -417,10 +432,12 @@ end
 
    It is not clear if we need pre-states, post-states or both on foreign analyses.
 *)
-type ('d,'g) ctx =
+type ('d,'g,'c) ctx =
   { ask      : Queries.t -> Queries.Result.t
   ; node     : MyCFG.node
-  ; context  : Obj.t
+  ; control_context : Obj.t (** (Control.get_spec ()) context, represented type: unit -> (Control.get_spec ()).C.t *)
+  ; context  : unit -> 'c (** current Spec context *)
+  ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : varinfo -> 'g
   ; presub   : (string * Obj.t) list
@@ -445,10 +462,11 @@ sig
   module G : Lattice.S
   module C : Printable.S
 
-  val name : string
+  val name : unit -> string
 
   val init : unit -> unit
   val finalize : unit -> unit
+  (* val finalize : G.t -> unit *)
 
   val startstate : varinfo -> D.t
   val morphstate : varinfo -> D.t -> D.t
@@ -459,39 +477,63 @@ sig
   val val_of  : C.t -> D.t
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
-  val part_access: (D.t, G.t) ctx -> exp -> varinfo option -> bool -> (Access.LSSSet.t * Access.LSSet.t)
+  val part_access: (D.t, G.t, C.t) ctx -> exp -> varinfo option -> bool -> (Access.LSSSet.t * Access.LSSet.t)
 
-  val sync  : (D.t, G.t) ctx -> D.t * (varinfo * G.t) list
-  val query : (D.t, G.t) ctx -> Queries.t -> Queries.Result.t
-  val assign: (D.t, G.t) ctx -> lval -> exp -> D.t
-  val branch: (D.t, G.t) ctx -> exp -> bool -> D.t
-  val body  : (D.t, G.t) ctx -> fundec -> D.t
-  val return: (D.t, G.t) ctx -> exp option  -> fundec -> D.t
-  val intrpt: (D.t, G.t) ctx -> D.t
+  val sync  : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
+  val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
+  val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
+  val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
+  val branch: (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
+  val body  : (D.t, G.t, C.t) ctx -> fundec -> D.t
+  val return: (D.t, G.t, C.t) ctx -> exp option  -> fundec -> D.t
+  val intrpt: (D.t, G.t, C.t) ctx -> D.t
+  val asm   : (D.t, G.t, C.t) ctx -> D.t
 
 
-  val special : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> D.t
-  val enter   : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
+  val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
+  val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
+module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)
+sig
+  module C : Printable.HC
+  include Spec with module C := C
+end
+
+type increment_data = {
+  analyzed_commit_dir: string;
+  current_commit_dir: string;
+  changes: CompareAST.change_info
+}
+
+let empty_increment_data () = {
+  analyzed_commit_dir = "";
+  current_commit_dir = "";
+  changes = CompareAST.empty_change_info ()
+}
 
 (** A side-effecting system. *)
 module type MonSystem =
 sig
-  type v    (** variables *)
-  type d    (** values    *)
-  type 'a m (** basically a monad carrier *)
+  type v    (* variables *)
+  type d    (* values    *)
+  type 'a m (* basically a monad carrier *)
 
   (** Variables must be hashable, comparable, etc.  *)
   module Var : VarType with type t = v
+
   (** Values must form a lattice. *)
   module Dom : Lattice.S with type t = d
+
   (** box --- needed here for transformations *)
   val box : v -> d -> d -> d
 
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
+
+  (** Data used for incremental analysis *)
+  val increment : increment_data
 end
 
 (** Any system of side-effecting inequations over lattices. *)
@@ -508,7 +550,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-
+  val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 
@@ -576,7 +618,9 @@ struct
      these to do postprocessing or other imperative hacks. *)
 
   let should_join _ _ = true
-  (* hint for path sensitivity --- MCP overrides this so don't we don't bother. *)
+  (* hint for path sensitivity --- MCP no longer overrides this so if you want
+    your analysis to be path sensitive, do override this. To obtain a behavior
+    where all paths are kept apart, set this to D.equal x y                    *)
 
   let call_descr f _ = f.svar.vname
   (* prettier name for equation variables --- currently base can do this and
@@ -584,6 +628,12 @@ struct
 
   let intrpt x = x.local
   (* Just ignore. *)
+
+  let vdecl ctx _ = ctx.local
+
+  let asm x =
+    ignore (M.warn "ASM statement ignored.");
+    x.local (* Just ignore. *)
 
   let query _ (q:Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)

@@ -729,7 +729,7 @@ end
 
 module ManyInts : S =
 struct
-  module I1 = Trier
+  module I1 = DefExc
   module I2 = Interval
 
   include Lattice.Prod (I1) (I2)
@@ -916,12 +916,12 @@ struct
   include Printable.Std
   exception IntDomListBroken
 
-  module I1 = Trier
+  module I1 = DefExc
   module I2 = Interval32
   (*module I3 = CircInterval*)
   module I3 = None
 
-  type e = Trier of I1.t
+  type e = DefExc of I1.t
          | Interval of I2.t
          | CInterval of I3.t
 
@@ -932,7 +932,7 @@ struct
   let name () = I1.name () (* why do we just use the first name? *)
   let cast_to' t x = (* why do we not call this on all?? *)
     match x with
-    | Trier a -> Trier (I1.cast_to t a)
+    | DefExc a -> DefExc (I1.cast_to t a)
     | Interval a -> Interval (I2.cast_to t a)
     | CInterval a -> CInterval (I3.cast_to t a)
 
@@ -945,37 +945,37 @@ struct
     List.fold_right f xs []
 
   let top () = constr_scheme
-      [("trier"    ,fun () -> Trier    (I1.top ()))
+      [("def_exc"    ,fun () -> DefExc    (I1.top ()))
       ;("interval" ,fun () -> Interval (I2.top ()))
       ;("cinterval",fun () -> CInterval (I3.top ()))]
 
   let bot () = constr_scheme
-      [("trier"    ,fun () -> Trier    (I1.bot ()))
+      [("def_exc"    ,fun () -> DefExc    (I1.bot ()))
       ;("interval" ,fun () -> Interval (I2.bot ()))
       ;("cinterval",fun () -> CInterval (I3.bot ()))]
 
   let starting x = constr_scheme
-      [("trier"    ,fun () -> Trier    (I1.starting x))
+      [("def_exc"    ,fun () -> DefExc    (I1.starting x))
       ;("interval" ,fun () -> Interval (I2.starting x))
       ;("cinterval",fun () -> CInterval (I3.starting x))]
 
   let ending x = constr_scheme
-      [("trier"   ,fun () -> Trier    (I1.ending x))
+      [("def_exc"   ,fun () -> DefExc    (I1.ending x))
       ;("interval",fun () -> Interval (I2.ending x))
       ;("cinterval",fun () -> CInterval (I3.ending x))]
 
   let of_bool x = constr_scheme
-      [("trier"   ,fun () -> Trier    (I1.of_bool x))
+      [("def_exc"   ,fun () -> DefExc    (I1.of_bool x))
       ;("interval",fun () -> Interval (I2.of_bool x))
       ;("cinterval",fun () -> CInterval (I3.of_bool x))]
 
   let of_excl_list t x = constr_scheme
-      [("trier"   ,fun () -> Trier    (I1.of_excl_list t x))
+      [("def_exc"   ,fun () -> DefExc    (I1.of_excl_list t x))
       ;("interval",fun () -> Interval (I2.of_excl_list t x))
       ;("cinterval",fun () -> CInterval (I3.of_excl_list t x))]
 
   let of_int x = constr_scheme
-      [("trier"   ,fun () -> Trier    (I1.of_int x))
+      [("def_exc"   ,fun () -> DefExc    (I1.of_int x))
       ;("interval",fun () -> Interval (I2.of_int x))
       ;("cinterval",fun () -> CInterval (I3.of_int x))]
 
@@ -985,70 +985,70 @@ struct
 
   let narrow' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.narrow x y)
+    | DefExc x, DefExc y -> DefExc (I1.narrow x y)
     | Interval x, Interval y -> Interval (I2.narrow x y)
     | CInterval x, CInterval y -> CInterval (I3.narrow x y)
     | _ -> raise IntDomListBroken
 
   let widen' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.widen x y)
+    | DefExc x, DefExc y -> DefExc (I1.widen x y)
     | Interval x, Interval y -> Interval (I2.widen x y)
     | CInterval x, CInterval y -> CInterval (I3.widen x y)
     | _ -> raise IntDomListBroken
 
   let is_top' x =
     match x with
-    | Trier x -> I1.is_top x
+    | DefExc x -> I1.is_top x
     | Interval x -> I2.is_top x
     | CInterval x -> I3.is_top x
   (*      | _ -> raise IntDomListBroken*)
 
   let is_bot' x =
     match x with
-    | Trier x -> I1.is_bot x
+    | DefExc x -> I1.is_bot x
     | Interval x -> I2.is_bot x
     | CInterval x -> I3.is_bot x
   (*      | _ -> raise IntDomListBroken*)
 
   let meet' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.meet x y)
+    | DefExc x, DefExc y -> DefExc (I1.meet x y)
     | Interval x, Interval y -> Interval (I2.meet x y)
     | CInterval x, CInterval y -> CInterval (I3.meet x y)
     | _ -> raise IntDomListBroken
 
   let join' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.join x y)
+    | DefExc x, DefExc y -> DefExc (I1.join x y)
     | Interval x, Interval y -> Interval (I2.join x y)
     | CInterval x, CInterval y -> CInterval (I3.join x y)
     | _ -> raise IntDomListBroken
 
   let leq' x y =
     match x, y with
-    | Trier x, Trier y -> I1.leq x y
+    | DefExc x, DefExc y -> I1.leq x y
     | Interval x, Interval y -> I2.leq x y
     | CInterval x, CInterval y -> I3.leq x y
     | _ -> raise IntDomListBroken
 
   let short' w x =
     match x with
-    | Trier x -> I1.short w x
+    | DefExc x -> I1.short w x
     | Interval x -> I2.short w x
     | CInterval x -> I3.short w x
   (*      | _ -> raise IntDomListBroken*)
 
   let toXML_f' sf x =
     match x with
-    | Trier x -> I1.toXML_f (fun w x -> sf w (Trier x)) x
+    | DefExc x -> I1.toXML_f (fun w x -> sf w (DefExc x)) x
     | Interval x -> I2.toXML_f (fun w x -> sf w (Interval x)) x
     | CInterval x -> I3.toXML_f (fun w x -> sf w (CInterval x)) x
   (*      | _ -> raise IntDomListBroken*)
 
   let pretty_f' sf () x =
     match x with
-    | Trier x -> I1.pretty_f (fun w x -> sf w (Trier x)) () x
+    | DefExc x -> I1.pretty_f (fun w x -> sf w (DefExc x)) () x
     | Interval x -> I2.pretty_f (fun w x -> sf w (Interval x)) () x
     | CInterval x -> I3.pretty_f (fun w x -> sf w (CInterval x)) () x
   (*      | _ -> raise IntDomListBroken*)
@@ -1059,224 +1059,224 @@ struct
 
   let compare' x y =
     match x, y with
-    | Trier x, Trier y -> I1.compare x y
+    | DefExc x, DefExc y -> I1.compare x y
     | Interval x, Interval y -> I2.compare x y
     | CInterval x, CInterval y -> I3.compare x y
     | _ -> raise IntDomListBroken
 
   let equal' x y =
     match x, y with
-    | Trier x, Trier y -> I1.equal x y
+    | DefExc x, DefExc y -> I1.equal x y
     | Interval x, Interval y -> I2.equal x y
     | CInterval x, CInterval y -> I3.equal x y
     | _ -> raise IntDomListBroken
 
   let logor' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.logor x y)
+    | DefExc x, DefExc y -> DefExc (I1.logor x y)
     | Interval x, Interval y -> Interval (I2.logor x y)
     | CInterval x, CInterval y -> CInterval (I3.logor x y)
     | _ -> raise IntDomListBroken
 
   let logand' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.logand x y)
+    | DefExc x, DefExc y -> DefExc (I1.logand x y)
     | Interval x, Interval y -> Interval (I2.logand x y)
     | CInterval x, CInterval y -> CInterval (I3.logand x y)
     | _ -> raise IntDomListBroken
 
   let lognot' x =
     match x with
-    | Trier x -> Trier (I1.lognot x )
+    | DefExc x -> DefExc (I1.lognot x )
     | Interval x -> Interval (I2.lognot x)
     | CInterval x -> CInterval (I3.lognot x)
   (*      | _ -> raise IntDomListBroken*)
 
   let shift_right' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.shift_right x y)
+    | DefExc x, DefExc y -> DefExc (I1.shift_right x y)
     | Interval x, Interval y -> Interval (I2.shift_right x y)
     | CInterval x, CInterval y -> CInterval (I3.shift_right x y)
     | _ -> raise IntDomListBroken
 
   let shift_left' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.shift_left x y)
+    | DefExc x, DefExc y -> DefExc (I1.shift_left x y)
     | Interval x, Interval y -> Interval (I2.shift_left x y)
     | CInterval x, CInterval y -> CInterval (I3.shift_left x y)
     | _ -> raise IntDomListBroken
 
   let bitxor' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.bitxor x y)
+    | DefExc x, DefExc y -> DefExc (I1.bitxor x y)
     | Interval x, Interval y -> Interval (I2.bitxor x y)
     | CInterval x, CInterval y -> CInterval (I3.bitxor x y)
     | _ -> raise IntDomListBroken
 
   let bitor' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.bitor x y)
+    | DefExc x, DefExc y -> DefExc (I1.bitor x y)
     | Interval x, Interval y -> Interval (I2.bitor x y)
     | CInterval x, CInterval y -> CInterval (I3.bitor x y)
     | _ -> raise IntDomListBroken
 
   let bitand' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.bitand x y)
+    | DefExc x, DefExc y -> DefExc (I1.bitand x y)
     | Interval x, Interval y -> Interval (I2.bitand x y)
     | CInterval x, CInterval y -> CInterval (I3.bitand x y)
     | _ -> raise IntDomListBroken
 
   let bitnot' x =
     match x with
-    | Trier x -> Trier (I1.bitnot x)
+    | DefExc x -> DefExc (I1.bitnot x)
     | Interval x -> Interval (I2.bitnot x)
     | CInterval x -> CInterval (I3.bitnot x)
   (*      | _ -> raise IntDomListBroken*)
 
   let ne' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.ne x y)
+    | DefExc x, DefExc y -> DefExc (I1.ne x y)
     | Interval x, Interval y -> Interval (I2.ne x y)
     | CInterval x, CInterval y -> CInterval (I3.ne x y)
     | _ -> raise IntDomListBroken
 
   let eq' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.eq x y)
+    | DefExc x, DefExc y -> DefExc (I1.eq x y)
     | Interval x, Interval y -> Interval (I2.eq x y)
     | CInterval x, CInterval y -> CInterval (I3.eq x y)
     | _ -> raise IntDomListBroken
 
   let ge' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.ge x y)
+    | DefExc x, DefExc y -> DefExc (I1.ge x y)
     | Interval x, Interval y -> Interval (I2.ge x y)
     | CInterval x, CInterval y -> CInterval (I3.ge x y)
     | _ -> raise IntDomListBroken
 
   let le' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.le x y)
+    | DefExc x, DefExc y -> DefExc (I1.le x y)
     | Interval x, Interval y -> Interval (I2.le x y)
     | CInterval x, CInterval y -> CInterval (I3.le x y)
     | _ -> raise IntDomListBroken
 
   let gt' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.gt x y)
+    | DefExc x, DefExc y -> DefExc (I1.gt x y)
     | Interval x, Interval y -> Interval (I2.gt x y)
     | CInterval x, CInterval y -> CInterval (I3.gt x y)
     | _ -> raise IntDomListBroken
 
   let lt' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.lt x y)
+    | DefExc x, DefExc y -> DefExc (I1.lt x y)
     | Interval x, Interval y -> Interval (I2.lt x y)
     | CInterval x, CInterval y -> CInterval (I3.lt x y)
     | _ -> raise IntDomListBroken
 
   let rem' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.rem x y)
+    | DefExc x, DefExc y -> DefExc (I1.rem x y)
     | Interval x, Interval y -> Interval (I2.rem x y)
     | CInterval x, CInterval y -> CInterval (I3.rem x y)
     | _ -> raise IntDomListBroken
 
   let div' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.div x y)
+    | DefExc x, DefExc y -> DefExc (I1.div x y)
     | Interval x, Interval y -> Interval (I2.div x y)
     | CInterval x, CInterval y -> CInterval (I3.div x y)
     | _ -> raise IntDomListBroken
 
   let mul' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.mul x y)
+    | DefExc x, DefExc y -> DefExc (I1.mul x y)
     | Interval x, Interval y -> Interval (I2.mul x y)
     | CInterval x, CInterval y -> CInterval (I3.mul x y)
     | _ -> raise IntDomListBroken
 
   let sub' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.sub x y)
+    | DefExc x, DefExc y -> DefExc (I1.sub x y)
     | Interval x, Interval y -> Interval (I2.sub x y)
     | CInterval x, CInterval y -> CInterval (I3.sub x y)
     | _ -> raise IntDomListBroken
 
   let add' x y =
     match x, y with
-    | Trier x, Trier y -> Trier (I1.add x y)
+    | DefExc x, DefExc y -> DefExc (I1.add x y)
     | Interval x, Interval y -> Interval (I2.add x y)
     | CInterval x, CInterval y -> CInterval (I3.add x y)
     | _ -> raise IntDomListBroken
 
   let neg' x =
     match x with
-    | Trier x -> Trier (I1.neg x)
+    | DefExc x -> DefExc (I1.neg x)
     | Interval x -> Interval (I2.neg x)
     | CInterval x -> CInterval (I3.neg x)
   (*      | _ -> raise IntDomListBroken*)
 
   let hash' x =
     match x with
-    | Trier x-> I1.hash x
+    | DefExc x-> I1.hash x
     | Interval x-> 17*I2.hash x
     | CInterval x-> 34*I3.hash x
   (*      | _ -> raise IntDomListBroken*)
 
   let minimal' x =
     match x with
-    | Trier x -> I1.minimal x
+    | DefExc x -> I1.minimal x
     | Interval x -> I2.minimal x
     | CInterval x -> I3.minimal x
   (*      | _ -> raise IntDomListBroken*)
 
   let maximal' x =
     match x with
-    | Trier x -> I1.maximal x
+    | DefExc x -> I1.maximal x
     | Interval x -> I2.maximal x
     | CInterval x -> I3.maximal x
   (*      | _ -> raise IntDomListBroken*)
 
   let to_int' x =
     match x with
-    | Trier x -> I1.to_int x
+    | DefExc x -> I1.to_int x
     | Interval x -> I2.to_int x
     | CInterval x -> I3.to_int x
   (*      | _ -> raise IntDomListBroken*)
 
   let to_bool' x =
     match x with
-    | Trier x -> I1.to_bool x
+    | DefExc x -> I1.to_bool x
     | Interval x -> I2.to_bool x
     | CInterval x -> I3.to_bool x
   (*      | _ -> raise IntDomListBroken*)
 
   let to_excl_list' x =
     match x with
-    | Trier x -> I1.to_excl_list x
+    | DefExc x -> I1.to_excl_list x
     | Interval x -> I2.to_excl_list x
     | CInterval x -> I3.to_excl_list x
   (*      | _ -> raise IntDomListBroken*)
 
   let is_excl_list' x =
     match x with
-    | Trier x -> I1.is_excl_list x
+    | DefExc x -> I1.is_excl_list x
     | Interval x -> I2.is_excl_list x
     | CInterval x -> I3.is_excl_list x
   (*      | _ -> raise IntDomListBroken*)
 
   let is_bool' x =
     match x with
-    | Trier x -> I1.is_bool x
+    | DefExc x -> I1.is_bool x
     | Interval x -> I2.is_bool x
     | CInterval x -> I3.is_bool x
   (*      | _ -> raise IntDomListBroken*)
 
   let is_int' x =
     match x with
-    | Trier x -> I1.is_int x
+    | DefExc x -> I1.is_int x
     | Interval x -> I2.is_int x
     | CInterval x -> I3.is_int x
   (*      | _ -> raise IntDomListBroken *)

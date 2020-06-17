@@ -1,5 +1,4 @@
 open Prelude
-open Cil
 
 (* Information for one task *)
 (* Process ID *)
@@ -60,6 +59,8 @@ struct
   (* Printable.S *)
   (* let equal = Util.equals *)
   let equal x y = Pid.equal x.pid y.pid && Pri.equal x.pri y.pri && Per.equal x.per y.per && Cap.equal x.cap y.cap && Pmo.equal x.pmo y.pmo && PrE.equal x.pre y.pre && Pred.equal x.pred y.pred && Ctx.equal x.ctx y.ctx
+  (* Compare all fields with correspoding compare operators. TODO: make a "lazy" comparision *)
+  let compare x y = List.fold_left (fun acc v -> if acc = 0 && v <> 0 then v else acc) 0 [Pid.compare x.pid y.pid; Pri.compare x.pri y.pri; Per.compare x.per y.per; Cap.compare x.cap y.cap; Pmo.compare x.pmo y.pmo; PrE.compare x.pre y.pre; Pred.compare x.pred y.pred; Ctx.compare x.ctx y.ctx]
   (* let hash = Hashtbl.hash *)
   let hash x = Hashtbl.hash (Pid.hash x.pid, Pri.hash x.pri, Per.hash x.per, Cap.hash x.cap, Pmo.hash x.pmo, PrE.hash x.pre, Pred.hash x.pred, Ctx.hash x.ctx)
 

@@ -418,7 +418,7 @@ module TD3 =
   functor (HM:Hash.H with type key = S.v) ->
   struct
 
-    include Generic.SolverStats (S)
+    include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
     module P =

@@ -63,7 +63,7 @@ module Thread = struct
         | None -> f.vname
         | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.short 80 l
       in
-      let newvar = makeGlobalVar name voidType in
+      let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       Hashtbl.add thread_hash (f,loc) newvar;
       newvar
 
@@ -71,7 +71,7 @@ module Thread = struct
   let spawn_thread l v: t = get_thread_var v (Some l)
 end
 
-(** The basic thread domain that distinguishes singlthreaded mode, a single
+(** The basic thread domain that distinguishes singlethreaded mode, a single
   * thread ID, and otherwise goes to top. *)
 module SimpleThreadDomain = struct
   module ThreadLiftNames = struct
@@ -97,7 +97,7 @@ module SimpleThreadDomain = struct
 
   let short w (x,y) =
     let tid = Lifted.short w y in
-    if x > 1 then tid else tid ^ "!"
+    if x > 1 then tid else tid ^ "!" (* ! means unique *)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let same_tid x y =

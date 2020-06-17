@@ -20,18 +20,15 @@ open GobConfig
 
 (** only report write races *)
 let no_read = ref false
-(** Truns off field-sensitivity. *)
-let field_insensitive = ref false
-(** Avoids the merging of fields, not really sound *)
-let unmerged_fields = ref false
+
 (** Only report races on these variables/types. *)
 let vips = ref ([]: string list)
 
-let get_flag (state: (string * Obj.t) list) : BS.Flag.t =
+let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
   snd (Obj.obj (List.assoc "base" state))
 
-let big_kernel_lock = LockDomain.Addr.from_var (makeGlobalVar "[big kernel lock]" intType)
-let console_sem = LockDomain.Addr.from_var (makeGlobalVar "[console semaphore]" intType)
+let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
+let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
 
 module type SpecParam =
 sig
@@ -45,7 +42,7 @@ struct
   include Analyses.DefaultSpec
 
   (** name for the analysis (btw, it's "Only Mutex Must") *)
-  let name = "mutex"
+  let name () = "mutex"
 
   (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
   module D = Lockset
@@ -53,6 +50,8 @@ struct
 
   (** We do not add global state, so just lift from [BS]*)
   module G = P.G
+
+  let should_join x y = D.equal x y
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
@@ -103,7 +102,7 @@ struct
         (* when reading: bump reader locks to exclusive as they protect reads *)
         Lockset.map (fun (x,_) -> (x,true)) ctx.local
     in
-    let ls = D.fold add_lock locks (LSSet.empty ())in
+    let ls = D.fold add_lock locks (LSSet.empty ()) in
     (ps, ls)
 
   let eval_exp_addr a exp =
@@ -114,7 +113,7 @@ struct
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
 
-  let lock ctx rw may_fail return_value_when_aquired a lv arglist ls =
+  let lock ctx rw may_fail nonzero_return_when_aquired a lv arglist ls =
     let is_a_blob addr =
       match LockDomain.Addr.to_var addr with
       | [a] -> a.vname.[0] = '('
@@ -128,8 +127,11 @@ struct
         match lv with
         | None -> if may_fail then ls else nls
         | Some lv ->
-          ctx.split nls (Lval lv ) return_value_when_aquired;
-          if may_fail then ctx.split ls (Lval lv) (not return_value_when_aquired);
+          ctx.split nls (Lval lv) nonzero_return_when_aquired;
+          if may_fail then (
+            let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
+            ctx.split ls fail_exp (not nonzero_return_when_aquired)
+          );
           raise Analyses.Deadcode
       end
     in
@@ -145,7 +147,7 @@ struct
   let access_one_top ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
     let fl = get_flag ctx.presub in
-    if BS.Flag.is_multi fl then
+    if BaseDomain.Flag.is_multi fl then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
   (** We just lift start state, global and dependecy functions: *)
@@ -217,16 +219,16 @@ struct
       -> Lockset.add (big_kernel_lock,true) ctx.local
     | _, "_unlock_kernel"
       -> Lockset.remove (big_kernel_lock,true) ctx.local
-    | `Lock (failing, rw, zero_return_when_aquired), _
+    | `Lock (failing, rw, nonzero_return_when_aquired), _
       -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
       (*print_endline @@ "Mutex `Lock "^f.vname;*)
-      lock ctx rw failing zero_return_when_aquired ctx.ask lv arglist ctx.local
+      lock ctx rw failing nonzero_return_when_aquired ctx.ask lv arglist ctx.local
     | `Unlock, "__raw_read_unlock"
     | `Unlock, "__raw_write_unlock"  ->
       let drop_raw_lock x =
         let rec drop_offs o =
           match o with
-          | `Field ({fname="raw_lock"},`NoOffset) -> `NoOffset
+          | `Field ({fname="raw_lock"; _},`NoOffset) -> `NoOffset
           | `Field (f1,o1) -> `Field (f1, drop_offs o1)
           | `Index (i1,o1) -> `Index (i1, drop_offs o1)
           | `NoOffset -> `NoOffset

@@ -21,7 +21,7 @@ let is_ignorable = function
 
 module Ident : Printable.S with type t = string =
 struct
-  include Printable.Std (* for property-based testing *)
+  include Printable.Std (* for default invariant, tag, ... *)
 
   open Pretty
   type t = string [@@deriving to_yojson]
@@ -309,7 +309,7 @@ let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) 
 let type_from_type_offset : acc_typ -> typ = function
   | `Type t -> t
   | `Struct (s,o) ->
-    let rec deref t =
+    let deref t =
       match unrollType t with
       | TPtr (t,_) -> t  (*?*)
       | TArray (t,_,_) -> t
@@ -353,7 +353,7 @@ let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) op
   | _ ->
     add_one e w conf ty lv p
 
-let rec add_propagate e w conf ty ls p =
+let add_propagate e w conf ty ls p =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true

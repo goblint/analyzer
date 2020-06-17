@@ -17,6 +17,8 @@ struct
   module Var = S.Var
   module Dom = S.Dom
 
+  let increment = S.increment
+
   let box = S.box
 
   let conv x = x
@@ -31,8 +33,9 @@ end
 module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
 struct
   type t = B.t * int
+  let relift x = x
   let compare ((u1,u2):t) (v1,v2) =
-    match Pervasives.compare u2 v2 with
+    match Stdlib.compare u2 v2 with
     | 0 -> B.compare u1 v1
     | n -> n
   let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1
@@ -63,6 +66,8 @@ struct
 
   module Var = ExtendInt (S.Var)
   module Dom = S.Dom
+
+  let increment = S.increment
 
   let box (x,n) = S.box x
 
@@ -249,76 +254,7 @@ struct
       write_all hl hg
 end
 
-module SolverStatsWGlob (S:GlobConstrSys) =
-struct
-  open S
-  open Messages
-
-  module GU = Goblintutil
-
-  let trace s x fms =
-    (*current_loc := { Cil.line = S.LVar.line_nr x; file = S.LVar.file_name x; byte = -1};*)
-    tracel s fms
-
-
-  let stack_d = ref 0
-  let full_trace = true
-  let start_c = 0
-  let max_c   : int ref = ref (-1)
-  let max_var : LVar.t option ref = ref None
-
-  let is_some = function
-    | Some _ -> true
-    | _ -> false
-
-  let from_some = function
-    | Some x -> x
-    | None -> raise Not_found
-
-  let histo = Hashtbl.create 1024
-  let increase (v:LVar.t) =
-    let set v c =
-      if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (LVar.equal (from_some !max_var) v))) then begin
-        if tracing then trace "sol" v "Switched tracing to %a\n" LVar.pretty_trace v;
-        max_c := c;
-        max_var := Some v
-      end
-    in
-    try let c = Hashtbl.find histo v in
-      set v (c+1);
-      Hashtbl.replace histo v (c+1)
-    with Not_found -> begin
-        set v 1;
-        Hashtbl.add histo v 1
-      end
-
-  let start_event () = ()
-  let stop_event () = ()
-
-  let new_var_event x =
-    Goblintutil.vars := !Goblintutil.vars + 1;
-    if tracing then trace "sol" x "New %a\n" LVar.pretty_trace x
-
-  let get_var_event x =
-    if full_trace then trace "sol" x "Querying %a\n" LVar.pretty_trace x
-
-
-  let eval_rhs_event x i =
-    if full_trace then trace "sol" x "(Re-)evaluating %a (%d)\n" LVar.pretty_trace x i;
-    if Config.tracking then M.track "eval";
-    Goblintutil.evals := !Goblintutil.evals + 1;
-    if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
-
-  let update_var_event x o n =
-    (* if tracing then increase x; *)
-    if full_trace || ((not (D.is_bot o)) && is_some !max_var && LVar.equal (from_some !max_var) x) then begin
-      if tracing then trace "sol" x "(%d) Update to %a.\n" !max_c LVar.pretty_trace x;
-      if tracing then trace "sol" x "%a\n\n" D.pretty_diff (n, o)
-    end
-
-end
-
-module SolverStats (S:EqConstrSys) =
+module SolverStats (S:EqConstrSys) (HM:Hash.H with type key = S.v) =
 struct
   open S
   open Messages
@@ -331,29 +267,21 @@ struct
   let max_c   : int ref = ref (-1)
   let max_var : Var.t option ref = ref None
 
-  let is_some = function
-    | Some _ -> true
-    | _ -> false
-
-  let from_some = function
-    | Some x -> x
-    | None -> raise Not_found
-
-  let histo = Hashtbl.create 1024
+  let histo = HM.create 1024
   let increase (v:Var.t) =
     let set v c =
-      if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (Var.equal (from_some !max_var) v))) then begin
+      if not full_trace && (c > start_c && c > !max_c && (Option.is_none !max_var || not (Var.equal (Option.get !max_var) v))) then begin
         if tracing then trace "sol" "Switched tracing to %a\n" Var.pretty_trace v;
         max_c := c;
         max_var := Some v
       end
     in
-    try let c = Hashtbl.find histo v in
+    try let c = HM.find histo v in
       set v (c+1);
-      Hashtbl.replace histo v (c+1)
+      HM.replace histo v (c+1)
     with Not_found -> begin
         set v 1;
-        Hashtbl.add histo v 1
+        HM.add histo v 1
       end
 
   let start_event () = ()
@@ -366,16 +294,15 @@ struct
   let get_var_event x =
     if full_trace then trace "sol" "Querying %a\n" Var.pretty_trace x
 
-
   let eval_rhs_event x =
-    if full_trace
-    then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
+    if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
+    if Config.tracking then M.track "eval";
     Goblintutil.evals := !Goblintutil.evals + 1;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
   let update_var_event x o n =
     if tracing then increase x;
-    if full_trace || ((not (Dom.is_bot o)) && is_some !max_var && Var.equal (from_some !max_var) x) then begin
+    if full_trace || ((not (Dom.is_bot o)) && Option.is_some !max_var && Var.equal (Option.get !max_var) x) then begin
       if tracing then tracei "sol_max" "(%d) Update to %a.\n" !max_c Var.pretty_trace x;
       if tracing then traceu "sol_max" "%a\n\n" Dom.pretty_diff (n, o)
     end
@@ -398,7 +325,13 @@ struct
       flush stdout;
       (* if read_line () = "n" then raise Break *)
     in
-    set_signal sigquit (Signal_handle handler);      
+    let signal = match get_string "dbg.solver-signal" with
+      | "sigint" -> sigint
+      | "sigtstp" -> sigtstp
+      | "sigquit" -> sigquit
+      | _ -> failwith "Invalid value for dbg.solver-signal!"
+    in
+    set_signal signal (Signal_handle handler);
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
@@ -406,7 +339,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
   struct
-    include SolverStats (S)
+    include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
@@ -433,7 +366,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
           Option.may (fun f -> set x (f (eval x) set)) (S.system x)
         end
 
-      (** return the value for [y] and mark its influence on [x] *)
+      (* return the value for [y] and mark its influence on [x] *)
       and eval x y =
         (* solve variable [y] *)
         get_var_event y;
@@ -480,7 +413,7 @@ module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
   struct
-    include SolverStats (S)
+    include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
@@ -516,7 +449,7 @@ module SoundBoxSolverImpl =
           H.remove called x
         end
 
-      (** return the value for [y] and mark its influence on [x] *)
+      (* return the value for [y] and mark its influence on [x] *)
       and eval x y =
         (* solve variable [y] *)
         get_var_event y;
@@ -581,7 +514,7 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
   struct
-    include SolverStats (S)
+    include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
@@ -623,7 +556,7 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
           H.remove called x
         end
 
-      (** return the value for [y] and mark its influence on [x] *)
+      (* return the value for [y] and mark its influence on [x] *)
       and eval x y =
         (* solve variable [y] *)
         get_var_event y;

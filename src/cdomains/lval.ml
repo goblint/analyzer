@@ -26,193 +26,118 @@ let rec listify ofs =
 
 module Offset (Idx: IntDomain.S) =
 struct
-  type t = Offs of ((fieldinfo, Idx.t) offs) | Bot [@@deriving to_yojson]
+  type t = (fieldinfo, Idx.t) offs [@@deriving to_yojson]
   include Printable.Std
-  include Lattice.StdCousot
 
-  let equal x y =
-    let rec eq a b =
-      match a,b with
-      | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> eq o1 o2
-      | _ -> false
-    in
+  let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname
+  let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false
+
+  let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
+    | `NoOffset -> `MustZero
+    | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to 0L x with
+      | `MustNonzero, _
+      | _, `Neq -> `MustNonzero
+      | `MustZero, `Eq -> `MustZero
+      | _, _ -> `MayZero)
+    | `Field (x, o) ->
+      if is_first_field x then cmp_zero_offset o else `MustNonzero
+
+  let rec equal x y =
     match x, y with
-    | Bot, Bot -> true
-    | Bot, Offs _ | Offs _, Bot -> false
-    | Offs x, Offs y -> eq x y
+    | `NoOffset , `NoOffset -> true
+    | `NoOffset, x
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero
+    | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> equal o1 o2
+    | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
+    | _ -> false
 
-  let short _ x =
-    let rec offs_short x =
-      match x with
-      | `NoOffset -> ""
-      | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (offs_short o)
-      | `Field (x,o) -> "." ^ (x.fname) ^ (offs_short o)
-    in
-    match x with
-    | Offs x -> offs_short x
-    | Bot -> "Erronous offset"
+  let rec short w = function
+    | `NoOffset -> ""
+    | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (short w o)
+    | `Field (x,o) -> "." ^ (x.fname) ^ (short w o)
 
   let pretty_f sf () x = text (sf 80 x)
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[])
 
-  let pretty = pretty_f short
-  let toXML = toXML_f short
+  let pretty x = pretty_f short x
+  let toXML x = toXML_f short x
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let hash _ = 35166
+  let rec hash = function
+    | `NoOffset -> 1
+    | `Field (f,o) when not (is_first_field f) -> Hashtbl.hash f.fname * hash o + 13
+    | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
+    | `Index (_,o) -> hash o (* index might become top during fp -> might be zero offset *)
   let name () = "Offset"
 
-  let from_offset x = Offs x
-  let to_offset x =
-    match x with
-    | Offs x -> [x]
-    | _ -> []
-
-  (* what is this used for? seems unsound *)
-  let definite o =
-    let rec def o =
-      match o with
-      | `Index (i,o) when Idx.is_int i && Idx.to_int i <> Some GU.inthack -> `Index (i,def o)
-      | `Field (f,o) -> `Field (f,def o)
-      | _ -> `NoOffset
-    in
-    match o with
-    | Offs o -> Offs (def o)
-    | Bot -> Bot
+  let from_offset x = x
+  let to_offset x = [x]
 
   let rec is_definite = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
     | `Index (i,o) ->  Idx.is_int i && is_definite o
 
-  let top () = Offs `NoOffset
-  let bot () = Bot
-
-  let is_bot x =
-    match x with
-    | Bot -> true
-    | _ -> false
-
-  let is_top x =
-    match x with
-    | Offs `NoOffset -> true
-    | _ -> false
-
-  let equal x y =
-    let rec eq a b =
-      match a,b with
-      | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> eq o1 o2
-      | _ -> false
-    in
-    match x, y with
-    | Offs x, Offs y -> eq x y
-    | Bot, Bot -> true
-    | _ -> false
-
+  (* append offset o2 to o1 *)
   let rec add_offset o1 o2 =
     match o1 with
     | `NoOffset -> o2
     | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
 
-  (* The following compare is same as the Pervasives one, but that depends on the exact definition
-     of ('a,'b) offs. We need leq a b ==> b <= a *)
-  let compare x y =
-    let rec comp x y =
-      match x,y with
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> comp o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> comp o1 o2
-      | _ -> compare (Offs x) (Offs y)
-    in
-    match x,y with
-    | Offs x, Offs y -> comp x y
-    | _ -> compare x y
+  let rec compare o1 o2 = match o1, o2 with
+    | `NoOffset, `NoOffset -> 0
+    | `Field (f1,o1), `Field (f2,o2) ->
+      let c = Stdlib.compare f1.fname f2.fname in
+      if c=0 then compare o1 o2 else c
+    | `Index (i1,o1), `Index (i2,o2) ->
+      let c = Idx.compare i1 i2 in
+      if c=0 then compare o1 o2 else c
+    | `NoOffset, _ -> -1
+    | _, `NoOffset -> 1
+    | `Field _, `Index _ -> -1
+    | `Index _, `Field _ ->  1
 
   let rec leq x y =
     match x, y with
-    | Bot, _ -> true
-    | Offs _, Offs `NoOffset -> true
-    | Offs `Index (i1,o1), Offs `Index (i2,o2)  when Idx.leq i1 i2 -> leq (Offs o1) (Offs o2)
-    | Offs `Field (f1,o1), Offs `Field (f2,o2) when f1.fname = f2.fname -> leq (Offs o1) (Offs o2)
-    | _ -> false
-
-  let rec perel_leq x y =
-    match x, y with
-    | Bot, _ -> true
-    | Offs _, Offs `NoOffset -> true
-    | Offs `Index (i1,o1), Offs `Index (i2,o2)
-      when Idx.to_int i2 = Some (GU.inthack) || Idx.leq i1 i2
-      -> perel_leq (Offs o1) (Offs o2)
-    | Offs `Field (f1,o1), Offs `Field (f2,o2)
-      when f1.fname = f2.fname
-      -> perel_leq (Offs o1) (Offs o2)
+    | `NoOffset, `NoOffset -> true
+    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero
+    | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
+    | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> leq o1 o2
     | _ -> false
 
   let isSimple x = true
 
-  let meet x y =
-    let rec offs_meet x y  =
-      match x, y with
-      | `NoOffset, x -> x
-      | x, `NoOffset -> x
-      | `Field (x1,y1), `Field (x2,y2) when x1 == x2
-        -> `Field (x1, offs_meet y1 y2)
-      | `Index (x1,y1), `Index (x2,y2) when Idx.equal x1 x2
-        -> `Index (x1, offs_meet y1 y2)
-      | _ -> `NoOffset
-    in
+  let rec merge cop x y =
+    let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
     match x, y with
-    | Bot, _ -> Bot
-    | _, Bot -> Bot
-    | Offs (`Field x), Offs (`Index y) -> Bot
-    | Offs (`Index x), Offs (`Field y) -> Bot
-    | Offs x, Offs y -> Offs (offs_meet x y)
+    | `NoOffset, `NoOffset -> `NoOffset
+    | `NoOffset, x
+    | x, `NoOffset -> (match cop, cmp_zero_offset x with
+      | (`Join | `Widen), (`MustZero | `MayZero) -> x
+      | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset
+      | _ -> raise Lattice.Uncomparable)
+    | `Field (x1,y1), `Field (x2,y2) when x1.fname = x2.fname -> `Field (x1, merge cop y1 y2)
+    | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
+    | _ -> raise Lattice.Uncomparable
 
-  let join x y =
-    let rec offs_join x y =
-      match x, y with
-      | `NoOffset, x -> `NoOffset
-      | x, `NoOffset -> `NoOffset
-      | `Field (x1,y1), `Field (x2,y2) when x1 == x2
-        -> `Field (x1, offs_join y1 y2)
-      | `Index (x1,y1), `Index (x2,y2) when Idx.equal x1 x2
-        -> `Index (x1, offs_join y1 y2)
-      | _ -> `NoOffset
-    in
-    match x, y with
-    | Bot, x -> x
-    | x, Bot -> x
-    | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset
-    | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
-    | Offs x, Offs y -> Offs (offs_join x y)
+  let rec to_cil_offset (x:t) =
+    match x with
+    | `NoOffset -> NoOffset
+    | `Field(f,o) -> Field(f, to_cil_offset o)
+    | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
 
-  let perelem_join x y =
-    let rec offs_join x y =
-      match x, y with
-      | `NoOffset, `NoOffset -> `NoOffset
-      | `NoOffset, x -> `NoOffset
-      | x, `NoOffset -> `NoOffset
-      | `Field (x1,y1), `Field (x2,y2) when x1 == x2
-        -> `Field (x1, offs_join y1 y2)
-      | `Index (x1,y1), `Index (x2,y2)
-        when Idx.to_int x1 = Some (GU.inthack) || Idx.to_int x2 = Some (GU.inthack)
-        -> `Index (Idx.of_int GU.inthack, offs_join y1 y2)
-      | `Index (x1,y1), `Index (x2,y2)
-        -> `Index (Idx.join x1 x2, offs_join y1 y2)
-      | _ -> `NoOffset
-    in
-    match x, y with
-    | Bot, Bot -> Bot
-    | Bot, x -> x
-    | x, Bot -> x
-    | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset
-    | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
-    | Offs x, Offs y -> Offs (offs_join x y)
+  let join x y = merge `Join x y
+  let meet x y = merge `Meet x y
+  let widen x y = merge `Widen x y
+  let narrow x y = merge `Narrow x y
+
+  let rec drop_ints = function
+    | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
+    | `Field (x, o) -> `Field (x, drop_ints o)
+    | `NoOffset -> `NoOffset
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
@@ -232,36 +157,34 @@ sig
 
   val from_var: varinfo -> t
   (** Creates an address from variable. *)
+
   val from_var_offset: (varinfo * (field,idx) offs) -> t
   (** Creates an address from a variable and offset. *)
+
   val to_var_offset: t -> (varinfo * (field,idx) offs) list
   (** Get the offset *)
+
   val to_var: t -> varinfo list
   (** Strips the varinfo out of the address representation. *)
+
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   (** Strips the varinfo out of the address representation. *)
+
   val get_type: t -> typ
   (** Finds the type of the address location. *)
 end
-
-(* TODO functor for type info *)
 
 module Normal (Idx: IntDomain.S) =
 struct
   type field = fieldinfo [@@deriving to_yojson]
   type idx = Idx.t [@@deriving to_yojson]
-  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr | Top | Bot [@@deriving to_yojson]
+  (* A SafePtr is a pointer that does not point to any variables of the analyzed program (assuming external functions don't return random pointers but only pointers to things they can reach).
+   * UnknownPtr includes SafePtr *)
+  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving to_yojson]
+  module Offs = Offset (Idx)
   include Printable.Std
   let name () = "Normal Lvals"
-
-  let null_ptr () = NullPtr
-  let str_ptr () = SafePtr
-  let safe_ptr () = SafePtr
-  let unknown_ptr () = UnknownPtr
-  let is_unknown = function UnknownPtr -> true | _ -> false
-
-  let is_null a = a = NullPtr
 
   let get_location = function
     | Addr (x,_) -> x.vdecl
@@ -314,12 +237,10 @@ struct
 
   let short _ = function
     | Addr x     -> short_addr x
-    | StrPtr x   -> x
+    | StrPtr x   -> "\"" ^ x ^ "\""
     | UnknownPtr -> "?"
     | SafePtr    -> "SAFE"
     | NullPtr    -> "NULL"
-    | Bot        -> "bot"
-    | Top        -> "top"
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
@@ -346,47 +267,49 @@ struct
     | StrPtr _  (* TODO Cil.charConstPtrType? *)
     | SafePtr  -> charPtrType
     | NullPtr  -> voidType
-    | Bot      -> voidType
-    | Top | UnknownPtr -> voidPtrType
+    | UnknownPtr -> voidPtrType
 
   let copy x = x
   let isSimple _  = true
 
-  let rec hash_offset = function
-    | `NoOffset -> 1
-    | `Index(i,o) -> Idx.hash i * 35 * hash_offset o
-    | `Field(f,o) -> Hashtbl.hash f.fname * hash_offset o
   let hash = function
-    | Addr (v,o) -> v.vid * hash_offset o
+    | Addr (v,o) -> v.vid + 2 * Offs.hash o
+    | SafePtr | UnknownPtr -> Hashtbl.hash UnknownPtr (* SafePtr <= UnknownPtr ==> same hash *)
     | x -> Hashtbl.hash x
 
-  let rec is_zero_offset =
-    let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname in
-    let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false in
-    function
-    | `Field (x,o) -> is_first_field x && is_zero_offset o
-    | `Index (x,o) -> Idx.to_int x = Some 0L && is_zero_offset o
-    | `NoOffset -> true
+  let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
-  let equal x y =
-    let rec eq_offs x y =
-      match x, y with
-      | `NoOffset, `NoOffset -> true
-      | `Index (i,x), `Index (o,y) -> Idx.equal i o && eq_offs x y
-      | `Field (i,x), `Field (o,y) -> i.fcomp.ckey=o.fcomp.ckey && i.fname = o.fname && eq_offs x y
-      | `NoOffset, o
-      | o, `NoOffset -> is_zero_offset o
-      | _ -> false
-    in
-    match x, y with
-    | Addr (v,o), Addr (u,p) -> v.vid = u.vid && eq_offs o p
+  let equal x y = match x, y with
+    | Addr (v,o), Addr (u,p) -> v.vid = u.vid && Offs.equal o p
     | StrPtr a  , StrPtr b -> a=b (* TODO problematic if the same literal appears more than once *)
     | UnknownPtr, UnknownPtr
     | SafePtr   , SafePtr
-    | NullPtr   , NullPtr
-    | Bot       , Bot
-    | Top       , Top        -> true
+    | NullPtr   , NullPtr -> true
     | _ -> false
+
+  let compare x y =
+    if equal x y
+      then 0
+      else
+        let order x = match x with
+          | Addr _ -> 0
+          | StrPtr _ -> 1
+          | UnknownPtr -> 2
+          | SafePtr -> 3
+          | NullPtr -> 4
+         in
+         let c = compare (order x) (order y) in
+         if c <> 0
+          then c
+          else
+            match (x, y) with
+            | Addr (v, o), Addr (u, p) ->
+              let vc = compare v.vid u.vid in
+              if vc <> 0
+                then vc
+                else Offs.compare o p
+            | StrPtr a, StrPtr b -> compare a b
+            | _, _ -> raise @@ Invalid_argument "Invalid argument for Normal.compare"
 
   let toXML_f_addr sf (x,y) =
     let esc = Goblintutil.escape in
@@ -415,9 +338,7 @@ struct
     | StrPtr x -> mkString x
     | SafePtr -> mkString "a safe pointer/string"
     | NullPtr -> integer 0
-    | UnknownPtr
-    | Top     -> raise Lattice.TopValue
-    | Bot     -> raise Lattice.BotValue
+    | UnknownPtr -> raise Lattice.TopValue
   let rec add_offsets x y = match x with
     | `NoOffset    -> y
     | `Index (i,x) -> `Index (i, add_offsets x y)
@@ -433,109 +354,43 @@ struct
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 
-  let arbitrary () = QCheck.always Bot (* S TODO: non-bot *)
+  let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
 module NormalLat (Idx: IntDomain.S) =
 struct
   include Normal (Idx)
 
-  let is_top = function
-    | Top -> true
-    | _   -> false
-
-  let is_bot = function
-    | Bot -> true
-    | _   -> false
-
-  let top () = Top
-  let bot () = Bot
-
-  (* include Lattice.StdCousot *)
-  (*  *)
-  (* let widen x y = *)
-  (*   if equal x y then y else *)
-  (*     match x,y with *)
-  (*     | Addr _, Addr _ -> y *)
-  (*     | _ -> failwith "no" *)
-
-  module OffsI = Offset (Idx)
   let is_definite = function
     | NullPtr | StrPtr _ -> true
-    | Addr (v,o) when OffsI.is_definite o -> true
+    | Addr (v,o) when Offs.is_definite o -> true
     | _ -> false
 
-  let leq x y =
-    let rec leq_offs x y =
-      match x, y with
-      | _           , `NoOffset    -> true
-      | `Index (i,x), `Index (o,y) -> Idx.leq i o && leq_offs x y
-      | `Field (f,x), `Field (g,y) -> f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname &&  leq_offs x y
-      | _                          -> false
-    in
-    match x, y with
-    | _         , Top           -> true
-    | Top       , _             -> false
-    | Bot       , _             -> true
-    | _         , Bot           -> false
-    | UnknownPtr, UnknownPtr    -> true
-    | NullPtr   , NullPtr       -> true
-    | SafePtr   , SafePtr       -> true
-    | StrPtr a  , StrPtr b      -> a = b (* TODO *)
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
-    | _                      -> false
-
-  let rec merge_offs op x y =
-    match x, y with
-    | `Index (i,x), `Index (o,y) -> `Index (op i o, merge_offs op x y)
-    | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname
-      -> `Field (f,merge_offs op x y)
-    | _ -> `NoOffset
-
-  let rec drop_ints_offs = function
-    | `Index (i, x) -> `Index (Idx.top (), drop_ints_offs x)
-    | `Field (i, x) -> `Field (i, drop_ints_offs x)
-    | x -> x
+  let leq x y = match x, y with
+    | SafePtr, UnknownPtr    -> true
+    | StrPtr a  , StrPtr b   -> a = b
+    | Addr (x,o), Addr (y,u) -> x.vid = y.vid && Offs.leq o u
+    | _                      -> x = y
 
   let drop_ints = function
-    | Addr (x, o) -> Addr (x, drop_ints_offs o)
+    | Addr (x, o) -> Addr (x, Offs.drop_ints o)
     | x -> x
 
-  let merge_up op x y =
+  let merge cop x y =
     match x, y with
-    | Top       , _       -> Top
-    | _         , Top     -> Top
-    | Bot       , y       -> y
-    | x         , Bot     -> x
+    | UnknownPtr, SafePtr
+    | SafePtr, UnknownPtr -> UnknownPtr
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
     | SafePtr   , SafePtr -> SafePtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,merge_offs op o u)
-    | _ -> Top
+    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x, Offs.merge cop o u)
+    | _ -> raise Lattice.Uncomparable
 
-  let join = merge_up Idx.join
-  let widen = merge_up Idx.widen
-
-  let merge_down op x y =
-    match x, y with
-    | Bot       , _          -> Bot
-    | _         , Bot        -> Bot
-    | Top       , y          -> y
-    | x         , Top        -> x
-    | UnknownPtr, UnknownPtr -> UnknownPtr
-    | NullPtr   , NullPtr    -> NullPtr
-    | SafePtr   , SafePtr    -> SafePtr
-    | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, merge_offs op o u)
-    | UnknownPtr, StrPtr a
-    | StrPtr a  , UnknownPtr -> StrPtr a
-    | UnknownPtr, Addr a
-    | Addr a    , UnknownPtr -> Addr a
-    | _ -> Bot
-
-  let meet = merge_down Idx.meet
-  let narrow = merge_down Idx.narrow
+  let join = merge `Join
+  let widen = merge `Widen
+  let meet = merge `Meet
+  let narrow = merge `Narrow
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
@@ -591,7 +446,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
-  let rec printInnerXml f = function
+  let printInnerXml f = function
     | [] -> ()
     | (`Left x :: xs) ->
       BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
@@ -639,7 +494,7 @@ struct
     | (x::xs) -> x :: kill v xs
     | [] -> []
 
-  let rec replace x exp ofs =
+  let replace x exp ofs =
     let f o = match o with
       | `Right e -> `Right (I.replace x exp e)
       | x -> x
@@ -695,14 +550,13 @@ struct
     let rec eq a b =
       match a,b with
       | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> eq o1 o2
+      | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> eq o1 o2
       | `Index (i1,o1), `Index (i2,o2) when Expcompare.compareExp i1 i2 -> eq o1 o2
       | _ -> false
     in
     x1.vid=x2.vid && eq o1 o2
 
   let hash    = Hashtbl.hash
-  let compare = Pervasives.compare
   let name () = "simplified lval"
   let isSimple _ = true
 

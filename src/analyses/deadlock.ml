@@ -11,10 +11,10 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "deadlock"
+  let name () = "deadlock"
 
   (* The domain for the analysis *)
-  module D = DeadlockDomain.Lockset
+  module D = DeadlockDomain.Lockset (* MayLockset *)
   module C = DeadlockDomain.Lockset
   module G = Lattice.Unit
 
@@ -104,18 +104,16 @@ struct
     if D.is_top ctx.local then ctx.local else
       match LibraryFunctions.classify f.vname arglist with
       | `Lock (_, _, _) ->
-        begin match eval_exp_addr ctx.ask (List.hd arglist) with
-          | [lockAddr] ->
-            addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-            D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
-          | _ -> ctx.local
-        end
-
+        List.fold_left (fun d lockAddr ->
+          addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
+          D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
+        ) ctx.local (eval_exp_addr ctx.ask (List.hd arglist))
       | `Unlock ->
         let lockAddrs = eval_exp_addr ctx.ask (List.hd arglist) in
-        let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
-        D.filter inLockAddrs ctx.local
-
+        if List.length lockAddrs = 1 then
+          let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
+          D.filter (neg inLockAddrs) ctx.local
+        else ctx.local
       | _ -> ctx.local
 
 end

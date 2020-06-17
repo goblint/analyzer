@@ -1,15 +1,25 @@
 os:
   - linux
   - osx
+osx_image: xcode11.2
 language: c
 git:
   submodules: false
+cache:
+  directories:
+  - $HOME/.opam
+  - _opam
 install: bash -x scripts/travis-ci.sh
 script: ./make.sh headers testci
+addons:
+  apt:
+    update: true
 notifications:
   webhooks:
-    urls:
-      - https://webhooks.gitter.im/e/86c0d96b8abfc23dbc97
     # options: [always|never|change] default: always
+    on_success: change
+    on_failure: change
+  slack:
+    secure: PNzEQ5pH1qSHtO88flUUyn08/JaSUDFKEWUwZXEtVIkY+HCvPdBOtvFfP/xiuQpR7sKNBRYwP6LiA0bEgboAO1aWdbG4AJCPn4OYZl80ufNGrWp0qPrg0g2IdVFMZcwhckqStHiTq9Mt/MWliLy0Tyqsydx746gZPiki3t05mgw=
     on_success: change
     on_failure: change

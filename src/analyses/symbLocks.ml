@@ -20,7 +20,7 @@ struct
   module C = LockDomain.Symbolic
   module G = Lattice.Unit
 
-  let name = "symb_locks"
+  let name () = "symb_locks"
 
   let startstate v = D.top ()
   let otherstate v = D.top ()
@@ -106,7 +106,7 @@ struct
   let type_inv (c:compinfo) : Lval.CilLval.t list =
     try [Hashtbl.find type_inv_tbl c,`NoOffset]
     with Not_found ->
-      let i = makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[])) in
+      let i = Goblintutil.create_var (makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[]))) in
       Hashtbl.add type_inv_tbl c i;
       [i, `NoOffset]
 
@@ -164,7 +164,7 @@ struct
     match q with
     | _ -> Queries.Result.top ()
 
-  let rec add_per_element_access ctx e rw =
+  let add_per_element_access ctx e rw =
     let module LSSet = Access.LSSet in
     (* Per-element returns a triple of exps, first are the "element" pointers,
        in the second and third positions are the respectively access and mutex.
