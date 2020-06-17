@@ -1438,6 +1438,9 @@ struct
     | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr)) ?lval_raw ?rval_raw
     | v -> set ask gs st adr v ?lval_raw ?rval_raw
 
+  let unpack_ptr_type (ptrT: typ) = match ptrT with
+    | TPtr (t, _) -> t
+    | _ -> failwith "huh?"
 
   (**************************************************************************
    * Simple defs for the transfer functions
@@ -1528,9 +1531,6 @@ struct
           set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
         )
       | _ -> (
-        (* print_endline "assign";
-        print_endline (sprint d_lval lval);
-        print_endline (sprint d_exp rval); *)
         let is_malloc_pointer e =
           let rv =  eval_rv_keep_bot ctx.ask ctx.global ctx.local e in
           VD.is_bot rv || is_some_bot rv
@@ -1541,13 +1541,11 @@ struct
           | e -> is_malloc_pointer e
         in
         if is_malloc_assignment rval then (
-          (* print_endline "Requires special treatment"; *)
-          let heap_var = heap_var (rval |> typeOf |> typeSig) in
+          let heap_var = heap_var (rval |> typeOf |> unpack_ptr_type |> typeSig) in
           let heap_var = if (get_bool "exp.malloc-fail")
               then AD.join (heap_var) AD.null_ptr
               else heap_var
           in
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask ctx.global ctx.local [(heap_var, `Blob (VD.top (), IdxDom.top ()));
                                    (eval_lv ctx.ask ctx.global ctx.local lval, `Address heap_var) ]
         ) else
@@ -1708,7 +1706,7 @@ struct
     let create_val typ =
         (* TODO: do some sepcial treatment for types containing arrays/pointers*)
         if isPointerType typ then (
-           let heap_var = argument_var (typ |> typeSig) in
+           let heap_var = argument_var (typ |> unpack_ptr_type |> typeSig) in
            true, `Address (if (get_bool "exp.malloc-fail")
                            then AD.join (heap_var) AD.null_ptr
                            else heap_var))
