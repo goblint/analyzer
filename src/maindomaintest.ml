@@ -1,22 +1,12 @@
 open Defaults (* CircInterval needs initialized conf *)
 
 let domains: (module Lattice.S) list = [
-  (* (module IntDomain.Integers);
-      (module IntDomain.Flattened);
-      (module IntDomain.Lifted);
-      (module IntDomain.Interval32);
-      (module IntDomain.Booleans);
-      (module IntDomain.CircInterval);
-      (module IntDomain.DefExc);
-      (module IntDomain.Enums);
-      (module IntDomain.IntDomTuple); *)
-  (module IntDomainProperties.IntegerSet)
+  (module IntDomainProperties.IntegerSet); (* TODO: top properties error *)
+  (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
 ]
 
 let intDomains: (module IntDomain.S) list = [
-  (module IntDomain.Integers);
   (module IntDomain.Flattened);
-  (module IntDomain.Lifted);
   (module IntDomain.Interval32);
   (module IntDomain.Booleans);
   (module IntDomain.CircInterval);
