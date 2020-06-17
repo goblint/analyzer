@@ -2000,16 +2000,8 @@ struct
     | `Malloc size -> begin
         match lv with
         | Some lv ->
-          (* let heap_var =
-            if (get_bool "exp.malloc-fail")
-            then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
-            else heap_var !Tracing.current_loc
-          in *)
-          (* print_endline @@ "Malloc: " ^ (AD.short 100  (eval_lv ctx.ask gs st lv));
-          print_endline @@ "Malloc value: " ^ (VD.short 100  (VD.bot ())); *)
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ctx.ask gs st [(*(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));*)
-                                  (eval_lv ctx.ask gs st lv, VD.bot ())]
+          (* For the basic heap analysis, we use let the temporary variable a malloced value is assigned to, point to a "dummy" bottom  *)
+          set ctx.ask gs st (eval_lv ctx.ask gs st lv) (VD.bot ())
         | _ -> st
       end
     | `Calloc size ->
