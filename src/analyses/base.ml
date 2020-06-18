@@ -1700,25 +1700,39 @@ struct
     | TFun (_, Some args, vararg, _) -> if vararg then failwith "varargs not handled yet" else List.map snd_triple args
     | _ -> failwith "Not a function type"
 
-  let heapify_pointers (fn: varinfo) (e: exp list) =
-    let create_val typ =
-        (* TODO: do some sepcial treatment for types containing arrays/pointers*)
-        if isPointerType typ then (
-           let heap_var = argument_var (typ |> unpack_ptr_type |> typeSig) in
-           true, `Address (if (get_bool "exp.malloc-fail")
-                           then AD.join (heap_var) AD.null_ptr
-                           else heap_var))
+  let rec arg_value a (gs:glob_fun) (st: store) (t: typ): (value * address list) =
+    let rec arg_comp compinfo l : ValueDomain.Structs.t * address list =
+      let nstruct = ValueDomain.Structs.top () in
+      let arg_field (nstruct, adrs) fd = let (v, adrs) = arg_val a gs st fd.ftype adrs in
+        (ValueDomain.Structs.replace nstruct fd v, adrs)
+      in
+      List.fold_left (arg_field) (nstruct, l) compinfo.cfields
+    and arg_val a gs st t (l: address list) = (match t with
+      | TInt _ -> `Int (ID.top ()), l
+      | TPtr _ -> let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
+                  `Address (if (get_bool "exp.malloc-fail")
+                            then AD.join (heap_var) AD.null_ptr
+                            else heap_var), l
+      | TComp ({cstruct=true; _} as ci,_) -> let v, adrs =arg_comp ci l in `Struct (v), adrs
+      | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ()), l
+      | TArray (ai, None, _) -> let v, adrs = arg_val a gs st ai l in
+        `Array (ValueDomain.CArrays.make (IdxDom.top ()) v ), adrs
+      | TArray (ai, Some exp, _) ->
+        let v, adrs = arg_val a gs st ai l in
+        let l = Cil.isInteger (Cil.constFold true exp) in
+        (`Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) v)), adrs
+      | TNamed ({ttype=t; _}, _) -> arg_val a gs st t l
+      | _ -> `Top, l)
+    in arg_val a gs st t []
 
-        else (false,
-          (* Assuming the parameters have unknown value *)
-          VD.top ())
-    in
+  let heapify_pointers (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
+    let create_val t = arg_value 1 gs st t  in
     let arg_types = get_arg_types fn in
     let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
-    let heap_cells = List.filter fst values |> List.map snd in
-    let heap_mem = List.map (fun c -> match c with `Address a -> (a, `Blob (VD.top (), IdxDom.top ())) | _ -> failwith "huh?") heap_cells in
+    let heap_cells = values |> List.map snd |> List.flatten |> Set.of_list |> Set.to_list in
+    let heap_mem = List.map (fun a ->  (a, `Blob (VD.top (), IdxDom.top ()))) heap_cells in
     let fundec = Cilfacade.getdec fn in
-    let values = List.map snd values in
+    let values = List.map fst values in
     let pa = zip fundec.sformals values in
     (* Argument values, parameters -> values, argument memory cells -> values *)
     (values, pa, heap_mem)
@@ -1729,7 +1743,7 @@ struct
     let vals, pa, heap_mem =
       (* if this is a start call, we have to handle the pointer arguments sepcially *)
       if is_main_call fn args then
-        heapify_pointers fn args
+        heapify_pointers fn ctx.global ctx.local args
       else
         let vals = List.map (eval_rv ctx.ask ctx.global st) args in
         let fundec = Cilfacade.getdec fn in
