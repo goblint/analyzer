@@ -19,7 +19,7 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             |> lift (get_bool "ana.opt.hashcons") (module HashconsContextLifter)
             (* hashcons contexts before witness to reduce duplicates, because witness re-uses contexts in domain *)
-            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter)
+            |> lift (get_bool "ana.sv-comp" && neg get_bool "exp.no-witness") (module WitnessConstraints.WitnessLifter)
             |> lift true (module PathSensitive2)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
@@ -458,6 +458,7 @@ struct
       in
       Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
+      if neg get_bool "exp.no-witness" then begin
       let module Reach = Reachability (EQSys) (LHT) (GHT) in
       Reach.prune !lh_ref !global_xml startvars';
 
@@ -588,6 +589,7 @@ struct
         end
         in
         Witness.write_file "witness.graphml" (module Task) (module TaskResult)
+      end
       end
     end;
 
