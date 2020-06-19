@@ -829,14 +829,16 @@ struct
     let r = eval_rv a gs st exp in
     if VD.is_bot r then top_value a gs st (typeOf exp) else r
 
+  (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
+  (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
+  (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
   let eval_exp x (exp:exp):int64 option =
-      (* Since ctx is not available here, we need to make some adjustments *)
-      let knownothing = fun (x:Q.t) -> `Top in (* our version of ask *)
-      let gs = fun _ -> `Top in (* the expression is guaranteed to not contain globals *)
-      let v = eval_rv knownothing gs x exp in
-      match v with
-      | `Int x -> ValueDomain.ID.to_int x
-      | _ -> None
+    (* Since ctx is not available here, we need to make some adjustments *)
+    let knownothing = fun _ -> `Top in (* our version of ask *)
+    let gs = fun _ -> `Top in (* the expression is guaranteed to not contain globals *)
+    match (eval_rv knownothing gs x exp) with
+    | `Int x -> ValueDomain.ID.to_int x
+    | _ -> None
 
   let eval_funvar ctx fval: varinfo list =
     try
