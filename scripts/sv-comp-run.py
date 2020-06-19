@@ -74,9 +74,9 @@ try:
             try:
                 p = subprocess.run(shlex.split(GOBLINT_COMMAND.format(code_filename=code_filename)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=TIMEOUT)
                 if "Fatal error: exception " in p.stdout:
-                    print(p.stdout)
-                    exit(1)
-                result = extract_bool(r"SV-COMP \(unreach-call\): (false|true)", p.stdout)
+                    result = "error"
+                else:
+                    result = extract_bool(r"SV-COMP \(unreach-call\): (false|true)", p.stdout)
             except subprocess.TimeoutExpired:
                 result = "timeout"
             finally:
@@ -100,7 +100,7 @@ try:
             text = f"CORRECT {expected}"
             points += 2 if result else 1
             points_must += 2 if result else 0
-        elif result == "timeout" or result is None:
+        elif result == "timeout" or result == "error" or result is None:
             text = f"UNKNOWN {result}, expected {expected}"
         else:
             text = f"INCORRECT {result}, expected {expected}"
