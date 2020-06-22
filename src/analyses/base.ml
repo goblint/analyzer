@@ -1714,7 +1714,7 @@ struct
       | TPtr _ -> let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
                   `Address (if (get_bool "exp.malloc-fail")
                             then AD.join (heap_var) AD.null_ptr
-                            else heap_var), l
+                            else heap_var), heap_var::l
       | TComp ({cstruct=true; _} as ci,_) -> let v, adrs =arg_comp ci l in `Struct (v), adrs
       | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ()), l
       | TArray (ai, None, _) -> let v, adrs = arg_val a gs st ai l in
