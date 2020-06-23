@@ -50,6 +50,9 @@ rule() {
     ;; domaintest)
       dune build src/maindomaintest.exe &&
       cp _build/default/src/maindomaintest.exe goblint.domaintest
+    ;; domaintest.afl)
+      dune build src/maindomaintestafl.exe &&
+      cp _build/default/src/maindomaintestafl.exe goblint.domaintest.afl
 
     # old rules using ocamlbuild
     ;; ocbnat*)
