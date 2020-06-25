@@ -317,7 +317,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node): nod
             (Arg.Node.cfgnode n1, Arg.Node.cfgnode n2)
           ) subpath
         in
-        let module Spec = ObserverAnalysis.MakeSpec (
+        let module Spec = ObserverAnalysis.MakePathSpec (
           struct
             let path = observer_path
           end

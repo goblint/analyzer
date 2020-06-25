@@ -2,58 +2,8 @@ open Prelude.Ana
 open Analyses
 open MyCFG
 
-module type KMPParam =
-sig
-  type t
-  val equal: t -> t -> bool
 
-  val pattern: t array
-end
-
-module KMP (KMPParam: KMPParam) =
-struct
-  include KMPParam
-
-  let m = Array.length pattern
-
-  (* let next_inner prefix q x =
-    let q' = ref q in
-    while !q' > 0 && not (equal pattern.(!q') x) do
-      q' := prefix.(!q' - 1)
-    done;
-    if equal pattern.(!q') x then begin
-      q' := !q' + 1
-    end;
-    !q' *)
-  let rec next_inner prefix q x =
-    if q > 0 && not (equal pattern.(q) x) then
-      next_inner prefix prefix.(q - 1) x
-    else if equal pattern.(q) x then
-      q + 1
-    else
-      q
-
-  (* CLRS *)
-  let prefix: int array =
-    let pi = Array.make m 0 in
-    let k = ref 0 in
-    for q = 2 to m do
-      k := next_inner pi !k pattern.(q - 1);
-      pi.(q - 1) <- !k
-    done;
-    pi
-
-  let next (q: int) (x: t): int =
-    if q = m then
-      m
-    else
-      next_inner prefix q x
-end
-
-module type Arg =
-sig
-  val path: (node * node) list
-end
+module type StepObserverAutomaton = ObserverAutomaton.S with type t = node * node
 
 (* TODO: instead of multiple observer analyses, use single list-domained observer analysis? *)
 let get_fresh_spec_id =
@@ -63,7 +13,8 @@ let get_fresh_spec_id =
     fresh_id := return_id + 1;
     return_id
 
-module MakeSpec (Arg: Arg) : Analyses.Spec =
+(* TODO: relax q type *)
+module MakeSpec (Automaton: StepObserverAutomaton with type q = int) : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
@@ -72,7 +23,8 @@ struct
 
   module ChainParams =
   struct
-    let n = List.length Arg.path
+    (* let n = List.length Arg.path *)
+    let n = -1
     let names x = "state " ^ string_of_int x
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
@@ -81,24 +33,11 @@ struct
 
   let should_join x y = D.equal x y (* fully path-sensitive *)
 
-  module KMP = KMP (
-    struct
-      type t = node * node
-      let equal (p1, n1) (p2, n2) = Node.equal p1 p2 && Node.equal n1 n2
-      let pattern = Array.of_list Arg.path
-    end
-  )
-
-  (* let () = Arg.path
-    |> List.map (fun (p, n) -> Printf.sprintf "(%d, %d)" p n)
-    |> String.concat "; "
-    |> Printf.printf "observer path: [%s]\n" *)
-
   let step d prev_node node =
     match d with
     | `Lifted q -> begin
-        let q' = KMP.next q (prev_node, node) in
-        if q' = KMP.m then
+        let q' = Automaton.next q (prev_node, node) in
+        if Automaton.accepting q' then
           raise Deadcode
           (* TODO: undo. currently observer doesn't kill paths, just splits for nice ARG viewing purposes *)
           (* `Lifted q' *)
@@ -152,9 +91,33 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     step_ctx ctx
 
-  let startstate v = `Lifted 0
+  let startstate v = `Lifted Automaton.initial
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
+end
+
+
+module type PathArg =
+sig
+  val path: (node * node) list
+end
+
+module MakePathSpec (Arg: PathArg) : Analyses.Spec =
+struct
+  module KMP = ObserverAutomaton.KMP (
+    struct
+      type t = node * node
+      let equal (p1, n1) (p2, n2) = Node.equal p1 p2 && Node.equal n1 n2
+      let pattern = Array.of_list Arg.path
+    end
+  )
+
+  include MakeSpec (KMP)
+
+  (* let () = Arg.path
+    |> List.map (fun (p, n) -> Printf.sprintf "(%d, %d)" p n)
+    |> String.concat "; "
+    |> Printf.printf "observer path: [%s]\n" *)
 end
 
 (* let _ =
