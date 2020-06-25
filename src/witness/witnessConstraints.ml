@@ -245,15 +245,17 @@ struct
 
   let get_context ctx = ctx.context ()
 
+  let step n c i e = R.singleton (`Lifted ((n, c, i), e))
+  let step_ctx ctx x e =
+    try
+      step ctx.prev_node (get_context ctx) x e
+    with Ctx_failure _ ->
+      R.bot ()
+  let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
+
   let map ctx f g =
     let h x xs =
-      let r =
-        try
-          R.singleton (`Lifted ((ctx.prev_node, get_context ctx, x), CFGEdge ctx.edge))
-        with Ctx_failure _ ->
-          R.bot ()
-      in
-      try D.add (g (f (conv ctx x))) r xs
+      try D.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
       with Deadcode -> xs
     in
     let d = D.fold h ctx.local (D.empty ()) in
@@ -327,10 +329,7 @@ struct
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             if should_inline f then
-              try
-                R.singleton (`Lifted ((ctx.prev_node, get_context ctx, x'), InlineEntry a))
-              with Ctx_failure _ ->
-                R.bot ()
+              step_ctx ctx x' (InlineEntry a)
             else
               R.bot ()
           in
@@ -347,9 +346,9 @@ struct
     let k x y =
       let r =
         if should_inline f then
-          R.singleton (`Lifted ((Function f, fc, x), InlineReturn l))
+          step (Function f) fc x (InlineReturn l)
         else
-          R.singleton (`Lifted ((ctx.prev_node, get_context ctx, cd), CFGEdge ctx.edge))
+          step_ctx_edge ctx cd
       in
       try D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y
       with Deadcode -> y
