@@ -39,8 +39,6 @@ struct
         let q' = Automaton.next q (prev_node, node) in
         if Automaton.accepting q' then
           raise Deadcode
-          (* TODO: undo. currently observer doesn't kill paths, just splits for nice ARG viewing purposes *)
-          (* `Lifted q' *)
         else
           `Lifted q'
       end
@@ -50,29 +48,12 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    (* match lval with
-    | (Var v, NoOffset) ->
-      begin match ctx.local with
-      | `Lifted 2 -> raise Deadcode
-      | `Lifted x -> `Lifted (x + 1)
-      | _ -> ctx.local
-      end
-    | _ ->
-      ctx.local *)
     step_ctx ctx
 
   let vdecl ctx (_:varinfo) : D.t =
     step_ctx ctx
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    (* match ctx.node with
-    | Statement s when s.sid = 32 ->
-      begin match ctx.local with
-      | `Lifted 0 -> `Lifted 1
-      | _ -> ctx.local
-      end
-    | _ ->
-      ctx.local *)
     step_ctx ctx
 
   let body ctx (f:fundec) : D.t =
