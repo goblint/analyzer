@@ -243,12 +243,10 @@ struct
     and query x = Spec.query ctx' x in
     ctx'
 
-  let get_context ctx = ctx.context ()
-
   let step n c i e = R.singleton (`Lifted ((n, c, i), e))
   let step_ctx ctx x e =
     try
-      step ctx.prev_node (get_context ctx) x e
+      step ctx.prev_node (ctx.context ()) x e
     with Ctx_failure _ ->
       R.bot ()
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
