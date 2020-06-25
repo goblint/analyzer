@@ -245,21 +245,18 @@ struct
 
   let get_context ctx = ctx.context ()
 
-  (* let prev_i i x = Int64.of_int i *)
-  let prev_i i x = x
-
   let map ctx f g =
-    let h x (i, xs) =
+    let h x xs =
       let r =
         try
-          R.singleton (`Lifted ((ctx.prev_node, get_context ctx, prev_i i x), CFGEdge ctx.edge))
+          R.singleton (`Lifted ((ctx.prev_node, get_context ctx, x), CFGEdge ctx.edge))
         with Ctx_failure _ ->
           R.bot ()
       in
-      try (succ i, D.add (g (f (conv ctx x))) r xs)
-      with Deadcode -> (succ i, xs)
+      try D.add (g (f (conv ctx x))) r xs
+      with Deadcode -> xs
     in
-    let (_, d) = D.fold h ctx.local (0, D.empty ()) in
+    let d = D.fold h ctx.local (D.empty ()) in
     if D.is_bot d then raise Deadcode else d
 
   let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
@@ -304,10 +301,9 @@ struct
       begin match ctx.local with
         | `Lifted s ->
           D.S.elements s
-          |> List.iteri (fun i (x, r) ->
+          |> List.iter (fun (x, r) ->
               R.iter (function
                   | `Lifted ((n, c, j), e) ->
-                    (* f i (n, Obj.repr c, Int64.to_int j) e *)
                     f (I.to_int x) (n, Obj.repr c, I.to_int j) e
                   | `Bot ->
                     failwith "PathSensitive3.query: range contains bot"
@@ -320,8 +316,7 @@ struct
       begin match ctx.local with
         | `Lifted s ->
           D.S.elements s
-          |> List.iteri (fun i (x, r) ->
-              (* f i *)
+          |> List.iter (fun (x, r) ->
               f (I.to_int x)
             )
         | `Top -> failwith "prev messed up: top"
@@ -337,13 +332,13 @@ struct
     true
 
   let enter ctx l f a =
-    let g (i, xs) x' ys =
+    let g xs x' ys =
       let ys' = List.map (fun (x,y) ->
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             if should_inline f then
               try
-                R.singleton (`Lifted ((ctx.prev_node, get_context ctx, prev_i i x'), InlineEntry a))
+                R.singleton (`Lifted ((ctx.prev_node, get_context ctx, x'), InlineEntry a))
               with Ctx_failure _ ->
                 R.bot ()
             else
@@ -352,24 +347,24 @@ struct
           (D.singleton x (R.bot ()), D.singleton y yr)
         ) ys
       in
-      (succ i, ys' @ xs)
+      ys' @ xs
     in
-    snd @@ fold' ctx Spec.enter (fun h -> h l f a) g (0, [])
+    fold' ctx Spec.enter (fun h -> h l f a) g []
 
   let combine ctx l fe f a fc d =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
-    let k x (i, y) =
+    let k x y =
       let r =
         if should_inline f then
-          R.singleton (`Lifted ((Function f, fc, prev_i i x), InlineReturn l))
+          R.singleton (`Lifted ((Function f, fc, x), InlineReturn l))
         else
-          R.singleton (`Lifted ((ctx.prev_node, get_context ctx, prev_i 0 cd), CFGEdge ctx.edge))
+          R.singleton (`Lifted ((ctx.prev_node, get_context ctx, cd), CFGEdge ctx.edge))
       in
-      try (succ i, D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y)
-      with Deadcode -> (succ i, y)
+      try D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y
+      with Deadcode -> y
     in
-    let (_, d) = D.fold k d (0, D.bot ()) in
+    let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
 
   let part_access _ _ _ _ =
