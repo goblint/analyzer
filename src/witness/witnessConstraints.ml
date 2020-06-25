@@ -3,7 +3,7 @@
 open Prelude.Ana
 open Analyses
 
-module PrintableVar =
+module Node: Printable.S with type t = MyCFG.node =
 struct
   include Var
   let to_yojson = MyCFG.node_to_yojson
@@ -56,7 +56,7 @@ end
 
 module WitnessLifter (S:Spec): Spec =
 struct
-  module V = Printable.Prod (PrintableVar) (S.C)
+  module V = Printable.Prod (Node) (S.C)
   module VE = Printable.Prod (V) (Edge)
   module VES = SetDomain.ToppedSet (VE) (struct let topname = "VES top" end)
   module VF = Lattice.Flat (V) (struct let bot_name = "VF bot" let top_name = "VF top" end)
@@ -260,13 +260,13 @@ struct
     (* tag requires hashcons domain inside *)
     let to_int = hash
   end
-  module VI = Printable.Prod3 (PrintableVar) (Spec.C) (I)
+  module VI = Printable.Prod3 (Node) (Spec.C) (I)
   module VIE =
   struct
     include Printable.Prod (VI) (Edge)
 
     let leq ((v, c, x'), e) ((w, d, y'), f) =
-      PrintableVar.equal v w && Spec.C.equal c d && I.leq x' y' && Edge.equal e f
+      Node.equal v w && Spec.C.equal c d && I.leq x' y' && Edge.equal e f
 
     (* TODO: join and meet can be implemented, but are they necessary at all? *)
     let join _ _ = failwith "VIE join"
