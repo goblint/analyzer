@@ -298,29 +298,19 @@ struct
   let query ctx q =
     match q with
     | Queries.IterPrevVars f ->
-      begin match ctx.local with
-        | `Lifted s ->
-          D.S.elements s
-          |> List.iter (fun (x, r) ->
-              R.iter (function
-                  | `Lifted ((n, c, j), e) ->
-                    f (I.to_int x) (n, Obj.repr c, I.to_int j) e
-                  | `Bot ->
-                    failwith "PathSensitive3.query: range contains bot"
-                ) r
-            )
-        | `Top -> failwith "prev messed up: top"
-      end;
+      D.iter' (fun x r ->
+          R.iter (function
+              | `Lifted ((n, c, j), e) ->
+                f (I.to_int x) (n, Obj.repr c, I.to_int j) e
+              | `Bot ->
+                failwith "PathSensitive3.query: range contains bot"
+            ) r
+        ) ctx.local;
       `Bot
     | Queries.IterVars f ->
-      begin match ctx.local with
-        | `Lifted s ->
-          D.S.elements s
-          |> List.iter (fun (x, r) ->
-              f (I.to_int x)
-            )
-        | `Top -> failwith "prev messed up: top"
-      end;
+      D.iter' (fun x r ->
+          f (I.to_int x)
+        ) ctx.local;
       `Bot
     | _ ->
       fold' ctx Spec.query identity (fun x _ f -> Queries.Result.meet x (f q)) `Top
