@@ -1,6 +1,4 @@
 open Prelude.Ana
-open Analyses
-open MyCFG
 
 
 module type S =
