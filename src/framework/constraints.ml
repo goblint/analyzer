@@ -1204,7 +1204,7 @@ struct
     LH.filteri_inplace (fun x _ ->
         let r = LH.mem reachablel x in
         if not r then
-          ignore (Pretty.printf "Unreachable lvar %a" LVar.pretty_trace x);
+          ignore (Pretty.printf "Unreachable lvar %a\n" LVar.pretty_trace x);
         r
       ) lh
 end
