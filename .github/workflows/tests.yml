@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      
+
       - name: Cache # https://github.com/marketplace/actions/cache
         uses: actions/cache@v2.0.0
         with:
@@ -33,7 +33,7 @@ jobs:
             ~/.opam
             _opam
           # An explicit key for restoring and saving the cache
-          key: ${{ runner.os }}-${{ hashFiles('goblint.opam.locked') }}
+          key: ${{ runner.os }}-new-${{ hashFiles('goblint.opam.locked') }}
 
       - name: Setup OCaml ${{ matrix.ocaml-version }}
         uses: avsm/setup-ocaml@v1

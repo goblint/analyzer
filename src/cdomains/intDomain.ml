@@ -687,8 +687,10 @@ struct
         `Excluded ((if x = 0L || y = 0L then S.empty () else S.singleton 0L), r)
     (* A known value and an exclusion set... the definite value should no
      * longer be excluded: *)
-    | `Excluded (s,r), `Definite x -> `Excluded (S.remove x s, r)
-    | `Definite x, `Excluded (s,r) -> `Excluded (S.remove x s, r)
+    | `Excluded (s,r), `Definite x
+    | `Definite x, `Excluded (s,r) ->
+      let a = size (Size.min_for x) in
+      `Excluded (S.remove x s, R.join a r)
     (* For two exclusion sets, only their intersection can be excluded: *)
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, R.join wx wy)
 
@@ -739,18 +741,12 @@ struct
   let min_of_range r = Option.map (fun i -> Int64.(neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
   let maximal : t -> int64 option = function
     | `Definite x -> Integers.to_int x
-    | `Excluded (s,r) ->
-      if S.is_empty s
-      then max_of_range r
-      else Some (Int64.succ (S.max_elt s))
+    | `Excluded (s,r) -> max_of_range r
     | `Bot -> None
 
   let minimal = function
     | `Definite x -> Integers.to_int x
-    | `Excluded (s,r) ->
-      if S.is_empty s
-      then min_of_range r
-      else Some (Int64.pred(S.min_elt s))
+    | `Excluded (s,r) -> min_of_range r
     | `Bot -> None
 
   let of_excl_list t l = `Excluded (List.fold_right S.add l (S.empty ()), size t)
@@ -782,9 +778,22 @@ struct
     (* If both are exclusion sets, there isn't anything we can do: *)
     | `Excluded _, `Excluded _ -> top ()
     (* A definite value should be applied to all members of the exclusion set *)
-    | `Definite x, `Excluded (s,r) -> `Excluded (S.map (f x)  s, r)
+    | `Definite x, `Excluded (s,r) ->
+      let min = Option.map (f x) (min_of_range r) in
+      let max = Option.map (f x) (max_of_range r) in
+      let r'  = match min, max with
+      | Some min, Some max ->
+        R.join (size (Size.min_for min)) (size (Size.min_for max))
+      | _ , _ -> top_range in
+      `Excluded (S.map (f x)  s, r')
     (* Same thing here, but we should flip the operator to map it properly *)
-    | `Excluded (s,r), `Definite x -> let f x y = f y x in `Excluded (S.map (f x) s, r)
+    | `Excluded (s,r), `Definite x -> let f x y = f y x in
+      let min = Option.map (f x) (min_of_range r) in
+      let max = Option.map (f x) (max_of_range r) in
+      let r' = match min, max with
+      | Some min, Some max -> R.join (size (Size.min_for min)) (size (Size.min_for max))
+      | _ , _ -> top_range in
+      `Excluded (S.map (f x) s, r')
     (* The good case: *)
     | `Definite x, `Definite y -> `Definite (f x y)
     (* If any one of them is bottom, we return bottom *)
@@ -1326,7 +1335,7 @@ module Enums : S = struct
     | Inc x, Inc y -> Inc (merge_cup x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (merge_cap x y, R.join r1 r2)
     | Exc (x,r), Inc y
-    | Inc y, Exc (x,r) -> Exc (merge_sub x y, r)
+    | Inc y, Exc (x,r) -> Exc (merge_sub x y, if y = [] then r else R.join r (R.of_interval (List.hd y, List.last y)))
   let meet = curry @@ function
     | Inc x, Inc y -> Inc (merge_cap x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (merge_cup x y, R.meet r1 r2)

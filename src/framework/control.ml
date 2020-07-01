@@ -362,6 +362,12 @@ struct
         Vrfyr.verify lh gh;
       end;
 
+      if get_bool "ana.sv-comp" then begin
+        (* prune already here so local_xml and thus HTML are also pruned *)
+        let module Reach = Reachability (EQSys) (LHT) (GHT) in
+        Reach.prune !lh_ref !global_xml startvars'
+      end;
+
       local_xml := solver2source_result lh;
       global_xml := gh;
 
@@ -461,9 +467,6 @@ struct
         Result.fold dead_verifier_error !local_xml true
       in
       Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
-
-      let module Reach = Reachability (EQSys) (LHT) (GHT) in
-      Reach.prune !lh_ref !global_xml startvars';
 
       let get: node * Spec.C.t -> Spec.D.t =
         fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
