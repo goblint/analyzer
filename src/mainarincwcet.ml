@@ -398,4 +398,5 @@ let main =
     )
 
 let _ =
+  Printexc.record_backtrace true;
   at_exit main
