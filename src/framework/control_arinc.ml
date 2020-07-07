@@ -32,7 +32,7 @@ module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
     (** The main function to preform the selected analyses. *)
-    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses_arinc.fundecs)  (module Spec : ArincSpecHC) (increment: increment_data) =
+    let analyze (module Spec : ArincSpecHC) (increment: increment_data) =
 
     let module Inc = struct let increment = empty_increment_data () end in
 
@@ -106,72 +106,10 @@ struct
       GHT.iter print_globals g
     in
 
-    (* add extern variables to local state *)
-    let do_extern_inits ctx (file : file) : Spec.D.t =
-      let module VS = Set.Make (Basetype.Variables) in
-      let add_glob s = function
-          GVar (v,_,_) -> VS.add v s
-        | _            -> s
-      in
-      let vars = foldGlobals file add_glob VS.empty in
-      let set_bad v st =
-        Spec.assign {ctx with local = st} (var v) MyCFG.unknown_exp
-      in
-      let add_externs s = function
-        | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
-        | _ -> s
-      in
-      foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
-    in
 
     (* analyze cil's global-inits function to get a starting state *)
-    let do_global_inits (file: file) : Spec.D.t * fundec list =
-      let ctx =
-        { ask     = (fun _ -> Queries.Result.top ())
-        ; node    = Arinc_cfg.PC [-1; -1]
-        ; control_context = Obj.repr (fun () -> failwith "Global initializers have no context.")
-        ; context = (fun () -> failwith "Global initializers have no context.")
-        ; edge    = Arinc_cfg.NOP
-        ; local   = Spec.D.top ()
-        ; global  = (fun _ -> Spec.G.bot ())
-        ; presub  = []
-        ; postsub = []
-        ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
-        ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
-        ; sideg   = (fun _ -> failwith "Global initializers trying to side-effect globals.")
-        ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
-        }
-      in
-      let edges = MyCFG.getGlobalInits file in
-      if (get_bool "dbg.verbose") then print_endline ("Executing "^string_of_int (List.length edges)^" assigns.");
-      let funs = ref [] in
-      (*let count = ref 0 in*)
-      let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t =
-        try
-          if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
-          (*incr count;
-            if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-          Tracing.current_loc := loc;
-          match edge with
-          | MyCFG.Entry func        ->
-            if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
-            Spec.body {ctx with local = st} func
-          | MyCFG.Assign (lval,exp) ->
-            if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
-            begin match lval, exp with
-              | (Var v,o), (AddrOf (Var f,NoOffset))
-                when v.vstorage <> Static && isFunctionType f.vtype ->
-                begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end
-              | _ -> ()
-            end;
-            Spec.assign {ctx with local = st} lval exp
-          | _                       -> raise (Failure "This iz impossible!")
-        with Failure x -> M.warn x; st
-      in
-      let with_externs = do_extern_inits ctx file in
-      (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
-      let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      result, !funs
+    let do_global_inits : Spec.D.t =
+      Spec.startstate MyCFG.dummy_func.svar
     in
 
     let print_globals glob =
@@ -186,15 +124,12 @@ struct
     let _ = GU.global_initialization := true in
     let _ = GU.earlyglobs := false in
     Spec.init ();
-    Access.init file;
 
-    let startstate, more_funs =
-      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
-      do_global_inits file
+    let startstate =
+      if (get_bool "dbg.verbose") then print_endline ("Initializing globals.");
+      do_global_inits
     in
-
-    let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
-(* 
+(*
     let enter_with st fd =
       let st = st fd.svar in
       let ctx =
@@ -217,8 +152,6 @@ struct
       let ents = Spec.enter ctx None fd.svar args in
       List.map (fun (_,s) -> fd.svar, s) ents
     in *)
-
-    let _ = try MyCFG.dummy_func.svar.vdecl <- (List.hd otherfuns).svar.vdecl with Failure _ -> () in
 
     let startvars = [[Arinc_cfg.PC [0;0], startstate]]
     in
@@ -245,15 +178,6 @@ struct
     let entrystates =
       List.map (fun (n,e) -> (n, Spec.context e), e) startvars in
 
-
-    let module Task =
-    struct
-      let file = file
-      let specification = Svcomp.unreach_call_specification
-
-      module Cfg = Cfg
-    end
-    in
 
     let local_xml = ref (Result.create 0) in
     let global_xml = ref (GHT.create 0) in
@@ -287,17 +211,17 @@ struct
     Spec.finalize ();
 
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
-    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
+    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml
 
 
-  let analyze file fs change_info =
-    analyze file fs (get_spec ()) change_info
+  let analyze change_info =
+    analyze (get_spec ()) change_info
 end
 
 (** The main function to perform the selected analyses. *)
-let analyze change_info (file: file) fs =
+let analyze change_info =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let cfgF, cfgB = Arinc_cfg.our_arinc_cfg in
   let module CFG = struct let prev = cfgB let next = cfgF end in
   let module A = AnalyzeCFG (CFG) in
-  A.analyze file fs change_info
+  A.analyze change_info

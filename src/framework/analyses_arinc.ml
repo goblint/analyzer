@@ -259,7 +259,7 @@ struct
     in
     List.iter (one_w f) !Messages.warning_table
 
-  let output table gtable gtxml gtfxml (file: file) =
+  let output table gtable gtxml gtfxml =
     if (get_bool "dbg.verbose") then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in
@@ -276,17 +276,12 @@ struct
         Xmldump.print out xml;
         output_char out '\n'
       end
-    | "html" ->
-      Htmldump.print_html out (resultXML (Lazy.force table)) file (lazy ((gtxml gtable) :: []))
     | "fast_xml" ->
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
       iter (fun n _ -> SH.add funs2node "none" n) (Lazy.force table);
-      iterGlobals file (function
-          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
-          | _ -> ()
-        );
+
       let p_node f = function
         | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
       in
@@ -327,52 +322,6 @@ struct
       else
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
-    | "json" ->
-      let open BatPrintf in
-      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
-      let file2funs = SH.create 100 in
-      let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node "none" n) (Lazy.force table);
-      iterGlobals file (function
-          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
-          | _ -> ()
-        );
-      let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
-      let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
-      (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
-      (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
-      let p_node f = function
-        | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
-      in
-      let p_fun f x = fprintf f "{\n  \"name: \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node "none") in
-      (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
-      let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
-      let write_file f fn =
-        printf "Writing json to temp. file: %s\n%!" fn;
-        fprintf f "{\n  \"parameters\": \"%a\",\n  " (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
-        fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
-        fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
-        (*gtfxml f gtable;*)
-        (*printXmlWarning f ();*)
-        fprintf f "}\n";
-      in
-      if get_bool "g2html" then
-        BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
-      else
-        let f = BatIO.output_channel out in
-        write_file f (get_string "outfile")
-    (* | "mongo" ->
-       let open Deriving.Cil in
-       Printf.printf "Connecting to local MongoDB... ";
-       let db = Db.connect () in
-       let insert (loc,n,fd) v =
-         Db.insert db (MyCFG.node_to_yojson n, location_to_yojson loc, Range.to_yojson v)
-       in
-       let t = Unix.gettimeofday () in
-       Printf.printf "Inserting %d entries... " (length (Lazy.force table));
-       iter insert (Lazy.force table);
-       let t1 = Unix.gettimeofday () -. t in
-       Printf.printf "Done in %fs!\n" t1 *)
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end

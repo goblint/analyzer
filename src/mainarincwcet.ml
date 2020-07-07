@@ -287,24 +287,16 @@ let merge_preprocessed cpp_file_names =
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
-let do_analyze change_info merged_AST =
+let do_analyze change_info =
   let module L = Printable.Liszt (Basetype.CilFundec) in
-  if get_bool "justcil" then
-    (* if we only want to print the output created by CIL: *)
-    Cilfacade.print merged_AST
-  else begin
+  begin
     (* we first find the functions to analyze: *)
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
-    let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
-    if stf@exf@otf = [] then failwith "No suitable function to start from.";
-    if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
-                                             L.pretty stf L.pretty exf L.pretty otf);
-    Goblintutil.has_otherfuns := otf <> [];
     (* and here we run the analysis! *)
     if get_string "result" = "html" then Report.prepare_html_report ();
 
-    let do_all_phases ast funs =
-      let do_one_phase ast p =
+    let do_all_phases () =
+      let do_one_phase p =
         phase := p;
         if get_bool "dbg.verbose" then (
           let aa = String.concat ", " @@ List.map Json.jsonString (get_list "ana.activated") in
@@ -312,7 +304,7 @@ let do_analyze change_info merged_AST =
           print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
-        try Control_arinc.analyze change_info ast funs
+        try Control_arinc.analyze change_info
         with x ->
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
@@ -329,11 +321,11 @@ let do_analyze change_info merged_AST =
         if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
         max np 1
       in
-      ignore @@ Enum.iter (do_one_phase ast) (0 -- (num_phases - 1))
+      ignore @@ Enum.iter (do_one_phase) (0 -- (num_phases - 1))
     in
 
     (* Analyze with the new experimental framework. *)
-    Stats.time "analysis" (do_all_phases merged_AST) funs
+    Stats.time "analysis" do_all_phases ()
   end
 
 let do_html_output () =
@@ -396,9 +388,8 @@ let main =
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
-        let file = preprocess_files () |> merge_preprocessed in
         let changeInfo = Analyses_arinc.empty_increment_data () in
-        file|> do_analyze changeInfo;
+        do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
