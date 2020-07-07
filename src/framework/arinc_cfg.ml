@@ -80,4 +80,6 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
     mkEdge (PC ([i; 4])) (SetEvent 1) (PC [i; 5]);
     mkEdge (PC ([i; 5])) (NOP) (PC [i; 1]);
   done;
+  (* Printf.printf "!!!!!!!Edge count %i\n" (List.length (H.find_all cfgB (PC ([9; 4])))); *)
+  (* H.iter (fun n (e,t) -> match n,t with PC [a;b], PC[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
   H.find_all cfgF, H.find_all cfgB

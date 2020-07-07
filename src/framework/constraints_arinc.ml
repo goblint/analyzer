@@ -586,6 +586,9 @@ struct
     d
 
   let system ((v,c): LVar.t) =
+    (* Printf.printf "my system called for [%i, %i]\n" (match v with PC [a; b] -> a) (match v with PC [a; b] -> b); *)
+    (* Printf.printf "\tControl-Flow predecessors: %i\n" (List.length (Cfg.prev v));
+      List.iter (fun (e,x) -> match x with PC [a; b] -> Printf.printf "\t\t[%i,%i]\n" a b) (Cfg.prev v); *)
     let x:((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list =
     List.map (tf (v,c)) (Cfg.prev v) in
     x
