@@ -129,7 +129,7 @@ struct
       if (get_bool "dbg.verbose") then print_endline ("Initializing globals.");
       do_global_inits
     in
-(*
+
     let enter_with st fd =
       let st = st fd.svar in
       let ctx =
@@ -151,14 +151,15 @@ struct
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
       let ents = Spec.enter ctx None fd.svar args in
       List.map (fun (_,s) -> fd.svar, s) ents
-    in *)
-
-    let startvars = [[Arinc_cfg.PC [0;0], startstate]]
     in
 
-    (* let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
-    let othervars = List.map (enter_with Spec.otherstate) otherfuns in *)
-    let startvars = List.concat (startvars) in (* FIXME: Like this, w probably won't visit any nodes *)
+    let (_, s) = List.hd (enter_with (Spec.startstate) MyCFG.dummy_func) in
+    let startvars = [[Arinc_cfg.PC [0;0], s]] in
+    let (_, s) = List.hd (enter_with (Spec.exitstate) MyCFG.dummy_func) in
+    let exitvars = [[Arinc_cfg.PC [9;5], s]] in
+
+    (* let othervars = List.map (enter_with Spec.otherstate) otherfuns in *)
+    let startvars = List.concat (startvars @ exitvars) in
 
     let _ =
       if startvars = []
