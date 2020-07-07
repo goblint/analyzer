@@ -22,13 +22,13 @@ sig
   val var_id   : t -> string
   val file_name : t -> string
   val line_nr   : t -> int
-  val node      : t -> MyCFG.node
+  val node      : t -> Arinc_cfg.arinc_node
   val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
 end
 
 module Var =
 struct
-  type t = MyCFG.node
+  type t = Arinc_cfg.arinc_node
   let relift x = x
 
   let category = function
@@ -42,9 +42,9 @@ struct
     | MyCFG.Function      f -> Hashtbl.hash (f.vid, 1)
     | MyCFG.FunctionEntry f -> Hashtbl.hash (f.vid, 2)
 
-  let equal = MyCFG.Node.equal
+  let equal = Arinc_cfg.Arinc_Node.equal
 
-  let getLocation n = MyCFG.getLoc n
+  let getLocation n = Cil.locUnknown
 
   let pretty () x =
     match x with
@@ -69,24 +69,19 @@ struct
     | MyCFG.Statement {skind = Instr [Call _]; _} -> `ProcCall
     | _ -> `Other
 
-  let printXml f n =
+  let printXml f (n:t) =
     let id ch n =
       match n with
-      | MyCFG.Statement s     -> BatPrintf.fprintf ch "%d" s.sid
-      | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.vid
-      | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.vid
+      | Arinc_cfg.PC a -> BatPrintf.fprintf ch "node"
     in
-    let l = MyCFG.getLoc n in
-    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
+    BatPrintf.fprintf f "<call id=\"%a\">\n" id n
 
   let var_id n =
     match n with
-    | MyCFG.Statement s     -> string_of_int s.sid
-    | MyCFG.Function f      -> "ret" ^ string_of_int f.vid
-    | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.vid
+    | Arinc_cfg.PC s -> string_of_int (10000*(List.nth s 0) + (List.nth s 1))
 
-  let line_nr n = (MyCFG.getLoc n).line
-  let file_name n = (MyCFG.getLoc n).file
+  let line_nr n = -1
+  let file_name n = "n/a"
   let description n = sprint 80 (pretty () n)
   let context () _ = Pretty.nil
   let node n = n
@@ -95,30 +90,22 @@ end
 
 module VarF (LD: Printable.HC) =
 struct
-  type t = MyCFG.node * LD.t
+  type t = Arinc_cfg.arinc_node * LD.t
   let relift (n,x) = n, LD.relift x
 
-  let category = function
-    | (MyCFG.Statement     s,_) -> 1
-    | (MyCFG.Function      f,_) -> 2
-    | (MyCFG.FunctionEntry f,_) -> 3
-
+  let category _ = 1
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
-  let hash x =
+  let hash (x:t) =
     match x with
-    | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
-    | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
-    | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23)
+    | (Arinc_cfg.PC     s,d) -> hashmul (LD.hash d) (Hashtbl.hash s*17)
 
-  let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
+  let equal (n1,d1) (n2,d2) = Arinc_cfg.Arinc_Node.equal n1 n2 && LD.equal d1 d2
 
-  let getLocation (n,d) = MyCFG.getLoc n
+  let getLocation (n,d) = Cil.locUnknown
 
   let pretty () x =
     match x with
-    | (MyCFG.Statement     s,d) -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
-    | (MyCFG.Function      f,d) -> dprintf "call of %s" f.vname
-    | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
+    | (Arinc_cfg.PC     s,d) -> dprintf "node %i %i" (List.nth s 0) (List.nth s 1)
 
   let pretty_trace () (n,c as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
@@ -127,13 +114,7 @@ struct
   let compare (n1,d1) (n2,d2) =
     let comp =
       match n1, n2 with
-      | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
-      | _                    , MyCFG.FunctionEntry g -> -1
-      | MyCFG.FunctionEntry g, _                     -> 1
-      | MyCFG.Statement _, MyCFG.Function _  -> -1
-      | MyCFG.Function  _, MyCFG.Statement _ -> 1
-      | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
-      | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
+      | Arinc_cfg.PC s, Arinc_cfg.PC t -> compare s t
     in
     if comp == 0 then LD.compare d1 d2 else comp
 
@@ -145,8 +126,8 @@ struct
 
   let var_id (n,_) = Var.var_id n
 
-  let line_nr (n,_) = (MyCFG.getLoc n).line
-  let file_name (n,_) = (MyCFG.getLoc n).file
+  let line_nr (n,_) = -1
+  let file_name (n,_) = "n/a"
   let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
   let node (n,_) = n
@@ -213,7 +194,7 @@ end
 
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
-  include Hash.Printable (Basetype.ProgLinesFun) (Range)
+  include Hash.Printable (Basetype_arinc.ProgLinesFun) (Range)
   include C
 
   let toXML x =
@@ -238,24 +219,20 @@ struct
 
   let printXml f xs =
     let print_id f = function
-      | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
-      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+      | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
     in
-    let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
+    let print_one n v =
+      BatPrintf.fprintf f "<call id=\"%a\">\n" print_id n;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
     iter print_one xs
 
   let printJson f xs =
     let print_id f = function
-      | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
-      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+      | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
     in
-    let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
+    let print_one n v =
+      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"states\": %s\n},\n" print_id n (Yojson.Safe.to_string (Range.to_yojson v))
     in
     iter print_one xs
 
@@ -305,22 +282,20 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node "none" n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
         );
       let p_node f = function
-        | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-        | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
-        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+        | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
       in
       let p_nodes f xs =
         List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
       in
       let p_funs f xs =
         let one_fun n =
-          BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
+          BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node "none")
         in
         List.iter one_fun xs
       in
@@ -357,7 +332,7 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node "none" n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
@@ -367,11 +342,9 @@ struct
       (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
       (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
       let p_node f = function
-        | MyCFG.Statement stmt  -> fprintf f "\"%d\"" stmt.sid
-        | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.vid
-        | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.vid
+        | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
       in
-      let p_fun f x = fprintf f "{\n  \"name: \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
+      let p_fun f x = fprintf f "{\n  \"name: \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node "none") in
       (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
@@ -407,8 +380,8 @@ end
 module ComposeResults (R1: Printable.S) (R2: Printable.S) (C: ResultConf) =
 struct
   module R = Printable.Either (R1) (R2)
-  module H1 = Hash.Printable (Basetype.ProgLinesFun) (R1)
-  module H2 = Hash.Printable (Basetype.ProgLinesFun) (R2)
+  module H1 = Hash.Printable (Basetype_arinc.ProgLinesFun) (R1)
+  module H2 = Hash.Printable (Basetype_arinc.ProgLinesFun) (R2)
 
   include Result (R) (C)
 
@@ -434,10 +407,10 @@ end
 *)
 type ('d,'g,'c) ctx =
   { ask      : Queries.t -> Queries.Result.t
-  ; node     : MyCFG.node
+  ; node     : Arinc_cfg.arinc_node
   ; control_context : Obj.t (** (Control.get_spec ()) context, represented type: unit -> (Control.get_spec ()).C.t *)
   ; context  : unit -> 'c (** current Spec context *)
-  ; edge     : MyCFG.edge
+  ; edge     : Arinc_cfg.edge
   ; local    : 'd
   ; global   : varinfo -> 'g
   ; presub   : (string * Obj.t) list

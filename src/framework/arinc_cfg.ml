@@ -4,8 +4,6 @@ module GU = Goblintutil
 module CF = Cilfacade
 open Cil
 open Deriving.Cil
-open Pretty
-open GobConfig
 include Arinc_node
 
 type edge =

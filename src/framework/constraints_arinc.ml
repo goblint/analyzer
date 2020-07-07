@@ -2,7 +2,7 @@
 
 open Prelude
 open Cil
-open MyCFG
+open Arinc_cfg
 open Pretty
 open Analyses_arinc
 open GobConfig
@@ -298,16 +298,16 @@ struct
     limit := get_int "dbg.limit.widen";
     S.init ()
 
-  module H = MyCFG.H
+  module H = Arinc_cfg.H
   let h = H.create 13
   let incr k =
     H.modify_def 1 k (fun v ->
-        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint MyCFG.pretty_short_node (Option.get !MyCFG.current_node));
+        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node (missing)");
         v+1
       ) h;
   module D = struct
     include S.D
-    let widen x y = Option.may incr !MyCFG.current_node; widen x y (* when is this None? *)
+    let widen x y = Option.may incr !Arinc_cfg.current_node; widen x y (* when is this None? *)
   end
 end
 
@@ -316,7 +316,7 @@ end
 module WidenContextLifter (S:ArincSpec)
 =
 struct
-  module M = MapDomain.MapBot (Basetype.Variables) (S.D) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+  module M = MapDomain.MapBot (Basetype_arinc.Variables) (S.D) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
   module D = struct
     include Lattice.Prod (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
@@ -503,26 +503,26 @@ end
 module FromSpec (S:ArincSpecHC) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
-                           and module GVar = Basetype.Variables
+                           and module GVar = Basetype_arinc.Variables
                            and module D = S.D
                            and module G = S.G
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+    val tf : Arinc_node.arinc_node * S.C.t -> (Cil.location * Arinc_cfg.edge) list * Arinc_node.arinc_node -> ((Arinc_node.arinc_node * S.C.t) -> S.D.t) -> (Arinc_node.arinc_node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
   end
 =
 struct
-  type lv = MyCFG.node * S.C.t
+  type lv = Arinc_node.arinc_node * S.C.t
   (* type gv = varinfo *)
   type ld = S.D.t
   (* type gd = S.G.t *)
   module LVar = VarF (S.C)
-  module GVar = Basetype.Variables
+  module GVar = Basetype_arinc.Variables
   module D = S.D
   module G = S.G
 
   let full_context = get_bool "exp.full-context"
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
-  let common_ctx var edge pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
+  let common_ctx var (edge:Arinc_cfg.edge) pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
@@ -536,9 +536,7 @@ struct
       ; global  = getg
       ; presub  = []
       ; postsub = []
-      ; spawn   = (fun f d -> let c = S.context d in
-                    if not full_context then sidel (FunctionEntry f, c) d;
-                    ignore (getl (Function f, c)))
+      ; spawn   = (fun f d -> failwith "wutt")
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
@@ -554,96 +552,13 @@ struct
     | [x]   -> x
     | x::xs -> D.join x (bigsqcup xs)
 
-  let tf_loop var edge getl sidel getg sideg d =
+  let tf_arinc var edge getl sidel getg sideg d =
     let ctx, r = common_ctx var edge d getl sidel getg sideg in
-    bigsqcup ((S.intrpt ctx)::!r)
-
-  let tf_assign var edge lv e getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
-    bigsqcup ((S.assign ctx lv e)::!r)
-
-  let tf_vdecl var edge v getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
-    bigsqcup ((S.vdecl ctx v)::!r)
-
-  let normal_return r fd ctx sideg =
-    let spawning_return = S.return ctx r fd in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } in
-    List.iter (fun (x,y) -> sideg x y) ndiff;
-    nval
-
-  let toplevel_kernel_return r fd ctx sideg =
-    let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local else S.return ctx r fd in
-    let spawning_return = S.return {ctx with local = st} None MyCFG.dummy_func in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } in
-    List.iter (fun (x,y) -> sideg x y) ndiff;
-    nval
-
-  let tf_ret var edge ret fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
-    let d =
-      if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
-          List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
-         (get_bool "kernel" || get_string "ana.osek.oil" <> "")
-      then toplevel_kernel_return ret fd ctx sideg
-      else normal_return ret fd ctx sideg
-    in
-    bigsqcup (d::!r)
-
-  let tf_entry var edge fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
-    bigsqcup ((S.body ctx fd)::!r)
-
-  let tf_test var edge e tv getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
-    bigsqcup ((S.branch ctx e tv)::!r)
-
-  let tf_normal_call ctx lv e f args  getl sidel getg sideg =
-    let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
-    let paths = S.enter ctx lv f args in
-    let _     = if not full_context then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, S.context v) v) paths in
-    let paths = List.map (fun (c,v) -> (c, if S.D.is_bot v then v else getl (Function f, S.context v))) paths in
-    let paths = List.filter (fun (c,v) -> not (D.is_bot v)) paths in
-    let paths = List.map combine paths in
-    List.fold_left D.join (D.bot ()) paths
-
-  let tf_special_call ctx lv f args = S.special ctx lv f args
-
-  let tf_proc var edge lv e args getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
-    let functions =
-      match ctx.ask (Queries.EvalFunvar e) with
-      | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
-      | `Bot -> []
-      | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
-    in
-    let one_function f =
-      let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
-      if has_dec && not (LibraryFunctions.use_special f.vname)
-      then tf_normal_call ctx lv e f args getl sidel getg sideg
-      else tf_special_call ctx lv f args
-    in
-    if [] = functions then
-      d (* because LevelSliceLifter *)
-    else
-      let funs = List.map one_function functions in
-      bigsqcup (funs @ !r)
-
-  let tf_asm var edge getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge d getl sidel getg sideg in
-    bigsqcup ((S.asm ctx)::!r)
+    bigsqcup ((S.arinc_edge ctx edge)::!r)
 
   let tf var getl sidel getg sideg edge d =
     begin match edge with
-      | Assign (lv,rv) -> tf_assign var edge lv rv
-      | VDecl (v)      -> tf_vdecl var edge v
-      | Proc (r,f,ars) -> tf_proc var edge r f ars
-      | Entry f        -> tf_entry var edge f
-      | Ret (r,fd)     -> tf_ret var edge r fd
-      | Test (p,b)     -> tf_test var edge p b
-      | ASM (_, _, _)  -> tf_asm var edge (* TODO: use ASM fields for something? *)
-      | Skip           -> fun _ _ _ _ d -> d
-      | SelfLoop       -> tf_loop var edge
+      | _ -> tf_arinc var edge
     end getl sidel getg sideg d
 
   let tf var getl sidel getg sideg (_,edge) d (f,t) =
@@ -658,7 +573,7 @@ struct
 
   let tf (v,c) (edges, u) getl sidel getg sideg =
     let pval = getl (u,c) in
-    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (getLoc v,[]) in
+    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Cil.locUnknown,[]) in
     List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg) edges) locs
 
   let tf (v,c) (e,u) getl sidel getg sideg =
@@ -670,11 +585,10 @@ struct
     let _       = current_node := old_node in
     d
 
-  let system (v,c) =
-    match v with
-    | FunctionEntry _ when full_context ->
-      [fun _ _ _ _ -> S.val_of c]
-    | _ -> List.map (tf (v,c)) (Cfg.prev v)
+  let system ((v,c): LVar.t) =
+    let x:((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list =
+    List.map (tf (v,c)) (Cfg.prev v) in
+    x
 end
 
 (** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
@@ -1015,7 +929,7 @@ end
 module Compare
     (S:ArincSpecHC)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = Basetype.Variables
+                        and module GVar = Basetype_arinc.Variables
                         and module D = S.D
                         and module G = S.G)
     (LH:Hash.H with type key=Sys.LVar.t)
@@ -1024,7 +938,7 @@ module Compare
 struct
   open S
 
-  module PP = Hashtbl.Make (MyCFG.Node)
+  module PP = Hashtbl.Make (Arinc_cfg.Arinc_Node)
 
   let compare_locals h1 h2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
@@ -1036,12 +950,8 @@ struct
         if b1 && b2 then
           incr eq
         else if b1 then begin
-          if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2));
           incr le
         end else if b2 then begin
-          if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2));
           incr gr
         end else
           incr uk

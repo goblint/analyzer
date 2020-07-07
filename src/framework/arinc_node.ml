@@ -1,5 +1,6 @@
 type arinc_node =
   | PC of int list  (* list of arinc task locations for each task *)
+  [@@deriving to_yojson]
 
 let node_compare x y = compare x y
 
