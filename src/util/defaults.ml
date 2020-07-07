@@ -72,7 +72,7 @@ let _ = ()
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
       ; reg Std "result"          "'none'"       "Result style: none, indented, compact, fast_xml, json, mongo, or pretty."
       ; reg Std "warnstyle"       "'pretty'"     "Result style: legacy, pretty, or xml."
-      ; reg Std "solver"          "'td3'" "Picks the solver."
+      ; reg Std "solver"          "'slr3'" "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
       ; reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main). This requires exp.earlyglobs!"
@@ -86,7 +86,7 @@ let _ = ()
 
 (* {4 category [Analyses]} *)
 let _ = ()
-      ; reg Analyses "ana.activated"  "['unit']"  "Lists of activated analyses in this phase."
+      ; reg Analyses "ana.activated"  "['scheduling_arinc']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "[]"  "List of path-sensitive analyses"
       ; reg Analyses "ana.ctx_insens" "[]"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
