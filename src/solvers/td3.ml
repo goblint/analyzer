@@ -186,66 +186,6 @@ module WP =
 
       start_event ();
 
-      if !incremental_mode = "incremental" then (
-        let c = S.increment.changes in
-        List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
-        (* If a global changes because of some assignment inside a function, we reanalyze,
-         * but if it changes because of a different global initializer, then
-         *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
-         *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
-         *)
-        print_endline "Destabilizing start functions if their start state changed...";
-        (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
-        List.iter (fun (v,d) ->
-          match List.assoc_opt v data.st with
-          | Some d' ->
-              if S.Dom.equal d d' then
-                (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
-                ()
-              else (
-                ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                destabilize v
-              )
-          | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
-        ) st;
-
-        print_endline "Destabilizing changed functions...";
-
-        (* We need to destabilize all nodes in changed functions *)
-        let filter_map f l =
-          List.fold_left (fun acc el -> match f el with Some x -> x::acc | _ -> acc) [] l
-        in
-        let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.increment.changes.changed in
-        let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
-        let obsolete = Set.union (Set.of_list (List.map (fun a -> "ret" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs))
-                                 (Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs)) in
-
-        List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
-
-        (* Actually destabilize all nodes contained in changed functions. TODO only destabilize fun_... nodes *)
-        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable;
-
-        (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
-        let add_nodes_of_fun (functions: fundec list) (nodes)=
-          let add_stmts (f: fundec) =
-            List.iter (fun s -> Hashtbl.replace nodes (string_of_int s.sid) ()) (f.sallstmts)
-          in
-          List.iter (fun f -> Hashtbl.replace nodes ("fun"^(string_of_int f.svar.vid)) (); Hashtbl.replace nodes ("ret"^(string_of_int f.svar.vid)) (); add_stmts f) functions;
-        in
-
-        let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion;
-        add_nodes_of_fun removed_funs marked_for_deletion;
-
-        print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in
-        delete_marked rho;
-        delete_marked infl;
-        delete_marked wpoint;
-        delete_marked stable;
-
-        print_data data "Data after clean-up:\n"
-      );
 
       List.iter set_start st;
       List.iter init vs;
