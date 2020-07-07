@@ -3,6 +3,8 @@ name: build and run tests
 
 on:
   - push
+    branches-ignore:
+      - ideas/arinc_wcet
   - pull_request
 
 jobs:

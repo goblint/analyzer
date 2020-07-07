@@ -23,3 +23,8 @@ notifications:
     secure: PNzEQ5pH1qSHtO88flUUyn08/JaSUDFKEWUwZXEtVIkY+HCvPdBOtvFfP/xiuQpR7sKNBRYwP6LiA0bEgboAO1aWdbG4AJCPn4OYZl80ufNGrWp0qPrg0g2IdVFMZcwhckqStHiTq9Mt/MWliLy0Tyqsydx746gZPiki3t05mgw=
     on_success: change
     on_failure: change
+
+# blacklist
+branches:
+  except:
+  - ideas/arinc_wcet
