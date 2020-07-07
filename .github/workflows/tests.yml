@@ -2,10 +2,9 @@ name: build and run tests
 # https://github.com/avsm/setup-ocaml
 
 on:
-  - push
-    branches-ignore:
-      - ideas/arinc_wcet
-  - pull_request
+  push:
+    branches-ignore: 'ideas/arinc_wcet'
+  pull_request:
 
 jobs:
   tests:
