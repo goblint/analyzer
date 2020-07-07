@@ -230,7 +230,6 @@ struct
 
   let path_sens = ref []
   let cont_inse = ref []
-  let base_id   = ref (-1)
 
 
   let topo_sort deps circ_msg =
@@ -268,7 +267,6 @@ struct
     in
     let xs = map Json.string @@ get_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in
-    base_id := assoc_inv "base" !analyses_table;
     analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
     path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
     cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
@@ -323,7 +321,6 @@ struct
   let morphstate v x = map (fun (n,(module S:ArincSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
   let call_descr f xs =
-    let xs = filter (fun (x,_) -> x = !base_id) xs in
     fold_left (fun a (n,(module S:ArincSpec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
 
 
