@@ -20,7 +20,7 @@ end =
 struct
   type t = arinc_node
   let equal x y = x = y
-  let hash x = 42 (* missing *)
+  let hash x = Hashtbl.hash x
 
   let compare = node_compare
 end
