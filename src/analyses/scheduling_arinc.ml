@@ -13,7 +13,7 @@ struct
   let name () = "scheduling_arinc"
   module D = Arinc_schedulabilty_domain.D
   module G = Arinc_schedulabilty_domain.D
-  module C = Arinc_schedulabilty_domain.D
+  module C = Lattice.Unit
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -29,11 +29,11 @@ struct
     failwith "lol, wut?!!!"
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let s = match ctx.node with
+    (* let s = match ctx.node with
       | PC [a;b] -> "["^ string_of_int a ^ ","^ string_of_int b ^ "]"
       | _ -> ""
     in
-    Printf.printf "enter for %s : %s\n %s \n\n------------------------------------------\n" s (D.short 80 ctx.local) (Printexc.raw_backtrace_to_string (Printexc.get_callstack 20));
+    Printf.printf "enter for %s : %s\n %s \n\n------------------------------------------\n" s (D.short 80 ctx.local) (Printexc.raw_backtrace_to_string (Printexc.get_callstack 20)); *)
     let state1 = {
       pid = Pid.of_int (Int64.of_int 1);
       priority = Priority.of_int (Int64.of_int 15);
@@ -56,29 +56,31 @@ struct
     failwith "lol, wut?!!!"
 
   let arinc_edge ctx (t,e) =
-    let s = match ctx.node with
+    (* let s = match ctx.node with
       | PC [a;b] -> "["^ string_of_int a ^ ","^ string_of_int b ^ "]"
       | _ -> ""
     in
     Printf.printf "%s : %s\n" s (D.short 80 ctx.local);
-    raise Deadcode
-    (* let (a, b) = ctx.local in
+    raise Deadcode *)
+    let (a, b) = ctx.local in
     if t = -1 then
       ctx.local
     else if t = 1 then
       if ProcessState.to_int b.processState = Some (Int64.of_int 2) then
-        (Printf.printf "Dead code";
-        raise Deadcode)
+        (* (Printf.printf "Dead code"; *)
+        raise Deadcode (* ) *)
       else
         raise Deadcode
     else
       match e with
       | SuspendTask 0 -> ctx.local
       | ResumeTask 0 -> ctx.local
-      | _ -> ctx.local *)
+      | _ -> ctx.local
 
   let should_join (a, b) (a', b') = a.processState = a'.processState && b.processState = b'.processState
 
+  let val_of () = D.bot ()
+  let context _ = ()
 
   let startstate v = D.bot ()
   let otherstate v = D.bot ()

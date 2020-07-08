@@ -658,7 +658,7 @@ struct
     do_splits ctx d !splits;
     if q then
       begin
-        Printf.printf "\nMCP raised deadcode\n";
+        (* Printf.printf "\nMCP raised deadcode\n"; *)
         raise Deadcode
       end
     else d

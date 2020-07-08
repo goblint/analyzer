@@ -470,10 +470,10 @@ struct
     try f @@ h (g (conv ctx))
     with Deadcode ->
       begin
-        let s = match ctx.node with
+        (* let s = match ctx.node with
         | PC [a;b] -> "[" ^ string_of_int(a) ^"," ^ string_of_int(b) ^ "]"
         | _ -> "" in
-        Printf.printf "Constraints ARINC deadcode: %s\n"  s;
+        Printf.printf "Constraints ARINC deadcode: %s\n"  s; *)
         b
       end
 

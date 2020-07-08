@@ -88,7 +88,7 @@ let _ = ()
 let _ = ()
       ; reg Analyses "ana.activated"  "['scheduling_arinc']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['scheduling_arinc']"  "List of path-sensitive analyses"
-      ; reg Analyses "ana.ctx_insens" "[]"                      "List of context-insensitive analyses"
+      ; reg Analyses "ana.ctx_insens" "['scheduling_arinc']"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
       ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
       ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
