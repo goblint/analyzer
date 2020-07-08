@@ -8,8 +8,6 @@ module Spec : Analyses_arinc.ArincSpec =
 struct
   include Analyses_arinc.DefaultSpec
 
-  let suspended = ProcessState.of_int (Int64.of_int 2)
-
   let name () = "scheduling_arinc"
   module D = Arinc_schedulabilty_domain.D
   module G = Arinc_schedulabilty_domain.D
@@ -41,11 +39,11 @@ struct
       capacity = Capacity.of_int (Int64.of_int 600);
       processState = ProcessState.of_int (Int64.of_int 0)} in
     let state2 = {
-      pid = Pid.of_int (Int64.of_int 2);
+      pid = Pid.of_int (Int64.of_int 1);
       priority = Priority.of_int (Int64.of_int 10);
       period = Period.top ();
       capacity = Capacity.top ();
-      processState = ProcessState.of_int (Int64.of_int 2)}
+      processState = ProcessState.of_int (Int64.of_int 0)}
     in
     [ctx.local, (state1, state2)]
 
@@ -55,27 +53,42 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     failwith "lol, wut?!!!"
 
+  let can_run ours other =
+    if ours.processState = PState.suspended then
+      (* We can not take any actions while suspended *)
+      false
+    else
+      let ours_prio = BatOption.get @@ Priority.to_int ours.priority in
+      let other_prio = BatOption.get @@ Priority.to_int other.priority in
+      let cmp = Int64.compare ours_prio other_prio in
+      if cmp = 0 then
+        (* two processes with the same priority *)
+        failwith "processes with same prio"
+      else if cmp > 0 then
+        (* ours > other *)
+        true
+      else
+        (* ours < other *)
+        (* we can run if the other is blocked *)
+        other.processState <> PState.ready
+
+
+
   let arinc_edge ctx (t,e) =
-    (* let s = match ctx.node with
-      | PC [a;b] -> "["^ string_of_int a ^ ","^ string_of_int b ^ "]"
-      | _ -> ""
-    in
-    Printf.printf "%s : %s\n" s (D.short 80 ctx.local);
-    raise Deadcode *)
     let (a, b) = ctx.local in
     if t = -1 then
+      (* This is some special edge e.g. during init *)
       ctx.local
-    else if t = 1 then
-      if ProcessState.to_int b.processState = Some (Int64.of_int 2) then
-        (* (Printf.printf "Dead code"; *)
-        raise Deadcode (* ) *)
-      else
-        raise Deadcode
     else
-      match e with
-      | SuspendTask 0 -> ctx.local
-      | ResumeTask 0 -> ctx.local
-      | _ -> ctx.local
+      let ours, other = if t = 0 then a, b else b, a in
+      if not (can_run ours other) then
+          raise Deadcode
+      else
+        match e with
+        | SuspendTask i -> D.suspend i ctx.local
+        | ResumeTask i -> D.resume i ctx.local
+        | _ -> ctx.local
+
 
   let should_join (a, b) (a', b') = a.processState = a'.processState && b.processState = b'.processState
 

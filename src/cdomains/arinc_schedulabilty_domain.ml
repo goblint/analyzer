@@ -19,6 +19,16 @@ module PreemptionLock = IntDomain.Flattened
 module ProcessState = IntDomain.Flattened
 (* Ready -> 0, Running -> 1, Suspended -> 2, Done -> 3, Wait -> 4, Susp_Wait -> 5*)
 
+
+module PState = struct
+  let ready = ProcessState.of_int (Int64.of_int 0)
+  (* let running = ProcessState.of_int (Int64.of_int 1) (* needed? *) *)
+  let suspended = ProcessState.of_int (Int64.of_int 2)
+  let tdone = ProcessState.of_int (Int64.of_int 3)
+  let wait = ProcessState.of_int (Int64.of_int 4)
+  let susp_wait = ProcessState.of_int (Int64.of_int 5)
+end
+
 (* define record type here so that fields are accessable outside of D *)
 type process = { pid: Pid.t; priority: Priority.t; period: Period.t; capacity: Capacity.t; processState: ProcessState.t } [@@deriving to_yojson]
 type overall_state = { partitionMode:PartitionMode.t; preemptionLock:PreemptionLock.t } [@@deriving to_yojson]
@@ -67,10 +77,29 @@ struct
   let op_scheme op1 op2 op3 op4 op5 x y: t = { pid = op1 x.pid y.pid; priority = op2 x.priority y.priority; period = op3 x.period y.period; capacity = op4 x.capacity y.capacity; processState = op5 x.processState y.processState}
   let join = op_scheme Pid.join Priority.join Period.join Capacity.join ProcessState.join
   let meet = op_scheme Pid.meet Priority.meet Period.meet Capacity.meet ProcessState.meet
+
+  let suspend p = {p with processState = ProcessState.of_int (Int64.of_int 2)}
+  let resume p = {p with processState = ProcessState.of_int (Int64.of_int 1)} (* TODO: This is wrong *)
 end
 
 module D =
 struct
   include Lattice.Prod(OneTask)(OneTask)
   type t = process * process
+
+  let suspend i (a,b) =
+    if i = 0 then
+      (OneTask.suspend a, b)
+    else if i = 1 then
+      (a, OneTask.suspend b)
+    else
+      failwith "lol, wut?!"
+
+  let resume i (a,b) =
+    if i = 0 then
+      (OneTask.resume a, b)
+    else if i = 1 then
+      (a, OneTask.resume b)
+    else
+      failwith "lol, wut?!"
 end
