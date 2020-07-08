@@ -155,8 +155,7 @@ struct
 
     let (_, s) = List.hd (enter_with (Spec.startstate) MyCFG.dummy_func) in
     let startvars = [[Arinc_cfg.PC [0;0], s]] in
-    let (_, s) = List.hd (enter_with (Spec.exitstate) MyCFG.dummy_func) in
-    let exitvars = [[Arinc_cfg.PC [9;5], Spec.D.bot ()]] in
+    let exitvars = [] in (* This would only be used for cleanup functions and the like *)
 
     (* let othervars = List.map (enter_with Spec.otherstate) otherfuns in *)
     let startvars = List.concat (startvars @ exitvars) in
@@ -171,9 +170,9 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (n, Spec.context e)) startvars
+        List.map (fun (n,e) -> (Arinc_cfg.PC [0;0], Spec.context e)) startvars
       else
-        List.map (fun (n,e) -> (n, Spec.context e)) startvars
+        List.map (fun (n,e) -> (Arinc_cfg.PC [9;5], Spec.context e)) startvars
     in
 
     let entrystates =
