@@ -37,13 +37,17 @@ struct
       priority = Priority.of_int (Int64.of_int 15);
       period = Period.of_int (Int64.of_int 600);
       capacity = Capacity.of_int (Int64.of_int 600);
-      processState = ProcessState.of_int (Int64.of_int 0)} in
+      processState = PState.ready;
+      waitingFor = WaitingForEvent.bot ()
+      } in
     let state2 = {
       pid = Pid.of_int (Int64.of_int 1);
       priority = Priority.of_int (Int64.of_int 10);
       period = Period.top ();
       capacity = Capacity.top ();
-      processState = ProcessState.of_int (Int64.of_int 0)}
+      processState = PState.ready;
+      waitingFor = WaitingForEvent.bot ()
+      }
     in
     [ctx.local, (state1, state2)]
 
@@ -54,9 +58,10 @@ struct
     failwith "lol, wut?!!!"
 
   let can_run ours other =
-    if ours.processState = PState.suspended then
-      (* We can not take any actions while suspended *)
-      false
+    if ours.processState <> PState.ready then
+      (Printf.printf "ours was %s\n" (ProcessState.short 80 ours.processState);
+      (* We can not take any actions while not ready *)
+      false)
     else
       let ours_prio = BatOption.get @@ Priority.to_int ours.priority in
       let other_prio = BatOption.get @@ Priority.to_int other.priority in
@@ -87,6 +92,8 @@ struct
         match e with
         | SuspendTask i -> D.suspend i ctx.local
         | ResumeTask i -> D.resume i ctx.local
+        | WaitEvent i -> D.wait_event t i ctx.local
+        | SetEvent i -> D.set_event i ctx.local
         | _ -> ctx.local
 
 
