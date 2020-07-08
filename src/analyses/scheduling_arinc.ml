@@ -49,7 +49,7 @@ struct
       waitingFor = WaitingForEvent.bot ()
       }
     in
-    [ctx.local, (state1, state2)]
+    [ctx.local, ((state1, state2), IntDomain.Interval32.of_int(Int64.zero))]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     failwith "lol, wut?!!!"
@@ -80,7 +80,7 @@ struct
 
 
   let arinc_edge ctx (t,e) =
-    let (a, b) = ctx.local in
+    let (a, b), x = ctx.local in
     if t = -1 then
       (* This is some special edge e.g. during init *)
       ctx.local
@@ -97,7 +97,7 @@ struct
         | _ -> ctx.local
 
 
-  let should_join (a, b) (a', b') = a.processState = a'.processState && b.processState = b'.processState
+  let should_join ((a, b), x) ((a', b'), x') = a.processState = a'.processState && b.processState = b'.processState
 
   let val_of () = D.bot ()
   let context _ = ()

@@ -101,34 +101,34 @@ end
 
 module D =
 struct
-  include Lattice.Prod(OneTask)(OneTask)
-  type t = process * process
+  include Lattice.Prod(Lattice.Prod(OneTask)(OneTask))(IntDomain.Interval32)
+  type t = (process * process) * IntDomain.Interval32.t
 
-  let suspend t (a, b) =
+  let suspend t ((a, b), x) =
     if t = 0 then
-      (OneTask.suspend a, b)
+      (OneTask.suspend a, b), x
     else if t = 1 then
-      (a, OneTask.suspend b)
+      (a, OneTask.suspend b), x
     else
       failwith "lol, wut?!"
 
-  let resume t (a, b) =
+  let resume t ((a, b), x) =
     if t = 0 then
-      (OneTask.resume a, b)
+      (OneTask.resume a, b), x
     else if t = 1 then
-      (a, OneTask.resume b)
+      (a, OneTask.resume b), x
     else
       failwith "lol, wut?!"
 
-  let wait_event t i (a, b) =
+  let wait_event t i ((a, b), x) =
     if t = 0 then
-      (OneTask.wait_event i a, b)
+      (OneTask.wait_event i a, b), x
     else if t = 1 then
-      (a, OneTask.wait_event i b)
+      (a, OneTask.wait_event i b), x
     else
       failwith "lol, wut?!"
 
-  let set_event i (a, b) =
-    (OneTask.set_event i a, OneTask.set_event i b)
+  let set_event i ((a, b), x) =
+    (OneTask.set_event i a, OneTask.set_event i b), x
 
 end
