@@ -656,7 +656,12 @@ struct
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    if q then raise Deadcode else d
+    if q then
+      begin
+        Printf.printf "\nMCP raised deadcode\n";
+        raise Deadcode
+      end
+    else d
 
 
   let body (ctx:(D.t, G.t, C.t) ctx) f =

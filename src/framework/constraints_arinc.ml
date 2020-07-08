@@ -468,7 +468,14 @@ struct
 
   let lift_fun ctx f g h b =
     try f @@ h (g (conv ctx))
-    with Deadcode -> b
+    with Deadcode ->
+      begin
+        let s = match ctx.node with
+        | PC [a;b] -> "[" ^ string_of_int(a) ^"," ^ string_of_int(b) ^ "]"
+        | _ -> "" in
+        Printf.printf "Constraints ARINC deadcode: %s\n"  s;
+        b
+      end
 
   let sync ctx =
     let liftpair (x,y) = D.lift x, y in

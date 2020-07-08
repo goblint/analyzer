@@ -137,7 +137,7 @@ struct
         ; node    = Arinc_cfg.PC [-1; -1]
         ; control_context = Obj.repr (fun () -> failwith "enter_func has no context.")
         ; context = (fun () -> failwith "enter_func has no context.")
-        ; edge    = Arinc_cfg.NOP
+        ; edge    = (-1, Arinc_cfg.NOP)
         ; local   = st
         ; global  = (fun _ -> Spec.G.bot ())
         ; presub  = []
@@ -156,7 +156,7 @@ struct
     let (_, s) = List.hd (enter_with (Spec.startstate) MyCFG.dummy_func) in
     let startvars = [[Arinc_cfg.PC [0;0], s]] in
     let (_, s) = List.hd (enter_with (Spec.exitstate) MyCFG.dummy_func) in
-    let exitvars = [[Arinc_cfg.PC [9;5], s]] in
+    let exitvars = [[Arinc_cfg.PC [9;5], Spec.D.bot ()]] in
 
     (* let othervars = List.map (enter_with Spec.otherstate) otherfuns in *)
     let startvars = List.concat (startvars @ exitvars) in
