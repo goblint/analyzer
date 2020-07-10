@@ -27,6 +27,7 @@ module PState = struct
   let tdone = ProcessState.of_int (Int64.of_int 3)
   let wait = ProcessState.of_int (Int64.of_int 4)
   let susp_wait = ProcessState.of_int (Int64.of_int 5)
+  let waiting_for_period = ProcessState.of_int (Int64.of_int 6)
 end
 
 (* define record type here so that fields are accessable outside of D *)
@@ -97,12 +98,32 @@ struct
       {p with processState = (if p.processState = PState.wait then PState.ready else PState.suspended); waitingFor = WaitingForEvent.of_int (Int64.of_int i)}
     else
       p
+
+  let periodic_wait p =
+    {p with processState = PState.waiting_for_period}
+end
+
+module GroupableStrings:(MapDomain.Groupable with type t = string) =
+  struct
+    include Printable.Strings
+  end
+module Times = struct
+  include MapDomain.MapBot_LiftTop(GroupableStrings)(IntDomain.Interval32)
+  let update_val (k:key) (f:value -> value) t =
+    let old = find k t in
+    add k (f old) t
+
+  let update_all (ks:key list) (f:value -> value) t =
+    List.fold_left (fun t k -> update_val k f t) t ks
+
+
 end
 
 module D =
 struct
-  include Lattice.Prod(Lattice.Prod(OneTask)(OneTask))(IntDomain.Interval32)
-  type t = (process * process) * IntDomain.Interval32.t
+  include Lattice.Prod(Lattice.Prod(OneTask)(OneTask))(Times)
+
+  type t = (process * process) * Times.t
 
   let suspend t ((a, b), x) =
     if t = 0 then
@@ -125,6 +146,14 @@ struct
       (OneTask.wait_event i a, b), x
     else if t = 1 then
       (a, OneTask.wait_event i b), x
+    else
+      failwith "lol, wut?!"
+
+  let periodic_wait t ((a, b), x) =
+    if t = 0 then
+      (OneTask.periodic_wait a, b), x
+    else if t = 1 then
+      (a, OneTask.periodic_wait b), x
     else
       failwith "lol, wut?!"
 
