@@ -12,6 +12,7 @@ struct
   module D = Arinc_schedulabilty_domain.D
   module G = Arinc_schedulabilty_domain.D
   module C = Lattice.Unit
+  module TInterval = IntDomain.Interval32
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -32,7 +33,7 @@ struct
       | _ -> ""
     in
     Printf.printf "enter for %s : %s\n %s \n\n------------------------------------------\n" s (D.short 80 ctx.local) (Printexc.raw_backtrace_to_string (Printexc.get_callstack 20)); *)
-    let zero = (IntDomain.Interval32.of_int (Int64.zero)) in
+    let zero = (TInterval.of_int (Int64.zero)) in
     let t = Times.add "overall" zero (Times.bot ()) in
     let t = Times.add "since_period_t0" zero t in
     let t = Times.add "since_period_t1" zero t in
@@ -85,6 +86,58 @@ struct
         (* we can run if the other is blocked *)
         other.processState <> PState.ready
 
+  (* Subtract y from x and ensure result is not negative *)
+  let subtract_if_not_zero x y  =
+    if TInterval.to_int x = Some Int64.zero then
+      x
+    else
+      let wait_time = TInterval.sub x y in
+      TInterval.meet wait_time (TInterval.starting Int64.zero) (* These numbers may not become negative *)
+
+  let wait_for_period ((a,b),x) t =
+    let do_restart_period ((a,b), x) t =
+      let times = Times.update_all ["since_period_t" ^ string_of_int(t); "remaining_wait_t" ^ string_of_int(t);] (fun _ -> TInterval.of_int Int64.zero) x in (* set time since period to 0 *)
+      if t = 0 then
+        ({a with processState = PState.ready},b), times
+      else
+        (a, {b with processState = PState.ready}), times
+    in
+    let t_since_period = Times.find ("since_period_t" ^ string_of_int(t)) x in
+    let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
+    if TInterval.leq (TInterval.of_int period) t_since_period then
+      do_restart_period ((a,b), x) t
+    else
+      (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
+      let waiting_time_t0 = Times.find "remaining_wait_t0" x in
+      let waiting_time_t1 = Times.find "remaining_wait_t1" x in
+      let our_waiting_time = if t=0 then waiting_time_t0 else waiting_time_t1 in
+      let ours, other = if t = 0 then a, b else b, a in
+      if (not (can_run other ours)) then
+        (* other can not run here, we are in waiting for period *)
+        if other.processState = PState.waiting_for_period then
+          failwith "Both waiting for period - Didn't think about this yet"
+          (* both are waiting for period *)
+          (* if t = 0 then
+            let min_waiting_time_t0 = Option.get @@ TInterval.minimal waiting_time_t0 in
+            let min_waiting_time_t1 = Option.get @@ TInterval.minimal waiting_time_t1 in
+
+            if min_waiting_time_t0 <= min_waiting_time_t1 then
+              let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add  (TInterval.of_int min_waiting_time_t0)) x in
+              (* If our waiting time is the smaller one, we can increase all other times by this value *)
+              raise Deadcode
+            else
+              raise Deadcode
+          else
+            raise Deadcode *)
+        else
+          (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
+          let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add our_waiting_time) x in
+          let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x our_waiting_time) times in
+          do_restart_period ((a,b), times) t
+      else
+        (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
+        raise Deadcode
+
 
 
   let arinc_edge ctx (t,e) =
@@ -94,23 +147,15 @@ struct
       ctx.local
     else if e = WaitingForPeriod then
       (* The restart of a period can happen at any time even if the task does not have priority *)
-      let t_since_period = Times.find ("since_period_t" ^ string_of_int(t)) x in
-      let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
-      if IntDomain.Interval32.leq (IntDomain.Interval32.of_int period) t_since_period then
-        let times = Times.update_val ("since_period_t" ^ string_of_int(t)) (fun _ -> IntDomain.Interval32.of_int Int64.zero) x in (* set time since period to 0 *)
-        if t = 0 then
-          ({a with processState = PState.ready},b), times
-        else
-          (a, {b with processState = PState.ready}), times
-      else
-        (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period  *)
-        raise Deadcode
+      wait_for_period ((a,b),x) t
     else
       let ours, other = if t = 0 then a, b else b, a in
       if not (can_run ours other) then
           if not (can_run other ours) then
-            (Printf.printf "None can run ?!\n";
-            raise Deadcode)
+            begin
+              (* Printf.printf "No task can run ?!\n"; *)
+              raise Deadcode
+            end
           else
             raise Deadcode
       else
@@ -122,13 +167,22 @@ struct
         | Computation i ->
           (* Check how much time is still remaining here  *)
           (* Check how long this one can do things uninterrupted for by looking at the remaining time of the other process *)
-          let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (IntDomain.Interval32.add  (IntDomain.Interval32.of_interval (Int64.zero, Int64.of_int i))) x in
+          let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
+          let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add wcetInterval) x in
+          let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x wcetInterval) times in
           (a,b), times
         | PeriodicWait ->
-          (M.warn "periodic_wait";
           (* Check that the deadline is not violated *)
-          let times = Times.update_val ("since_period_t" ^ string_of_int(t)) (fun _ -> IntDomain.Interval32.of_int Int64.zero) x in (* set time since period to 0 *)
-          D.periodic_wait t ctx.local)
+          let time_since_period = Times.find ("since_period_t" ^ string_of_int(t)) x in
+          let deadline  = BatOption.get @@ Capacity.to_int (if t = 0 then a.capacity else b.capacity) in
+          let deadline_interval = TInterval.of_int deadline in
+          let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
+          if not (TInterval.is_bot miss) then Printf.printf "deadline of t%i was missed: %s > %s (!!!!)\n" t (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval) else ();
+          let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
+          let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
+          let times = Times.add ("remaining_wait_t" ^ string_of_int(t)) remaining_wait x in (* set remaining wait time *)
+          let (a,b), _ = D.periodic_wait t ctx.local in
+          (a,b), times
         | _ -> ctx.local
 
 
