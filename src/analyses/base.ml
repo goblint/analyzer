@@ -1709,11 +1709,13 @@ struct
       List.fold_left (arg_field) (nstruct, l) compinfo.cfields
     and arg_val a gs st t (l: (address * value) list) = (match t with
       | TInt _ -> `Int (ID.top ()), l
-      | TPtr _ -> let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
+      | TPtr (pointed_to_t, attr) ->
+                  let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
+                  let (tval, l2) = arg_val a gs st pointed_to_t l in
                   (* TODO: Make the value of the abstract heap object contain the representation of the struct *)
                   `Address (if (get_bool "exp.malloc-fail")
                             then AD.join (heap_var) AD.null_ptr
-                            else heap_var), (heap_var,  `Blob (VD.top (), IdxDom.top ()) )::l
+                            else heap_var), (heap_var,  `Blob (tval, IdxDom.top ()))::l2
       | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
       | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ()), l
       | TArray (ai, None, _) -> let v, adrs = arg_val a gs st ai l in
@@ -1731,7 +1733,6 @@ struct
     let arg_types = get_arg_types fn in
     let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
     let heap_mem = values |> List.map snd |> List.flatten |> Set.of_list |> Set.to_list in
-    (* TODO: Move the assignment of values to heap cells into the arg_value function. Provide better value for TPtrs to structs. *)
     let fundec = Cilfacade.getdec fn in
     let values = List.map fst values in
     let pa = zip fundec.sformals values in
