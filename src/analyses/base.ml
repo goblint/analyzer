@@ -1700,7 +1700,7 @@ struct
     | TFun (_, Some args, vararg, _) -> if vararg then failwith "varargs not handled yet" else List.map snd_triple args
     | _ -> failwith "Not a function type"
 
-  let rec arg_value a (gs:glob_fun) (st: store) (t: typ): (value * address list) =
+  let arg_value a (gs:glob_fun) (st: store) (t: typ): (value * address list) =
     let rec arg_comp compinfo l : ValueDomain.Structs.t * address list =
       let nstruct = ValueDomain.Structs.top () in
       let arg_field (nstruct, adrs) fd = let (v, adrs) = arg_val a gs st fd.ftype adrs in
@@ -1710,10 +1710,11 @@ struct
     and arg_val a gs st t (l: address list) = (match t with
       | TInt _ -> `Int (ID.top ()), l
       | TPtr _ -> let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
+                  (* TODO: Mkae the value of the abstract heap object contain the representation of the struct *)
                   `Address (if (get_bool "exp.malloc-fail")
                             then AD.join (heap_var) AD.null_ptr
                             else heap_var), heap_var::l
-      | TComp ({cstruct=true; _} as ci,_) -> let v, adrs =arg_comp ci l in `Struct (v), adrs
+      | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
       | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ()), l
       | TArray (ai, None, _) -> let v, adrs = arg_val a gs st ai l in
         `Array (ValueDomain.CArrays.make (IdxDom.top ()) v ), adrs
@@ -1726,10 +1727,11 @@ struct
     in arg_val a gs st t []
 
   let heapify_pointers (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
-    let create_val t = arg_value 1 gs st t  in
+    let create_val t = arg_value () gs st t  in
     let arg_types = get_arg_types fn in
     let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
     let heap_cells = values |> List.map snd |> List.flatten |> Set.of_list |> Set.to_list in
+    (* TODO: Move the assignment of values to heap cells into the arg_value function. Provide better value for TPtrs to structs. *)
     let heap_mem = List.map (fun a ->  (a, `Blob (VD.top (), IdxDom.top ()))) heap_cells in
     let fundec = Cilfacade.getdec fn in
     let values = List.map fst values in
@@ -1765,8 +1767,7 @@ struct
   let enter ctx lval fn args : (D.t * D.t) list =
     if Set.mem fn.vname (mainfuns ()) then
       print_endline @@ fn.vname ^ " ist eine Startfunktion";
-    (* TODO: We need to add special treatment args that are equal to MyCFG.unknown_exp *)
-    (* These might be the arguments to a "startfunction" -- the pointers for these need to be Pointers to Heap \/ Null  *)
+    (* make_entry has special treatment args that are equal to MyCFG.unknown_exp *)
     [ctx.local, make_entry ctx fn args]
 
 
