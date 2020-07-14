@@ -1700,20 +1700,20 @@ struct
     | TFun (_, Some args, vararg, _) -> if vararg then failwith "varargs not handled yet" else List.map snd_triple args
     | _ -> failwith "Not a function type"
 
-  let arg_value a (gs:glob_fun) (st: store) (t: typ): (value * address list) =
-    let rec arg_comp compinfo l : ValueDomain.Structs.t * address list =
+  let arg_value a (gs:glob_fun) (st: store) (t: typ): (value * ((address * value) list)) =
+    let rec arg_comp compinfo l : ValueDomain.Structs.t * (address * value) list =
       let nstruct = ValueDomain.Structs.top () in
       let arg_field (nstruct, adrs) fd = let (v, adrs) = arg_val a gs st fd.ftype adrs in
         (ValueDomain.Structs.replace nstruct fd v, adrs)
       in
       List.fold_left (arg_field) (nstruct, l) compinfo.cfields
-    and arg_val a gs st t (l: address list) = (match t with
+    and arg_val a gs st t (l: (address * value) list) = (match t with
       | TInt _ -> `Int (ID.top ()), l
       | TPtr _ -> let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
-                  (* TODO: Mkae the value of the abstract heap object contain the representation of the struct *)
+                  (* TODO: Make the value of the abstract heap object contain the representation of the struct *)
                   `Address (if (get_bool "exp.malloc-fail")
                             then AD.join (heap_var) AD.null_ptr
-                            else heap_var), heap_var::l
+                            else heap_var), (heap_var,  `Blob (VD.top (), IdxDom.top ()) )::l
       | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
       | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ()), l
       | TArray (ai, None, _) -> let v, adrs = arg_val a gs st ai l in
@@ -1730,9 +1730,8 @@ struct
     let create_val t = arg_value () gs st t  in
     let arg_types = get_arg_types fn in
     let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
-    let heap_cells = values |> List.map snd |> List.flatten |> Set.of_list |> Set.to_list in
+    let heap_mem = values |> List.map snd |> List.flatten |> Set.of_list |> Set.to_list in
     (* TODO: Move the assignment of values to heap cells into the arg_value function. Provide better value for TPtrs to structs. *)
-    let heap_mem = List.map (fun a ->  (a, `Blob (VD.top (), IdxDom.top ()))) heap_cells in
     let fundec = Cilfacade.getdec fn in
     let values = List.map fst values in
     let pa = zip fundec.sformals values in
