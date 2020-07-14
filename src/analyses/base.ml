@@ -1703,32 +1703,34 @@ struct
     | _ -> failwith "Not a function type"
 
   let arg_value a (gs:glob_fun) (st: store) (t: typ): (value * ((address * value) list)) =
-    let rec arg_comp compinfo l : ValueDomain.Structs.t * (address * value) list =
+    let rec arg_comp compinfo l r : ValueDomain.Structs.t * (address * value) list =
       let nstruct = ValueDomain.Structs.top () in
-      let arg_field (nstruct, adrs) fd = let (v, adrs) = arg_val a gs st fd.ftype adrs in
+      let arg_field (nstruct, adrs) fd = let (v, adrs) = arg_val a gs st fd.ftype adrs r in
         (ValueDomain.Structs.replace nstruct fd v, adrs)
       in
       List.fold_left (arg_field) (nstruct, l) compinfo.cfields
-    and arg_val a gs st t (l: (address * value) list) = (match t with
+
+    (* r: whether to recursively create heap values when encountering pointers, needed to terminate on cyclic data structures *)
+    and arg_val a gs st t (l: (address * value) list) r = (match t with
       | TInt _ -> `Int (ID.top ()), l
       | TPtr (pointed_to_t, attr) ->
                   let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
-                  let (tval, l2) = arg_val a gs st pointed_to_t l in
+                  let (tval, l2) = if r then arg_val a gs st pointed_to_t l false else top_value a gs st pointed_to_t, l in
                   (* TODO: Make the value of the abstract heap object contain the representation of the struct *)
                   `Address (if (get_bool "exp.malloc-fail")
                             then AD.join (heap_var) AD.null_ptr
                             else heap_var), (heap_var,  `Blob (tval, IdxDom.top ()))::l2
-      | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
+      | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l r in `Struct (v), adrs
       | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ()), l
-      | TArray (ai, None, _) -> let v, adrs = arg_val a gs st ai l in
+      | TArray (ai, None, _) -> let v, adrs = arg_val a gs st ai l r in
         `Array (ValueDomain.CArrays.make (IdxDom.top ()) v ), adrs
       | TArray (ai, Some exp, _) ->
-        let v, adrs = arg_val a gs st ai l in
+        let v, adrs = arg_val a gs st ai l r in
         let l = Cil.isInteger (Cil.constFold true exp) in
         (`Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) v)), adrs
-      | TNamed ({ttype=t; _}, _) -> arg_val a gs st t l
+      | TNamed ({ttype=t; _}, _) -> arg_val a gs st t l r
       | _ -> `Top, l)
-    in arg_val a gs st t []
+    in arg_val a gs st t [] true
 
   let heapify_pointers (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
     let create_val t = arg_value () gs st t  in
