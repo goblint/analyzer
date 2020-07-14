@@ -165,12 +165,27 @@ struct
         | WaitEvent i -> D.wait_event t i ctx.local
         | SetEvent i -> D.set_event i ctx.local
         | Computation i ->
-          (* Check how much time is still remaining here  *)
-          (* Check how long this one can do things uninterrupted for by looking at the remaining time of the other process *)
-          let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
-          let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add wcetInterval) x in
-          let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x wcetInterval) times in
-          (a,b), times
+          begin
+            let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
+            (* If I am here, the only thing that could interrupt me is a higher priority task finishing waiting on sth *)
+            (* If the other task wanted to do computation here, we would raise Deadcode even before *)
+            if (other.processState = PState.waiting_for_period || other.processState = PState.wait) then
+              (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
+              (* as even when it's wait ends, it will not interrupt this process *)
+              let waiting_time_other = Times.find ("remaining_wait_t" ^ if t = 1 then "0" else "1") x in
+              let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
+              if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
+                failwith ("Block might be interrupted for t" ^ string_of_int(t) ^ " waiting time " ^ (TInterval.short 80 waiting_time_other));
+              ()
+            else
+              ()
+            ;
+            (* Check how much time is still remaining here  *)
+            (* Check how long this one can do things uninterrupted for by looking at the remaining time of the other process *)
+            let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add wcetInterval) x in
+            let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x wcetInterval) times in
+            (a,b), times
+          end
         | PeriodicWait ->
           (* Check that the deadline is not violated *)
           let time_since_period = Times.find ("since_period_t" ^ string_of_int(t)) x in

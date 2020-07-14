@@ -60,7 +60,7 @@ struct
                 ; replace_top "Period: "  @@ Period.toXML d.period
                 ; replace_top "Capacity: "  @@ Capacity.toXML d.capacity
                 ; replace_top "Process_state: " @@ ProcessState.toXML d.processState
-                ; replace_top "waiting for:" @@ WaitingForEvent.toXML d.waitingFor]
+                ; replace_top "Waiting for:" @@ WaitingForEvent.toXML d.waitingFor]
                  in
     Xml.Element ("Node", ["text", "ARINC state"], elems)
   let toXML s  = toXML_f short s
