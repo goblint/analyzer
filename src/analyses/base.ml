@@ -63,9 +63,9 @@ struct
 
 
   let name () = "base"
-  let startstate v = print_endline "start"; CPA.bot (), Flag.bot (), Dep.bot ()
-  let otherstate v = print_endline "other";CPA.bot (), Flag.start_multi v, Dep.bot ()
-  let exitstate  v = print_endline "exit";CPA.bot (), Flag.start_main v, Dep.bot ()
+  let startstate v = CPA.bot (), Flag.bot (), Dep.bot ()
+  let otherstate v = CPA.bot (), Flag.start_multi v, Dep.bot ()
+  let exitstate  v = CPA.bot (), Flag.start_main v, Dep.bot ()
 
 
   let morphstate v (cpa,fl,dep) = print_endline @@ (sprint CPA.pretty cpa) ^"\n\n\n"^ (sprint Flag.pretty fl) ^"\n"^ (sprint Dep.pretty dep);print_endline "morph"; cpa, Flag.start_single v, dep
