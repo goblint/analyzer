@@ -162,6 +162,7 @@ let _ = ()
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Method depends on exp.full-context - costly if true."
       ; reg Experimental "exp.solver.td3.term"  "true" "Should the td3 solver use the phased/terminating strategy?"
+      ; reg Experimental "exp.solver.td3.side_widen"  "'cycle'" "When to widen in side. never: never widen, always: always widen, cycle: widen if any called var gets destabilzed, cycle_self: widen if side-effected var gets destabilized"
       ; reg Experimental "exp.solver.td3.space" "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Needed for inspecting output!"

@@ -61,6 +61,7 @@ module WP =
 
     let solve box st vs data =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
+      let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
       let called = HM.create 10 in
@@ -165,8 +166,16 @@ module WP =
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
           destabilize y;
-          (* if not (HM.mem stable y) then HM.replace wpoint y () *)
-          if exists_key (neg (HM.mem stable)) called then HM.replace wpoint y ()
+          (* make y a widening point if ... *)
+          let widen_if e = if e then HM.replace wpoint y () in
+          match side_widen with
+          | "always" -> (* any side-effect after the first one will be widened which will unnecessarily lose precision *)
+            widen_if true
+          | "cycle_self" -> (* widen if the side-effect to y destabilized itself via some infl-cycle *)
+            widen_if @@ not (HM.mem stable y)
+          | "cycle" -> (* widen if any called var (not just y) is no longer stable *)
+            widen_if @@ exists_key (neg (HM.mem stable)) called
+          | "never" | _ -> () (* will not terminate if there are side-effect cycles *)
         )
       and init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
