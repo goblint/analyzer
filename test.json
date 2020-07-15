@@ -1,0 +1,14 @@
+{
+    "select": [
+        ["name"],
+        ["location"]
+    ],
+    "type":
+        ["var"],
+    "target":
+        ["name", "i"],
+    "find":
+        ["uses"],
+    "structure":
+        ["non-cond"]
+}
