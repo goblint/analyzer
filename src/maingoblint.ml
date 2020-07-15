@@ -17,7 +17,7 @@ let print_version ch =
   printf "Goblint version: %s\n" goblint;
   printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
   printf "Configuration:   tracing %a, tracking %a\n" f tracing f tracking ;
-  raise Exit
+  exit 0
 
 (** Print helpful messages. *)
 let print_help ch =
@@ -40,7 +40,8 @@ let print_help ch =
   fprintf ch "A <jvalue> is a string from the JSON language where single-quotes (')";
   fprintf ch " are used instead of double-quotes (\").\n\n";
   fprintf ch "A <jpath> is a path in a json structure. E.g. 'field.another_field[42]';\n";
-  fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n"
+  fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n";
+  exit 0
 
 (* The temp directory for preprocessing the input files *)
 let create_temp_dir () =
@@ -93,8 +94,8 @@ let option_spec_list =
   ; "--conf"               , Arg.String merge_file, ""
   ; "--writeconf"          , Arg.String (fun fn -> writeconf:=true;writeconffile:=fn), ""
   ; "--version"            , Arg.Unit print_version, ""
-  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise Exit), ""
-  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise Exit), ""
+  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; exit 0), ""
+  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; exit 0), ""
   ; "--trace"              , Arg.String set_trace, ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
@@ -442,7 +443,7 @@ let main =
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
         if !Messages.worldStopped then exit 124 (* timeout! *)
-      with Exit -> ()
+      with Exit -> exit 1
     )
 
 let _ =

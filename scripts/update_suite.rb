@@ -232,17 +232,18 @@ doproject = lambda do |p|
   endtime   = Time.now
   status = $?.exitstatus
   if status != 0 then
-    reason = if status == 2 then "exception" elsif status == 3 then "verify" end
+    reason = if status == 1 then "error" elsif status == 2 then "exception" elsif status == 3 then "verify" end
     clearline
     puts "Testing #{id}" + "\t Status: #{status} (#{reason})".red
     stats = File.readlines statsfile
-    if stats[0] =~ /exception/ then
+    if status == 1 then
+      puts stats[-5..].itemize
+    elsif status == 2 then # if stats[0] =~ /exception/ then
       relpath = (Pathname.new filepath).relative_path_from(Pathname.new File.dirname(goblint))
       lastline = (File.readlines warnfile).last()
       puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
       puts stats[0..9].itemize
-    end
-    if status == 3 then
+    elsif status == 3 then
       warn = File.readlines warnfile
       puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.itemize
     end
