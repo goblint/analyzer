@@ -138,7 +138,48 @@ struct
         (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
 
+  let wait_for_endwait ((a,b),x) t =
+    let do_end_wait ((a,b), x) t =
+      let times = Times.update_all ["remaining_wait_t" ^ string_of_int(t);] (fun _ -> TInterval.of_int Int64.zero) x in (* set time since period to 0 *)
+      if t = 0 then
+        ({a with processState = PState.ready},b), times
+      else
+        (a, {b with processState = PState.ready}), times
+    in
+    let waiting_time = Times.find ("remaining_wait_t" ^ string_of_int(t)) x in
+    if TInterval.leq (TInterval.of_int Int64.zero) waiting_time then
+      do_end_wait ((a,b), x) t
+    else
+      (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
+      let waiting_time_t0 = Times.find "remaining_wait_t0" x in
+      let waiting_time_t1 = Times.find "remaining_wait_t1" x in
+      let our_waiting_time = if t=0 then waiting_time_t0 else waiting_time_t1 in
+      let ours, other = if t = 0 then a, b else b, a in
+      if (not (can_run other ours)) then
+        (* other can not run here, we are in waiting for period *)
+        if other.processState = PState.waiting_for_period then
+          failwith "Both waiting for period - Didn't think about this yet"
+          (* both are waiting for period *)
+          (* if t = 0 then
+            let min_waiting_time_t0 = Option.get @@ TInterval.minimal waiting_time_t0 in
+            let min_waiting_time_t1 = Option.get @@ TInterval.minimal waiting_time_t1 in
 
+            if min_waiting_time_t0 <= min_waiting_time_t1 then
+              let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add  (TInterval.of_int min_waiting_time_t0)) x in
+              (* If our waiting time is the smaller one, we can increase all other times by this value *)
+              raise Deadcode
+            else
+              raise Deadcode
+          else
+            raise Deadcode *)
+        else
+          (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
+          let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add our_waiting_time) x in
+          let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x our_waiting_time) times in
+          do_end_wait ((a,b), times) t
+      else
+        (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
+        raise Deadcode
 
   let arinc_edge ctx (t,e) =
     let (a, b), x = ctx.local in
@@ -148,6 +189,9 @@ struct
     else if e = WaitingForPeriod then
       (* The restart of a period can happen at any time even if the task does not have priority *)
       wait_for_period ((a,b),x) t
+    else if e = WaitingForEndWait then
+      (* The end of waiting can happen at any time if the task does not have priority *)
+      wait_for_endwait ((a,b),x) t
     else
       let ours, other = if t = 0 then a, b else b, a in
       if not (can_run ours other) then
@@ -169,17 +213,17 @@ struct
             let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
             (* If I am here, the only thing that could interrupt me is a higher priority task finishing waiting on sth *)
             (* If the other task wanted to do computation here, we would raise Deadcode even before *)
-            if (other.processState = PState.waiting_for_period || other.processState = PState.wait) then
+            (if (other.processState = PState.waiting_for_period || (other.processState = PState.wait && other.waitingFor = WaitingForEvent.bot () )) then
               (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
               (* as even when it's wait ends, it will not interrupt this process *)
               let waiting_time_other = Times.find ("remaining_wait_t" ^ if t = 1 then "0" else "1") x in
               let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
               if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
-                failwith ("Block might be interrupted for t" ^ string_of_int(t) ^ " waiting time " ^ (TInterval.short 80 waiting_time_other));
-              ()
+                let PC list = ctx.node in
+                failwith ("Block might be interrupted at "^ D.short 800 ctx.local ^"(" ^ string_of_int(List.at list 0) ^ "," ^ string_of_int(List.at list 1) ^ ")for t"  ^ string_of_int(t) ^ " waiting time " ^ (TInterval.short 80 waiting_time_other))
             else
               ()
-            ;
+            );
             (* Check how much time is still remaining here  *)
             (* Check how long this one can do things uninterrupted for by looking at the remaining time of the other process *)
             let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add wcetInterval) x in
@@ -197,6 +241,11 @@ struct
           let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
           let times = Times.add ("remaining_wait_t" ^ string_of_int(t)) remaining_wait x in (* set remaining wait time *)
           let (a,b), _ = D.periodic_wait t ctx.local in
+          (a,b), times
+        | TimedWait tw ->
+          let remaining_wait = TInterval.of_int (Int64.of_int tw) in
+          let times = Times.add ("remaining_wait_t" ^ string_of_int(t)) remaining_wait x in (* set remaining wait time *)
+          let (a,b), _ = D.timed_wait t ctx.local in
           (a,b), times
         | _ -> ctx.local
 

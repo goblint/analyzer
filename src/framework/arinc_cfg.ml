@@ -13,6 +13,7 @@ type edgeAct =
   (** Resume another task *)
   | SuspendTask of int
   (** Suspend another task *)
+  | TimedWait of int
   | SetEvent of int
   | WaitEvent of int
   | ResetEvent of int
@@ -20,6 +21,7 @@ type edgeAct =
   | SignalSemaphore of int
   | PeriodicWait
   | WaitingForPeriod
+  | WaitingForEndWait
   | NOP
   [@@deriving to_yojson]
 
@@ -69,14 +71,17 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
     mkEdge (PC ([3; i])) (0, SetEvent 0) (PC [4; i]);
     mkEdge (PC ([4; i])) (0, Computation 20) (PC [5; i]);
     mkEdge (PC ([5; i])) (0, ResumeTask 1) (PC [6; i]);
+    mkEdge (PC ([6; i])) (0, TimedWait 20) (PC[12;i]);
+    mkEdge (PC ([12; i])) (0, WaitingForEndWait) (PC[8;i]);
     mkEdge (PC ([6; i])) (0, WaitEvent 1) (PC [7; i]);
     mkEdge (PC ([7; i])) (0, ResetEvent 1) (PC [8; i]);
     mkEdge (PC ([8; i])) (0, Computation 42) (PC [9; i]);
     mkEdge (PC ([9; i])) (0, SuspendTask 1) (PC [10; i]);
     mkEdge (PC ([10; i])) (0, PeriodicWait) (PC [11; i]);
     mkEdge (PC ([11; i])) (0, WaitingForPeriod) (PC [4; i]);
+
   done;
-  for i = 0 to 12 do
+  for i = 0 to 13 do
     mkEdge (PC ([i; 0])) (1, SuspendTask 1) (PC [i; 1]);
     mkEdge (PC ([i; 1])) (1, WaitSemaphore 0) (PC [i; 2]);
     mkEdge (PC ([i; 2])) (1, Computation 40) (PC [i; 3]);

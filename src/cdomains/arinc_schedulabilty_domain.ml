@@ -91,6 +91,7 @@ struct
 
   let wait_event i p =
     (* A task may only execute a wait if it currently has the highest priority *)
+    (* TODO: We should only suspend and wait for the event if it is down at the moment *)
     {p with processState = PState.wait; waitingFor = WaitingForEvent.of_int (Int64.of_int i)}
 
   let set_event i p =
@@ -101,6 +102,9 @@ struct
 
   let periodic_wait p =
     {p with processState = PState.waiting_for_period}
+
+  let timed_wait p =
+    {p with processState = PState.wait}
 end
 
 module GroupableStrings:(MapDomain.Groupable with type t = string) =
@@ -154,6 +158,14 @@ struct
       (OneTask.periodic_wait a, b), x
     else if t = 1 then
       (a, OneTask.periodic_wait b), x
+    else
+      failwith "lol, wut?!"
+
+  let timed_wait t ((a, b), x) =
+    if t = 0 then
+      (OneTask.timed_wait a, b), x
+    else if t = 1 then
+      (a, OneTask.timed_wait b), x
     else
       failwith "lol, wut?!"
 
