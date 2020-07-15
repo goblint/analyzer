@@ -104,7 +104,7 @@ rule() {
       curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
       tar xf master.tar.gz && rm master.tar.gz
       rm -rf linux-headers && mv linux-headers-master linux-headers
-      for n in $(compgen -c gcc- | sed 's/gcc-//'); do cp linux-headers/include/linux/compiler-gcc{5,$n}.h; done
+      for n in $(compgen -c gcc- | sed 's/gcc-//'); do cp -n linux-headers/include/linux/compiler-gcc{5,$n}.h; done
     ;; lock)
       opam lock
     ;; npm)
