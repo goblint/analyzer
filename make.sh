@@ -108,6 +108,7 @@ rule() {
       cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc7.h
       cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc8.h
       cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc9.h
+      cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc10.h
     ;; lock)
       opam lock
     ;; npm)
