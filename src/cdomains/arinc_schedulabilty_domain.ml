@@ -96,7 +96,7 @@ struct
 
   let set_event i p =
     if p.waitingFor = WaitingForEvent.of_int (Int64.of_int i) then
-      {p with processState = (if p.processState = PState.wait then PState.ready else PState.suspended); waitingFor = WaitingForEvent.of_int (Int64.of_int i)}
+      {p with processState = (if p.processState = PState.wait then PState.ready else PState.suspended); waitingFor = WaitingForEvent.bot ()}
     else
       p
 
