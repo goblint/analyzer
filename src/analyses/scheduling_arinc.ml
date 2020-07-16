@@ -84,7 +84,11 @@ struct
       else
         (* ours < other *)
         (* we can run if the other is blocked *)
-        other.processState <> PState.ready
+        if other.processState = PState.ready then
+          false
+        else
+          true
+
 
   (* Subtract y from x and ensure result is not negative *)
   let subtract_if_not_zero x y  =
@@ -208,35 +212,73 @@ struct
         | ResumeTask i -> D.resume i ctx.local
         | WaitEvent i -> D.wait_event t i ctx.local
         | SetEvent i -> D.set_event i ctx.local
-        | Computation i ->
+        | StartComputation i ->
+          let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
+          let times = Times.add ("remaining_processing_t" ^ string_of_int(t)) wcetInterval x in
+          (a,b), times
+        | FinishComputation ->
           begin
-            let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
+            let wcetInterval = Times.find ("remaining_processing_t" ^ string_of_int(t)) x in
             (* If I am here, the only thing that could interrupt me is a higher priority task finishing waiting on sth *)
             (* If the other task wanted to do computation here, we would raise Deadcode even before *)
-            (if (other.processState = PState.waiting_for_period || (other.processState = PState.wait && other.waitingFor = WaitingForEvent.bot () )) then
+            if other.processState = PState.waiting_for_period || (other.processState = PState.wait && other.waitingFor = WaitingForEvent.bot () ) then
               (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
               (* as even when it's wait ends, it will not interrupt this process *)
               let waiting_time_other = Times.find ("remaining_wait_t" ^ if t = 1 then "0" else "1") x in
               let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
               if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
-                let PC list = ctx.node in
-                failwith ("Block might be interrupted at "^ D.short 800 ctx.local ^"(" ^ string_of_int(List.at list 0) ^ "," ^ string_of_int(List.at list 1) ^ ")for t"  ^ string_of_int(t) ^ " waiting time " ^ (TInterval.short 80 waiting_time_other))
+              (* This is the minimum interval we can compute for sure, so we can subtract this everywhere. If we take less than this time, we can move on *)
+                let minimum_definite_compute_interval = TInterval.of_interval (Int64.zero, BatOption.get @@ TInterval.minimal waiting_time_other) in
+                let times = Times.update_val ("remaining_processing_t" ^ string_of_int(t)) (fun x -> TInterval.of_int Int64.zero) x in
+                let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add minimum_definite_compute_interval) times in
+                let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x minimum_definite_compute_interval) times in
+                (a,b), times
+              else
+              (* We can finish the entire thing, even if it takes WCET *)
+              let times = Times.update_val ("remaining_processing_t" ^ string_of_int(t)) (fun x -> TInterval.of_int Int64.zero) x in
+              let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add wcetInterval) times in
+              let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x wcetInterval) times in
+              (a,b), times
             else
-              ()
-            );
-            (* Check how much time is still remaining here  *)
-            (* Check how long this one can do things uninterrupted for by looking at the remaining time of the other process *)
-            let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add wcetInterval) x in
-            let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x wcetInterval) times in
-            (a,b), times
+              let times = Times.update_val ("remaining_processing_t" ^ string_of_int(t)) (fun x -> TInterval.of_int Int64.zero) x in
+              let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add wcetInterval) times in
+              let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x wcetInterval) times in
+              (a,b), times
           end
+        | ContinueComputation ->
+          let wcetInterval = Times.find ("remaining_processing_t" ^ string_of_int(t)) x in
+          if other.processState = PState.waiting_for_period || (other.processState = PState.wait && other.waitingFor = WaitingForEvent.bot () ) then
+              (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
+              (* as even when it's wait ends, it will not interrupt this process *)
+              let waiting_time_other = Times.find ("remaining_wait_t" ^ if t = 1 then "0" else "1") x in
+              let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
+              if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
+                (* This is the minimum interval we can compute for sure, so we can subtract this everywhere *)
+                let minimum_definite_compute_interval = TInterval.of_int (Option.get @@ TInterval.minimal waiting_time_other) in
+                let _ = Printf.printf "minimum waiting time is %s\n" (string_of_int (Int64.to_int @@ Option.get @@ TInterval.minimal waiting_time_other)) in
+                let times = Times.update_val ("remaining_processing_t" ^ string_of_int(t)) (fun x -> TInterval.meet wcetInterval (subtract_if_not_zero x minimum_definite_compute_interval)) x in
+                let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add minimum_definite_compute_interval) times in
+                let times = Times.update_all ["remaining_wait_t0"; "remaining_wait_t1"] (fun x -> subtract_if_not_zero x minimum_definite_compute_interval) times in
+                (a,b), times
+              else
+                (* this can definitely finish -> we should only take the FinishComputation edge*)
+                raise Deadcode
+          else
+            (* this can definitely finish -> we should only take the FinishComputation edge*)
+            raise Deadcode
         | PeriodicWait ->
           (* Check that the deadline is not violated *)
           let time_since_period = Times.find ("since_period_t" ^ string_of_int(t)) x in
           let deadline  = BatOption.get @@ Capacity.to_int (if t = 0 then a.capacity else b.capacity) in
           let deadline_interval = TInterval.of_int deadline in
           let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
-          if not (TInterval.is_bot miss) then Printf.printf "deadline of t%i was missed: %s > %s (!!!!)\n" t (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval) else ();
+          let PC [u; v] = ctx.node in
+          (if not (TInterval.is_bot miss) then Printf.printf "(%s,%s) deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
+            (string_of_int u) (string_of_int v)
+            t (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval)
+           (D.short 800 ctx.local)
+           else
+           ());
           let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
           let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
           let times = Times.add ("remaining_wait_t" ^ string_of_int(t)) remaining_wait x in (* set remaining wait time *)
@@ -250,7 +292,7 @@ struct
         | _ -> ctx.local
 
 
-  let should_join ((a, b), x) ((a', b'), x') = a.processState = a'.processState && b.processState = b'.processState
+  let should_join ((a, b), x) ((a', b'), x') = a.processState = a'.processState && b.processState = b'.processState && a.waitingFor = a'.waitingFor && b.waitingFor = b'.waitingFor
 
   let val_of () = D.bot ()
   let context _ = ()
