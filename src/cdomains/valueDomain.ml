@@ -48,6 +48,9 @@ struct
   type value = Value.t
   type size = Size.t
 
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y
+
   let make v s = v, s
   let value = fst
   let size = snd
