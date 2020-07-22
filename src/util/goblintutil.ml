@@ -58,9 +58,9 @@ let jsonFiles : string list ref = ref []
 (** has user specified other thread functions *)
 let has_otherfuns = ref false
 
-(** Tells the spec that result may still get smaller (on narrowing).
-    If this is false we can output messages and collect accesses. *)
-let may_narrow = ref true
+(** If this is true we output messages and collect accesses.
+    This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
+let should_warn = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009)

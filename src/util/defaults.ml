@@ -60,7 +60,7 @@ let _ = ()
       ; reg Std "dopartial"       "false"        "Use Cil's partial evaluation & constant folding."
       ; reg Std "printstats"      "false"        "Outputs timing information."
       ; reg Std "gccwarn"         "false"        "Output warnings in GCC format."
-      ; reg Std "noverify"        "false"        "Skip the verification phase."
+      ; reg Std "noverify"        "false"        "Skip the verification phase. Beware that this currently also disables the output of warnings since post-processing of the results is also done in the verification phase!"
       ; reg Std "mainfun"         "['main']"     "Sets the name of the main functions."
       ; reg Std "exitfun"         "[]"           "Sets the name of the cleanup functions."
       ; reg Std "otherfun"        "[]"           "Sets the name of other functions."
@@ -196,7 +196,7 @@ let _ = ()
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
       ; reg Debugging "dbg.limit.widen"     "0"     "Limit for number of widenings per node (0 = no limit)."
-      ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts)."
+      ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
 
