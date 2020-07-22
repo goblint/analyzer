@@ -9,16 +9,16 @@ module Priority = IntDomain.Reverse (IntDomain.Lifted) (* TODO reverse? *)
 module Period = IntDomain.Flattened
 (* Capacity *)
 module Capacity = IntDomain.Flattened
+(* Current state *)
+module ProcessState = IntDomain.Flattened
+(* Ready -> 0, Running -> 1, Suspended -> 2, Done -> 3, Wait -> 4, Susp_Wait -> 5*)
+module WaitingForEvent = IntDomain.Flattened
 
 (* Information for all tasks *)
 (* Partition mode *)
 module PartitionMode = IntDomain.Flattened
 (* Preemption lock *)
 module PreemptionLock = IntDomain.Flattened
-(* Current state *)
-module ProcessState = IntDomain.Flattened
-(* Ready -> 0, Running -> 1, Suspended -> 2, Done -> 3, Wait -> 4, Susp_Wait -> 5*)
-module WaitingForEvent = IntDomain.Flattened
 
 module PState = struct
   let ready = ProcessState.of_int (Int64.of_int 0)
@@ -92,6 +92,7 @@ struct
   let wait_event i p =
     (* A task may only execute a wait if it currently has the highest priority *)
     (* TODO: We should only suspend and wait for the event if it is down at the moment *)
+
     {p with processState = PState.wait; waitingFor = WaitingForEvent.of_int (Int64.of_int i)}
 
   let set_event i p =
