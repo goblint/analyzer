@@ -28,19 +28,11 @@ struct
     failwith "lol, wut?!!!"
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* let s = match ctx.node with
-      | PC [a;b] -> "["^ string_of_int a ^ ","^ string_of_int b ^ "]"
-      | _ -> ""
-    in
-    Printf.printf "enter for %s : %s\n %s \n\n------------------------------------------\n" s (D.short 80 ctx.local) (Printexc.raw_backtrace_to_string (Printexc.get_callstack 20)); *)
     let zero = (TInterval.of_int (Int64.zero)) in
     let t = Times.add "overall" zero (Times.bot ()) in
-    let t = Times.add "since_period_t0" zero t in
-    let t = Times.add "since_period_t1" zero t in
-    let t = Times.add "remaining_wait_t0" zero t in
-    let t = Times.add "remaining_wait_t1" zero t in
-    let t = Times.add "remaining_processing_t0" zero t in
-    let t = Times.add "remaining_processing_t1" zero t in
+    let t = Times.add_list_set ["since_period_t0"; "since_period_t1"] zero t in
+    let t = Times.add_list_set ["remaining_wait_t0"; "remaining_wait_t1"] zero t in
+    let t = Times.add_list_set ["remaining_processing_t0"; "remaining_processing_t1"] zero t in
     let state1 = {
       pid = Pid.of_int (Int64.of_int 1);
       priority = Priority.of_int (Int64.of_int 15);
