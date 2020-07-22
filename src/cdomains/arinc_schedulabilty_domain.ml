@@ -113,6 +113,11 @@ module GroupableStrings:(MapDomain.Groupable with type t = string) =
   end
 module Times = struct
   include MapDomain.MapBot_LiftTop(GroupableStrings)(IntDomain.Interval32)
+
+  (* All times are positive *)
+  let add k v x =
+    add k (IntDomain.Interval32.meet (IntDomain.Interval32.starting Int64.zero) v) x
+
   let update_val (k:key) (f:value -> value) t =
     let old = find k t in
     add k (f old) t
