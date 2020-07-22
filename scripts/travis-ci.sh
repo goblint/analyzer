@@ -15,7 +15,9 @@ else
         }
         # update repositories to prevent errors caused by missing packages
         sudo apt-get update -qq
-        apt python-software-properties # needed for ppa
+        apt gcc
+        apt libgmp-ocaml-dev
+        apt software-properties-common # needed for ppa
         apt make m4  # needed for compiling ocamlfind
         apt patch    # needed for compiling xml-light
         apt autoconf # needed for compiling cil
