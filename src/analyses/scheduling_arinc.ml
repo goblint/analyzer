@@ -33,10 +33,20 @@ struct
     Times.update_val ("remaining_wait_t" ^ string_of_int(tid)) fn times
 
   let set_remaining_wait tid v times =
-    update_since_period tid (fun _ -> v) times
+    update_remaining_wait tid (fun _ -> v) times
 
   let get_remaining_wait tid times =
     Times.find ("remaining_wait_t" ^ string_of_int(tid)) times
+
+  (* remaining compute time for each task *)
+  let update_remaining_processing tid fn times =
+    Times.update_val ("remaining_processing_t" ^ string_of_int(tid)) fn times
+
+  let set_remaining_processing tid v times =
+    update_remaining_processing tid (fun _ -> v) times
+
+  let get_remaining_processing tid times =
+    Times.find ("remaining_processing_t" ^ string_of_int(tid)) times
 
   (* overall times *)
   let update_overall fn times =
@@ -63,9 +73,6 @@ struct
     let times = List.fold_left (fun times tid -> update_remaining_wait tid decrement times) times all_tids in
     times
 
-
-  let get_time_since_period tid times =
-    Times.find ("since_period_t" ^ string_of_int(tid)) times
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -151,7 +158,7 @@ struct
       else
         (a, {b with processState = PState.ready}), times
     in
-    let t_since_period = get_time_since_period t x in
+    let t_since_period = get_since_period t x in
     let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
     if TInterval.leq (TInterval.of_int period) t_since_period then
       do_restart_period ((a,b), x) t
@@ -257,7 +264,7 @@ struct
         | SetEvent i -> D.set_event i ctx.local
         | StartComputation i ->
           let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
-          let times = Times.add ("remaining_processing_t" ^ string_of_int(t)) wcetInterval x in
+          let times = set_remaining_processing t wcetInterval x in
           (a,b), times
         | FinishComputation ->
           begin
@@ -272,21 +279,21 @@ struct
               if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
               (* This is the minimum interval we can compute for sure, so we can subtract this everywhere. If we take less than this time, we can move on *)
                 let minimum_definite_compute_interval = TInterval.of_interval (Int64.zero, BatOption.get @@ TInterval.minimal waiting_time_other) in
-                let times = Times.update_val ("remaining_processing_t" ^ string_of_int(t)) (fun x -> TInterval.of_int Int64.zero) x in
+                let times = set_remaining_processing t zeroInterval x in
                 let times = advance_all_times_by minimum_definite_compute_interval times in
                 (a,b), times
               else
               (* We can finish the entire thing, even if it takes WCET *)
-              let times = Times.update_val ("remaining_processing_t" ^ string_of_int(t)) (fun x -> TInterval.of_int Int64.zero) x in
+              let times = set_remaining_processing t zeroInterval x in
               let times = advance_all_times_by wcetInterval times in
               (a,b), times
             else
-              let times = Times.update_val ("remaining_processing_t" ^ string_of_int(t)) (fun x -> TInterval.of_int Int64.zero) x in
+              let times = set_remaining_processing t zeroInterval x in
               let times = advance_all_times_by wcetInterval times in
               (a,b), times
           end
         | ContinueComputation ->
-          let wcetInterval = Times.find ("remaining_processing_t" ^ string_of_int(t)) x in
+          let wcetInterval = get_remaining_processing t x in
           if other.processState = PState.waiting_for_period || (other.processState = PState.wait && other.waitingFor = WaitingForEvent.bot () ) then
               (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
               (* as even when it's wait ends, it will not interrupt this process *)
@@ -296,7 +303,7 @@ struct
                 (* This is the minimum interval we can compute for sure, so we can subtract this everywhere *)
                 let minimum_definite_compute_interval = TInterval.of_int (Option.get @@ TInterval.minimal waiting_time_other) in
                 let _ = Printf.printf "minimum waiting time is %s\n" (string_of_int (Int64.to_int @@ Option.get @@ TInterval.minimal waiting_time_other)) in
-                let times = Times.update_val ("remaining_processing_t" ^ string_of_int(t)) (fun x -> TInterval.meet wcetInterval (subtract_if_not_zero x minimum_definite_compute_interval)) x in
+                let times = update_remaining_processing t (fun x -> TInterval.meet wcetInterval (subtract_if_not_zero x minimum_definite_compute_interval)) x in
                 let times = advance_all_times_by minimum_definite_compute_interval times in
                 (a,b), times
               else
@@ -307,7 +314,7 @@ struct
             raise Deadcode
         | PeriodicWait ->
           (* Check that the deadline is not violated *)
-          let time_since_period = get_time_since_period t x in
+          let time_since_period = get_since_period t x in
           let deadline  = BatOption.get @@ Capacity.to_int (if t = 0 then a.capacity else b.capacity) in
           let deadline_interval = TInterval.of_int deadline in
           let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
