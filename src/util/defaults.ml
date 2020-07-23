@@ -60,7 +60,7 @@ let _ = ()
       ; reg Std "dopartial"       "false"        "Use Cil's partial evaluation & constant folding."
       ; reg Std "printstats"      "false"        "Outputs timing information."
       ; reg Std "gccwarn"         "false"        "Output warnings in GCC format."
-      ; reg Std "noverify"        "false"        "Skip the verification phase. Beware that this currently also disables the output of warnings since post-processing of the results is also done in the verification phase!"
+      ; reg Std "verify"          "true"         "Verify that the solver reached a post-fixpoint. Beware that disabling this also disables output of warnings since post-processing of the results is done in the verification phase!"
       ; reg Std "mainfun"         "['main']"     "Sets the name of the main functions."
       ; reg Std "exitfun"         "[]"           "Sets the name of the cleanup functions."
       ; reg Std "otherfun"        "[]"           "Sets the name of other functions."
@@ -203,7 +203,7 @@ let _ = ()
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
 , 'properties' :
   { 'ana' :
@@ -237,7 +237,7 @@ let default_schema = "\
   , 'dopartial'       : {}
   , 'printstats'      : {}
   , 'gccwarn'         : {}
-  , 'noverify'        : {}
+  , 'verify'        : {}
   , 'mainfun'         : {}
   , 'exitfun'         : {}
   , 'otherfun'        : {}

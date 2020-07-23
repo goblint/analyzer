@@ -353,7 +353,7 @@ struct
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
       end;
 
-      if not (get_bool "noverify") then begin
+      if get_bool "verify" then begin
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
         Goblintutil.should_warn := true;
         Vrfyr.verify lh gh;
