@@ -45,9 +45,8 @@ rule() {
       dune build $TARGET.bc.js &&
       node _build/default/$TARGET.bc.js
     ;; watch)
-      dune build -w $TARGET.exe
-      # dune runtest -w --no-buffer
-
+      # dune build -w $TARGET.exe
+      dune runtest --no-buffer --watch
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
