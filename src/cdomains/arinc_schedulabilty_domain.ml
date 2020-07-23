@@ -34,6 +34,121 @@ end
 type process = { pid: Pid.t; priority: Priority.t; period: Period.t; capacity: Capacity.t; processState: ProcessState.t; waitingFor:WaitingForEvent.t } [@@deriving to_yojson]
 type overall_state = { partitionMode:PartitionMode.t; preemptionLock:PreemptionLock.t } [@@deriving to_yojson]
 
+
+module GroupableStrings:(MapDomain.Groupable with type t = string) =
+struct
+  include Printable.Strings
+end
+
+module Times:(sig
+  include Lattice.S
+  type v = IntDomain.Interval32.t
+  type tid = int
+
+  val start_state: int -> t
+  val zeroInterval: v
+
+  val update_since_period: tid -> (v -> v) -> t -> t
+  val set_since_period: tid -> v -> t -> t
+  val get_since_period: tid -> t -> v
+
+  val update_remaining_wait: tid -> (v -> v) -> t -> t
+  val set_remaining_wait: tid -> v -> t -> t
+  val get_remaining_wait: tid -> t -> v
+
+  val update_remaining_processing: tid -> (v -> v) -> t -> t
+  val set_remaining_processing: tid -> v -> t -> t
+  val get_remaining_processing : tid -> t -> v
+
+  val update_overall: (v -> v) -> t -> t
+  val advance_all_times_by: v -> t -> t
+end) =
+struct
+  include MapDomain.MapBot_LiftTop(GroupableStrings)(IntDomain.Interval32)
+  module TInterval = IntDomain.Interval32
+  type v = TInterval.t
+  type tid = int
+
+  let zeroInterval = TInterval.of_int Int64.zero
+  let numtasks = 2 (* TODO: Fix *)
+
+  (* All times are positive *)
+  let add k v x =
+    add k (IntDomain.Interval32.meet (IntDomain.Interval32.starting Int64.zero) v) x
+
+  let update_val (k:key) (f:value -> value) t =
+    let old = find k t in
+    add k (f old) t
+
+  let update_all (ks:key list) (f:value -> value) t =
+    List.fold_left (fun t k -> update_val k f t) t ks
+
+  let start_state n =
+    let t = add "overall" zeroInterval (bot ()) in
+    let t = add_list_set ["since_period_t0"; "since_period_t1"] zeroInterval t in
+    let t = add_list_set ["remaining_wait_t0"; "remaining_wait_t1"] zeroInterval t in
+    let t = add_list_set ["remaining_processing_t0"; "remaining_processing_t1"] zeroInterval t in
+    t
+
+  (* time since period for each task *)
+  let update_since_period tid fn times =
+    update_val ("since_period_t" ^ string_of_int(tid)) fn times
+
+  let set_since_period tid v times =
+    update_since_period tid (fun _ -> v) times
+
+  let get_since_period tid times =
+    find ("since_period_t" ^ string_of_int(tid)) times
+
+
+  (* remaining wait time for each task *)
+  let update_remaining_wait tid fn times =
+    update_val ("remaining_wait_t" ^ string_of_int(tid)) fn times
+
+  let set_remaining_wait tid v times =
+    update_remaining_wait tid (fun _ -> v) times
+
+  let get_remaining_wait tid times =
+    find ("remaining_wait_t" ^ string_of_int(tid)) times
+
+  (* remaining compute time for each task *)
+  let update_remaining_processing tid fn times =
+    update_val ("remaining_processing_t" ^ string_of_int(tid)) fn times
+
+  let set_remaining_processing tid v times =
+    update_remaining_processing tid (fun _ -> v) times
+
+  let get_remaining_processing tid times =
+    find ("remaining_processing_t" ^ string_of_int(tid)) times
+
+  (* overall times *)
+  let update_overall fn times =
+    update_val "overall" fn times
+
+
+  (** Advance overall and all since_period and remaining_wait by interval  *)
+  let advance_all_times_by interval times =
+    (* Subtract interval from x and ensure result is not negative *)
+    let decrement x  = (* TODO: Do we need this here, even if times does the work to ensure it does not get negative *)
+      if TInterval.to_int x = Some Int64.zero then
+        x
+      else
+        let wait_time = TInterval.sub x interval in
+        TInterval.meet wait_time (TInterval.starting Int64.zero) (* These numbers may not become negative *)
+    in
+    let increment = TInterval.add interval in
+    let all_tids = List.range 0 `To (numtasks-1) in
+    (* update overall time *)
+    let times = update_overall increment times in
+    (* update since_period for all tasks *)
+    let times = List.fold_left (fun times tid -> update_since_period tid increment times) times all_tids in
+    (* update remaining_wait for all tasks *)
+    let times = List.fold_left (fun times tid -> update_remaining_wait tid decrement times) times all_tids in
+    times
+
+end
+
+
 module OneTask =
 struct
   type t = process [@@deriving to_yojson]
@@ -106,27 +221,6 @@ struct
 
   let timed_wait p =
     {p with processState = PState.wait}
-end
-
-module GroupableStrings:(MapDomain.Groupable with type t = string) =
-  struct
-    include Printable.Strings
-  end
-module Times = struct
-  include MapDomain.MapBot_LiftTop(GroupableStrings)(IntDomain.Interval32)
-
-  (* All times are positive *)
-  let add k v x =
-    add k (IntDomain.Interval32.meet (IntDomain.Interval32.starting Int64.zero) v) x
-
-  let update_val (k:key) (f:value -> value) t =
-    let old = find k t in
-    add k (f old) t
-
-  let update_all (ks:key list) (f:value -> value) t =
-    List.fold_left (fun t k -> update_val k f t) t ks
-
-
 end
 
 module D =
