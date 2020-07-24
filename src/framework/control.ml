@@ -259,8 +259,8 @@ struct
     in
 
     (* real beginning of the [analyze] function *)
-    let _ = GU.global_initialization := true in
-    let _ = GU.earlyglobs := false in
+    GU.global_initialization := true;
+    GU.earlyglobs := false;
     Spec.init ();
     Access.init file;
 
@@ -294,7 +294,7 @@ struct
       List.map (fun (_,s) -> fd.svar, s) ents
     in
 
-    let _ = try MyCFG.dummy_func.svar.vdecl <- (List.hd otherfuns).svar.vdecl with Failure _ -> () in
+    (try MyCFG.dummy_func.svar.vdecl <- (List.hd otherfuns).svar.vdecl with Failure _ -> ());
 
     let startvars =
       if startfuns = []
@@ -307,14 +307,11 @@ struct
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
     let othervars = List.map (enter_with Spec.otherstate) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
+    if startvars = [] then
+      failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
-    let _ =
-      if startvars = []
-      then failwith "BUG: Empty set of start variables; may happen if \
-                     enter_func of any analysis returns an empty list."
-    in
-    let _ = GU.earlyglobs := get_bool "exp.earlyglobs" in
-    let _ = GU.global_initialization := false in
+    GU.earlyglobs := get_bool "exp.earlyglobs";
+    GU.global_initialization := false;
 
     let startvars' =
       if get_bool "exp.forward" then
@@ -323,17 +320,14 @@ struct
         List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars
     in
 
-    let entrystates =
-      List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
+    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
 
+    let module Task = struct
+        let file = file
+        let specification = Svcomp.unreach_call_specification
 
-    let module Task =
-    struct
-      let file = file
-      let specification = Svcomp.unreach_call_specification
-
-      module Cfg = Cfg
-    end
+        module Cfg = Cfg
+      end
     in
 
     let local_xml = ref (Result.create 0) in
@@ -368,36 +362,33 @@ struct
       local_xml := solver2source_result lh;
       global_xml := gh;
 
-      if get_bool "dbg.uncalled" then
-        begin
-          let out = M.get_out "uncalled" Legacy.stdout in
-          let insrt k _ s = match k with
-            | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-            | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-            | _ -> s
-          in
-          (* set of ids of called functions *)
-          let calledFuns = LHT.fold insrt lh Set.Int.empty in
-          let is_bad_uncalled fn loc =
-            not (Set.Int.mem fn.vid calledFuns) &&
-            not (Str.last_chars loc.file 2 = ".h") &&
-            not (LibraryFunctions.is_safe_uncalled fn.vname)
-          in
-          let print_uncalled = function
-            | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
-              begin
-                let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
-                ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
-              end
-            | _ -> ()
-          in
-          List.iter print_uncalled file.globals
-        end;
+      if get_bool "dbg.uncalled" then (
+        let out = M.get_out "uncalled" Legacy.stdout in
+        let insrt k _ s = match k with
+          | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+          | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+          | _ -> s
+        in
+        (* set of ids of called functions *)
+        let calledFuns = LHT.fold insrt lh Set.Int.empty in
+        let is_bad_uncalled fn loc =
+          not (Set.Int.mem fn.vid calledFuns) &&
+          not (Str.last_chars loc.file 2 = ".h") &&
+          not (LibraryFunctions.is_safe_uncalled fn.vname)
+        in
+        let print_uncalled = function
+          | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+              ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+          | _ -> ()
+        in
+        List.iter print_uncalled file.globals
+      );
 
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
-      (if (get_bool "dbg.debug") && Spec.D.is_bot main_sol then
-         Printf.printf "NB! Execution does not reach the end of Main.\n");
+      if get_bool "dbg.debug" && Spec.D.is_bot main_sol then
+        Printf.printf "NB! Execution does not reach the end of Main.\n";
 
       if get_bool "dump_globs" then
         print_globals gh;
