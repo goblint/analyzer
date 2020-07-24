@@ -73,13 +73,13 @@ struct
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
         let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
-        if is_dead then begin
+        if is_dead then (
           dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines;
           Deadcode.Locmap.add dead_locations l ();
-        end else begin
+        ) else (
           live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
           NH.add live_nodes n ()
-        end;
+        );
       in
       Result.iter add_one xs;
       let live file fn =
@@ -93,11 +93,11 @@ struct
         let one_range b e first =
           count := !count + (e - b + 1);
           if not first then printf ", ";
-          begin if b=e then
-              printf "%d" b
-            else
-              printf "%d..%d" b e
-          end; false
+          if b=e then
+            printf "%d" b
+          else
+            printf "%d..%d" b e;
+          false
         in
         printf "  function '%s' has dead code on lines: " f;
         ignore (BatISet.fold_range one_range xs true);
@@ -107,14 +107,14 @@ struct
         printf "File '%s':\n" f;
         StringMap.iter print_func
       in
-      if get_bool "dbg.print_dead_code" then begin
+      if get_bool "dbg.print_dead_code" then (
         if StringMap.is_empty !dead_lines
         then printf "No dead code found!\n"
-        else begin
+        else (
           StringMap.iter print_file !dead_lines;
           printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
-        end
-      end;
+        )
+      );
       let str = function true -> "then" | false -> "else" in
       let report tv loc dead =
         if Deadcode.Locmap.mem dead_locations loc then
@@ -123,12 +123,12 @@ struct
           | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) d_loc loc)
           | _ -> ()
       in
-      if get_bool "dbg.print_dead_code" then begin
+      if get_bool "dbg.print_dead_code" then (
         Deadcode.Locmap.iter (report true)  Deadcode.dead_branches_then;
         Deadcode.Locmap.iter (report false) Deadcode.dead_branches_else;
         Deadcode.Locmap.clear Deadcode.dead_branches_then;
         Deadcode.Locmap.clear Deadcode.dead_branches_else
-      end;
+      );
       NH.mem live_nodes
     in
 
@@ -234,12 +234,12 @@ struct
             Spec.body {ctx with local = st} func
           | MyCFG.Assign (lval,exp) ->
             if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
-            begin match lval, exp with
+            (match lval, exp with
               | (Var v,o), (AddrOf (Var f,NoOffset))
                 when v.vstorage <> Static && isFunctionType f.vtype ->
-                begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end
+                (try funs := Cilfacade.getdec f :: !funs with Not_found -> ())
               | _ -> ()
-            end;
+            );
             Spec.assign {ctx with local = st} lval exp
           | _                       -> raise (Failure "This iz impossible!")
         with Failure x -> M.warn x; st
@@ -334,26 +334,26 @@ struct
       if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
       let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
 
-      if not (get_string "comparesolver"="") then begin
+      if get_string "comparesolver" <> "" then (
         let compare_with (module S2 :  GenericGlobSolver) =
           let module S2' = S2 (EQSys) (LHT) (GHT) in
           let r2 = S2'.solve entrystates [] startvars' in
           Comp.compare (lh,gh) (r2)
         in
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
-      end;
+      );
 
-      if get_bool "verify" then begin
+      if get_bool "verify" then (
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
         Goblintutil.should_warn := true;
         Vrfyr.verify lh gh;
-      end;
+      );
 
-      if get_bool "ana.sv-comp" then begin
+      if get_bool "ana.sv-comp" then (
         (* prune already here so local_xml and thus HTML are also pruned *)
         let module Reach = Reachability (EQSys) (LHT) (GHT) in
         Reach.prune lh gh startvars'
-      end;
+      );
 
       if get_bool "dbg.uncalled" then (
         let out = M.get_out "uncalled" Legacy.stdout in
@@ -436,7 +436,7 @@ struct
     if (get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp") then
       liveness := print_dead_code local_xml;
 
-    if get_bool "ana.sv-comp" then begin
+    if get_bool "ana.sv-comp" then (
       let svcomp_unreach_call =
         let dead_verifier_error (l, n, f) v acc =
           match n with
@@ -527,7 +527,7 @@ struct
 
       let find_invariant nc = Spec.D.invariant "" (get nc) in
 
-      if svcomp_unreach_call then begin
+      if svcomp_unreach_call then (
         let module TaskResult =
         struct
           module Arg = Arg
@@ -538,7 +538,7 @@ struct
         end
         in
         Witness.write_file "witness.graphml" (module Task) (module TaskResult)
-      end else begin
+      ) else (
         let is_violation = function
           | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
           | _, _ -> false
@@ -549,12 +549,12 @@ struct
 
           (* DFS *)
           let rec iter_node node =
-            if not (LHT.mem non_sinks node) then begin
+            if not (LHT.mem non_sinks node) then (
               LHT.replace non_sinks node ();
               List.iter (fun (_, prev_node) ->
                   iter_node prev_node
                 ) (witness_prev node)
-            end
+            )
           in
 
           LHT.iter (fun lvar _ ->
@@ -575,8 +575,8 @@ struct
         end
         in
         Witness.write_file "witness.graphml" (module Task) (module TaskResult)
-      end
-    end;
+      )
+    );
 
     if (get_bool "exp.cfgdot") then
       MyCFG.dead_code_cfg file (module Cfg:CfgBidir) !liveness;
