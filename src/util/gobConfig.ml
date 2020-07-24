@@ -69,15 +69,17 @@ sig
   (** Functions to modify conf array variables to drop one index. *)
   val drop_index : string -> int    -> unit
 
+  (** Print the current configuration *)
+  val print : 'a BatInnerIO.output -> unit
+
+  (** Write the current configuration to [filename] *)
+  val write_file: string -> unit
+
   (** Merge configurations form a file with current. *)
   val merge_file : string -> unit
 
   (** Add a schema to the conf*)
   val addenum_sch: jvalue -> unit
-
-
-  (** printer for the current configuration *)
-  val print : 'a BatInnerIO.output -> unit
 end
 
 (** The implementation of the [gobConfig] module. *)
@@ -177,6 +179,7 @@ struct
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
     printJson ch !json_conf
+  let write_file filename = File.with_file_out filename print
 
   (** Main function to receive values from the conf. *)
   let rec get_value o pth =

@@ -7,7 +7,6 @@ open Printf
 open Json
 open Goblintutil
 
-let writeconf = ref false
 let writeconffile = ref ""
 
 (** Print version and bail. *)
@@ -92,7 +91,7 @@ let option_spec_list =
   ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
   ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
   ; "--conf"               , Arg.String merge_file, ""
-  ; "--writeconf"          , Arg.String (fun fn -> writeconf:=true;writeconffile:=fn), ""
+  ; "--writeconf"          , Arg.String (fun fn -> writeconffile := fn), ""
   ; "--version"            , Arg.Unit print_version, ""
   ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; exit 0), ""
   ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; exit 0), ""
@@ -127,7 +126,7 @@ let parse_arguments () =
     else cFileNames := fname :: !cFileNames
   in
   Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
-  if !writeconf then begin File.with_file_out !writeconffile print; raise Exit end
+  if !writeconffile <> "" then begin GobConfig.write_file !writeconffile; raise Exit end
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
