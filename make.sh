@@ -90,7 +90,7 @@ rule() {
       opam_setup
     ;; dev)
       echo "Installing opam packages for development..."
-      opam install utop merlin ocp-indent ounit2
+      opam install utop merlin ocp-indent ocamlformat ounit2
       # needed for https://github.com/ocamllabs/vscode-ocaml-platform
       # used https://github.com/jaredly/reason-language-server before, but has no support for OCaml 4.10 yet
       opam pin add ocaml-lsp-server https://github.com/ocaml/ocaml-lsp.git
