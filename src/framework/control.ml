@@ -330,13 +330,9 @@ struct
       end
     in
 
-    let local_xml = ref (Result.create 0) in
-    let global_xml = ref (GHT.create 0) in
-    let lh_ref = ref (LHT.create 0) in
     let do_analyze_using_solver () =
       if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
       let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
-      lh_ref := lh;
 
       if not (get_string "comparesolver"="") then begin
         let compare_with (module S2 :  GenericGlobSolver) =
@@ -356,11 +352,8 @@ struct
       if get_bool "ana.sv-comp" then begin
         (* prune already here so local_xml and thus HTML are also pruned *)
         let module Reach = Reachability (EQSys) (LHT) (GHT) in
-        Reach.prune !lh_ref !global_xml startvars'
+        Reach.prune lh gh startvars'
       end;
-
-      local_xml := solver2source_result lh;
-      global_xml := gh;
 
       if get_bool "dbg.uncalled" then (
         let out = M.get_out "uncalled" Legacy.stdout in
@@ -425,8 +418,9 @@ struct
         Spec.query ctx
       in
       get_list "trans.activated" |> List.map Json.string
-      |> List.iter (fun name -> Transform.run name ask file)
-      (* Transform.PartialEval.transform ask file *)
+      |> List.iter (fun name -> Transform.run name ask file);
+      (* Transform.PartialEval.transform ask file; *)
+      lh, gh
     in
 
     MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
@@ -434,12 +428,13 @@ struct
     (* Use "normal" constraint solving *)
     if (get_bool "dbg.verbose") then
       print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
-    Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> Messages.waitWhat "Timeout reached!");
+    let lh, gh = Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
+      (fun () -> Messages.waitWhat "Timeout reached!") in
+    let local_xml = solver2source_result lh in
 
     let liveness = ref (fun _ -> true) in
     if (get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp") then
-      liveness := print_dead_code !local_xml;
+      liveness := print_dead_code local_xml;
 
     if get_bool "ana.sv-comp" then begin
       let svcomp_unreach_call =
@@ -451,13 +446,11 @@ struct
             acc && is_dead
           | _ -> acc
         in
-        Result.fold dead_verifier_error !local_xml true
+        Result.fold dead_verifier_error local_xml true
       in
       Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
       let (witness_prev, witness_next) =
-        let lh = !lh_ref in
-        let gh = !global_xml in
         let ask_local (lvar:EQSys.LVar.t) local =
           (* build a ctx for using the query system *)
           let rec ctx =
@@ -497,7 +490,7 @@ struct
       in
 
       let get: node * Spec.C.t -> Spec.D.t =
-        fun nc -> LHT.find_default !lh_ref nc (Spec.D.bot ())
+        fun nc -> LHT.find_default lh nc (Spec.D.bot ())
       in
 
       let module Arg =
@@ -567,7 +560,7 @@ struct
           LHT.iter (fun lvar _ ->
               if is_violation lvar then
                 iter_node lvar
-            ) !lh_ref;
+            ) lh;
 
           fun n ->
             not (LHT.mem non_sinks n)
@@ -591,7 +584,7 @@ struct
     Spec.finalize ();
 
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
-    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
+    Result.output (lazy local_xml) gh make_global_xml make_global_fast_xml file
 
 
   let analyze file fs change_info =
