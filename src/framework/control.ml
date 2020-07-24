@@ -32,8 +32,8 @@ let get_spec () : (module SpecHC) =
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
-    (** The main function to preform the selected analyses. *)
-    let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
+  (** The main function to preform the selected analyses. *)
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
 
     let module Inc = struct let increment = increment end in
 
@@ -322,7 +322,9 @@ struct
 
     let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
 
-    let do_analyze_using_solver () =
+    let solve_and_postprocess () =
+      if (get_bool "dbg.verbose") then
+        print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
       if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
       let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
 
@@ -418,9 +420,7 @@ struct
     MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
 
     (* Use "normal" constraint solving *)
-    if (get_bool "dbg.verbose") then
-      print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
-    let lh, gh = Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
+    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout"))
       (fun () -> Messages.waitWhat "Timeout reached!") in
     let local_xml = solver2source_result lh in
 
@@ -429,7 +429,7 @@ struct
         (print_endline "print_dead_code";
         print_dead_code local_xml)
       else
-        fun _ -> true
+        fun _ -> true (* TODO: warn about conflicting options *)
     in
 
     if get_bool "ana.sv-comp" then (
