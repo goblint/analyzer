@@ -1039,7 +1039,7 @@ struct
         f_uk ()
     in
     GH.iter f g1;
-    Printf.printf "globals:\tequal = %d\t%s = %d\t\t%s = %d\tincomparable = %d\n" !eq n1 !le n2 !gr !uk
+    Printf.printf "globals:\tequal = %d\t%s = %d\t%s = %d\tincomparable = %d\n" !eq n1 !le n2 !gr !uk
 
   let compare_locals (n1,n2) h1 h2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
@@ -1062,11 +1062,12 @@ struct
           incr uk
     in
     PP.iter f h1;
-    let k1 = Set.of_enum @@ PP.keys h1 in
+    (* let k1 = Set.of_enum @@ PP.keys h1 in
     let k2 = Set.of_enum @@ PP.keys h2 in
     let o1 = Set.cardinal @@ Set.diff k1 k2 in
     let o2 = Set.cardinal @@ Set.diff k2 k1 in
-    Printf.printf "locals: \tequal = %d\t%s = %d[%d]\t%s = %d[%d]\tincomparable = %d\n" !eq n1 !le o1 n2 !gr o2 !uk
+    Printf.printf "locals: \tequal = %d\t%s = %d[%d]\t%s = %d[%d]\tincomparable = %d\n" !eq n1 !le o1 n2 !gr o2 !uk *)
+    Printf.printf "locals: \tequal = %d\t%s = %d\t%s = %d\tincomparable = %d\n" !eq n1 !le n2 !gr !uk
 
   let compare_locals_ctx (n1,n2) h1 h2 =
     let eq, le, gr, uk, no2 = ref 0, ref 0, ref 0, ref 0, ref 0 in
@@ -1097,7 +1098,7 @@ struct
     (* let k2 = Set.of_enum @@ PP.keys h2 in *)
     (* let o1 = Set.cardinal @@ Set.diff k1 k2 in *)
     (* let o2 = Set.cardinal @@ Set.diff k2 k1 in *)
-    Printf.printf "locals_ctx:\tequal = %d\t%s = %d\t\t%s = %d\tincomparable = %d\tno_ctx_in_%s = %d\n" !eq n1 !le n2 !gr !uk n2 !no2
+    Printf.printf "locals_ctx:\tequal = %d\t%s = %d\t%s = %d\tincomparable = %d\tno_ctx_in_%s = %d\n" !eq n1 !le n2 !gr !uk n2 !no2
 
   let compare names (l1,g1) (l2,g2) =
     let one_ctx (n,_) v h =
@@ -1109,7 +1110,7 @@ struct
     let h2 = PP.create 113 in
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
-    Printf.printf "\nComparing results of %s with %s:\n" (fst names) (snd names);
+    Printf.printf "\nComparing precision of %s with %s:\n" (fst names) (snd names);
     compare_globals names g1 g2;
     compare_locals names h1 h2;
     compare_locals_ctx names l1 l2;
