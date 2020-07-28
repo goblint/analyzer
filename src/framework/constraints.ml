@@ -1015,6 +1015,32 @@ struct
 
   module PP = Hashtbl.Make (MyCFG.Node)
 
+  let compare_globals (n1,n2) g1 g2 =
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq in
+    let f_le () = incr le in
+    let f_gr () = incr gr in
+    let f_uk () = incr uk in
+    let f k v1 =
+      let v2 = try GH.find g2 k with Not_found -> G.bot () in
+      let b1 = G.leq v1 v2 in
+      let b2 = G.leq v2 v1 in
+      if b1 && b2 then
+        f_eq ()
+      else if b1 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k n1 G.pretty_diff (v1,v2));
+        f_le ()
+      end else if b2 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k n2 G.pretty_diff (v1,v2));
+        f_gr ()
+      end else
+        f_uk ()
+    in
+    GH.iter f g1;
+    Printf.printf "globals:\tequal = %d\t%s = %d\t\t%s = %d\tincomparable = %d\n" !eq n1 !le n2 !gr !uk
+
   let compare_locals (n1,n2) h1 h2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
     let f k v1 =
@@ -1041,32 +1067,6 @@ struct
     let o1 = Set.cardinal @@ Set.diff k1 k2 in
     let o2 = Set.cardinal @@ Set.diff k2 k1 in
     Printf.printf "locals: \tequal = %d\t%s = %d[%d]\t%s = %d[%d]\tincomparable = %d\n" !eq n1 !le o1 n2 !gr o2 !uk
-
-  let compare_globals (n1,n2) g1 g2 =
-    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
-    let f_eq () = incr eq in
-    let f_le () = incr le in
-    let f_gr () = incr gr in
-    let f_uk () = incr uk in
-    let f k v1 =
-      let v2 = try GH.find g2 k with Not_found -> G.bot () in
-      let b1 = G.leq v1 v2 in
-      let b2 = G.leq v2 v1 in
-      if b1 && b2 then
-        f_eq ()
-      else if b1 then begin
-        if get_bool "solverdiffs" then
-          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k n1 G.pretty_diff (v1,v2));
-        f_le ()
-      end else if b2 then begin
-        if get_bool "solverdiffs" then
-          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k n2 G.pretty_diff (v1,v2));
-        f_gr ()
-      end else
-        f_uk ()
-    in
-    GH.iter f g1;
-    Printf.printf "globals:\tequal = %d\t%s = %d\t\t%s = %d\tincomparable = %d\n" !eq n1 !le n2 !gr !uk
 
   let compare_locals_ctx (n1,n2) h1 h2 =
     let eq, le, gr, uk, no2 = ref 0, ref 0, ref 0, ref 0, ref 0 in
