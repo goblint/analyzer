@@ -83,6 +83,8 @@ let _ = ()
       ; reg Std "interact.enabled" "false"       "Is interactive mode enabled."
       ; reg Std "interact.paused" "false"        "Start interactive in pause mode."
       ; reg Std "phases"          "[]"           "List of phases. Per-phase settings overwrite global ones."
+      ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
+      ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
 
 (* {4 category [Analyses]} *)
 let _ = ()
@@ -263,6 +265,8 @@ let default_schema = "\
   , 'colors'          : {}
   , 'g2html'          : {}
   , 'interact'        : {}
+  , 'save_run'        : {}
+  , 'load_run'        : {}
   }
 }"
 

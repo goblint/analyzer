@@ -323,10 +323,42 @@ struct
     let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
 
     let solve_and_postprocess () =
-      if (get_bool "dbg.verbose") then
-        print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
-      if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
-      let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
+      (* handle save_run/load_run *)
+      let append_opt opt file = let o = get_string opt in if o = "" then "" else o ^ Filename.dir_sep ^ file in
+      let solver_file = "solver.marshalled" in
+      let save_run = append_opt "save_run" solver_file in
+      let load_run = append_opt "load_run" solver_file in
+
+      let lh, gh = if load_run <> "" then (
+          if get_bool "dbg.verbose" then
+            print_endline ("Loading the solver result of a saved run from " ^ load_run);
+          Serialize.unmarshal load_run
+        ) else (
+          if get_bool "dbg.verbose" then
+            print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Show stats with ctrl+c, quit with ctrl+\\.");
+          if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
+          let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
+          if save_run <> "" then (
+            let config = append_opt "save_run" "config.json" in
+            let meta = append_opt "save_run" "meta.json" in
+            if get_bool "dbg.verbose" then (
+              print_endline ("Saving the solver result to " ^ save_run ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
+            );
+            ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
+            Serialize.marshal (lh, gh) save_run;
+            GobConfig.write_file config;
+            let module Meta = struct
+                type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
+                let command = String.concat " " (Array.to_list Sys.argv)
+                let json = to_yojson { command; timestamp = Unix.time (); localtime = GU.localtime () }
+              end
+            in
+            (* Yojson.Safe.to_file meta Meta.json; *)
+            Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json (* the above is compact, this is pretty-printed *)
+          );
+          lh, gh
+        )
+      in
 
       if get_string "comparesolver" <> "" then (
         let compare_with (module S2 :  GenericGlobSolver) =
