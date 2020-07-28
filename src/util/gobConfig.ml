@@ -60,6 +60,9 @@ sig
   (** Get a list of values *)
   val get_list : string -> jvalue list
 
+  (** Get a list of strings *)
+  val get_string_list : string -> string list
+
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
 
@@ -270,6 +273,7 @@ struct
   let get_string = get_path_string string "string"
   let get_length = List.length % (!) % get_path_string array "array"
   let get_list = List.map (!) % (!) % get_path_string array "array"
+  let get_string_list = List.map string % get_list
 
   (** Helper functions for writing values. *)
   let set_path_string st v =

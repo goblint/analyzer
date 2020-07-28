@@ -328,11 +328,20 @@ struct
       let solver_file = "solver.marshalled" in
       let save_run = append_opt "save_run" solver_file in
       let load_run = append_opt "load_run" solver_file in
+      let compare_runs = get_string_list "compare_runs" in
 
       let lh, gh = if load_run <> "" then (
           if get_bool "dbg.verbose" then
             print_endline ("Loading the solver result of a saved run from " ^ load_run);
           Serialize.unmarshal load_run
+        ) else if compare_runs <> [] then (
+          match compare_runs with
+          | d1::d2::[] -> (* the directories of the runs *)
+            if d1 = d2 then print_endline "Beware that you are comparing a run with itself! There should be no differences.";
+            let r1, r2 = Tuple2.mapn (fun d -> Serialize.unmarshal (d ^ Filename.dir_sep ^ solver_file)) (d1, d2) in
+            Comp.compare (d1, d2) r1 r2;
+            r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
+          | _ -> failwith "Currently only two runs can be compared!";
         ) else (
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Show stats with ctrl+c, quit with ctrl+\\.");
@@ -364,12 +373,12 @@ struct
         let compare_with (module S2 :  GenericGlobSolver) =
           let module S2' = S2 (EQSys) (LHT) (GHT) in
           let r2 = S2'.solve entrystates [] startvars' in
-          Comp.compare (lh,gh) (r2)
+          Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
       );
 
-      if get_bool "verify" then (
+      if get_bool "verify" && compare_runs = [] then (
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
         Goblintutil.should_warn := true;
         Vrfyr.verify lh gh;
