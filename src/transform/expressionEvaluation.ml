@@ -9,6 +9,11 @@ module Transform : TransformationBase.S =
           compare location_1.byte location_2.byte
       end)
 
+    let read_line_with_prompt text =
+      print_string text;
+      flush stdout;
+      read_line ()
+
     let get_statements functions =
       let rec resolve_statements (block : Cil.block) =
         block.bstmts
@@ -16,11 +21,11 @@ module Transform : TransformationBase.S =
           |> List.flatten
       and expand statement =
         match statement.skind with
-        | (Cil.Instr _ | Cil.Return _ | Cil.Goto _ | Cil.Break _ | Cil.Continue _) ->
+        | (Instr _ | Return _ | Goto _ | Break _ | Continue _) ->
             [statement]
-        | (Cil.Switch (_, block, _, _) | Cil.Loop (block, _, _, _) | Cil.Block block) ->
+        | (Switch (_, block, _, _) | Loop (block, _, _, _) | Block block) ->
             (resolve_statements block)
-        | Cil.If (_, block_1, block_2, _) ->
+        | If (_, block_1, block_2, _) ->
             (resolve_statements block_1) @ (resolve_statements block_2)
         | _ ->
             []
@@ -35,57 +40,64 @@ module Transform : TransformationBase.S =
         |> List.filter (fun ((l : Cil.location), _, _) -> l.line >= 0)
         (* Transform to mapping *)
         |> List.fold_left (fun statements (l, f, s) -> LocationMap.add l (f, s) statements) LocationMap.empty
+    let get_variables functions =
+      functions
+        |> List.map (fun (f : Cil.fundec) -> f.slocals)
+        |> List.flatten
+        |> List.fold_left (fun variables (v : Cil.varinfo) -> Hashtbl.add variables v.vid v; variables) (Hashtbl.create 0)
 
     let transform ask (file : Cil.file) =
+
       let functions = List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None) file.globals in
-
-      let query_file_name = "test.json" in (* TODO *)
-
-      let query = SyntacticalAnalyzer.JsonParser.parse_json_file query_file_name in
-      let query_result = SyntacticalAnalyzer.QueryMapping.map_query query file in
-
-      print_endline (SyntacticalAnalyzer.ResultPrinter.print_result query_result query);
-
-      let variable_name = match query.tar with SyntacticalAnalyzer.JsonParser.Name_t name -> name | _ -> raise Exit in
-      let variables =
-        functions
-          |> List.map (fun (f : Cil.fundec) -> f.slocals)
-          |> List.flatten
-          |> List.fold_left (fun variables (v : Cil.varinfo) -> Hashtbl.add variables v.vid v; variables) (Hashtbl.create 0)
-      in
+      let statements = get_statements functions in
+      let variables = get_variables functions in
 
       let global_translation =
         file.globals
           |> List.filter_map (function Cil.GVar (variable, _, _) -> Some (variable.vname, Cil.Fv variable) | _ -> None)
       in
 
-      let statements = get_statements functions in
+      let variable_name = read_line_with_prompt "Variable: " (* TODO *) in
+      let expression_string = read_line_with_prompt "Expression: " (* TODO *) in
 
-      print_string "Expression: ";
-      flush stdout;
-      let expression_string = read_line () in (* TODO *)
-
-      let evaluate_single (_, location, _, identifier) =
-        let delimiter = "-----" in
-        print_endline delimiter;
-        match LocationMap.find_opt location statements with
-        | Some (function_declaration, statement) ->
-            let translation =
-              match Hashtbl.find_opt variables identifier with
-              | Some variable -> (variable_name, Cil.Fv variable)::global_translation
-              | None -> global_translation
-            in
-            let expression = Formatcil.cExp expression_string translation in
-            (match ask location (Queries.EvalInt expression) with
-            | `Bot -> "Bot"
-            | `Int value -> IntDomain.FlatPureIntegers.to_yojson value |> Yojson.Safe.to_string
-            | `Top -> "Top"
-            | _ -> raise Exit)
-              |> print_endline
-        | None ->
-            print_endline "No statement"
+      let query : SyntacticalAnalyzer.JsonParser.query =
+        {
+          sel = [];
+          k = Var_k;
+          tar = Name_t variable_name;
+          f = Uses_f;
+          str = NonCond_s;
+          lim = None_c;
+        }
       in
+      let query_result = SyntacticalAnalyzer.QueryMapping.map_query query file in
+
+      let evaluate_single (_, (location : Cil.location), _, identifier) =
+        print_endline ("------ Line " ^ (string_of_int location.line) ^ ":");
+        print_endline
+          begin
+            match LocationMap.find_opt location statements with
+            | Some (function_declaration, statement) ->
+                let translation =
+                  match Hashtbl.find_opt variables identifier with
+                  | Some variable -> (variable_name, Cil.Fv variable)::global_translation
+                  | None -> global_translation
+                in
+                let expression = Formatcil.cExp expression_string translation in
+                begin
+                  match ask location (Queries.EvalInt expression) with
+                  | `Bot -> "Bot"
+                  | `Int value -> IntDomain.FlatPureIntegers.to_yojson value |> Yojson.Safe.to_string
+                  | `Top -> "Top"
+                  | _ -> raise Exit
+                end
+            | None ->
+                "No statement"
+          end
+      in
+
       List.iter evaluate_single query_result
+
   end
 
 let _ =
