@@ -45,9 +45,8 @@ rule() {
       dune build $TARGET.bc.js &&
       node _build/default/$TARGET.bc.js
     ;; watch)
-      dune build -w $TARGET.exe
-      # dune runtest -w --no-buffer
-
+      # dune build -w $TARGET.exe
+      dune runtest --no-buffer --watch
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
@@ -91,7 +90,10 @@ rule() {
       opam_setup
     ;; dev)
       echo "Installing opam packages for development..."
-      opam install utop merlin ocp-indent ounit2
+      opam install utop merlin ocp-indent ocamlformat ounit2
+      # needed for https://github.com/ocamllabs/vscode-ocaml-platform
+      # used https://github.com/jaredly/reason-language-server before, but has no support for OCaml 4.10 yet
+      opam pin add ocaml-lsp-server https://github.com/ocaml/ocaml-lsp.git
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -
@@ -101,10 +103,7 @@ rule() {
       curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
       tar xf master.tar.gz && rm master.tar.gz
       rm -rf linux-headers && mv linux-headers-master linux-headers
-      cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
-      cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc7.h
-      cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc8.h
-      cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc9.h
+      for n in $(compgen -c gcc- | sed 's/gcc-//'); do if [ $n != 5 ]; then cp -n linux-headers/include/linux/compiler-gcc{5,$n}.h; fi; done
     ;; lock)
       opam lock
     ;; npm)

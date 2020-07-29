@@ -7,7 +7,7 @@ module All = struct
   let flat_map f = List.flatten % List.map f
   let str_remove m s = String.nreplace ~str:s ~sub:m ~by:""
   (* Sys.time gives runtime in seconds as float *)
-  let split_time () = (* gives runtime in h,m,s,ms *)
+  let split_time () = (* gives CPU time in h,m,s,ms *)
     let f = Sys.time () in
     let i = int_of_float f in
     let ms = int_of_float (Float.modulo f 1.0 *. 1000.) in

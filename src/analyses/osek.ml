@@ -411,7 +411,7 @@ struct
     let remove_acc acc set = AccValSet.filter (ign_flag_filter acc) set in
     if (Base.is_global ctx.ask v) then begin
       if not (is_task v.vname) || flagstate = Flags.top() then begin
-        if not !GU.may_narrow then begin
+        if !GU.should_warn then begin
           let new_acc = ((loc,fl,rv),ust,o) in
           let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
           let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) (remove_acc new_acc curr) in

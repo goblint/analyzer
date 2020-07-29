@@ -58,9 +58,9 @@ let jsonFiles : string list ref = ref []
 (** has user specified other thread functions *)
 let has_otherfuns = ref false
 
-(** Tells the spec that result may still get smaller (on narrowing).
-    If this is false we can output messages and collect accesses. *)
-let may_narrow = ref true
+(** If this is true we output messages and collect accesses.
+    This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
+let should_warn = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009)
@@ -113,7 +113,7 @@ let earlyglobs = ref false
 (** true if in verifying stage *)
 let in_verifying_stage = ref false
 
-(* None for noverify, Some true for verified, Some false if verfication failed *)
+(* None if verification is disabled, Some true if verification succeeded, Some false if verfication failed *)
 let verified : bool option ref = ref None
 
 let escape (x:string):string =
@@ -437,3 +437,8 @@ let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 let get_goblint_path = Filename.dirname BatSys.executable_name
 
 let tryopt f a = try Some (f a) with _ -> None (* reason: match .. with _ does not include exceptions, or-patterns currently not supported for exceptions *)
+
+let localtime () =
+  let open Unix in
+  let tm = time () |> localtime in
+  Printf.sprintf "%d-%02d-%02d %02d:%02d:%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec

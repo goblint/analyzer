@@ -20,7 +20,7 @@
 
 (rule
   (alias runtest)
-  (deps ../scripts/update_suite.rb ../goblint ../Makefile (source_tree ../tests))
+  (deps ../goblint ../scripts/update_suite.rb ../Makefile (source_tree ../tests) (source_tree ../includes))
   (action (chdir .. (run ./make.sh test)))
 )
 

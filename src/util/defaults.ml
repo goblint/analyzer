@@ -60,7 +60,7 @@ let _ = ()
       ; reg Std "dopartial"       "false"        "Use Cil's partial evaluation & constant folding."
       ; reg Std "printstats"      "false"        "Outputs timing information."
       ; reg Std "gccwarn"         "false"        "Output warnings in GCC format."
-      ; reg Std "noverify"        "false"        "Skip the verification phase."
+      ; reg Std "verify"          "true"         "Verify that the solver reached a post-fixpoint. Beware that disabling this also disables output of warnings since post-processing of the results is done in the verification phase!"
       ; reg Std "mainfun"         "['main']"     "Sets the name of the main functions."
       ; reg Std "exitfun"         "[]"           "Sets the name of the cleanup functions."
       ; reg Std "otherfun"        "[]"           "Sets the name of other functions."
@@ -72,7 +72,7 @@ let _ = ()
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
       ; reg Std "result"          "'none'"       "Result style: none, indented, compact, fast_xml, json, mongo, or pretty."
       ; reg Std "warnstyle"       "'pretty'"     "Result style: legacy, pretty, or xml."
-      ; reg Std "solver"          "'effectWCon'" "Picks the solver."
+      ; reg Std "solver"          "'td3'"         "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
       ; reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main). This requires exp.earlyglobs!"
@@ -83,6 +83,9 @@ let _ = ()
       ; reg Std "interact.enabled" "false"       "Is interactive mode enabled."
       ; reg Std "interact.paused" "false"        "Start interactive in pause mode."
       ; reg Std "phases"          "[]"           "List of phases. Per-phase settings overwrite global ones."
+      ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
+      ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
+      ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
 
 (* {4 category [Analyses]} *)
 let _ = ()
@@ -162,6 +165,7 @@ let _ = ()
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Method depends on exp.full-context - costly if true."
       ; reg Experimental "exp.solver.td3.term"  "true" "Should the td3 solver use the phased/terminating strategy?"
+      ; reg Experimental "exp.solver.td3.side_widen"  "'cycle'" "When to widen in side. never: never widen, always: always widen, cycle: widen if any called var gets destabilzed, cycle_self: widen if side-effected var gets destabilized"
       ; reg Experimental "exp.solver.td3.space" "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Needed for inspecting output!"
@@ -195,14 +199,14 @@ let _ = ()
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
       ; reg Debugging "dbg.limit.widen"     "0"     "Limit for number of widenings per node (0 = no limit)."
-      ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts)."
+      ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
 
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
 , 'properties' :
   { 'ana' :
@@ -236,7 +240,7 @@ let default_schema = "\
   , 'dopartial'       : {}
   , 'printstats'      : {}
   , 'gccwarn'         : {}
-  , 'noverify'        : {}
+  , 'verify'        : {}
   , 'mainfun'         : {}
   , 'exitfun'         : {}
   , 'otherfun'        : {}
@@ -262,6 +266,9 @@ let default_schema = "\
   , 'colors'          : {}
   , 'g2html'          : {}
   , 'interact'        : {}
+  , 'save_run'        : {}
+  , 'load_run'        : {}
+  , 'compare_runs'    : {}
   }
 }"
 
