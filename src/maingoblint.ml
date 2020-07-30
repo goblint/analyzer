@@ -169,8 +169,7 @@ let preprocess_one_file cppflags includes fname =
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
   (* Handy (almost) constants. *)
-  let myname = Filename.dirname Sys.executable_name in
-  let kernel_root = Filename.concat myname "linux-headers" in
+  let kernel_root = Filename.concat exe_dir "linux-headers" in
   let kernel_dir = kernel_root ^ "/include" in
   let arch_dir = kernel_root ^ "/arch/x86/include" in
 
@@ -179,7 +178,7 @@ let preprocess_files () =
 
   (* the base include directory *)
   let include_dir =
-    let incl1 = Filename.concat myname "includes" in
+    let incl1 = Filename.concat exe_dir "includes" in
     let incl2 = "/usr/share/goblint/includes" in
     if get_string "custom_incl" <> "" then (get_string "custom_incl")
     else if Sys.file_exists incl1 then incl1
