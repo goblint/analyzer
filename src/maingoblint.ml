@@ -75,7 +75,7 @@ let option_spec_list =
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
     if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" goblint_path;
+      set_string "exp.g2html_path" exe_dir;
     set_bool "dbg.print_dead_code" true;
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
@@ -435,6 +435,10 @@ let main =
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
+        if get_bool "dbg.verbose" then (
+          print_endline (localtime ());
+          print_endline command;
+        );
         let file = preprocess_files () |> merge_preprocessed in
         let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
         file|> do_analyze changeInfo;
