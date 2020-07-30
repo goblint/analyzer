@@ -111,13 +111,17 @@ rule() {
       opam lock
     ;; npm)
       if test ! -e "webapp/package.json"; then
+        mv gitmodules .gitmodules # undo this nonsense once this is fixed: https://github.com/microsoft/vscode/issues/103235
         git submodule update --init --recursive webapp
+        mv .gitmodules gitmodules
       fi
       cd webapp && npm install && npm start
     ;; jar)
       echo "Make sure you have the following installed: javac, ant"
       if test ! -e "g2html/build.xml"; then
+        mv gitmodules .gitmodules
         git submodule update --init --recursive g2html
+        mv .gitmodules gitmodules
       fi
       cd g2html && ant jar && cd .. &&
       cp g2html/g2html.jar .
