@@ -359,7 +359,7 @@ struct
             let module Meta = struct
                 type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
                 let command = String.concat " " (Array.to_list Sys.argv)
-                let json = to_yojson { command; timestamp = Unix.time (); localtime = GU.localtime () }
+                let json = to_yojson { command; timestamp = Unix.time (); localtime = localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)

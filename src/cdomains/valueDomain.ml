@@ -323,7 +323,7 @@ struct
               | _ -> log_top __POS__; AD.top_ptr
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
-          `Array (match v, Goblintutil.tryopt Cil.lenOfArray l with
+          `Array (match v, Prelude.try_opt Cil.lenOfArray l with
               | `Array x, _ (* Some l' when Some l' = CArrays.length x *) -> x (* TODO handle casts between different sizes? *)
               | _ -> log_top __POS__; CArrays.top ()
             )

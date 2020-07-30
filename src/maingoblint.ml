@@ -75,7 +75,7 @@ let option_spec_list =
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
     if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" get_goblint_path;
+      set_string "exp.g2html_path" goblint_path;
     set_bool "dbg.print_dead_code" true;
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
