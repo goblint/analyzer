@@ -99,9 +99,8 @@ let option_spec_list =
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
   ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
-  ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
-  ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
   ; "--html"               , Arg.Unit (fun _ -> configure_html ()),""
+  ; "--compare_runs"       , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x))], ""
   ; "--oil"                , Arg.String oil, ""
   (*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
   ; "--osekdefaults"       , Arg.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
