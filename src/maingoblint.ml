@@ -126,7 +126,7 @@ let parse_arguments () =
     else cFileNames := fname :: !cFileNames
   in
   Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
-  if !writeconffile <> "" then begin GobConfig.write_file !writeconffile; raise Exit end
+  if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -134,18 +134,17 @@ let handle_flags () =
   if has_oil then Osek.Spec.parse_oil ();
 
   if get_bool "dbg.debug" then Messages.warnings := true;
-  if get_bool "dbg.verbose" then begin
+  if get_bool "dbg.verbose" then (
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;
     Errormsg.verboseFlag := true
-  end;
+  );
 
   match get_string "dbg.dump" with
   | "" -> ()
-  | path -> begin
+  | path ->
       Messages.warn_out := Legacy.open_out (Legacy.Filename.concat path "warnings.out");
       set_string "outfile" ""
-    end
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let preprocess_one_file cppflags includes fname =
@@ -236,7 +235,7 @@ let preprocess_files () =
     cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)
-  if get_bool "kernel" then begin
+  if get_bool "kernel" then (
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
     cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
@@ -246,7 +245,7 @@ let preprocess_files () =
         kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
         arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
       ]
-  end;
+  );
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
@@ -292,7 +291,7 @@ let do_analyze change_info merged_AST =
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST
-  else begin
+  else (
     (* we first find the functions to analyze: *)
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
@@ -334,23 +333,23 @@ let do_analyze change_info merged_AST =
 
     (* Analyze with the new experimental framework. *)
     Stats.time "analysis" (do_all_phases merged_AST) funs
-  end
+  )
 
 let do_html_output () =
   (* if we are in Cygwin, we use the host's Java and GraphViz -> paths need to be converted from Cygwin to Windows style *)
   let get_path path = if Sys.os_type = "Cygwin" then "$(cygpath -wa "^path^")" else path in
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
-  if get_bool "g2html" then begin
-    if Sys.file_exists jar then begin
+  if get_bool "g2html" then (
+    if Sys.file_exists jar then (
       let command = "java -jar "^get_path jar^" --result-dir "^get_path (get_string "outfile")^" "^get_path !Messages.xml_file_name in
       try match Unix.system command with
         | Unix.WEXITED 0 -> ()
         | _ -> eprintf "HTML generation failed!\n"
       with Unix.Unix_error (e, f, a) ->
         eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
-    end else
+    ) else
       eprintf "Warning: jar file %s not found.\n" jar
-  end
+  )
 
 let check_arguments () =
   let fail m = failwith ("Option clash: " ^ m) in
