@@ -47,11 +47,6 @@ let open_sockets i =
 (** prints the CFG on [getCFG] *)
 let cfg_print = ref false
 
-(** filter result xml *)
-let result_filter = ref ".*"
-
-let result_regexp = ref (Str.regexp "")
-
 (** Json files that are given as arguments *)
 let jsonFiles : string list ref = ref []
 

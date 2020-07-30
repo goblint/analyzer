@@ -283,8 +283,6 @@ struct
     List.iter (one_w f) !Messages.warning_table
 
   let output table gtable gtxml gtfxml (file: file) =
-    if (get_bool "dbg.verbose") then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
-    GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
