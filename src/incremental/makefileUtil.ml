@@ -60,8 +60,12 @@ let run_cilly (path: string) =
      with Failure e -> ()); (* Deleted all *_comb.c files in the directory *)
     (* Combine source files with make using cilly as compiler *)
     let gcc_path = GobConfig.get_string "exp.gcc_path" in
-    let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
+    let command = ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
                                                   "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
+    print_endline @@ "Trying to build project in directory: " ^ path;
+    print_endline command;
+    let (exit_code, output) = exec_command ~path command in
+
     print_string output;
     (* fail if make failed *)
     if exit_code <> WEXITED 0 then
