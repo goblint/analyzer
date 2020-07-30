@@ -109,6 +109,6 @@ let do_stats fileNames =
   | true, _ ->
     ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
     print_newline ();
-    Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n";
+    Stats.print (M.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ();
   | _ -> ()
