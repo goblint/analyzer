@@ -482,7 +482,7 @@ struct
 
     Spec.finalize ();
 
-    if (get_bool "dbg.verbose") then print_endline "Generating output.";
+    if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Result.output (lazy local_xml) gh make_global_xml make_global_fast_xml file
 
 
