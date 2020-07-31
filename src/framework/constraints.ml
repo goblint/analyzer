@@ -1015,6 +1015,9 @@ struct
 
   module PP = Hashtbl.Make (MyCFG.Node)
 
+  let compare_time h1 h2 =
+    Printf.printf "time: %s=%f\t%s=%f\n" (get_string "solver") (Stats.lookupTime (get_string "solver")) (get_string "comparesolver") (Stats.lookupTime (get_string "comparesolver"))
+
   let compare_locals h1 h2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
     let f k v1 =
@@ -1110,7 +1113,8 @@ struct
     let _  = LH.fold one_ctx l2 h2 in
     compare_locals h1 h2;
     compare_globals g1 g2;
-    compare_locals_ctx l1 l2
+    compare_locals_ctx l1 l2;
+    compare_time h1 h2
 
 end
 

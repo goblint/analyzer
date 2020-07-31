@@ -341,13 +341,13 @@ struct
     let lh_ref = ref (LHT.create 0) in
     let do_analyze_using_solver () =
       if get_bool "dbg.earlywarn" then Goblintutil.may_narrow := false;
-      let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
+      let lh, gh = Stats.time (get_string "solver") (Slvr.solve entrystates []) startvars' in
       lh_ref := lh;
 
       if not (get_string "comparesolver"="") then begin
         let compare_with (module S2 :  GenericGlobSolver) =
           let module S2' = S2 (EQSys) (LHT) (GHT) in
-          let r2 = S2'.solve entrystates [] startvars' in
+          let r2 = Stats.time (get_string "comparesolver") (S2'.solve entrystates []) startvars' in
           Comp.compare (lh,gh) (r2)
         in
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
