@@ -387,7 +387,7 @@ struct
       if get_string "comparesolver" <> "" then (
         let compare_with (module S2 :  GenericGlobSolver) =
           let module S2' = S2 (EQSys) (LHT) (GHT) in
-          let r2 = S2'.solve entrystates [] startvars' in
+          let r2 = Stats.time (get_string "comparesolver") (S2'.solve entrystates []) startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
