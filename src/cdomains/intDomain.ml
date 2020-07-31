@@ -777,8 +777,8 @@ struct
     | `Excluded _, `Excluded _ -> top ()
     (* A definite value should be applied to all members of the exclusion set *)
     | `Definite x, `Excluded (s,r) ->
-      let min = Option.map (f x) (min_of_range r) in
-      let max = Option.map (f x) (max_of_range r) in
+      let min = BatOption.map (f x) (min_of_range r) in
+      let max = BatOption.map (f x) (max_of_range r) in
       let r'  = match min, max with
       | Some min, Some max ->
         R.join (size (Size.min_for min)) (size (Size.min_for max))
@@ -786,8 +786,8 @@ struct
       `Excluded (S.map (f x)  s, r')
     (* Same thing here, but we should flip the operator to map it properly *)
     | `Excluded (s,r), `Definite x -> let f x y = f y x in
-      let min = Option.map (f x) (min_of_range r) in
-      let max = Option.map (f x) (max_of_range r) in
+      let min = BatOption.map (f x) (min_of_range r) in
+      let max = BatOption.map (f x) (max_of_range r) in
       let r' = match min, max with
       | Some min, Some max -> R.join (size (Size.min_for min)) (size (Size.min_for max))
       | _ , _ -> top_range in
