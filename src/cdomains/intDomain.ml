@@ -708,8 +708,8 @@ struct
   let starting x = if x > 0L then not_zero else top ()
   let ending x = if x < 0L then not_zero else top ()
 
-  let max_of_range r = BatOption.map (fun i -> Int64.(pred @@ shift_left 1L (to_int i))) (R.maximal r)
-  let min_of_range r = BatOption.map (fun i -> Int64.(neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
+  let max_of_range r = Option.map (fun i -> Int64.(pred @@ shift_left 1L (to_int i))) (R.maximal r)
+  let min_of_range r = Option.map (fun i -> Int64.(if i = zero then zero else neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
   let maximal : t -> int64 option = function
     | `Definite x -> Integers.to_int x
     | `Excluded (s,r) -> max_of_range r
