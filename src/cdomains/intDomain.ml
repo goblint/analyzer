@@ -13,6 +13,7 @@ sig
   include Lattice.S
   val to_int: t -> int64 option
   val of_int: int64 -> t
+  val of_int_ikind: Cil.ikind -> int64 -> t
   val is_int: t -> bool
   val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
 
@@ -167,6 +168,7 @@ struct
   let to_int = function Some (x,y) when Int64.compare x y = 0 -> Some x | _ -> None
   let of_interval (x,y) = norm @@ Some (x,y)
   let of_int x = of_interval (x,x)
+  let of_int_ikind _ = of_int
   let zero = Some (0L, 0L)
   let one  = Some (1L, 1L)
   let top_bool = Some (0L, 1L)
@@ -383,6 +385,7 @@ struct
   let to_bool x = Some (to_bool' x)
   let is_bool _ = true
   let of_int  x = x
+  let of_int_ikind _ = of_int
   let to_int  x = Some x
   let is_int  _ = true
 
@@ -452,6 +455,7 @@ struct
     | `Lifted x -> Base.equal_to i x
 
   let of_int  x = `Lifted (Base.of_int x)
+  let of_int_ikind _ = of_int
   let to_int  x = match x with
     | `Lifted x -> Base.to_int x
     | _ -> None
@@ -526,6 +530,7 @@ struct
     | `Lifted x -> Base.equal_to i x
 
   let of_int  x = `Lifted (Base.of_int x)
+  let of_int_ikind _ = of_int
   let to_int  x = match x with
     | `Lifted x -> Base.to_int x
     | _ -> None
@@ -710,6 +715,7 @@ struct
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.union x y, R.meet wx wy)
 
   let of_int  x = `Definite (Integers.of_int x)
+  let of_int_ikind _ = of_int
   let to_int  x = match x with
     | `Definite x -> Integers.to_int x
     | _ -> None
@@ -916,6 +922,7 @@ struct
     | Int(w,a,b) when C.eq a b -> Some (C.to_int64 w a)
     | _ -> None
   let of_int x = I.of_int64 max_width x x
+  let of_int_ikind _ = of_int
   let is_int x =
     match x with
     | Int(_,a,b) -> C.eq a b
@@ -1223,6 +1230,7 @@ struct
   let to_bool x = Some x
   let is_bool x = not x
   let of_int x  = x = Int64.zero
+  let of_int_ikind _ = of_int
   let to_int x  = if x then None else Some Int64.zero
   let is_int x  = not x
 
@@ -1298,6 +1306,7 @@ module Enums : S = struct
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
 
   let of_int x = Inc [x]
+  let of_int_ikind _ = of_int
   let cast_to t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
 
   let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
@@ -1446,6 +1455,7 @@ module Enums : S = struct
     | _ -> None
   let is_bool = BatOption.is_some % to_bool
   let of_int  x = Inc [x]
+  let of_int_ikind _ = of_int
   let to_int = function Inc [x] -> Some x | _ -> None
   let is_int = BatOption.is_some % to_int
 
@@ -1512,6 +1522,7 @@ module IntDomTuple = struct
   let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
   let of_excl_list t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list t }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
+  let of_int_ikind t =  create { fi = fun (type a) (module I:S with type t = a) -> I.of_int_ikind t }
   let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
   let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
   let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }

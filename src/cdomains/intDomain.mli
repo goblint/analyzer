@@ -14,6 +14,9 @@ sig
   val of_int: int64 -> t
   (** Transform an integer literal to your internal domain representation. *)
 
+  val of_int_ikind: Cil.ikind -> int64 -> t
+   (** Transform an integer literal of the corresponding Cil.ikind to your internal domain representation. *)
+
   val is_int: t -> bool
   (** Checks if the element is a definite integer value. If this function
     * returns [true], the above [to_int] should return a real value. *)
