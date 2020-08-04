@@ -737,8 +737,8 @@ struct
   let starting x = if x > 0L then not_zero else top ()
   let ending x = if x < 0L then not_zero else top ()
 
-  let max_of_range r = Option.map (fun i -> Int64.(pred @@ shift_left 1L (to_int i))) (R.maximal r)
-  let min_of_range r = Option.map (fun i -> Int64.(neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
+  let max_of_range r = BatOption.map (fun i -> Int64.(pred @@ shift_left 1L (to_int i))) (R.maximal r)
+  let min_of_range r = BatOption.map (fun i -> Int64.(neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
   let maximal : t -> int64 option = function
     | `Definite x -> Integers.to_int x
     | `Excluded (s,r) -> max_of_range r
@@ -779,8 +779,8 @@ struct
     | `Excluded _, `Excluded _ -> top ()
     (* A definite value should be applied to all members of the exclusion set *)
     | `Definite x, `Excluded (s,r) ->
-      let min = Option.map (f x) (min_of_range r) in
-      let max = Option.map (f x) (max_of_range r) in
+      let min = BatOption.map (f x) (min_of_range r) in
+      let max = BatOption.map (f x) (max_of_range r) in
       let r'  = match min, max with
       | Some min, Some max ->
         R.join (size (Size.min_for min)) (size (Size.min_for max))
@@ -788,8 +788,8 @@ struct
       `Excluded (S.map (f x)  s, r')
     (* Same thing here, but we should flip the operator to map it properly *)
     | `Excluded (s,r), `Definite x -> let f x y = f y x in
-      let min = Option.map (f x) (min_of_range r) in
-      let max = Option.map (f x) (max_of_range r) in
+      let min = BatOption.map (f x) (min_of_range r) in
+      let max = BatOption.map (f x) (max_of_range r) in
       let r' = match min, max with
       | Some min, Some max -> R.join (size (Size.min_for min)) (size (Size.min_for max))
       | _ , _ -> top_range in
@@ -1444,14 +1444,14 @@ module Enums : S = struct
     | Inc xs when List.for_all ((<>) 0L) xs -> Some true
     | Exc (xs,_) when List.exists ((=) 0L) xs -> Some true
     | _ -> None
-  let is_bool = Option.is_some % to_bool
+  let is_bool = BatOption.is_some % to_bool
   let of_int  x = Inc [x]
   let to_int = function Inc [x] -> Some x | _ -> None
-  let is_int = Option.is_some % to_int
+  let is_int = BatOption.is_some % to_int
 
   let to_excl_list = function Exc (x,r) when x<>[] -> Some x | _ -> None
   let of_excl_list t x = Exc (x, size t)
-  let is_excl_list = Option.is_some % to_excl_list
+  let is_excl_list = BatOption.is_some % to_excl_list
   let starting     x = top ()
   let ending       x = top ()
   let maximal = function Inc xs when xs<>[] -> Some (List.last xs) | _ -> None
@@ -1495,8 +1495,8 @@ module IntDomTuple = struct
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
     f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
-  let mapp r (a,b,c,d) = Option.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
-  let map  r (a,b,c,d) = Option.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
+  let mapp r (a,b,c,d) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
+  let map  r (a,b,c,d) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
   let map2  r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc, opt_map2 (r.f2  (module I4)) xd yd
   let map2p r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc, opt_map2 (r.f2p  (module I4)) xd yd
