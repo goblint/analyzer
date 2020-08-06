@@ -131,18 +131,39 @@ module Transform : TransformationBase.S =
         let print evaluation =
           match evaluation with
           | ((location : Cil.location), Some value) ->
-              print_string ("Line " ^ (string_of_int location.line) ^ ": ");
+              let padding = 5 in
+              let line_number = string_of_int location.line in
+              for _ = 1 to padding - String.length line_number do
+                print_string " "
+              done;
+              (* Print line number *)
+              print_string (line_number ^ ": ");
+              (* Print statement *)
               print_endline
-              begin
-                match value with
-                | Some definite_value -> Int64.to_string definite_value
-                | None -> "Unknown"
-              end
+                begin
+                  LocationMap.find location statements
+                    |> Cil.d_stmt ()
+                    |> Pretty.sprint ~width:0
+                    |> String.split_on_char '\n'
+                    |> List.filter (fun line -> line.[0] <> '#')
+                    |> List.map String.trim
+                    |> List.fold_left (^) ""
+                end;
+              (* Print value *)
+              print_string ((String.make padding ' ') ^ "  -> ");
+              print_endline
+                begin
+                  match value with
+                  | Some definite_value -> Int64.to_string definite_value
+                  | None -> "Unknown"
+                end
           | (_, None) -> ()
         in
 
         query_result
           |> List.map (fun (_, location, _, _) -> location, evaluate location)
+          (* Sort by .line, since .byte does not work here (?) *)
+          |> List.sort (fun ((location_1 : Cil.location), _) ((location_2 : Cil.location), _) -> compare location_1.line location_2.line)
           |> List.iter print;
 
         if read_line_with_prompt "Exit? " = "y" then
