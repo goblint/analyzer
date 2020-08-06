@@ -323,7 +323,7 @@ struct
               | _ -> log_top __POS__; AD.top_ptr
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
-          `Array (match v, Goblintutil.tryopt Cil.lenOfArray l with
+          `Array (match v, Prelude.try_opt Cil.lenOfArray l with
               | `Array x, _ (* Some l' when Some l' = CArrays.length x *) -> x (* TODO handle casts between different sizes? *)
               | _ -> log_top __POS__; CArrays.top ()
             )
@@ -357,7 +357,8 @@ struct
 
 
   let warn_type op x y =
-    ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
+    if GobConfig.get_bool "dbg.verbose" then
+      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
 
   let leq x y =
     match (x,y) with

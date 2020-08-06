@@ -358,8 +358,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let command = String.concat " " (Array.to_list Sys.argv)
-                let json = to_yojson { command; timestamp = Unix.time (); localtime = GU.localtime () }
+                let json = to_yojson { command = GU.command; timestamp = Unix.time (); localtime = localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
@@ -483,7 +482,7 @@ struct
 
     Spec.finalize ();
 
-    if (get_bool "dbg.verbose") then print_endline "Generating output.";
+    if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Result.output (lazy local_xml) gh make_global_xml make_global_fast_xml file
 
 

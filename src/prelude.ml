@@ -6,15 +6,22 @@ module All = struct
   let compareBy ?cmp:(cmp=compare) f = comp2 cmp f
   let flat_map f = List.flatten % List.map f
   let str_remove m s = String.nreplace ~str:s ~sub:m ~by:""
+  let try_opt f a = try Some (f a) with _ -> None (* reason: match .. with _ does not include exceptions, or-patterns currently not supported for exceptions *)
+
   (* Sys.time gives runtime in seconds as float *)
   let split_time () = (* gives CPU time in h,m,s,ms *)
     let f = Sys.time () in
     let i = int_of_float f in
     let ms = int_of_float (Float.modulo f 1.0 *. 1000.) in
     i / 3600, i / 60 mod 60, i mod 60, ms
-  let string_of_time () =
+  let string_of_time () = (* CPU time as hh:mm:ss.ms *)
     let h,m,s,ms = split_time () in
     Printf.sprintf "%02d:%02d:%02d.%03d" h m s ms
+
+  let localtime () =
+    let open Unix in
+    let tm = time () |> localtime in
+    Printf.sprintf "%d-%02d-%02d %02d:%02d:%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec
 end
 include All (* shortcut so that 'open Prelude' is enough *)
 

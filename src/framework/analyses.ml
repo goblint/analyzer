@@ -283,22 +283,18 @@ struct
     List.iter (one_w f) !Messages.warning_table
 
   let output table gtable gtxml gtfxml (file: file) =
-    if (get_bool "dbg.verbose") then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
-    GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
-    | "indented" -> begin
+    | "indented" ->
         Xmldump.print_fmt out (resultXML (Lazy.force table));
         output_char out '\n'
-      end
-    | "compact" -> begin
+    | "compact" ->
         if (get_bool "dbg.verbose") then Printf.printf "Converting to xml.%!";
         let xml = resultXML (Lazy.force table) in
         if (get_bool "dbg.verbose") then Printf.printf "Printing the result.%!";
         Xmldump.print out xml;
         output_char out '\n'
-      end
     | "html" ->
       Htmldump.print_html out (resultXML (Lazy.force table)) file (lazy ((gtxml gtable) :: []))
     | "fast_xml" ->
