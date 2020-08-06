@@ -351,7 +351,7 @@ struct
                 | `Union x (* when same (Unions.keys x) *) -> x
                 | _ -> log_top __POS__; Unions.top ()
               )
-        (* | _ -> log_top (); `Top *)
+        | TBuiltin_va_list _ -> log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
       Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
