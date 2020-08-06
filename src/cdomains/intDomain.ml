@@ -362,6 +362,8 @@ struct
     Int64.compare x0 y0 >= 0 && Int64.compare x1 y1 <= 0
 end
 
+(* Most of functions implemented here basically work the same way as their respective ones from
+   Interval32, so they will be commented only if they differ significantly from the Interval32 ones*)
 module IntervalSet : S with type t = Set.Make(IntPair).t option =
 struct
   include Printable.Std
@@ -387,8 +389,9 @@ struct
   let short _ = function
   | None -> "bottom"
   | Some s ->
-    SS.elements s |> List.sort IntPair.compare |> List.rev |>
-        List.fold_left (fun str (x1, x2) -> str ^ ", [" ^ to_string x1 ^ "," ^ to_string x2 ^ "]") ""
+    let s_string = SS.elements s |> List.sort IntPair.compare |>
+        List.fold_left (fun str (x1, x2) -> str ^ "[" ^ to_string x1 ^ "," ^ to_string x2 ^ "], ") "" in
+    String.sub s_string 0 (String.length s_string - 2)
 
   let isSimple _ = true
   let name () = "set of 32bit intervals"
@@ -399,6 +402,13 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
   let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
 
+  (* meet_lists takes sorted lists of intervals. The algorithm works as follows:
+     - if selected intervals do not intersect, truncate the one with the least left border and proceed to the next one
+     - if selected intervals intersect
+       - and their right borders are equal, put their intersection to the accumulator
+         and proceed to the next intervals in both lists
+       - and their right borders are not equal, put their intersection to the accumulator and truncate the interval
+         with the least right border*)
   let rec meet_lists ?(acc = []) l1 l2 =
     match l1, l2 with
     | (x1, y1) :: xs1, (x2, y2) :: xs2 ->
@@ -413,6 +423,7 @@ struct
     | _, [] | [], _ ->
       if acc = [] then None else Some (SS.of_list acc)
 
+  (* recursively comparing lists (they are assumed to be sorted) *)
   let rec compare_lists l1 l2 =
     match l1, l2 with
     | (x1, x2) :: xs, (y1, y2) :: ys ->
@@ -422,6 +433,7 @@ struct
     | [], [] -> true
     | _, _ -> false
 
+  (* since s1 and s2 are basically unions of intervals, s1 <= s2 iff s1 meet s2 = s1 *)
   let leq s1 s2 =
     match s1, s2 with
     | None, _ -> true
@@ -437,7 +449,8 @@ struct
   let equal x y =
     match x, y with
     | None, None -> true
-    | Some s1, Some s2 -> SS.equal s1 s2
+    | Some s1, Some s2 ->
+      SS.equal s1 s2
     | _ -> false
 
   let norm = function None -> None | Some (x,y) ->
@@ -493,7 +506,8 @@ struct
     | true -> Some (SS.add (1L, 1L) SS.empty)
     | false -> Some (SS.add (0L, 0L) SS.empty)
 
-  let is_bool x = x <> None && not (leq zero x) || equal x zero
+  let is_bool x =
+    x <> None && not (leq zero x) || equal x zero
 
   let to_excl_list _ = None
   let of_excl_list t _ = top ()
@@ -518,17 +532,20 @@ struct
       let min_elt = SS.min_elt s in
       Some ((fun (x, y) -> x) min_elt)
 
+  (* takes a sorted list of intervals, iterates through them and merges two adjacent if they intersect*)
   let rec merge_intersect ?(acc = []) l =
     match l with
     | (x1, x2) :: xs when Int64.compare x1 x2 > 0 ->
       merge_intersect ~acc:acc xs
     | (x1, x2) :: (y1, y2) :: xs ->
-      if Int64.compare x2 y1-1 >= 0 then
+      if Int64.compare x2 (Int64.sub y1 1L) >= 0 then
         merge_intersect ~acc:acc ((x1, max x2 y2) :: xs)
       else merge_intersect ~acc:((x1, x2) :: acc) ((y1, y2) :: xs)
     | [(x1, x2)] -> merge_intersect ~acc:((x1, x2) :: acc) []
     | [] -> acc
 
+  (* recursive template for evaluating arithmetic operations which are performed pairwise
+     for each interval from both set operands *)
   let rec arithm ?(acc1 = []) ?(acc2 = []) f l1 l2 =
     if l1 = [] && l2 = [] && acc1 = [] && acc2 = [] then failwith "error: empty entry"
     else
@@ -544,7 +561,7 @@ struct
       | [], [], [] | _ :: _, [], [] -> failwith "error: empty entry"
 
   let add_interval (x1, x2) (y1, y2) =
-    norm_interval ((Int64.add x1 x2), (Int64.add y1 y2))
+    norm_interval ((Int64.add x1 y1), (Int64.add x2 y2))
 
   let add x y =
     match x, y with
@@ -598,7 +615,7 @@ struct
     | Some s1, Some s2 ->
       let l1 = SS.elements s1 in
       let l2 = SS.elements s2 in
-      let l_joined = merge_intersect (List.sort IntPair.compare l1 @ l2) in
+      let l_joined = merge_intersect (List.sort IntPair.compare (l1 @ l2)) in
       if l_joined = [] then None else Some (SS.of_list l_joined)
 
   let meet x y =
@@ -608,6 +625,7 @@ struct
                (List.sort IntPair.compare (SS.elements s1))
                (List.sort IntPair.compare (SS.elements s2))
 
+  (* the result of widening will always be one large interval *)
   let widen x y =
     match x, y with
     | None, None -> None
@@ -624,6 +642,7 @@ struct
       let u2 = if Int64.compare u0 u1 = 0 then u0 else max u1 max_int in
       norm @@ Some (l2, u2)
 
+  (* to be fixed *)
   let narrow x y =
     match x, y with
     | _, None | None, _ -> None
