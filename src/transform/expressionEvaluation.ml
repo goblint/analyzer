@@ -14,45 +14,52 @@ module Transform : TransformationBase.S =
       flush stdout;
       read_line ()
 
-    let get_statements functions =
-      let rec resolve_statements (block : Cil.block) =
-        block.bstmts
-          |> List.map expand
-          |> List.flatten
-      and expand statement =
-        match statement.skind with
-        | (Instr _ | Return _ | Goto _ | Break _ | Continue _) ->
-            [statement]
-        | (Switch (_, block, _, _) | Loop (block, _, _, _) | Block block) ->
-            (resolve_statements block)
-        | If (_, block_1, block_2, _) ->
-            (resolve_statements block_1) @ (resolve_statements block_2)
-        | _ ->
-            []
-      in
-      functions
-        (* Take all statements *)
-        |> List.map (fun (f : Cil.fundec) -> resolve_statements f.sbody |> List.map (fun s -> f, s))
-        |> List.flatten
-        (* Add locations *)
-        |> List.map (fun (f, (s : Cil.stmt)) -> (Cil.get_stmtLoc s.skind, f, s))
-        (* Filter artificial ones by impossible location *)
-        |> List.filter (fun ((l : Cil.location), _, _) -> l.line >= 0)
-        (* Transform to mapping *)
-        |> List.fold_left (fun statements (l, f, s) -> LocationMap.add l (f, s) statements) LocationMap.empty
-    let get_variables functions =
-      functions
-        |> List.map (fun (f : Cil.fundec) -> f.slocals)
-        |> List.flatten
-        |> List.fold_left (fun variables (v : Cil.varinfo) -> Hashtbl.add variables v.vid v; variables) (Hashtbl.create 0)
-
     let transform ask (file : Cil.file) =
 
-      let functions = List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None) file.globals in
-      let statements = get_statements functions in
-      let variables = get_variables functions in
+      (* Get all functions *)
+      let functions =
+        file.globals
+          |> List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None)
+      in
+      (* Get all (global and local) variables *)
+      let variables =
+        (file.globals
+          |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None))
+        @
+        (functions
+          |> List.map (fun (f : Cil.fundec) -> f.slocals)
+          |> List.flatten
+          |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v))
+      in
 
-      let global_translation = List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None) file.globals in
+      (* Get all statements *)
+      let statements =
+        let rec resolve_statements (block : Cil.block) =
+          block.bstmts
+            |> List.map expand
+            |> List.flatten
+        and expand statement =
+          match statement.skind with
+          | (Instr _ | Return _ | Goto _ | Break _ | Continue _) ->
+              [statement]
+          | (Switch (_, block, _, _) | Loop (block, _, _, _) | Block block) ->
+              (resolve_statements block)
+          | If (_, block_1, block_2, _) ->
+              (resolve_statements block_1) @ (resolve_statements block_2)
+          | _ ->
+              []
+        in
+        functions
+          (* Find statements in function bodies *)
+          |> List.map (fun (f : Cil.fundec) -> resolve_statements f.sbody)
+          |> List.flatten
+          (* Add their locations *)
+          |> List.map (fun (s : Cil.stmt) -> Cil.get_stmtLoc s.skind, s)
+          (* Filter artificial ones by impossible location *)
+          |> List.filter (fun ((l : Cil.location), _) -> l.line >= 0)
+          (* Transform list to map *)
+          |> List.fold_left (fun statements (l, s) -> LocationMap.add l s statements) LocationMap.empty
+      in
 
       let exit = ref false in
       while not !exit do
@@ -66,7 +73,7 @@ module Transform : TransformationBase.S =
             k = Var_k;
             tar = Name_t variable_name;
             f = Uses_f;
-            str = NonCond_s;
+            str = None_s;
             lim = None_c;
           }
         in
@@ -77,21 +84,16 @@ module Transform : TransformationBase.S =
           print_endline
             begin
               match LocationMap.find_opt location statements with
-              | Some (function_declaration, statement) ->
-                  let translation =
-                    match Hashtbl.find_opt variables identifier with
-                    | Some variable -> (variable_name, Cil.Fv variable)::global_translation
-                    | None -> global_translation
-                  in
-                  let expression = Formatcil.cExp expression_string translation in
+              | Some statement ->
+                  let expression = Formatcil.cExp expression_string variables in
                   begin
                     match ask location (Queries.EvalInt expression) with
-                    | `Bot -> "Bot"
+                    | `Bot -> "(Bottom)"
                     | `Int value -> IntDomain.FlatPureIntegers.to_yojson value |> Yojson.Safe.to_string
-                    | `Top -> "Top"
+                    | `Top -> "(Top)"
                     | _ -> raise Exit
                   end
-              | None -> "No statement"
+              | None -> "n/a"
             end
         in
 
