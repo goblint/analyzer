@@ -1,3 +1,16 @@
+type query_mode =
+  | Must [@name "must"]
+  | May [@name "may"]
+  [@@deriving yojson]
+type query =
+  {
+    kind : SyntacticalAnalyzer.JsonParser.kind; [@key "kind"]
+    target : SyntacticalAnalyzer.JsonParser.target; [@key "target"]
+    find : SyntacticalAnalyzer.JsonParser.find; [@key "find"]
+    mode : query_mode; [@key "mode"]
+  }
+  [@@deriving yojson]
+
 module TransformationBase = Transform (* Avoid naming collision *)
 module Transform : TransformationBase.S =
   struct
@@ -64,40 +77,73 @@ module Transform : TransformationBase.S =
       let exit = ref false in
       while not !exit do
 
-        let variable_name = read_line_with_prompt "Variable: " (* TODO *) in
-        let expression_string = read_line_with_prompt "Expression: " (* TODO *) in
-
-        let query : SyntacticalAnalyzer.JsonParser.query =
+        let query_file_name =
+          read_line_with_prompt "Query file name: " (* TODO *)
+        in
+        let query =
+          match Yojson.Safe.from_file query_file_name |> query_of_yojson with
+          | Ok parsed_query -> parsed_query
+          | Error _ -> raise Exit
+        in
+        let query_must =
+          match query.mode with
+          | Must -> true
+          | May -> false
+        in
+        let query_result =
+          SyntacticalAnalyzer.QueryMapping.map_query
           {
             sel = [];
-            k = Var_k;
-            tar = Name_t variable_name;
-            f = Uses_f;
+            k = query.kind;
+            tar = query.target;
+            f = query.find;
             str = None_s;
             lim = None_c;
           }
-        in
-        let query_result = SyntacticalAnalyzer.QueryMapping.map_query query file in
-
-        let evaluate_single (_, (location : Cil.location), _, identifier) =
-          print_endline ("------ Line " ^ (string_of_int location.line) ^ ":");
-          print_endline
-            begin
-              match LocationMap.find_opt location statements with
-              | Some statement ->
-                  let expression = Formatcil.cExp expression_string variables in
-                  begin
-                    match ask location (Queries.EvalInt expression) with
-                    | `Bot -> "(Bottom)"
-                    | `Int value -> IntDomain.FlatPureIntegers.to_yojson value |> Yojson.Safe.to_string
-                    | `Top -> "(Top)"
-                    | _ -> raise Exit
-                  end
-              | None -> "n/a"
-            end
+          file
         in
 
-        List.iter evaluate_single query_result;
+        let expression_string =
+          read_line_with_prompt "Expression: " (* TODO *)
+        in
+
+        let evaluate (location : Cil.location) =
+          match LocationMap.find_opt location statements with
+          | Some statement ->
+              let expression = Formatcil.cExp expression_string variables in
+              begin
+                match ask location (Queries.EvalInt expression) with
+                | `Bot -> None
+                | `Int value ->
+                    if value = Int64.zero then
+                      None
+                    else
+                      Some (Some value)
+                | `Top ->
+                    if query_must then
+                      None
+                    else
+                      Some None (* TODO use "Query function answered"? *)
+                | _ -> raise Exit
+              end
+          | None -> None
+        in
+        let print evaluation =
+          match evaluation with
+          | ((location : Cil.location), Some value) ->
+              print_string ("Line " ^ (string_of_int location.line) ^ ": ");
+              print_endline
+              begin
+                match value with
+                | Some definite_value -> Int64.to_string definite_value
+                | None -> "Unknown"
+              end
+          | (_, None) -> ()
+        in
+
+        query_result
+          |> List.map (fun (_, location, _, _) -> location, evaluate location)
+          |> List.iter print;
 
         if read_line_with_prompt "Exit? " = "y" then
           exit := true
