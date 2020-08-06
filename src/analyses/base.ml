@@ -1533,7 +1533,8 @@ struct
       | _ -> (
         let is_malloc_pointer e =
           let rv =  eval_rv_keep_bot ctx.ask ctx.global ctx.local e in
-          VD.is_bot rv || is_some_bot rv
+          let is_pointer = match e with Lval (Var v, _) -> (match v.vtype with TPtr _ -> true |  (* TArray _ -> true | *) _ -> false) | _ -> false in
+          is_pointer && VD.is_bot rv
         in
         let is_malloc_assignment rval =
           match rval with
@@ -1699,7 +1700,9 @@ struct
 
   let get_arg_types (fn: varinfo) = match fn.vtype with
     | TFun (_, None, _, _) -> []
-    | TFun (_, Some args, vararg, _) -> if vararg then (print_endline "varargs not handled yet"; List.map snd_triple args) else List.map snd_triple args
+    | TFun (_, Some args, _vararg, _) ->
+      (* We do not handle varargs sepcifically here. Varargs are just top when queried *)
+      List.map snd_triple args
     | _ -> failwith "Not a function type"
 
   let arg_value a (gs:glob_fun) (st: store) (t: typ): (value * ((address * value) list)) =
