@@ -35,9 +35,11 @@ rule() {
       dune clean
     ;; gen) gen
     ;; nat*)
+      eval $(opam config env)
       dune build $TARGET.exe &&
       cp _build/default/$TARGET.exe goblint
     ;; release)
+      eval $(opam config env)
       dune build --profile release $TARGET.exe &&
       cp _build/default/$TARGET.exe goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
@@ -45,6 +47,7 @@ rule() {
       dune build $TARGET.bc.js &&
       node _build/default/$TARGET.bc.js
     ;; watch)
+      eval $(opam config env)
       # dune build -w $TARGET.exe
       dune runtest --no-buffer --watch
     # old rules using ocamlbuild
