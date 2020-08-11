@@ -539,7 +539,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
+    | TInt (ik,_) -> `Int (ID.top_of ik)
     | TPtr _ -> `Address AD.unknown_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -622,11 +622,11 @@ struct
           | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
-          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
           end
-        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
         end
-      | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+      | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
     in
     (* Create a typesig from a type, but drop the arraylen attribute *)
     let typeSigWithoutArraylen t =

@@ -31,6 +31,10 @@ sig
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
+  val of_bool_ikind: Cil.ikind -> bool -> t
+  (** Transform a known boolean value of the corresponding Cil.ikind to the default internal representation. It
+    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
+
   val is_bool: t -> bool
   (** Checks if the element is a definite boolean value. If this function
     * returns [true], the above [to_bool] should return a real value. *)
@@ -46,7 +50,10 @@ sig
 
   val of_interval: int64 * int64 -> t
   val starting   : int64 -> t
+  val starting_ikind  : Cil.ikind -> int64 -> t
   val ending     : int64 -> t
+  val ending_ikind  : Cil.ikind -> int64 -> t
+  val top_of     : Cil.ikind -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
@@ -169,7 +176,7 @@ module Interval32 : S
 module DefExc
   : S with type t = [
       | `Excluded of SetDomain.Make(Integers).t * Interval32.t
-      | `Definite of Integers.t
+      | `Definite of Integers.t * Interval32.t
       | `Bot
     ]
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
