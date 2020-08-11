@@ -1112,12 +1112,13 @@ struct
               | `Bool t -> Q.BD.to_bool t = Some true
               | _ -> false
             in
+            let ik = get_ikind (typeOf currentE') in
             let newE = Basetype.CilExp.replace l' r' currentE' in
-            let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in
+            let currentEPlusOne = BinOp (PlusA, currentE', Cil.kinteger ik 1, typeOf currentE') in
             if are_equal newE currentEPlusOne then
               Some 1
             else
-              let currentEMinusOne = BinOp (MinusA, currentE', Cil.integer 1, Cil.intType) in
+              let currentEMinusOne = BinOp (MinusA, currentE', Cil.kinteger ik 1, typeOf currentE') in
               if are_equal newE currentEMinusOne then
                 Some (-1)
               else
