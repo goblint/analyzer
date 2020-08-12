@@ -645,7 +645,7 @@ struct
     match x with
     | `Bot -> bot_name
     | `Definite x -> Integers.short w x
-    (* Print the empty exclusion as if it where a distinct top element: *)
+    (* Print the empty exclusion as if it was a distinct top element: *)
     | `Excluded (s,l) when S.is_empty s -> top_name ^ short_size l
     (* Prepend the exclusion sets with something: *)
     | `Excluded (s,l) -> "Not " ^ S.short w s ^ short_size l
