@@ -89,6 +89,14 @@ struct
 
   type offs = (fieldinfo,IndexDomain.t) Lval.offs
 
+
+  let get_ikind t = match Cil.unrollType t with TInt (ik,_) -> ik | _ ->
+    (* important to unroll the type here, otherwise problems with typedefs *)
+    M.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";  Cil.IInt
+
+  let ptrdiff_ikind () = get_ikind !ptrdiffType
+
+
   let bot () = `Bot
   let is_bot x = x = `Bot
   let bot_name = "Uninitialized"
@@ -262,7 +270,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int 0L, `NoOffset))) (Some false)
+              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int_ikind (ptrdiff_ikind ()) 0L, `NoOffset))) (Some false)
             | _ -> err @@ "Cast to neither array index nor struct field."
                           ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
           end

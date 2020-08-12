@@ -979,7 +979,11 @@ struct
         let e2_val = eval_rv ctx.ask ctx.global ctx.local e2 in
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
-            if ID.is_bot (ID.meet i1 i2) then
+            (* This should behave like == and also work on different int types, hence the cast (just like with == in C) *)
+            let e1_ik = get_ikind (Cil.typeOf e1) in
+            let e2_ik = get_ikind (Cil.typeOf e2) in
+            let ik= Cil.commonIntKind e1_ik e2_ik in
+            if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
               begin
                 (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
                 `Bool(false)
