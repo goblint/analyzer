@@ -1470,7 +1470,7 @@ module IntDomTuple = struct
   let minimal = flat List.max % mapp { fp = fun (type a) (module I:S with type t = a) -> I.minimal }
   let maximal = flat List.min % mapp { fp = fun (type a) (module I:S with type t = a) -> I.maximal }
   (* exists/for_all *)
-  let is_bot = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
+  let is_bot = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
   let is_top = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top }
   let is_int = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_int }
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
