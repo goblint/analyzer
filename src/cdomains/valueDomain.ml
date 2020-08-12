@@ -359,7 +359,7 @@ struct
 
   let warn_type op x y =
     if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
+      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s in %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.file !Tracing.current_loc.line pretty x pretty y
 
   let leq x y =
     match (x,y) with
