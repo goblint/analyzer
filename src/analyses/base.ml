@@ -1423,6 +1423,14 @@ struct
           if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
           set' x v
       | Const _ -> Tuple3.first st (* nothing to do *)
+      | CastE ((TInt (ik, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
+        (match eval e with
+        | `Int a ->
+          if ID.leq a (ID.cast_to ik a) then
+            inv_exp c e
+          else
+            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty a ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
+        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
       | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
     if eval_bool exp = Some tv then raise Deadcode
