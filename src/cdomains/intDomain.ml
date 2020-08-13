@@ -919,8 +919,11 @@ struct
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
   let lognot x =
-      let r = eq (of_int 0L) x in
-      Printf.printf "not of %s -> %s\n" (short 80 x) (short 80 r); r
+    match x with
+    | `Definite (_,r)
+    | `Excluded (_,r) ->
+        eq (`Definite (Int64.zero, r)) x
+    | `Bot -> `Bot
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c (x:t) = match x with
