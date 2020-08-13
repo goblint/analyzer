@@ -279,7 +279,9 @@ struct
       in
       let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
       match op with
-      | MinusA
+      | MinusA when equality () = Some true ->
+        let ik = get_ikind (Cil.typeOf exp) in
+        Some (`Int (ID.of_int_ikind ik 0L))
       | MinusPI
       | MinusPP when equality () = Some true -> Some (`Int (ID.of_int 0L))
       | MinusPI
