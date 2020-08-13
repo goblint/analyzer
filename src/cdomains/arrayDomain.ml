@@ -94,6 +94,10 @@ struct
 
   let name () = "partitioned array"
 
+  let get_ikind t = match Cil.unrollType t with TInt (ik,_) -> ik | _ ->
+    (* important to unroll the type here, otherwise problems with typedefs *)
+    M.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";  Cil.IInt
+
   let is_not_partitioned (e, _) =
     Expp.is_bot e || Expp.is_top e
 
@@ -377,7 +381,8 @@ struct
             | `Bool false -> Val.bot()
             | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
             (
-              match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.integer 1, Cil.intType),i')) with
+              let ik = get_ikind (Cil.typeOf e') in
+              match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
               | `Bool true -> xm
               | _ ->
                 begin
@@ -393,7 +398,8 @@ struct
             | _ -> xm)
 
             (
-              match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.integer (-1), Cil.intType),i')) with
+              let ik = get_ikind (Cil.typeOf e') in
+              match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
               | `Bool true -> xm
               | _ ->
                 begin
