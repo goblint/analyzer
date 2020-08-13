@@ -199,6 +199,21 @@ struct
 
   let starting n = norm @@ Some (n,max_int)
   let ending   n = norm @@ Some (min_int,n)
+
+  let starting_ikind ik n =
+    try
+      norm @@
+      let _, u = Size.range ik in
+      Some (n,u)
+    with Size.Not_in_int64 -> starting n
+
+  let ending_ikind ik n =
+    try
+      norm @@
+      let l, _ = Size.range ik in
+      Some (l,n)
+    with Size.Not_in_int64 -> ending n
+
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 

@@ -18,5 +18,19 @@ void main()
   long l;
   int r = !l + 4;
 
+  // From dtlk driver example, produces
+  // "warning: pointer targets in assignment differ in signedness [-Wpointer-sign]"
+  // in GCC
+	unsigned char *t;
+	static char buf[100] = "bliblablubapk\r";
+
+	t = buf;
+	t += 2;
+
+  *t = '\r';
+	while (*t != '\r') {
+    t++;
+  }
+
   return;
 }
