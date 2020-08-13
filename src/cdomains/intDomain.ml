@@ -818,7 +818,12 @@ struct
   (* TODO: lift does not treat Not {0} as true. *)
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
-  let lognot = eq (of_int 0L)
+  let lognot x =
+    match x with
+    | `Definite (_,r)
+    | `Excluded (_,r) ->
+        eq (`Definite (Int64.zero, r)) x
+    | `Bot -> `Bot
 
   let invariant c (x:t) = match x with
     | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)

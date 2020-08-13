@@ -9,10 +9,14 @@ void main()
   ryy_j++;
   ryy_j++;
 
-  while(i < 2) { // Here
+  while(i < 2) { // Here was an issue with a fixpoint not being reached
     ryy_j = ryy_j + 1;
     i++;
   }
+
+  // The type of ! needs to be IInt
+  long l;
+  int r = !l + 4;
 
   return;
 }
