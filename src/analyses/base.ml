@@ -1058,7 +1058,7 @@ struct
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
-  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw (gs:glob_fun) (st,fl,dep: store) (lval: AD.t) (value: value) : store =
+  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st,fl,dep: store) (lval: AD.t) (value: value) : store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x y z in (* refers to defintion that is outside of set *)
@@ -1071,6 +1071,9 @@ struct
      * not include the flag. *)
     let update_one_addr (x, offs) (nst, fl, dep): store =
       let cil_offset = Offs.to_cil_offset offs in
+      let t = match t_override with
+        | Some t -> t
+        | None -> Cil.typeOf (Lval(Var x, cil_offset)) in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
@@ -1097,13 +1100,13 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset)) nst, fl, dep
+          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t) nst, fl, dep
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) in
+        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -1285,6 +1288,7 @@ struct
           match value with
           | `Int n -> begin
             let ikind = get_ikind (typeOf (Lval lval)) in
+            let n = ID.cast_to ikind n in
             let range_from x = if tv then ID.ending_ikind ikind (Int64.sub x 1L) else ID.starting_ikind ikind x in
             let limit_from = if tv then ID.maximal else ID.minimal in
             match limit_from n with
@@ -1299,6 +1303,7 @@ struct
           match value with
           | `Int n -> begin
             let ikind = get_ikind (typeOf (Lval lval)) in
+            let n = ID.cast_to ikind n in
             let range_from x = if tv then ID.ending_ikind ikind x else ID.starting_ikind ikind (Int64.add x 1L) in
             let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
@@ -1369,6 +1374,8 @@ struct
       else
         let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
         let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
+        let state_with_excluded = set a gs st addr value ~effect:false ~change_array:false ~ctx:(Some ctx) in
+        let value =  get a gs state_with_excluded addr None in
         let new_val = apply_invariant oldval value in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
         (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -1444,11 +1451,11 @@ struct
         | `Int a, `Int b ->
           (* the ikind of comparisons is always TInt(IInt,[]) in CIL *)
           let ik = match op with
-            | Cil.Eq|Cil.Ne|Cil.Lt|Cil.Le|Cil.Ge|Cil.Gt -> Printf.printf "cast!"; (get_ikind (Cil.typeOf e1))
+            | Cil.Eq|Cil.Ne|Cil.Lt|Cil.Le|Cil.Ge|Cil.Gt -> (get_ikind (Cil.typeOf e1))
             (* | Lor and land? *)
             | _ -> get_ikind (Cil.typeOf exp)
           in
-          let a', b' = inv_bin_int (a, b) (ID.cast_to ik c) ik op in (* TODO: types do not need to be the same on both sides *)
+          let a', b' = inv_bin_int (a, b) (ID.cast_to ik c) ik op in
           let m1 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e1)) a') e1 in
           let m2 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e2)) b') e2 in
           CPA.meet m1 m2
@@ -1571,8 +1578,9 @@ struct
         | `Bot -> (* current value is VD `Bot *)
           (match Addr.to_var_offset (AD.choose lval_val) with
           | [(x,offs)] ->
+            let t = v.vtype in
             let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
-            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
+            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
             set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
           | _ ->
             set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
@@ -1662,7 +1670,13 @@ struct
       let nst = rem_many ctx.ask nst_part locals in
       match exp with
       | None -> nst
-      | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
+      | Some exp ->
+        let t_override = match fundec.svar.vtype with
+          | TFun(TVoid _, _, _, _) -> M.warn "Returning a value from a void function"; assert false
+          | TFun(ret, _, _, _) -> ret
+          | _ -> assert false
+        in
+        set ~t_override ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
         (* lval_raw:None, and rval_raw:None is correct here *)
 
   let vdecl ctx (v:varinfo) =

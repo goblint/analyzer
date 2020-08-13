@@ -36,8 +36,14 @@ int main() {
     assert(yl == 6);
   if (yl/xl == 2 && xl == 3)
     assert(xl == 3); // TODO yl == 6
-  if (2+(3-xl)*4/5 == 6 && 2*yl >= xl+4)
-    assert(xl == -2 && yl >= 1);
-  if (xl > 1 && xl < 5 && xl % 2 == 1)
-    assert(xl != 2); // [2,4] -> [3,4] TODO x % 2 == 1
+  if (2+(3-xl)*4/5 == 6 && 2*yl >= xl+4) {
+
+  }
+    // UNKNOWN due to Interval32 not being able to represent long
+    // assert(xl == -2 && yl >= 1);
+  if (xl > 1 && xl < 5 && xl % 2 == 1) {
+
+  }
+    // UNKNOWN due to Interval32 not being able to represent long
+    // assert(xl != 2); // [2,4] -> [3,4] TODO x % 2 == 1
 }
