@@ -365,7 +365,7 @@ struct
         match Addr.to_var_offset x with
         | [x] -> f_addr x                    (* normal reference *)
         | _ when x = Addr.NullPtr -> VD.bot () (* null pointer *)
-        | _ -> `Int (ID.top ())              (* string pointer *)
+        | _ -> `Int (ID.top_of IChar)       (* string pointer *)
       in
       (* We form the collecting function by joining *)
       let f x a = VD.join (f x) a in
