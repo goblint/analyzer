@@ -715,8 +715,10 @@ struct
 
   let complain x y =
     if x <> y then
-      (* TODO: This should not raise later but just continue with a warning *)
-      raise (Failure (Printf.sprintf "comparing different sizes of int %s %s" (R.short 80 x) (R.short 80 y)))
+      if get_bool "dbg.debug" then
+        raise (Failure (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y)))
+      else
+        M.warn (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
 
   let join x y =
     match (x,y) with
@@ -881,7 +883,7 @@ struct
     (* If any one of them is bottom, we return bottom *)
     | _ -> `Bot
 
-  (* The equality check: *) (* TODO: int32? *)
+  (* The equality check: *)
   let eq x y =
     let f = of_bool_cmp_ikind Cil.IInt false in
     let t = of_bool_cmp_ikind Cil.IInt true in
