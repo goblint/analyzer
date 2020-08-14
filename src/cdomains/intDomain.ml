@@ -674,8 +674,9 @@ struct
 
   let cast_to t = function
     | `Excluded (s,r) ->
-      let r' = size t in (* target range *)
-      `Excluded (if R.leq r r' then S.map (Integers.cast_to t) s, r' else S.empty (), r') (* TODO can we do better here? *)
+      (let r' = size t in (* target range *)
+      try `Excluded (if R.leq r r' then S.map (Integers.cast_to t) s, r' else S.empty (), r') (* TODO can we do better here? *) with
+      Size.Not_in_int64 -> top_of t)
     | `Definite (x, r) -> (try `Definite (Integers.cast_to t x, size t) with Size.Not_in_int64 -> top_of t)
     | `Bot -> `Bot
 
