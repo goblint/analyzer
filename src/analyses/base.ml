@@ -1413,7 +1413,7 @@ struct
         | Eq, Some false
         | Ne, Some true -> (* def. unequal *)
           (match ID.to_int m with
-          | Some i -> both (ID.of_excl_list t [i]) (*wrong type *)
+          | Some i -> both (ID.of_excl_list t [i])
           | None -> a, b)
         | _, _ -> a, b
         )
