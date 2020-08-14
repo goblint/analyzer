@@ -32,5 +32,17 @@ void main()
     t++;
   }
 
+  unsigned int v;
+  unsigned short s1, s2;
+
+  v = v & 0xFFF0FFFF;
+  v = v << 16;
+
+  v = (unsigned int)(((unsigned int) (s1 ^ s2)));
+  v = (unsigned int)(((unsigned int) (s1 ^ s2)) << (16));
+
+  v = (v & 0xFFF0FFFF) |
+	    (((unsigned int) s1 ^ s2) << 16);
+
   return;
 }
