@@ -750,6 +750,10 @@ struct
     | `Bot -> `Bot
 
   let lift2 f x y = match x,y with
+    (* The good case: *)
+    | `Definite (x,xr), `Definite (y,yr) ->
+      complain xr yr;
+      (try `Definite (f x y,xr) with | Division_by_zero -> top ())
     (* We don't bother with exclusion sets: *)
     | `Excluded _, _ -> top ()
     | _, `Excluded _ -> top ()
@@ -757,6 +761,24 @@ struct
     | `Definite x, `Definite y -> (try `Definite (f x y) with | Division_by_zero -> top ())
     (* If any one of them is bottom, we return top *)
     | _ -> top ()
+
+  (* For the shift operations, CIL does not cast the right argument to the type of the left argument,    *)
+  (* so we should not warn about operations on different types here. The result has teh type of the left *)
+  (* argument *)
+  let lift2_special f x y = match x,y with
+    (* The good case: *)
+    | `Definite (x,xr), `Definite (y,_) -> (try `Definite (f x y,xr) with | Division_by_zero -> top ())
+    (* We don't bother with exclusion sets: *)
+    | `Excluded (_, xr), `Definite(_, yr)
+    | `Definite (_, xr), `Excluded(_, yr)
+    | `Excluded (_, xr), `Excluded(_, yr) ->
+      `Excluded(S.empty (), xr)
+    (* If any one of them is bottom, we return top *)
+    | `Bot, `Excluded(_, xr)
+    | `Bot, `Definite(_, xr)
+    | `Excluded(_ , xr), `Bot
+    | `Definite(_, xr), `Bot -> top ()
+    | `Bot, `Bot -> top ()
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
@@ -828,8 +850,8 @@ struct
   let bitand = lift2 Integers.bitand
   let bitor  = lift2 Integers.bitor
   let bitxor = lift2 Integers.bitxor
-  let shift_left  = lift2 Integers.shift_left
-  let shift_right = lift2 Integers.shift_right
+  let shift_left  = lift2_special Integers.shift_left  (* Careful, CIL does not guarantee the types of left and right arg are the same *)
+  let shift_right = lift2_special Integers.shift_right (* Careful, CIL does not guarantee the types of left and right arg are the same *)
   (* TODO: lift does not treat Not {0} as true. *)
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
