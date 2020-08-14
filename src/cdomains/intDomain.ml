@@ -713,7 +713,8 @@ struct
 
   let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
 
-  let complain x y =
+  (* checks that x and y have the same range, and warns (in debug mode fails) if this is not the case *)
+  let check_identical_range x y =
     if x <> y then
       if get_bool "dbg.debug" then
         raise (Failure (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y)))
@@ -727,7 +728,7 @@ struct
     | x, `Bot -> x
     (* The case for two known values: *)
     | `Definite (x, xr), `Definite (y, yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       (* If they're equal, it's just THAT value *)
       if x = y then `Definite (x, R.join xr yr)
       (* Unless one of them is zero, we can exclude it: *)
@@ -738,12 +739,12 @@ struct
      * longer be excluded: *)
     | `Excluded (s,r), `Definite (x,xr)
     | `Definite (x,xr), `Excluded (s,r) ->
-      complain xr r;
+      check_identical_range xr r;
       `Excluded (S.remove x s, R.join xr r)
     (* For two exclusion sets, only their intersection can be excluded: *)
     | `Excluded (x,wx), `Excluded (y,wy) ->
-    complain wx wy;
-    `Excluded (S.inter x y, R.join wx wy)
+      check_identical_range wx wy;
+      `Excluded (S.inter x y, R.join wx wy)
 
   let meet x y =
     match (x,y) with
@@ -751,14 +752,14 @@ struct
     | `Bot, _ -> `Bot
     | _, `Bot -> `Bot
     (* Definite elements are either equal or the glb is bottom *)
-    | `Definite (x,xr), `Definite (y,yr) -> complain xr yr; if x = y then `Definite (x, R.meet xr yr) else `Bot
+    | `Definite (x,xr), `Definite (y,yr) -> check_identical_range xr yr; if x = y then `Definite (x, R.meet xr yr) else `Bot
     (* The glb of a definite element and an exclusion set is either bottom or
      * just the element itself, if it isn't in the exclusion set *)
     | `Excluded (s,r), `Definite (x, xr)
-    | `Definite (x, xr), `Excluded (s,r) -> complain xr r; if S.mem x s then `Bot else `Definite(x,xr)
+    | `Definite (x, xr), `Excluded (s,r) -> check_identical_range xr r; if S.mem x s then `Bot else `Definite(x,xr)
     (* The greatest lower bound of two exclusion sets is their union, this is
      * just DeMorgans Law *)
-    | `Excluded (x,wx), `Excluded (y,wy) -> complain wx wy; `Excluded (S.union x y, R.meet wx wy)
+    | `Excluded (x,wx), `Excluded (y,wy) -> check_identical_range wx wy; `Excluded (S.union x y, R.meet wx wy)
 
 
   let of_int_ikind t x = `Definite (Integers.of_int x, size t)
@@ -828,13 +829,13 @@ struct
   let lift2 f x y = match x,y with
     (* The good case: *)
     | `Definite (x,xr), `Definite (y,yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       (try `Definite (f x y,xr) with | Division_by_zero -> top ())
     (* We don't bother with exclusion sets: *)
     | `Excluded (_, xr), `Definite(_, yr)
     | `Definite (_, xr), `Excluded(_, yr)
     | `Excluded (_, xr), `Excluded(_, yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       `Excluded(S.empty (), xr)
     (* If any one of them is bottom, we return top *)
     | `Bot, `Excluded(_, xr)
@@ -866,19 +867,19 @@ struct
   let lift2_inj f x y = match x,y with
     (* If both are exclusion sets, there isn't anything we can do: *)
     | `Excluded (xs, xr), `Excluded (ys, yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       `Excluded(S.empty (), xr)
     (* A definite value should be applied to all members of the exclusion set *)
     | `Definite (x, xr), `Excluded (s,r) ->
-      complain xr r;
+      check_identical_range xr r;
       `Excluded (S.map (f x)  s, xr)
     (* Same thing here, but we should flip the operator to map it properly *)
     | `Excluded (s,r), `Definite (x, xr) -> let f x y = f y x in
-      complain xr r;
+      check_identical_range xr r;
       `Excluded (S.map (f x) s, xr)
     (* The good case: *)
     | `Definite (x,xr), `Definite (y,yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       `Definite (f x y, xr)
     (* If any one of them is bottom, we return bottom *)
     | _ -> `Bot
@@ -891,17 +892,17 @@ struct
     match x,y with
     (* Not much to do with two exclusion sets: *)
     | `Excluded (_, xr), `Excluded(_,yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       top
     (* Is x equal to an exclusion set, if it is a member then NO otherwise we
      * don't know: *)
     | `Definite (x,xr), `Excluded (s,r)
     | `Excluded (s,r), `Definite (x,xr) ->
-      complain xr r;
+      check_identical_range xr r;
       if S.mem x s then f else top
     (* The good case: *)
     | `Definite (x,xr), `Definite (y,yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       if x=y then t else f
     (* If either one of them is bottom, we return bottom *)
     | _ -> `Bot
@@ -914,17 +915,17 @@ struct
     match x,y with
     (* Not much to do with two exclusion sets: *)
     | `Excluded (_, xr), `Excluded(_,yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       top
     (* Is x unequal to an exclusion set, if it is a member then Yes otherwise we
      * don't know: *)
     | `Definite (x,xr), `Excluded (s,r)
     | `Excluded (s,r), `Definite (x,xr) ->
-      complain xr r;
+      check_identical_range xr r;
       if S.mem x s then t else top
     (* The good case: *)
     | `Definite (x,xr), `Definite (y,yr) ->
-      complain xr yr;
+      check_identical_range xr yr;
       if x=y then f else t
     (* If either one of them is bottom, we return bottom *)
     | _ -> `Bot
