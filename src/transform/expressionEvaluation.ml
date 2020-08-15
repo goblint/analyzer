@@ -22,12 +22,7 @@ module Transform : TransformationBase.S =
           compare location_1.byte location_2.byte
       end)
 
-    let read_line_with_prompt text =
-      print_string text;
-      flush stdout;
-      read_line ()
-
-    let transform ask (file : Cil.file) =
+    let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
 
       (* Get all functions *)
       let functions =
@@ -94,16 +89,17 @@ module Transform : TransformationBase.S =
       in
 
       let expression_string = GobConfig.get_string "trans.expeval.expression" in
+      let expression = Formatcil.cExp expression_string variables in
 
       print_endline ("Using query file: \"" ^ query_file_name ^ "\"");
       print_endline ("Evaluating expression: \"" ^ expression_string ^ "\"");
 
       let evaluate (location : Cil.location) =
-        match LocationMap.find_opt location statements with
-        | Some statement ->
-            let expression = Formatcil.cExp expression_string variables in
+        match LocationMap.split location statements with
+        | (_, Some _, following_statements) ->
+            let following_location = LocationMap.find_first (fun _ -> true) following_statements |> fst in
             begin
-              match ask location (Queries.EvalInt expression) with
+              match ask following_location (Queries.EvalInt expression) with
               | `Bot -> None
               | `Int value ->
                   if value = Int64.zero then
@@ -118,7 +114,7 @@ module Transform : TransformationBase.S =
                   end
               | _ -> raise Exit
             end
-        | None -> None
+        | (_, None, _) -> None
       in
       let print evaluation =
         match evaluation with
