@@ -11,7 +11,7 @@ struct
   let name () = "scheduling_arinc"
   module DInner = Arinc_schedulabilty_domain.D
   module D = Lattice.Lift(DInner)(Printable.DefaultNames)
-  module G = Lattice.Lift(DInner)(Printable.DefaultNames)
+  module G = Lattice.Unit
   module C = Lattice.Unit
   module TInterval = IntDomain.Interval32
 
