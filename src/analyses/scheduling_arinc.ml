@@ -93,27 +93,28 @@ struct
         else
           true
 
-  let can_run t s =
+  let can_run tid taskstates =
     (* TODO: What if there is only one task *)
-    let ours = List.at s t in
-    List.fold_lefti (fun acc i other -> acc && if i=t then true else can_run_relative ours other) true s
+    let ours = List.at taskstates tid in
+    List.fold_lefti (fun acc i other -> acc && if i=tid then true else can_run_relative ours other) true taskstates
 
   (* Check if any other task can run relative to t (when assuming that t is not ready) *)
-  let one_other_can_run t s =
-    let ours = List.at s t in
-    List.fold_lefti  (fun acc i other -> acc || if i=t then false else can_run_relative other ours) false s
+  let any_other_can_run tid taskstates =
+    let ours = List.at taskstates tid in
+    List.fold_lefti  (fun acc i other -> acc || if i=tid then false else can_run_relative other ours) false taskstates
 
   (* Get a list of ids of tasks that are: *)
   (* - waiting on something that can happen without any further computation occuring, i.e. *)
   (*      - waiting for period                                                             *)
   (*      - end of a timed wait                                                            *)
   (*   NOT waiting for a signal, for the signal to be set, computation needs to be done    *)
-  let tasks_waiting_timed_id t s =
-    let t_with_id = List.mapi (fun i x -> (i,x)) s in
-    let fn (i,task) = t <> i && (task.processState = PState.waiting_for_period || (task.processState = PState.wait && task.waitingFor = WaitingForEvent.bot ())) in
+  let tasks_waiting_timed_id tid taskstates =
+    let t_with_id = List.mapi (fun i x -> (i,x)) taskstates in
+    let fn (i,task) = tid <> i && (task.processState = PState.waiting_for_period || (task.processState = PState.wait && task.waitingFor = WaitingForEvent.bot ())) in
     let res = List.filter fn t_with_id in
     List.map (fun (i,_) -> i) res
 
+  (* Get the join of all waiting times of tasks in tasks *)
   let get_wait_interval tasks times =
     List.fold_left (fun acc i -> TInterval.join  acc (Times.get_remaining_wait i times)) (TInterval.bot ()) tasks
 
@@ -125,22 +126,22 @@ struct
       let wait_time = TInterval.sub x y in
       TInterval.meet wait_time (TInterval.starting Int64.zero) (* These numbers may not become negative *)
 
-  let wait_for_period (s,x) t =
-    let do_restart_period (s, x) t =
-      let times = Times.set_since_period t Times.zeroInterval x in
-      let times = Times.set_remaining_wait t Times.zeroInterval times in
-      let s = update_info_for t (fun x -> {x with processState = PState.ready}) s in
+  let wait_for_period (taskstates,times) tid =
+    let do_restart_period (taskstates, times) tid =
+      let times = Times.set_since_period tid Times.zeroInterval times in
+      let times = Times.set_remaining_wait tid Times.zeroInterval times in
+      let s = update_info_for tid (fun x -> {x with processState = PState.ready}) taskstates in
       s, times
     in
-    let t_since_period = Times.get_since_period t x in
-    let our_waiting_time = Times.get_remaining_wait t x in
-    let period = BatOption.get @@ Period.to_int ((get_info_for s t).period) in
+    let t_since_period = Times.get_since_period tid times in
+    let our_waiting_time = Times.get_remaining_wait tid times in
+    let period = BatOption.get @@ Period.to_int ((get_info_for taskstates tid).period) in
     if TInterval.leq (TInterval.of_int period) t_since_period then
-      do_restart_period (s, x) t
+      do_restart_period (taskstates, times) tid
     else
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
       (* TODO: We need to check that this is indeed the longest wait time! *)
-      if (not (one_other_can_run t s)) then
+      if (not (any_other_can_run tid taskstates)) then
         (* other can not run here, we are in waiting for period *)
         (* TODO: What if both are waiting for a period *)
         (* if other.processState = PState.waiting_for_period then
@@ -160,25 +161,25 @@ struct
             raise Deadcode *)
         (* else *)
           (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
-          let times = Times.advance_all_times_by our_waiting_time x in
-          do_restart_period (s, times) t
+          let times = Times.advance_all_times_by our_waiting_time times in
+          do_restart_period (taskstates, times) tid
       else
         (* another task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
 
-  let wait_for_endwait (s,x) t =
+  let wait_for_endwait (taskstates,times) tid =
     let do_end_wait (s,x) t =
       let times = Times.set_remaining_wait t Times.zeroInterval x in
       let s = update_info_for t (fun x -> {x with processState = PState.ready}) s in
       s, times
     in
-    let waiting_time = Times.get_remaining_wait t x in
+    let waiting_time = Times.get_remaining_wait tid times in
     if TInterval.leq Times.zeroInterval waiting_time then
-      do_end_wait (s, x) t
+      do_end_wait (taskstates, times) tid
     else
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
       (* TODO: We need to check that this is indeed the longest wait time! *)
-      if (not (one_other_can_run t s)) then
+      if (not (any_other_can_run tid taskstates)) then
         (* other can not run here, we are in waiting for period *)
         (* TODO: What if both are waiting for a period *)
         (* if other.processState = PState.waiting_for_period then
@@ -198,8 +199,8 @@ struct
             raise Deadcode *)
         else *)
           (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
-          let times = Times.advance_all_times_by waiting_time x in
-          do_end_wait (s, times) t
+          let times = Times.advance_all_times_by waiting_time times in
+          do_end_wait (taskstates, times) tid
       else
         (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
@@ -302,7 +303,7 @@ struct
       | SuspendTask i -> SD.suspend i taskstates, times
       | ResumeTask i -> SD.resume i taskstates, times
       | WaitEvent i -> SD.wait_event tid i taskstates, times
-      | SetEvent i -> SD.set_event i state
+      | SetEvent i -> SD.set_event i taskstates, times
       | StartComputation wcet -> start_computation state tid wcet
       | FinishComputation -> finish_computation state tid
       | ContinueComputation -> continue_computation state tid
