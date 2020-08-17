@@ -112,7 +112,7 @@ struct
       let wait_time = TInterval.sub x y in
       TInterval.meet wait_time (TInterval.starting Int64.zero) (* These numbers may not become negative *)
 
-  let wait_for_period ((s:process list),x) t =
+  let wait_for_period (s,x) t =
     let do_restart_period (s, x) t =
       let times = Times.set_since_period t Times.zeroInterval x in
       let times = Times.set_remaining_wait t Times.zeroInterval times in
@@ -153,21 +153,22 @@ struct
         (* another task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
 
-  let wait_for_endwait ((a,b) as s,x) t =
-    let do_end_wait (s, x) t =
+  let wait_for_endwait (s,x) t =
+    let do_end_wait (s,x) t =
       let times = Times.set_remaining_wait t Times.zeroInterval x in
-      let info = get_info_for_leg t s in
-      (update_info_for_leg t {info with processState = PState.ready} s), times
+      let s = update_info_for t (fun x -> {x with processState = PState.ready}) s in
+      s, times
     in
     let waiting_time = Times.get_remaining_wait t x in
     if TInterval.leq Times.zeroInterval waiting_time then
-      do_end_wait ((a, b), x) t
+      do_end_wait (s, x) t
     else
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
-      let ours, other = if t = 0 then a, b else b, a in
-      if (not (can_run_relative other ours)) then
+      (* TODO: We need to check that this is indeed the longest wait time! *)
+      if (not (one_other_can_run t s)) then
         (* other can not run here, we are in waiting for period *)
-        if other.processState = PState.waiting_for_period then
+        (* TODO: What if both are waiting for a period *)
+        (* if other.processState = PState.waiting_for_period then
           failwith "Both waiting for period - Didn't think about this yet"
           (* both are waiting for period *)
           (* if t = 0 then
@@ -182,10 +183,10 @@ struct
               raise Deadcode
           else
             raise Deadcode *)
-        else
+        else *)
           (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
           let times = Times.advance_all_times_by waiting_time x in
-          do_end_wait ((a,b), times) t
+          do_end_wait (s, times) t
       else
         (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
@@ -201,8 +202,7 @@ struct
       wait_for_period (s,x) t
     else if e = WaitingForEndWait then
       (* The end of waiting can happen at any time if the task does not have priority *)
-      let ((a,b),x) = wait_for_endwait ((a,b),x) t in
-      ([a;b],x)
+      wait_for_endwait (s,x) t
     else
       let ours, other = if t = 0 then a, b else b, a in
       if not (can_run_relative ours other) then
