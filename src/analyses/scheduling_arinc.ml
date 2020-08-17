@@ -205,14 +205,9 @@ struct
       wait_for_endwait (s,x) t
     else
       let ours, other = if t = 0 then a, b else b, a in
-      if not (can_run_relative ours other) then
-          if not (can_run_relative other ours) then
-            begin
-              (* Printf.printf "No task can run ?!\n"; *)
-              raise Deadcode
-            end
-          else
-            raise Deadcode
+      if not (can_run t s) then
+        (* all other actions can only happen if this task is in running state, and has the highest priority *)
+        raise Deadcode
       else
         match e with
         | SuspendTask i -> DInner.suspend i xin
@@ -222,7 +217,7 @@ struct
         | StartComputation i ->
           let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
           let times = Times.set_remaining_processing t wcetInterval x in
-          [a;b], times
+          s, times
         | FinishComputation ->
           begin
             let wcetInterval = Times.get_remaining_processing t x in
