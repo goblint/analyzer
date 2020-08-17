@@ -206,7 +206,6 @@ struct
 
   let arinc_edge xin (t,e) node =
     let s, x = xin in
-    let [a; b], _ = xin in
     if t = -1 then
       (* This is some special edge e.g. during init *)
       xin
@@ -285,7 +284,7 @@ struct
         | PeriodicWait ->
           (* Check that the deadline is not violated *)
           let time_since_period = Times.get_since_period t x in
-          let deadline  = BatOption.get @@ Capacity.to_int (if t = 0 then a.capacity else b.capacity) in
+          let deadline  =  BatOption.get @@ Capacity.to_int ((get_info_for s t).capacity) in
           let deadline_interval = TInterval.of_int deadline in
           let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
           let PC [u; v] = node in
@@ -295,7 +294,7 @@ struct
            (DInner.short 800 xin)
            else
            ());
-          let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
+          let period = BatOption.get @@ Period.to_int ((get_info_for s t).period) in
           let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
           let times = Times.set_remaining_wait t remaining_wait x in (* set remaining wait time *)
           let s, _ = DInner.periodic_wait t xin in
