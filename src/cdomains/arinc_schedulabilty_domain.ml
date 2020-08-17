@@ -129,7 +129,8 @@ struct
   (** Advance overall and all since_period and remaining_wait by interval  *)
   let advance_all_times_by interval times =
     (* Subtract interval from x and ensure result is not negative *)
-    let decrement x  = (* TODO: Do we need this here, even if times does the work to ensure it does not get negative *)
+    let decrement x  = (* TODO: Do we need this here, even if times does the work to ensure it does not get negative ->
+    Currently yes if otherwise we get something that si entirely negative, the meet will be \bot *)
       if TInterval.to_int x = Some Int64.zero then
         x
       else
@@ -207,7 +208,6 @@ struct
   let wait_event i p =
     (* A task may only execute a wait if it currently has the highest priority *)
     (* TODO: We should only suspend and wait for the event if it is down at the moment *)
-
     {p with processState = PState.wait; waitingFor = WaitingForEvent.of_int (Int64.of_int i)}
 
   let set_event i p =
