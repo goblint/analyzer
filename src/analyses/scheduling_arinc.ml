@@ -287,9 +287,8 @@ struct
           let deadline  =  BatOption.get @@ Capacity.to_int ((get_info_for s t).capacity) in
           let deadline_interval = TInterval.of_int deadline in
           let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
-          let PC [u; v] = node in
-          (if not (TInterval.is_bot miss) then Printf.printf "(%s,%s) deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
-            (string_of_int u) (string_of_int v)
+          (if not (TInterval.is_bot miss) then Printf.printf "%s deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
+            (Arinc_Node.to_string node)
             t (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval)
            (DInner.short 800 xin)
            else
