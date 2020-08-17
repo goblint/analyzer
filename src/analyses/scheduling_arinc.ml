@@ -48,7 +48,7 @@ struct
       waitingFor = WaitingForEvent.bot ()
       }
     in
-    [ctx.local, ((state1, state2), t)]
+    [ctx.local, ([state1; state2], t)]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     failwith "lol, wut?!!!"
@@ -57,6 +57,7 @@ struct
     failwith "lol, wut?!!!"
 
   (* What if none can run unless time passes? *)
+  (* Can ours run relative ot other? *)
   let can_run ours other =
     if ours.processState <> PState.ready then
       (* We can not take any actions while not ready *)
@@ -79,6 +80,11 @@ struct
         else
           true
 
+  let get_info_for t (a,b) =
+    if t=0 then a else b
+
+  let update_info_for t v (a,b) =
+    if t = 0 then (v,b) else (a,v)
 
   (* Subtract y from x and ensure result is not negative *)
   let subtract_if_not_zero x y  =
@@ -88,24 +94,20 @@ struct
       let wait_time = TInterval.sub x y in
       TInterval.meet wait_time (TInterval.starting Int64.zero) (* These numbers may not become negative *)
 
-  let wait_for_period ((a,b),x) t =
-    let do_restart_period ((a,b), x) t =
+  let wait_for_period ((a,b) as s,x) t =
+    let do_restart_period (s, x) t =
       let times = Times.set_since_period t Times.zeroInterval x in
       let times = Times.set_remaining_wait t Times.zeroInterval times in
-      if t = 0 then
-        ({a with processState = PState.ready},b), times
-      else
-        (a, {b with processState = PState.ready}), times
+      let info = get_info_for t s in
+      (update_info_for t {info with processState = PState.ready} s), times
     in
     let t_since_period = Times.get_since_period t x in
-    let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
+    let our_waiting_time = Times.get_remaining_wait t x in
+    let period = BatOption.get @@ Period.to_int ((get_info_for t s).period) in
     if TInterval.leq (TInterval.of_int period) t_since_period then
-      do_restart_period ((a,b), x) t
+      do_restart_period (s, x) t
     else
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
-      let waiting_time_t0 = Times.get_remaining_wait 0 x in
-      let waiting_time_t1 = Times.get_remaining_wait 1 x in
-      let our_waiting_time = if t=0 then waiting_time_t0 else waiting_time_t1 in
       let ours, other = if t = 0 then a, b else b, a in
       if (not (can_run other ours)) then
         (* other can not run here, we are in waiting for period *)
@@ -127,27 +129,22 @@ struct
         else
           (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
           let times = Times.advance_all_times_by our_waiting_time x in
-          do_restart_period ((a,b), times) t
+          do_restart_period (s, times) t
       else
         (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
 
-  let wait_for_endwait ((a,b),x) t =
-    let do_end_wait ((a,b), x) t =
+  let wait_for_endwait ((a,b) as s,x) t =
+    let do_end_wait (s, x) t =
       let times = Times.set_remaining_wait t Times.zeroInterval x in
-      if t = 0 then
-        ({a with processState = PState.ready},b), times
-      else
-        (a, {b with processState = PState.ready}), times
+      let info = get_info_for t s in
+      (update_info_for t {info with processState = PState.ready} s), times
     in
     let waiting_time = Times.get_remaining_wait t x in
     if TInterval.leq Times.zeroInterval waiting_time then
-      do_end_wait ((a,b), x) t
+      do_end_wait ((a, b), x) t
     else
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
-      let waiting_time_t0 = Times.get_remaining_wait 0 x in
-      let waiting_time_t1 = Times.get_remaining_wait 1 x in
-      let our_waiting_time = if t=0 then waiting_time_t0 else waiting_time_t1 in
       let ours, other = if t = 0 then a, b else b, a in
       if (not (can_run other ours)) then
         (* other can not run here, we are in waiting for period *)
@@ -168,23 +165,25 @@ struct
             raise Deadcode *)
         else
           (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
-          let times = Times.advance_all_times_by our_waiting_time x in
+          let times = Times.advance_all_times_by waiting_time x in
           do_end_wait ((a,b), times) t
       else
         (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
 
   let arinc_edge ctx (t,e) =
-    let (a, b), x = ctx.local in
+    let [a; b], x = ctx.local in
     if t = -1 then
       (* This is some special edge e.g. during init *)
       ctx.local
     else if e = WaitingForPeriod then
       (* The restart of a period can happen at any time even if the task does not have priority *)
-      wait_for_period ((a,b),x) t
+      let ((a,b),x) = wait_for_period ((a,b),x) t in
+      ([a;b], x)
     else if e = WaitingForEndWait then
       (* The end of waiting can happen at any time if the task does not have priority *)
-      wait_for_endwait ((a,b),x) t
+      let ((a,b),x) = wait_for_endwait ((a,b),x) t in
+      ([a;b],x)
     else
       let ours, other = if t = 0 then a, b else b, a in
       if not (can_run ours other) then
@@ -204,7 +203,7 @@ struct
         | StartComputation i ->
           let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
           let times = Times.set_remaining_processing t wcetInterval x in
-          (a,b), times
+          [a;b], times
         | FinishComputation ->
           begin
             let wcetInterval = Times.get_remaining_processing t x in
@@ -220,16 +219,16 @@ struct
                 let minimum_definite_compute_interval = TInterval.of_interval (Int64.zero, BatOption.get @@ TInterval.minimal waiting_time_other) in
                 let times = Times.set_remaining_processing t Times.zeroInterval x in
                 let times = Times.advance_all_times_by minimum_definite_compute_interval times in
-                (a,b), times
+                [a;b], times
               else
               (* We can finish the entire thing, even if it takes WCET *)
               let times = Times.set_remaining_processing t Times.zeroInterval x in
               let times = Times.advance_all_times_by wcetInterval times in
-              (a,b), times
+              [a;b], times
             else
               let times = Times.set_remaining_processing t Times.zeroInterval x in
               let times = Times.advance_all_times_by wcetInterval times in
-              (a,b), times
+              [a;b], times
           end
         | ContinueComputation ->
           let wcetInterval = Times.get_remaining_processing t x in
@@ -244,7 +243,7 @@ struct
                 let _ = Printf.printf "minimum waiting time is %s\n" (string_of_int (Int64.to_int @@ Option.get @@ TInterval.minimal waiting_time_other)) in
                 let times = Times.update_remaining_processing t (fun x -> TInterval.meet wcetInterval (subtract_if_not_zero x minimum_definite_compute_interval)) x in
                 let times = Times.advance_all_times_by minimum_definite_compute_interval times in
-                (a,b), times
+                [a; b], times
               else
                 (* this can definitely finish -> we should only take the FinishComputation edge*)
                 raise Deadcode
@@ -267,18 +266,21 @@ struct
           let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
           let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
           let times = Times.set_remaining_wait t remaining_wait x in (* set remaining wait time *)
-          let (a,b), _ = D.periodic_wait t ctx.local in
-          (a,b), times
+          let s, _ = D.periodic_wait t ctx.local in
+          s, times
         | TimedWait tw ->
           let remaining_wait = TInterval.of_int (Int64.of_int tw) in
           let times = Times.set_remaining_wait t remaining_wait x in (* set remaining wait time *)
-          let (a,b), _ = D.timed_wait t ctx.local in
-          (a,b), times
+          let s, _ = D.timed_wait t ctx.local in
+          s, times
         | _ -> ctx.local
 
+  let should_join_one a b =
+    a.processState = b.processState && a.waitingFor = b.waitingFor
 
-  let should_join ((a, b), x) ((a', b'), x') = a.processState = a'.processState && b.processState = b'.processState && a.waitingFor = a'.waitingFor && b.waitingFor = b'.waitingFor
-
+  let should_join (a, x) (b, x') = 
+    List.fold_left2 (fun x e f -> x && should_join_one e f) true a b
+    
   let val_of () = D.bot ()
   let context _ = ()
 

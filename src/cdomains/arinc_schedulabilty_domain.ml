@@ -225,51 +225,20 @@ end
 
 module D =
 struct
-  include Lattice.Prod(Lattice.Prod(OneTask)(OneTask))(Times)
+  include Lattice.Prod(Lattice.Liszt(OneTask))(Times)
 
-  type t = (process * process) * Times.t
+  type t = (process list) * Times.t
 
-  let suspend t ((a, b), x) =
-    if t = 0 then
-      (OneTask.suspend a, b), x
-    else if t = 1 then
-      (a, OneTask.suspend b), x
-    else
-      failwith "lol, wut?!"
+  let apply_to_t t fn (s, x) =
+    let s' = List.mapi (fun i e -> if i = t then fn e else e) s in
+    (s', x)  
 
-  let resume t ((a, b), x) =
-    if t = 0 then
-      (OneTask.resume a, b), x
-    else if t = 1 then
-      (a, OneTask.resume b), x
-    else
-      failwith "lol, wut?!"
+  let suspend t x = apply_to_t t OneTask.suspend x
+  let resume t x = apply_to_t t OneTask.resume x
+  let periodic_wait t x = apply_to_t t OneTask.periodic_wait x
+  let timed_wait t x = apply_to_t t OneTask.timed_wait x
+  let wait_event t i x = apply_to_t t (OneTask.wait_event i) x
 
-  let wait_event t i ((a, b), x) =
-    if t = 0 then
-      (OneTask.wait_event i a, b), x
-    else if t = 1 then
-      (a, OneTask.wait_event i b), x
-    else
-      failwith "lol, wut?!"
-
-  let periodic_wait t ((a, b), x) =
-    if t = 0 then
-      (OneTask.periodic_wait a, b), x
-    else if t = 1 then
-      (a, OneTask.periodic_wait b), x
-    else
-      failwith "lol, wut?!"
-
-  let timed_wait t ((a, b), x) =
-    if t = 0 then
-      (OneTask.timed_wait a, b), x
-    else if t = 1 then
-      (a, OneTask.timed_wait b), x
-    else
-      failwith "lol, wut?!"
-
-  let set_event i ((a, b), x) =
-    (OneTask.set_event i a, OneTask.set_event i b), x
-
+  let set_event i (s, x) =
+    List.map (OneTask.set_event i) s, x 
 end
