@@ -9,8 +9,8 @@ struct
   include Analyses_arinc.DefaultSpec
 
   let name () = "scheduling_arinc"
-  module DInner = Arinc_schedulabilty_domain.D
-  module D = Lattice.Lift(DInner)(Printable.DefaultNames)
+  module SD = Arinc_schedulabilty_domain.D
+  module D = Lattice.Lift(SD)(Printable.DefaultNames)
   module G = Lattice.Unit
   module C = Lattice.Unit
   module TInterval = IntDomain.Interval32
@@ -204,110 +204,115 @@ struct
         (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
 
-  let arinc_edge xin (t,e) node =
-    let s, x = xin in
-    if t = -1 then
+
+  let finish_computation (taskstates, times) tid =
+    (* We can always take this edge, because we never have a lower bound on how long a computation can take      *)
+    (* If I am here, the only thing that could interrupt me is a (higher priority) task finishing waiting on sth *)
+    (* If the other task wanted to do computation here, we would raise Deadcode even before calling this         *)
+    let wcetInterval = Times.get_remaining_processing tid times in
+    let possibleInterrupters = tasks_waiting_timed_id tid taskstates in
+    if List.length possibleInterrupters == 0 then
+      (* This will be not interrupted *)
+      let times = Times.set_remaining_processing tid Times.zeroInterval times in
+      let times = Times.advance_all_times_by wcetInterval times in
+      taskstates, times
+    else
+      (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
+      (* as even when it's wait ends, it will not interrupt this process *)
+      let waiting_time_other = get_wait_interval possibleInterrupters times in
+      let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
+      if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
+        (* This is the minimum interval we can compute for sure, so we can subtract this everywhere. If we take less than this time, we can move on *)
+        let minimum_definite_compute_interval = TInterval.of_interval (Int64.zero, BatOption.get @@ TInterval.minimal waiting_time_other) in
+        let times = Times.set_remaining_processing tid Times.zeroInterval times in
+        let times = Times.advance_all_times_by minimum_definite_compute_interval times in
+        taskstates, times
+      else
+      (* We can finish the entire thing, even if it takes WCET *)
+      let times = Times.set_remaining_processing tid Times.zeroInterval times in
+      let times = Times.advance_all_times_by wcetInterval times in
+      taskstates, times
+
+  let continue_computation (taskstates, times) tid =
+    let wcetInterval = Times.get_remaining_processing tid times in
+    let possibleInterrupters = tasks_waiting_timed_id tid taskstates in
+    if List.length possibleInterrupters == 0 then
+      (* this can definitely finish -> we should only take the FinishComputation edge*)
+      raise Deadcode
+    else
+      (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
+      (* as even when it's wait ends, it will not interrupt this process *)
+      let waiting_time_other = get_wait_interval possibleInterrupters times in
+      let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
+      if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
+        (* This is the minimum interval we can compute for sure, so we can subtract this everywhere *)
+        let minimum_definite_compute_interval = TInterval.of_int (Option.get @@ TInterval.minimal waiting_time_other) in
+        let _ = Printf.printf "minimum waiting time is %s\n" (string_of_int (Int64.to_int @@ Option.get @@ TInterval.minimal waiting_time_other)) in
+        let times = Times.update_remaining_processing tid (fun x -> TInterval.meet wcetInterval (subtract_if_not_zero x minimum_definite_compute_interval)) times in
+        let times = Times.advance_all_times_by minimum_definite_compute_interval times in
+        taskstates, times
+      else
+        (* this can definitely finish -> we should only take the FinishComputation edge*)
+        raise Deadcode
+
+  let start_computation (taskstates, times) tid wcet =
+    let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int wcet) in
+    let times = Times.set_remaining_processing tid wcetInterval times in
+    taskstates, times
+
+  let periodic_wait (taskstates, times) tid node =
+    (* Check that the deadline is not violated *)
+    let time_since_period = Times.get_since_period tid times in
+    let deadline  =  BatOption.get @@ Capacity.to_int ((get_info_for taskstates tid).capacity) in
+    let deadline_interval = TInterval.of_int deadline in
+    let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
+    (if not (TInterval.is_bot miss) then Printf.printf "%s deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
+      (Arinc_Node.to_string node)
+      tid (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval)
+      (SD.short 800 (taskstates,times))
+      else
+      ());
+    let period = BatOption.get @@ Period.to_int ((get_info_for taskstates tid).period) in
+    let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
+    let times = Times.set_remaining_wait tid remaining_wait times in (* set remaining wait time *)
+    let s = SD.periodic_wait tid taskstates in
+    s, times
+
+  let timed_wait (taskstates, times) tid waittime =
+    let remaining_wait = TInterval.of_int (Int64.of_int waittime) in
+    let times = Times.set_remaining_wait tid remaining_wait times in (* set remaining wait time *)
+    let s = SD.timed_wait tid taskstates in
+    s, times
+
+  let arinc_edge_not_bot ((taskstates, times) as state) (tid,e) node =
+    if tid = -1 then
       (* This is some special edge e.g. during init *)
-      xin
+      state
     else if e = WaitingForPeriod then
       (* The restart of a period can happen at any time even if the task does not have priority *)
-      wait_for_period (s,x) t
+      wait_for_period state tid
     else if e = WaitingForEndWait then
       (* The end of waiting can happen at any time if the task does not have priority *)
-      wait_for_endwait (s,x) t
+      wait_for_endwait state tid
+    else if not (can_run tid taskstates) then
+      (* all other actions can only happen if this task is in running state, and has the highest priority *)
+      raise Deadcode
     else
-      if not (can_run t s) then
-        (* all other actions can only happen if this task is in running state, and has the highest priority *)
-        raise Deadcode
-      else
-        match e with
-        | SuspendTask i -> DInner.suspend i xin
-        | ResumeTask i -> DInner.resume i xin
-        | WaitEvent i -> DInner.wait_event t i xin
-        | SetEvent i -> DInner.set_event i xin
-        | StartComputation i ->
-          let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
-          let times = Times.set_remaining_processing t wcetInterval x in
-          s, times
-        | FinishComputation ->
-          (* We can always take this edge, because we never have a lower bound on how long a computation can take *)
-          begin
-            (* If I am here, the only thing that could interrupt me is a higher priority task finishing waiting on sth *)
-            (* If the other task wanted to do computation here, we would raise Deadcode even before *)
-            let wcetInterval = Times.get_remaining_processing t x in
-            let possibleInterrupters = tasks_waiting_timed_id t s in
-            if List.length possibleInterrupters == 0 then
-              (* This will be not interrupted *)
-              let times = Times.set_remaining_processing t Times.zeroInterval x in
-              let times = Times.advance_all_times_by wcetInterval times in
-              s, times
-            else
-              (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
-              (* as even when it's wait ends, it will not interrupt this process *)
-              let waiting_time_other = get_wait_interval possibleInterrupters x in
-              let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
-              if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
-                (* This is the minimum interval we can compute for sure, so we can subtract this everywhere. If we take less than this time, we can move on *)
-                let minimum_definite_compute_interval = TInterval.of_interval (Int64.zero, BatOption.get @@ TInterval.minimal waiting_time_other) in
-                let times = Times.set_remaining_processing t Times.zeroInterval x in
-                let times = Times.advance_all_times_by minimum_definite_compute_interval times in
-                s, times
-              else
-              (* We can finish the entire thing, even if it takes WCET *)
-              let times = Times.set_remaining_processing t Times.zeroInterval x in
-              let times = Times.advance_all_times_by wcetInterval times in
-              s, times
-          end
-        | ContinueComputation ->
-          begin
-          let wcetInterval = Times.get_remaining_processing t x in
-          let possibleInterrupters = tasks_waiting_timed_id t s in
-          if List.length possibleInterrupters == 0 then
-            (* this can definitely finish -> we should only take the FinishComputation edge*)
-            raise Deadcode
-          else
-            (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
-            (* as even when it's wait ends, it will not interrupt this process *)
-            let waiting_time_other = get_wait_interval possibleInterrupters x in
-            let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
-            if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
-              (* This is the minimum interval we can compute for sure, so we can subtract this everywhere *)
-              let minimum_definite_compute_interval = TInterval.of_int (Option.get @@ TInterval.minimal waiting_time_other) in
-              let _ = Printf.printf "minimum waiting time is %s\n" (string_of_int (Int64.to_int @@ Option.get @@ TInterval.minimal waiting_time_other)) in
-              let times = Times.update_remaining_processing t (fun x -> TInterval.meet wcetInterval (subtract_if_not_zero x minimum_definite_compute_interval)) x in
-              let times = Times.advance_all_times_by minimum_definite_compute_interval times in
-              s, times
-            else
-              (* this can definitely finish -> we should only take the FinishComputation edge*)
-              raise Deadcode
-          end
-        | PeriodicWait ->
-          (* Check that the deadline is not violated *)
-          let time_since_period = Times.get_since_period t x in
-          let deadline  =  BatOption.get @@ Capacity.to_int ((get_info_for s t).capacity) in
-          let deadline_interval = TInterval.of_int deadline in
-          let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
-          (if not (TInterval.is_bot miss) then Printf.printf "%s deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
-            (Arinc_Node.to_string node)
-            t (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval)
-           (DInner.short 800 xin)
-           else
-           ());
-          let period = BatOption.get @@ Period.to_int ((get_info_for s t).period) in
-          let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
-          let times = Times.set_remaining_wait t remaining_wait x in (* set remaining wait time *)
-          let s, _ = DInner.periodic_wait t xin in
-          s, times
-        | TimedWait tw ->
-          let remaining_wait = TInterval.of_int (Int64.of_int tw) in
-          let times = Times.set_remaining_wait t remaining_wait x in (* set remaining wait time *)
-          let s, _ = DInner.timed_wait t xin in
-          s, times
-        | _ -> xin
+      match e with
+      | SuspendTask i -> SD.suspend i taskstates, times
+      | ResumeTask i -> SD.resume i taskstates, times
+      | WaitEvent i -> SD.wait_event tid i taskstates, times
+      | SetEvent i -> SD.set_event i state
+      | StartComputation wcet -> start_computation state tid wcet
+      | FinishComputation -> finish_computation state tid
+      | ContinueComputation -> continue_computation state tid
+      | PeriodicWait -> periodic_wait state tid node
+      | TimedWait tw -> timed_wait state tid tw
+      | _ -> state
 
   let arinc_edge ctx (t,e) =
     match ctx.local with
-    | `Lifted x -> `Lifted (arinc_edge x (t,e) ctx.node)
+    | `Lifted x -> `Lifted (arinc_edge_not_bot x (t,e) ctx.node)
     | `Top -> `Top
     | `Bot -> `Bot
 

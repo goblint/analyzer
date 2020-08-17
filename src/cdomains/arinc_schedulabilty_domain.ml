@@ -229,10 +229,7 @@ struct
 
   type t = (process list) * Times.t
 
-  let apply_to_t t fn (s, x) =
-    let s' = List.mapi (fun i e -> if i = t then fn e else e) s in
-    (s', x)
-
+  let apply_to_t t fn s = List.mapi (fun i e -> if i = t then fn e else e) s
   let suspend t x = apply_to_t t OneTask.suspend x
   let resume t x = apply_to_t t OneTask.resume x
   let periodic_wait t x = apply_to_t t OneTask.periodic_wait x
