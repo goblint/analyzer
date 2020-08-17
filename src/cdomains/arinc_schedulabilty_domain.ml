@@ -231,7 +231,7 @@ struct
 
   let apply_to_t t fn (s, x) =
     let s' = List.mapi (fun i e -> if i = t then fn e else e) s in
-    (s', x)  
+    (s', x)
 
   let suspend t x = apply_to_t t OneTask.suspend x
   let resume t x = apply_to_t t OneTask.resume x
@@ -240,5 +240,7 @@ struct
   let wait_event t i x = apply_to_t t (OneTask.wait_event i) x
 
   let set_event i (s, x) =
-    List.map (OneTask.set_event i) s, x 
+    List.map (OneTask.set_event i) s, x
 end
+
+module LiftedD = Lattice.LiftBot(D)

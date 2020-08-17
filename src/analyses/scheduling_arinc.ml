@@ -9,8 +9,9 @@ struct
   include Analyses_arinc.DefaultSpec
 
   let name () = "scheduling_arinc"
-  module D = Arinc_schedulabilty_domain.D
-  module G = Arinc_schedulabilty_domain.D
+  module DInner = Arinc_schedulabilty_domain.D
+  module D = Lattice.Lift(DInner)(Printable.DefaultNames)
+  module G = Lattice.Lift(DInner)(Printable.DefaultNames)
   module C = Lattice.Unit
   module TInterval = IntDomain.Interval32
 
@@ -48,7 +49,7 @@ struct
       waitingFor = WaitingForEvent.bot ()
       }
     in
-    [ctx.local, ([state1; state2], t)]
+    [ctx.local, `Lifted([state1; state2], t)]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     failwith "lol, wut?!!!"
@@ -171,11 +172,11 @@ struct
         (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
 
-  let arinc_edge ctx (t,e) =
-    let [a; b], x = ctx.local in
+  let arinc_edge xin (t,e) node =
+    let [a; b], x = xin in
     if t = -1 then
       (* This is some special edge e.g. during init *)
-      ctx.local
+      xin
     else if e = WaitingForPeriod then
       (* The restart of a period can happen at any time even if the task does not have priority *)
       let ((a,b),x) = wait_for_period ((a,b),x) t in
@@ -196,10 +197,10 @@ struct
             raise Deadcode
       else
         match e with
-        | SuspendTask i -> D.suspend i ctx.local
-        | ResumeTask i -> D.resume i ctx.local
-        | WaitEvent i -> D.wait_event t i ctx.local
-        | SetEvent i -> D.set_event i ctx.local
+        | SuspendTask i -> DInner.suspend i xin
+        | ResumeTask i -> DInner.resume i xin
+        | WaitEvent i -> DInner.wait_event t i xin
+        | SetEvent i -> DInner.set_event i xin
         | StartComputation i ->
           let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int i) in
           let times = Times.set_remaining_processing t wcetInterval x in
@@ -256,31 +257,41 @@ struct
           let deadline  = BatOption.get @@ Capacity.to_int (if t = 0 then a.capacity else b.capacity) in
           let deadline_interval = TInterval.of_int deadline in
           let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
-          let PC [u; v] = ctx.node in
+          let PC [u; v] = node in
           (if not (TInterval.is_bot miss) then Printf.printf "(%s,%s) deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
             (string_of_int u) (string_of_int v)
             t (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval)
-           (D.short 800 ctx.local)
+           (DInner.short 800 xin)
            else
            ());
           let period = BatOption.get @@ Period.to_int (if t = 0 then a.period else b.period) in
           let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
           let times = Times.set_remaining_wait t remaining_wait x in (* set remaining wait time *)
-          let s, _ = D.periodic_wait t ctx.local in
+          let s, _ = DInner.periodic_wait t xin in
           s, times
         | TimedWait tw ->
           let remaining_wait = TInterval.of_int (Int64.of_int tw) in
           let times = Times.set_remaining_wait t remaining_wait x in (* set remaining wait time *)
-          let s, _ = D.timed_wait t ctx.local in
+          let s, _ = DInner.timed_wait t xin in
           s, times
-        | _ -> ctx.local
+        | _ -> xin
+
+  let arinc_edge ctx (t,e) =
+    match ctx.local with
+    | `Lifted x -> `Lifted (arinc_edge x (t,e) ctx.node)
+    | `Top -> `Top
+    | `Bot -> `Bot
+
 
   let should_join_one a b =
     a.processState = b.processState && a.waitingFor = b.waitingFor
 
-  let should_join (a, x) (b, x') = 
-    List.fold_left2 (fun x e f -> x && should_join_one e f) true a b
-    
+  let should_join a b =
+    match a,b with
+    | `Lifted (a,x), `Lifted(b, x') ->
+      List.fold_left2 (fun x e f -> x && should_join_one e f) true a b
+    | _ -> true
+
   let val_of () = D.bot ()
   let context _ = ()
 
