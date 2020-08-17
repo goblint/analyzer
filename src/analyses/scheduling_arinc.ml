@@ -30,6 +30,18 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     failwith "lol, wut?!!!"
 
+  let get_info_for t s =
+    List.at t s
+
+  let update_info_for t fn s =
+    List.modify_at t fn s
+
+  let get_info_for_leg t (a,b) =
+    if t=0 then a else b
+
+  let update_info_for_leg t v (a,b) =
+    if t = 0 then (v,b) else (a,v)
+
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     let t = Times.start_state 2 in
     let state1 = {
@@ -58,8 +70,8 @@ struct
     failwith "lol, wut?!!!"
 
   (* What if none can run unless time passes? *)
-  (* Can ours run relative ot other? *)
-  let can_run ours other =
+  (* Can ours run relative to other? *)
+  let can_run_relative ours other =
     if ours.processState <> PState.ready then
       (* We can not take any actions while not ready *)
       false
@@ -81,11 +93,16 @@ struct
         else
           true
 
-  let get_info_for t (a,b) =
-    if t=0 then a else b
+  let can_run t s =
+    (* TODO: What if there is only one task *)
+    let ours = List.at s t in
+    List.fold_lefti (fun acc i other -> acc && if i=t then true else can_run_relative ours other) true s
 
-  let update_info_for t v (a,b) =
-    if t = 0 then (v,b) else (a,v)
+  (* Check if any other task can run relative to t (when assuming that t is not ready) *)
+  let one_other_can_run t s =
+    let ours = List.at s t in
+    List.fold_lefti  (fun acc i other -> acc || if i=t then false else can_run_relative other ours) false s
+
 
   (* Subtract y from x and ensure result is not negative *)
   let subtract_if_not_zero x y  =
@@ -95,25 +112,26 @@ struct
       let wait_time = TInterval.sub x y in
       TInterval.meet wait_time (TInterval.starting Int64.zero) (* These numbers may not become negative *)
 
-  let wait_for_period ((a,b) as s,x) t =
+  let wait_for_period ((s:process list),x) t =
     let do_restart_period (s, x) t =
       let times = Times.set_since_period t Times.zeroInterval x in
       let times = Times.set_remaining_wait t Times.zeroInterval times in
-      let info = get_info_for t s in
-      (update_info_for t {info with processState = PState.ready} s), times
+      let s = update_info_for t (fun x -> {x with processState = PState.ready}) s in
+      s, times
     in
     let t_since_period = Times.get_since_period t x in
     let our_waiting_time = Times.get_remaining_wait t x in
-    let period = BatOption.get @@ Period.to_int ((get_info_for t s).period) in
+    let period = BatOption.get @@ Period.to_int ((get_info_for s t).period) in
     if TInterval.leq (TInterval.of_int period) t_since_period then
       do_restart_period (s, x) t
     else
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
-      let ours, other = if t = 0 then a, b else b, a in
-      if (not (can_run other ours)) then
+      (* TODO: We need to check that this is indeed the longest wait time! *)
+      if (not (one_other_can_run t s)) then
         (* other can not run here, we are in waiting for period *)
-        if other.processState = PState.waiting_for_period then
-          failwith "Both waiting for period - Didn't think about this yet"
+        (* TODO: What if both are waiting for a period *)
+        (* if other.processState = PState.waiting_for_period then
+          failwith "Both waiting for period - Didn't think about this yet" *)
           (* both are waiting for period *)
           (* if t = 0 then
             let min_waiting_time_t0 = Option.get @@ TInterval.minimal waiting_time_t0 in
@@ -127,19 +145,19 @@ struct
               raise Deadcode
           else
             raise Deadcode *)
-        else
+        (* else *)
           (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
           let times = Times.advance_all_times_by our_waiting_time x in
           do_restart_period (s, times) t
       else
-        (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
+        (* another task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
 
   let wait_for_endwait ((a,b) as s,x) t =
     let do_end_wait (s, x) t =
       let times = Times.set_remaining_wait t Times.zeroInterval x in
-      let info = get_info_for t s in
-      (update_info_for t {info with processState = PState.ready} s), times
+      let info = get_info_for_leg t s in
+      (update_info_for_leg t {info with processState = PState.ready} s), times
     in
     let waiting_time = Times.get_remaining_wait t x in
     if TInterval.leq Times.zeroInterval waiting_time then
@@ -147,7 +165,7 @@ struct
     else
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
       let ours, other = if t = 0 then a, b else b, a in
-      if (not (can_run other ours)) then
+      if (not (can_run_relative other ours)) then
         (* other can not run here, we are in waiting for period *)
         if other.processState = PState.waiting_for_period then
           failwith "Both waiting for period - Didn't think about this yet"
@@ -173,22 +191,22 @@ struct
         raise Deadcode
 
   let arinc_edge xin (t,e) node =
+    let s,_ = xin in
     let [a; b], x = xin in
     if t = -1 then
       (* This is some special edge e.g. during init *)
       xin
     else if e = WaitingForPeriod then
       (* The restart of a period can happen at any time even if the task does not have priority *)
-      let ((a,b),x) = wait_for_period ((a,b),x) t in
-      ([a;b], x)
+      wait_for_period (s,x) t
     else if e = WaitingForEndWait then
       (* The end of waiting can happen at any time if the task does not have priority *)
       let ((a,b),x) = wait_for_endwait ((a,b),x) t in
       ([a;b],x)
     else
       let ours, other = if t = 0 then a, b else b, a in
-      if not (can_run ours other) then
-          if not (can_run other ours) then
+      if not (can_run_relative ours other) then
+          if not (can_run_relative other ours) then
             begin
               (* Printf.printf "No task can run ?!\n"; *)
               raise Deadcode
