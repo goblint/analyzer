@@ -841,7 +841,7 @@ struct
     | `Bot, `Excluded(_, xr)
     | `Bot, `Definite(_, xr)
     | `Excluded(_ , xr), `Bot
-    | `Definite(_, xr), `Bot -> `Excluded(S.empty (), xr)
+    | `Definite(_, xr), `Bot -> top ()
     | `Bot, `Bot -> top ()
 
   (* For the shift operations, CIL does not cast the right argument to the type of the left argument,    *)
