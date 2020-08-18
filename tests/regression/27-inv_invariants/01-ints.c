@@ -46,4 +46,25 @@ int main() {
   }
     // UNKNOWN due to Interval32 not being able to represent long
     // assert(xl != 2); // [2,4] -> [3,4] TODO x % 2 == 1
-}
+
+  short xs, ys, zs;
+  if (xs+1 == 2) {
+    assert(xs == 1);
+  } else {
+    // Does not survive the casts inserted by CIL
+    // assert(xs != 1);
+  }
+  if (5-xs == 3)
+    assert(xs == 2);
+  if (5-xs == 3 && xs+ys == xs*3)
+    assert(xs == 2 && ys == 4);
+  if (xs == 3 && ys/xs == 2)
+    assert(ys == 6);
+  if (ys/xs == 2 && xs == 3)
+    assert(xs == 3); // TODO yl == 6
+  if (2+(3-xs)*4/5 == 6 && 2*ys >= xs+4) {
+    assert(xs == -2 && ys >= 1);
+  }
+  if (xs > 1 && xs < 5 && xs % 2 == 1) {
+    assert(xs != 2);
+  }}
