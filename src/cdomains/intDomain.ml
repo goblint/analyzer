@@ -716,8 +716,8 @@ struct
   (* checks that x and y have the same range, and warns (in debug mode fails) if this is not the case *)
   let check_identical_range x y =
     if x <> y then
-      if get_bool "dbg.debug" then
-        raise (Failure (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y)))
+      if get_bool "dbg.fail_on_different_ikind" then
+        failwith (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
       else
         M.warn (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
 
