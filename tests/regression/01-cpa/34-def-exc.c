@@ -1,4 +1,5 @@
-// --enable ana.int.def_exc --disable ana.int.interval
+// PARAM: --enable ana.int.def_exc --disable ana.int.interval
+#include<stdbool.h>
 void main()
 {
   char yy[256];
@@ -44,5 +45,13 @@ void main()
   v = (v & 0xFFF0FFFF) |
 	    (((unsigned int) s1 ^ s2) << 16);
 
+  int tmp___1;
+  int *tmp___2;
+
+  _Bool  fclose_fail = (_Bool )(tmp___1 != 0);
+
+  if (! fclose_fail) {
+    *tmp___2 = 0;
+  }
   return;
 }
