@@ -1492,7 +1492,13 @@ struct
     if eval_bool exp = Some tv then raise Deadcode
     else
       let ik = get_ikind (Cil.typeOf exp) in
-      Tuple3.map1 (fun _ -> inv_exp (ID.of_bool_ikind ik tv) exp) st
+      let tv_abs =
+        if tv
+          then ID.of_excl_list ik [Int64.zero]
+          else ID.of_int_ikind ik Int64.zero
+      in
+      Tuple3.map1 (fun _ -> inv_exp (tv_abs) exp) st
+
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
     match v with
