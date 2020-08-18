@@ -763,7 +763,7 @@ struct
 
 
   let of_int_ikind t x = `Definite (Integers.of_int x, size t)
-  let of_int =  of_int_ikind Cil.IInt
+  let of_int x = `Definite(Integers.of_int x, top_range)
 
   let to_int  x = match x with
     | `Definite (x, xr) -> Integers.to_int x
