@@ -1468,6 +1468,7 @@ struct
       | Lval x -> (* meet x with c *)
         let c' = match typeOfLval x with
           | TPtr _ -> `Address (AD.of_int (module ID) c)
+          | TInt (ik, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
         let oldv = eval (Lval x) in
