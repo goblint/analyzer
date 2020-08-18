@@ -1394,6 +1394,10 @@ struct
   let invariant ctx a gs st exp tv =
     let open Deriving.Cil in
     (* inverse values for binary operation a `op` b == c *)
+    let fallback reason =
+      if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
+      Tuple3.first (invariant ctx a gs st exp tv)
+    in
     let inv_bin_int (a, b) c t op =
       let meet_bin a' b' = ID.meet a a', ID.meet b b' in
       let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
@@ -1460,7 +1464,7 @@ struct
           let m2 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e2)) b') e2 in
           CPA.meet m1 m2
         (* | `Address a, `Address b -> ... *)
-        | a1, a2 -> raise (Failure ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2)))
+        | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
       | Lval x -> (* meet x with c *)
         let c' = match typeOfLval x with
           | TPtr _ -> `Address (AD.of_int (module ID) c)
@@ -1479,19 +1483,14 @@ struct
           if ID.leq a (ID.cast_to ik a) then
             inv_exp c e
           else
-            raise (Failure ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty a ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t))
-        | v -> raise (Failure ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v)))
-      | e -> raise (Failure (sprint d_plainexp e ^ " not implemented"))
+            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty a ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
+        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
+      | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
     if eval_bool exp = Some tv then raise Deadcode
     else
       let ik = get_ikind (Cil.typeOf exp) in
-      try
-        Tuple3.map1 (fun _ -> inv_exp (ID.of_bool_ikind ik tv) exp) st
-      with
-        Failure s ->
-          if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp s;
-          invariant ctx a gs st exp tv
+      Tuple3.map1 (fun _ -> inv_exp (ID.of_bool_ikind ik tv) exp) st
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
     match v with
