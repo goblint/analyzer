@@ -830,7 +830,7 @@ struct
     (* The good case: *)
     | `Definite (x,xr), `Definite (y,yr) ->
       check_identical_range xr yr;
-      (try `Definite (f x y,xr) with | Division_by_zero -> top ())
+      (try `Definite (f x y,xr) with | Division_by_zero -> `Excluded (S.empty (), xr))
     (* We don't bother with exclusion sets: *)
     | `Excluded (_, xr), `Definite(_, yr)
     | `Definite (_, xr), `Excluded(_, yr)
@@ -849,7 +849,7 @@ struct
   (* argument *)
   let lift2_special f x y = match x,y with
     (* The good case: *)
-    | `Definite (x,xr), `Definite (y,_) -> (try `Definite (f x y,xr) with | Division_by_zero -> top ())
+    | `Definite (x,xr), `Definite (y,_) -> (try `Definite (f x y,xr) with | Division_by_zero ->  `Excluded (S.empty (), xr))
     (* We don't bother with exclusion sets: *)
     | `Excluded (_, xr), `Definite(_, yr)
     | `Definite (_, xr), `Excluded(_, yr)
