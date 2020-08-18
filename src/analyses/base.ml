@@ -1481,7 +1481,9 @@ struct
         (match eval e with
         | `Int a ->
           if ID.leq a (ID.cast_to ik a) then
-            inv_exp c e
+             match Cil.typeOf e with
+              | TInt(ik_e, _) -> inv_exp (ID.cast_to ik_e c) e
+              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t)
           else
             fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty a ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
