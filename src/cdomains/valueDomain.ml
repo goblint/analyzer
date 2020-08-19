@@ -90,7 +90,7 @@ struct
   type offs = (fieldinfo,IndexDomain.t) Lval.offs
 
 
-  let get_ikind t = match Cil.unrollType t with TInt (ik,_) -> ik | _ ->
+  let get_ikind t = match Cil.unrollType t with TInt (ik,_) | TEnum ({ekind = ik; _},_) -> ik | _ ->
     (* important to unroll the type here, otherwise problems with typedefs *)
     M.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";  Cil.IInt
 

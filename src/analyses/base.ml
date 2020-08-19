@@ -100,7 +100,7 @@ struct
     | 0 -> Flag.compare x2 y2
     | x -> x
 
-  let get_ikind t = match Cil.unrollType t with TInt (ik,_) -> ik | _ ->
+  let get_ikind t = match Cil.unrollType t with TInt (ik,_) | TEnum ({ekind = ik; _},_) -> ik | _ ->
     (* important to unroll the type here, otherwise problems with typedefs *)
     M.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";  Cil.IInt
 
@@ -1469,7 +1469,8 @@ struct
         let t = Cil.unrollType (typeOfLval x) in  (* unroll type to deal with TNamed *)
         let c' = match t with
           | TPtr _ -> `Address (AD.of_int (module ID) c)
-          | TInt (ik, _) -> `Int (ID.cast_to ik c )
+          | TInt (ik, _)
+          | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
         let oldv = eval (Lval x) in
