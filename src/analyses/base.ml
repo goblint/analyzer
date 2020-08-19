@@ -16,6 +16,7 @@ module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
+module DefExc = IntDomain.DefExc
 
 let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -138,6 +139,11 @@ struct
     | Neg  -> ID.neg
     | BNot -> ID.bitnot
     | LNot -> ID.lognot
+
+  let unop_DefExc = function
+    | Neg  -> DefExc.neg
+    | BNot -> DefExc.bitnot
+    | LNot -> DefExc.lognot
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op = function
@@ -1398,43 +1404,54 @@ struct
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
       Tuple3.first (invariant ctx a gs st exp tv)
     in
-    let inv_bin_int (a, b) c t op =
-      let meet_bin a' b' = ID.meet a a', ID.meet b b' in
+    let inv_bin_int (a, b) (c: ID.t * DefExc.t) t op : ((ID.t *DefExc.t) * (ID.t * DefExc.t)) =
+      let meet_bin a' b' = (ID.meet (fst a) (fst a'), DefExc.meet (snd a) (snd a')), (ID.meet (fst b) (fst b'), DefExc.meet (snd b) (snd b')) in
       let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
       let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
       match op with
-      | PlusA  -> meet_com ID.sub
-      | Mult   -> meet_com ID.div
-      | MinusA -> meet_non ID.add ID.sub
-      | Div    -> meet_non ID.mul ID.div
-      | Mod    -> meet_bin (ID.add c (ID.mul b (ID.div a b))) (ID.div (ID.sub a c) (ID.div a b))
+      | PlusA  -> meet_com (fun (ai, ad) (bi, bd) -> ID.sub ai bi, DefExc.sub ad bd)
+      | Mult   -> meet_com (fun (ai, ad) (bi, bd) -> ID.div ai bi, DefExc.div ad bd)
+      | MinusA -> meet_non (fun (ai, ad) (bi, bd) -> ID.add ai bi, DefExc.add ad bd) (fun (ai, ad) (bi, bd) -> ID.sub ai bi, DefExc.sub ad bd)
+      | Div    -> meet_non (fun (ai, ad) (bi, bd) -> ID.mul ai bi, DefExc.mul ad bd) (fun (ai, ad) (bi, bd) -> ID.div ai bi, DefExc.div ad bd)
+      | Mod    -> let (ai, ad) = a in
+                  let (bi, bd) = b in
+                  let (ci, cd) = c in
+        meet_bin (ID.(add ci (mul (bi) (div ai bi))), DefExc.(add cd (mul bd (div ad bd)))) (ID.(div (sub ai ci) (div ai bi)), DefExc.(div (sub ad cd) (div ad bd)) )
       | Eq | Ne ->
+        let (ai, ad) = a in
+        let (bi, bd) = b in
+        let (ci, cd) = c in
         let both x = x, x in
-        let m = ID.meet a b in
-        (match op, ID.to_bool c with
-        | Eq, Some true
-        | Ne, Some false -> both m (* def. equal *)
-        | Eq, Some false
-        | Ne, Some true -> (* def. unequal *)
-          (match ID.to_int m with
-          | Some i -> both (ID.of_excl_list t [i])
-          | None -> a, b)
+        let m = (ID.meet ai bi, DefExc.meet ad bd) in
+        (match op, (ID.to_bool ci, DefExc.to_bool cd) with
+        | _, (Some true, Some false) | _, (Some false, Some true) -> failwith "Conflicting information on truth value of branching."
+        | Eq, (Some true, _)| Eq, (_, Some true)
+        | Ne, (Some false, _) | Ne, (_, Some false) -> both m (* def. equal *)
+        | Eq, (Some false, _)| Eq, (_, Some false)
+        | Ne, (Some true, _) | Ne, (_, Some true) -> (* def. unequal *)
+          (match (ID.to_int (fst m), DefExc.to_int (snd m)) with
+          | Some i, Some j when i = j ->  both (ID.of_excl_list t [i], DefExc.of_excl_list t [i])
+          | Some i, None | None, Some i -> both (ID.of_excl_list t [i], DefExc.of_excl_list t [i])
+          | None, None -> a, b
+          | Some i, Some j -> failwith "Conflicting information provided by domains."
+          )
         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt ->
-        (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
+        (match ID.minimal @@ fst a, ID.maximal @@ fst a, ID.minimal @@ fst b, ID.maximal @@ fst b with
         | Some l1, Some u1, Some l2, Some u2 ->
           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
-          (match op, ID.to_bool c with
-          | Le, Some true
-          | Gt, Some false -> meet_bin (ID.ending_ikind t u2) (ID.starting_ikind t l1)
-          | Ge, Some true
-          | Lt, Some false -> meet_bin (ID.starting_ikind t l2) (ID.ending_ikind t u1)
-          | Lt, Some true
-          | Ge, Some false -> meet_bin (ID.ending_ikind t (Int64.pred u2)) (ID.starting_ikind t (Int64.succ l1))
-          | Gt, Some true
-          | Le, Some false -> meet_bin (ID.starting_ikind t (Int64.succ l2)) (ID.ending_ikind t (Int64.pred u1))
-          | _, _ -> a, b)
+          (match op, ID.to_bool (fst c), DefExc.to_bool (snd c) with
+          | _, Some true, Some false | _,  Some false, Some true -> failwith  "Conflicting information on truth value of branching."
+          | Le, Some true, _ | Le, _, Some true
+          | Gt, Some false, _ | Gt, _, Some false  -> meet_bin (ID.ending_ikind t u2, DefExc.ending_ikind t u2) (ID.starting_ikind t l1, DefExc.starting_ikind t l1)
+          | Ge, Some true, _ | Ge, _, Some true
+          | Lt, Some false, _ | Lt, _, Some false -> meet_bin (ID.starting_ikind t l2, DefExc.starting_ikind t l2) (ID.ending_ikind t u1, DefExc.ending_ikind t u1)
+          | Lt, Some true, _ | Lt, _, Some true
+          | Ge, Some false, _ | Ge, _, Some false -> meet_bin (ID.ending_ikind t (Int64.pred u2), DefExc.ending_ikind t (Int64.pred u2)) (ID.starting_ikind t (Int64.succ l1), DefExc.starting_ikind t (Int64.succ l1))
+          | Gt, Some true, _ | Gt, _, Some true
+          | Le, Some false, _ | Le, _, Some false -> meet_bin (ID.starting_ikind t (Int64.succ l2), DefExc.starting_ikind t (Int64.succ l2)) (ID.ending_ikind t (Int64.pred u1), DefExc.ending_ikind t (Int64.pred u1))
+          | _, _, _ -> a, b)
         | _ -> a, b)
       | _ ->
         if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
@@ -1443,14 +1460,14 @@ struct
     let eval e = eval_rv a gs st e in
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
     let set' lval v = Tuple3.first (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
-    let rec inv_exp c exp =
+    let rec inv_exp (c: ID.t * DefExc.t) exp =
       match exp with
-      | UnOp (op, e, _) -> inv_exp (unop_ID op c) e
+      | UnOp (op, e, _) -> inv_exp (unop_ID op (fst c), unop_DefExc op (snd c)) e
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
         if M.tracing then M.tracel "inv" "dropped cast %a\n" d_exp exp;
         inv_exp c (BinOp (op, c1, c2, t))
       | BinOp (op, e1, e2, t) as e ->
-        if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty c;
+        if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty (fst c);
         (match eval e1, eval e2 with
         | `Int a, `Int b ->
           (* the ikind of comparisons is always TInt(IInt,[]) in CIL *)
@@ -1459,19 +1476,20 @@ struct
             (* | Lor and land? *)
             | _ -> get_ikind (Cil.typeOf exp)
           in
-          let a', b' = inv_bin_int (a, b) (ID.cast_to ik c) ik op in
-          let m1 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e1)) a') e1 in
-          let m2 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e2)) b') e2 in
+          (* Using top_of ik here for DefExc. Question is, if this will help at all then? *)
+          let a', b' = inv_bin_int ((a, DefExc.top_of ik), (b, DefExc.top_of ik)) (ID.cast_to ik (fst c), DefExc.cast_to ik (snd c)) ik op in
+          let m1 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e1)) (fst a'), DefExc.cast_to (get_ikind (Cil.typeOf e1)) (snd a')) e1 in
+          let m2 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e2)) (fst b'), DefExc.cast_to (get_ikind (Cil.typeOf e2)) (snd b')) e2 in
           CPA.meet m1 m2
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
       | Lval x -> (* meet x with c *)
         let t = Cil.unrollType (typeOfLval x) in  (* unroll type to deal with TNamed *)
         let c' = match t with
-          | TPtr _ -> `Address (AD.of_int (module ID) c)
+          | TPtr _ -> `Address (AD.of_int (module ID) (fst c))
           | TInt (ik, _)
-          | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
-          | _ -> `Int c
+          | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik (fst c))
+          | _ -> `Int (fst c)
         in
         let oldv = eval (Lval x) in
         let skip = if Cil.isVoidPtrType t then
@@ -1483,14 +1501,14 @@ struct
         in
         let v =
           if skip then
-            (if M.tracing then M.tracel "inv" "lval %a = %a has type void*, but we want to improve it with %a (from %a) -> skipping\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c ;
+            (if M.tracing then M.tracel "inv" "lval %a = %a has type void*, but we want to improve it with %a (from %a) -> skipping\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty (fst c) ;
             oldv)
           else
             let v = VD.meet oldv c' in
             if is_some_bot v then
               raise Deadcode
             else
-              (if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
+              (if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty (fst c) VD.pretty v;
               v)
         in
           set' x v
@@ -1500,7 +1518,7 @@ struct
         | `Int a ->
           if ID.leq a (ID.cast_to ik a) then
              match Cil.typeOf e with
-              | TInt(ik_e, _) -> inv_exp (ID.cast_to ik_e c) e
+              | TInt(ik_e, _) -> inv_exp (ID.cast_to ik_e (fst c), DefExc.cast_to ik_e (snd c)) e
               | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t)
           else
             fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty a ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
@@ -1512,8 +1530,8 @@ struct
       let ik = get_ikind (Cil.typeOf exp) in
       let tv_abs =
         if tv
-          then ID.of_excl_list ik [Int64.zero]
-          else ID.of_int_ikind ik Int64.zero
+          then ID.of_excl_list ik [Int64.zero], DefExc.of_excl_list ik [Int64.zero]
+          else ID.of_int_ikind ik Int64.zero, DefExc.of_int_ikind ik Int64.zero
       in
       Tuple3.map1 (fun _ -> inv_exp (tv_abs) exp) st
 
