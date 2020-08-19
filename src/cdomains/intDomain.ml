@@ -756,12 +756,13 @@ struct
       complain xr yr;
       (try `Definite (f x y,xr) with | Division_by_zero -> top ())
     (* We don't bother with exclusion sets: *)
-    | `Excluded _, _ -> top ()
-    | _, `Excluded _ -> top ()
-    (* The good case: *)
-    | `Definite x, `Definite y -> (try `Definite (f x y) with | Division_by_zero -> top ())
-    (* If any one of them is bottom, we return top *)
-    | _ -> top ()
+    | `Excluded (_, xr), `Definite(_, yr)
+    | `Definite (_, xr), `Excluded(_, yr)
+    | `Excluded (_, xr), `Excluded(_, yr) ->
+      check_identical_range xr yr;
+      `Excluded(S.empty (), xr)
+    (* If any one of them is bottom, we return bottom *)
+    | _ -> `Bot
 
   (* For the shift operations, CIL does not cast the right argument to the type of the left argument,    *)
   (* so we should not warn about operations on different types here. The result has the type of the left *)
@@ -774,12 +775,8 @@ struct
     | `Definite (_, xr), `Excluded(_, yr)
     | `Excluded (_, xr), `Excluded(_, yr) ->
       `Excluded(S.empty (), xr)
-    (* If any one of them is bottom, we return top *)
-    | `Bot, `Excluded(_, xr)
-    | `Bot, `Definite(_, xr)
-    | `Excluded(_ , xr), `Bot
-    | `Definite(_, xr), `Bot -> top ()
-    | `Bot, `Bot -> top ()
+    (* If any one of them is bottom, we return bottom *)
+    | _ -> `Bot
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
