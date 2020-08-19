@@ -202,6 +202,7 @@ let _ = ()
       ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
+      ; reg Debugging "dbg.fail_on_different_ikind" "false" "When doing operations in the int domain, fail if an operation is on performed on two ints of different ikinds"
 
 let default_schema = "\
 { 'id'              : 'root'

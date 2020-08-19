@@ -100,7 +100,7 @@ struct
     | 0 -> Flag.compare x2 y2
     | x -> x
 
-  let get_ikind t = match Cil.unrollType t with TInt (ik,_) -> ik | _ ->
+  let get_ikind t = match Cil.unrollType t with TInt (ik,_) | TEnum ({ekind = ik; _},_) -> ik | _ ->
     (* important to unroll the type here, otherwise problems with typedefs *)
     M.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";  Cil.IInt
 
@@ -1466,15 +1466,33 @@ struct
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
       | Lval x -> (* meet x with c *)
-        let c' = match typeOfLval x with
+        let t = Cil.unrollType (typeOfLval x) in  (* unroll type to deal with TNamed *)
+        let c' = match t with
           | TPtr _ -> `Address (AD.of_int (module ID) c)
+          | TInt (ik, _)
+          | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
         let oldv = eval (Lval x) in
-        let v = VD.meet oldv c' in
-        if is_some_bot v then raise Deadcode
-        else
-          if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
+        let skip = if Cil.isVoidPtrType t then
+            match oldv with
+            | `Address _ -> false
+            | _ -> true (* We do not change type on a cast to void*, so we can not meet here without type errors*)
+          else
+            false
+        in
+        let v =
+          if skip then
+            (if M.tracing then M.tracel "inv" "lval %a = %a has type void*, but we want to improve it with %a (from %a) -> skipping\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c ;
+            oldv)
+          else
+            let v = VD.meet oldv c' in
+            if is_some_bot v then
+              raise Deadcode
+            else
+              (if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
+              v)
+        in
           set' x v
       | Const _ -> Tuple3.first st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)

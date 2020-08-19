@@ -716,8 +716,8 @@ struct
   (* checks that x and y have the same range, and warns (in debug mode fails) if this is not the case *)
   let check_identical_range x y =
     if x <> y then
-      if get_bool "dbg.debug" then
-        raise (Failure (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y)))
+      if get_bool "dbg.fail_on_different_ikind" then
+        failwith (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
       else
         M.warn (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
 
@@ -763,7 +763,7 @@ struct
 
 
   let of_int_ikind t x = `Definite (Integers.of_int x, size t)
-  let of_int =  of_int_ikind Cil.IInt
+  let of_int x = `Definite(Integers.of_int x, top_range)
 
   let to_int  x = match x with
     | `Definite (x, xr) -> Integers.to_int x
@@ -830,7 +830,7 @@ struct
     (* The good case: *)
     | `Definite (x,xr), `Definite (y,yr) ->
       check_identical_range xr yr;
-      (try `Definite (f x y,xr) with | Division_by_zero -> top ())
+      (try `Definite (f x y,xr) with | Division_by_zero -> `Excluded (S.empty (), xr))
     (* We don't bother with exclusion sets: *)
     | `Excluded (_, xr), `Definite(_, yr)
     | `Definite (_, xr), `Excluded(_, yr)
@@ -849,7 +849,7 @@ struct
   (* argument *)
   let lift2_special f x y = match x,y with
     (* The good case: *)
-    | `Definite (x,xr), `Definite (y,_) -> (try `Definite (f x y,xr) with | Division_by_zero -> top ())
+    | `Definite (x,xr), `Definite (y,_) -> (try `Definite (f x y,xr) with | Division_by_zero ->  `Excluded (S.empty (), xr))
     (* We don't bother with exclusion sets: *)
     | `Excluded (_, xr), `Definite(_, yr)
     | `Definite (_, xr), `Excluded(_, yr)

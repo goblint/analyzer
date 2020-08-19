@@ -1,4 +1,7 @@
-// --enable ana.int.def_exc --disable ana.int.interval
+// PARAM: --enable ana.int.def_exc --enable ana.int.interval
+#include<stdbool.h>
+
+typedef unsigned long custom_t;
 void main()
 {
   char yy[256];
@@ -44,5 +47,60 @@ void main()
   v = (v & 0xFFF0FFFF) |
 	    (((unsigned int) s1 ^ s2) << 16);
 
+  int tmp___1;
+  int *tmp___2;
+
+  _Bool  fclose_fail = (_Bool )(tmp___1 != 0);
+
+  if (! fclose_fail) {
+    *tmp___2 = 0;
+  }
+
+  hash_initialize();
+
+
+
+  custom_t ci;
+  void const* b = (void const*) ci;
+  test((void const *)ci);
+
   return;
+}
+
+
+struct hash_table {
+  custom_t n_buckets ;
+};
+
+typedef struct hash_table Hash_table;
+
+Hash_table *hash_initialize()
+{ Hash_table *table___0 ;
+  void *tmp ;
+  _Bool tmp___0 ;
+  void *tmp___1 ;
+
+  tmp = malloc(sizeof(*table___0));
+
+  custom_t n;
+  table___0 = (Hash_table *)tmp;
+  table___0->n_buckets = n;
+
+  if (! table___0->n_buckets) {
+
+    goto fail;
+  }
+  fail:
+
+  free((void *)table___0);
+
+  return ((Hash_table *)((void *)0));
+}
+
+int test(void const   *ptr) {
+  if(!ptr) {
+    int f = 7;
+  } else {
+    int f= 38;
+  }
 }
