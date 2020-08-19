@@ -1,5 +1,7 @@
 // PARAM: --enable ana.int.def_exc --enable ana.int.interval
 #include<stdbool.h>
+
+typedef unsigned long custom_t;
 void main()
 {
   char yy[256];
@@ -56,10 +58,15 @@ void main()
 
   hash_initialize();
 
+
+
+  custom_t ci;
+  void const* b = (void const*) ci;
+  test((void const *)ci);
+
   return;
 }
 
-typedef unsigned long custom_t;
 
 struct hash_table {
   custom_t n_buckets ;
@@ -88,4 +95,12 @@ Hash_table *hash_initialize()
   free((void *)table___0);
 
   return ((Hash_table *)((void *)0));
+}
+
+int test(void const   *ptr) {
+  if(!ptr) {
+    int f = 7;
+  } else {
+    int f= 38;
+  }
 }
