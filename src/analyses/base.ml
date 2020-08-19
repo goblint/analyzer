@@ -1466,7 +1466,7 @@ struct
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
       | Lval x -> (* meet x with c *)
-        let c' = match typeOfLval x with
+        let c' = match Cil.unrollType (typeOfLval x) with (* unroll type to deal with TNamed *)
           | TPtr _ -> `Address (AD.of_int (module ID) c)
           | TInt (ik, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
