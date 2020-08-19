@@ -4,5 +4,9 @@ void main(){
   for (; n; n--) {
       assert(n==1); // UNKNOWN!
   }
+  int i;
+  if(i-1){
+    assert(i==2); // UNKNOWN
+  }
   return;
 }
