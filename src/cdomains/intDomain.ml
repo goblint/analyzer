@@ -137,8 +137,6 @@ struct
     else if Int64.compare min_int x > 0 || Int64.compare max_int y < 0 then top ()
     else Some (x,y)
 
-  let (@@) f x = f x
-
   let equal x y =
     match x, y with
     | None, None -> true
