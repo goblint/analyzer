@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.def_exc --disable ana.int.interval
+// PARAM: --enable ana.int.def_exc --enable ana.int.interval
 #include<stdbool.h>
 void main()
 {
@@ -53,5 +53,39 @@ void main()
   if (! fclose_fail) {
     *tmp___2 = 0;
   }
+
+  hash_initialize();
+
   return;
+}
+
+typedef unsigned long custom_t;
+
+struct hash_table {
+  custom_t n_buckets ;
+};
+
+typedef struct hash_table Hash_table;
+
+Hash_table *hash_initialize()
+{ Hash_table *table___0 ;
+  void *tmp ;
+  _Bool tmp___0 ;
+  void *tmp___1 ;
+
+  tmp = malloc(sizeof(*table___0));
+
+  custom_t n;
+  table___0 = (Hash_table *)tmp;
+  table___0->n_buckets = n;
+
+  if (! table___0->n_buckets) {
+
+    goto fail;
+  }
+  fail:
+
+  free((void *)table___0);
+
+  return ((Hash_table *)((void *)0));
 }
