@@ -361,7 +361,6 @@ struct
   type t = int64 [@@deriving to_yojson]
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
   let equal (x:t) (y:t) = x=y
-  let copy x = x
   let equal_to i x = if i > x then `Neq else `Top
   let top () = raise Unknown
   let is_top _ = false
@@ -1203,7 +1202,6 @@ struct
   let equal (x:t) (y:t) = x=y
   let name () = "booleans"
   let cast_to _ x = x (* ok since there's no smaller ikind to cast to *)
-  let copy x = x
   let isSimple _ = true
   let short _ x = if x then N.truename else N.falsename
   let pretty_f sf _ x = Pretty.text (sf Goblintutil.summary_length x)
