@@ -1546,11 +1546,8 @@ module IntDomTupleStdConf: IntDomTupleConf = struct
 end
 
 module IntDomTupleInvariantConf: IntDomTupleConf = struct
-  let lookup s = get_bool @@ "ana.int."^s
+  include IntDomTupleStdConf
   let def_exc () = true
-  let interval () = lookup "interval"
-  let cinterval () = lookup "cinterval"
-  let enums () = lookup "enums"
 end
 
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
