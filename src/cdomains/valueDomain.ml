@@ -307,7 +307,7 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.of_int Int64.zero
+              | `Address x when AD.equal x AD.null_ptr -> ID.of_int_ikind (ptr_ikind ())  Int64.zero
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -320,7 +320,13 @@ struct
               | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
               | _ -> log_top __POS__; ID.top ()
             ))
-        | TPtr (t,_) when isVoidType t || isVoidPtrType t -> v (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
+        | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
+          (match v with
+          | `Address a -> v
+          | `Int i -> `Int(ID.cast_to (ptr_ikind ()) i)
+          | _ -> v (* TODO: Does it make sense to have things here that are neither `Address nor `Int? *)
+          )
+          (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           `Address (match v with
               | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr
@@ -490,7 +496,7 @@ struct
     | (`Top, x) -> x
     | (x, `Top) -> x
     | (`Int x, `Int y) -> `Int (ID.meet x y)
-    | (`Int _, `Address _) -> meet x (cast IntDomain.Size.top_typ y)
+    | (`Int _, `Address _) -> meet x (cast (TInt(ptr_ikind (),[])) y)
     | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
