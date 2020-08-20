@@ -1530,8 +1530,23 @@ module Enums : S = struct
         ) Invariant.none ns
 end
 
+module type IntDomTupleConf = sig
+  val def_exc: unit -> bool
+  val interval: unit -> bool
+  val cinterval: unit -> bool
+  val enums: unit -> bool
+end
+
+module IntDomTupleStdConf: IntDomTupleConf = struct
+  let lookup s = get_bool @@ "ana.int."^s
+  let def_exc () = lookup "def_exc"
+  let interval () = lookup "interval"
+  let cinterval () = lookup "cinterval"
+  let enums () = lookup "enums"
+end
+
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
-module IntDomTuple = struct
+module IntDomTupleFunc (M: IntDomTupleConf) = struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Batteries
@@ -1552,8 +1567,8 @@ module IntDomTuple = struct
   type poly1 = { f1 : 'a. 'a m -> 'a -> 'a } (* needed b/c above 'b must be different from 'a *)
   type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
   let create r x = (* use where values are introduced *)
-    let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
+    let f b g = if b then Some (g x) else None in
+    f (M.def_exc ()) @@ r.fi (module I1), f (M.interval ()) @@ r.fi (module I2), f (M.cinterval ()) @@ r.fi (module I3), f (M.enums ()) @@ r.fi (module I4)
   let mapp r (a,b,c,d) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
   let map  r (a,b,c,d) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
@@ -1662,3 +1677,5 @@ module IntDomTuple = struct
         Invariant.(a && i)
       ) Invariant.none is
 end
+
+module IntDomTuple = IntDomTupleFunc (IntDomTupleStdConf)
