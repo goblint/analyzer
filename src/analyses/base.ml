@@ -1167,11 +1167,6 @@ struct
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f store lval_value_list
 
-  let join_writes (st1,gl1) (st2,gl2) =
-    (* It's the join of the local state and concatenate the global deltas, I'm
-     * not sure in which order! *)
-    (D.join st1 st2, gl1 @ gl2)
-
   let rem_many a (st,fl,dep: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
     let g dep v = Dep.remove v dep in
