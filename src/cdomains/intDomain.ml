@@ -690,8 +690,9 @@ struct
   let zero = of_int 0L
   let not_zero = `Excluded (S.singleton 0L, top_range)
 
-  let of_bool x = if x then not_zero else zero
+  (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp x = of_int (if x then 1L else 0L)
+  let of_bool = of_bool_cmp
   let to_bool x =
     match x with
     | `Definite x -> Integers.to_bool x
