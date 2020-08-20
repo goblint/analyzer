@@ -13,9 +13,9 @@ void *t_fun(void *arg) {
   }
   t = glob1;
 
-  assert(t == 0); //UNKNOWN
+  assert(t == 0); //UNKNOWN!
 
-  assert(t == 1); //UNKNOWN
+  assert(t == 1); //UNKNOWN!
 
   glob1 = 0;
 
