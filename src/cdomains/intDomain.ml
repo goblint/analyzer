@@ -104,14 +104,16 @@ end
 module StdTop (B: sig type t val top: unit -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
-  let to_excl_list x = None
-  let of_excl_list t x = top ()
-  let is_excl_list x = false
-  let of_interval  x = top ()
-  let starting     x = top ()
-  let ending       x = top ()
-  let maximal      x = None
-  let minimal      x = None
+  let to_excl_list   x = None
+  let of_excl_list   t x = top ()
+  let is_excl_list   x = false
+  let of_interval    x = top ()
+  let starting       x = top ()
+  let starting_ikind t x = top ()
+  let ending         x = top ()
+  let ending_ikind   t x = top ()
+  let maximal        x = None
+  let minimal        x = None
 end
 
 module Std (B: sig
