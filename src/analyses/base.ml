@@ -1504,7 +1504,7 @@ struct
           then IDB.of_excl_list ik [Int64.zero]
           else IDB.of_int_ikind ik Int64.zero
       in
-      Tuple3.map1 (fun _ -> inv_exp (tv_abs) exp) st
+      Tuple3.map1 (fun _ -> inv_exp tv_abs exp) st
 
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
