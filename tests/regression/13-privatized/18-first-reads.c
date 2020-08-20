@@ -8,7 +8,7 @@ pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 void *t_fun(void *arg) {
   int t;
   pthread_mutex_lock(&mutex1);
-  if(t) {
+  if(t == 42) {
       glob1 = 1;
   }
   t = glob1;
