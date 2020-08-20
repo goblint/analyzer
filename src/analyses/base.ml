@@ -9,7 +9,6 @@ module Q = Queries
 
 module GU = Goblintutil
 module ID = ValueDomain.ID
-module IDB = IntDomain.IntDomBranchingTuple
 module IdxDom = ValueDomain.IndexDomain
 module IntSet = SetDomain.Make (IntDomain.Integers)
 module AD = ValueDomain.AD
@@ -140,10 +139,7 @@ struct
     | BNot -> ID.bitnot
     | LNot -> ID.lognot
 
-  let unop_IDB = function
-    | Neg  -> IDB.neg
-    | BNot -> IDB.bitnot
-    | LNot -> IDB.lognot
+
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op = function
@@ -1393,6 +1389,7 @@ struct
       st
 
   let invariant ctx a gs st exp tv =
+    let module IDB = IntDomain.IntDomBranchingTuple in
     let open Deriving.Cil in
     (* inverse values for binary operation a `op` b == c *)
     let fallback reason =
@@ -1444,6 +1441,11 @@ struct
     let eval e = eval_rv a gs st e in
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
     let set' lval v = Tuple3.first (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
+    let unop_IDB = function
+      | Neg  -> IDB.neg
+      | BNot -> IDB.bitnot
+      | LNot -> IDB.lognot
+    in
     let rec inv_exp (c: IDB.t) exp =
       match exp with
       | UnOp (op, e, _) -> inv_exp (unop_IDB op c) e
