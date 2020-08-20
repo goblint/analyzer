@@ -109,14 +109,16 @@ end
 module StdTop (B: sig type t val top: unit -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
-  let to_excl_list x = None
-  let of_excl_list t x = top ()
-  let is_excl_list x = false
-  let of_interval  x = top ()
-  let starting     x = top ()
-  let ending       x = top ()
-  let maximal      x = None
-  let minimal      x = None
+  let to_excl_list   x = None
+  let of_excl_list   t x = top ()
+  let is_excl_list   x = false
+  let of_interval    x = top ()
+  let starting       x = top ()
+  let starting_ikind t x = top ()
+  let ending         x = top ()
+  let ending_ikind   t x = top ()
+  let maximal        x = None
+  let minimal        x = None
 end
 
 module Std (B: sig
@@ -422,9 +424,6 @@ struct
   let to_int  x = Some x
   let is_int  _ = true
 
-  let starting_ikind    t x = top ()
-  let ending_ikind      t x = top ()
-
   let neg  = Int64.neg
   let add  = Int64.add (* TODO: signed overflow is undefined behavior! *)
   let sub  = Int64.sub
@@ -576,9 +575,6 @@ struct
   let is_bool = is_int
 
   let top_of       x = top ()
-
-  let starting_ikind  t x = top ()
-  let ending_ikind    t x = top ()
 
   let lift1 f x = match x with
     | `Lifted x -> `Lifted (f x)
@@ -1315,9 +1311,6 @@ struct
   let of_int_ikind _ = of_int
   let to_int x  = if x then None else Some Int64.zero
   let is_int x  = not x
-
-  let starting_ikind     t x = top ()
-  let ending_ikind       t x = top ()
 
   let neg x = x
   let add x y = x || y
