@@ -1545,10 +1545,18 @@ module IntDomTupleStdConf: IntDomTupleConf = struct
   let enums () = lookup "enums"
 end
 
+module IntDomTupleInvariantConf: IntDomTupleConf = struct
+  let lookup s = get_bool @@ "ana.int."^s
+  let def_exc () = true
+  let interval () = lookup "interval"
+  let cinterval () = lookup "cinterval"
+  let enums () = lookup "enums"
+end
+
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
 module IntDomTupleFunc (M: IntDomTupleConf) = struct
   include Printable.Std (* for default invariant, tag, ... *)
-
+  module Conf = M
   open Batteries
   module I1 = DefExc
   module I2 = Interval32
@@ -1679,3 +1687,8 @@ module IntDomTupleFunc (M: IntDomTupleConf) = struct
 end
 
 module IntDomTuple = IntDomTupleFunc (IntDomTupleStdConf)
+module IntDomBranchingTuple = struct
+  include IntDomTupleFunc (IntDomTupleInvariantConf)
+  let from_idt (d, i, ci, e) ikind = ((match d with Some v -> Some v | None -> Some (I1.top_of ikind)), i, ci, e)
+  let to_idt (d, i, ci, e) = ((if IntDomTuple.Conf.def_exc () then d else None), i, ci, e)
+end

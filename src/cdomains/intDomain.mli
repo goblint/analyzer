@@ -211,6 +211,13 @@ module IntDomTuple : sig
   val no_interval32: t -> t
 end
 
+module IntDomBranchingTuple : sig
+  include S
+  val no_interval32: t -> t
+  val from_idt: IntDomTuple.t -> Cil.ikind -> t
+  val to_idt: t -> IntDomTuple.t
+end
+
 (** {b Boolean domains} *)
 
 module type BooleansNames =
