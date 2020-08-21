@@ -87,11 +87,13 @@ class expression_evaluator ask (file : Cil.file) =
         (* Following *)
         |> List.filter_map
           begin
-            fun location ->
-              match LocationMap.split location statements with
-              | (_, Some _, following_statements) ->
-                  let following_location, _ = LocationMap.find_first (fun _ -> true) following_statements in
-                  begin
+            fun preceding_location ->
+              match LocationMap.split preceding_location statements with
+              | (_, Some preceding_statement, following_statements) ->
+                  let following_location, following_statement =
+                    LocationMap.find_first (fun _ -> true) following_statements
+                  in
+                  let evaluation =
                     match ask following_location (Queries.EvalInt (Formatcil.cExp expression variables)) with
                     | `Bot -> None (* Not reachable *)
                     | `Int value ->
@@ -106,6 +108,11 @@ class expression_evaluator ask (file : Cil.file) =
                           | May -> Some None (* TODO use "Query function answered"? *)
                         end
                     | _ -> raise Exit
+                  in
+                  begin
+                    match evaluation with
+                    | Some value -> Some (value (* Debug: *), (preceding_location, preceding_statement), (following_location, following_statement))
+                    | None -> None
                   end
               | (_, None, _) -> None (* No statement *)
           end
@@ -116,6 +123,16 @@ let _ =
 
   let module ExpressionEvaluationTransform : Transform.S =
     struct
+
+      let string_of_statement statement =
+
+        statement
+          |> Cil.d_stmt ()
+          |> Pretty.sprint ~width:0
+          |> String.split_on_char '\n'
+          |> List.filter (fun line -> line.[0] <> '#')
+          |> List.map String.trim
+          |> List.fold_left (^) ""
 
       let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
 
@@ -136,13 +153,30 @@ let _ =
           (* Show results *)
           |> List.iter
             begin
-              fun value ->
+              fun (value (* Debug: *), ((p_location : Cil.location), p_statement), ((f_location : Cil.location), f_statement)) ->
+
+                let padding = 5 in
+
+                print_endline (String.make padding '-');
+
+                let p_line = p_location.line |> string_of_int in
+                let f_line = f_location.line |> string_of_int in
+
+                print_string ((String.make (padding - String.length p_line) ' ') ^ p_line ^ ": ");
+                print_endline (p_statement |> string_of_statement);
+
+                (* Print value *)
+                print_string ((String.make padding ' ') ^ "  -> ");
                 print_endline
                   begin
                     match value with
                     | Some definite_value -> Int64.to_string definite_value
                     | None -> "Unknown"
-                  end
+                  end;
+
+                print_string ((String.make (padding - String.length f_line) ' ') ^ f_line ^ ": ");
+                print_endline (f_statement |> string_of_statement);
+
             end
 
     end
