@@ -58,7 +58,7 @@ let has_otherfuns = ref false
 let should_warn = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
-let inthack = Int64.of_int (-19012009)
+let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
 
 (** number of times that globals change !CAUTION: This is only set in contain.ml and is not what one would think it is! *)
 let globals_changed = ref 0

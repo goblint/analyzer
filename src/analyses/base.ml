@@ -103,6 +103,10 @@ struct
     | 0 -> Flag.compare x2 y2
     | x -> x
 
+  let ikindOf t = match Cil.unrollType t with TInt (ik,_) | TEnum ({ekind = ik; _},_) -> ik | _ ->
+    (* important to unroll the type here, otherwise problems with typedefs *)
+    M.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";  Cil.IInt
+
   (**************************************************************************
    * Initializing my variables
    **************************************************************************)
@@ -1172,11 +1176,6 @@ struct
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f store lval_value_list
 
-  let join_writes (st1,gl1) (st2,gl2) =
-    (* It's the join of the local state and concatenate the global deltas, I'm
-     * not sure in which order! *)
-    (D.join st1 st2, gl1 @ gl2)
-
   let rem_many a (st,fl,dep: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
     let g dep v = Dep.remove v dep in
@@ -1428,10 +1427,30 @@ struct
           if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
           set' x v
       | Const _ -> Tuple3.first st (* nothing to do *)
+      | CastE ((TInt (ik, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
+        (match eval e with
+        | `Int a ->
+          if ID.leq a (ID.cast_to ik a) then
+            inv_exp c e
+          else
+            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty a ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
+        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
       | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
-    if eval_bool exp = Some tv then raise Deadcode
-    else Tuple3.map1 (fun _ -> inv_exp (ID.of_bool tv) exp) st
+    if eval_bool exp = Some tv then raise Deadcode (* we already know that the branch is dead *)
+    else
+      let is_cmp = function
+        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
+        | _ -> false
+      in
+      let itv = (* int abstraction for tv *)
+        if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
+          ID.of_bool tv (* this will give 1 for true which is only ok for comparisons *)
+        else
+          let ik = ikindOf (typeOf exp) in
+          ID.of_excl_list ik [Int64.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
+      in
+      Tuple3.map1 (fun _ -> inv_exp itv exp) st
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
     match v with
