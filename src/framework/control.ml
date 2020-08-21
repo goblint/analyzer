@@ -426,7 +426,7 @@ struct
         (* first join all contexts *)
         let joined =
           LHT.enum lh |> map (Tuple2.map1 fst) (* drop context from key *)
-          |> group fst (* group by key=node *)
+          |> group (Node.hash % fst) (* group by key=node using Node.hash as = may not terminate on node *)
           |> map (reduce (fun (k,a) (_,b) -> k, Spec.D.join a b))
           (* also, in cil visitors we only have the location, so we use that as the key *)
           |> map (Tuple2.map1 MyCFG.getLoc)
