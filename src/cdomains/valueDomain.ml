@@ -263,7 +263,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int_ikind (Cilfacade.ptrdiff_ikind ()) 0L, `NoOffset))) (Some false)
+              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.cast_to (Cilfacade.ptrdiff_ikind ()) @@ IndexDomain.of_int 0L, `NoOffset))) (Some false)
             | _ -> err @@ "Cast to neither array index nor struct field."
                           ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
           end
@@ -300,7 +300,7 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.of_int_ikind (ptr_ikind ())  Int64.zero
+              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to (ptr_ikind ()) @@ ID.of_int Int64.zero
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in

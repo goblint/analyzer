@@ -125,9 +125,9 @@ struct
   let iDtoIdx n =
     match ID.to_int n with
     | None -> IdxDom.top_of (Cilfacade.ptrdiff_ikind ())
-    | Some n -> IdxDom.of_int_ikind (Cilfacade.ptrdiff_ikind ()) n
+    | Some n -> IdxDom.cast_to (Cilfacade.ptrdiff_ikind ()) @@ IdxDom.of_int n
 
-  let intToIdx n = IdxDom.of_int_ikind (Cilfacade.ptrdiff_ikind ()) n
+  let intToIdx n = IdxDom.cast_to (Cilfacade.ptrdiff_ikind ()) @@ IdxDom.of_int n
 
   let unop_ID = function
     | Neg  -> ID.neg
@@ -165,7 +165,7 @@ struct
   let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ): value =
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
-    let bool_top ik = ID.(join (of_int_ikind ik 0L) (of_int_ikind ik 1L)) in
+    let bool_top ik = ID.(join (ID.cast_to ik @@ of_int 0L) (ID.cast_to ik @@ of_int 1L)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
       (* adds n to the last offset *)
@@ -245,10 +245,10 @@ struct
           end
         | Eq ->
           let ik = Cilfacade.get_ikind t in
-          `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int_ikind ik 0L else match eq p1 p2 with Some x when x -> ID.of_int_ikind ik 1L | _ -> bool_top ik)
+          `Int (if AD.is_bot (AD.meet p1 p2) then ID.cast_to ik @@ ID.of_int 0L else match eq p1 p2 with Some x when x -> ID.cast_to ik @@ ID.of_int 1L | _ -> bool_top ik)
         | Ne ->
           let ik = Cilfacade.get_ikind t in
-          `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int_ikind ik 1L else match eq p1 p2 with Some x when x -> ID.of_int_ikind ik 0L | _ -> bool_top ik)
+          `Int (if AD.is_bot (AD.meet p1 p2) then ID.cast_to ik @@ ID.of_int 1L else match eq p1 p2 with Some x when x -> ID.cast_to ik @@ ID.of_int 0L | _ -> bool_top ik)
         | _ -> VD.top ()
       end
     (* For other values, we just give up! *)
@@ -283,9 +283,9 @@ struct
       match op with
       | MinusA when equality () = Some true ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        Some (`Int (ID.of_int_ikind ik 0L))
+        Some (`Int (ID.cast_to ik @@ ID.of_int 0L))
       | MinusPI
-      | MinusPP when equality () = Some true -> Some (`Int (ID.of_int_ikind (Cilfacade.ptrdiff_ikind ()) 0L))
+      | MinusPP when equality () = Some true -> Some (`Int (ID.cast_to (Cilfacade.ptrdiff_ikind ()) @@ ID.of_int 0L))
       | MinusPI
       | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list (Cilfacade.ptrdiff_ikind ()) [0L]))
       | Le
@@ -622,7 +622,7 @@ struct
         | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
         | Const (CInt64 (num,typ,str)) ->
           (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind typ x | None -> ());
-          `Int (ID.of_int_ikind typ num)
+          `Int (ID.cast_to typ @@ ID.of_int num)
         (* String literals *)
         | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
         | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
@@ -1314,7 +1314,7 @@ struct
     let null_val typ =
       match typ with
       | TPtr _              -> `Address AD.null_ptr
-      | TInt(ikind, _)      -> `Int (ID.of_int_ikind ikind 0L)
+      | TInt(ikind, _)      -> `Int (ID.cast_to ikind @@ ID.of_int 0L)
       | _                   -> `Int (ID.of_int 0L)
     in
     let rec derived_invariant exp tv =
