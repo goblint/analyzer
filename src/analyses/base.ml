@@ -195,7 +195,7 @@ struct
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
       `Int (match ID.to_bool n, AD.to_bool p with
-          | Some a, Some b -> ID.of_bool_ikind (Cilfacade.get_ikind t) (op=Eq && a=b || op=Ne && a<>b)
+          | Some a, Some b -> ID.cast_to (Cilfacade.get_ikind t) @@ ID.of_bool (op=Eq && a=b || op=Ne && a<>b)
           | _ -> bool_top (Cilfacade.get_ikind t))
     | `Address p, `Int n  -> begin
         match op with
@@ -291,17 +291,17 @@ struct
       | Le
       | Ge when equality () = Some true ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        Some (`Int (ID.of_bool_ikind ik true))
+        Some (`Int (ID.cast_to ik @@ ID.of_bool true))
       | Lt
       | Gt when equality () = Some true ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        Some (`Int (ID.of_bool_ikind ik false))
+        Some (`Int (ID.cast_to ik @@ ID.of_bool false))
       | Eq ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        (match equality () with Some tv -> Some (`Int (ID.of_bool_ikind ik tv)) | None -> None)
+        (match equality () with Some tv -> Some (`Int (ID.cast_to ik @@ ID.of_bool tv)) | None -> None)
       | Ne ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        (match equality () with Some tv -> Some (`Int (ID.of_bool_ikind ik (not tv))) | None -> None)
+        (match equality () with Some tv -> Some (`Int (ID.cast_to ik @@ ID.of_bool (not tv))) | None -> None)
       | _ -> None
     in
     match exp with

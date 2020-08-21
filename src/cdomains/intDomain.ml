@@ -18,7 +18,6 @@ sig
 
   val to_bool: t -> bool option
   val of_bool: bool -> t
-  val of_bool_ikind: Cil.ikind -> bool -> t
   val is_bool: t -> bool
   val to_excl_list: t -> int64 list option
   val of_excl_list: Cil.ikind -> int64 list -> t
@@ -194,7 +193,6 @@ struct
   let top_bool = Some (0L, 1L)
 
   let of_bool = function true -> one | false -> zero
-  let of_bool_ikind _  = of_bool
   let is_bool x = x <> None && not (leq zero x) || x = zero
   let to_bool = function
     | None -> None
@@ -413,7 +411,6 @@ struct
   let meet x y = if Int64.compare x y > 0 then y else x
 
   let of_bool x = if x then Int64.one else Int64.zero
-  let of_bool_ikind _ = of_bool
   let to_bool' x = x <> Int64.zero
   let to_bool x = Some (to_bool' x)
   let is_bool _ = true
@@ -486,7 +483,6 @@ struct
     | _ -> false
 
   let of_bool x = `Lifted (Base.of_bool x)
-  let of_bool_ikind _ = of_bool
   let to_bool x = match x with
     | `Lifted x -> Base.to_bool x
     | _ -> None
@@ -563,7 +559,6 @@ struct
     | _ -> false
 
   let of_bool x = `Lifted (Base.of_bool x)
-  let of_bool_ikind t x = `Lifted(Base.of_bool_ikind t x)
   let to_bool x = match x with
     | `Lifted x -> Base.to_bool x
     | _ -> None
@@ -748,7 +743,6 @@ struct
   let zero = of_int 0L
   let not_zero = `Excluded (S.singleton 0L, top_range)
 
-  let of_bool_ikind t x = if x then not_zero_ikind t else zero_ikind t
   let of_bool_cmp x = of_int (if x then 1L else 0L)
   let of_bool = of_bool_cmp
   let of_bool_cmp_ikind t x = cast_to t @@ of_int (if x then 1L else 0L)
@@ -872,8 +866,8 @@ struct
 
   (* The inequality check: *)
   let ne x y =
-    let f = of_bool_ikind Cil.IInt false in
-    let t = of_bool_ikind Cil.IInt true in
+    let f = cast_to Cil.IInt  @@ of_bool false in
+    let t = cast_to Cil.IInt  @@ of_bool true in
     let top = top_of Cil.IInt in
     match x,y with
     (* Not much to do with two exclusion sets: *)
@@ -1009,7 +1003,6 @@ struct
     if x
     then Int(1, C.one, C.one)
     else Int(1, C.zero, C.zero)
-  let of_bool_ikind _ = of_bool
   let is_bool x =
     match x with
     | Int(_,a,b) -> C.eq a b
@@ -1297,7 +1290,6 @@ struct
   let meet = (&&)
 
   let of_bool x = x
-  let of_bool_ikind _ = of_bool
   let to_bool x = Some x
   let is_bool x = not x
   let of_int x  = x = Int64.zero
@@ -1483,8 +1475,6 @@ module Enums : S = struct
   let logor  = lift2 I.logor
 
   let of_bool x = Inc [if x then Int64.one else Int64.zero]
-  let of_bool_ikind _ = of_bool
-
   let to_bool = function
     | Inc [] | Exc ([],_) -> None
     | Inc [0L] -> Some false
@@ -1559,7 +1549,6 @@ module IntDomTuple = struct
   let top = create { fi = fun (type a) (module I:S with type t = a) -> I.top }
   let bot = create { fi = fun (type a) (module I:S with type t = a) -> I.bot }
   let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
-  let of_bool_ikind t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool_ikind t}
   let of_excl_list t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list t }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
   let top_of = create { fi = fun (type a) (module I:S with type t = a) -> I.top_of }
