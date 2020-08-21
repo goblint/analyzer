@@ -756,9 +756,10 @@ struct
   let not_zero = `Excluded (S.singleton 0L, top_range)
 
   let of_bool_ikind t x = if x then not_zero_ikind t else zero_ikind t
-  let of_bool x = if x then not_zero else zero
   let of_bool_cmp x = of_int (if x then 1L else 0L)
+  let of_bool = of_bool_cmp
   let of_bool_cmp_ikind t x = of_int_ikind t (if x then 1L else 0L)
+
   let to_bool x =
     match x with
     | `Definite (x,xr) -> Integers.to_bool x

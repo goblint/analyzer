@@ -101,7 +101,6 @@ struct
     | x -> x
 
 
-
   (**************************************************************************
    * Initializing my variables
    **************************************************************************)
@@ -1192,11 +1191,6 @@ struct
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f store lval_value_list
 
-  let join_writes (st1,gl1) (st2,gl2) =
-    (* It's the join of the local state and concatenate the global deltas, I'm
-     * not sure in which order! *)
-    (D.join st1 st2, gl1 @ gl2)
-
   let rem_many a (st,fl,dep: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
     let g dep v = Dep.remove v dep in
@@ -1489,10 +1483,20 @@ struct
         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
       | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
-    if eval_bool exp = Some tv then raise Deadcode
+    if eval_bool exp = Some tv then raise Deadcode (* we already know that the branch is dead *)
     else
-      let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-      Tuple3.map1 (fun _ -> inv_exp (ID.of_bool_ikind ik tv) exp) st
+      let is_cmp = function
+        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
+        | _ -> false
+      in
+      let itv = (* int abstraction for tv *)
+        if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
+          ID.of_bool tv (* this will give 1 for true which is only ok for comparisons *)
+        else
+          let ik = Cilfacade.get_ikind (typeOf exp) in
+          ID.of_excl_list ik [Int64.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
+      in
+      Tuple3.map1 (fun _ -> inv_exp itv exp) st
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
     match v with
