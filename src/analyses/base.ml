@@ -278,7 +278,7 @@ struct
       match op with
       | MinusA when equality () = Some true ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        Some (`Int (ID.of_int_ikind ik 0L))
+        Some (`Int (ID.cast_to ik @@ ID.of_int 0L))
       | MinusPI
       | MinusPP when equality () = Some true -> Some (`Int (ID.of_int 0L))
       | MinusPI

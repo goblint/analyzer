@@ -1478,6 +1478,7 @@ module IntDomTuple = struct
   let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
   let of_excl_list t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list t }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
+  let top_of = create { fi = fun (type a) (module I:S with type t = a) -> I.top_of }
   let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
   let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
   let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }
