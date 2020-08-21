@@ -429,8 +429,8 @@ struct
             let e = LHT.enum lh |> map (Tuple2.map1 fst) (* drop context from key *)
             (* also, in cil visitors we only have the location, so we use that as the key *)
             |> map (Tuple2.map1 MyCFG.getLoc) in
-            let h = Hashtbl.create (if BatEnum.fast_count e then BatEnum.count e else 0) in
-            BatEnum.iter (fun (k,v) ->
+            let h = Hashtbl.create (if fast_count e then count e else 0) in
+            iter (fun (k,v) ->
                 (* join values for the same location *)
                 let a = try Spec.D.join (Hashtbl.find h k) v with Not_found -> v in
                 Hashtbl.replace h k a) e;
