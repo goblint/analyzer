@@ -1303,9 +1303,10 @@ struct
     in
     if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" d_exp exp tv;
     let null_val typ =
-      match typ with
-      | TPtr _ -> `Address AD.null_ptr
-      | _      -> `Int (ID.of_int 0L)
+      match Cil.unrollType typ with
+      | TPtr _                    -> `Address AD.null_ptr
+      | TEnum({ekind=ikind;_},_)
+      | _                         -> `Int (ID.of_int 0L)
     in
     let rec derived_invariant exp tv =
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
