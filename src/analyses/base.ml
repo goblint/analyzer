@@ -100,11 +100,7 @@ struct
     | 0 -> Flag.compare x2 y2
     | x -> x
 
-  let get_ikind t = match Cil.unrollType t with TInt (ik,_) | TEnum ({ekind = ik; _},_) -> ik | _ ->
-    (* important to unroll the type here, otherwise problems with typedefs *)
-    M.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";  Cil.IInt
 
-  let ptrdiff_ikind () = get_ikind !ptrdiffType
 
   (**************************************************************************
    * Initializing my variables
@@ -129,10 +125,10 @@ struct
 
   let iDtoIdx n =
     match ID.to_int n with
-    | None -> IdxDom.top_of (ptrdiff_ikind ())
-    | Some n -> IdxDom.of_int_ikind (ptrdiff_ikind ()) n
+    | None -> IdxDom.top_of (Cilfacade.ptrdiff_ikind ())
+    | Some n -> IdxDom.of_int_ikind (Cilfacade.ptrdiff_ikind ()) n
 
-  let intToIdx n = IdxDom.of_int_ikind (ptrdiff_ikind ()) n
+  let intToIdx n = IdxDom.of_int_ikind (Cilfacade.ptrdiff_ikind ()) n
 
   let unop_ID = function
     | Neg  -> ID.neg
@@ -195,13 +191,13 @@ struct
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
-    | `Int v1, `Int v2 -> `Int (binop_ID (get_ikind t) op v1 v2)
+    | `Int v1, `Int v2 -> `Int (binop_ID (Cilfacade.get_ikind t) op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
       `Int (match ID.to_bool n, AD.to_bool p with
-          | Some a, Some b -> ID.of_bool_ikind (get_ikind t) (op=Eq && a=b || op=Ne && a<>b)
-          | _ -> bool_top (get_ikind t))
+          | Some a, Some b -> ID.of_bool_ikind (Cilfacade.get_ikind t) (op=Eq && a=b || op=Ne && a<>b)
+          | _ -> bool_top (Cilfacade.get_ikind t))
     | `Address p, `Int n  -> begin
         match op with
         (* For array indexing e[i] and pointer addition e + i we have: *)
@@ -210,7 +206,7 @@ struct
         (* Pointer subtracted by a value (e-i) is very similar *)
         | MinusPI -> let n = ID.neg n in
           `Address (AD.map (addToAddr n) p)
-        | Mod -> `Int (ID.top_of (get_ikind t)) (* we assume that address is actually casted to int first*)
+        | Mod -> `Int (ID.top_of (Cilfacade.get_ikind t)) (* we assume that address is actually casted to int first*)
         | _ -> `Address AD.top_ptr
       end
     (* If both are pointer values, we can subtract them and well, we don't
@@ -233,26 +229,26 @@ struct
                   let diff = ValueDomain.IndexDomain.sub i j in
                   match ValueDomain.IndexDomain.to_int diff with
                   | Some z -> `Int(diff)
-                  | _ -> `Int (ID.top_of ((get_ikind t)))
+                  | _ -> `Int (ID.top_of ((Cilfacade.get_ikind t)))
                 end
               | `Index (xi, xo), `Index(yi, yo) when xi = yi ->
                 calculateDiffFromOffset xo yo
-              | _ -> `Int (ID.top_of (get_ikind t))
+              | _ -> `Int (ID.top_of (Cilfacade.get_ikind t))
             in
             if AD.is_definite p1 && AD.is_definite p2 then
               match Addr.to_var_offset (AD.choose p1), Addr.to_var_offset (AD.choose p2) with
               | [x, xo], [y, yo] when x.vid = y.vid ->
                 calculateDiffFromOffset xo yo
               | _ ->
-                `Int (ID.top_of (get_ikind t))
+                `Int (ID.top_of (Cilfacade.get_ikind t))
             else
-              `Int (ID.top_of (get_ikind t))
+              `Int (ID.top_of (Cilfacade.get_ikind t))
           end
         | Eq ->
-          let ik = get_ikind t in
+          let ik = Cilfacade.get_ikind t in
           `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int_ikind ik 0L else match eq p1 p2 with Some x when x -> ID.of_int_ikind ik 1L | _ -> bool_top ik)
         | Ne ->
-          let ik = get_ikind t in
+          let ik = Cilfacade.get_ikind t in
           `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int_ikind ik 1L else match eq p1 p2 with Some x when x -> ID.of_int_ikind ik 0L | _ -> bool_top ik)
         | _ -> VD.top ()
       end
@@ -287,25 +283,25 @@ struct
       in
       match op with
       | MinusA when equality () = Some true ->
-        let ik = get_ikind (Cil.typeOf exp) in
+        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         Some (`Int (ID.of_int_ikind ik 0L))
       | MinusPI
-      | MinusPP when equality () = Some true -> Some (`Int (ID.of_int_ikind (ptrdiff_ikind ()) 0L))
+      | MinusPP when equality () = Some true -> Some (`Int (ID.of_int_ikind (Cilfacade.ptrdiff_ikind ()) 0L))
       | MinusPI
-      | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list (ptrdiff_ikind ()) [0L]))
+      | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list (Cilfacade.ptrdiff_ikind ()) [0L]))
       | Le
       | Ge when equality () = Some true ->
-        let ik = get_ikind (Cil.typeOf exp) in
+        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         Some (`Int (ID.of_bool_ikind ik true))
       | Lt
       | Gt when equality () = Some true ->
-        let ik = get_ikind (Cil.typeOf exp) in
+        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         Some (`Int (ID.of_bool_ikind ik false))
       | Eq ->
-        let ik = get_ikind (Cil.typeOf exp) in
+        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         (match equality () with Some tv -> Some (`Int (ID.of_bool_ikind ik tv)) | None -> None)
       | Ne ->
-        let ik = get_ikind (Cil.typeOf exp) in
+        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         (match equality () with Some tv -> Some (`Int (ID.of_bool_ikind ik (not tv))) | None -> None)
       | _ -> None
     in
@@ -745,7 +741,7 @@ struct
       let exp_rv = eval_rv a gs st exp in
       match exp_rv with
       | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
-      | `Top   -> `Index (IdxDom.top_of (ptrdiff_ikind ()), convert_offset a gs st ofs)
+      | `Top   -> `Index (IdxDom.top_of (Cilfacade.ptrdiff_ikind ()), convert_offset a gs st ofs)
       | `Bot -> `Index (IdxDom.bot (), convert_offset a gs st ofs)
       | _ -> M.bailwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
@@ -997,8 +993,8 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             (* This should behave like == and also work on different int types, hence the cast (just like with == in C) *)
-            let e1_ik = get_ikind (Cil.typeOf e1) in
-            let e2_ik = get_ikind (Cil.typeOf e2) in
+            let e1_ik = Cilfacade.get_ikind (Cil.typeOf e1) in
+            let e2_ik = Cilfacade.get_ikind (Cil.typeOf e2) in
             let ik= Cil.commonIntKind e1_ik e2_ik in
             if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
               begin
@@ -1121,7 +1117,7 @@ struct
               | `Bool t -> Q.BD.to_bool t = Some true
               | _ -> false
             in
-            let ik = get_ikind (typeOf currentE') in
+            let ik = Cilfacade.get_ikind (typeOf currentE') in
             let newE = Basetype.CilExp.replace l' r' currentE' in
             let currentEPlusOne = BinOp (PlusA, currentE', Cil.kinteger ik 1, typeOf currentE') in
             if are_equal newE currentEPlusOne then
@@ -1250,7 +1246,7 @@ struct
         if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
         (match value with
         | `Int n ->
-          let ikind = get_ikind (typeOf (Lval lval)) in
+          let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
           Some (x, `Int (ID.cast_to ikind n))
         | _ -> Some(x, value))
       (* The false-branch for x == value: *)
@@ -1261,7 +1257,7 @@ struct
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
                 if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" d_lval x n;
-                let ikind = get_ikind (typeOf (Lval lval)) in
+                let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
                 Some (x, `Int (ID.of_excl_list ikind [n]))
               | None -> None
             end
@@ -1287,7 +1283,7 @@ struct
       | Lt, x, value, _ -> begin
           match value with
           | `Int n -> begin
-            let ikind = get_ikind (typeOf (Lval lval)) in
+            let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
             let n = ID.cast_to ikind n in
             let range_from x = if tv then ID.ending_ikind ikind (Int64.sub x 1L) else ID.starting_ikind ikind x in
             let limit_from = if tv then ID.maximal else ID.minimal in
@@ -1302,7 +1298,7 @@ struct
       | Le, x, value, _ -> begin
           match value with
           | `Int n -> begin
-            let ikind = get_ikind (typeOf (Lval lval)) in
+            let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
             let n = ID.cast_to ikind n in
             let range_from x = if tv then ID.ending_ikind ikind x else ID.starting_ikind ikind (Int64.add x 1L) in
             let limit_from = if tv then ID.maximal else ID.minimal in
@@ -1455,13 +1451,13 @@ struct
         | `Int a, `Int b ->
           (* the ikind of comparisons is always TInt(IInt,[]) in CIL *)
           let ik = match op with
-            | Cil.Eq|Cil.Ne|Cil.Lt|Cil.Le|Cil.Ge|Cil.Gt -> (get_ikind (Cil.typeOf e1))
+            | Cil.Eq|Cil.Ne|Cil.Lt|Cil.Le|Cil.Ge|Cil.Gt -> (Cilfacade.get_ikind (Cil.typeOf e1))
             (* | Lor and land? *)
-            | _ -> get_ikind (Cil.typeOf exp)
+            | _ -> Cilfacade.get_ikind (Cil.typeOf exp)
           in
           let a', b' = inv_bin_int (a, b) (ID.cast_to ik c) ik op in
-          let m1 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e1)) a') e1 in
-          let m2 = inv_exp (ID.cast_to (get_ikind (Cil.typeOf e2)) b') e2 in
+          let m1 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e1)) a') e1 in
+          let m2 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e2)) b') e2 in
           CPA.meet m1 m2
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
@@ -1495,7 +1491,7 @@ struct
     in
     if eval_bool exp = Some tv then raise Deadcode
     else
-      let ik = get_ikind (Cil.typeOf exp) in
+      let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
       Tuple3.map1 (fun _ -> inv_exp (ID.of_bool_ikind ik tv) exp) st
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
