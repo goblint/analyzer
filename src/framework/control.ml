@@ -421,39 +421,44 @@ struct
         print_globals gh;
 
       (* run activated transformations with the analysis result *)
-      let ask loc =
-        let open Batteries in let open Enum in
-        (* first join all contexts *)
+      let active_transformations = get_list "trans.activated" |> List.map Json.string in
+      (if List.length active_transformations > 0 then
         let joined =
-          LHT.enum lh |> map (Tuple2.map1 fst) (* drop context from key *)
-          |> group fst (* group by key=node *)
-          |> map (reduce (fun (k,a) (_,b) -> k, Spec.D.join a b))
-          (* also, in cil visitors we only have the location, so we use that as the key *)
-          |> map (Tuple2.map1 MyCFG.getLoc)
-          |> Hashtbl.of_enum
+          (* first join all contexts *)
+          let open Batteries in let open Enum in
+            let e = LHT.enum lh |> map (Tuple2.map1 fst) (* drop context from key *)
+            (* also, in cil visitors we only have the location, so we use that as the key *)
+            |> map (Tuple2.map1 MyCFG.getLoc) in
+            let h = Hashtbl.create (if fast_count e then count e else 0) in
+            iter (fun (k,v) ->
+                (* join values for the same location *)
+                let a = try Spec.D.join (Hashtbl.find h k) v with Not_found -> v in
+                Hashtbl.replace h k a) e;
+            h
         in
-        (* build a ctx for using the query system *)
-        let rec ctx =
-          { ask    = query
-          ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
-          ; control_context = Obj.repr (fun () -> failwith "No context in query context.")
-          ; context = (fun () -> failwith "No context in query context.")
-          ; edge    = MyCFG.Skip
-          ; local  = Hashtbl.find joined loc
-          ; global = GHT.find gh
-          ; presub = []
-          ; postsub= []
-          ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-          ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
-          ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-          ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
-          }
-        and query x = Spec.query ctx x in
-        Spec.query ctx
-      in
-      get_list "trans.activated" |> List.map Json.string
-      |> List.iter (fun name -> Transform.run name ask file);
-      (* Transform.PartialEval.transform ask file; *)
+        let ask loc =
+          (* build a ctx for using the query system *)
+          let rec ctx =
+            { ask    = query
+            ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+            ; control_context = Obj.repr (fun () -> failwith "No context in query context.")
+            ; context = (fun () -> failwith "No context in query context.")
+            ; edge    = MyCFG.Skip
+            ; local  = Hashtbl.find joined loc
+            ; global = GHT.find gh
+            ; presub = []
+            ; postsub= []
+            ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+            ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
+            ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+            ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
+            }
+          and query x = Spec.query ctx x in
+          Spec.query ctx
+        in
+        List.iter (fun name -> Transform.run name ask file) active_transformations
+      );
+
       lh, gh
     in
 
