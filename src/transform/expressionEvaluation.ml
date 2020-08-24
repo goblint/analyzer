@@ -88,13 +88,17 @@ class expression_evaluator ask (file : Cil.file) =
         |> List.filter_map
           begin
             fun preceding_location ->
-              match LocationMap.split preceding_location statements with
-              | (_, Some preceding_statement, following_statements) ->
-                  let following_location, following_statement =
-                    LocationMap.find_first (fun _ -> true) following_statements
+              match LocationMap.find_opt preceding_location statements with
+              | Some preceding_statement ->
+                  let succeeding_statement =
+                    if List.length preceding_statement.succs = 1 then
+                      List.hd preceding_statement.succs
+                    else
+                      preceding_statement
                   in
+                  let succeeding_location = Cil.get_stmtLoc succeeding_statement.skind in
                   let evaluation =
-                    match ask following_location (Queries.EvalInt (Formatcil.cExp expression variables)) with
+                    match ask succeeding_location (Queries.EvalInt (Formatcil.cExp expression variables)) with
                     | `Bot -> None (* Not reachable *)
                     | `Int value ->
                         if value = Int64.zero then
@@ -111,10 +115,10 @@ class expression_evaluator ask (file : Cil.file) =
                   in
                   begin
                     match evaluation with
-                    | Some value -> Some (value (* Debug: *), (preceding_location, preceding_statement), (following_location, following_statement))
+                    | Some value -> Some (value (* Debug: *), (preceding_location, preceding_statement), (succeeding_location, succeeding_statement))
                     | None -> None
                   end
-              | (_, None, _) -> None (* No statement *)
+              | None -> None (* No statement *)
           end
 
   end
