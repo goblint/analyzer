@@ -28,4 +28,21 @@ int main(void) {
     // }
   while_beak:
     assert(i == 3);
+
+
+
+    int a = 5;
+    int b = 7;
+
+    int r = 0;
+
+    if (a == b) {
+        // Dead
+        r = 1;
+    } else {
+        r = 2;
+    }
+
+    assert(r == 1); //FAIL
+    assert(r == 2);
 }
