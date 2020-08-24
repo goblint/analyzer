@@ -23,10 +23,8 @@ sig
   val of_excl_list: Cil.ikind -> int64 list -> t
   val is_excl_list: t -> bool
   val of_interval: int64 * int64 -> t
-  val starting   : int64 -> t
-  val starting_ikind  : Cil.ikind -> int64 -> t
-  val ending     : int64 -> t
-  val ending_ikind : Cil.ikind -> int64 -> t
+  val starting   : ?ikind:Cil.ikind -> int64 -> t
+  val ending     : ?ikind:Cil.ikind -> int64 -> t
   val top_of     : Cil.ikind -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
@@ -107,16 +105,14 @@ end
 module StdTop (B: sig type t val top: unit -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
-  let to_excl_list   x = None
-  let of_excl_list   t x = top ()
-  let is_excl_list   x = false
-  let of_interval    x = top ()
-  let starting       x = top ()
-  let starting_ikind t x = top ()
-  let ending         x = top ()
-  let ending_ikind   t x = top ()
-  let maximal        x = None
-  let minimal        x = None
+  let to_excl_list    x = None
+  let of_excl_list    t x = top ()
+  let is_excl_list    x = false
+  let of_interval     x = top ()
+  let starting ?ikind x = top ()
+  let ending ?ikind   x = top ()
+  let maximal         x = None
+  let minimal         x = None
 end
 
 module Std (B: sig
@@ -202,22 +198,25 @@ struct
     | None | Some (0L, 0L) -> x
     | _ -> if leq zero x then top_bool else one
 
-  let starting n = norm @@ Some (n,max_int)
-  let ending   n = norm @@ Some (min_int,n)
+  let starting ?ikind n =
+    match ikind with
+    | Some ik ->
+      (try
+        norm @@
+        let _, u = Size.range ik in
+        Some (n,u)
+      with Size.Not_in_int64 -> norm @@ Some (n,max_int))
+    | None -> norm @@ Some (n,max_int)
 
-  let starting_ikind ik n =
-    try
-      norm @@
-      let _, u = Size.range ik in
-      Some (n,u)
-    with Size.Not_in_int64 -> starting n
-
-  let ending_ikind ik n =
-    try
-      norm @@
-      let l, _ = Size.range ik in
-      Some (l,n)
-    with Size.Not_in_int64 -> ending n
+  let ending ?ikind n =
+    match ikind with
+    | Some ik ->
+      (try
+        norm @@
+        let l, _ = Size.range ik in
+        Some (l,n)
+      with Size.Not_in_int64 -> norm @@ Some (min_int,n))
+    | None -> norm @@ Some (min_int,n)
 
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
@@ -492,10 +491,8 @@ struct
   let of_excl_list t x = top ()
   let is_excl_list x = false
   let of_interval  x = top ()
-  let starting     x = top ()
-  let ending       x = top ()
-  let starting_ikind    t x = top ()
-  let ending_ikind       t x = top ()
+  let starting     ?ikind x = top ()
+  let ending       ?ikind x = top ()
   let maximal      x = None
   let minimal      x = None
 
@@ -760,10 +757,15 @@ struct
 
   let of_interval (x,y) = if Int64.compare x y == 0 then of_int x else top ()
 
-  let starting_ikind t x = if x > 0L then not_zero_ikind t else top_of t
-  let ending_ikind t x = if x < 0L then not_zero_ikind t else top_of t
-  let starting x = if x > 0L then not_zero else top ()
-  let ending x = if x < 0L then not_zero else top ()
+  let starting ?ikind x =
+    match ikind with
+    | Some ik -> if x > 0L then not_zero_ikind ik else top_of ik
+    | None -> if x > 0L then not_zero else top ()
+  let ending ?ikind x =
+    match ikind with
+    | Some ik -> if x < 0L then not_zero_ikind ik else top_of ik
+    | None -> if x < 0L then not_zero else top ()
+
 
   let max_of_range r = BatOption.map (fun i -> Int64.(pred @@ shift_left 1L (to_int i))) (R.maximal r)
   let min_of_range r = BatOption.map (fun i -> Int64.(if i = zero then zero else neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
@@ -1015,19 +1017,16 @@ struct
 
 
   (* Starting/Ending *)
-  let starting x =
+  let starting ?ikind x =
     let r = I.of_t max_width (C.of_int64 max_width x) (C.max_value max_width)
     in
     print_endline ("starting: "^(I.to_string r)^" .. "^(Int64.to_string x));
     r
-  let ending x =
+  let ending ?ikind x =
     let r = I.of_t max_width C.zero (C.of_int64 max_width x)
     in
     print_endline ("ending: "^(I.to_string r)^" .. "^(Int64.to_string x));
     r
-
-  let starting_ikind _ = starting
-  let ending_ikind _ = ending
 
   let maximal x =
     print_endline ("maximal: "^(I.to_string x));
@@ -1489,10 +1488,8 @@ module Enums : S = struct
   let to_excl_list = function Exc (x,r) when x<>[] -> Some x | _ -> None
   let of_excl_list t x = Exc (x, size t)
   let is_excl_list = BatOption.is_some % to_excl_list
-  let starting     x = top ()
-  let ending       x = top ()
-  let starting_ikind _ = starting
-  let ending_ikind _ = ending
+  let starting     ?ikind x = top ()
+  let ending       ?ikind x = top ()
   let maximal = function Inc xs when xs<>[] -> Some (List.last xs) | _ -> None
   let minimal = function Inc (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
@@ -1552,10 +1549,8 @@ module IntDomTuple = struct
   let of_excl_list t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list t }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
   let top_of = create { fi = fun (type a) (module I:S with type t = a) -> I.top_of }
-  let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
-  let starting_ikind t =  create { fi = fun (type a) (module I:S with type t = a) -> I.starting_ikind t }
-  let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
-  let ending_ikind t =  create { fi = fun (type a) (module I:S with type t = a) -> I.ending_ikind t }
+  let starting ?ikind = create { fi = fun (type a) (module I:S with type t = a) x -> match ikind with | None -> I.starting x | Some ik -> I.starting ~ikind:ik x } (* Does not compile without making x explicit *)
+  let ending ?ikind = create { fi = fun (type a) (module I:S with type t = a) x -> match ikind with | None -> I.ending x | Some ik -> I.ending  ~ikind:ik x } (* Does not compile without making x explicit *)
   let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }
 
   (* f1: unary ops *)

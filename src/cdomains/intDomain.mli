@@ -42,10 +42,8 @@ sig
   (* Checks if the element is an exclusion set. *)
 
   val of_interval: int64 * int64 -> t
-  val starting   : int64 -> t
-  val starting_ikind  : Cil.ikind -> int64 -> t
-  val ending     : int64 -> t
-  val ending_ikind  : Cil.ikind -> int64 -> t
+  val starting   : ?ikind:Cil.ikind -> int64 -> t
+  val ending     : ?ikind:Cil.ikind -> int64 -> t
   val top_of     : Cil.ikind -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option

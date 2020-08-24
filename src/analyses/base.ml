@@ -1279,7 +1279,7 @@ struct
           | `Int n -> begin
             let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
             let n = ID.cast_to ikind n in
-            let range_from x = if tv then ID.ending_ikind ikind (Int64.sub x 1L) else ID.starting_ikind ikind x in
+            let range_from x = if tv then ID.ending ~ikind:ikind (Int64.sub x 1L) else ID.starting ~ikind:ikind x in
             let limit_from = if tv then ID.maximal else ID.minimal in
             match limit_from n with
             | Some n ->
@@ -1294,7 +1294,7 @@ struct
           | `Int n -> begin
             let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
             let n = ID.cast_to ikind n in
-            let range_from x = if tv then ID.ending_ikind ikind x else ID.starting_ikind ikind (Int64.add x 1L) in
+            let range_from x = if tv then ID.ending ~ikind:ikind x else ID.starting ~ikind:ikind (Int64.add x 1L) in
             let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
@@ -1389,7 +1389,7 @@ struct
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
       Tuple3.first (invariant ctx a gs st exp tv)
     in
-    let inv_bin_int (a, b) c t op =
+    let inv_bin_int (a, b) c ik op =
       let meet_bin a' b' = ID.meet a a', ID.meet b b' in
       let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
       let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
@@ -1408,7 +1408,7 @@ struct
         | Eq, Some false
         | Ne, Some true -> (* def. unequal *)
           (match ID.to_int m with
-          | Some i -> both (ID.of_excl_list t [i])
+          | Some i -> both (ID.of_excl_list ik [i])
           | None -> a, b)
         | _, _ -> a, b
         )
@@ -1418,13 +1418,13 @@ struct
           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
           (match op, ID.to_bool c with
           | Le, Some true
-          | Gt, Some false -> meet_bin (ID.ending_ikind t u2) (ID.starting_ikind t l1)
+          | Gt, Some false -> meet_bin (ID.ending ~ikind:ik u2) (ID.starting ~ikind:ik l1)
           | Ge, Some true
-          | Lt, Some false -> meet_bin (ID.starting_ikind t l2) (ID.ending_ikind t u1)
+          | Lt, Some false -> meet_bin (ID.starting ~ikind:ik l2) (ID.ending ~ikind:ik u1)
           | Lt, Some true
-          | Ge, Some false -> meet_bin (ID.ending_ikind t (Int64.pred u2)) (ID.starting_ikind t (Int64.succ l1))
+          | Ge, Some false -> meet_bin (ID.ending ~ikind:ik (Int64.pred u2)) (ID.starting ~ikind:ik (Int64.succ l1))
           | Gt, Some true
-          | Le, Some false -> meet_bin (ID.starting_ikind t (Int64.succ l2)) (ID.ending_ikind t (Int64.pred u1))
+          | Le, Some false -> meet_bin (ID.starting ~ikind:ik (Int64.succ l2)) (ID.ending ~ikind:ik (Int64.pred u1))
           | _, _ -> a, b)
         | _ -> a, b)
       | _ ->
