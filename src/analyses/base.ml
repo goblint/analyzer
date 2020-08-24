@@ -829,8 +829,11 @@ struct
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
   let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
-    let r = eval_rv a gs st exp in
-    if VD.is_bot r then top_value a gs st (typeOf exp) else r
+    try
+      let r = eval_rv a gs st exp in
+      if VD.is_bot r then top_value a gs st (typeOf exp) else r
+    with IntDomain.ArithmeticOnIntegerBot _ ->
+      top_value a gs st (typeOf exp)
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
