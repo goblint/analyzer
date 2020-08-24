@@ -1385,9 +1385,9 @@ struct
       let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
       function
       | PlusA  -> meet_com ID.sub
-      | Mult   -> meet_com ID.div
+      | Mult   -> meet_com ID.div (* Div is ok here, c must be divisible by a and b *)
       | MinusA -> meet_non ID.add ID.sub
-      | Div    -> meet_non ID.mul ID.div
+      (* | Div    -> be careful when adding Div, it is division with remainder this is not easy to inverse *)
       | Mod    -> meet_bin (ID.add c (ID.mul b (ID.div a b))) (ID.div (ID.sub a c) (ID.div a b))
       | Eq | Ne as op ->
         let both x = x, x in

@@ -65,6 +65,45 @@ void main()
   void const* b = (void const*) ci;
   test((void const *)ci);
 
+	for (i = 0; i <	 (((20) + (4) - 1)/(4)); i++) {
+
+	}
+
+
+  for (i = 0; i <	 (((20) + (8UL) - 1)/(8UL)); i++) {
+
+	}
+
+
+
+
+  unsigned long v = 8UL;
+  for (i = 0; i <	 (((20) + (8UL) - 1)/(v)); i++) {
+
+	}
+
+  i = 0;
+  if(i < 28UL/v) {
+    i++;
+  }
+
+  int gef = 75;
+
+  if(i < 28UL/v) {
+    i++;
+  }
+
+  gef = 38;
+
+  i =0;
+  for(; i < 28UL/v; i++) {
+
+  }
+
+	for (i = 0; i <	 (((20) + sizeof(unsigned long) - 1)/sizeof(unsigned long)); i++) {
+
+	}
+
 	for (i = 0; i <	 LONGS(20); i++) {
 
 	}
