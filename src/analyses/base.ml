@@ -1487,7 +1487,7 @@ struct
         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
       | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
-    if eval_bool exp = Some tv then raise Deadcode (* we already know that the branch is dead *)
+    if eval_bool exp = Some (not tv) then raise Deadcode (* we already know that the branch is dead *) (*TODO: Negation? *)
     else
       let is_cmp = function
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
