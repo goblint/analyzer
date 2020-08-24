@@ -241,7 +241,7 @@ let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 let p_expr exp = Pretty.printf "%a\n" (printExp defaultCilPrinter) exp
 let d_expr exp = Pretty.printf "%a\n" (printExp plainCilPrinter) exp
 
-(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. Warns if a a different type is put it and return IInt *)
+(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. Warns if a a different type is put in and return IInt *)
 let get_ikind t = match Cil.unrollType t with TInt (ik,_) | TEnum ({ekind = ik; _},_) -> ik | _ ->
   (* important to unroll the type here, otherwise problems with typedefs *)
   Messages.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";  Cil.IInt
