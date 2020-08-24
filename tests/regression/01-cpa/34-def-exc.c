@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.def_exc --enable ana.int.interval
+#define LONGS(x) (((x) + sizeof(unsigned long) - 1)/sizeof(unsigned long))
 #include<stdbool.h>
 
 typedef unsigned long custom_t;
@@ -63,6 +64,11 @@ void main()
   custom_t ci;
   void const* b = (void const*) ci;
   test((void const *)ci);
+
+	for (i = 0; i <	 LONGS(20); i++) {
+
+	}
+
 
   return;
 }
