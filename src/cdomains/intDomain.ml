@@ -102,6 +102,10 @@ module Size = struct (* size in bits as int, range as int64 *)
     try int64_of_big_int y with _ -> raise Not_in_int64
 end
 
+exception Unknown
+exception Error
+exception ArithmeticOnIntegerBot of string
+
 module StdTop (B: sig type t val top: unit -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
@@ -251,8 +255,9 @@ struct
 
   let log f i1 i2 =
     match is_bot i1, is_bot i2 with
+    | true, true -> bot ()
     | true, _
-    | _   , true -> bot ()
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
     | _ ->
       match to_bool i1, to_bool i2 with
       | Some x, Some y -> of_bool (f x y)
@@ -273,8 +278,9 @@ struct
 
   let bit f i1 i2 =
     match is_bot i1, is_bot i2 with
+    | true, true -> bot ()
     | true, _
-    | _   , true -> bot ()
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try norm (of_int (f x y)) with Division_by_zero -> top ())
@@ -300,7 +306,8 @@ struct
 
   let add x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) -> norm @@ Some (Int64.add x1 y1, Int64.add x2 y2)
 
   let sub i1 i2 = add i1 (neg i2)
@@ -311,7 +318,8 @@ struct
 
   let mul x y =
     match x, y with
-    | None, _ | _, None -> bot ()
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
       let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
@@ -320,7 +328,8 @@ struct
 
   let rec div x y =
     match x, y with
-    | None, _ | _, None -> bot ()
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       begin match y1, y2 with
         | 0L, 0L       -> top () (* TODO warn about undefined behavior *)
@@ -341,7 +350,8 @@ struct
 
   let ge x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare y2 x1 <= 0 then of_bool true
       else if Int64.compare x2 y1 < 0 then of_bool false
@@ -349,7 +359,8 @@ struct
 
   let le x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare x2 y1 <= 0 then of_bool true
       else if Int64.compare  y2 x1 < 0 then of_bool false
@@ -357,7 +368,8 @@ struct
 
   let gt x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare  y2 x1 < 0 then of_bool true
       else if Int64.compare x2 y1 <= 0 then of_bool false
@@ -365,7 +377,8 @@ struct
 
   let lt x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare x2 y1 < 0 then of_bool true
       else if Int64.compare y2 x1 <= 0 then of_bool false
@@ -383,8 +396,6 @@ struct
 end
 
 
-exception Unknown
-exception Error
 
 module Integers = (* no top/bot, order is <= *)
 struct
@@ -804,8 +815,10 @@ struct
     | `Excluded (_, xr), `Excluded(_, yr) ->
       check_identical_range xr yr;
       `Excluded(S.empty (), xr)
-    (* If any one of them is bottom, we return bottom *)
-    | _ -> `Bot
+    | ` Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* For the shift operations, CIL does not cast the right argument to the type of the left argument,    *)
   (* so we should not warn about operations on different types here. The result has the type of the left *)
@@ -818,8 +831,10 @@ struct
     | `Definite (_, xr), `Excluded(_, yr)
     | `Excluded (_, xr), `Excluded(_, yr) ->
       `Excluded(S.empty (), xr)
-    (* If any one of them is bottom, we return bottom *)
-    | _ -> `Bot
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
@@ -840,8 +855,10 @@ struct
     | `Definite (x,xr), `Definite (y,yr) ->
       check_identical_range xr yr;
       `Definite (f x y, xr)
-    (* If any one of them is bottom, we return bottom *)
-    | _ -> `Bot
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* The equality check: *)
   let eq x y =
@@ -863,8 +880,10 @@ struct
     | `Definite (x,xr), `Definite (y,yr) ->
       check_identical_range xr yr;
       if x=y then t else f
-    (* If either one of them is bottom, we return bottom *)
-    | _ -> `Bot
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* The inequality check: *)
   let ne x y =
@@ -886,11 +905,10 @@ struct
     | `Definite (x,xr), `Definite (y,yr) ->
       check_identical_range xr yr;
       if x=y then f else t
-    (* If either one of them is bottom, we return bottom *)
-    | _ -> `Bot
-
-
-
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   let neg  = lift1 Integers.neg
   let add  = lift2_inj Integers.add
