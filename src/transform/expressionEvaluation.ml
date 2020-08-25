@@ -5,21 +5,22 @@ module LocationMap = Map.Make
       compare location_1.byte location_2.byte
   end)
 
-type query_mode =
+let opt_map (transform : 'a -> 'b) : ('a option list -> 'b option list) =
+  List.map (function Some element -> Some (transform element) | None -> None)
+
+type expression_query_mode =
   | Must [@name "must"]
   | May [@name "may"]
   [@@deriving yojson]
-type query =
+type expression_query =
   {
     kind : SyntacticalAnalyzer.JsonParser.kind; [@key "kind"]
     target : SyntacticalAnalyzer.JsonParser.target; [@key "target"]
     find : SyntacticalAnalyzer.JsonParser.find; [@key "find"]
-    mode : query_mode; [@key "mode"]
+    expression : string; [@key "expression"]
+    mode : expression_query_mode; [@key "mode"]
   }
   [@@deriving yojson]
-
-let opt_map (transform : 'a -> 'b) : ('a option list -> 'b option list) =
-  List.map (function Some element -> Some (transform element) | None -> None)
 
 class expression_evaluator ask (file : Cil.file) =
 
@@ -76,7 +77,7 @@ class expression_evaluator ask (file : Cil.file) =
     method get_debug () =
       debug
 
-    method evaluate query expression =
+    method evaluate query =
       debug <- [];
       let syntax_query : SyntacticalAnalyzer.JsonParser.query =
         {
@@ -123,7 +124,7 @@ class expression_evaluator ask (file : Cil.file) =
           (***)
 
           (* Evaluate at statement locations *)
-          |> opt_map (fun location -> ask location (Queries.EvalInt (Formatcil.cExp expression variables)))
+          |> opt_map (fun location -> ask location (Queries.EvalInt (Formatcil.cExp query.expression variables)))
           (* Extract value from result *)
           |> opt_map
             begin
@@ -169,16 +170,16 @@ let _ =
 
       let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
         let query_file_name = GobConfig.get_string "trans.expeval.query_file_name" in
-        let expression = GobConfig.get_string "trans.expeval.expression" in
         print_endline ("Using query file: \"" ^ query_file_name ^ "\"");
-        print_endline ("Evaluating expression: \"" ^ expression ^ "\"");
         let query =
-          match Yojson.Safe.from_file query_file_name |> query_of_yojson with
+          match Yojson.Safe.from_file query_file_name |> expression_query_of_yojson with
           | Ok parsed_query -> parsed_query
-          | Error _ -> raise Exit
+          | Error _ ->
+              print_endline "Parsing error";
+              raise Exit
         in
         let evaluator = new expression_evaluator ask file in
-        let evaluations = evaluator#evaluate query expression |> Array.of_list in
+        let evaluations = evaluator#evaluate query |> Array.of_list in
         let evaluation_debug = evaluator#get_debug () |> Array.of_list in
         (* Show results *)
         for index = 0 to Array.length evaluations - 1 do
