@@ -1418,9 +1418,10 @@ struct
         let oldv = eval (Lval x) in
         let v = VD.meet oldv c' in
         if is_some_bot v then raise Deadcode
-        else
+        else (
           if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
           set' x v
+        )
       | Const _ -> Tuple3.first st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e with
