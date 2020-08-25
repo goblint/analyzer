@@ -1410,11 +1410,11 @@ struct
         | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
         | Eq, Some false
         | Ne, Some true -> (* def. unequal *)
-          (* if they compare unequal, they can not at the same time be from the meet, but it would be unsound to restrict both to not be the meet      *)
-          (* even if there is only one element in the meet e.g. a:[0,1] b:[1,2] meet(a,b) = [1], but (a != b) does not mean that a:[0,0] and b: [2,2]  *)
-          let a' = match ID.to_int b with | Some j -> (ID.of_excl_list ik [j]) | _ -> a  in (* if b is one concrete value, we can exclude it in a *)
-          let b' = match ID.to_int a with | Some j -> (ID.of_excl_list ik [j]) | _ -> b  in (* if a is one concrete value, we can exclude it in b *)
-          meet_bin a' b'
+          (* Both values can not be in the meet together, but it's not sound to exclude the meet from both. *)
+          (* e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2] *)
+          (* Only if a is a definite value, we can exclude it from b: *)
+          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ik [x] | None -> b in
+          meet_bin (excl b a) (excl a b)
         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt ->
