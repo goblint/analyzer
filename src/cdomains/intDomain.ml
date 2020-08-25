@@ -25,7 +25,6 @@ sig
   val of_interval: int64 * int64 -> t
   val starting   : ?ikind:Cil.ikind -> int64 -> t
   val ending     : ?ikind:Cil.ikind -> int64 -> t
-  val top_of     : Cil.ikind -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
@@ -1523,7 +1522,6 @@ module IntDomTuple = struct
   let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
   let of_excl_list t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list t }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
-  let top_of = create { fi = fun (type a) (module I:S with type t = a) -> I.top_of }
   let starting ?ikind = create { fi = fun (type a) (module I:S with type t = a) x -> match ikind with | None -> I.starting x | Some ik -> I.starting ~ikind:ik x } (* Does not compile without making x explicit *)
   let ending ?ikind = create { fi = fun (type a) (module I:S with type t = a) x -> match ikind with | None -> I.ending x | Some ik -> I.ending  ~ikind:ik x } (* Does not compile without making x explicit *)
   let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }
