@@ -5,9 +5,6 @@ module LocationMap = Map.Make
       compare location_1.byte location_2.byte
   end)
 
-let opt_map (transform : 'a -> 'b) : ('a option list -> 'b option list) =
-  List.map (function Some element -> Some (transform element) | None -> None)
-
 type expression_query_mode =
   | Must [@name "must"]
   | May [@name "may"]
@@ -124,24 +121,28 @@ class expression_evaluator ask (file : Cil.file) =
           (***)
 
           (* Evaluate at statement locations *)
-          |> opt_map (fun location -> ask location (Queries.EvalInt (Formatcil.cExp query.expression variables)))
-          (* Extract value from result *)
-          |> opt_map
+          |> List.map
             begin
               function
-              | `Bot -> None (* Not reachable *)
-              | `Int value ->
-                  if value = Int64.zero then
-                    None (* False/zero *)
-                  else
-                    Some (Some value)
-              | `Top ->
-                  begin
-                    match query.mode with
-                    | Must -> None (* Unknown *)
-                    | May -> Some None (* TODO use "Query function answered"? *)
-                  end
-              | _ -> raise Exit
+              | Some location ->
+                  Some
+                    begin
+                      match ask location (Queries.EvalInt (Formatcil.cExp query.expression variables)) with
+                      | `Bot -> None (* Not reachable *)
+                      | `Int value ->
+                          if value = Int64.zero then
+                            None (* False/zero *)
+                          else
+                            Some (Some value)
+                      | `Top ->
+                          begin
+                            match query.mode with
+                            | Must -> None (* Unknown *)
+                            | May -> Some None (* TODO use "Query function answered"? *)
+                          end
+                      | _ -> raise Exit
+                    end
+              | None -> None
             end
       in
       debug <- List.rev debug;
