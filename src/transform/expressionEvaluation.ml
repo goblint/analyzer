@@ -18,6 +18,9 @@ type query =
   }
   [@@deriving yojson]
 
+let opt_map (transform : 'a -> 'b) : ('a option list -> 'b option list) =
+  List.map (function Some element -> Some (transform element) | None -> None)
+
 class expression_evaluator ask (file : Cil.file) =
 
   (* Get all functions *)
@@ -68,7 +71,13 @@ class expression_evaluator ask (file : Cil.file) =
 
   object (self)
 
+    val mutable debug : (Cil.location * (Cil.stmt * (Cil.location * Cil.stmt) option) option) list = []
+
+    method get_debug () =
+      debug
+
     method evaluate query expression =
+      debug <- [];
       let syntax_query : SyntacticalAnalyzer.JsonParser.query =
         {
           sel = [];
@@ -79,46 +88,63 @@ class expression_evaluator ask (file : Cil.file) =
           lim = None_c;
         }
       in
-      SyntacticalAnalyzer.QueryMapping.map_query syntax_query file
-        (* Use only location results *)
-        |> List.map (fun (_, location, _, _) -> location)
-        |> List.sort (fun (location_1 : Cil.location) (location_2 : Cil.location) -> compare location_1.byte location_2.byte)
-        (* Following *)
-        |> List.filter_map
-          begin
-            fun preceding_location ->
-              match LocationMap.find_opt preceding_location statements with
-              | Some preceding_statement ->
-                  let succeeding_statement =
+      let evaluations =
+        SyntacticalAnalyzer.QueryMapping.map_query syntax_query file
+          (* Use only location results *)
+          |> List.map (fun (_, location, _, _) -> location)
+          (* Sort locations *)
+          |> List.sort (fun (location_1 : Cil.location) (location_2 : Cil.location) -> compare location_1.byte location_2.byte)
+
+          (***)
+
+          (* Get updated location using statements *)
+          |> List.map
+            begin
+              fun preceding_location ->
+                match LocationMap.find_opt preceding_location statements with
+                | Some preceding_statement ->
                     if List.length preceding_statement.succs = 1 then
-                      List.hd preceding_statement.succs
+                      begin
+                        let succeeding_statement = (List.hd preceding_statement.succs) in
+                        let succeeding_location = Cil.get_stmtLoc succeeding_statement.skind in
+                        debug <- (preceding_location, Some (preceding_statement, Some (succeeding_location, succeeding_statement)))::debug;
+                        Some succeeding_location
+                      end
                     else
-                      preceding_statement
-                  in
-                  let succeeding_location = Cil.get_stmtLoc succeeding_statement.skind in
-                  let evaluation =
-                    match ask succeeding_location (Queries.EvalInt (Formatcil.cExp expression variables)) with
-                    | `Bot -> None (* Not reachable *)
-                    | `Int value ->
-                        if value = Int64.zero then
-                          None (* False/zero *)
-                        else
-                          Some (Some value)
-                    | `Top ->
-                        begin
-                          match query.mode with
-                          | Must -> None (* Unknown *)
-                          | May -> Some None (* TODO use "Query function answered"? *)
-                        end
-                    | _ -> raise Exit
-                  in
+                      begin
+                        debug <- (preceding_location, Some (preceding_statement, None))::debug;
+                        Some preceding_location
+                      end
+                | None ->
+                    debug <- (preceding_location, None)::debug;
+                    None
+            end
+
+          (***)
+
+          (* Evaluate at statement locations *)
+          |> opt_map (fun location -> ask location (Queries.EvalInt (Formatcil.cExp expression variables)))
+          (* Extract value from result *)
+          |> opt_map
+            begin
+              function
+              | `Bot -> None (* Not reachable *)
+              | `Int value ->
+                  if value = Int64.zero then
+                    None (* False/zero *)
+                  else
+                    Some (Some value)
+              | `Top ->
                   begin
-                    match evaluation with
-                    | Some value -> Some (value (* Debug: *), (preceding_location, preceding_statement), (succeeding_location, succeeding_statement))
-                    | None -> None
+                    match query.mode with
+                    | Must -> None (* Unknown *)
+                    | May -> Some None (* TODO use "Query function answered"? *)
                   end
-              | None -> None (* No statement *)
-          end
+              | _ -> raise Exit
+            end
+      in
+      debug <- List.rev debug;
+      evaluations
 
   end
 
@@ -127,8 +153,12 @@ let _ =
   let module ExpressionEvaluationTransform : Transform.S =
     struct
 
-      let string_of_statement statement =
+      let padding = 5
 
+      let string_of_int_padded value =
+        let value_string = string_of_int value in
+        (String.make (padding - String.length value_string) ' ') ^ value_string
+      let string_of_statement statement =
         statement
           |> Cil.d_stmt ()
           |> Pretty.sprint ~width:0
@@ -138,49 +168,47 @@ let _ =
           |> List.fold_left (^) ""
 
       let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
-
         let query_file_name = GobConfig.get_string "trans.expeval.query_file_name" in
         let expression = GobConfig.get_string "trans.expeval.expression" in
-
         print_endline ("Using query file: \"" ^ query_file_name ^ "\"");
         print_endline ("Evaluating expression: \"" ^ expression ^ "\"");
-
         let query =
           match Yojson.Safe.from_file query_file_name |> query_of_yojson with
           | Ok parsed_query -> parsed_query
           | Error _ -> raise Exit
         in
-
         let evaluator = new expression_evaluator ask file in
-        evaluator#evaluate query expression
-          (* Show results *)
-          |> List.iter
+        let evaluations = evaluator#evaluate query expression |> Array.of_list in
+        let evaluation_debug = evaluator#get_debug () |> Array.of_list in
+        (* Show results *)
+        for index = 0 to Array.length evaluations - 1 do
+          print_endline (String.make padding '-');
+          let evaluation = evaluations.(index) in
+          begin
+            match evaluation_debug.(index) with
+            | (p_location, Some (p_statement, Some (s_location, s_statement))) ->
+                print_endline ((p_location.line |> string_of_int_padded) ^ ": " ^ (p_statement |> string_of_statement));
+                if s_location.line < 0 then
+                  print_string (String.make padding ' ')
+                else
+                  print_string (s_location.line |> string_of_int_padded);
+                print_endline (": " ^ (s_statement |> string_of_statement))
+            | (p_location, Some (p_statement, None)) ->
+                print_endline ((p_location.line |> string_of_int_padded) ^ ": " ^ (p_statement |> string_of_statement));
+                print_string ((String.make padding ' ') ^ "  No successor")
+            | (p_location, None) ->
+                print_endline ((p_location.line |> string_of_int_padded) ^ ": No statement")
+          end;
+          print_string ((String.make padding ' ') ^ "  -> ");
+          print_endline
             begin
-              fun (value (* Debug: *), ((p_location : Cil.location), p_statement), ((f_location : Cil.location), f_statement)) ->
-
-                let padding = 5 in
-
-                print_endline (String.make padding '-');
-
-                let p_line = p_location.line |> string_of_int in
-                let f_line = f_location.line |> string_of_int in
-
-                print_string ((String.make (padding - String.length p_line) ' ') ^ p_line ^ ": ");
-                print_endline (p_statement |> string_of_statement);
-
-                (* Print value *)
-                print_string ((String.make padding ' ') ^ "  -> ");
-                print_endline
-                  begin
-                    match value with
-                    | Some definite_value -> Int64.to_string definite_value
-                    | None -> "Unknown"
-                  end;
-
-                print_string ((String.make (padding - String.length f_line) ' ') ^ f_line ^ ": ");
-                print_endline (f_statement |> string_of_statement);
-
-            end
+              match evaluation with
+              | Some Some Some value -> Int64.to_string value
+              | Some Some None -> "Unknown"
+              | Some None -> "Not reachable or false/zero"
+              | None -> "Not evaluable"
+            end;
+        done
 
     end
   in
