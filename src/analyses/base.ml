@@ -1400,7 +1400,7 @@ struct
       | PlusA  -> meet_com ID.sub
       | Mult   -> meet_com ID.div (* Div is ok here, c must be divisible by a and b *)
       | MinusA -> meet_non ID.add ID.sub
-      (* | Div    -> be careful when adding Div, it is division with remainder this is not easy to inverse *)
+      | Div    -> meet_bin (ID.add (ID.mul b c) (ID.rem a b)) (ID.div (ID.sub a (ID.rem a b)) c)
       | Mod    -> meet_bin (ID.add c (ID.mul b (ID.div a b))) (ID.div (ID.sub a c) (ID.div a b))
       | Eq | Ne ->
         let both x = x, x in
@@ -1487,7 +1487,7 @@ struct
         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
       | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
-    if eval_bool exp = Some (not tv) then raise Deadcode (* we already know that the branch is dead *) (*TODO: Negation? *)
+    if eval_bool exp = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
     else
       let is_cmp = function
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
