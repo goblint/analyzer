@@ -82,8 +82,7 @@ class expression_evaluator ask (file : Cil.file) =
       SyntacticalAnalyzer.QueryMapping.map_query syntax_query file
         (* Use only location results *)
         |> List.map (fun (_, location, _, _) -> location)
-        (* Sort by .line, since .byte does not work here (?) *)
-        |> List.sort (fun (location_1 : Cil.location) (location_2 : Cil.location) -> compare location_1.line location_2.line)
+        |> List.sort (fun (location_1 : Cil.location) (location_2 : Cil.location) -> compare location_1.byte location_2.byte)
         (* Following *)
         |> List.filter_map
           begin
