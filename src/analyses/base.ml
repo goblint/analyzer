@@ -1265,13 +1265,11 @@ struct
         end
       | Ne, x, value, _ -> helper Eq x value (not tv)
       | Lt, x, value, _ -> begin
-          let range_from x = if tv then ID.ending (Int64.sub x 1L) else ID.starting x in
-          let limit_from = if tv then ID.maximal else ID.minimal in
           match value with
           | `Int n -> begin
             let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
             let n = ID.cast_to ikind n in
-            let range_from x = if tv then ID.ending ~ikind:ikind (Int64.sub x 1L) else ID.starting ~ikind:ikind x in
+            let range_from x = if tv then ID.ending ~ikind (Int64.sub x 1L) else ID.starting ~ikind x in
             let limit_from = if tv then ID.maximal else ID.minimal in
             match limit_from n with
             | Some n ->
@@ -1282,13 +1280,11 @@ struct
           | _ -> None
         end
       | Le, x, value, _ -> begin
-          let range_from x = if tv then ID.ending x else ID.starting (Int64.add x 1L) in
-          let limit_from = if tv then ID.maximal else ID.minimal in
           match value with
           | `Int n -> begin
             let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
             let n = ID.cast_to ikind n in
-            let range_from x = if tv then ID.ending ~ikind:ikind x else ID.starting ~ikind:ikind (Int64.add x 1L) in
+            let range_from x = if tv then ID.ending ~ikind x else ID.starting ~ikind (Int64.add x 1L) in
             let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
@@ -1308,7 +1304,7 @@ struct
     let null_val typ =
       match Cil.unrollType typ with
       | TPtr _                    -> `Address AD.null_ptr
-      | TEnum({ekind=ikind;_},_)
+      | TEnum({ekind=_;_},_)
       | _                         -> `Int (ID.of_int 0L)
     in
     let rec derived_invariant exp tv =
@@ -1440,7 +1436,7 @@ struct
             (* | Lor and land? *)
             | _ -> Cilfacade.get_ikind (Cil.typeOf exp)
           in
-          let a', b' = inv_bin_int (a, b) (ID.cast_to ik c) ik op in
+          let a', b' = inv_bin_int (a, b) ik (ID.cast_to ik c) op in
           let m1 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e1)) a') e1 in
           let m2 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e2)) b') e2 in
           CPA.meet m1 m2
@@ -1484,7 +1480,7 @@ struct
         if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
           ID.of_bool tv (* this will give 1 for true which is only ok for comparisons *)
         else
-          let ik = ikindOf (typeOf exp) in
+          let ik = Cilfacade.get_ikind (typeOf exp) in
           ID.of_excl_list ik [Int64.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
       in
       Tuple3.map1 (fun _ -> inv_exp itv exp) st

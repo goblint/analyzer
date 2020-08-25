@@ -606,6 +606,7 @@ end
 
 module DefExc = (* definite or set of excluded values *)
 struct
+  open Batteries
   module S = SetDomain.Make (Integers)
   module R = Interval32 (* range for exclusion *)
   let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
@@ -653,7 +654,7 @@ struct
       (let r' = size t in (* target range *)
       try `Excluded (if R.leq r r' then S.map (Integers.cast_to t) s, r' else S.empty (), r') (* TODO can we do better here? *) with
       Size.Not_in_int64 -> top_of t)
-    | `Definite (x, r) -> (try `Definite (Integers.cast_to t x, size t) with Size.Not_in_int64 -> top_of t)
+    | `Definite x -> (try `Definite (Integers.cast_to t x) with Size.Not_in_int64 -> top_of t)
     | `Bot -> `Bot
 
   let leq x y = match (x,y) with
@@ -669,6 +670,10 @@ struct
     | `Excluded _, `Definite _ -> false
     (* Excluding X <= Excluding Y whenever Y <= X *)
     | `Excluded (x,xw), `Excluded (y,yw) -> S.subset y x && R.leq xw yw
+
+  (* checks that x and y have the same range, and fails if this is not the case *)
+  let check_identical_range x y =
+    if x <> y then print_endline (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
 
   let join x y =
     match (x,y) with
@@ -716,9 +721,9 @@ struct
     | `Definite x -> true
     | _ -> false
 
-  let top_range = size top_size
   let zero = of_int 0L
-  let not_zero = `Excluded (S.singleton 0L, top_range)
+  let not_zero ~ikind = `Excluded (S.singleton 0L, size (ikind |? top_size))
+  let top_opt ~ikind = top_of (ikind |? top_size)
 
   (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp x = of_int (if x then 1L else 0L)
@@ -736,15 +741,8 @@ struct
 
   let of_interval (x,y) = if Int64.compare x y == 0 then of_int x else top ()
 
-  let starting ?ikind x =
-    match ikind with
-    | Some ik -> if x > 0L then not_zero_ikind ik else top_of ik
-    | None -> if x > 0L then not_zero else top ()
-  let ending ?ikind x =
-    match ikind with
-    | Some ik -> if x < 0L then not_zero_ikind ik else top_of ik
-    | None -> if x < 0L then not_zero else top ()
-
+  let starting ?ikind x = if x > 0L then not_zero ~ikind else top_opt ~ikind
+  let ending ?ikind x = if x < 0L then not_zero ~ikind else top_opt ~ikind
 
   let max_of_range r =
     match R.maximal r with
@@ -782,15 +780,15 @@ struct
 
   let lift2 f x y = match x,y with
     (* The good case: *)
-    | `Definite (x,xr), `Definite (y,yr) ->
-      complain xr yr;
-      (try `Definite (f x y,xr) with | Division_by_zero -> top ())
+    | `Definite x, `Definite y ->
+      (try `Definite (f x y) with | Division_by_zero -> top ())
     (* We don't bother with exclusion sets: *)
-    | `Excluded (_, xr), `Definite(_, yr)
-    | `Definite (_, xr), `Excluded(_, yr)
-    | `Excluded (_, xr), `Excluded(_, yr) ->
+    | `Excluded (_, r), `Definite _
+    | `Definite _, `Excluded (_, r) ->
+      `Excluded (S.empty (), r)
+    | `Excluded (_, xr), `Excluded (_, yr) ->
       check_identical_range xr yr;
-      `Excluded(S.empty (), xr)
+      `Excluded (S.empty (), xr)
     | ` Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
@@ -801,12 +799,12 @@ struct
   (* argument *)
   let lift2_special f x y = match x,y with
     (* The good case: *)
-    | `Definite (x,xr), `Definite (y,_) -> (try `Definite (f x y,xr) with | Division_by_zero -> top ())
+    | `Definite x, `Definite y -> (try `Definite (f x y) with | Division_by_zero -> top ())
     (* We don't bother with exclusion sets: *)
-    | `Excluded (_, xr), `Definite(_, yr)
-    | `Definite (_, xr), `Excluded(_, yr)
-    | `Excluded (_, xr), `Excluded(_, yr) ->
-      `Excluded(S.empty (), xr)
+    | `Excluded (_, r), `Definite _
+    | `Definite _, `Excluded (_, r)
+    | `Excluded (_, r), `Excluded (_, _) ->
+      `Excluded (S.empty (), r)
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
@@ -822,22 +820,22 @@ struct
       let min = BatOption.map (f x) (min_of_range r) in
       let max = BatOption.map (f x) (max_of_range r) in
       let r'  = match min, max with
-      | Some min, Some max ->
-        R.join (size (Size.min_for min)) (size (Size.min_for max))
-      | _ , _ -> top_range in
+        | Some min, Some max ->
+          R.join (size (Size.min_for min)) (size (Size.min_for max))
+        | _ , _ -> size top_size
+      in
       `Excluded (S.map (f x)  s, r')
     (* Same thing here, but we should flip the operator to map it properly *)
     | `Excluded (s,r), `Definite x -> let f x y = f y x in
       let min = BatOption.map (f x) (min_of_range r) in
       let max = BatOption.map (f x) (max_of_range r) in
       let r' = match min, max with
-      | Some min, Some max -> R.join (size (Size.min_for min)) (size (Size.min_for max))
-      | _ , _ -> top_range in
+        | Some min, Some max -> R.join (size (Size.min_for min)) (size (Size.min_for max))
+        | _ , _ -> size top_size
+      in
       `Excluded (S.map (f x) s, r')
     (* The good case: *)
-    | `Definite (x,xr), `Definite (y,yr) ->
-      check_identical_range xr yr;
-      `Definite (f x y, xr)
+    | `Definite x, `Definite y -> `Definite (f x y)
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
@@ -852,9 +850,7 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool false else top ()
     | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool false else top ()
     (* The good case: *)
-    | `Definite (x,xr), `Definite (y,yr) ->
-      check_identical_range xr yr;
-      if x=y then t else f
+    | `Definite x, `Definite y -> of_bool (x = y)
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
@@ -869,9 +865,7 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool true else top ()
     | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool true else top ()
     (* The good case: *)
-    | `Definite (x,xr), `Definite (y,yr) ->
-      check_identical_range xr yr;
-      if x=y then f else t
+    | `Definite x, `Definite y -> of_bool (x <> y)
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
