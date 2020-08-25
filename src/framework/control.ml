@@ -423,18 +423,15 @@ struct
       (* run activated transformations with the analysis result *)
       let active_transformations = get_list "trans.activated" |> List.map Json.string in
       (if List.length active_transformations > 0 then
+        (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =
-          (* first join all contexts *)
           let open Batteries in let open Enum in
-          let e = LHT.enum lh |> map (Tuple2.map1 fst) (* drop context from key *)
-          (* also, in cil visitors we only have the location, so we use that as the key *)
-            |> map (Tuple2.map1 MyCFG.getLoc)
-          in
-          let h = Hashtbl.create (if fast_count e then count e else 0) in
+          let e = LHT.enum lh |> map (Tuple2.map1 (MyCFG.getLoc % fst)) in (* drop context from key and get location from node *)
+          let h = Hashtbl.create (if fast_count e then count e else 123) in
           iter (fun (k,v) ->
             (* join values for the same location *)
-            let a = try Spec.D.join (Hashtbl.find h k) v with Not_found -> v in
-            Hashtbl.replace h k a) e;
+            let v' = try Spec.D.join (Hashtbl.find h k) v with Not_found -> v in
+            Hashtbl.replace h k v') e;
           h
         in
         let ask loc =
