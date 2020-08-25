@@ -831,6 +831,7 @@ struct
   let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     try
       let r = eval_rv a gs st exp in
+      if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
       if VD.is_bot r then top_value a gs st (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
       top_value a gs st (typeOf exp)
