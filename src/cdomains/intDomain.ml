@@ -747,8 +747,16 @@ struct
     | None -> if x < 0L then not_zero else top ()
 
 
-  let max_of_range r = BatOption.map (fun i -> Int64.(pred @@ shift_left 1L (to_int i))) (R.maximal r)
-  let min_of_range r = BatOption.map (fun i -> Int64.(if i = zero then zero else neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
+  let max_of_range r =
+    match R.maximal r with
+    | Some i when i < 64L -> Some(Int64.(pred @@ shift_left 1L (to_int i))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
+    | _ -> None
+
+  let min_of_range r =
+    match R.minimal r with
+    | Some i when i > -64L -> Some(Int64.(if i = 0L then 0L else neg @@ shift_left 1L (to_int (neg i)))) (* things that are smaller than (-2^63) can not be represented as int64 *)
+    | _ -> None
+
   let maximal : t -> int64 option = function
     | `Definite x -> Integers.to_int x
     | `Excluded (s,r) -> max_of_range r
