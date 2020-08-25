@@ -2,6 +2,9 @@
 #include <assert.h>
 
 int main() {
+  main2();
+
+
   int x, y, z;
   if (x+1 == 2) {
     assert(x == 1);
@@ -70,5 +73,85 @@ int main() {
   }
   if (xs > 1 && xs < 5 && xs % 2 == 1) {
     assert(xs != 2);
+  }
+
+}
+
+int main2() {
+  int one = 1;
+  int two = 2;
+  int three = 3;
+  int four = 4;
+  int five = 5;
+  int six = 6;
+
+  int x, y, z;
+  if (x+one == two) {
+    assert(x == one);
+  } else {
+    assert(x != one);
+  }
+  if (five-x == three)
+    assert(x == two);
+  if (five-x == three && x+y == x*three)
+    assert(x == two && y == four);
+  if (x == three && y/x == two)
+    // y could for example also be 7
+    assert(y == six);  // UNKNOWN!
+  if (y/x == two && x == three)
+    assert(x == three); // TODO y == six
+  if (two+(three-x)*four/five == six && two*y >= x+four)
+    // x could also be -three
+    assert(x == -two && y >= one); //UNKNOWN!
+  if (x > one && x < five && x % two == one)
+    assert(x != two); // [two,four] -> [three,four] TODO x % two == one
+
+
+  long xl, yl, zl;
+  if (xl+one == two) {
+    assert(xl == one);
+  } else {
+    assert(xl != one);
+  }
+  if (five-xl == three)
+    assert(xl == two);
+  if (five-xl == three && xl+yl == xl*three)
+    assert(xl == two && yl == four);
+  if (xl == three && yl/xl == two)
+    // yl could for example also be 7
+    assert(yl == six); // UNKNOWN!
+  if (yl/xl == two && xl == three)
+    assert(xl == three); // TODO yl == six
+  if (two+(three-xl)*four/five == six && two*yl >= xl+four)
+    // xl could also be -three
+    assert(xl == -two && yl >= one); //UNKNOWN!
+  if (xl > one && xl < five && xl % two == one) {
+    // UNKNOWN due to Intervalthreetwo not being able to represent long
+    // assert(xl != two); // [two,four] -> [three,four] TODO x % two == one
+  }
+
+
+  short xs, ys, zs;
+  if (xs+one == two) {
+    assert(xs == one);
+  } else {
+    // Does not survive the casts inserted by CIL
+    // assert(xs != one);
+  }
+  if (five-xs == three)
+    assert(xs == two);
+  if (five-xs == three && xs+ys == xs*three)
+    assert(xs == two && ys == four);
+  if (xs == three && ys/xs == two)
+    // ys could for example also be 7
+    assert(ys == six); // UNKNOWN!
+  if (ys/xs == two && xs == three)
+    assert(xs == three); // TODO yl == six
+  if (two+(three-xs)*four/five == six && two*ys >= xs+four) {
+    // xs could also be -three
+    assert(xs == -two && ys >= one); //UNKNOWN!
+  }
+  if (xs > one && xs < five && xs % two == one) {
+    assert(xs != two);
   }
 }
