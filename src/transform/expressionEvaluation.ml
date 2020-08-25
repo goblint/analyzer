@@ -1,10 +1,3 @@
-module LocationMap = Map.Make
-  (struct
-    type t = Cil.location
-    let compare (location_1 : t) (location_2 : t) =
-      compare location_1.byte location_2.byte
-  end)
-
 type expression_query_mode =
   | Must [@name "must"]
   | May [@name "may"]
@@ -64,7 +57,7 @@ class expression_evaluator ask (file : Cil.file) =
       (* Filter artificial ones by impossible location *)
       |> List.filter (fun ((l : Cil.location), _) -> l.line >= 0)
       (* Transform list to map *)
-      |> List.fold_left (fun statements (l, s) -> LocationMap.add l s statements) LocationMap.empty
+      |> List.fold_left (fun statements (l, s) -> Hashtbl.add statements l s; statements) (Hashtbl.create 0)
   in
 
   object (self)
@@ -99,7 +92,7 @@ class expression_evaluator ask (file : Cil.file) =
           |> List.map
             begin
               fun preceding_location ->
-                match LocationMap.find_opt preceding_location statements with
+                match Hashtbl.find_opt statements preceding_location with
                 | Some preceding_statement ->
                     if List.length preceding_statement.succs = 1 then
                       begin
