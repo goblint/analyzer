@@ -13,11 +13,11 @@ int main() {
   if (5-x == 3 && x+y == x*3)
     assert(x == 2 && y == 4);
   if (x == 3 && y/x == 2)
-    assert(y == 6);
+    assert(y == 6); // UNKNOWN!
   if (y/x == 2 && x == 3)
     assert(x == 3); // TODO y == 6
   if (2+(3-x)*4/5 == 6 && 2*y >= x+4)
-    assert(x == -2 && y >= 1);
+    assert(x == -2 && y >= 1); // UNKNOWN!
   if (x > 1 && x < 5 && x % 2 == 1)
     assert(x != 2); // [2,4] -> [3,4] TODO x % 2 == 1
 }

@@ -1361,7 +1361,7 @@ struct
       | PlusA  -> meet_com ID.sub
       | Mult   -> meet_com ID.div
       | MinusA -> meet_non ID.add ID.sub
-      | Div    -> meet_non ID.mul ID.div
+      | Div    -> meet_bin (ID.add (ID.mul b c) (ID.rem a b)) (ID.div (ID.sub a (ID.rem a b)) c)
       | Mod    -> meet_bin (ID.add c (ID.mul b (ID.div a b))) (ID.div (ID.sub a c) (ID.div a b))
       | Eq | Ne as op ->
         let both x = x, x in
@@ -1371,9 +1371,11 @@ struct
         | Ne, Some false -> both m (* def. equal *)
         | Eq, Some false
         | Ne, Some true -> (* def. unequal *)
-          (match ID.to_int m with
-          | Some i -> both (ID.of_excl_list ILongLong [i])
-          | None -> a, b)
+          (* Both values can not be in the meet together, but it's not sound to exlcude the meet from both. *)
+          (* e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2] *)
+          (* Only if a is a definite value, we can exclude it from b: *)
+          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ILongLong [x] | None -> b in
+          meet_bin (excl b a) (excl a b)
         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt as op ->
@@ -1433,7 +1435,7 @@ struct
         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
       | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
-    if eval_bool exp = Some tv then raise Deadcode (* we already know that the branch is dead *)
+    if eval_bool exp = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
     else
       let is_cmp = function
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
