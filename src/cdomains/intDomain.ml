@@ -687,14 +687,9 @@ struct
     (* Excluding X <= Excluding Y whenever Y <= X *)
     | `Excluded (x,xw), `Excluded (y,yw) -> S.subset y x && R.leq xw yw
 
-  (* checks that x and y have the same range, and warns (in debug mode fails) if this is not the case *)
+  (* checks that x and y have the same range, and fails if this is not the case *)
   let check_identical_range x y =
-    if x <> y then
-      (* TODO: Once we are convinced this does not occur any more, we should remove the option, and always fail *)
-      if get_bool "dbg.fail_on_different_ikind" then
-        failwith (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
-      else
-        M.warn (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
+    if x <> y then failwith (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
 
   let join x y =
     match (x,y) with

@@ -166,7 +166,6 @@ regs.sort.each do |d|
       tests[-1] = "term"
       debug = true
     end
-    params << " --enable dbg.fail_on_different_ikind"
     params << " --set dbg.debug true" if debug
     p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, true)
     projects << p
