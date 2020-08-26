@@ -1,75 +1,174 @@
-type expression_query_mode =
-  | Must [@name "must"]
-  | May [@name "may"]
-  [@@deriving yojson]
-type expression_query =
-  {
-    kind : SyntacticalAnalyzer.JsonParser.kind; [@key "kind"]
-    target : SyntacticalAnalyzer.JsonParser.target; [@key "target"]
-    find : SyntacticalAnalyzer.JsonParser.find; [@key "find"]
-    expression : string; [@key "expression"]
-    mode : expression_query_mode; [@key "mode"]
-  }
-  [@@deriving yojson]
+let transformation_name = "expeval"
 
-class expression_evaluator ask (file : Cil.file) =
+module Transformation : Transform.S =
+  struct
 
-  (* Get all functions *)
-  let functions =
-    file.globals
-      |> List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None)
-  in
+    type evaluation_mode =
+      | Must [@name "must"]
+      | May [@name "may"]
+      [@@deriving yojson]
+    type query =
+      {
+        kind : SyntacticalAnalyzer.JsonParser.kind; [@key "kind"]
+        target : SyntacticalAnalyzer.JsonParser.target; [@key "target"]
+        find : SyntacticalAnalyzer.JsonParser.find; [@key "find"]
+        expression : string; [@key "expression"]
+        mode : evaluation_mode; [@key "mode"]
+      }
+      [@@deriving yojson]
 
-  (* Get all (global and local) variables *)
-  let variables =
-    (file.globals
-      |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None))
-    @
-    (functions
-      |> List.map (fun (f : Cil.fundec) -> f.slocals)
-      |> List.flatten
-      |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v))
-  in
+    class evaluator (file : Cil.file) (ask : Cil.location -> Queries.t -> Queries.Result.t) =
 
-  (* Get all statements *)
-  let statements =
-    let rec resolve_statements (block : Cil.block) =
-      block.bstmts
-        |> List.map expand
-        |> List.flatten
-    and expand statement =
-      match statement.skind with
-      | (Instr _ | Return _ | Goto _ | Break _ | Continue _) ->
-          [statement]
-      | (Switch (_, block, _, _) | Loop (block, _, _, _) | Block block) ->
-          (resolve_statements block)
-      | If (_, block_1, block_2, _) ->
-          (resolve_statements block_1) @ (resolve_statements block_2)
-      | _ ->
-          []
-    in
-    functions
-      (* Find statements in function bodies *)
-      |> List.map (fun (f : Cil.fundec) -> resolve_statements f.sbody)
-      |> List.flatten
-      (* Add their locations *)
-      |> List.map (fun (s : Cil.stmt) -> Cil.get_stmtLoc s.skind, s)
-      (* Filter artificial ones by impossible location *)
-      |> List.filter (fun ((l : Cil.location), _) -> l.line >= 0)
-      (* Transform list to map *)
-      |> List.fold_left (fun statements (l, s) -> Hashtbl.add statements l s; statements) (Hashtbl.create 0)
-  in
+      let global_functions =
+        file.globals
+          |> List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None)
+      in
+      let global_variables =
+        file.globals
+          |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None)
+      in
 
-  object (self)
+      let function_table, statement_table =
+        let function_statements =
+          let rec resolve_statements (block : Cil.block) =
+            block.bstmts
+              |> List.map expand
+              |> List.flatten
+          and expand statement =
+            match statement.skind with
+            | (Instr _ | Return _ | Goto _ | Break _ | Continue _) ->
+                [statement]
+            | (Switch (_, block, _, _) | Loop (block, _, _, _) | Block block) ->
+                (resolve_statements block)
+            | If (_, block_1, block_2, _) ->
+                (resolve_statements block_1) @ (resolve_statements block_2)
+            | _ ->
+                []
+          in
+          global_functions
+            (* Take all statements *)
+            |> List.map (fun (f : Cil.fundec) -> resolve_statements f.sbody |> List.map (fun s -> f, s))
+            |> List.flatten
+            (* Add locations *)
+            |> List.map (fun (f, (s : Cil.stmt)) -> (Cil.get_stmtLoc s.skind, f, s))
+            (* Filter artificial ones by impossible location *)
+            |> List.filter (fun ((l : Cil.location), _, _) -> l.line >= 0)
+        in
+        function_statements
+          |> List.fold_left (fun statements (l, f, _) -> Hashtbl.add statements l f; statements) (Hashtbl.create 0),
+        function_statements
+          |> List.fold_left (fun statements (l, _, s) -> Hashtbl.add statements l s; statements) (Hashtbl.create 0)
+      in
 
-    val mutable debug : (Cil.location * (Cil.stmt * (Cil.location * Cil.stmt) option) option) list = []
+      object (self)
 
-    method get_debug () =
-      debug
+        val mutable debug_info_1 : bool = false
+        val mutable debug_info_2 : (Cil.stmt * (Cil.location * Cil.stmt) option) option = None
+        val mutable debug_info_3 : bool option = None
 
-    method evaluate query =
-      debug <- [];
-      let syntax_query : SyntacticalAnalyzer.JsonParser.query =
+        method get_debug_info_1 () = debug_info_1
+        method get_debug_info_2 () = debug_info_2
+        method get_debug_info_3 () = debug_info_3
+
+        method evaluate location expression_string =
+          debug_info_1 <- false;
+          debug_info_2 <- None;
+          debug_info_3 <- None;
+          match self#get_expression location expression_string with
+          | Some expression ->
+              begin
+                match self#get_evaluable_location location with
+                | Some evaluable_location ->
+                    begin
+                      match self#get_value evaluable_location expression with
+                      | Some value -> value
+                      | None -> Some false
+                    end
+                | None -> Some false
+              end
+          | None -> Some false
+
+        method private get_expression location expression_string =
+          let local_variables =
+            match Hashtbl.find_opt function_table location with
+            | Some function_declaration ->
+                function_declaration.slocals
+                  |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
+            | None -> []
+          in
+          try
+            debug_info_1 <- true;
+            Some (Formatcil.cExp expression_string (local_variables @ global_variables))
+          with
+          | _ ->
+              debug_info_1 <- false;
+              None
+        method private get_evaluable_location location =
+          match Hashtbl.find_opt statement_table location with
+          | Some statement ->
+              if List.length statement.succs = 1 then
+                begin
+                  let succeeding_statement = (List.hd statement.succs) in
+                  let succeeding_location = Cil.get_stmtLoc succeeding_statement.skind in
+                  debug_info_2 <- Some (statement, Some (succeeding_location, succeeding_statement));
+                  Some succeeding_location
+                end
+              else
+                begin
+                  debug_info_2 <- Some (statement, None);
+                  Some location
+                end
+          | None ->
+              debug_info_2 <- None;
+              None
+        method private get_value location expression =
+          try
+            begin
+              match (ask location (Queries.EvalInt expression)) with
+              | `Bot ->
+                  debug_info_3 <- None;
+                  None
+              | `Int value ->
+                  debug_info_3 <- Some true;
+                  Some (Some (value <> Int64.zero))
+              | `Top ->
+                  debug_info_3 <- Some false;
+                  Some None
+              | _ -> raise Exit
+            end
+          with
+          | Not_found ->
+              debug_info_3 <- None;
+              None
+
+      end
+
+    let padding = 5
+
+    let string_of_int_padded value =
+      let value_string = string_of_int value in
+      (String.make (padding - String.length value_string) ' ') ^ value_string
+    let string_of_statement statement =
+      statement
+        |> Cil.d_stmt ()
+        |> Pretty.sprint ~width:0
+        |> String.split_on_char '\n'
+        |> List.filter (fun line -> line.[0] <> '#')
+        |> List.map String.trim
+        |> List.fold_left (^) ""
+
+    let parse_query () =
+      let query_file_name = GobConfig.get_string ("trans." ^ transformation_name ^ ".query_file_name") in
+      match Yojson.Safe.from_file query_file_name |> query_of_yojson with
+      | Ok parsed_query -> parsed_query
+      | Error message ->
+          print_endline ("Parsing error: " ^ message);
+          raise Exit
+
+    let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
+      let evaluator = new evaluator file ask in
+      let query = parse_query () in
+      let query_syntactic : SyntacticalAnalyzer.JsonParser.query =
         {
           sel = [];
           k = query.kind;
@@ -79,132 +178,31 @@ class expression_evaluator ask (file : Cil.file) =
           lim = None_c;
         }
       in
-      let evaluations =
-        SyntacticalAnalyzer.QueryMapping.map_query syntax_query file
-          (* Use only location results *)
-          |> List.map (fun (_, location, _, _) -> location)
-          (* Sort locations *)
-          |> List.sort (fun (location_1 : Cil.location) (location_2 : Cil.location) -> compare location_1.byte location_2.byte)
-
-          (***)
-
-          (* Get updated location using statements *)
-          |> List.map
-            begin
-              fun preceding_location ->
-                match Hashtbl.find_opt statements preceding_location with
-                | Some preceding_statement ->
-                    if List.length preceding_statement.succs = 1 then
-                      begin
-                        let succeeding_statement = (List.hd preceding_statement.succs) in
-                        let succeeding_location = Cil.get_stmtLoc succeeding_statement.skind in
-                        debug <- (preceding_location, Some (preceding_statement, Some (succeeding_location, succeeding_statement)))::debug;
-                        Some succeeding_location
-                      end
-                    else
-                      begin
-                        debug <- (preceding_location, Some (preceding_statement, None))::debug;
-                        Some preceding_location
-                      end
+      SyntacticalAnalyzer.QueryMapping.map_query query_syntactic file
+        (* Use only location results *)
+        |> List.map (fun (_, l, _, _) -> l)
+        (* Sort locations *)
+        |> List.sort (fun (l_1 : Cil.location) (l_2 : Cil.location) -> compare l_1.byte l_2.byte)
+        (* Evaluate *)
+        |> List.iter
+          begin
+            fun location ->
+              begin
+                match evaluator#evaluate location query.expression with
+                | Some value ->
+                    if value then
+                      print_endline (location.line |> string_of_int_padded)
                 | None ->
-                    debug <- (preceding_location, None)::debug;
-                    None
-            end
-
-          (***)
-
-          (* Evaluate at statement locations *)
-          |> List.map
-            begin
-              function
-              | Some location ->
-                  Some
                     begin
-                      match ask location (Queries.EvalInt (Formatcil.cExp query.expression variables)) with
-                      | `Bot -> None (* Not reachable *)
-                      | `Int value ->
-                          if value = Int64.zero then
-                            None (* False/zero *)
-                          else
-                            Some (Some value)
-                      | `Top ->
-                          begin
-                            match query.mode with
-                            | Must -> None (* Unknown *)
-                            | May -> Some None (* TODO use "Query function answered"? *)
-                          end
-                      | _ -> raise Exit
+                      match query.mode with
+                      | Must -> ()
+                      | May -> print_endline ((location.line |> string_of_int_padded) ^ " (Possibly)")
                     end
-              | None -> None
-            end
-      in
-      debug <- List.rev debug;
-      evaluations
+              end;
+              (* TODO: Debug output *)
+          end
 
   end
 
 let _ =
-
-  let module ExpressionEvaluationTransform : Transform.S =
-    struct
-
-      let padding = 5
-
-      let string_of_int_padded value =
-        let value_string = string_of_int value in
-        (String.make (padding - String.length value_string) ' ') ^ value_string
-      let string_of_statement statement =
-        statement
-          |> Cil.d_stmt ()
-          |> Pretty.sprint ~width:0
-          |> String.split_on_char '\n'
-          |> List.filter (fun line -> line.[0] <> '#')
-          |> List.map String.trim
-          |> List.fold_left (^) ""
-
-      let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
-        let query_file_name = GobConfig.get_string "trans.expeval.query_file_name" in
-        print_endline ("Using query file: \"" ^ query_file_name ^ "\"");
-        let query =
-          match Yojson.Safe.from_file query_file_name |> expression_query_of_yojson with
-          | Ok parsed_query -> parsed_query
-          | Error _ ->
-              print_endline "Parsing error";
-              raise Exit
-        in
-        let evaluator = new expression_evaluator ask file in
-        let evaluations = evaluator#evaluate query |> Array.of_list in
-        let evaluation_debug = evaluator#get_debug () |> Array.of_list in
-        (* Show results *)
-        for index = 0 to Array.length evaluations - 1 do
-          print_endline (String.make padding '-');
-          let evaluation = evaluations.(index) in
-          begin
-            match evaluation_debug.(index) with
-            | (p_location, Some (p_statement, Some (s_location, s_statement))) ->
-                print_endline ((p_location.line |> string_of_int_padded) ^ ": " ^ (p_statement |> string_of_statement));
-                if s_location.line < 0 then
-                  print_string (String.make padding ' ')
-                else
-                  print_string (s_location.line |> string_of_int_padded);
-                print_endline (": " ^ (s_statement |> string_of_statement))
-            | (p_location, Some (p_statement, None)) ->
-                print_endline ((p_location.line |> string_of_int_padded) ^ ": " ^ (p_statement |> string_of_statement));
-                print_string ((String.make padding ' ') ^ "  No successor")
-            | (p_location, None) ->
-                print_endline ((p_location.line |> string_of_int_padded) ^ ": No statement")
-          end;
-          print_string ((String.make padding ' ') ^ "  -> ");
-          print_endline
-            begin
-              match evaluation with
-              | Some Some Some value -> Int64.to_string value
-              | Some Some None -> "Unknown"
-              | Some None -> "Not reachable or false/zero"
-              | None -> "Not evaluable"
-            end;
-        done
-
-    end
-  in
-  Transform.register "expeval" (module ExpressionEvaluationTransform)
+  Transform.register transformation_name (module Transformation)
