@@ -372,6 +372,8 @@ struct
       try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
     in
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
+    (* if VD.is_bot res then *)
+    (*   M.warn_each ("[undefined behavior] Accessing uninitialized content at " ^ sprint AD.pretty addrs ^ " (expr: " ^ Option.map_default (sprint d_exp) "?" exp ^ ")"); *)
     res
 
   let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
@@ -765,10 +767,10 @@ struct
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
       end
 
-  let rec bot_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let bot_comp compinfo: ValueDomain.Structs.t =
+  let rec bot_value (t: typ): value =
+    let rec bot_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
-      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype) in
+      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value fd.ftype) in
       List.fold_left bot_field nstruct compinfo.cfields
     in
     match t with
@@ -776,18 +778,18 @@ struct
     | TPtr _ -> `Address (AD.bot ())
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (bot_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.bot ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value a gs st ai))
-    | TArray (ai, Some exp, _) ->
+    | TArray (t, None, _) ->
+      `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value t))
+    | TArray (t, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (bot_value a gs st ai))
-    | TNamed ({ttype=t; _}, _) -> bot_value a gs st t
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (bot_value t))
+    | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
 
-  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
-    let init_comp compinfo: ValueDomain.Structs.t =
+  let rec init_value (t: typ): value = (* TODO why is VD.top_value not used here? *)
+    let rec init_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
-      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
+      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value fd.ftype) in
       List.fold_left init_field nstruct compinfo.cfields
     in
     match t with
@@ -796,42 +798,56 @@ struct
     | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-    | TArray (ai, Some exp, _) ->
+    | TArray (t, None, _) ->
+      `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then init_value t else bot_value t))
+    | TArray (t, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t; _}, _) -> init_value a gs st t
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then init_value t else bot_value t))
+    | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
 
-  let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let top_comp compinfo: ValueDomain.Structs.t =
+  (* We can't just set all to `Bot since some domains/analyses rely on the abstract value having the right type (would make 30 tests fail), so we create a bot of the right abstract type. *)
+  let init_value = bot_value
+
+  let rec top_value (t: typ): value =
+    let rec top_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
-      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype) in
+      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value fd.ftype) in
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt _ -> `Int (ID.top ())
+    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-    | TArray (ai, Some exp, _) ->
+    | TArray (t, None, _) ->
+      `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then top_value t else bot_value t))
+    | TArray (t, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t; _}, _) -> top_value a gs st t
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then top_value t else bot_value t))
+    | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
-  (* run eval_rv from above and keep a result that is bottom *)
-  (* this is needed for global variables *)
-  let eval_rv_keep_bot = eval_rv
-
-  (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
-  (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
+  (* Accessing uninitialized objects is undefined behavior and we should warn about it!
+   * The access might happen in [get] or in [do_offs] in some sub-expression in the above [eval_rv].
+   * Since bot propagates and we don't want to warn for all sub-expressions we only warn here. *)
+  (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok.
+   * Now we want to warn about about any access to uninitialized memory and treat it as top/Unknown instead of bot/Deadcode.
+   * We could just change bot to top here, but then we would not see which values are transitively uninitialized (int x; int y = x; // y should also be bot).
+   * So we only warn here, keep bot, and instead treat bot as top when branching. Locals are now initialized with bot instead of top.
+   * This way bot for variables means uninitalized (before we only had bot inside arrays and blobs). *)
+  (* To be sound we adjust:
+  * - [branch] such that it falls through and meets [invariant] in both branches instead of raising Deadcode if eval_rv cond is bot
+  * - asserts to return UNKNOWN
+  * - calls of expressions that evaluate to bot TODO can this happen? *)
   let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     let r = eval_rv a gs st exp in
-    if VD.is_bot r then top_value a gs st (typeOf exp) else r
+    if M.tracing then M.tracel "eval" "nonrec eval_rv (%a) = %a\n" d_exp exp VD.pretty r;
+    if VD.is_bot r then (
+      M.warn_each ("[undefined behavior] Evaluating expression with uninitialized content: " ^ sprint d_exp exp); (* TODO in which subexpression? *)
+      (* top_value a gs st (typeOf exp) *)
+    );
+    r
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
@@ -1452,7 +1468,7 @@ struct
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
     match v with
-    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr)) ?lval_raw ?rval_raw
+    | `Top -> set ask gs st adr (top_value (AD.get_type adr)) ?lval_raw ?rval_raw
     | v -> set ask gs st adr v ?lval_raw ?rval_raw
 
 
@@ -1530,20 +1546,25 @@ struct
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
-        let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
-        (match current_val with
+        begin
+        let current_val = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset))
+        in
+        match current_val with
         | `Bot -> (* current value is VD `Bot *)
-          (match Addr.to_var_offset (AD.choose lval_val) with
-          | [(x,offs)] ->
-            let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
-            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
-            set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
-          | _ ->
-            set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-          )
+          begin
+            match Addr.to_var_offset (AD.choose lval_val) with
+            | [(x,offs)] ->
+              begin
+                let iv = bot_value v.vtype in (* correct bottom value for top level variable *)
+                let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
+                set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
+              end
+            | _ ->
+              set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
+          end
         | _ ->
           set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-        )
+        end
       | _ ->
         set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
 
@@ -1582,13 +1603,13 @@ struct
         if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
         raise Deadcode
       end
-    | `Bot ->
+    (* | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
       if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
       if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin
         locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv)
       end;
-      raise Deadcode
+      raise Deadcode *)
     (* Otherwise we try to impose an invariant: *)
     | _ ->
       if !GU.in_verifying_stage then
@@ -1606,7 +1627,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.from_var v, init_value ctx.ask ctx.global ctx.local v.vtype) in
+    let init_var v = (AD.from_var v, init_value v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
     set_many ctx.ask ctx.global ctx.local inits
@@ -1634,7 +1655,7 @@ struct
       ctx.local
     else
       let lval = eval_lv ctx.ask ctx.global ctx.local (Var v, NoOffset) in
-      let current_value = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
+      let current_value = init_value v.vtype in
       let new_value = VD.update_array_lengths (eval_rv ctx.ask ctx.global ctx.local) current_value v.vtype in
       set ctx.ask ctx.global ctx.local lval new_value
 
@@ -1791,7 +1812,7 @@ struct
           | Some true  ->  `True
           | _ -> `Top
         end
-      | `Bot -> `Bot
+      | x when VD.is_bot x -> `Bot
       | _ -> `Top
     in
     let expr = sprint d_exp e in
@@ -1814,11 +1835,9 @@ struct
     | `True ->
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
-    | `Bot ->
-      M.warn_each ~ctx:ctx.control_context ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
-      ctx.local
-    | `Top ->
-      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
+    | `Bot | `Top as x ->
+      let bot_info = if x = `Bot then " It is unknown because it accesses uninitialized memory which is undefined behavior." else "" in
+      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown." ^ bot_info);
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx ctx.ask ctx.global ctx.local e true in

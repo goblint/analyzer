@@ -334,6 +334,7 @@ File.open(theresultfile, "w") do |f|
                     when /.*file is never closed/    then "warn"
                     when /.*unclosed files: .*/      then "warn"
                     when /changed pointer .*/        then "warn"
+                    when /\[undefined behavior\]/    then "warn"
                     else "other"
                   end
       oldwarn = warnings[i]

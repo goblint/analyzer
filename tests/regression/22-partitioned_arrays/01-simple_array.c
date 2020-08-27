@@ -179,7 +179,12 @@ void example8() {
 // Check that arrays of types different from int are handeled correctly
 void example9() {
     char a[10];
-    int n;
+
+    for(int i =0;i <10; i++) {
+        a[i] = (char)(rand());
+    }
+
+    int n = rand();
     assert(a[3] == 800); // FAIL
 
     for(int i=0;i < 10; i++) {
