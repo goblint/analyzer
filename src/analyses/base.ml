@@ -1361,7 +1361,19 @@ struct
       | PlusA  -> meet_com ID.sub
       | Mult   -> meet_com ID.div
       | MinusA -> meet_non ID.add ID.sub
-      | Div    -> meet_bin (ID.add (ID.mul b c) (ID.rem a b)) (ID.div (ID.sub a (ID.rem a b)) c)
+      | Div    ->
+        (* Integer division means we need to add the remainder, so instead of just `a = c*b` we have `a = c*b + a%b`.
+         * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
+         * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
+        let rem =
+          let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int 0L) = Some true in
+          let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int 0L) = Some true in
+          let full = ID.rem a b in
+          if is_pos then ID.meet (ID.starting 0L) full
+          else if is_neg then ID.meet (ID.ending 0L) full
+          else full
+        in
+        meet_bin (ID.add (ID.mul b c) rem) (ID.div (ID.sub a rem) c)
       | Mod    -> meet_bin (ID.add c (ID.mul b (ID.div a b))) (ID.div (ID.sub a c) (ID.div a b))
       | Eq | Ne as op ->
         let both x = x, x in
