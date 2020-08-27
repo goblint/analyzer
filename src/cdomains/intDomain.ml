@@ -32,8 +32,8 @@ sig
   val add: t -> t -> t
   val sub: t -> t -> t
   val mul: t -> t -> t
-  val div: t -> t -> t
-  val rem: t -> t -> t
+  val div: t -> t -> t (* integer division: 5/3 = 1 *)
+  val rem: t -> t -> t (* same as x mod y in OCaml: result is negative iff x is negative: 5%3 = 2, -5%3 = -2, 5%-3 = 2 *)
 
   val lt: t -> t -> t
   val gt: t -> t -> t
@@ -284,9 +284,17 @@ struct
 
   let sub i1 i2 = add i1 (neg i2)
 
-  let rem x y =
-    let y' = sub y (of_int 1L) in
-    meet (bit Int64.rem x y) (join y' (neg y'))
+  let rem x y = match x, y with
+    | None, _ | _, None -> None
+    | Some (xl, xu), Some (yl, yu) ->
+      (* If we have definite values, Int64.rem will give a definite result.
+      * Otherwise we meet with a [range] the result can be in.
+      * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
+      * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
+      let pos x = if x < 0L then Int64.neg x else x in
+      let b = Int64.sub (max (pos yl) (pos yu)) 1L in
+      let range = if xl >= 0L then Some (0L, min xu b) else Some (max xl (Int64.neg b), min xu b) in
+      meet (bit Int64.rem x y) range
 
   let mul x y =
     match x, y with
