@@ -70,14 +70,21 @@ int main() {
     assert(xs == 2);
   if (5-xs == 3 && xs+ys == xs*3)
     assert(xs == 2 && ys == 4);
-  if (xs == 3 && ys/xs == 2)
+  if (xs == 3 && ys/xs == 2) {
     // ys could for example also be 7
     assert(ys == 6); // UNKNOWN!
+    assert(RANGE(ys, 6, 8));
+  }
+  if (ys/3 == -2)
+    assert(RANGE(ys, -8, -6));
+  if (ys/-3 == -2)
+    assert(RANGE(ys, 6, 8));
   if (ys/xs == 2 && xs == 3)
     assert(xs == 3); // TODO yl == 6
-  if (2+(3-xs)*4/5 == 6 && 2*ys >= xs+4) {
+  if (2+(3-xs)*4/5 == 6 && 2*ys >= xs+5) {
     // xs could also be -3
     assert(xs == -2 && ys >= 1); //UNKNOWN!
+    assert(RANGE(xs, -3, -2) && ys >= 1);
   }
   if (xs > 1 && xs < 5 && xs % 2 == 1) {
     assert(xs != 2);
@@ -103,9 +110,11 @@ int main2() {
     assert(x == two);
   if (five-x == three && x+y == x*three)
     assert(x == two && y == four);
-  if (x == three && y/x == two)
+  if (x == three && y/x == two) {
     // y could for example also be 7
     assert(y == six);  // UNKNOWN!
+    assert(RANGE(y, 6, 8));
+  }
   if (y/x == two && x == three)
     assert(x == three); // TODO y == six
   if (two+(three-x)*four/five == six && two*y >= x+four)
@@ -113,6 +122,18 @@ int main2() {
     assert(x == -two && y >= one); //UNKNOWN!
   if (x > one && x < five && x % two == one)
     assert(x != two); // [two,four] -> [three,four] TODO x % two == one
+
+  if (y/three == -two)
+    assert(RANGE(y, -8, -6));
+  if (y/-three == -two)
+    assert(RANGE(y, 6, 8));
+  if (y/x == two && x == three)
+    assert(x == 3); // TODO y == [6,8]; this does not work because CIL transforms this into two if-statements
+  if (two+(three-x)*four/five == six && two*y >= x+five)
+    assert(RANGE(x, -3, -2) && y >= 1);
+  if (x > one && x < five && x % two == one) // x = [2,4] && x % 2 = 1 => x = 3
+    assert(x != 2); // [3,4] TODO [3,3]
+
 
 
   long xl, yl, zl;
@@ -150,16 +171,25 @@ int main2() {
     assert(xs == two);
   if (five-xs == three && xs+ys == xs*three)
     assert(xs == two && ys == four);
-  if (xs == three && ys/xs == two)
+  if (xs == three && ys/xs == two) {
     // ys could for example also be 7
     assert(ys == six); // UNKNOWN!
+    assert(RANGE(ys, six, 8));
+  }
   if (ys/xs == two && xs == three)
     assert(xs == three); // TODO yl == six
-  if (two+(three-xs)*four/five == six && two*ys >= xs+four) {
+  if (two+(three-xs)*four/five == six && two*ys >= xs+five) {
     // xs could also be -three
     assert(xs == -two && ys >= one); //UNKNOWN!
+    assert(RANGE(xs, -three, -two) && ys >= one);
   }
   if (xs > one && xs < five && xs % two == one) {
     assert(xs != two);
   }
+  if (ys/three == -two)
+    assert(RANGE(ys, -8, -6));
+  if (ys/-three == -two)
+    assert(RANGE(ys, 6, 8));
+  if (ys/xs == two && xs == three)
+    assert(xs == 3); // TODO y == [6,8]; this does not work because CIL transforms this into two if-statements
 }
