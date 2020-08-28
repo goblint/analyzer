@@ -469,8 +469,7 @@ struct
 
     let liveness =
       if get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp" then
-        (print_endline "print_dead_code";
-        print_dead_code local_xml)
+        print_dead_code local_xml
       else
         fun _ -> true (* TODO: warn about conflicting options *)
     in
