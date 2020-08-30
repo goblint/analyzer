@@ -713,7 +713,6 @@ struct
           `Address (AD.map array_start (eval_lv a gs st lval))
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
         | CastE  (t, exp) ->
-          M.tracel "xxxxx" "ohhhhh %a" d_exp exp;
           let v = eval_rv a gs st exp in
           VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()
