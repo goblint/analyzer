@@ -680,9 +680,10 @@ struct
         | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), t) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
           let a1 = eval_rv a gs st e1 in
           let a2 = eval_rv a gs st e2 in
+          let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
           let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) in
           M.tracel "cast" "remove cast on both sides for %a -> %b\n" d_exp exp is_safe;
-          if is_safe then (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
+          if is_safe && not both_arith_type then (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
             eval_rv a gs st (BinOp (op, e1, e2, t))
           else
             let a1 = eval_rv a gs st c1 in
@@ -712,6 +713,7 @@ struct
           `Address (AD.map array_start (eval_lv a gs st lval))
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
         | CastE  (t, exp) ->
+          M.tracel "xxxxx" "ohhhhh %a" d_exp exp;
           let v = eval_rv a gs st exp in
           VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()

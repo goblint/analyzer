@@ -122,6 +122,12 @@ void main()
     g_76.f1 = 5; // (f1, (`Definite 5, [-31,31]))
   }
   
+
+  unsigned char v;
+  signed char u;
+  int r2 = ((int )v == (int )u); 
+
+
   return;
 }
 
