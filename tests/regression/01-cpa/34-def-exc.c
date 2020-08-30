@@ -3,6 +3,12 @@
 #include<stdbool.h>
 
 typedef unsigned long custom_t;
+
+union U1 {
+   unsigned char f0;
+   int f1;
+};
+
 void main()
 {
   char yy[256];
@@ -108,7 +114,14 @@ void main()
 
 	}
 
+  int top;
 
+  union U1 g_76;
+  g_76.f0 = 12; // (f0, (`Definite 12, [0,8]))
+  if (top) {
+    g_76.f1 = 5; // (f1, (`Definite 5, [-31,31]))
+  }
+  
   return;
 }
 
