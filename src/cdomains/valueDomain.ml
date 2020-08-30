@@ -400,7 +400,9 @@ struct
         | _ -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
-    | (`Union x, `Union y) -> `Union (Unions.join x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
+        | `Lifted f -> (`Lifted f, join x y) (* f = g *)
+        | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.join x y)
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
@@ -426,7 +428,9 @@ struct
         | _ -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.join f g, join_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
+        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
+        | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.join x y) (* `List can not contain array -> normal join  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `List can not contain array -> normal join  *)
@@ -452,7 +456,9 @@ struct
         | _ -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.widen f g, widen_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
+        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
+        | x -> x, `Top) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
@@ -501,7 +507,7 @@ struct
       warn_type "meet" x y;
       `Bot
 
-  let widen x y =
+  let rec widen x y =
     match (x,y) with
     | (`Top, _) -> `Top
     | (_, `Top) -> `Top
@@ -515,7 +521,9 @@ struct
         | _ -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
-    | (`Union x, `Union y) -> `Union (Unions.widen x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
+        | `Lifted f -> (`Lifted f, widen x y) (* f = g *)
+        | x -> (x, `Top))
     | (`Array x, `Array y) -> `Array (CArrays.widen x y)
     | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
