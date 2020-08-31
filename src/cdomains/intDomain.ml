@@ -648,12 +648,12 @@ struct
   | `Definite x -> if i = x then `Eq else `Neq
   | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
 
-  let cast_to t = function
+  let top_if_not_in_int64 t f x = try f x with Size.Not_in_int64 -> top_of t
+  let cast_to t = top_if_not_in_int64 t @@ function
     | `Excluded (s,r) ->
-      (let r' = size t in (* target range *)
-      try `Excluded (if R.leq r r' then S.map (Integers.cast_to t) s, r' else S.empty (), r') (* TODO can we do better here? *) with
-      Size.Not_in_int64 -> top_of t)
-    | `Definite x -> (try `Definite (Integers.cast_to t x) with Size.Not_in_int64 -> top_of t)
+      let r' = size t in
+      `Excluded (if R.leq r r' then s, r else S.empty (), r') (* TODO can we do better here? *)
+    | `Definite x -> `Definite (Integers.cast_to t x)
     | `Bot -> `Bot
 
   let leq x y = match (x,y) with
@@ -763,7 +763,10 @@ struct
     | `Excluded (s,r) -> min_of_range r
     | `Bot -> None
 
-  let of_excl_list t l = `Excluded (List.fold_right S.add l (S.empty ()), size t)
+  let of_excl_list t l =
+    (* let r = size t in *)
+    let r = List.fold_right (fun i s -> R.join s (size @@ Size.min_for i)) l (R.bot ()) in
+    `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list x = match x with
     | `Definite _ -> None
