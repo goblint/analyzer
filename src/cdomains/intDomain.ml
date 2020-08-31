@@ -8,6 +8,8 @@ module GU = Goblintutil
 module JB = Json
 module M = Messages
 
+let (|?) = Batteries.(|?)
+
 module type S =
 sig
   include Lattice.S
@@ -201,25 +203,15 @@ struct
     | None | Some (0L, 0L) -> x
     | _ -> if leq zero x then top_bool else one
 
+  let range_opt f = function
+    | None -> None
+    | Some ik -> try Some (Size.range ik |> f) with Size.Not_in_int64 -> None
+
   let starting ?ikind n =
-    match ikind with
-    | Some ik ->
-      (try
-        norm @@
-        let _, u = Size.range ik in
-        Some (n,u)
-      with Size.Not_in_int64 -> norm @@ Some (n,max_int))
-    | None -> norm @@ Some (n,max_int)
+    norm @@ Some (n, range_opt snd ikind |? max_int)
 
   let ending ?ikind n =
-    match ikind with
-    | Some ik ->
-      (try
-        norm @@
-        let l, _ = Size.range ik in
-        Some (l,n)
-      with Size.Not_in_int64 -> norm @@ Some (min_int,n))
-    | None -> norm @@ Some (min_int,n)
+    norm @@ Some (range_opt fst ikind |? min_int, n)
 
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
@@ -614,7 +606,6 @@ end
 
 module DefExc = (* definite or set of excluded values *)
 struct
-  open Batteries
   module S = SetDomain.Make (Integers)
   module R = Interval32 (* range for exclusion *)
   let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
