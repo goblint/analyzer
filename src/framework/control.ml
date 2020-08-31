@@ -116,7 +116,7 @@ struct
         )
       );
       let str = function true -> "then" | false -> "else" in
-      let report tv loc dead =
+      let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
           match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
           | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
@@ -124,8 +124,9 @@ struct
           | _ -> ()
       in
       if get_bool "dbg.print_dead_code" then (
-        Deadcode.Locmap.iter (report true)  Deadcode.dead_branches_then;
-        Deadcode.Locmap.iter (report false) Deadcode.dead_branches_else;
+        let by_fst (a,_) (b,_) = compare a b in
+        Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
+        Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
         Deadcode.Locmap.clear Deadcode.dead_branches_then;
         Deadcode.Locmap.clear Deadcode.dead_branches_else
       );
