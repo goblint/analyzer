@@ -1827,7 +1827,7 @@ struct
     in
     let expr = sprint d_exp e in
     let warn ?annot msg = if warn then
-        if get_bool "dbg.regression" then (
+        if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
           let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
           let expected = let open Str in if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
