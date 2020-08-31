@@ -3,17 +3,20 @@ let transformation_name = "expeval"
 module Transformation : Transform.S =
   struct
 
-    type evaluation_mode =
-      | Must [@name "must"]
-      | May [@name "may"]
-      [@@deriving yojson]
     type query =
       {
         kind : SyntacticalAnalyzer.JsonParser.kind; [@key "kind"]
         target : SyntacticalAnalyzer.JsonParser.target; [@key "target"]
         find : SyntacticalAnalyzer.JsonParser.find; [@key "find"]
+        structure : (SyntacticalAnalyzer.JsonParser.structure [@default None_s]); [@key "structure"]
+        limitation : (SyntacticalAnalyzer.JsonParser.constr [@default None_c]); [@key "limitation"]
         expression : string; [@key "expression"]
-        mode : evaluation_mode; [@key "mode"]
+        mode :
+          [
+          | `Must [@name "must"]
+          | `May [@name "may"]
+          ];
+          [@key "mode"]
       }
       [@@deriving yojson]
 
@@ -179,8 +182,8 @@ module Transformation : Transform.S =
           k = query.kind;
           tar = query.target;
           f = query.find;
-          str = None_s;
-          lim = None_c;
+          str = query.structure;
+          lim = query.limitation;
         }
       in
       SyntacticalAnalyzer.QueryMapping.map_query query_syntactic file
@@ -200,8 +203,8 @@ module Transformation : Transform.S =
                 | None ->
                     begin
                       match query.mode with
-                      | Must -> ()
-                      | May -> print_endline ((location.line |> string_of_int_padded) ^ " (Possibly)")
+                      | `Must -> ()
+                      | `May -> print_endline ((location.line |> string_of_int_padded) ^ " (Possibly)")
                     end
               end;
               (* TODO: Debug output *)
