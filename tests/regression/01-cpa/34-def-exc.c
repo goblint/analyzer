@@ -121,11 +121,27 @@ void main()
   if (top) {
     g_76.f1 = 5; // (f1, (`Definite 5, [-31,31]))
   }
-  
+
 
   unsigned char v;
   signed char u;
-  int r2 = ((int )v == (int )u); 
+  int r2 = ((int )v == (int )u);
+
+
+  signed char l_48 =  (signed char )58L;
+  unsigned char l_67 = (unsigned char)48UL;
+
+  signed char *l_247 ;
+  unsigned char *l_229 ;
+
+  l_247 = &l_48;
+
+  if (top) {
+      l_229 = &l_67;
+      l_247 = (signed char *)l_229;
+  }
+
+  signed char res = *l_247;
 
 
   return;
