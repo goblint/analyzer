@@ -888,10 +888,10 @@ struct
     | _ -> lift2_inj Integers.mul x y
   let div  = lift2 Integers.div
   let rem  = lift2 Integers.rem
-  let lt x y = cast_to IInt @@ lift2 Integers.lt x y
-  let gt x y = cast_to IInt @@ lift2 Integers.gt x y
-  let le x y = cast_to IInt @@ lift2 Integers.le x y
-  let ge x y = cast_to IInt @@ lift2 Integers.ge x y
+  let lt x y = lift2 Integers.lt x y
+  let gt x y = lift2 Integers.gt x y
+  let le x y = lift2 Integers.le x y
+  let ge x y = lift2 Integers.ge x y
   let bitnot = lift1 Integers.bitnot
   let bitand = lift2 Integers.bitand
   let bitor  = lift2 Integers.bitor
