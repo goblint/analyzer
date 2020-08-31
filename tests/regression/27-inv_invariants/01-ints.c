@@ -29,5 +29,5 @@ int main() {
   if (2+(3-x)*4/5 == 6 && 2*y >= x+5)
     assert(RANGE(x, -3, -2) && y >= 1);
   if (x > 1 && x < 5 && x % 2 == 1) // x = [2,4] && x % 2 = 1 => x = 3
-    assert(x != 2); // [3,4] TODO [3,3]
+    assert(x == 3);
 }

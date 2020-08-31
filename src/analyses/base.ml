@@ -1374,7 +1374,26 @@ struct
           else full
         in
         meet_bin (ID.add (ID.mul b c) rem) (ID.div (ID.sub a rem) c)
-      | Mod    -> meet_bin (ID.add c (ID.mul b (ID.div a b))) (ID.div (ID.sub a c) (ID.div a b))
+      | Mod    -> (* a % b == c *)
+        (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
+        * The idea is to formulate a' as quotient * divisor + remainder. *)
+        let a' = ID.add (ID.mul (ID.div a b) b) c in
+        let b' = ID.div (ID.sub a c) (ID.div a b) in
+        (* However, for [2,4]%2 == 1 this only gives [3,4].
+        * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
+        * If b is negative we have to look at the lower bound. *)
+        let is_divisible bound =
+          try ID.rem (bound a |> Option.get |> ID.of_int) b |> ID.to_int = Some 0L with _ -> false
+        in
+        let max_pos = match ID.maximal b with None -> true | Some x -> x >= 0L in
+        let min_neg = match ID.minimal b with None -> true | Some x -> x <  0L in
+        let implies a b = not a || b in
+        let a'' =
+          if implies max_pos (is_divisible ID.maximal) && implies min_neg (is_divisible ID.minimal) then
+            ID.meet a' (ID.sub (ID.mul (ID.div a b) b) c)
+          else a'
+        in
+        meet_bin a'' b'
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
