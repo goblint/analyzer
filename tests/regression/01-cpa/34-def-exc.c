@@ -143,6 +143,15 @@ void main()
 
   signed char res = *l_247;
 
+  signed short x;
+  unsigned int y;
+  unsigned short z = 0x7ED9L;
+
+  if (((((((signed char)y) == x) && z))))
+  {
+
+  }
+
 
   return;
 }

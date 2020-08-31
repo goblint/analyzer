@@ -1460,7 +1460,7 @@ struct
     let rec inv_exp c exp =
       match exp with
       | UnOp (op, e, _) -> inv_exp (unop_ID op c) e
-      | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
+      | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && typeSig (typeOf c1) = typeSig (typeOf c2) && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
         if M.tracing then M.tracel "inv" "dropped cast %a\n" d_exp exp;
         inv_exp c (BinOp (op, c1, c2, t))
       | BinOp (op, e1, e2, t) as e ->
