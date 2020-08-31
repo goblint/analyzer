@@ -1384,8 +1384,39 @@ struct
       | PlusA  -> meet_com ID.sub
       | Mult   -> meet_com ID.div (* Div is ok here, c must be divisible by a and b *)
       | MinusA -> meet_non ID.add ID.sub
-      | Div    -> meet_bin (ID.add (ID.mul b c) (ID.rem a b)) (ID.div (ID.sub a (ID.rem a b)) c)
-      | Mod    -> meet_bin (ID.add c (ID.mul b (ID.div a b))) (ID.div (ID.sub a c) (ID.div a b))
+      | Div    ->
+        (* Integer division means we need to add the remainder, so instead of just `a = c*b` we have `a = c*b + a%b`.
+         * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
+         * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
+        let rem =
+          let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int 0L) = Some true in
+          let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int 0L) = Some true in
+          let full = ID.rem a b in
+          if is_pos then ID.meet (ID.starting 0L) full
+          else if is_neg then ID.meet (ID.ending 0L) full
+          else full
+        in
+        meet_bin (ID.add (ID.mul b c) rem) (ID.div (ID.sub a rem) c)
+      | Mod    -> (* a % b == c *)
+        (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
+        * The idea is to formulate a' as quotient * divisor + remainder. *)
+        let a' = ID.add (ID.mul (ID.div a b) b) c in
+        let b' = ID.div (ID.sub a c) (ID.div a b) in
+        (* However, for [2,4]%2 == 1 this only gives [3,4].
+        * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
+        * If b is negative we have to look at the lower bound. *)
+        let is_divisible bound =
+          try ID.rem (bound a |> Option.get |> ID.of_int) b |> ID.to_int = Some 0L with _ -> false
+        in
+        let max_pos = match ID.maximal b with None -> true | Some x -> x >= 0L in
+        let min_neg = match ID.minimal b with None -> true | Some x -> x <  0L in
+        let implies a b = not a || b in
+        let a'' =
+          if implies max_pos (is_divisible ID.maximal) && implies min_neg (is_divisible ID.minimal) then
+            ID.meet a' (ID.sub (ID.mul (ID.div a b) b) c)
+          else a'
+        in
+        meet_bin a'' b'
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
@@ -1394,11 +1425,11 @@ struct
         | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
         | Eq, Some false
         | Ne, Some true -> (* def. unequal *)
-          (* if they compare unequal, they can not at the same time be from the meet, but it would be unsound to restrict both to not be the meet      *)
-          (* even if there is only one element in the meet e.g. a:[0,1] b:[1,2] meet(a,b) = [1], but (a != b) does not mean that a:[0,0] and b: [2,2]  *)
-          let a' = match ID.to_int b with | Some j -> (ID.of_excl_list ik [j]) | _ -> a  in (* if b is one concrete value, we can exclude it in a *)
-          let b' = match ID.to_int a with | Some j -> (ID.of_excl_list ik [j]) | _ -> b  in (* if a is one concrete value, we can exclude it in b *)
-          meet_bin a' b'
+          (* Both values can not be in the meet together, but it's not sound to exlcude the meet from both. *)
+          (* e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2] *)
+          (* Only if a is a definite value, we can exclude it from b: *)
+          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ILongLong [x] | None -> b in
+          meet_bin (excl b a) (excl a b)
         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt as op ->
@@ -1839,12 +1870,16 @@ struct
     in
     let expr = sprint d_exp e in
     let warn ?annot msg = if warn then
-        if get_bool "dbg.regression" then (
+        if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
           let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
-          let expected = let open Str in if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
+          let open Str in
+          let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
           if expected <> annot then (
             let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
+            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the orginal source if this is the case. *)
+            let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
+            let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
             M.warn_each ~ctx:ctx.control_context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
           )
         ) else
