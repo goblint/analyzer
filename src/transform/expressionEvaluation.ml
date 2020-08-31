@@ -156,6 +156,8 @@ module Transformation : Transform.S =
     let string_of_int_padded value =
       let value_string = string_of_int value in
       (String.make (padding - String.length value_string) ' ') ^ value_string
+    let string_of_location (location : Cil.location) =
+      location.file ^ ":" ^ (location.line |> string_of_int)
     let string_of_statement statement =
       statement
         |> Cil.d_stmt ()
@@ -199,12 +201,12 @@ module Transformation : Transform.S =
                 match evaluator#evaluate location query.expression with
                 | Some value ->
                     if value then
-                      print_endline (location.line |> string_of_int_padded)
+                      print_endline (location |> string_of_location)
                 | None ->
                     begin
                       match query.mode with
                       | `Must -> ()
-                      | `May -> print_endline ((location.line |> string_of_int_padded) ^ " (Possibly)")
+                      | `May -> print_endline ((location |> string_of_location) ^ " (Possibly)")
                     end
               end;
               (* TODO: Debug output *)
