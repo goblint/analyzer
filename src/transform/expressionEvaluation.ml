@@ -74,13 +74,17 @@ module Transformation : Transform.S =
           debug_info_1 <- false;
           debug_info_2 <- None;
           debug_info_3 <- None;
-          match self#get_expression location expression_string with
-          | Some expression ->
+          match self#get_query location expression_string with
+          | Some query ->
               begin
                 match self#get_evaluable_location location with
                 | Some evaluable_location ->
+                    let ask_result =
+                      try Some (ask evaluable_location query)
+                      with Not_found -> None
+                    in
                     begin
-                      match self#get_value evaluable_location expression with
+                      match self#get_value ask_result with
                       | Some value -> value
                       | None -> Some false
                     end
@@ -88,7 +92,7 @@ module Transformation : Transform.S =
               end
           | None -> Some false
 
-        method private get_expression location expression_string =
+        method private get_query location expression_string =
           let local_variables =
             match Hashtbl.find_opt function_table location with
             | Some function_declaration ->
@@ -96,11 +100,16 @@ module Transformation : Transform.S =
                   |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
             | None -> []
           in
-          try
-            debug_info_1 <- true;
-            Some (Formatcil.cExp expression_string (local_variables @ global_variables))
+          match
+            begin
+              try Some (Formatcil.cExp expression_string (local_variables @ global_variables))
+              with _ -> None
+            end
           with
-          | _ ->
+          | Some expression ->
+              debug_info_1 <- true;
+              Some (Queries.EvalInt expression)
+          | None ->
               debug_info_1 <- false;
               None
         method private get_evaluable_location location =
@@ -121,23 +130,19 @@ module Transformation : Transform.S =
           | None ->
               debug_info_2 <- None;
               None
-        method private get_value location expression =
-          try
-            begin
-              match (ask location (Queries.EvalInt expression)) with
-              | `Bot ->
-                  debug_info_3 <- None;
-                  None
-              | `Int value ->
-                  debug_info_3 <- Some true;
-                  Some (Some (value <> Int64.zero))
-              | `Top ->
-                  debug_info_3 <- Some false;
-                  Some None
-              | _ -> raise Exit
-            end
-          with
-          | Not_found ->
+        method private get_value =
+          function
+          | Some `Bot ->
+              debug_info_3 <- None;
+              None
+          | Some `Int value ->
+              debug_info_3 <- Some true;
+              Some (Some (value <> Int64.zero))
+          | Some `Top ->
+              debug_info_3 <- Some false;
+              Some None
+          | Some _ -> raise Exit
+          | None ->
               debug_info_3 <- None;
               None
 
