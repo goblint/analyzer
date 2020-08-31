@@ -109,7 +109,7 @@ struct
       in
       if get_bool "dbg.print_dead_code" then (
         if StringMap.is_empty !dead_lines
-        then printf "No dead code found!\n"
+        then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
         else (
           StringMap.iter print_file !dead_lines;
           printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
