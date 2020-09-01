@@ -670,10 +670,6 @@ struct
     (* Excluding X <= Excluding Y whenever Y <= X *)
     | `Excluded (x,xw), `Excluded (y,yw) -> S.subset y x && R.leq xw yw
 
-  (* checks that x and y have the same range, and fails if this is not the case *)
-  let check_identical_range x y =
-    if x <> y then print_endline (Printf.sprintf "Operation on different sizes of int %s %s" (R.short 80 x) (R.short 80 y))
-
   let join x y =
     match (x,y) with
     (* The least upper bound with the bottom element: *)
@@ -781,17 +777,14 @@ struct
     | `Bot -> `Bot
 
   let lift2 f x y = match x,y with
+    (* We don't bother with exclusion sets: *)
+    | `Excluded _, `Definite _
+    | `Definite _, `Excluded _
+    | `Excluded _, `Excluded _ -> top ()
     (* The good case: *)
     | `Definite x, `Definite y ->
       (try `Definite (f x y) with | Division_by_zero -> top ())
-    (* We don't bother with exclusion sets: *)
-    | `Excluded (_, r), `Definite _
-    | `Definite _, `Excluded (_, r) ->
-      `Excluded (S.empty (), r)
-    | `Excluded (_, xr), `Excluded (_, yr) ->
-      check_identical_range xr yr;
-      `Excluded (S.empty (), xr)
-    | ` Bot, `Bot -> `Bot
+    | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
