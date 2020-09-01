@@ -209,7 +209,44 @@ module Transformation : Transform.S =
                       | `May -> print_endline ((location |> string_of_location) ^ " (Possibly)")
                     end
               end;
-              (* TODO: Debug output *)
+              print_endline ">>>";
+              print_endline ("\"" ^ location.file ^ "\":");
+              print_string ((location.line |> string_of_int_padded) ^ " | ");
+              begin
+                match evaluator#get_debug_info_2 () with
+                | Some (statement, successor) ->
+                    print_endline (statement |> string_of_statement);
+                    begin
+                      match successor with
+                      | Some (succeeding_location, succeeding_statement) ->
+                          if succeeding_location.line < 1 then
+                            print_string (String.make padding ' ')
+                          else
+                            print_string (succeeding_location.line |> string_of_int_padded);
+                          print_endline (" | " ^ (succeeding_statement |> string_of_statement))
+                      | None ->
+                          print_endline ((String.make padding ' ') ^ " | (No succeeding statement)")
+                    end
+                | None ->
+                    print_endline "(No statement)"
+              end;
+              if evaluator#get_debug_info_1 () then
+                print_endline "Successfully parsed expression"
+              else
+                print_endline "Failed to parse expression";
+              print_endline
+                begin
+                  match evaluator#get_debug_info_3 () with
+                  | Some value ->
+                      if value then
+                        "Definite"
+                      else
+                        "Unknown"
+                  | None ->
+                      "Not reachable"
+                end;
+              print_endline "<<<";
+              print_newline ()
           end
 
   end
