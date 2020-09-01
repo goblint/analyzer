@@ -852,15 +852,15 @@ struct
   let add  = lift2_inj Integers.add
   let sub  = lift2_inj Integers.sub
   let mul x y = match x, y with
-    | `Definite 0L, _
-    | _, `Definite 0L -> `Definite 0L
+    | `Definite 0L, (`Excluded _ | `Definite _)
+    | (`Excluded _ | `Definite _), `Definite 0L -> `Definite 0L
     | _ -> lift2_inj Integers.mul x y
   let div  = lift2 Integers.div
   let rem  = lift2 Integers.rem
   let lt = lift2 Integers.lt
   let gt = lift2 Integers.gt
   let le = lift2 Integers.le
-  let ge= lift2 Integers.ge
+  let ge = lift2 Integers.ge
   let bitnot = lift1 Integers.bitnot
   let bitand = lift2 Integers.bitand
   let bitor  = lift2 Integers.bitor
