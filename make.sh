@@ -6,7 +6,7 @@ TARGET=src/goblint
 
 gen() { # generate configuration files and goblint.ml which opens all modules in src/ such that they will be linked and executed without the need to be referenced somewhere else
   scripts/set_version.sh # generate the version file
-  echo '[@@@ocaml.warning "-33"]' > $TARGET.ml
+  echo '[@@@ocaml.warning "-33"]' > $TARGET.ml # disable warning 'Unused open statement.'
   ls -1 src/**/*.ml | egrep -v "goblint.ml|apronDomain|poly" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
   echo "open Maingoblint" >> $TARGET.ml
 }
@@ -15,7 +15,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-base-compiler.4.10.0 --locked
+  opam switch -y create . --deps-only ocaml-base-compiler.4.11.0 --locked
   # opam install camlp4 mongo # camlp4 needed for mongo
 }
 

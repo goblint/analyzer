@@ -109,14 +109,14 @@ struct
       in
       if get_bool "dbg.print_dead_code" then (
         if StringMap.is_empty !dead_lines
-        then printf "No dead code found!\n"
+        then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
         else (
           StringMap.iter print_file !dead_lines;
           printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
         )
       );
       let str = function true -> "then" | false -> "else" in
-      let report tv loc dead =
+      let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
           match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
           | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
@@ -124,8 +124,9 @@ struct
           | _ -> ()
       in
       if get_bool "dbg.print_dead_code" then (
-        Deadcode.Locmap.iter (report true)  Deadcode.dead_branches_then;
-        Deadcode.Locmap.iter (report false) Deadcode.dead_branches_else;
+        let by_fst (a,_) (b,_) = compare a b in
+        Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
+        Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
         Deadcode.Locmap.clear Deadcode.dead_branches_then;
         Deadcode.Locmap.clear Deadcode.dead_branches_else
       );
@@ -423,18 +424,16 @@ struct
       (* run activated transformations with the analysis result *)
       let active_transformations = get_list "trans.activated" |> List.map Json.string in
       (if List.length active_transformations > 0 then
+        (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =
-          (* first join all contexts *)
           let open Batteries in let open Enum in
-            let e = LHT.enum lh |> map (Tuple2.map1 fst) (* drop context from key *)
-            (* also, in cil visitors we only have the location, so we use that as the key *)
-            |> map (Tuple2.map1 MyCFG.getLoc) in
-            let h = Hashtbl.create (if fast_count e then count e else 0) in
-            iter (fun (k,v) ->
-                (* join values for the same location *)
-                let a = try Spec.D.join (Hashtbl.find h k) v with Not_found -> v in
-                Hashtbl.replace h k a) e;
-            h
+          let e = LHT.enum lh |> map (Tuple2.map1 (MyCFG.getLoc % fst)) in (* drop context from key and get location from node *)
+          let h = Hashtbl.create (if fast_count e then count e else 123) in
+          iter (fun (k,v) ->
+            (* join values for the same location *)
+            let v' = try Spec.D.join (Hashtbl.find h k) v with Not_found -> v in
+            Hashtbl.replace h k v') e;
+          h
         in
         let ask loc =
           (* build a ctx for using the query system *)
@@ -471,8 +470,7 @@ struct
 
     let liveness =
       if get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp" then
-        (print_endline "print_dead_code";
-        print_dead_code local_xml)
+        print_dead_code local_xml
       else
         fun _ -> true (* TODO: warn about conflicting options *)
     in
