@@ -793,22 +793,6 @@ struct
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
-  (* For the shift operations, CIL does not cast the right argument to the type of the left argument,    *)
-  (* so we should not warn about operations on different types here. The result has the type of the left *)
-  (* argument *)
-  let lift2_special f x y = match x,y with
-    (* The good case: *)
-    | `Definite x, `Definite y -> (try `Definite (f x y) with | Division_by_zero -> top ())
-    (* We don't bother with exclusion sets: *)
-    | `Excluded (_, r), `Definite _
-    | `Definite _, `Excluded (_, r)
-    | `Excluded (_, r), `Excluded (_, _) ->
-      `Excluded (S.empty (), r)
-    | `Bot, `Bot -> `Bot
-    | _ ->
-      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
-
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
   let lift2_inj f x y = match x,y with
@@ -879,20 +863,20 @@ struct
     | _ -> lift2_inj Integers.mul x y
   let div  = lift2 Integers.div
   let rem  = lift2 Integers.rem
-  let lt x y = lift2 Integers.lt x y
-  let gt x y = lift2 Integers.gt x y
-  let le x y = lift2 Integers.le x y
-  let ge x y = lift2 Integers.ge x y
+  let lt = lift2 Integers.lt
+  let gt = lift2 Integers.gt
+  let le = lift2 Integers.le
+  let ge= lift2 Integers.ge
   let bitnot = lift1 Integers.bitnot
   let bitand = lift2 Integers.bitand
   let bitor  = lift2 Integers.bitor
   let bitxor = lift2 Integers.bitxor
-  let shift_left  = lift2_special Integers.shift_left  (* Careful, CIL does not guarantee the types of left and right arg are the same *)
-  let shift_right = lift2_special Integers.shift_right (* Careful, CIL does not guarantee the types of left and right arg are the same *)
+  let shift_left  = lift2 Integers.shift_left
+  let shift_right = lift2 Integers.shift_right
   (* TODO: lift does not treat Not {0} as true. *)
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
-  let lognot = eq zero
+  let lognot = eq (of_int 0L)
 
   let invariant c (x:t) = match x with
     | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
