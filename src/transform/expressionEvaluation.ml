@@ -80,15 +80,19 @@ module Transformation : Transform.S =
           match self#get_query location expression_string with
           | Some query ->
               begin
-                match self#get_evaluable_location location with
-                | Some evaluable_location ->
-                    let ask_result =
-                      try Some (ask evaluable_location query)
-                      with Not_found -> None
-                    in
+                match self#get_value location query with
+                | Some value ->
                     begin
-                      match self#get_value ask_result with
-                      | Some value -> value
+                      match self#get_succeeding_location location with
+                      | Some succeeding_location ->
+                          if succeeding_location = location then
+                            value
+                          else
+                            begin
+                              match self#get_value succeeding_location query with
+                              | Some succeeding_value -> succeeding_value
+                              | None -> Some false
+                            end
                       | None -> Some false
                     end
                 | None -> Some false
@@ -103,19 +107,18 @@ module Transformation : Transform.S =
                   |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
             | None -> []
           in
-          match
-            begin
-              try Some (Formatcil.cExp expression_string (local_variables @ global_variables))
-              with _ -> None
-            end
-          with
+          let parse_result =
+            try Some (Formatcil.cExp expression_string (local_variables @ global_variables))
+            with _ -> None
+          in
+          match parse_result with
           | Some expression ->
               debug_info_1 <- true;
               Some (Queries.EvalInt expression)
           | None ->
               debug_info_1 <- false;
               None
-        method private get_evaluable_location location =
+        method private get_succeeding_location location =
           match Hashtbl.find_opt statement_table location with
           | Some statement ->
               if List.length statement.succs = 1 then
@@ -133,8 +136,12 @@ module Transformation : Transform.S =
           | None ->
               debug_info_2 <- None;
               None
-        method private get_value =
-          function
+        method private get_value location query =
+          let ask_result =
+            try Some (ask location query)
+            with Not_found -> None
+          in
+          match ask_result with
           | Some `Bot ->
               debug_info_3 <- None;
               None
