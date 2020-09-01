@@ -39,12 +39,9 @@ module WP =
       HM.clear data.stable
 
     let print_data data str =
-      print_endline (str ^
-                     "|rho|="^string_of_int (HM.length data.rho) ^ "\n" ^
-                     "|stable|="^string_of_int (HM.length data.stable) ^ "\n" ^
-                     "|infl|="^string_of_int (HM.length data.infl) ^ "\n" ^
-                     "|wpoint|="^string_of_int (HM.length data.wpoint)
-                    )
+      if GobConfig.get_bool "dbg.verbose" then
+        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint)
 
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
@@ -71,7 +68,7 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
-      if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis:\n";
+      if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in
 
@@ -253,7 +250,7 @@ module WP =
         delete_marked wpoint;
         delete_marked stable;
 
-        print_data data "Data after clean-up:\n"
+        print_data data "Data after clean-up"
       );
 
       List.iter set_start st;
@@ -340,7 +337,7 @@ module WP =
       reachability vs;
 
       stop_event ();
-      print_data data "Data after solve completed:\n";
+      print_data data "Data after solve completed";
 
       {st; infl; rho; wpoint; stable}
 

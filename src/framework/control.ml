@@ -109,14 +109,14 @@ struct
       in
       if get_bool "dbg.print_dead_code" then (
         if StringMap.is_empty !dead_lines
-        then printf "No dead code found!\n"
+        then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
         else (
           StringMap.iter print_file !dead_lines;
           printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
         )
       );
       let str = function true -> "then" | false -> "else" in
-      let report tv loc dead =
+      let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
           match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
           | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
@@ -124,8 +124,9 @@ struct
           | _ -> ()
       in
       if get_bool "dbg.print_dead_code" then (
-        Deadcode.Locmap.iter (report true)  Deadcode.dead_branches_then;
-        Deadcode.Locmap.iter (report false) Deadcode.dead_branches_else;
+        let by_fst (a,_) (b,_) = compare a b in
+        Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
+        Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
         Deadcode.Locmap.clear Deadcode.dead_branches_then;
         Deadcode.Locmap.clear Deadcode.dead_branches_else
       );
@@ -469,8 +470,7 @@ struct
 
     let liveness =
       if get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp" then
-        (print_endline "print_dead_code";
-        print_dead_code local_xml)
+        print_dead_code local_xml
       else
         fun _ -> true (* TODO: warn about conflicting options *)
     in
