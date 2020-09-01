@@ -652,7 +652,9 @@ struct
   let cast_to t = top_if_not_in_int64 t @@ function
     | `Excluded (s,r) ->
       let r' = size t in
-      `Excluded (if R.leq r r' then s, r else S.empty (), r') (* TODO can we do better here? *)
+      (* let s' = S.map (Integers.cast_to t) s in *)
+      (* TODO filter out all i in s' where (t)x with x in r could be i. *)
+      `Excluded (if R.leq r r' then (* upcast *) s, r else (* downcast may overflow *) S.empty (), r')
     | `Definite x -> `Definite (Integers.cast_to t x)
     | `Bot -> `Bot
 
@@ -760,8 +762,8 @@ struct
     | `Bot -> None
 
   let of_excl_list t l =
-    (* let r = size t in *)
-    let r = List.fold_right (fun i s -> R.join s (size @@ Size.min_for i)) l (R.bot ()) in
+    let r = size t in
+    (* let r = List.fold_right (fun i s -> R.join s (size @@ Size.min_for i)) l (R.bot ()) in *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list x = match x with
@@ -800,7 +802,7 @@ struct
       let max = BatOption.map (f x) (max_of_range r) in
       let r'  = match min, max with
         | Some min, Some max ->
-          R.join (size (Size.min_for min)) (size (Size.min_for max))
+          R.join (size (Size.min_for min)) (size (Size.min_for max)) |> R.meet (size IInt) (* TODO what about > int? *)
         | _ , _ -> size top_size
       in
       `Excluded (S.map (f x)  s, r')
@@ -809,7 +811,8 @@ struct
       let min = BatOption.map (f x) (min_of_range r) in
       let max = BatOption.map (f x) (max_of_range r) in
       let r' = match min, max with
-        | Some min, Some max -> R.join (size (Size.min_for min)) (size (Size.min_for max))
+        | Some min, Some max ->
+          R.join (size (Size.min_for min)) (size (Size.min_for max)) |> R.meet (size IInt) (* TODO see above *)
         | _ , _ -> size top_size
       in
       `Excluded (S.map (f x) s, r')

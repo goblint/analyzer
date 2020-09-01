@@ -1431,7 +1431,7 @@ struct
           (* Both values can not be in the meet together, but it's not sound to exlcude the meet from both. *)
           (* e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2] *)
           (* Only if a is a definite value, we can exclude it from b: *)
-          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ILongLong [x] | None -> b in
+          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ik [x] | None -> b in
           meet_bin (excl b a) (excl a b)
         | _, _ -> a, b
         )
