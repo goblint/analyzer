@@ -793,11 +793,8 @@ struct
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
-  let lift2_inj f x y = match x,y with
-    (* If both are exclusion sets, there isn't anything we can do: *)
-    | `Excluded _, `Excluded _ -> top ()
-    (* A definite value should be applied to all members of the exclusion set *)
-    | `Definite x, `Excluded (s,r) ->
+  let lift2_inj f x y =
+    let def_exc f x s r =
       let min = BatOption.map (f x) (min_of_range r) in
       let max = BatOption.map (f x) (max_of_range r) in
       let r'  = match min, max with
@@ -806,16 +803,14 @@ struct
         | _ , _ -> size top_size
       in
       `Excluded (S.map (f x)  s, r')
+    in
+    match x,y with
+    (* If both are exclusion sets, there isn't anything we can do: *)
+    | `Excluded _, `Excluded _ -> top ()
+    (* A definite value should be applied to all members of the exclusion set *)
+    | `Definite x, `Excluded (s,r) -> def_exc f x s r
     (* Same thing here, but we should flip the operator to map it properly *)
-    | `Excluded (s,r), `Definite x -> let f x y = f y x in
-      let min = BatOption.map (f x) (min_of_range r) in
-      let max = BatOption.map (f x) (max_of_range r) in
-      let r' = match min, max with
-        | Some min, Some max ->
-          R.join (size (Size.min_for min)) (size (Size.min_for max)) |> R.meet (size IInt) (* TODO see above *)
-        | _ , _ -> size top_size
-      in
-      `Excluded (S.map (f x) s, r')
+    | `Excluded (s,r), `Definite x -> def_exc (Batteries.flip f) x s r
     (* The good case: *)
     | `Definite x, `Definite y -> `Definite (f x y)
     | `Bot, `Bot -> `Bot
