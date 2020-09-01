@@ -161,6 +161,7 @@ struct
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value): value =
+    if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
     let bool_top () = ID.(join (of_int 0L) (of_int 1L)) in
@@ -271,7 +272,9 @@ struct
     let binop op e1 e2 =
       let equality () =
         match ask (Q.ExpEq (e1,e2)) with
-        | `Bool x -> Some x
+        | `Bool x ->
+          if M.tracing then M.tracel "query" "ExpEq (%a, %a) = %b\n" d_exp e1 d_exp e2 x;
+          Some x
         | _ -> None
       in
       let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
