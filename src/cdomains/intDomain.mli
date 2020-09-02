@@ -125,7 +125,7 @@ sig
 
   (** {b Cast} *)
 
-  val cast_to: Cil.ikind -> t -> t
+  val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
   (** Cast interval/integer to type of the given width. *)
 end
 (** The signature of integral value domains. They need to support all integer

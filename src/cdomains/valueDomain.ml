@@ -298,9 +298,9 @@ struct
       let v' = match t with
         | TFloat (fk,_) -> log_top __POS__; `Top
         | TInt (ik,_) ->
-          `Int (ID.cast_to ik (match v with
+          `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to (ptr_ikind ()) @@ ID.of_int Int64.zero
+              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to ?torg (ptr_ikind ()) @@ ID.of_int Int64.zero
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -309,14 +309,14 @@ struct
               | _ -> log_top __POS__; ID.top ()
             ))
         | TEnum ({ekind=ik; _},_) ->
-          `Int (ID.cast_to ik (match v with
+          `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
               | _ -> log_top __POS__; ID.top ()
             ))
         | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
           (match v with
           | `Address a -> v
-          | `Int i -> `Int(ID.cast_to (ptr_ikind ()) i)
+          | `Int i -> `Int(ID.cast_to ?torg (ptr_ikind ()) i)
           | _ -> v (* TODO: Does it make sense to have things here that are neither `Address nor `Int? *)
           )
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
@@ -361,7 +361,8 @@ struct
         | TVoid _ -> log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
-      Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
+      let s_torg = match torg with Some t -> Prelude.Ana.sprint d_type t | None -> "?" in
+      Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pretty v s_torg d_type t pretty v'; v'
 
 
   let warn_type op x y =

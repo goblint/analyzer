@@ -56,7 +56,7 @@ sig
   val logand: t -> t -> t
   val logor : t -> t -> t
 
-  val cast_to : Cil.ikind -> t -> t
+  val cast_to : ?torg:Cil.typ -> Cil.ikind -> t -> t
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
@@ -217,7 +217,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to t = function
+  let cast_to ?torg t = function
     | None -> None
     | Some (x,y) ->
       try
@@ -445,7 +445,7 @@ struct
   let lognot n1    = of_bool (not (to_bool' n1))
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let cast_to t x = Size.cast t x
+  let cast_to ?torg t x = Size.cast t x
 end
 
 module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
@@ -468,7 +468,7 @@ struct
     end)
 
   let name () = "flat integers"
-  let cast_to t = function
+  let cast_to ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -542,7 +542,7 @@ struct
   include StdTop (struct type nonrec t = t let top = top end)
 
   let name () = "lifted integers"
-  let cast_to t = function
+  let cast_to ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -649,14 +649,21 @@ struct
   | `Definite x -> if i = x then `Eq else `Neq
   | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
 
-  let top_if_not_in_int64 t f x = try f x with Size.Not_in_int64 -> top_of t
-  let cast_to t = top_if_not_in_int64 t @@ function
+  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
+  let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
     | `Excluded (s,r) ->
-      let r' = size t in
-      (* let s' = S.map (Integers.cast_to t) s in *)
-      (* TODO filter out all i in s' where (t)x with x in r could be i. *)
-      `Excluded (if R.leq r r' then (* upcast *) s, r else (* downcast may overflow *) S.empty (), r')
-    | `Definite x -> `Definite (Integers.cast_to t x)
+      let r' = size ik in
+      `Excluded (
+        if R.leq r r' then (* upcast -> no change *)
+          s, r
+        else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
+          let s' = S.map (Integers.cast_to ik) s in
+          s', r'
+        else (* downcast: may overflow -> top *)
+          (* TODO instead filter out all i in s' where (t)x with x in r could be i. *)
+          S.empty (), r'
+      )
+    | `Definite x -> `Definite (Integers.cast_to ik x)
     | `Bot -> `Bot
 
   let leq x y = match (x,y) with
@@ -804,7 +811,7 @@ struct
       (* new range r' = f x applied to the bounds of the old range: *)
       let rf m = BatOption.map (size % Size.min_for % f x) (m r) in
       let r'  = match rf min_of_range, rf max_of_range with
-        | Some r1, Some r2 -> R.join r1 r2 |> R.meet (size IInt) (* TODO what about > int? *)
+        | Some r1, Some r2 -> R.join r1 r2
         | _ , _ -> size top_size
       in
       `Excluded (S.map (f x)  s, r')
@@ -930,7 +937,7 @@ struct
   let size t = Size.bit t
 
   let name () = "circular int intervals"
-  let cast_to t x =
+  let cast_to ?torg t x =
     match (I.bounds x) with
     | None -> Bot (size t)
     | Some(a,b) -> I.of_t (size t) a b
@@ -1232,7 +1239,7 @@ struct
   let hash = function true -> 51534333 | _ -> 561123444
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
-  let cast_to _ x = x (* ok since there's no smaller ikind to cast to *)
+  let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
 
   let leq x y = not x || y
   let join = (||)
@@ -1302,7 +1309,7 @@ module Enums : S = struct
       if List.mem i x then `Neq
       else `Top
   let of_int x = Inc [x]
-  let cast_to t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
+  let cast_to ?torg t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
 
   let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =
@@ -1506,7 +1513,7 @@ module IntDomTuple = struct
   let neg = map { f1 = fun (type a) (module I:S with type t = a) -> I.neg }
   let bitnot = map { f1 = fun (type a) (module I:S with type t = a) -> I.bitnot }
   let lognot = map { f1 = fun (type a) (module I:S with type t = a) -> I.lognot }
-  let cast_to t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to t }
+  let cast_to ?torg t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to ?torg t }
 
   (* fp: projections *)
   let equal_to i x =
