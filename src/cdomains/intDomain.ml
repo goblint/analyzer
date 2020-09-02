@@ -659,9 +659,11 @@ struct
         else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
           let s' = S.map (Integers.cast_to ik) s in
           s', r'
-        else (* downcast: may overflow -> top *)
-          (* TODO instead filter out all i in s' where (t)x with x in r could be i. *)
-          S.empty (), r'
+        else (* downcast: may overflow *)
+          let s' = S.map (Integers.cast_to ik) s in
+          (* We want to filter out all i in s' where (t)x with x in r could be i. *)
+          (* Since this is hard to compute, we just keep all i in s' which overflowed, since those are safe - all i which did not overflow may now be possible due to overflow of r. *)
+          S.diff s' s, r'
       )
     | `Definite x -> `Definite (Integers.cast_to ik x)
     | `Bot -> `Bot
