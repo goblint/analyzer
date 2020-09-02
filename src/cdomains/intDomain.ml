@@ -617,9 +617,8 @@ struct
     | `Bot
   ] [@@deriving to_yojson]
   let name () = "def_exc"
-  let top_of ik = `Excluded (S.empty (), size ik)
-  let top_size = Size.max `Signed
-  let top () = top_of top_size
+  let top_range = R.of_interval (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let top () = `Excluded (S.empty (), top_range)
   let bot () = `Bot
   let short w x =
     let short_size x = "("^R.short 2 x^")" in
@@ -649,6 +648,7 @@ struct
   | `Definite x -> if i = x then `Eq else `Neq
   | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
 
+  let top_of ik = `Excluded (S.empty (), size ik)
   let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
   let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
     | `Excluded (s,r) ->
@@ -729,8 +729,9 @@ struct
     | _ -> false
 
   let zero = of_int 0L
-  let not_zero ~ikind = `Excluded (S.singleton 0L, size (ikind |? top_size))
-  let top_opt ~ikind = top_of (ikind |? top_size)
+  let from_excl ~ikind s = `Excluded (s, BatOption.map size ikind |? top_range)
+  let not_zero ~ikind = from_excl ~ikind (S.singleton 0L)
+  let top_opt ~ikind = from_excl ~ikind (S.empty ())
 
   (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp x = of_int (if x then 1L else 0L)
@@ -814,7 +815,7 @@ struct
       let rf m = BatOption.map (size % Size.min_for % f x) (m r) in
       let r'  = match rf min_of_range, rf max_of_range with
         | Some r1, Some r2 -> R.join r1 r2
-        | _ , _ -> size top_size
+        | _ , _ -> top_range
       in
       `Excluded (S.map (f x)  s, r')
     in
