@@ -1534,7 +1534,8 @@ struct
       in
       let itv = (* int abstraction for tv *)
         if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
-          ID.of_bool tv (* this will give 1 for true which is only ok for comparisons *)
+          let ik = Cilfacade.get_ikind (typeOf exp) in
+          ID.cast_to ik @@ ID.of_bool tv (* this will give 1 for true which is only ok for comparisons *)
         else
           let ik = Cilfacade.get_ikind (typeOf exp) in
           ID.of_excl_list ik [Int64.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
