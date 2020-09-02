@@ -8,6 +8,7 @@ module GU = Goblintutil
 module JB = Json
 module M = Messages
 
+let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
 
 module type S =
@@ -761,9 +762,12 @@ struct
     | `Excluded (s,r) -> min_of_range r
     | `Bot -> None
 
+  (* calculates the minimal extension of range r to cover the exclusion set s *)
+  let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r
+
   let of_excl_list t l =
     let r = size t in
-    (* let r = List.fold_right (fun i s -> R.join s (size @@ Size.min_for i)) l (R.bot ()) in *)
+    (* let r = extend_range (R.bot ()) (S.of_list l) in *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list x = match x with
@@ -774,7 +778,9 @@ struct
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
   let lift1 f x = match x with
-    | `Excluded (s,r) -> `Excluded (S.map f s, r)
+    | `Excluded (s,r) ->
+      let s' = S.map f s in
+      `Excluded (s', extend_range r s')
     | `Definite x -> `Definite (f x)
     | `Bot -> `Bot
 
@@ -795,11 +801,10 @@ struct
    * argument, so that Exclusion Sets can be used: *)
   let lift2_inj f x y =
     let def_exc f x s r =
-      let min = BatOption.map (f x) (min_of_range r) in
-      let max = BatOption.map (f x) (max_of_range r) in
-      let r'  = match min, max with
-        | Some min, Some max ->
-          R.join (size (Size.min_for min)) (size (Size.min_for max)) |> R.meet (size IInt) (* TODO what about > int? *)
+      (* new range r' = f x applied to the bounds of the old range: *)
+      let rf m = BatOption.map (size % Size.min_for % f x) (m r) in
+      let r'  = match rf min_of_range, rf max_of_range with
+        | Some r1, Some r2 -> R.join r1 r2 |> R.meet (size IInt) (* TODO what about > int? *)
         | _ , _ -> size top_size
       in
       `Excluded (S.map (f x)  s, r')
