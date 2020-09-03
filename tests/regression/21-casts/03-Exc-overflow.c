@@ -7,7 +7,7 @@ int main () {
   if(a == 127) return;
   char b = a+1; // (char)128 = -128
   printf("b: %d\n", b);
-  assert(b != -128);
+  assert(b != -128); // UNKNOWN
   int c;
   if (c == -128) return; // c is not -128
   c = (char) c; // actual downcast: c could be 128, cast to char = -128
