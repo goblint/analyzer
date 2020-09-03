@@ -2,6 +2,12 @@
 #define LONGS(x) (((x) + sizeof(unsigned long) - 1)/sizeof(unsigned long))
 #include<stdbool.h>
 
+union U1 {
+   unsigned char f0;
+   int f1;
+};
+
+
 typedef unsigned long custom_t;
 void main()
 {
@@ -108,6 +114,43 @@ void main()
 
 	}
 
+  int top;
+
+  union U1 g_76;
+  g_76.f0 = 12; // (f0, (`Definite 12, [0,8]))
+  if (top) {
+    g_76.f1 = 5; // (f1, (`Definite 5, [-31,31]))
+  }
+
+
+  unsigned char v;
+  signed char u;
+  int r2 = ((int )v == (int )u);
+
+
+  signed char l_48 =  (signed char )58L;
+  unsigned char l_67 = (unsigned char)48UL;
+
+  signed char *l_247 ;
+  unsigned char *l_229 ;
+
+  l_247 = &l_48;
+
+  if (top) {
+      l_229 = &l_67;
+      l_247 = (signed char *)l_229;
+  }
+
+  signed char res = *l_247;
+
+  signed short x;
+  unsigned int y;
+  unsigned short z = 0x7ED9L;
+
+  if (((((((signed char)y) == x) && z))))
+  {
+
+  }
 
   return;
 }
