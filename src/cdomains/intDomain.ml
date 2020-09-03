@@ -773,10 +773,10 @@ struct
     | `Bot -> None
 
   (* calculates the minimal extension of range r to cover the exclusion set s *)
-  let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r
+  (* let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r *)
 
   let of_excl_list t l =
-    let r = size t in
+    let r = size t in (* elements in l are excluded from the full range of t! *)
     (* let r = extend_range (R.bot ()) (S.of_list l) in *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
@@ -785,12 +785,18 @@ struct
     | `Excluded (s,r) -> Some (S.elements s)
     | `Bot -> None
 
+  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = BatOption.map (size % Size.min_for % f) (m r) in
+    match rf min_of_range, rf max_of_range with
+      | Some r1, Some r2 -> R.join r1 r2
+      | _ , _ -> top_range
+
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
   let lift1 f x = match x with
     | `Excluded (s,r) ->
       let s' = S.map f s in
-      `Excluded (s', extend_range r s')
+      `Excluded (s', apply_range f r)
     | `Definite x -> `Definite (f x)
     | `Bot -> `Bot
 
@@ -810,15 +816,7 @@ struct
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
   let lift2_inj f x y =
-    let def_exc f x s r =
-      (* new range r' = f x applied to the bounds of the old range: *)
-      let rf m = BatOption.map (size % Size.min_for % f x) (m r) in
-      let r'  = match rf min_of_range, rf max_of_range with
-        | Some r1, Some r2 -> R.join r1 r2
-        | _ , _ -> top_range
-      in
-      `Excluded (S.map (f x)  s, r')
-    in
+    let def_exc f x s r = `Excluded (S.map (f x) s, apply_range (f x) r) in
     match x,y with
     (* If both are exclusion sets, there isn't anything we can do: *)
     | `Excluded _, `Excluded _ -> top ()
