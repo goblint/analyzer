@@ -18,12 +18,6 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
-(** only report write races *)
-let no_read = ref false
-
-(** Only report races on these variables/types. *)
-let vips = ref ([]: string list)
-
 let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
   snd (Obj.obj (List.assoc "base" state))
 
@@ -150,7 +144,7 @@ struct
     if BaseDomain.Flag.is_multi fl then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
-  (** We just lift start state, global and dependecy functions: *)
+  (** We just lift start state, global and dependency functions: *)
   let startstate v = Lockset.empty ()
   let otherstate v = Lockset.empty ()
   let exitstate  v = Lockset.empty ()
