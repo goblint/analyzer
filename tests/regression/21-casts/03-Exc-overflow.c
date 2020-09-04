@@ -14,15 +14,15 @@ int main () {
   assert(c != -128); // UNKNOWN!
 
   int top;
-  unsigned long acc = 77777777;
+  unsigned long ul = 77777777;
 
   if(top) {
-    acc = 255;
+    ul = 255;
   }
 
-  if(acc != 511) {
-      unsigned char c = (unsigned char)acc;
-      assert(c != 255); //UNKNOWN!
-      int b = 42;
+  if(ul != 511) {
+      unsigned char uc = (unsigned char)ul;
+      assert(uc != 255); //UNKNOWN!
+      ul = 1;
   }
 }
