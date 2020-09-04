@@ -1407,12 +1407,12 @@ struct
         meet_bin (ID.add (ID.mul b c) rem) (ID.div (ID.sub a rem) c)
       | Mod    -> (* a % b == c *)
         (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
-        * The idea is to formulate a' as quotient * divisor + remainder. *)
+         * The idea is to formulate a' as quotient * divisor + remainder. *)
         let a' = ID.add (ID.mul (ID.div a b) b) c in
         let b' = ID.div (ID.sub a c) (ID.div a b) in
         (* However, for [2,4]%2 == 1 this only gives [3,4].
-        * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
-        * If b is negative we have to look at the lower bound. *)
+         * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
+         * If b is negative we have to look at the lower bound. *)
         let is_divisible bound =
           try ID.rem (bound a |> Option.get |> ID.of_int) b |> ID.to_int = Some 0L with _ -> false
         in
@@ -1433,9 +1433,9 @@ struct
         | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
         | Eq, Some false
         | Ne, Some true -> (* def. unequal *)
-          (* Both values can not be in the meet together, but it's not sound to exclude the meet from both. *)
-          (* e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2] *)
-          (* Only if a is a definite value, we can exclude it from b: *)
+          (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
+           * e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2]
+           * Only if a is a definite value, we can exclude it from b: *)
           let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
           let a' = excl b a in
           let b' = excl a b in
