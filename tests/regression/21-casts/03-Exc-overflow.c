@@ -12,4 +12,17 @@ int main () {
   if (c == -128) return; // c is not -128
   c = (char) c; // actual downcast: c could be 128, cast to char = -128
   assert(c != -128); // UNKNOWN!
+
+  int top;
+  unsigned long acc = 77777777;
+
+  if(top) {
+    acc = 255;
+  }
+
+  if(acc != 511) {
+      unsigned char c = (unsigned char)acc;
+      assert(c != 255); //UNKNOWN!
+      int b = 42;
+  }
 }
