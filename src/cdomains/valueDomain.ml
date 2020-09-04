@@ -17,7 +17,7 @@ sig
   include Lattice.S
   type offs
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
-  val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
+  val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
@@ -88,6 +88,7 @@ struct
   let name () = "compound"
 
   type offs = (fieldinfo,IndexDomain.t) Lval.offs
+
 
   let bot () = `Bot
   let is_bot x = x = `Bot
@@ -262,7 +263,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int 0L, `NoOffset))) (Some false)
+              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.cast_to (Cilfacade.ptrdiff_ikind ()) @@ IndexDomain.of_int 0L, `NoOffset))) (Some false)
             | _ -> err @@ "Cast to neither array index nor struct field."
                           ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
           end
@@ -297,9 +298,9 @@ struct
       let v' = match t with
         | TFloat (fk,_) -> log_top __POS__; `Top
         | TInt (ik,_) ->
-          `Int (ID.cast_to ik (match v with
+          `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.of_int Int64.zero
+              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to ?torg (ptr_ikind ()) @@ ID.of_int Int64.zero
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -308,11 +309,17 @@ struct
               | _ -> log_top __POS__; ID.top ()
             ))
         | TEnum ({ekind=ik; _},_) ->
-          `Int (ID.cast_to ik (match v with
+          `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
               | _ -> log_top __POS__; ID.top ()
             ))
-        | TPtr (t,_) when isVoidType t || isVoidPtrType t -> v (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
+        | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
+          (match v with
+          | `Address a -> v
+          | `Int i -> `Int(ID.cast_to ?torg (ptr_ikind ()) i)
+          | _ -> v (* TODO: Does it make sense to have things here that are neither `Address nor `Int? *)
+          )
+          (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           `Address (match v with
               | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr
@@ -351,9 +358,11 @@ struct
                 | _ -> log_top __POS__; Unions.top ()
               )
         (* | _ -> log_top (); `Top *)
+        | TVoid _ -> log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
-      Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
+      let s_torg = match torg with Some t -> Prelude.Ana.sprint d_type t | None -> "?" in
+      Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pretty v s_torg d_type t pretty v'; v'
 
 
   let warn_type op x y =
@@ -481,7 +490,7 @@ struct
     | (`Top, x) -> x
     | (x, `Top) -> x
     | (`Int x, `Int y) -> `Int (ID.meet x y)
-    | (`Int _, `Address _) -> meet x (cast IntDomain.Size.top_typ y)
+    | (`Int _, `Address _) -> meet x (cast (TInt(ptr_ikind (),[])) y)
     | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
@@ -739,19 +748,19 @@ struct
     in
     do_eval_offset ask f x offs exp l o v
 
-  let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval): t =
-    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval):t =
+  let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
+    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
       let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
       match x, offs with
       | `Blob (x,s), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
-          mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v), s))
+          mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s))
         end
       | `Blob (x,s),_ ->
         begin
           let l', o' = shift_one_over l o in
-          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v), s))
+          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s))
         end
       | _ ->
       let result =
@@ -759,14 +768,16 @@ struct
         | `NoOffset -> begin
             match value with
             | `Blob (y,s) -> mu (`Blob (join x y, s))
+            | `Int _ -> cast t value
             | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
+            let t = fld.ftype in
             match x with
             | `Struct str ->
               begin
                 let l', o' = shift_one_over l o in
-                let value' =  (do_update_offset ask (Structs.get str fld) offs value exp l' o' v) in
+                let value' =  (do_update_offset ask (Structs.get str fld) offs value exp l' o' v t) in
                 `Struct (Structs.replace str fld value')
               end
             | `Bot ->
@@ -777,11 +788,12 @@ struct
               in
               let strc = init_comp fld.fcomp in
               let l', o' = shift_one_over l o in
-              `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v))
+              `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v t))
             | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
+            let t = fld.ftype in
             let l', o' = shift_one_over l o in
             match x with
             | `Union (last_fld, prev_val) ->
@@ -810,8 +822,8 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v)
-            | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v)
+              `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
+            | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v t)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
@@ -819,13 +831,16 @@ struct
             let l', o' = shift_one_over l o in
             match x with
             | `Array x' ->
-              let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v in
-              let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
-              `Array new_array_value
+              (match t with
+              | TArray(t1 ,_,_) ->
+                let e = determine_offset ask l o exp (Some v) in
+                let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t1 in
+                let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
+                `Array new_array_value
+              | _ ->  M.warn "Trying to update an array, but the type was not array"; top ())
             | `Bot ->  M.warn_each("encountered array bot, made array top"); `Array (CArrays.top ());
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v
+            | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v t
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result
@@ -834,7 +849,7 @@ struct
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
       | _ -> None, None
     in
-    do_update_offset ask x offs value exp l o v
+    do_update_offset ask x offs value exp l o v t
 
   let rec affect_move ?(replace_with_const=false) ask (x:t) (v:varinfo) movement_for_expr:t =
     let move_fun x = affect_move ~replace_with_const:replace_with_const ask x v movement_for_expr in

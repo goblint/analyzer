@@ -1,5 +1,4 @@
-
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
 int main(void) {
     int a[4];
     int b[4];
