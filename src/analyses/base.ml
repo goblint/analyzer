@@ -670,8 +670,9 @@ struct
         | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), t) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
           let a1 = eval_rv a gs st e1 in
           let a2 = eval_rv a gs st e2 in
-          let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) in
-          M.tracel "cast" "remove cast on both sides for %a -> %b\n" d_exp exp is_safe;
+          let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
+          let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) && not both_arith_type in
+          M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
           if is_safe then (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
             eval_rv a gs st (BinOp (op, e1, e2, t))
           else
@@ -1319,14 +1320,17 @@ struct
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
-      | BinOp(op, CastE (TInt (ik, _), Lval x), rval, typ) ->
-          (match eval_rv a gs st (Lval x) with
-         | `Int v ->
-           if ID.cast_to ik v = v then
-             derived_invariant (BinOp (op, Lval x, rval, typ)) tv
-           else
-             None
-         | _ -> None)
+      | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
+        (match eval_rv a gs st (Lval x) with
+        | `Int v ->
+          (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
+           * If there is one domain that knows this to be true and the other does not, we
+           * should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
+          if VD.is_safe_cast t1 (Cil.typeOf (Lval x)) then
+            derived_invariant (BinOp (op, Lval x, rval, typ)) tv
+          else
+            None
+        | _ -> None)
       | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       (* Cases like if (x) are treated like if (x != 0) *)
@@ -2027,7 +2031,7 @@ struct
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
-        | `Int n when n = ID.of_int 0L -> cpa,fl,dep
+        | `Int n when ID.to_int n = Some 0L -> cpa,fl,dep
         | _      -> invalidate ctx.ask gs st [ret_var]
       end
     | `Malloc size -> begin
