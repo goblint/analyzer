@@ -125,8 +125,8 @@ sig
 
   (** {b Cast} *)
 
-  val cast_to: Cil.ikind -> t -> t
-  (** Cast interval/integer to type of the given width. *)
+  val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
+  (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
 end
 (** The signature of integral value domains. They need to support all integer
   * operations that are allowed in C *)

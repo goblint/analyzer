@@ -8,6 +8,7 @@ module GU = Goblintutil
 module JB = Json
 module M = Messages
 
+let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
 
 module type S =
@@ -55,7 +56,7 @@ sig
   val logand: t -> t -> t
   val logor : t -> t -> t
 
-  val cast_to : Cil.ikind -> t -> t
+  val cast_to : ?torg:Cil.typ -> Cil.ikind -> t -> t
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
@@ -216,7 +217,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to t = function
+  let cast_to ?torg t = function
     | None -> None
     | Some (x,y) ->
       try
@@ -444,7 +445,7 @@ struct
   let lognot n1    = of_bool (not (to_bool' n1))
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let cast_to t x = Size.cast t x
+  let cast_to ?torg t x = Size.cast t x
 end
 
 module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
@@ -467,7 +468,7 @@ struct
     end)
 
   let name () = "flat integers"
-  let cast_to t = function
+  let cast_to ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -541,7 +542,7 @@ struct
   include StdTop (struct type nonrec t = t let top = top end)
 
   let name () = "lifted integers"
-  let cast_to t = function
+  let cast_to ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -616,9 +617,8 @@ struct
     | `Bot
   ] [@@deriving to_yojson]
   let name () = "def_exc"
-  let top_of ik = `Excluded (S.empty (), size ik)
-  let top_size = Size.max `Signed
-  let top () = top_of top_size
+  let top_range = R.of_interval (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let top () = `Excluded (S.empty (), top_range)
   let bot () = `Bot
   let short w x =
     let short_size x = "("^R.short 2 x^")" in
@@ -648,12 +648,26 @@ struct
   | `Definite x -> if i = x then `Eq else `Neq
   | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
 
-  let cast_to t = function
+  let top_of ik = `Excluded (S.empty (), size ik)
+  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
+  let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
     | `Excluded (s,r) ->
-      (let r' = size t in (* target range *)
-      try `Excluded (if R.leq r r' then S.map (Integers.cast_to t) s, r' else S.empty (), r') (* TODO can we do better here? *) with
-      Size.Not_in_int64 -> top_of t)
-    | `Definite x -> (try `Definite (Integers.cast_to t x) with Size.Not_in_int64 -> top_of t)
+      let r' = size ik in
+      `Excluded (
+        if R.leq r r' then (* upcast -> no change *)
+          s, r
+        else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
+          let s' = S.map (Integers.cast_to ik) s in
+          s', r'
+        else (* downcast: may overflow *)
+          (* let s' = S.map (Integers.cast_to ik) s in *)
+          (* We want to filter out all i in s' where (t)x with x in r could be i. *)
+          (* Since this is hard to compute, we just keep all i in s' which overflowed, since those are safe - all i which did not overflow may now be possible due to overflow of r. *)
+          (* S.diff s' s, r' *)
+          (* The above is needed for test 21/03, but not sound! See example https://github.com/goblint/analyzer/pull/95#discussion_r483023140 *)
+          S.empty (), r'
+      )
+    | `Definite x -> `Definite (Integers.cast_to ik x)
     | `Bot -> `Bot
 
   let leq x y = match (x,y) with
@@ -706,7 +720,11 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then `Bot else `Definite x
     (* The greatest lower bound of two exclusion sets is their union, this is
      * just DeMorgans Law *)
-    | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.union x y, R.meet wx wy)
+    | `Excluded (x,r1), `Excluded (y,r2) ->
+      let r' = R.meet r1 r2 in
+      let in_range i = R.leq (R.of_int i) r' in
+      let s' = S.union x y |> S.filter in_range in
+      `Excluded (s', r')
 
   let of_int  x = `Definite (Integers.of_int x)
   let to_int  x = match x with
@@ -717,8 +735,9 @@ struct
     | _ -> false
 
   let zero = of_int 0L
-  let not_zero ~ikind = `Excluded (S.singleton 0L, size (ikind |? top_size))
-  let top_opt ~ikind = top_of (ikind |? top_size)
+  let from_excl ~ikind s = `Excluded (s, BatOption.map size ikind |? top_range)
+  let not_zero ~ikind = from_excl ~ikind (S.singleton 0L)
+  let top_opt ~ikind = from_excl ~ikind (S.empty ())
 
   (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp x = of_int (if x then 1L else 0L)
@@ -759,17 +778,31 @@ struct
     | `Excluded (s,r) -> min_of_range r
     | `Bot -> None
 
-  let of_excl_list t l = `Excluded (List.fold_right S.add l (S.empty ()), size t)
+  (* calculates the minimal extension of range r to cover the exclusion set s *)
+  (* let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r *)
+
+  let of_excl_list t l =
+    let r = size t in (* elements in l are excluded from the full range of t! *)
+    (* let r = extend_range (R.bot ()) (S.of_list l) in *)
+    `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list x = match x with
     | `Definite _ -> None
     | `Excluded (s,r) -> Some (S.elements s)
     | `Bot -> None
 
+  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = BatOption.map (size % Size.min_for % f) (m r) in
+    match rf min_of_range, rf max_of_range with
+      | Some r1, Some r2 -> R.join r1 r2
+      | _ , _ -> top_range
+
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
   let lift1 f x = match x with
-    | `Excluded (s,r) -> `Excluded (S.map f s, r)
+    | `Excluded (s,r) ->
+      let s' = S.map f s in
+      `Excluded (s', apply_range f r)
     | `Definite x -> `Definite (f x)
     | `Bot -> `Bot
 
@@ -788,28 +821,15 @@ struct
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
-  let lift2_inj f x y = match x,y with
+  let lift2_inj f x y =
+    let def_exc f x s r = `Excluded (S.map (f x) s, apply_range (f x) r) in
+    match x,y with
     (* If both are exclusion sets, there isn't anything we can do: *)
     | `Excluded _, `Excluded _ -> top ()
     (* A definite value should be applied to all members of the exclusion set *)
-    | `Definite x, `Excluded (s,r) ->
-      let min = BatOption.map (f x) (min_of_range r) in
-      let max = BatOption.map (f x) (max_of_range r) in
-      let r'  = match min, max with
-        | Some min, Some max ->
-          R.join (size (Size.min_for min)) (size (Size.min_for max))
-        | _ , _ -> size top_size
-      in
-      `Excluded (S.map (f x)  s, r')
+    | `Definite x, `Excluded (s,r) -> def_exc f x s r
     (* Same thing here, but we should flip the operator to map it properly *)
-    | `Excluded (s,r), `Definite x -> let f x y = f y x in
-      let min = BatOption.map (f x) (min_of_range r) in
-      let max = BatOption.map (f x) (max_of_range r) in
-      let r' = match min, max with
-        | Some min, Some max -> R.join (size (Size.min_for min)) (size (Size.min_for max))
-        | _ , _ -> size top_size
-      in
-      `Excluded (S.map (f x) s, r')
+    | `Excluded (s,r), `Definite x -> def_exc (Batteries.flip f) x s r
     (* The good case: *)
     | `Definite x, `Definite y -> `Definite (f x y)
     | `Bot, `Bot -> `Bot
@@ -851,15 +871,15 @@ struct
   let add  = lift2_inj Integers.add
   let sub  = lift2_inj Integers.sub
   let mul x y = match x, y with
-    | `Definite 0L, _
-    | _, `Definite 0L -> `Definite 0L
+    | `Definite 0L, (`Excluded _ | `Definite _)
+    | (`Excluded _ | `Definite _), `Definite 0L -> `Definite 0L
     | _ -> lift2_inj Integers.mul x y
   let div  = lift2 Integers.div
   let rem  = lift2 Integers.rem
   let lt = lift2 Integers.lt
   let gt = lift2 Integers.gt
   let le = lift2 Integers.le
-  let ge= lift2 Integers.ge
+  let ge = lift2 Integers.ge
   let bitnot = lift1 Integers.bitnot
   let bitand = lift2 Integers.bitand
   let bitor  = lift2 Integers.bitor
@@ -924,7 +944,7 @@ struct
   let size t = Size.bit t
 
   let name () = "circular int intervals"
-  let cast_to t x =
+  let cast_to ?torg t x =
     match (I.bounds x) with
     | None -> Bot (size t)
     | Some(a,b) -> I.of_t (size t) a b
@@ -1226,7 +1246,7 @@ struct
   let hash = function true -> 51534333 | _ -> 561123444
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
-  let cast_to _ x = x (* ok since there's no smaller ikind to cast to *)
+  let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
 
   let leq x y = not x || y
   let join = (||)
@@ -1296,7 +1316,7 @@ module Enums : S = struct
       if List.mem i x then `Neq
       else `Top
   let of_int x = Inc [x]
-  let cast_to t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
+  let cast_to ?torg t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
 
   let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =
@@ -1500,7 +1520,7 @@ module IntDomTuple = struct
   let neg = map { f1 = fun (type a) (module I:S with type t = a) -> I.neg }
   let bitnot = map { f1 = fun (type a) (module I:S with type t = a) -> I.bitnot }
   let lognot = map { f1 = fun (type a) (module I:S with type t = a) -> I.lognot }
-  let cast_to t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to t }
+  let cast_to ?torg t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to ?torg t }
 
   (* fp: projections *)
   let equal_to i x =

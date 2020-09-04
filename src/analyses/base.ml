@@ -161,6 +161,7 @@ struct
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value): value =
+    if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
     let bool_top () = ID.(join (of_int 0L) (of_int 1L)) in
@@ -271,7 +272,9 @@ struct
     let binop op e1 e2 =
       let equality () =
         match ask (Q.ExpEq (e1,e2)) with
-        | `Bool x -> Some x
+        | `Bool x ->
+          if M.tracing then M.tracel "query" "ExpEq (%a, %a) = %b\n" d_exp e1 d_exp e2 x;
+          Some x
         | _ -> None
       in
       let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
@@ -1376,7 +1379,8 @@ struct
       Tuple3.first (invariant ctx a gs st exp tv)
     in
     (* inverse values for binary operation a `op` b == c *)
-    let inv_bin_int (a, b) ik c =
+    (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
+    let inv_bin_int (a, b) ikind c =
       let meet_bin a' b'  = ID.meet a a', ID.meet b b' in
       let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
       let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
@@ -1428,8 +1432,11 @@ struct
           (* Both values can not be in the meet together, but it's not sound to exclude the meet from both. *)
           (* e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2] *)
           (* Only if a is a definite value, we can exclude it from b: *)
-          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ILongLong [x] | None -> b in
-          meet_bin (excl b a) (excl a b)
+          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
+          let a' = excl b a in
+          let b' = excl a b in
+          if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
+          meet_bin a' b'
         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt as op ->
@@ -1438,13 +1445,13 @@ struct
           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
           (match op, ID.to_bool c with
           | Le, Some true
-          | Gt, Some false -> meet_bin (ID.ending ~ikind:ik u2) (ID.starting ~ikind:ik l1)
+          | Gt, Some false -> meet_bin (ID.ending ~ikind u2) (ID.starting ~ikind l1)
           | Ge, Some true
-          | Lt, Some false -> meet_bin (ID.starting ~ikind:ik l2) (ID.ending ~ikind:ik u1)
+          | Lt, Some false -> meet_bin (ID.starting ~ikind l2) (ID.ending ~ikind u1)
           | Lt, Some true
-          | Ge, Some false -> meet_bin (ID.ending ~ikind:ik (Int64.pred u2)) (ID.starting ~ikind:ik (Int64.succ l1))
+          | Ge, Some false -> meet_bin (ID.ending ~ikind (Int64.pred u2)) (ID.starting ~ikind (Int64.succ l1))
           | Gt, Some true
-          | Le, Some false -> meet_bin (ID.starting ~ikind:ik (Int64.succ l2)) (ID.ending ~ikind:ik (Int64.pred u1))
+          | Le, Some false -> meet_bin (ID.starting ~ikind (Int64.succ l2)) (ID.ending ~ikind (Int64.pred u1))
           | _, _ -> a, b)
         | _ -> a, b)
       | op ->
@@ -1462,15 +1469,11 @@ struct
         if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty c;
         (match eval e1, eval e2 with
         | `Int a, `Int b ->
-          (* the ikind of comparisons is always TInt(IInt,[]) in CIL *)
-          let ik = match op with
-            | Cil.Eq|Cil.Ne|Cil.Lt|Cil.Le|Cil.Ge|Cil.Gt -> (Cilfacade.get_ikind (Cil.typeOf e1))
-            (* | Lor and land? *)
-            | _ -> Cilfacade.get_ikind (Cil.typeOf exp)
-          in
-          let a', b' = inv_bin_int (a, b) ik (ID.cast_to ik c) op in
-          let m1 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e1)) a') e1 in
-          let m2 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e2)) b') e2 in
+          let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
+          let a', b' = inv_bin_int (a, b) ikind c op in
+          if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
+          let m1 = inv_exp a' e1 in
+          let m2 = inv_exp b' e2 in
           CPA.meet m1 m2
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
@@ -1486,19 +1489,22 @@ struct
         let v = VD.meet oldv c' in
         if is_some_bot v then raise Deadcode
         else (
-          if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
+          if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
           set' x v
         )
       | Const _ -> Tuple3.first st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e with
-        | `Int a ->
-          if ID.leq a (ID.cast_to ik a) then
+        | `Int i ->
+          if ID.leq i (ID.cast_to ik i) then
              match Cil.typeOf e with
-              | TInt(ik_e, _) -> inv_exp (ID.cast_to ik_e c) e
+              | TInt(ik_e, _) ->
+                let c' = ID.cast_to ik_e c in
+                if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+                inv_exp c' e
               | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t)
           else
-            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty a ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
+            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
       | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in
