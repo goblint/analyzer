@@ -1432,7 +1432,10 @@ struct
           (* e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2] *)
           (* Only if a is a definite value, we can exclude it from b: *)
           let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ik [x] | None -> b in
-          meet_bin (excl b a) (excl a b)
+          let a' = excl b a in
+          let b' = excl a b in
+          if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ik ID.pretty a' ID.pretty b';
+          meet_bin a' b'
         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt as op ->
@@ -1457,10 +1460,6 @@ struct
     let eval e = eval_rv a gs st e in
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
     let set' lval v = Tuple3.first (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
-    let is_cmp = function
-      | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
-      | _ -> false
-    in
     let rec inv_exp c = function
       | UnOp (op, e, _) -> inv_exp (unop_ID op c) e
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
@@ -1469,10 +1468,11 @@ struct
         if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty c;
         (match eval e1, eval e2 with
         | `Int a, `Int b ->
-          let ik = Cilfacade.get_ikind @@ typeOf @@ if is_cmp e then e1 else e in
-          let a', b' = inv_bin_int (a, b) ik (ID.cast_to ik c) op in
-          let m1 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e1)) a') e1 in
-          let m2 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e2)) b') e2 in
+          let ik = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type! *)
+          let a', b' = inv_bin_int (a, b) ik c op in
+          if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
+          let m1 = inv_exp a' e1 in
+          let m2 = inv_exp b' e2 in
           CPA.meet m1 m2
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
@@ -1509,6 +1509,10 @@ struct
     in
     if eval_bool exp = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
     else
+      let is_cmp = function
+        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
+        | _ -> false
+      in
       let itv = (* int abstraction for tv *)
         if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
           ID.of_bool tv (* this will give 1 for true which is only ok for comparisons *)

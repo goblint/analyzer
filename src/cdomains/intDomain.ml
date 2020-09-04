@@ -720,7 +720,11 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then `Bot else `Definite x
     (* The greatest lower bound of two exclusion sets is their union, this is
      * just DeMorgans Law *)
-    | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.union x y, R.meet wx wy)
+    | `Excluded (x,r1), `Excluded (y,r2) ->
+      let r' = R.meet r1 r2 in
+      let in_range i = R.leq (R.of_int i) r' in
+      let s' = S.union x y |> S.filter in_range in
+      `Excluded (s', r')
 
   let of_int  x = `Definite (Integers.of_int x)
   let to_int  x = match x with
