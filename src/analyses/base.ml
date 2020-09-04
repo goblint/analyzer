@@ -1457,6 +1457,10 @@ struct
     let eval e = eval_rv a gs st e in
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
     let set' lval v = Tuple3.first (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
+    let is_cmp = function
+      | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
+      | _ -> false
+    in
     let rec inv_exp c = function
       | UnOp (op, e, _) -> inv_exp (unop_ID op c) e
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
@@ -1465,12 +1469,7 @@ struct
         if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty c;
         (match eval e1, eval e2 with
         | `Int a, `Int b ->
-          (* the ikind of comparisons is always TInt(IInt,[]) in CIL *)
-          let ik = match op with
-            | Cil.Eq|Cil.Ne|Cil.Lt|Cil.Le|Cil.Ge|Cil.Gt -> (Cilfacade.get_ikind (Cil.typeOf e1))
-            (* | Lor and land? *)
-            | _ -> Cilfacade.get_ikind (Cil.typeOf e)
-          in
+          let ik = Cilfacade.get_ikind @@ typeOf @@ if is_cmp e then e1 else e in
           let a', b' = inv_bin_int (a, b) ik (ID.cast_to ik c) op in
           let m1 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e1)) a') e1 in
           let m2 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e2)) b') e2 in
@@ -1510,10 +1509,6 @@ struct
     in
     if eval_bool exp = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
     else
-      let is_cmp = function
-        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
-        | _ -> false
-      in
       let itv = (* int abstraction for tv *)
         if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
           ID.of_bool tv (* this will give 1 for true which is only ok for comparisons *)
