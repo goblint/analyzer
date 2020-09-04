@@ -1379,7 +1379,8 @@ struct
       Tuple3.first (invariant ctx a gs st exp tv)
     in
     (* inverse values for binary operation a `op` b == c *)
-    let inv_bin_int (a, b) ik c =
+    (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
+    let inv_bin_int (a, b) ikind c =
       let meet_bin a' b'  = ID.meet a a', ID.meet b b' in
       let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
       let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
@@ -1431,10 +1432,10 @@ struct
           (* Both values can not be in the meet together, but it's not sound to exlcude the meet from both. *)
           (* e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2] *)
           (* Only if a is a definite value, we can exclude it from b: *)
-          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ik [x] | None -> b in
+          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
           let a' = excl b a in
           let b' = excl a b in
-          if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ik ID.pretty a' ID.pretty b';
+          if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
           meet_bin a' b'
         | _, _ -> a, b
         )
@@ -1444,13 +1445,13 @@ struct
           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
           (match op, ID.to_bool c with
           | Le, Some true
-          | Gt, Some false -> meet_bin (ID.ending ~ikind:ik u2) (ID.starting ~ikind:ik l1)
+          | Gt, Some false -> meet_bin (ID.ending ~ikind u2) (ID.starting ~ikind l1)
           | Ge, Some true
-          | Lt, Some false -> meet_bin (ID.starting ~ikind:ik l2) (ID.ending ~ikind:ik u1)
+          | Lt, Some false -> meet_bin (ID.starting ~ikind l2) (ID.ending ~ikind u1)
           | Lt, Some true
-          | Ge, Some false -> meet_bin (ID.ending ~ikind:ik (Int64.pred u2)) (ID.starting ~ikind:ik (Int64.succ l1))
+          | Ge, Some false -> meet_bin (ID.ending ~ikind (Int64.pred u2)) (ID.starting ~ikind (Int64.succ l1))
           | Gt, Some true
-          | Le, Some false -> meet_bin (ID.starting ~ikind:ik (Int64.succ l2)) (ID.ending ~ikind:ik (Int64.pred u1))
+          | Le, Some false -> meet_bin (ID.starting ~ikind (Int64.succ l2)) (ID.ending ~ikind (Int64.pred u1))
           | _, _ -> a, b)
         | _ -> a, b)
       | op ->
@@ -1468,8 +1469,8 @@ struct
         if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty c;
         (match eval e1, eval e2 with
         | `Int a, `Int b ->
-          let ik = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type! *)
-          let a', b' = inv_bin_int (a, b) ik c op in
+          let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
+          let a', b' = inv_bin_int (a, b) ikind c op in
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
           let m1 = inv_exp a' e1 in
           let m2 = inv_exp b' e2 in
