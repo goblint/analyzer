@@ -1489,19 +1489,22 @@ struct
         let v = VD.meet oldv c' in
         if is_some_bot v then raise Deadcode
         else (
-          if M.tracing then M.tracel "inv" "improve lval %a = %a with %a (from %a), meet = %a\n" d_lval x VD.pretty oldv VD.pretty c' ID.pretty c VD.pretty v;
+          if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
           set' x v
         )
       | Const _ -> Tuple3.first st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e with
-        | `Int a ->
-          if ID.leq a (ID.cast_to ik a) then
+        | `Int i ->
+          if ID.leq i (ID.cast_to ik i) then
              match Cil.typeOf e with
-              | TInt(ik_e, _) -> inv_exp (ID.cast_to ik_e c) e
+              | TInt(ik_e, _) ->
+                let c' = ID.cast_to ik_e c in
+                if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+                inv_exp c' e
               | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t)
           else
-            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty a ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
+            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
       | e -> fallback (sprint d_plainexp e ^ " not implemented")
     in

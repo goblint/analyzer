@@ -14,7 +14,7 @@ int main () {
   assert(c != -128); // UNKNOWN!
 
   int top;
-  unsigned long ul = 77777777;
+  unsigned char ul = 77777777;
 
   if(top) {
     ul = 255;
