@@ -1469,7 +1469,7 @@ struct
           let ik = match op with
             | Cil.Eq|Cil.Ne|Cil.Lt|Cil.Le|Cil.Ge|Cil.Gt -> (Cilfacade.get_ikind (Cil.typeOf e1))
             (* | Lor and land? *)
-            | _ -> Cilfacade.get_ikind (Cil.typeOf exp)
+            | _ -> Cilfacade.get_ikind (Cil.typeOf e)
           in
           let a', b' = inv_bin_int (a, b) ik (ID.cast_to ik c) op in
           let m1 = inv_exp (ID.cast_to (Cilfacade.get_ikind (Cil.typeOf e1)) a') e1 in
