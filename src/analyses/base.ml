@@ -1556,6 +1556,7 @@ struct
    * Simple defs for the transfer functions
    **************************************************************************)
   let assign ctx (lval:lval) (rval:exp):store  =
+    print_endline "ASSIGN";
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
@@ -1624,45 +1625,53 @@ struct
         List.iter (fun x -> ctx.spawn x (threadstate x)) funs
       | _ -> ()
       );
-      match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, _) when AD.is_definite lval_val && v.vglob ->
-        let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
-        (match current_val with
-        | `Bot -> (* current value is VD `Bot *)
-          (match Addr.to_var_offset (AD.choose lval_val) with
-          | [(x,offs)] ->
-            let t = v.vtype in
-            let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
-            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-            set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
-          | _ ->
-            set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-          )
-        | _ ->
-          set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-        )
-      | _ -> (
-        let is_malloc_pointer e =
-          let rv =  eval_rv_keep_bot ctx.ask ctx.global ctx.local e in
-          let is_pointer = match e with Lval (Var v, _) -> (match v.vtype with TPtr _ -> true |  (* TArray _ -> true | *) _ -> false) | _ -> false in
-          is_pointer && VD.is_bot rv
-        in
-        let is_malloc_assignment rval =
-          match rval with
-          | CastE (t, e) -> is_malloc_pointer e
-          | e -> is_malloc_pointer e
-        in
-        if is_malloc_assignment rval then (
-          let heap_var = heap_var (rval |> typeOf |> unpack_ptr_type) in
+      let is_malloc_pointer e =
+        let rv =  eval_rv_keep_bot ctx.ask ctx.global ctx.local e in
+        let is_pointer = match e with Lval (Var v, _) -> (match v.vtype with TPtr _ -> true |  (* TArray _ -> true | *) _ -> false) | _ -> false in
+        is_pointer && VD.is_bot rv
+      in
+      let is_malloc_assignment rval =
+        match rval with
+        | CastE (t, e) -> is_malloc_pointer e
+        | e -> is_malloc_pointer e
+      in
+      let handle_malloc_assignment () =
+        let heap_var = heap_var (rval |> typeOf |> unpack_ptr_type) in
           let heap_var = if (get_bool "exp.malloc-fail")
               then AD.join (heap_var) AD.null_ptr
               else heap_var
           in
           set_many ctx.ask ctx.global ctx.local [(heap_var, `Blob (VD.top (), IdxDom.top ()));
                                    (eval_lv ctx.ask ctx.global ctx.local lval, `Address heap_var) ]
-        ) else
-        set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-      )
+      in
+      match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
+      | (Var v, _) when AD.is_definite lval_val && v.vglob ->
+        print_endline @@ "Lval: " ^ (sprint d_lval lval);
+        print_endline @@ "Rval: " ^ (sprint d_exp rval);
+        if is_malloc_assignment rval then (
+          handle_malloc_assignment ()
+        ) else (
+          let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
+          (match current_val with
+          | `Bot -> (* current value is VD `Bot *)
+            (match Addr.to_var_offset (AD.choose lval_val) with
+            | [(x,offs)] ->
+              let t = v.vtype in
+              let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
+              let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+              set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
+            | _ ->
+              set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
+            )
+          | _ ->
+            set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
+          )
+        )
+      | _ -> 
+        if is_malloc_assignment rval 
+          then handle_malloc_assignment ()
+          else set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
+      
 
   module Locmap = Deadcode.Locmap
 
