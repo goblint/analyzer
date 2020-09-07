@@ -1385,6 +1385,13 @@ struct
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
     let inv_bin_int (a, b) ikind c =
+      let warn_and_top_on_zero x =
+        if ID.to_int x = Some 0L then
+          (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
+          ID.top ())
+        else
+          x
+      in
       let meet_bin a' b'  = ID.meet a a', ID.meet b b' in
       let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
       let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
@@ -1393,6 +1400,8 @@ struct
       | Mult   -> meet_com ID.div (* Div is ok here, c must be divisible by a and b *)
       | MinusA -> meet_non ID.add ID.sub
       | Div    ->
+        (* If b must be zero, we have must UB *)
+        let b = warn_and_top_on_zero b in
         (* Integer division means we need to add the remainder, so instead of just `a = c*b` we have `a = c*b + a%b`.
          * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
          * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
@@ -1406,6 +1415,8 @@ struct
         in
         meet_bin (ID.add (ID.mul b c) rem) (ID.div (ID.sub a rem) c)
       | Mod    -> (* a % b == c *)
+        (* If b must be zero, we have must UB *)
+        let b = warn_and_top_on_zero b in
         (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
          * The idea is to formulate a' as quotient * divisor + remainder. *)
         let a' = ID.add (ID.mul (ID.div a b) b) c in
