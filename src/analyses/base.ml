@@ -29,7 +29,7 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
-(* The unknown pointer arguments for these functions should get a special treatment (?) *)
+(* The unknown pointer arguments for these functions should get a special treatment for the library analysis *)
 let mainfuns () = Set.of_list @@ List.map Json.string (get_list "mainfun")
 
 let precious_globs = ref []
@@ -68,7 +68,7 @@ struct
   let exitstate  v = CPA.bot (), Flag.start_main v, Dep.bot ()
 
 
-  let morphstate v (cpa,fl,dep) = print_endline @@ (sprint CPA.pretty cpa) ^"\n\n\n"^ (sprint Flag.pretty fl) ^"\n"^ (sprint Dep.pretty dep);print_endline "morph"; cpa, Flag.start_single v, dep
+  let morphstate v (cpa,fl,dep) = cpa, Flag.start_single v, dep
   let create_tid v =
     let loc = !Tracing.current_loc in
     Flag.spawn_thread loc v
@@ -2146,10 +2146,7 @@ struct
       end
     | `Calloc size ->
       begin match lv with
-        | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          (* let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))] *)
+        | Some lv ->
           set_many ctx.ask gs st [(*(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));*)
                                   (eval_lv ctx.ask gs st lv, VD.bot ())]
         | _ -> st
