@@ -27,11 +27,12 @@ end
 
 let heap_hash = Hashtbl.create 113
 
-let get_heap_var ?(arg=false) typ_sig =
+let get_heap_var ?(arg=false) typ =
+  let typ_sig = typeSig typ in
   try Hashtbl.find heap_hash typ_sig
   with Not_found ->
     let name = (if arg then "(arg@" else "(alloc@") ^ (Prelude.Ana.sprint d_typsig typ_sig) ^ ")" in
-    let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
+    let newvar = Goblintutil.create_var (makeGlobalVar name typ) in
     Hashtbl.add heap_hash typ_sig newvar;
     newvar
 

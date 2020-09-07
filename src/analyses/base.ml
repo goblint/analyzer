@@ -113,8 +113,8 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
-  let heap_var (type_sig: typsig) = AD.from_var (BaseDomain.get_heap_var type_sig)
-  let argument_var (type_sig: typsig) = AD.from_var (BaseDomain.get_heap_var type_sig ~arg: true)
+  let heap_var (type_sig: typ) = AD.from_var (BaseDomain.get_heap_var type_sig)
+  let argument_var (type_sig: typ) = AD.from_var (BaseDomain.get_heap_var type_sig ~arg: true)
 
   let init () =
     privatization := get_bool "exp.privatization";
@@ -1653,7 +1653,7 @@ struct
           | e -> is_malloc_pointer e
         in
         if is_malloc_assignment rval then (
-          let heap_var = heap_var (rval |> typeOf |> unpack_ptr_type |> typeSig) in
+          let heap_var = heap_var (rval |> typeOf |> unpack_ptr_type) in
           let heap_var = if (get_bool "exp.malloc-fail")
               then AD.join (heap_var) AD.null_ptr
               else heap_var
@@ -1834,7 +1834,7 @@ struct
     and arg_val a gs st t (l: (address * value) list) r = (match t with
       | TInt _ -> `Int (ID.top ()), l
       | TPtr (pointed_to_t, attr) ->
-                  let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
+                  let heap_var = argument_var (t |> unpack_ptr_type) in
                   let (tval, l2) = if r then arg_val a gs st pointed_to_t l false else top_value a gs st pointed_to_t, l in
                   (* TODO: Make the value of the abstract heap object contain the representation of the struct *)
                   `Address (if (get_bool "exp.malloc-fail")

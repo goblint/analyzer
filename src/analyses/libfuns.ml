@@ -79,7 +79,7 @@ struct
     | Mem e -> (match e with
                 | Lval l -> possible_heap_pointer_from_lval l
                 | _ -> failwith "Keine Ahnung")
-    | Var v -> `Address (Base.AD.from_var (BaseDomain.get_heap_var (v.vtype |> typeSig)))
+    | Var v -> `Address (Base.AD.from_var (BaseDomain.get_heap_var (v.vtype)))
 
   let assign ctx lv e =
     let base = List.assoc "base" ctx.presub in
