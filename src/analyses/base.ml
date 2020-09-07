@@ -29,6 +29,9 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
+(* The unknown pointer arguments for these functions should get a special treatment (?) *)
+let mainfuns () = Set.of_list @@ List.map Json.string (get_list "mainfun")
+
 let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
@@ -65,7 +68,7 @@ struct
   let exitstate  v = CPA.bot (), Flag.start_main v, Dep.bot ()
 
 
-  let morphstate v (cpa,fl,dep) = cpa, Flag.start_single v, dep
+  let morphstate v (cpa,fl,dep) = print_endline @@ (sprint CPA.pretty cpa) ^"\n\n\n"^ (sprint Flag.pretty fl) ^"\n"^ (sprint Dep.pretty dep);print_endline "morph"; cpa, Flag.start_single v, dep
   let create_tid v =
     let loc = !Tracing.current_loc in
     Flag.spawn_thread loc v
@@ -110,7 +113,8 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
-  let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
+  let heap_var (type_sig: typsig) = AD.from_var (BaseDomain.get_heap_var type_sig)
+  let argument_var (type_sig: typsig) = AD.from_var (BaseDomain.get_heap_var type_sig ~arg: true)
 
   let init () =
     privatization := get_bool "exp.privatization";
@@ -268,7 +272,7 @@ struct
     | _ -> ad
 
   (* evaluate value using our "query functions" *)
-  let eval_rv_pre (ask: Q.ask) exp pr =
+  let eval_rv_pre (ask: Q.ask) exp _ =
     let binop op e1 e2 =
       let equality () =
         match ask (Q.ExpEq (e1,e2)) with
@@ -703,6 +707,7 @@ struct
           `Address (AD.map array_start (eval_lv a gs st lval))
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
         | CastE  (t, exp) ->
+          (* print_endline @@ "Casting " ^ (sprint d_exp exp) ^ " to " ^ (sprint d_type t) ; *)
           let v = eval_rv a gs st exp in
           VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()
@@ -1543,6 +1548,9 @@ struct
     | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr)) ?lval_raw ?rval_raw
     | v -> set ask gs st adr v ?lval_raw ?rval_raw
 
+  let unpack_ptr_type (ptrT: typ) = match ptrT with
+    | TPtr (t, _) -> t
+    | _ -> failwith "huh?"
 
   (**************************************************************************
    * Simple defs for the transfer functions
@@ -1633,9 +1641,28 @@ struct
         | _ ->
           set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
         )
-      | _ ->
+      | _ -> (
+        let is_malloc_pointer e =
+          let rv =  eval_rv_keep_bot ctx.ask ctx.global ctx.local e in
+          let is_pointer = match e with Lval (Var v, _) -> (match v.vtype with TPtr _ -> true |  (* TArray _ -> true | *) _ -> false) | _ -> false in
+          is_pointer && VD.is_bot rv
+        in
+        let is_malloc_assignment rval =
+          match rval with
+          | CastE (t, e) -> is_malloc_pointer e
+          | e -> is_malloc_pointer e
+        in
+        if is_malloc_assignment rval then (
+          let heap_var = heap_var (rval |> typeOf |> unpack_ptr_type |> typeSig) in
+          let heap_var = if (get_bool "exp.malloc-fail")
+              then AD.join (heap_var) AD.null_ptr
+              else heap_var
+          in
+          set_many ctx.ask ctx.global ctx.local [(heap_var, `Blob (VD.top (), IdxDom.top ()));
+                                   (eval_lv ctx.ask ctx.global ctx.local lval, `Address heap_var) ]
+        ) else
         set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-
+      )
 
   module Locmap = Deadcode.Locmap
 
@@ -1784,24 +1811,87 @@ struct
     in
     List.concat (List.map do_exp exps)
 
+  let is_main_call fn args =
+     (get_bool "allfuns" || Set.mem fn.vname (mainfuns ())) &&
+      List.for_all (fun arg -> MyCFG.unknown_exp = arg) args
+
+  let get_arg_types (fn: varinfo) = match fn.vtype with
+    | TFun (_, None, _, _) -> []
+    | TFun (_, Some args, _vararg, _) ->
+      (* We do not handle varargs sepcifically here. Varargs are just top when queried *)
+      List.map snd_triple args
+    | _ -> failwith "Not a function type"
+
+  let arg_value a (gs:glob_fun) (st: store) (t: typ): (value * ((address * value) list)) =
+    let rec arg_comp compinfo l r : ValueDomain.Structs.t * (address * value) list =
+      let nstruct = ValueDomain.Structs.top () in
+      let arg_field (nstruct, adrs) fd = let (v, adrs) = arg_val a gs st fd.ftype adrs r in
+        (ValueDomain.Structs.replace nstruct fd v, adrs)
+      in
+      List.fold_left (arg_field) (nstruct, l) compinfo.cfields
+
+    (* r: whether to recursively create heap values when encountering pointers, needed to terminate on cyclic data structures *)
+    and arg_val a gs st t (l: (address * value) list) r = (match t with
+      | TInt _ -> `Int (ID.top ()), l
+      | TPtr (pointed_to_t, attr) ->
+                  let heap_var = argument_var (t |> unpack_ptr_type |> typeSig) in
+                  let (tval, l2) = if r then arg_val a gs st pointed_to_t l false else top_value a gs st pointed_to_t, l in
+                  (* TODO: Make the value of the abstract heap object contain the representation of the struct *)
+                  `Address (if (get_bool "exp.malloc-fail")
+                            then AD.join (heap_var) AD.null_ptr
+                            else heap_var), (heap_var,  `Blob (tval, IdxDom.top ()))::l2
+      | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l r in `Struct (v), adrs
+      | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ()), l
+      | TArray (ai, None, _) -> let v, adrs = arg_val a gs st ai l r in
+        `Array (ValueDomain.CArrays.make (IdxDom.top ()) v ), adrs
+      | TArray (ai, Some exp, _) ->
+        let v, adrs = arg_val a gs st ai l r in
+        let l = Cil.isInteger (Cil.constFold true exp) in
+        (`Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) v)), adrs
+      | TNamed ({ttype=t; _}, _) -> arg_val a gs st t l r
+      | _ -> `Top, l)
+    in arg_val a gs st t [] true
+
+  let heapify_pointers (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
+    let create_val t = arg_value () gs st t  in
+    let arg_types = get_arg_types fn in
+    let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
+    let heap_mem = values |> List.map snd |> List.flatten |> Set.of_list |> Set.to_list in
+    let fundec = Cilfacade.getdec fn in
+    let values = List.map fst values in
+    let pa = zip fundec.sformals values in
+    (* Argument values, parameters -> values, argument memory cells -> values *)
+    (values, pa, heap_mem)
 
   let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) ?nfl:(nfl=(snd_triple ctx.local)) fn args: D.t =
-    let (cpa,fl,dep) as st = ctx.local in
     (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+    let (cpa,fl,dep) as st = ctx.local in
+    let vals, pa, heap_mem =
+      (* if this is a start call, we have to handle the pointer arguments sepcially *)
+      if is_main_call fn args then
+        heapify_pointers fn ctx.global ctx.local args
+      else
+        let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+        let fundec = Cilfacade.getdec fn in
+        let pa = zip fundec.sformals vals in
+        (vals, pa, [])
+    in
     (* generate the entry states *)
-    let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
-    let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
+    (* Add values for memory cells pointed to by arguments.*)
+    let new_cpa = fst_triple @@ set_many ctx.ask ctx.global (new_cpa, fl, dep) heap_mem in
     new_cpa, nfl, dep
 
   let enter ctx lval fn args : (D.t * D.t) list =
+    if Set.mem fn.vname (mainfuns ()) then
+      print_endline @@ fn.vname ^ " ist eine Startfunktion";
+    (* make_entry has special treatment args that are equal to MyCFG.unknown_exp *)
     [ctx.local, make_entry ctx fn args]
 
 
@@ -1933,6 +2023,8 @@ struct
     List.iter (uncurry ctx.spawn) forks;
     let cpa,fl,dep as st = ctx.local in
     let gs = ctx.global in
+    (* print_endline (match lv with Some l -> sprint d_lval l | None -> "None");
+    print_endline (f.vname); *)
     match LF.classify f.vname args with
     | `Unknown "F59" (* strcpy *)
     | `Unknown "F60" (* strncpy *)
@@ -2048,22 +2140,18 @@ struct
     | `Malloc size -> begin
         match lv with
         | Some lv ->
-          let heap_var =
-            if (get_bool "exp.malloc-fail")
-            then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
-            else heap_var !Tracing.current_loc
-          in
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
-                                  (eval_lv ctx.ask gs st lv, `Address heap_var)]
+          (* For the basic heap analysis, we use let the temporary variable a malloced value is assigned to, point to a "dummy" bottom  *)
+          set ctx.ask gs st (eval_lv ctx.ask gs st lv) (VD.bot ())
         | _ -> st
       end
     | `Calloc size ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
+          (* let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
           set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
+                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))] *)
+          set_many ctx.ask gs st [(*(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));*)
+                                  (eval_lv ctx.ask gs st lv, VD.bot ())]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
@@ -2203,6 +2291,7 @@ module type MainSpec = sig
   val return_varinfo: unit -> Cil.varinfo
   type extra = (varinfo * Offs.t * bool) list
   val context_cpa: D.t -> BaseDomain.CPA.t
+  val eval_lv: Q.ask -> (Basetype.Variables.t -> G.t) ->  (BaseDomain.CPA.t * BaseDomain.Flag.t * BaseDomain.PartDeps.t) -> lval -> ValueDomain.AD.t
 end
 
 module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)

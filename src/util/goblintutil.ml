@@ -112,10 +112,12 @@ let in_verifying_stage = ref false
 let verified : bool option ref = ref None
 
 let escape (x:string):string =
-  Str.global_replace (Str.regexp "&") "&amp;" x |>
+  String.escaped x |>
+  Str.global_replace (Str.regexp "&") "&amp;" |>
   Str.global_replace (Str.regexp "<") "&lt;" |>
   Str.global_replace (Str.regexp ">") "&gt;" |>
   Str.global_replace (Str.regexp "\"") "&quot;"
+
 
 let trim (x:string): string =
   let len = String.length x in

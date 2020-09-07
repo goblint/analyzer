@@ -321,6 +321,7 @@ struct
           )
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
+           (* TODO: Do something here  ? *)
           `Address (match v with
               | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr
               | `Int x -> AD.top_ptr
@@ -357,7 +358,7 @@ struct
                 | `Union x (* when same (Unions.keys x) *) -> x
                 | _ -> log_top __POS__; Unions.top ()
               )
-        (* | _ -> log_top (); `Top *)
+        | TBuiltin_va_list _ -> log_top __POS__; `Top
         | TVoid _ -> log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
@@ -367,7 +368,7 @@ struct
 
   let warn_type op x y =
     if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
+      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s in %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.file !Tracing.current_loc.line pretty x pretty y
 
   let leq x y =
     match (x,y) with

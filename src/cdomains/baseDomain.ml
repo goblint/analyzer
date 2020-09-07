@@ -27,12 +27,12 @@ end
 
 let heap_hash = Hashtbl.create 113
 
-let get_heap_var loc =
-  try Hashtbl.find heap_hash loc
+let get_heap_var ?(arg=false) typ_sig =
+  try Hashtbl.find heap_hash typ_sig
   with Not_found ->
-    let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
+    let name = (if arg then "(arg@" else "(alloc@") ^ (Prelude.Ana.sprint d_typsig typ_sig) ^ ")" in
     let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-    Hashtbl.add heap_hash loc newvar;
+    Hashtbl.add heap_hash typ_sig newvar;
     newvar
 
 module Glob =
