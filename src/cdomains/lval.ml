@@ -361,7 +361,7 @@ struct
 
   let is_definite = function
     | NullPtr | StrPtr _ -> true
-    | Addr (v,o) when Offs.is_definite o -> true
+    (* | Addr (v,o) when Offs.is_definite o -> true (* This does not hold for typebasedheaps *)*)
     | _ -> false
 
   let leq x y = match x, y with
