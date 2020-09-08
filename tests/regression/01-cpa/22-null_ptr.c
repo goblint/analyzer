@@ -35,8 +35,8 @@ int main(){
     b = 0;
     assert(*x == 0); // UNKNOWN
     if (x != &b) {
-      assert(x == &a);
-      assert(*x == 1);
+      assert(x == &a); // UNKNOWN
+      assert(*x == 1); // UNKNOWN
     }
   } else {
     assert(x == 0);

@@ -77,22 +77,22 @@ int main () {
   ip = c; // this means &c[0]
 
   // dereferencing...
-  assert(*ip == 5);
+  assert(*ip == 5);  // UNKNOWN
 
   // pointing into the array
   ip = &c[1];
-  assert(*ip == 5);
+  assert(*ip == 5);  // UNKNOWN
 
   // and some pointer arithmetic (tests are meaningless)
   *ip = 6;
   ip++;
-  assert(*ip == 5);
+  assert(*ip == 5);  // UNKNOWN
 
   // Now testing arrays inside structs.
   struct kala x;
   ip = x.a;
   x.a[0] = 7;
-  assert(*ip == 7);
+  assert(*ip == 7);  // UNKNOWN
 
   // (typeless) Top index
   assert(x.a[top] == 7); // UNKNOWN

@@ -90,25 +90,25 @@ int main(){
     int c[5];
     int *e;
     e = c;
-    assert(c == &c[0]);
-    assert(c == e);
-    assert(&c[1] == e+1);
+    assert(c == &c[0]); // UNKNOWN
+    assert(c == e); // UNKNOWN
+    assert(&c[1] == e+1); // UNKNOWN
     // assert(c[1] == *(e+1)); // TODO array content is still `Bot
     // of structs
     struct a f[5];
-    assert((int*)f == &(f[0].x)); // index 0, first field
-    assert((void*)f == &(f[0].x)); // same, but with other type (address is still the same)
+    assert((int*)f == &(f[0].x)); // UNKNOWN index 0, first field
+    assert((void*)f == &(f[0].x)); // UNKNOWN same, but with other type (address is still the same)
     // same, with typedef:
     addr x, y;
     x = (addr)f;
     y = &f[0].x;
-    assert(x == y);
+    assert(x == y); // UNKNOWN
     int* p = (int*)f;
-    assert((((struct a*)p)+1) == &f[1]);
+    assert((((struct a*)p)+1) == &f[1]); // UNKNOWN
     // of arrays
     int g[3][4];
     p = (int*)g;
-    assert(((int(*)[4])p)+1 == &g[1]);
+    assert(((int(*)[4])p)+1 == &g[1]); // UNKNOWN
   }
 
   return 0;

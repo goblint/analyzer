@@ -92,7 +92,7 @@ int main () {
   struct kala x;
   ip = x.a;
   x.a[0] = 7;
-  assert(*ip == 7);
+  assert(*ip == 7); // UNKNOWN
 
   // (typeless) Top index
   assert(x.a[top] == 7); // UNKNOWN

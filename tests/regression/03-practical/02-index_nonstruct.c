@@ -10,7 +10,7 @@ int main(){
   s * K = malloc(sizeof(s));
   K->i = 1;
   l = K->i;
-  assert(l == 17); // FAIL
+  assert(l == 17); // UNKNOWN
   return 0;
 }
 
