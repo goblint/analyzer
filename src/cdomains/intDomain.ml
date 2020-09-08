@@ -149,10 +149,66 @@ module Std (B: sig
 end
 (* include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end) *)
 
-module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit ints *)
+module IntPair =
 struct
-  let name () = "32bit intervals"
-  type t = (int64 * int64) option [@@deriving to_yojson]
+  type t = (int64 * int64) [@@deriving to_yojson]
+
+  let min_int, max_int = Size.range Cil.IInt
+
+  let compare (x0, y0) (x1, y1) =
+    match Int64.compare x0 x1 with
+    | 0 -> Int64.compare y0 y1
+    | c -> c
+
+  let leq (x: t option) (y:t option) =
+    match x, y with
+    | None, _ -> true
+    | Some _, None -> false
+    | Some (x1,x2), Some (y1,y2) -> Int64.compare x1 y1 >= 0 && Int64.compare x2 y2 <= 0
+
+  let norm = function None -> None | Some (x,y) ->
+    if Int64.compare x y > 0 then None
+    else if Int64.compare min_int x > 0 || Int64.compare max_int y < 0 then Some (min_int, max_int)
+    else Some (x,y)
+
+  let norm_set x =
+    match norm x with
+    | Some y -> y
+    | None -> (1L, 0L)
+
+  let add (x1, x2) (y1, y2) = ((Int64.add x1 y1), (Int64.add x2 y2))
+
+  let neg (x1, x2) _ = (Int64.neg x2, Int64.neg x1)
+
+  let mul (x1, x2) (y1, y2) =
+    let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
+    let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
+                     ((min (min x1y1 x1y2) (min x2y1 x2y2)),
+                      (max (max x1y1 x1y2) (max x2y1 x2y2)))
+
+  let rec div (x1, x2) (y1, y2) =
+    begin match y1, y2 with
+      | 0L, 0L       -> (min_int, max_int)
+      | 0L, _        -> div (x1,x2) (1L,y2)
+      | _      , 0L  -> div (x1,x2) (y1,(-1L))
+      | _ when leq (Some (0L, 0L)) (Some (y1,y2)) -> (min_int, max_int)
+      | _ ->
+        let x1y1n = (Int64.div x1 y1) in let x1y2n = (Int64.div x1 y2) in
+        let x2y1n = (Int64.div x2 y1) in let x2y2n = (Int64.div x2 y2) in
+        let x1y1p = (Int64.div x1 y1) in let x1y2p = (Int64.div x1 y2) in
+        let x2y1p = (Int64.div x2 y1) in let x2y2p = (Int64.div x2 y2) in
+                     ((min (min x1y1n x1y2n) (min x2y1n x2y2n)),
+                      (max (max x1y1p x1y2p) (max x2y1p x2y2p)))
+    end
+end
+
+module Interval32 : S with type t = IntPair.t option = (* signed 32bit ints *)
+struct
+  include Printable.Std (* for default invariant, tag, ... *)
+
+  open Int64
+
+  type t = IntPair.t option [@@deriving to_yojson]
 
   let min_int, max_int = Size.range Cil.IInt (* TODO this currently depends on the machine Cil was compiled on... *)
   let top () = Some (min_int, max_int)
@@ -161,34 +217,21 @@ struct
 
   include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
 
-  let equal_to i = function
-    | None -> failwith "unsupported: equal_to with bottom"
-    | Some (a, b) -> if a = b && b = i then `Eq else if a <= i && i <= b then `Top else `Neq
-
-  let norm = function None -> None | Some (x,y) ->
-    if Int64.compare x y > 0 then None
-    else if Int64.compare min_int x > 0 || Int64.compare max_int y < 0 then top ()
-    else Some (x,y)
-
-  let leq (x:t) (y:t) =
-    match x, y with
-    | None, _ -> true
-    | Some _, None -> false
-    | Some (x1,x2), Some (y1,y2) -> Int64.compare x1 y1 >= 0 && Int64.compare x2 y2 <= 0
+  let leq = IntPair.leq
 
   let join (x:t) y =
     match x, y with
     | None, z | z, None -> z
-    | Some (x1,x2), Some (y1,y2) -> norm @@ Some (min x1 y1, max x2 y2)
+    | Some (x1,x2), Some (y1,y2) -> IntPair.norm @@ Some (min x1 y1, max x2 y2)
 
   let meet (x:t) y =
     match x, y with
     | None, z | z, None -> None
-    | Some (x1,x2), Some (y1,y2) -> norm @@ Some (max x1 y1, min x2 y2)
+    | Some (x1,x2), Some (y1,y2) -> IntPair.norm @@ Some (max x1 y1, min x2 y2)
 
   let is_int = function Some (x,y) when Int64.compare x y = 0 -> true | _ -> false
   let to_int = function Some (x,y) when Int64.compare x y = 0 -> Some x | _ -> None
-  let of_interval (x,y) = norm @@ Some (x,y)
+  let of_interval (x,y) = IntPair.norm @@ Some (x,y)
   let of_int x = of_interval (x,x)
   let zero = Some (0L, 0L)
   let one  = Some (1L, 1L)
@@ -224,7 +267,7 @@ struct
         let a = Size.cast t x in
         let b = Size.cast t y in
         let a,b = if x<>a || y<>b then Size.range t else a,b in
-        norm @@ Some (a, b)
+        IntPair.norm @@ Some (a, b)
       with Size.Not_in_int64 -> top () (* TODO top not safe b/c range too small *)
 
   let widen x y =
@@ -233,7 +276,7 @@ struct
     | Some (l0,u0), Some (l1,u1) ->
       let l2 = if Int64.compare l0 l1 = 0 then l0 else min l1 min_int in
       let u2 = if Int64.compare u0 u1 = 0 then u0 else max u1 max_int in
-      norm @@ Some (l2,u2)
+      IntPair.norm @@ Some (l2,u2)
 
   let narrow x y =
     match x, y with
@@ -241,7 +284,7 @@ struct
     | Some (x1,x2), Some (y1,y2) ->
       let lr = if Int64.compare min_int x1 = 0 then y1 else x1 in
       let ur = if Int64.compare max_int x2 = 0 then y2 else x2 in
-      norm @@ Some (lr,ur)
+      IntPair.norm @@ Some (lr,ur)
 
   let log f i1 i2 =
     match is_bot i1, is_bot i2 with
@@ -273,7 +316,7 @@ struct
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
     | _ ->
       match to_int i1, to_int i2 with
-      | Some x, Some y -> (try norm (of_int (f x y)) with Division_by_zero -> top ())
+      | Some x, Some y -> (try IntPair.norm (of_int (f x y)) with Division_by_zero -> top ())
       | _              -> top ()
 
   let bitxor = bit Int64.logxor
@@ -292,13 +335,13 @@ struct
   let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y))
   let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
 
-  let neg = function None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
+  let neg = function None -> None | Some x -> IntPair.norm @@ Some (IntPair.neg x (0L, 0L))
 
   let add x y =
     match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
-    | Some (x1,x2), Some (y1,y2) -> norm @@ Some (Int64.add x1 y1, Int64.add x2 y2)
+    | Some a, Some b -> IntPair.norm @@ Some (IntPair.add a b)
 
   let sub i1 i2 = add i1 (neg i2)
 
@@ -318,30 +361,14 @@ struct
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
-    | Some (x1,x2), Some (y1,y2) ->
-      let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
-      let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
-      norm @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
-                    (max (max x1y1 x1y2) (max x2y1 x2y2)))
+    | Some a, Some b -> IntPair.norm @@ Some (IntPair.mul a b)
 
-  let rec div x y =
+  let div x y =
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
-    | Some (x1,x2), Some (y1,y2) ->
-      begin match y1, y2 with
-        | 0L, 0L       -> top () (* TODO warn about undefined behavior *)
-        | 0L, _        -> div (Some (x1,x2)) (Some (1L,y2))
-        | _      , 0L  -> div (Some (x1,x2)) (Some (y1,(-1L)))
-        | _ when leq (of_int 0L) (Some (y1,y2)) -> top ()
-        | _ ->
-          let x1y1n = (Int64.div x1 y1) in let x1y2n = (Int64.div x1 y2) in
-          let x2y1n = (Int64.div x2 y1) in let x2y2n = (Int64.div x2 y2) in
-          let x1y1p = (Int64.div x1 y1) in let x1y2p = (Int64.div x1 y2) in
-          let x2y1p = (Int64.div x2 y1) in let x2y2p = (Int64.div x2 y2) in
-          norm @@ Some ((min (min x1y1n x1y2n) (min x2y1n x2y2n)),
-                        (max (max x1y1p x1y2p) (max x2y1p x2y2p)))
-      end
+    | Some a, Some b -> IntPair.norm @@ Some (IntPair.div a b)
+
   let ne i1 i2 = to_bool_interval (sub i1 i2)
 
   let eq i1 i2 = to_bool_interval (lognot (sub i1 i2))
@@ -402,19 +429,6 @@ struct
     QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) of_interval pair_arb)
 end
 
-module IntPair =
-struct
-  type t = (int64 * int64)
-
-  let compare (x0, y0) (x1, y1) =
-    match Int64.compare x0 x1 with
-    | 0 -> Int64.compare y0 y1
-    | c -> c
-
-  let leq (x0, y0) (x1, y1) : bool =
-    Int64.compare x0 y0 >= 0 && Int64.compare x1 y1 <= 0
-end
-
 (* Most of functions implemented here basically work the same way as their respective ones from
    Interval32, so they will be commented only if they differ significantly from the Interval32 ones*)
 module IntervalSet : S with type t = Set.Make(IntPair).t option =
@@ -465,8 +479,8 @@ struct
   let rec meet_lists ?(acc = []) l1 l2 =
     match l1, l2 with
     | (x1, y1) :: xs1, (x2, y2) :: xs2 ->
-      if      Int64.compare y1 x2 < 0 then meet_lists xs1 l2
-      else if Int64.compare y2 x1 < 0 then meet_lists l1 xs2
+      if      Int64.compare y1 x2 < 0 then meet_lists ~acc:acc xs1 l2
+      else if Int64.compare y2 x1 < 0 then meet_lists ~acc:acc l1 xs2
       else
         let a = max x1 x2 in
         let b = min y1 y2 in
@@ -510,12 +524,6 @@ struct
     if Int64.compare x y > 0 then None
     else if Int64.compare min_int x > 0 || Int64.compare max_int y < 0 then top ()
     else Some (SS.add (x,y) SS.empty)
-
-  let norm_interval (x, y) =
-    if Int64.compare min_int x > 0 || Int64.compare max_int y < 0 then (min_int, max_int)
-    else (x, y)
-
-  let (@@) f x = f x
 
   let to_int = function
     | Some s when SS.cardinal s = 1 ->
@@ -562,9 +570,50 @@ struct
   let is_bool x =
     x <> None && not (leq zero x) || equal x zero
 
-  let to_excl_list _ = None
-  let of_excl_list t _ = top ()
-  let is_excl_list _ = false
+  let rec unfold_right f init =
+    match f init with
+    | None -> []
+    | Some (x, next) -> x :: unfold_right f next
+
+  let rec excl_list l =
+    match l with
+    | [] -> failwith "empty entry\n"
+    | [(x, y)] -> []
+    | (_, x) :: (y, y1) :: xs ->
+      let range i = if Int64.compare i (Int64.sub y 1L) >= 0 then None else Some (i, Int64.add i 1L) in
+      (unfold_right range (Int64.add x 1L)) @ (excl_list ((y, y1)::xs))
+
+  let to_excl_list x =
+    match x with
+    | None -> None
+    | _ when is_top x -> Some []
+    | Some s ->
+      let l, _ = SS.min_elt s in
+      let _, r = SS.max_elt s in
+      if (l <> min_int) || (r <> max_int) then None else
+        let set_list = SS.elements s |> List.sort IntPair.compare in
+        Some (excl_list set_list)
+
+  let of_excl_list _ l =
+    match l with
+    | [] -> top ()
+    | _ ->
+      let l_sorted = List.sort Int64.compare l in
+      let l_1 = l_sorted |> List.rev |> List.tl |> List.rev in
+      let l_2 = l_sorted |> List.tl in
+      let i_list = List.map2 (fun x y -> (Int64.add x 1L, Int64.sub y 1L)) l_1 l_2 in
+      let min = List.hd l_sorted in
+      let max = l_sorted |> List.rev |> List.hd in
+      Some (SS.of_list ([(min_int, Int64.sub min 1L)] @ i_list @ [(Int64.add max 1L, max_int)]))
+
+  let is_excl_list x =
+    match x with
+    | None -> false
+    | _ when is_top x -> true
+    | Some s ->
+      let l, _ = SS.min_elt s in
+      let _, r = SS.max_elt s in
+      if (l <> min_int) || (r <> max_int) then false else true
 
   let of_interval (x,y) = norm @@ Some (x,y)
   let of_int x = of_interval (x,x)
@@ -584,6 +633,64 @@ struct
     | Some s ->
       let min_elt = SS.min_elt s in
       Some ((fun (x, y) -> x) min_elt)
+
+  (* this thing is needed to merge some intervals before performing an arithmetic operation
+     in case there are too many of them in the operands. In order to lose as little precision
+     as possible, the intervals will be merged according to distances between them *)
+  let merge_many l1 l2 =
+    if (List.length l1) * (List.length l2) < 256 then
+      (l1, l2)
+    else begin
+      let ls1 = List.sort IntPair.compare l1 in
+      let ls2 = List.sort IntPair.compare l2 in
+
+      let rec distances ?(i = 0) l =
+        match l with
+        | (_, y1) :: (x2, y2) :: xs -> (i, Int64.sub x2 y1) :: (distances ~i:(i + 1) ((x2, y2) :: xs))
+        | [x] -> []
+        | [] -> failwith "empty entry"
+      in
+
+      let dist1 = List.sort (fun x y -> Int64.compare (snd x) (snd y)) (distances ls1) in
+      let dist2 = List.sort (fun x y -> Int64.compare (snd x) (snd y)) (distances ls2) in
+
+      let rec length_needed len1 len2 =
+        if len1 * len2 < 256 then (len1, len2)
+        else if len1 > len2 then length_needed (len1 - 1) len2
+          else                   length_needed len1 (len2 - 1)
+      in
+
+      let (len1, len2) = length_needed (List.length l1) (List.length l2) in
+      let (num_to_merge1, num_to_merge2) = ((List.length l1) - len1, (List.length l2) - len2) in
+
+      let rec sublist l length =
+        match length with
+        | 0 -> []
+        | _ -> match l with
+          | x :: xs -> x :: (sublist xs (length - 1))
+          | [] -> []
+      in
+
+      let to_merge1 = List.sort (fun x y -> Int.compare (fst x) (fst y)) (sublist dist1 num_to_merge1) in
+      let to_merge2 = List.sort (fun x y -> Int.compare (fst x) (fst y)) (sublist dist2 num_to_merge2) in
+
+      let rec merge ?(i = 0) l to_merge =
+        match l with
+        | (x1, y1) :: (x2, y2) :: xs -> begin
+          match to_merge with
+          | t :: ts ->
+            if i = fst t then
+              merge ~i:(i + 1) ((x1, y2) :: xs) ts
+            else
+              (x1, y1) :: (merge ~i:(i + 1) ((x2, y2) :: xs) to_merge)
+          | [] -> (x1, y1) :: (merge ~i:(i + 1) ((x2, y2) :: xs) to_merge) end
+        | [x] -> [x]
+        | [] -> failwith "empty entry"
+      in
+
+      let merged1 = merge ls1 to_merge1 in
+      let merged2 = merge ls2 to_merge2 in
+      (merged1, merged2) end
 
   (* takes a sorted list of intervals, iterates through them and merges two adjacent if they intersect*)
   let rec merge_intersect ?(acc = []) l =
@@ -613,54 +720,38 @@ struct
       | [], x2 :: xs2, _ -> arithm ~acc1:[] ~acc2:acc2 f acc1 xs2
       | [], [], [] | _ :: _, [], [] -> failwith "error: empty entry"
 
-  let add_interval (x1, x2) (y1, y2) =
-    norm_interval ((Int64.add x1 y1), (Int64.add x2 y2))
-
   let add x y =
     match x, y with
     | None, _ | _, None -> None
-    | Some a, Some b -> arithm add_interval (SS.elements a) (SS.elements b)
-
-  let neg_interval (x1, x2) _ =
-    norm_interval (Int64.neg x2, Int64.neg x1)
+    | Some a, Some b ->
+      let (x_merged, y_merged) = merge_many (SS.elements a) (SS.elements b) in
+      let f = (fun x y -> IntPair.norm_set @@ Some (IntPair.add x y)) in
+      arithm f x_merged y_merged
 
   let neg x =
     match x with
     | None -> None
-    | Some s -> arithm neg_interval (SS.elements s) [(0L, 0L)]
+    | Some s ->
+      let f = (fun x y -> IntPair.norm_set @@ Some (IntPair.neg x y)) in
+      arithm f (SS.elements s) [(0L, 0L)]
 
   let sub x y = add x (neg y)
-
-  let mul_interval (x1, x2) (y1, y2) =
-    let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
-    let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
-    norm_interval ((min (min x1y1 x1y2) (min x2y1 x2y2)),
-                   (max (max x1y1 x1y2) (max x2y1 x2y2)))
 
   let mul x y =
     match x, y with
     | None, _ | _, None -> None
-    | Some s1, Some s2 -> arithm mul_interval (SS.elements s1) (SS.elements s2)
-
-  let rec div_interval (x1, x2) (y1, y2) =
-    begin match y1, y2 with
-      | 0L, 0L       -> (min_int, max_int)
-      | 0L, _        -> div_interval (x1,x2) (1L,y2)
-      | _      , 0L  -> div_interval (x1,x2) (y1,(-1L))
-      | _ when Interval32.leq (Some (0L, 0L)) (Some (y1,y2)) -> (min_int, max_int)
-      | _ ->
-        let x1y1n = (Int64.div x1 y1) in let x1y2n = (Int64.div x1 y2) in
-        let x2y1n = (Int64.div x2 y1) in let x2y2n = (Int64.div x2 y2) in
-        let x1y1p = (Int64.div x1 y1) in let x1y2p = (Int64.div x1 y2) in
-        let x2y1p = (Int64.div x2 y1) in let x2y2p = (Int64.div x2 y2) in
-        norm_interval ((min (min x1y1n x1y2n) (min x2y1n x2y2n)),
-                      (max (max x1y1p x1y2p) (max x2y1p x2y2p)))
-    end
+    | Some s1, Some s2 ->
+      let (x_merged, y_merged) = merge_many (SS.elements s1) (SS.elements s2) in
+      let f = (fun x y -> IntPair.norm_set @@ Some (IntPair.mul x y)) in
+      arithm f x_merged y_merged
 
   let div x y =
     match x, y with
     | None, _ | _, None -> None
-    | Some s1, Some s2 -> arithm mul_interval (SS.elements s1) (SS.elements s2)
+    | Some s1, Some s2 ->
+      let (x_merged, y_merged) = merge_many (SS.elements s1) (SS.elements s2) in
+      let f = (fun x y -> IntPair.norm_set @@ Some (IntPair.div x y)) in
+      arithm f x_merged y_merged
 
   let join x y =
     match x, y with
@@ -669,7 +760,7 @@ struct
       let l1 = SS.elements s1 in
       let l2 = SS.elements s2 in
       let l_joined = merge_intersect (List.sort IntPair.compare (l1 @ l2)) in
-      if l_joined = [] then None else Some (SS.of_list l_joined)
+      Some (SS.of_list l_joined)
 
   let meet x y =
     match x, y with
@@ -681,32 +772,38 @@ struct
   (* the result of widening will always be one large interval *)
   let widen x y =
     match x, y with
-    | None, None -> None
-    | None, Some s | Some s, None ->
-      let l1, _ = SS.min_elt s in
-      let _, u1 = SS.max_elt s in
-      norm @@ Some (l1, u1)
+    | _, None | None, _ -> None
     | Some s1, Some s2 ->
-      let l0, _ = SS.min_elt s1 in
-      let _, u0 = SS.max_elt s1 in
-      let l1, _ = SS.min_elt s2 in
-      let _, u1 = SS.max_elt s2 in
-      let l2 = if Int64.compare l0 l1 = 0 then l0 else min l1 min_int in
-      let u2 = if Int64.compare u0 u1 = 0 then u0 else max u1 max_int in
-      norm @@ Some (l2, u2)
+      let rec widen_set ?(l1 = min_int) s l u =
+        match s with
+        | (x1, x2) :: xs ->
+          if Int64.compare l x1 < 0 then begin
+            if Int64.compare u x2 > 0 then widen_set ~l1:l1 xs l u
+            else (l1, x2) end
+          else begin
+            if Int64.compare u x2 > 0 then widen_set ~l1:x1 xs l u
+            else (x1, x2) end
+        | [] -> (l1, max_int)
+      in
 
-  (* to be fixed *)
+      let l0, _ = SS.min_elt s2 in
+      let _, u0 = SS.max_elt s2 in
+      let merged = (SS.elements s1) @ [(widen_set (SS.elements s1) l0 u0)] |> List.sort IntPair.compare |> merge_intersect in
+      Some (SS.of_list merged)
+
   let narrow x y =
     match x, y with
     | _, None | None, _ -> None
     | Some s1, Some s2 ->
-      let l0, _ = SS.min_elt s1 in
-      let _, u0 = SS.max_elt s1 in
-      let l1, _ = SS.min_elt s2 in
-      let _, u1 = SS.max_elt s2 in
-      let lr = if Int64.compare min_int l0 = 0 then l1 else l0 in
-      let ur = if Int64.compare max_int u0 = 0 then u1 else u0 in
-      norm @@ Some (lr, ur)
+      let l0, _ = SS.min_elt s2 in
+      let _, u0 = SS.max_elt s2 in
+      Some (s1 |> SS.map (fun (a, b) ->
+                                 match a, b with
+                                 | v1, v2 when v1 = min_int && v2 = max_int -> (l0, u0)
+                                 | v1, _ when v1 = min_int -> if Int64.compare l0 b <= 0 then (l0, b) else (1L, 0L)
+                                 | _, v2 when v2 = max_int -> if Int64.compare a u0 <= 0 then (a, u0) else (1L, 0L)
+                                 | _, _ -> (a, b)
+                                 ) |> SS.filter (fun (e1, e2) -> Int64.compare e1 1L <> 0 || Int64.compare e1 0L <> 0))
 
   let log f i1 i2 =
     match is_bot i1, is_bot i2 with
@@ -764,9 +861,19 @@ struct
         let d = of_interval (Int64.neg u, u) in
         meet (bit Int64.rem x y) d
 
-  let ne i1 i2 = to_bool_interval (sub i1 i2)
+  let ne i1 i2 =
+    let m = meet i1 i2 in
+    match m with
+    | None -> one
+    | Some s ->
+      if equal i1 i2 && is_int i1 then zero else top_bool
 
-  let eq i1 i2 = to_bool_interval (lognot (sub i1 i2))
+  let eq i1 i2 =
+    let m = meet i1 i2 in
+    match m with
+    | None -> zero
+    | Some s ->
+      if equal i1 i2 && is_int i1 then one else top_bool
 
   let ge x y =
     match x, y with
@@ -858,6 +965,7 @@ struct
   include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
+  
   let is_top _ = false
   let is_bot _ = false
 
