@@ -707,7 +707,6 @@ struct
           `Address (AD.map array_start (eval_lv a gs st lval))
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
         | CastE  (t, exp) ->
-          (* print_endline @@ "Casting " ^ (sprint d_exp exp) ^ " to " ^ (sprint d_type t) ; *)
           let v = eval_rv a gs st exp in
           VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()
@@ -1556,7 +1555,6 @@ struct
    * Simple defs for the transfer functions
    **************************************************************************)
   let assign ctx (lval:lval) (rval:exp):store  =
-    print_endline "ASSIGN";
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
@@ -1646,8 +1644,6 @@ struct
       in
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
-        print_endline @@ "Lval: " ^ (sprint d_lval lval);
-        print_endline @@ "Rval: " ^ (sprint d_exp rval);
         if is_malloc_assignment rval then (
           handle_malloc_assignment ()
         ) else (
@@ -1898,8 +1894,6 @@ struct
     new_cpa, nfl, dep
 
   let enter ctx lval fn args : (D.t * D.t) list =
-    if Set.mem fn.vname (mainfuns ()) then
-      print_endline @@ fn.vname ^ " ist eine Startfunktion";
     (* make_entry has special treatment args that are equal to MyCFG.unknown_exp *)
     [ctx.local, make_entry ctx fn args]
 
@@ -2032,8 +2026,6 @@ struct
     List.iter (uncurry ctx.spawn) forks;
     let cpa,fl,dep as st = ctx.local in
     let gs = ctx.global in
-    (* print_endline (match lv with Some l -> sprint d_lval l | None -> "None");
-    print_endline (f.vname); *)
     match LF.classify f.vname args with
     | `Unknown "F59" (* strcpy *)
     | `Unknown "F60" (* strncpy *)
