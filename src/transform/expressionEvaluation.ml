@@ -75,9 +75,9 @@ module Transformation : Transform.S =
                             begin
                               match self#get_value succeeding_location query with
                               | Some succeeding_value -> succeeding_value
-                              | None -> Some false
+                              | None -> value
                             end
-                      | None -> Some false
+                      | None -> Some false (* Not necessary *)
                     end
                 | None -> Some false
               end
