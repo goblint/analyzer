@@ -938,8 +938,16 @@ struct
   module I = CBigInt
   module C = CircularBigInt
   type t = I.t interval
-  let to_yojson _ = failwith "TODO to_yojson"
 
+  let compare a b = match a, b with
+    | Top x, Top y -> compare x y
+    | Top _, _ -> 1
+    | _, Top _ -> -1
+    | Int (x, l1, r1), Int (y, l2, r2) -> if compare x y <> 0 then compare x y else IntOps.BigIntOps.(if compare l1 l2 <> 0 then compare l1 l2 else compare r1 r2)
+    | Bot x, Bot y -> compare x y
+    | Bot _, _ -> -1
+    | _, Bot _ -> 1
+  let to_yojson _ = failwith "TODO to_yojson"
   let max_width = 64
   let size t = Size.bit t
 
