@@ -1663,11 +1663,11 @@ struct
             set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
           )
         )
-      | _ -> 
-        if is_malloc_assignment rval 
+      | _ ->
+        if is_malloc_assignment rval
           then handle_malloc_assignment ()
           else set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
-      
+
 
   module Locmap = Deadcode.Locmap
 
@@ -1858,10 +1858,15 @@ struct
     in arg_val a gs st t [] true
 
   let heapify_pointers (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
+    let module AVSet = Set.Make(struct
+        type t = address * value
+        let compare (x1,y1) (x2,y2) = let r = AD.compare x1 x2 in if r <> 0 then r else VD.compare y1 y2
+      end)
+    in
     let create_val t = arg_value () gs st t  in
     let arg_types = get_arg_types fn in
     let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
-    let heap_mem = values |> List.map snd |> List.flatten |> Set.of_list |> Set.to_list in
+    let heap_mem = values |> List.map snd |> List.flatten |> AVSet.of_list |> AVSet.to_list in
     let fundec = Cilfacade.getdec fn in
     let values = List.map fst values in
     let pa = zip fundec.sformals values in
