@@ -32,24 +32,9 @@ module Transformation : Transform.S =
 
       let function_table, statement_table =
         let function_statements =
-          let rec resolve_statements (block : Cil.block) =
-            block.bstmts
-              |> List.map expand
-              |> List.flatten
-          and expand statement =
-            match statement.skind with
-            | (Instr _ | Return _ | Goto _ | Break _ | Continue _) ->
-                [statement]
-            | (Switch (_, block, _, _) | Loop (block, _, _, _) | Block block) ->
-                (resolve_statements block)
-            | If (_, block_1, block_2, _) ->
-                (resolve_statements block_1) @ (resolve_statements block_2)
-            | _ ->
-                []
-          in
           global_functions
             (* Take all statements *)
-            |> List.map (fun (f : Cil.fundec) -> resolve_statements f.sbody |> List.map (fun s -> f, s))
+            |> List.map (fun (f : Cil.fundec) -> f.sallstmts |> List.map (fun s -> f, s))
             |> List.flatten
             (* Add locations *)
             |> List.map (fun (f, (s : Cil.stmt)) -> (Cil.get_stmtLoc s.skind, f, s))
