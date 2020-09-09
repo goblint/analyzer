@@ -5,18 +5,17 @@ module Transformation : Transform.S =
 
     type query =
       {
-        kind : SyntacticalAnalyzer.JsonParser.kind; [@key "kind"]
-        target : SyntacticalAnalyzer.JsonParser.target; [@key "target"]
-        find : SyntacticalAnalyzer.JsonParser.find; [@key "find"]
-        structure : (SyntacticalAnalyzer.JsonParser.structure [@default None_s]); [@key "structure"]
-        limitation : (SyntacticalAnalyzer.JsonParser.constr [@default None_c]); [@key "limitation"]
-        expression : string; [@key "expression"]
+        kind : SyntacticalAnalyzer.JsonParser.kind;
+        target : SyntacticalAnalyzer.JsonParser.target;
+        find : SyntacticalAnalyzer.JsonParser.find;
+        structure : (SyntacticalAnalyzer.JsonParser.structure [@default None_s]);
+        limitation : (SyntacticalAnalyzer.JsonParser.constr [@default None_c]);
+        expression : string;
         mode :
           [
-          | `Must [@name "must"]
-          | `May [@name "may"]
+          | `Must
+          | `May
           ];
-          [@key "mode"]
       }
       [@@deriving yojson]
 
