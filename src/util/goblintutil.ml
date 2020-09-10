@@ -47,23 +47,18 @@ let open_sockets i =
 (** prints the CFG on [getCFG] *)
 let cfg_print = ref false
 
-(** filter result xml *)
-let result_filter = ref ".*"
-
-let result_regexp = ref (Str.regexp "")
-
 (** Json files that are given as arguments *)
 let jsonFiles : string list ref = ref []
 
 (** has user specified other thread functions *)
 let has_otherfuns = ref false
 
-(** Tells the spec that result may still get smaller (on narrowing).
-    If this is false we can output messages and collect accesses. *)
-let may_narrow = ref true
+(** If this is true we output messages and collect accesses.
+    This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
+let should_warn = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
-let inthack = Int64.of_int (-19012009)
+let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
 
 (** number of times that globals change !CAUTION: This is only set in contain.ml and is not what one would think it is! *)
 let globals_changed = ref 0
@@ -113,7 +108,7 @@ let earlyglobs = ref false
 (** true if in verifying stage *)
 let in_verifying_stage = ref false
 
-(* None for noverify, Some true for verified, Some false if verfication failed *)
+(* None if verification is disabled, Some true if verification succeeded, Some false if verfication failed *)
 let verified : bool option ref = ref None
 
 let escape (x:string):string =
@@ -434,6 +429,5 @@ let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
 let arinc_period        = if scrambled then "M165" else "PERIOD"
 let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
-let get_goblint_path = Filename.dirname BatSys.executable_name
-
-let tryopt f a = try Some (f a) with _ -> None (* reason: match .. with _ does not include exceptions, or-patterns currently not supported for exceptions *)
+let exe_dir = Filename.dirname Sys.executable_name
+let command = String.concat " " (Array.to_list Sys.argv)

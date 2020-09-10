@@ -208,3 +208,162 @@ let write_file filename (module Task:Task) (module TaskResult:TaskResult): unit 
 
   GML.stop g;
   close_out_noerr out
+
+open Analyses
+module Result (Cfg : CfgBidir)
+              (Spec : SpecHC)
+              (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
+                                  and module GVar = Basetype.Variables
+                                  and module D = Spec.D
+                                  and module G = Spec.G)
+              (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
+              (GHT : BatHashtbl.S with type key = EQSys.GVar.t) = struct
+  let write result_fold file lh gh local_xml liveness entrystates =
+    let svcomp_unreach_call =
+      let dead_verifier_error (l, n, f) v acc =
+        match n with
+        (* FunctionEntry isn't used for extern __VERIFIER_error... *)
+        | FunctionEntry f when f.vname = Svcomp.verifier_error ->
+          let is_dead = not (liveness n) in
+          acc && is_dead
+        | _ -> acc
+      in
+      result_fold dead_verifier_error local_xml true
+    in
+    Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
+
+    let (witness_prev, witness_next) =
+      let ask_local (lvar:EQSys.LVar.t) local =
+        (* build a ctx for using the query system *)
+        let rec ctx =
+          { ask    = query
+          ; node   = fst lvar
+          ; control_context = Obj.repr (fun () -> snd lvar)
+          ; context = (fun () -> snd lvar)
+          ; edge    = MyCFG.Skip
+          ; local  = local
+          ; global = GHT.find gh
+          ; presub = []
+          ; postsub= []
+          ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+          ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
+          ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
+          ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
+          }
+        and query x = Spec.query ctx x in
+        Spec.query ctx
+      in
+      (* let ask (lvar:EQSys.LVar.t) = ask_local lvar (LHT.find lh lvar) in *)
+
+      let prev = LHT.create 100 in
+      let next = LHT.create 100 in
+      LHT.iter (fun lvar local ->
+          ignore (ask_local lvar local (Queries.IterPrevVars (fun (prev_node, prev_c_obj) edge ->
+              let prev_lvar: LHT.key = (prev_node, Obj.obj prev_c_obj) in
+              LHT.modify_def [] lvar (fun prevs -> (edge, prev_lvar) :: prevs) prev;
+              LHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar) :: nexts) next
+            )))
+        ) lh;
+
+      ((fun n ->
+          LHT.find_default prev n []), (* main entry is not in prev at all *)
+      (fun n ->
+          LHT.find_default next n [])) (* main return is not in next at all *)
+    in
+
+    let get: node * Spec.C.t -> Spec.D.t =
+      fun nc -> LHT.find_default lh nc (Spec.D.bot ())
+    in
+
+    let module Arg =
+    struct
+      module Node =
+      struct
+        include EQSys.LVar
+
+        let cfgnode = node
+
+        let to_string (n, c) =
+          (* copied from NodeCtxStackGraphMlWriter *)
+          let c_tag = Spec.C.tag c in
+          match n with
+          | Statement stmt  -> Printf.sprintf "s%d(%d)" stmt.sid c_tag
+          | Function f      -> Printf.sprintf "ret%d%s(%d)" f.vid f.vname c_tag
+          | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)" f.vid f.vname c_tag
+
+        let move (n, c) to_n = (to_n, c)
+        let is_live node = not (Spec.D.is_bot (get node))
+      end
+
+      let main_entry = WitnessUtil.find_main_entry entrystates
+      let next = witness_next
+    end
+    in
+    let module Arg =
+    struct
+      open MyARG
+      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (Cfg)))
+      include Intra (Arg.Node) (ArgIntra) (Arg)
+    end
+    in
+
+    let find_invariant nc = Spec.D.invariant "" (get nc) in
+
+    let module Task = struct
+        let file = file
+        let specification = Svcomp.unreach_call_specification
+
+        module Cfg = Cfg
+      end
+    in
+
+    if svcomp_unreach_call then (
+      let module TaskResult =
+      struct
+        module Arg = Arg
+        let result = true
+        let invariant = find_invariant
+        let is_violation _ = false
+        let is_sink _ = false
+      end
+      in
+      write_file "witness.graphml" (module Task) (module TaskResult)
+    ) else (
+      let is_violation = function
+        | FunctionEntry f, _ when f.vname = Svcomp.verifier_error -> true
+        | _, _ -> false
+      in
+      let is_sink =
+        (* TODO: somehow move this to witnessUtil *)
+        let non_sinks = LHT.create 100 in
+
+        (* DFS *)
+        let rec iter_node node =
+          if not (LHT.mem non_sinks node) then (
+            LHT.replace non_sinks node ();
+            List.iter (fun (_, prev_node) ->
+                iter_node prev_node
+              ) (witness_prev node)
+          )
+        in
+
+        LHT.iter (fun lvar _ ->
+            if is_violation lvar then
+              iter_node lvar
+          ) lh;
+
+        fun n ->
+          not (LHT.mem non_sinks n)
+      in
+      let module TaskResult =
+      struct
+        module Arg = Arg
+        let result = false
+        let invariant _ = Invariant.none
+        let is_violation = is_violation
+        let is_sink = is_sink
+      end
+      in
+      write_file "witness.graphml" (module Task) (module TaskResult)
+    )
+end

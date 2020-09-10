@@ -439,7 +439,7 @@ and distribute_access_exp f w r c = function
   | _ -> ()
 
 let add e w conf vo oo p =
-  if not !Goblintutil.may_narrow then begin
+  if !Goblintutil.should_warn then begin
     let ty = get_val_type e vo oo in
     (* let loc = !Tracing.current_loc in *)
     (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
