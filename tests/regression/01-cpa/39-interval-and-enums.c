@@ -50,7 +50,9 @@ int main () {
   assert(b==8); //UNKNOWN
 
   for(x = 0; x < 10; x++){
-    assert(x >= 0);
+    assert(x >= 0);  // UNKNOWN
+    // Because the false branch remains false for more iterations, the analysis behaves differently, meaning
+    // with ana.in.enums enabled, we don't know (x >= 0) here
     assert(x <= 9);
   }
   assert(x == 10);
