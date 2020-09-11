@@ -32,7 +32,6 @@ module D =
 struct
   type t = process [@@deriving to_yojson]
   include Printable.Std
-  include Lattice.StdCousot
 
   (* printing *)
   let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; pred=%s; ctx=%s }" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Pretty.sprint 200 (Pred.pretty () x.pred)) (Ctx.short 50 x.ctx)
@@ -85,5 +84,7 @@ struct
     (* let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r; *)
     if Pred.cardinal r.pred > 5 then (Messages.debug_each @@ "Pred.cardinal r.pred = " ^ string_of_int (Pred.cardinal r.pred) ^ " with value " ^ short 100 r(* ; failwith "STOP" *));
     r
+  let widen = join
   let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Pred.meet Ctx.meet
+  let narrow = meet
 end
