@@ -1293,17 +1293,18 @@ module Enums : S = struct
   open Batteries
   module I = Integers
   module R = Interval32 (* range for exclusion *)
-  let size t = R.of_interval (Size.bits_i64 t)
+  let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
   type e = I.t (* element *)
   and t = Inc of e list | Exc of e list * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
   let name () = "enums"
+  let top_range = R.of_interval (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let bot () = Inc []
   let top_of ik = Exc ([], size ik)
-  let top () = top_of (Size.max `Signed)
+  let top () = Exc ([], top_range)
   let short _ = function
     | Inc[] -> "bot" | Exc([],r) -> "top"
     | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
-    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
+    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "} " ^ "("^R.short 2 r^")"
   include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
 
   let equal_to i = function
@@ -1316,7 +1317,19 @@ module Enums : S = struct
       if List.mem i x then `Neq
       else `Top
   let of_int x = Inc [x]
-  let cast_to ?torg t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
+
+  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
+  let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
+    | Exc (s,r) ->
+      let r' = size ik in
+      if R.leq r r' then (* upcast -> no change *)
+        Exc (s, r)
+      else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
+        let s' = List.map (I.cast_to ik) s in
+        Exc (s', r')
+      else (* downcast: may overflow *)
+        Exc ([], r')   
+    |  Inc x -> Inc (List.map (Integers.cast_to ik) x)
 
   let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =

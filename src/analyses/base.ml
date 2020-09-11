@@ -1650,6 +1650,18 @@ struct
   let branch ctx (exp:exp) (tv:bool) : store =
     Locmap.replace Deadcode.dead_branches_cond !Tracing.next_loc exp;
     let valu = eval_rv ctx.ask ctx.global ctx.local exp in
+    let refine () =
+      let res = invariant ctx ctx.ask ctx.global ctx.local exp tv in
+      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.EqualSet exp));
+      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.CondVars exp));
+      if M.tracing then M.traceu "branch" "Invariant enforced!\n";
+      match ctx.ask (Queries.CondVars exp) with
+      | `ExprSet s when Queries.ES.cardinal s = 1 ->
+        let e = Queries.ES.choose s in
+        M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint d_exp e;
+        invariant ctx ctx.ask ctx.global res e tv
+      | _ -> res
+    in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     if M.tracing then M.tracel "branchosek" "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     (* First we want to see, if we can determine a dead branch: *)
@@ -1667,7 +1679,7 @@ struct
           locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv)
       end;
       (* Eliminate the dead branch and just propagate to the true branch *)
-      if v = tv then ctx.local else begin
+      if v = tv then refine () else begin
         if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
         raise Deadcode
       end
@@ -1682,16 +1694,7 @@ struct
     | _ ->
       if !GU.in_verifying_stage then
         Locmap.replace (dead_branches tv) !Tracing.next_loc false;
-      let res = invariant ctx ctx.ask ctx.global ctx.local exp tv in
-      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.EqualSet exp));
-      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.CondVars exp));
-      if M.tracing then M.traceu "branch" "Invariant enforced!\n";
-      match ctx.ask (Queries.CondVars exp) with
-      | `ExprSet s when Queries.ES.cardinal s = 1 ->
-        let e = Queries.ES.choose s in
-        M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint d_exp e;
-        invariant ctx ctx.ask ctx.global res e tv
-      | _ -> res
+      refine ()
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
