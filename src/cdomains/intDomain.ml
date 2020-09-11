@@ -707,6 +707,8 @@ struct
     (* For two exclusion sets, only their intersection can be excluded: *)
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, R.join wx wy)
 
+  let widen = join
+
   let meet x y =
     match (x,y) with
     (* Greatest LOWER bound with the least element is trivial: *)
@@ -1328,7 +1330,7 @@ module Enums : S = struct
         let s' = List.map (I.cast_to ik) s in
         Exc (s', r')
       else (* downcast: may overflow *)
-        Exc ([], r')   
+        Exc ([], r')
     |  Inc x -> Inc (List.map (Integers.cast_to ik) x)
 
   let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
