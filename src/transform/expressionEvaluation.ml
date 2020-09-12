@@ -148,7 +148,7 @@ module Transformation : Transform.S =
       let value_string = string_of_int value in
       (String.make (padding - String.length value_string) ' ') ^ value_string
     let string_of_location (location : Cil.location) =
-      location.file ^ ":" ^ (location.line |> string_of_int)
+      location.file ^ ":" ^ (location.line |> string_of_int) ^ " [" ^ (location.byte |> string_of_int) ^ "]"
     let string_of_statement statement =
       statement
         |> Cil.d_stmt ()
