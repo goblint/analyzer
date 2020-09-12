@@ -42,7 +42,7 @@ module Transformation : Transform.S =
             |> List.filter (fun ((l : Cil.location), _, _) -> l.line >= 0)
         in
         function_statements
-          |> List.fold_left (fun statements (l, f, _) -> Hashtbl.add statements l f; statements) (Hashtbl.create 0),
+          |> List.fold_left (fun functions (l, f, _) -> Hashtbl.add functions l f; functions) (Hashtbl.create 0),
         function_statements
           |> List.fold_left (fun statements (l, _, s) -> Hashtbl.add statements l s; statements) (Hashtbl.create 0)
       in
