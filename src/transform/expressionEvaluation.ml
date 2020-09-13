@@ -44,7 +44,17 @@ module Transformation : Transform.S =
         function_statements
           |> List.fold_left (fun functions (l, f, _) -> Hashtbl.add functions l f; functions) (Hashtbl.create 0),
         function_statements
-          |> List.fold_left (fun statements (l, _, s) -> Hashtbl.add statements l s; statements) (Hashtbl.create 0)
+          |> List.fold_left
+            begin
+              fun statements (l, _, s) ->
+                begin
+                  match Hashtbl.find_opt statements l with
+                  | Some ss -> Hashtbl.replace statements l (s::ss)
+                  | None -> Hashtbl.add statements l [s]
+                end;
+                statements
+            end
+            (Hashtbl.create 0)
       in
 
       object (self)
@@ -104,7 +114,8 @@ module Transformation : Transform.S =
               None
         method private get_succeeding_location location =
           match Hashtbl.find_opt statement_table location with
-          | Some statement ->
+          | Some statements ->
+              let statement = List.hd statements in (* TODO *)
               if List.length statement.succs > 0 then
                 begin
                   let succeeding_statement = (List.hd statement.succs) in
