@@ -105,7 +105,7 @@ module Transformation : Transform.S =
         method private get_succeeding_location location =
           match Hashtbl.find_opt statement_table location with
           | Some statement ->
-              if List.length statement.succs = 1 then
+              if List.length statement.succs > 0 then
                 begin
                   let succeeding_statement = (List.hd statement.succs) in
                   let succeeding_location = Cil.get_stmtLoc succeeding_statement.skind in
