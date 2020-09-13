@@ -183,7 +183,7 @@ module Transformation : Transform.S =
         (* Use only location results *)
         |> List.map (fun (_, l, _, _) -> l)
         (* Sort locations *)
-        |> List.sort (fun (l_1 : Cil.location) (l_2 : Cil.location) -> compare l_1.byte l_2.byte)
+        |> List.sort_uniq (fun (l_1 : Cil.location) (l_2 : Cil.location) -> compare l_1.byte l_2.byte)
         (* Evaluate *)
         |> List.iter
           begin
