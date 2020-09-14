@@ -434,7 +434,6 @@ struct
   module I = Basetype.CilExp
   module FI = Printable.Either (F) (I)
   include Printable.Liszt (FI)
-  include Lattice.StdCousot
 
   let rec short w x = match x with
     | [] -> ""
@@ -516,10 +515,14 @@ struct
     | x::xs, y::ys when FI.equal x y -> x :: meet xs ys
     | _ -> failwith "Arguments do not meet"
 
+  let narrow = meet
+
   let rec join x y =
     match x,y with
     | x::xs, y::ys when FI.equal x y -> x :: join xs ys
     | _ -> []
+
+  let widen = join
 
   let rec collapse x y =
     match x,y with

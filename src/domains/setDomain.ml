@@ -74,13 +74,14 @@ end
 module Make (Base: Printable.S) =
 struct
   include Printable.Blank
-  include Lattice.StdCousot
   include BatSet.Make(Base)
   let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
   let leq  = subset
   let join = union
+  let widen = join
   let meet = inter
+  let narrow = meet
   let bot = empty
   let is_bot = is_empty
   let top () = raise (Lattice.Unsupported "Set has no top")
@@ -212,7 +213,6 @@ module ToppedSet (Base: Printable.S) (N: ToppedSetNames) =
 struct
   module S = Make (Base)
   include Printable.Blank
-  include Lattice.StdCousot
   type t = All | Set of S.t [@@deriving to_yojson]
   type elt = Base.t
 
@@ -338,7 +338,9 @@ struct
 
   let leq = subset
   let join = union
+  let widen = join
   let meet = inter
+  let narrow = meet
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
     | Set x, Set y -> S.pretty_diff () (x,y)
