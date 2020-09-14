@@ -1328,7 +1328,7 @@ module Enums : S = struct
         let s' = List.map (I.cast_to ik) s in
         Exc (s', r')
       else (* downcast: may overflow *)
-        Exc ([], r')   
+        Exc ([], r')
     |  Inc x -> Inc (List.map (Integers.cast_to ik) x)
 
   let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
@@ -1377,32 +1377,6 @@ module Enums : S = struct
   let narrow x y = meet x y
 
   let leq x y = join x y = y
-
-  let abstr_compare = curry @@ function
-    | Exc _, Exc _ -> Inc[-1L; 0L ;1L]
-    | Inc[],_ | _,Inc[] -> Inc[]
-    | Inc x, Inc y ->
-      let x_max = List.last x in
-      let x_min = List.hd x in
-      let y_max = List.last y in
-      let y_min = List.hd y in
-      if  x_max < y_min then Inc[-1L]
-      else if y_max < x_min then Inc[1L]
-      else if x_min = y_max then
-        if  y_min = x_max then Inc[0L]
-        else Inc[0L;1L]
-      else if y_min = x_max then Inc[-1L;0L]
-      else Inc[-1L;0L;1L]
-    | Inc l, Exc (l',r) ->
-      (match merge_sub l l' with
-       | [] -> Inc[-1L;1L]
-       | _ -> Inc[-1L;0L;1L]
-      )
-    | Exc (l,r), Inc l' ->
-      (match merge_sub l' l with
-       | [] -> Inc[-1L;1L]
-       | _ -> Inc[-1L;0L;1L]
-      )
 
   let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
   let lift1 f = function
