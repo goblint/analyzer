@@ -140,10 +140,22 @@ struct
   let invariant c x =
     (* TODO: offsets? *)
     let c_exp = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
-    if is_definite x then
-      let p = choose x in
-      let p_exp = Addr.to_exp (fun _ -> failwith "Addr.to_exp f") p in
-      Invariant.of_exp Cil.(BinOp (Eq, c_exp, p_exp, intType))
-    else
-      Invariant.none
+    let i_opt = fold (fun addr acc_opt ->
+        Option.bind acc_opt (fun acc ->
+            match addr with
+            | Addr.UnknownPtr
+            | Addr.SafePtr ->
+              None
+            | addr when Addr.is_definite addr ->
+              let addr_exp = Addr.to_exp (fun _ -> failwith "Addr.to_exp f") addr in
+              let i = Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType)) in
+              Some (Invariant.(acc || i))
+            | _ ->
+              None
+          )
+      ) x (Some Invariant.none)
+    in
+    match i_opt with
+    | Some i -> i
+    | None -> Invariant.none
 end
