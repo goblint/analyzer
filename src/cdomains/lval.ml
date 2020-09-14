@@ -326,6 +326,8 @@ struct
   let toXML = toXML_f short
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  (* TODO: seems to be unused outside of (now) witness invariants, what is f? *)
   let to_exp (f:idx -> exp) x =
     let rec to_cil c =
       match c with
@@ -334,7 +336,7 @@ struct
       | `Index (idx, ofs) -> Index (f idx, to_cil ofs)
     in
     match x with
-    | Addr (v,o) -> Lval (Var v, to_cil o)
+    | Addr (v,o) -> AddrOf (Var v, to_cil o) (* AddrOf or Lval? *)
     | StrPtr x -> mkString x
     | SafePtr -> mkString "a safe pointer/string"
     | NullPtr -> integer 0

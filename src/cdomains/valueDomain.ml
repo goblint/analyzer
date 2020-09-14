@@ -900,6 +900,7 @@ struct
 
   let invariant c = function
     | `Int n -> ID.invariant c n
+    | `Address n -> AD.invariant c n
     | _ -> None (* TODO *)
 end
 

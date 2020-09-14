@@ -136,4 +136,14 @@ struct
 
   let meet x y   = merge join meet x y
   let narrow x y = merge widen narrow x y
+
+  let invariant c x =
+    (* TODO: offsets? *)
+    let c_exp = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
+    if is_definite x then
+      let p = choose x in
+      let p_exp = Addr.to_exp (fun _ -> failwith "Addr.to_exp f") p in
+      Invariant.of_exp Cil.(BinOp (Eq, c_exp, p_exp, intType))
+    else
+      Invariant.none
 end
