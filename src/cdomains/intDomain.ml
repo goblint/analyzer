@@ -398,7 +398,6 @@ end
 module Integers = (* no top/bot, order is <= *)
 struct
   include Printable.Std
-  include Lattice.StdCousot
   let name () = "integers"
   type t = int64 [@@deriving to_yojson]
   let top () = raise Unknown
@@ -414,7 +413,9 @@ struct
   let equal_to i x = if i > x then `Neq else `Top
   let leq x y = x <= y
   let join x y = if Int64.compare x y > 0 then x else y
+  let widen = join
   let meet x y = if Int64.compare x y > 0 then y else x
+  let narrow = meet
 
   let of_bool x = if x then Int64.one else Int64.zero
   let to_bool' x = x <> Int64.zero
@@ -610,7 +611,6 @@ struct
   module S = SetDomain.Make (Integers)
   module R = Interval32 (* range for exclusion *)
   let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
-  include Lattice.StdCousot
   type t = [
     | `Excluded of S.t * R.t
     | `Definite of Integers.t
@@ -707,6 +707,8 @@ struct
     (* For two exclusion sets, only their intersection can be excluded: *)
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, R.join wx wy)
 
+  let widen = join
+
   let meet x y =
     match (x,y) with
     (* Greatest LOWER bound with the least element is trivial: *)
@@ -725,7 +727,7 @@ struct
       let in_range i = R.leq (R.of_int i) r' in
       let s' = S.union x y |> S.filter in_range in
       `Excluded (s', r')
-
+  let narrow = meet
   let of_int  x = `Definite (Integers.of_int x)
   let to_int  x = match x with
     | `Definite x -> Integers.to_int x
@@ -1236,7 +1238,6 @@ end
 
 module MakeBooleans (N: BooleansNames) =
 struct
-  include Lattice.StdCousot
   type t = bool [@@deriving to_yojson]
   let name () = "booleans"
   let top () = true
@@ -1250,7 +1251,9 @@ struct
 
   let leq x y = not x || y
   let join = (||)
+  let widen = join
   let meet = (&&)
+  let narrow = meet
 
   let of_bool x = x
   let to_bool x = Some x

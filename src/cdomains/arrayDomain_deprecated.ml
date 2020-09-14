@@ -10,7 +10,6 @@ module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
   include Printable.Std
-  include Lattice.StdCousot
   type idx = Idx.t
   type value = Base.t
   type t = Base.t array [@@deriving to_yojson]
@@ -59,9 +58,12 @@ struct
   let join a b =
     map_arrays Base.join a b
 
+  let widen = join
+
   let meet a b =
     map_arrays Base.meet a b
 
+  let narrow = meet
   let short w x =
     let itemlist = Array.to_list x in
     let strlist  = List.map (Base.short max_int) itemlist in
@@ -169,6 +171,7 @@ struct
       x
     else
       failwith "NativeArray can not handle variable-length arrays (VLAs)"
+    let widen = join
 
 end
 
@@ -233,7 +236,6 @@ module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
 struct
   module A = NativeArray (Base) (Idx)
   include Printable.Std
-  include Lattice.StdCousot
 
   let name () = "collapsing arrays"
   type idx = Idx.t
@@ -281,6 +283,7 @@ struct
   | (Array v1, Value v2) -> Array (A.join v1 (value_array v1 v2))
   | (Value v1, Array v2) -> Array (A.join v2 (value_array v2 v1))
 
+  let widen = join
 
   let meet a b =
      let arr_len a =
@@ -294,6 +297,7 @@ struct
   | (Array v1, Value v2) -> Array (A.meet v1 (value_array v1 v2))
   | (Value v1, Array v2) -> Array (A.meet v2 (value_array v2 v1))
 
+  let narrow = meet
 
   let short w x =
     match x with
@@ -393,7 +397,6 @@ module MapArray (I: sig val n : int option end) (Base: Lattice.S) (Idx: IntDomai
   : S with type value = Base.t and type idx = Idx.t =
 struct
   include Printable.Std
-  include Lattice.StdCousot
 
   module M = Deriving.Map.Make (Idx)
 
@@ -506,6 +509,8 @@ struct
       | _  , Bot -> Bot
       | Mapping a, Mapping b -> Mapping (meet_mappings a b)
 
+  let narrow = meet
+
   let join x y =
     let join_base2 key a b map =
       let m = Base.join a b in
@@ -523,6 +528,8 @@ struct
       | Bot, a   -> a
       | a  , Bot -> a
       | Mapping a, Mapping b -> Mapping (join_mappings a b)
+
+  let widen = join
 
   let get ask x (_, i) =
     match x with
@@ -743,8 +750,6 @@ end
 module SharedMapArrayParts (Base:Lattice.S) (Idx:IntDomain.S) =
 struct
 
-  include Lattice.StdCousot
-
   module M = CountingMap(Base)(Idx)
 
   type t = M.t * Idx.t [@@deriving to_yojson]
@@ -880,10 +885,14 @@ struct
       then a
       else map2 Base.join a b
 
+  let widen = join
+
   let meet a b =
     if equal a b
       then a
       else map2 Base.meet a b
+
+  let narrow = meet
 
   let set ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
@@ -1013,10 +1022,14 @@ struct
       then a
       else map2 Base.join a b
 
+  let widen = join
+
   let meet a b =
     if equal a b
       then a
       else map2 Base.meet a b
+
+  let narrow = meet
 
   let set ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
