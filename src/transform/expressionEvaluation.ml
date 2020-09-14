@@ -75,19 +75,14 @@ module Transformation : Transform.S =
           | Some query ->
               begin
                 match self#get_value location query with
-                | Some value ->
+                | Some value_before ->
                     begin
-                      match self#get_succeeding_location location with
-                      | Some succeeding_location ->
-                          if succeeding_location = location then
-                            value
-                          else
-                            begin
-                              match self#get_value succeeding_location query with
-                              | Some succeeding_value -> succeeding_value
-                              | None -> value
-                            end
-                      | None -> Some false (* Not necessary *)
+                      match
+                        self#get_successors location
+                          |> List.find_map (fun succeeding_location -> self#get_value succeeding_location query)
+                      with
+                      | Some value_after -> value_after
+                      | None -> value_before
                     end
                 | None -> Some false
               end
@@ -112,25 +107,13 @@ module Transformation : Transform.S =
           | None ->
               debug_info_1 <- false;
               None
-        method private get_succeeding_location location =
-          match Hashtbl.find_opt statement_table location with
-          | Some statements ->
-              let statement = List.hd statements in (* TODO *)
-              if List.length statement.succs > 0 then
-                begin
-                  let succeeding_statement = (List.hd statement.succs) in
-                  let succeeding_location = Cil.get_stmtLoc succeeding_statement.skind in
-                  debug_info_2 <- Some (statement, Some (succeeding_location, succeeding_statement));
-                  Some succeeding_location
-                end
-              else
-                begin
-                  debug_info_2 <- Some (statement, None);
-                  Some location
-                end
-          | None ->
-              debug_info_2 <- None;
-              None
+        method private get_successors location =
+          let statement =
+            Hashtbl.find statement_table location
+              |> List.hd (* TODO *)
+          in
+          statement.succs
+            |> List.map (fun (succeeding_statement : Cil.stmt) -> Cil.get_stmtLoc succeeding_statement.skind)
         method private get_value location query =
           let ask_result =
             try Some (ask location query)
