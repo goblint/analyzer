@@ -11,7 +11,7 @@ int main(){
     if(top != 3){
         result = top * MULT;
         // if top == 7 then we have (2 + 1) * 2^30 == (4 + 2 + 1) * 2^30  (mod 2^32)
-        assert(result != 3221225472); // UNKNOWN
+        assert(result != 3221225472); // UNKNOWN!
         printf("%u\n", result);
     }
     return result;
