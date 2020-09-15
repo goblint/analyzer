@@ -68,10 +68,8 @@ struct
   module I =
   struct
     include Spec.D
-
-    (* TODO: use something less collision-prone, e.g. tag *)
-    (* tag requires hashcons domain inside *)
-    let to_int = hash
+    (* assumes Hashcons inside PathSensitive *)
+    let to_int = tag
   end
   module VI = Printable.Prod3 (Node) (Spec.C) (I)
   module VIE =
