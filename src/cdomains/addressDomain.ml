@@ -138,6 +138,9 @@ struct
   let narrow x y = merge widen narrow x y
 
   let invariant c x =
+    (* TODO: synchronize magic constant with BaseDomain *)
+    let is_heap_var {vname; _} = BatString.starts_with vname "(alloc@" in
+
     (* TODO: offsets? *)
     let c_exp = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
     let i_opt = fold (fun addr acc_opt ->
@@ -146,7 +149,7 @@ struct
             | Addr.UnknownPtr
             | Addr.SafePtr ->
               None
-            | addr when Addr.is_definite addr ->
+            | Addr.Addr (vi, _) as addr when Addr.is_definite addr && not (is_heap_var vi) ->
               let addr_exp = Addr.to_exp (fun _ -> failwith "Addr.to_exp f") addr in
               let i = Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType)) in
               Some (Invariant.(acc || i))
