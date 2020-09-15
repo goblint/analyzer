@@ -339,7 +339,7 @@ struct
       else top_bool
 
   let invariant c x =
-    let c = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
     match x with
     | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
       Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x1, intType))
@@ -851,7 +851,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c (x:t) =
-    let c = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
     match x with
     | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType))
     | `Excluded (s, _) ->
@@ -1461,7 +1461,7 @@ module Enums : S = struct
   (* let of_incl_list xs = failwith "TODO" *)
 
   let invariant c x =
-    let c = Cil.(Lval (var (Option.get c.Invariant.varinfo))) in
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
     match x with
     | Inc ps ->
       List.fold_left (fun a x ->

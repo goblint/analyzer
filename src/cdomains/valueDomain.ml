@@ -52,6 +52,8 @@ struct
   let value = fst
   let size = snd
   let invalidate_value ask t (v, s) = Value.invalidate_value ask t v, s
+
+  let invariant c (v, _) = Value.invariant c v
 end
 
 module rec Compound: S with type t = [
@@ -901,6 +903,7 @@ struct
   let invariant c = function
     | `Int n -> ID.invariant c n
     | `Address n -> AD.invariant c n
+    | `Blob n -> Blobs.invariant c n
     | _ -> None (* TODO *)
 end
 

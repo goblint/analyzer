@@ -581,7 +581,15 @@ struct
       end
       in
 
-      let find_invariant (n, c, i) = Spec.D.invariant {i; varinfo=None} (get (n, c)) in
+      let find_invariant (n, c, i) =
+        let context: Invariant.context = {
+            i;
+            lval=None;
+            deref_invariant=(fun _ _ -> Invariant.none) (* TODO: should throw instead? *)
+          }
+        in
+        Spec.D.invariant context (get (n, c))
+      in
 
       let witness_path = get_string "exp.witness_path" in
       if svcomp_unreach_call then begin

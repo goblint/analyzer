@@ -9,13 +9,32 @@ struct
   include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
   let name () = "value domain"
 
-  let invariant c (m:t) =
+  let invariant (c:Invariant.context) (m:t) =
+    (* TODO: need to break out of deref_invariant loops? *)
+    let rec context = {c with
+        deref_invariant=(fun vi lval ->
+          let v = find vi m in
+          key_invariant_lval vi lval v
+        )
+      }
+    and key_invariant_lval k lval v =
+      if not (InvariantCil.var_is_tmp k) then
+        let key_context = {context with lval=Some lval} in
+        VD.invariant key_context v
+      else
+        Invariant.none
+    in
+
+    let key_invariant k v = key_invariant_lval k (var k) v in
+
     fold (fun k v a ->
-        if not (InvariantCil.var_is_tmp k) then
-          let i = VD.invariant {c with varinfo=Some k} v in
-          Invariant.(a && i)
-        else
-          a
+        let i =
+          if not (InvariantCil.var_is_heap k) then
+            key_invariant k v
+          else
+            Invariant.none
+        in
+        Invariant.(a && i)
       ) m Invariant.none
 end
 

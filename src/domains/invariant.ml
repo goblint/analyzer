@@ -1,11 +1,12 @@
 open Cil
 
+type t = exp option
+
 type context = {
   i: int;
-  varinfo: varinfo option;
+  lval: lval option;
+  deref_invariant: varinfo -> lval -> t
 }
-
-type t = exp option
 
 let none: t = None
 let of_exp s: t = Some s

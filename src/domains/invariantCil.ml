@@ -10,3 +10,6 @@ let rec exp_contains_tmp = function
   | UnOp (_, e, _) -> exp_contains_tmp e
   | BinOp (_, e1, e2, _) -> exp_contains_tmp e1 || exp_contains_tmp e2
   | exp -> exp = MyCFG.unknown_exp
+
+(* TODO: synchronize magic constant with BaseDomain *)
+let var_is_heap {vname; _} = BatString.starts_with vname "(alloc@"
