@@ -28,7 +28,7 @@ int main () {
 
   // checking assignment of records
   b = a;
-  assert(b.kaal = 5);
+  assert(b.kaal == 5);
 
   // check that a and b are different
   a.kaal = 12;
@@ -52,7 +52,7 @@ int main () {
   p = & kp->hind; // p -> {a.hind, b.hind}
   // and here we *add* some more addresses
   if (k2) p = &i;
-  if (k2) p = & b.kaal; 
+  if (k2) p = & b.kaal;
   // p points to a.hind, b.hind, b.kaal and i, invalidate them!
   *p = 666;
   assert(a.hind == 666); // UNKNOWN!
@@ -72,7 +72,7 @@ int main () {
   kalamaja.kala.kaal = 176;
   assert(kalamaja.kala.kaal == 176);
   assert(a.kaal != 176);
-  
+
   // just some more testing
   mp = &kalamaja;
   assert(mp->kala.kaal == 176);
