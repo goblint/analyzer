@@ -8,6 +8,9 @@ module GU = Goblintutil
 module JB = Json
 module M = Messages
 
+let (%) = Batteries.(%)
+let (|?) = Batteries.(|?)
+
 module type S =
 sig
   include Lattice.S
@@ -23,8 +26,8 @@ sig
   val of_excl_list: Cil.ikind -> int64 list -> t
   val is_excl_list: t -> bool
   val of_interval: int64 * int64 -> t
-  val starting   : int64 -> t
-  val ending     : int64 -> t
+  val starting   : ?ikind:Cil.ikind -> int64 -> t
+  val ending     : ?ikind:Cil.ikind -> int64 -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
@@ -32,8 +35,8 @@ sig
   val add: t -> t -> t
   val sub: t -> t -> t
   val mul: t -> t -> t
-  val div: t -> t -> t
-  val rem: t -> t -> t
+  val div: t -> t -> t (* integer division: 5/3 = 1 *)
+  val rem: t -> t -> t (* same as x mod y in OCaml: result is negative iff x is negative: 5%3 = 2, -5%3 = -2, 5%-3 = 2 *)
 
   val lt: t -> t -> t
   val gt: t -> t -> t
@@ -53,7 +56,7 @@ sig
   val logand: t -> t -> t
   val logor : t -> t -> t
 
-  val cast_to : Cil.ikind -> t -> t
+  val cast_to : ?torg:Cil.typ -> Cil.ikind -> t -> t
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
@@ -101,51 +104,71 @@ module Size = struct (* size in bits as int, range as int64 *)
     try int64_of_big_int y with _ -> raise Not_in_int64
 end
 
+exception Unknown
+exception Error
+exception ArithmeticOnIntegerBot of string
+
+module StdTop (B: sig type t val top: unit -> t end) = struct
+  open B
+  (* these should be overwritten for better precision if possible: *)
+  let to_excl_list    x = None
+  let of_excl_list    t x = top ()
+  let is_excl_list    x = false
+  let of_interval     x = top ()
+  let starting ?ikind x = top ()
+  let ending ?ikind   x = top ()
+  let maximal         x = None
+  let minimal         x = None
+end
+
+module Std (B: sig
+    type t
+    val name: unit -> string
+    val top: unit -> t
+    val bot: unit -> t
+    val short: int -> t -> string
+  end) = struct
+  include Printable.Std
+  let name = B.name (* overwrite the one from Printable.Std *)
+  open B
+  let isSimple _ = true
+  let hash = Hashtbl.hash
+  let equal = (=)
+  let is_top x = x = top ()
+  let is_bot x = x = bot ()
+
+  (* all output is based on B.short *)
+  let pretty_f sh () x = text (sh Goblintutil.summary_length x)
+  let pretty = pretty_f short
+  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)], [])
+  let toXML = toXML_f short
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  include StdTop (B)
+end
+(* include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end) *)
+
 module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit ints *)
 struct
-  include Printable.Std (* for default invariant, tag, ... *)
-
-  open Int64
-
+  let name () = "32bit intervals"
   type t = (int64 * int64) option [@@deriving to_yojson]
+
+  let min_int, max_int = Size.range Cil.IInt (* TODO this currently depends on the machine Cil was compiled on... *)
+  let top () = Some (min_int, max_int)
+  let bot () = None
+  let short _ = function None -> "bottom" | Some (x,y) -> "["^Int64.to_string x^","^Int64.to_string y^"]"
+
+  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
 
   let equal_to i = function
     | None -> failwith "unsupported: equal_to with bottom"
     | Some (a, b) -> if a = b && b = i then `Eq else if a <= i && i <= b then `Top else `Neq
 
-  let min_int, max_int = Size.range Cil.IInt (* TODO this currently depends on the machine Cil was compiled on... *)
-
-  let top () = Some (min_int, max_int)
-  let bot () = None
-  let is_top x = x=top ()
-  let is_bot = function None -> true | _ -> false
-
-  let hash (x:t) = Hashtbl.hash x
-  let equal (x:t) y = x=y
-  let compare = Stdlib.compare
-  let short _ = function None -> "bottom" | Some (x,y) -> "["^to_string x^","^to_string y^"]"
-  let isSimple _ = true
-  let name () = "32bit intervals"
-  let pretty_f sh () x = text (sh 80 x)
-  let pretty = pretty_f short
-  let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
-  let toXML = toXML_f short
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
-  let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
-
-
   let norm = function None -> None | Some (x,y) ->
     if Int64.compare x y > 0 then None
     else if Int64.compare min_int x > 0 || Int64.compare max_int y < 0 then top ()
     else Some (x,y)
-
-  let (@@) f x = f x
-
-  let equal x y =
-    match x, y with
-    | None, None -> true
-    | Some (x1,x2), Some (y1,y2) -> Int64.compare x1 y1 = 0 && Int64.compare x2 y2 = 0
-    | _ -> false
 
   let leq (x:t) (y:t) =
     match x, y with
@@ -181,16 +204,20 @@ struct
     | None | Some (0L, 0L) -> x
     | _ -> if leq zero x then top_bool else one
 
-  let starting n = norm @@ Some (n,max_int)
-  let ending   n = norm @@ Some (min_int,n)
+  let range_opt f = function
+    | None -> None
+    | Some ik -> try Some (Size.range ik |> f) with Size.Not_in_int64 -> None
+
+  let starting ?ikind n =
+    norm @@ Some (n, range_opt snd ikind |? max_int)
+
+  let ending ?ikind n =
+    norm @@ Some (range_opt fst ikind |? min_int, n)
+
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let to_excl_list _ = None
-  let of_excl_list t _ = top ()
-  let is_excl_list _ = false
-
-  let cast_to t = function
+  let cast_to ?torg t = function
     | None -> None
     | Some (x,y) ->
       try
@@ -218,8 +245,9 @@ struct
 
   let log f i1 i2 =
     match is_bot i1, is_bot i2 with
+    | true, true -> bot ()
     | true, _
-    | _   , true -> bot ()
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
     | _ ->
       match to_bool i1, to_bool i2 with
       | Some x, Some y -> of_bool (f x y)
@@ -240,8 +268,9 @@ struct
 
   let bit f i1 i2 =
     match is_bot i1, is_bot i2 with
+    | true, true -> bot ()
     | true, _
-    | _   , true -> bot ()
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try norm (of_int (f x y)) with Division_by_zero -> top ())
@@ -267,18 +296,28 @@ struct
 
   let add x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) -> norm @@ Some (Int64.add x1 y1, Int64.add x2 y2)
 
   let sub i1 i2 = add i1 (neg i2)
 
-  let rem x y =
-    let y' = sub y (of_int 1L) in
-    meet (bit Int64.rem x y) (join y' (neg y'))
+  let rem x y = match x, y with
+    | None, _ | _, None -> None
+    | Some (xl, xu), Some (yl, yu) ->
+      (* If we have definite values, Int64.rem will give a definite result.
+      * Otherwise we meet with a [range] the result can be in.
+      * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
+      * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
+      let pos x = if x < 0L then Int64.neg x else x in
+      let b = Int64.sub (max (pos yl) (pos yu)) 1L in
+      let range = if xl >= 0L then Some (0L, min xu b) else Some (max xl (Int64.neg b), min xu b) in
+      meet (bit Int64.rem x y) range
 
   let mul x y =
     match x, y with
-    | None, _ | _, None -> bot ()
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
       let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
@@ -287,7 +326,8 @@ struct
 
   let rec div x y =
     match x, y with
-    | None, _ | _, None -> bot ()
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       begin match y1, y2 with
         | 0L, 0L       -> top () (* TODO warn about undefined behavior *)
@@ -308,7 +348,8 @@ struct
 
   let ge x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare y2 x1 <= 0 then of_bool true
       else if Int64.compare x2 y1 < 0 then of_bool false
@@ -316,7 +357,8 @@ struct
 
   let le x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare x2 y1 <= 0 then of_bool true
       else if Int64.compare  y2 x1 < 0 then of_bool false
@@ -324,7 +366,8 @@ struct
 
   let gt x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare  y2 x1 < 0 then of_bool true
       else if Int64.compare x2 y1 <= 0 then of_bool false
@@ -332,7 +375,8 @@ struct
 
   let lt x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Int64.compare x2 y1 < 0 then of_bool true
       else if Int64.compare y2 x1 <= 0 then of_bool false
@@ -352,33 +396,28 @@ struct
 end
 
 
-exception Unknown
-exception Error
 
 module Integers = (* no top/bot, order is <= *)
 struct
   include Printable.Std
-  include Lattice.StdCousot
   let name () = "integers"
   type t = int64 [@@deriving to_yojson]
-  let hash (x:t) = ((Int64.to_int x) - 787) * 17
-  let equal (x:t) (y:t) = x=y
-  let copy x = x
-  let equal_to i x = if i > x then `Neq else `Top
   let top () = raise Unknown
-  let is_top _ = false
   let bot () = raise Error
-  let is_bot _ = false
-  let isSimple _  = true
   let short _ x = if x = GU.inthack then "*" else Int64.to_string x
-  let pretty_f _ _ x = text (Int64.to_string x)
-  let toXML_f _ x = Xml.Element ("Leaf", [("text", Int64.to_string x)],[])
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
+
+  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
+  let hash (x:t) = ((Int64.to_int x) - 787) * 17
+  (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
+  let is_top _ = false
+  let is_bot _ = false
+
+  let equal_to i x = if i > x then `Neq else `Top
   let leq x y = x <= y
-  let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
   let join x y = if Int64.compare x y > 0 then x else y
+  let widen = join
   let meet x y = if Int64.compare x y > 0 then y else x
+  let narrow = meet
 
   let of_bool x = if x then Int64.one else Int64.zero
   let to_bool' x = x <> Int64.zero
@@ -387,15 +426,6 @@ struct
   let of_int  x = x
   let to_int  x = Some x
   let is_int  _ = true
-
-  let to_excl_list x = None
-  let of_excl_list t x = top ()
-  let is_excl_list x = false
-  let of_interval  x = top ()
-  let starting     x = top ()
-  let ending       x = top ()
-  let maximal      x = None
-  let minimal      x = None
 
   let neg  = Int64.neg
   let add  = Int64.add (* TODO: signed overflow is undefined behavior! *)
@@ -418,10 +448,7 @@ struct
   let lognot n1    = of_bool (not (to_bool' n1))
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let cast_to t x = Size.cast t x
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let cast_to ?torg t x = Size.cast t x
 end
 
 module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
@@ -444,7 +471,7 @@ struct
     end)
 
   let name () = "flat integers"
-  let cast_to t = function
+  let cast_to ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -471,8 +498,8 @@ struct
   let of_excl_list t x = top ()
   let is_excl_list x = false
   let of_interval  x = top ()
-  let starting     x = top ()
-  let ending       x = top ()
+  let starting     ?ikind x = top ()
+  let ending       ?ikind x = top ()
   let maximal      x = None
   let minimal      x = None
 
@@ -507,7 +534,6 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module Lift (Base: S) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
@@ -516,9 +542,10 @@ struct
       let top_name = "MaxInt"
       let bot_name = "MinInt"
     end)
+  include StdTop (struct type nonrec t = t let top = top end)
 
   let name () = "lifted integers"
-  let cast_to t = function
+  let cast_to ?torg t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
@@ -540,15 +567,6 @@ struct
     | `Lifted x -> Base.to_bool x
     | _ -> None
   let is_bool = is_int
-
-  let to_excl_list x = None
-  let of_excl_list t x = top ()
-  let is_excl_list x = false
-  let of_interval  x = top ()
-  let starting     x = top ()
-  let ending       x = top ()
-  let maximal      x = None
-  let minimal      x = None
 
   let lift1 f x = match x with
     | `Lifted x -> `Lifted (f x)
@@ -579,7 +597,6 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module Flattened = Flat (Integers)
@@ -596,24 +613,31 @@ struct
   module S = SetDomain.Make (Integers)
   module R = Interval32 (* range for exclusion *)
   let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
-  include Printable.Std
-  include Lattice.StdCousot
   type t = [
     | `Excluded of S.t * R.t
     | `Definite of Integers.t
     | `Bot
   ] [@@deriving to_yojson]
+  let name () = "def_exc"
+  let top_range = R.of_interval (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let top () = `Excluded (S.empty (), top_range)
+  let bot () = `Bot
+  let short w x =
+    let short_size x = "("^R.short 2 x^")" in
+    match x with
+    | `Bot -> "Error int"
+    | `Definite x -> Integers.short w x
+    (* Print the empty exclusion as if it was a distinct top element: *)
+    | `Excluded (s,l) when S.is_empty s -> "Unknown int" ^ short_size l
+    (* Prepend the exclusion sets with something: *)
+    | `Excluded (s,l) -> "Not " ^ S.short w s ^ short_size l
+
+  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
   let hash (x:t) =
     match x with
     | `Excluded (s,r) -> S.hash s + R.hash r
     | `Definite i -> 83*Integers.hash i
     | `Bot -> 61426164
-
-  let equal_to i = function
-    | `Bot -> failwith "unsupported: equal_to with bottom"
-    | `Definite x -> if i = x then `Eq else `Neq
-    | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
-
   let equal x y =
     match x, y with
     | `Bot, `Bot -> true
@@ -621,39 +645,32 @@ struct
     | `Excluded (xs,xw), `Excluded (ys,yw) -> S.equal xs ys && R.equal xw yw
     | _ -> false
 
-  let name () = "def_exc"
+  let equal_to i = function
+  | `Bot -> failwith "unsupported: equal_to with bottom"
+  | `Definite x -> if i = x then `Eq else `Neq
+  | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
+
   let top_of ik = `Excluded (S.empty (), size ik)
-  let top_size = Size.max `Signed
-  let top_range = size top_size
-  let top () = top_of top_size
-  let is_top x = x = top ()
-  let bot () = `Bot
-  let is_bot x = x = `Bot
-
-  let bot_name = "Error int"
-  let top_name = "Unknown int"
-
-  let cast_to t = function
-    | `Excluded (s,r) -> let r' = size t in `Excluded (if R.leq r r' then s,r else S.empty (), r') (* TODO can we do better here? *)
-    | `Definite x -> (try `Definite (Integers.cast_to t x) with Size.Not_in_int64 -> top_of t)
+  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
+  let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
+    | `Excluded (s,r) ->
+      let r' = size ik in
+      `Excluded (
+        if R.leq r r' then (* upcast -> no change *)
+          s, r
+        else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
+          let s' = S.map (Integers.cast_to ik) s in
+          s', r'
+        else (* downcast: may overflow *)
+          (* let s' = S.map (Integers.cast_to ik) s in *)
+          (* We want to filter out all i in s' where (t)x with x in r could be i. *)
+          (* Since this is hard to compute, we just keep all i in s' which overflowed, since those are safe - all i which did not overflow may now be possible due to overflow of r. *)
+          (* S.diff s' s, r' *)
+          (* The above is needed for test 21/03, but not sound! See example https://github.com/goblint/analyzer/pull/95#discussion_r483023140 *)
+          S.empty (), r'
+      )
+    | `Definite x -> `Definite (Integers.cast_to ik x)
     | `Bot -> `Bot
-
-  let isSimple _ = true
-
-  let short w x =
-    let short_size x = "("^R.short 2 x^")" in
-    match x with
-    | `Bot -> bot_name
-    | `Definite x -> Integers.short w x
-    (* Print the empty exclusion as if it where a distinct top element: *)
-    | `Excluded (s,l) when S.is_empty s -> top_name ^ short_size l
-    (* Prepend the exclusion sets with something: *)
-    | `Excluded (s,l) -> "Not " ^ S.short w s ^ short_size l
-
-  let pretty_f sf () x = text (sf max_int x)
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
 
   let leq x y = match (x,y) with
     (* `Bot <= x is always true *)
@@ -668,8 +685,6 @@ struct
     | `Excluded _, `Definite _ -> false
     (* Excluding X <= Excluding Y whenever Y <= X *)
     | `Excluded (x,xw), `Excluded (y,yw) -> S.subset y x && R.leq xw yw
-
-  let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
 
   let join x y =
     match (x,y) with
@@ -694,6 +709,8 @@ struct
     (* For two exclusion sets, only their intersection can be excluded: *)
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, R.join wx wy)
 
+  let widen = join
+
   let meet x y =
     match (x,y) with
     (* Greatest LOWER bound with the least element is trivial: *)
@@ -707,8 +724,12 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then `Bot else `Definite x
     (* The greatest lower bound of two exclusion sets is their union, this is
      * just DeMorgans Law *)
-    | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.union x y, R.meet wx wy)
-
+    | `Excluded (x,r1), `Excluded (y,r2) ->
+      let r' = R.meet r1 r2 in
+      let in_range i = R.leq (R.of_int i) r' in
+      let s' = S.union x y |> S.filter in_range in
+      `Excluded (s', r')
+  let narrow = meet
   let of_int  x = `Definite (Integers.of_int x)
   let to_int  x = match x with
     | `Definite x -> Integers.to_int x
@@ -718,10 +739,13 @@ struct
     | _ -> false
 
   let zero = of_int 0L
-  let not_zero = `Excluded (S.singleton 0L, top_range)
+  let from_excl ~ikind s = `Excluded (s, BatOption.map size ikind |? top_range)
+  let not_zero ~ikind = from_excl ~ikind (S.singleton 0L)
+  let top_opt ~ikind = from_excl ~ikind (S.empty ())
 
-  let of_bool x = if x then not_zero else zero
+  (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp x = of_int (if x then 1L else 0L)
+  let of_bool = of_bool_cmp
   let to_bool x =
     match x with
     | `Definite x -> Integers.to_bool x
@@ -734,11 +758,20 @@ struct
     | _ -> false
 
   let of_interval (x,y) = if Int64.compare x y == 0 then of_int x else top ()
-  let starting x = if x > 0L then not_zero else top ()
-  let ending x = if x < 0L then not_zero else top ()
 
-  let max_of_range r = Option.map (fun i -> Int64.(pred @@ shift_left 1L (to_int i))) (R.maximal r)
-  let min_of_range r = Option.map (fun i -> Int64.(neg @@ shift_left 1L (to_int (neg i)))) (R.minimal r)
+  let starting ?ikind x = if x > 0L then not_zero ~ikind else top_opt ~ikind
+  let ending ?ikind x = if x < 0L then not_zero ~ikind else top_opt ~ikind
+
+  let max_of_range r =
+    match R.maximal r with
+    | Some i when i < 64L -> Some(Int64.(pred @@ shift_left 1L (to_int i))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
+    | _ -> None
+
+  let min_of_range r =
+    match R.minimal r with
+    | Some i when i > -64L -> Some(Int64.(if i = 0L then 0L else neg @@ shift_left 1L (to_int (neg i)))) (* things that are smaller than (-2^63) can not be represented as int64 *)
+    | _ -> None
+
   let maximal : t -> int64 option = function
     | `Definite x -> Integers.to_int x
     | `Excluded (s,r) -> max_of_range r
@@ -749,55 +782,64 @@ struct
     | `Excluded (s,r) -> min_of_range r
     | `Bot -> None
 
-  let of_excl_list t l = `Excluded (List.fold_right S.add l (S.empty ()), size t)
+  (* calculates the minimal extension of range r to cover the exclusion set s *)
+  (* let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r *)
+
+  let of_excl_list t l =
+    let r = size t in (* elements in l are excluded from the full range of t! *)
+    (* let r = extend_range (R.bot ()) (S.of_list l) in *)
+    `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list x = match x with
     | `Definite _ -> None
     | `Excluded (s,r) -> Some (S.elements s)
     | `Bot -> None
 
+  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = BatOption.map (size % Size.min_for % f) (m r) in
+    match rf min_of_range, rf max_of_range with
+      | Some r1, Some r2 -> R.join r1 r2
+      | _ , _ -> top_range
+
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
   let lift1 f x = match x with
-    | `Excluded (s,r) -> `Excluded (S.map f s, r)
+    | `Excluded (s,r) ->
+      let s' = S.map f s in
+      `Excluded (s', apply_range f r)
     | `Definite x -> `Definite (f x)
     | `Bot -> `Bot
 
   let lift2 f x y = match x,y with
     (* We don't bother with exclusion sets: *)
-    | `Excluded _, _ -> top ()
-    | _, `Excluded _ -> top ()
+    | `Excluded _, `Definite _
+    | `Definite _, `Excluded _
+    | `Excluded _, `Excluded _ -> top ()
     (* The good case: *)
-    | `Definite x, `Definite y -> (try `Definite (f x y) with | Division_by_zero -> top ())
-    (* If any one of them is bottom, we return top *)
-    | _ -> top ()
+    | `Definite x, `Definite y ->
+      (try `Definite (f x y) with | Division_by_zero -> top ())
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
-  let lift2_inj f x y = match x,y with
+  let lift2_inj f x y =
+    let def_exc f x s r = `Excluded (S.map (f x) s, apply_range (f x) r) in
+    match x,y with
     (* If both are exclusion sets, there isn't anything we can do: *)
     | `Excluded _, `Excluded _ -> top ()
     (* A definite value should be applied to all members of the exclusion set *)
-    | `Definite x, `Excluded (s,r) ->
-      let min = Option.map (f x) (min_of_range r) in
-      let max = Option.map (f x) (max_of_range r) in
-      let r'  = match min, max with
-      | Some min, Some max ->
-        R.join (size (Size.min_for min)) (size (Size.min_for max))
-      | _ , _ -> top_range in
-      `Excluded (S.map (f x)  s, r')
+    | `Definite x, `Excluded (s,r) -> def_exc f x s r
     (* Same thing here, but we should flip the operator to map it properly *)
-    | `Excluded (s,r), `Definite x -> let f x y = f y x in
-      let min = Option.map (f x) (min_of_range r) in
-      let max = Option.map (f x) (max_of_range r) in
-      let r' = match min, max with
-      | Some min, Some max -> R.join (size (Size.min_for min)) (size (Size.min_for max))
-      | _ , _ -> top_range in
-      `Excluded (S.map (f x) s, r')
+    | `Excluded (s,r), `Definite x -> def_exc (Batteries.flip f) x s r
     (* The good case: *)
     | `Definite x, `Definite y -> `Definite (f x y)
-    (* If any one of them is bottom, we return bottom *)
-    | _ -> `Bot
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* The equality check: *)
   let eq x y = match x,y with
@@ -808,9 +850,11 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool false else top ()
     | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool false else top ()
     (* The good case: *)
-    | `Definite x, `Definite y -> of_bool_cmp (x=y)
-    (* If either one of them is bottom, we return bottom *)
-    | _ -> `Bot
+    | `Definite x, `Definite y -> of_bool (x = y)
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* The inequality check: *)
   let ne x y = match x,y with
@@ -821,16 +865,18 @@ struct
     | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool true else top ()
     | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool true else top ()
     (* The good case: *)
-    | `Definite x, `Definite y -> of_bool_cmp (x<>y)
-    (* If either one of them is bottom, we return bottom *)
-    | _ -> `Bot
+    | `Definite x, `Definite y -> of_bool (x <> y)
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   let neg  = lift1 Integers.neg
   let add  = lift2_inj Integers.add
   let sub  = lift2_inj Integers.sub
   let mul x y = match x, y with
-    | `Definite 0L, _
-    | _, `Definite 0L -> `Definite 0L
+    | `Definite 0L, (`Excluded _ | `Definite _)
+    | (`Excluded _ | `Definite _), `Definite 0L -> `Definite 0L
     | _ -> lift2_inj Integers.mul x y
   let div  = lift2 Integers.div
   let rem  = lift2 Integers.rem
@@ -848,7 +894,6 @@ struct
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c (x:t) =
     let c = Cil.(Lval (Option.get c.Invariant.lval)) in
@@ -905,7 +950,7 @@ struct
   let size t = Size.bit t
 
   let name () = "circular int intervals"
-  let cast_to t x =
+  let cast_to ?torg t x =
     match (I.bounds x) with
     | None -> Bot (size t)
     | Some(a,b) -> I.of_t (size t) a b
@@ -946,12 +991,12 @@ struct
   let is_excl_list x = false
 
   (* Starting/Ending *)
-  let starting x =
+  let starting ?ikind x =
     let r = I.of_t max_width (C.of_int64 max_width x) (C.max_value max_width)
     in
     print_endline ("starting: "^(I.to_string r)^" .. "^(Int64.to_string x));
     r
-  let ending x =
+  let ending ?ikind x =
     let r = I.of_t max_width C.zero (C.of_int64 max_width x)
     in
     print_endline ("ending: "^(I.to_string r)^" .. "^(Int64.to_string x));
@@ -1197,29 +1242,22 @@ end
 
 module MakeBooleans (N: BooleansNames) =
 struct
-  include Printable.Std
-  include Lattice.StdCousot
   type t = bool [@@deriving to_yojson]
-  let hash = function true -> 51534333 | _ -> 561123444
-  let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
-  let equal (x:t) (y:t) = x=y
   let name () = "booleans"
-  let cast_to _ x = x (* ok since there's no smaller ikind to cast to *)
-  let copy x = x
-  let isSimple _ = true
-  let short _ x = if x then N.truename else N.falsename
-  let pretty_f sf _ x = Pretty.text (sf Goblintutil.summary_length x)
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
-
   let top () = true
-  let is_top x = x
   let bot () = false
-  let is_bot x = not x
+  let short _ x = if x then N.truename else N.falsename
+  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
+  let hash = function true -> 51534333 | _ -> 561123444
+
+  let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
+  let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
+
   let leq x y = not x || y
   let join = (||)
+  let widen = join
   let meet = (&&)
+  let narrow = meet
 
   let of_bool x = x
   let to_bool x = Some x
@@ -1227,15 +1265,6 @@ struct
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
   let is_int x  = not x
-
-  let to_excl_list x = None
-  let of_excl_list t x = top ()
-  let is_excl_list x = false
-  let of_interval  x = top ()
-  let starting     x = top ()
-  let ending       x = top ()
-  let maximal      x = None
-  let minimal      x = None
 
   let neg x = x
   let add x y = x || y
@@ -1258,8 +1287,6 @@ struct
   let lognot = (not)
   let logand = (&&)
   let logor  = (||)
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module Booleans = MakeBooleans (
@@ -1270,16 +1297,22 @@ module Booleans = MakeBooleans (
 
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
 module Enums : S = struct
-  include Printable.Std (* for default invariant, tag, ... *)
-
   open Batteries
   module I = Integers
   module R = Interval32 (* range for exclusion *)
-  let size t = R.of_interval (Size.bits_i64 t)
+  let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
   type e = I.t (* element *)
   and t = Inc of e list | Exc of e list * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
-
   let name () = "enums"
+  let top_range = R.of_interval (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let bot () = Inc []
+  let top_of ik = Exc ([], size ik)
+  let top () = Exc ([], top_range)
+  let short _ = function
+    | Inc[] -> "bot" | Exc([],r) -> "top"
+    | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
+    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "} " ^ "("^R.short 2 r^")"
+  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
 
   let equal_to i = function
     | Inc x ->
@@ -1290,17 +1323,20 @@ module Enums : S = struct
     | Exc (x, r) ->
       if List.mem i x then `Neq
       else `Top
-
-  let bot () = Inc []
-  let top_of ik = Exc ([], size ik)
-  let top () = top_of (Size.max `Signed)
-  let short _ = function
-    | Inc[] -> "bot" | Exc([],r) -> "top"
-    | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
-    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
-
   let of_int x = Inc [x]
-  let cast_to t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
+
+  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
+  let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
+    | Exc (s,r) ->
+      let r' = size ik in
+      if R.leq r r' then (* upcast -> no change *)
+        Exc (s, r)
+      else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
+        let s' = List.map (I.cast_to ik) s in
+        Exc (s', r')
+      else (* downcast: may overflow *)
+        Exc ([], r')
+    |  Inc x -> Inc (List.map (Integers.cast_to ik) x)
 
   let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =
@@ -1349,32 +1385,6 @@ module Enums : S = struct
 
   let leq x y = join x y = y
 
-  let abstr_compare = curry @@ function
-    | Exc _, Exc _ -> Inc[-1L; 0L ;1L]
-    | Inc[],_ | _,Inc[] -> Inc[]
-    | Inc x, Inc y ->
-      let x_max = List.last x in
-      let x_min = List.hd x in
-      let y_max = List.last y in
-      let y_min = List.hd y in
-      if  x_max < y_min then Inc[-1L]
-      else if y_max < x_min then Inc[1L]
-      else if x_min = y_max then
-        if  y_min = x_max then Inc[0L]
-        else Inc[0L;1L]
-      else if y_min = x_max then Inc[-1L;0L]
-      else Inc[-1L;0L;1L]
-    | Inc l, Exc (l',r) ->
-      (match merge_sub l l' with
-       | [] -> Inc[-1L;1L]
-       | _ -> Inc[-1L;0L;1L]
-      )
-    | Exc (l,r), Inc l' ->
-      (match merge_sub l' l with
-       | [] -> Inc[-1L;1L]
-       | _ -> Inc[-1L;0L;1L]
-      )
-
   let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
   let lift1 f = function
     | Inc[x] -> Inc[f x]
@@ -1421,24 +1431,6 @@ module Enums : S = struct
   let logand = lift2 I.logand
   let logor  = lift2 I.logor
 
-  let is_top x = x = top ()
-  let is_bot x = x = bot ()
-  let hash = Hashtbl.hash
-  let equal = (=)
-  let compare = compare
-  let isSimple _  = true
-  let pretty_list xs = text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")"
-  let pretty_f _ _ = function
-    | Inc [] -> text "bot"
-    | Exc ([],r) -> text "top"
-    | Inc xs -> text "Inc" ++ pretty_list (List.map (I.pretty ()) xs)
-    | Exc (xs,r) -> text "Exc" ++ pretty_list (List.map (I.pretty ()) xs)
-  let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
-  let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
-
   let of_bool x = Inc [if x then Int64.one else Int64.zero]
   let to_bool = function
     | Inc [] | Exc ([],_) -> None
@@ -1446,16 +1438,16 @@ module Enums : S = struct
     | Inc xs when List.for_all ((<>) 0L) xs -> Some true
     | Exc (xs,_) when List.exists ((=) 0L) xs -> Some true
     | _ -> None
-  let is_bool = Option.is_some % to_bool
+  let is_bool = BatOption.is_some % to_bool
   let of_int  x = Inc [x]
   let to_int = function Inc [x] -> Some x | _ -> None
-  let is_int = Option.is_some % to_int
+  let is_int = BatOption.is_some % to_int
 
   let to_excl_list = function Exc (x,r) when x<>[] -> Some x | _ -> None
   let of_excl_list t x = Exc (x, size t)
-  let is_excl_list = Option.is_some % to_excl_list
-  let starting     x = top ()
-  let ending       x = top ()
+  let is_excl_list = BatOption.is_some % to_excl_list
+  let starting     ?ikind x = top ()
+  let ending       ?ikind x = top ()
   let maximal = function Inc xs when xs<>[] -> Some (List.last xs) | _ -> None
   let minimal = function Inc (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
@@ -1499,8 +1491,8 @@ module IntDomTuple = struct
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
     f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
-  let mapp r (a,b,c,d) = Option.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
-  let map  r (a,b,c,d) = Option.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
+  let mapp r (a,b,c,d) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
+  let map  r (a,b,c,d) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
   let map2  r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc, opt_map2 (r.f2  (module I4)) xd yd
   let map2p r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc, opt_map2 (r.f2p  (module I4)) xd yd
@@ -1516,15 +1508,15 @@ module IntDomTuple = struct
   let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
   let of_excl_list t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list t }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
-  let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
-  let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
+  let starting ?ikind = create { fi = fun (type a) (module I:S with type t = a) x -> match ikind with | None -> I.starting x | Some ik -> I.starting ~ikind:ik x } (* Does not compile without making x explicit *)
+  let ending ?ikind = create { fi = fun (type a) (module I:S with type t = a) x -> match ikind with | None -> I.ending x | Some ik -> I.ending  ~ikind:ik x } (* Does not compile without making x explicit *)
   let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }
 
   (* f1: unary ops *)
   let neg = map { f1 = fun (type a) (module I:S with type t = a) -> I.neg }
   let bitnot = map { f1 = fun (type a) (module I:S with type t = a) -> I.bitnot }
   let lognot = map { f1 = fun (type a) (module I:S with type t = a) -> I.lognot }
-  let cast_to t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to t }
+  let cast_to ?torg t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to ?torg t }
 
   (* fp: projections *)
   let equal_to i x =
@@ -1545,7 +1537,7 @@ module IntDomTuple = struct
   let minimal = flat List.max % mapp { fp = fun (type a) (module I:S with type t = a) -> I.minimal }
   let maximal = flat List.min % mapp { fp = fun (type a) (module I:S with type t = a) -> I.maximal }
   (* exists/for_all *)
-  let is_bot = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
+  let is_bot = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
   let is_top = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top }
   let is_int = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_int }
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }

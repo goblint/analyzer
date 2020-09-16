@@ -219,3 +219,233 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
 
   GML.stop g;
   close_out_noerr out
+
+open Analyses
+module Result (Cfg : CfgBidir)
+              (Spec : SpecHC)
+              (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
+                                  and module GVar = Basetype.Variables
+                                  and module D = Spec.D
+                                  and module G = Spec.G)
+              (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
+              (GHT : BatHashtbl.S with type key = EQSys.GVar.t) = struct
+  let write result_fold file lh gh local_xml liveness entrystates rerun =
+    let svcomp_unreach_call =
+      let dead_verifier_error (l, n, f) v acc =
+        match n with
+        (* FunctionEntry isn't used for extern __VERIFIER_error... *)
+        | FunctionEntry f when Svcomp.is_error_function f ->
+          let is_dead = not (liveness n) in
+          acc && is_dead
+        | _ -> acc
+      in
+      result_fold dead_verifier_error local_xml true
+    in
+    Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
+
+    let get: node * Spec.C.t -> Spec.D.t =
+      fun nc -> LHT.find_default lh nc (Spec.D.bot ())
+    in
+    let ask_local (lvar:EQSys.LVar.t) local =
+      (* build a ctx for using the query system *)
+      let rec ctx =
+        { ask    = query
+        ; node   = fst lvar
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> snd lvar)
+        ; context = (fun () -> snd lvar)
+        ; edge    = MyCFG.Skip
+        ; local  = local
+        ; global = GHT.find gh
+        ; presub = []
+        ; postsub= []
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+        ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
+        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
+        }
+      and query x = Spec.query ctx x in
+      Spec.query ctx
+    in
+    let ask_indices lvar =
+      let local = get lvar in
+      let indices = ref [] in
+      ignore (ask_local lvar local (Queries.IterVars (fun i ->
+          indices := i :: !indices
+        )));
+      !indices
+    in
+
+    let module Node =
+    struct
+      type t = MyCFG.node * Spec.C.t * int
+
+      let equal (n1, c1, i1) (n2, c2, i2) =
+        EQSys.LVar.equal (n1, c1) (n2, c2) && i1 = i2
+
+      let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + i
+
+      let cfgnode (n, c, i) = n
+
+      let to_string (n, c, i) =
+        (* copied from NodeCtxStackGraphMlWriter *)
+        let c_tag = Spec.C.tag c in
+        let i_str = string_of_int i in
+        match n with
+        | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
+        | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.vid f.vname c_tag i_str
+        | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.vid f.vname c_tag i_str
+
+      (* TODO: less hacky way (without ask_indices) to move node *)
+      let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
+      let move_opt (n, c, i) to_n =
+        match ask_indices (to_n, c) with
+        | [] -> None
+        | [to_i] ->
+          let to_node = (to_n, c, to_i) in
+          BatOption.filter is_live (Some to_node)
+        | _ :: _ :: _ ->
+          failwith "Node.move_opt: ambiguous moved index"
+      let equal_node_context (n1, c1, i1) (n2, c2, i2) =
+        EQSys.LVar.equal (n1, c1) (n2, c2)
+    end
+    in
+
+    let module NHT = BatHashtbl.Make (Node) in
+
+    let (witness_prev_map, witness_prev, witness_next) =
+      let prev = NHT.create 100 in
+      let next = NHT.create 100 in
+      LHT.iter (fun lvar local ->
+          ignore (ask_local lvar local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
+              let lvar' = (fst lvar, snd lvar, i) in
+              let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
+              NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
+              NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
+            )))
+        ) lh;
+
+      (prev,
+        (fun n ->
+          NHT.find_default prev n []), (* main entry is not in prev at all *)
+        (fun n ->
+          NHT.find_default next n [])) (* main return is not in next at all *)
+    in
+    let witness_main =
+      let lvar = WitnessUtil.find_main_entry entrystates in
+      let main_indices = ask_indices lvar in
+      (* TODO: get rid of this hack for getting index of entry state *)
+      assert (List.length main_indices = 1);
+      let main_index = List.hd main_indices in
+      (fst lvar, snd lvar, main_index)
+    in
+
+    let module Arg =
+    struct
+      module Node = Node
+      module Edge = MyARG.InlineEdge
+      let main_entry = witness_main
+      let next = witness_next
+    end
+    in
+    let module Arg =
+    struct
+      open MyARG
+      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (Cfg)))
+      include Intra (ArgIntra) (Arg)
+    end
+    in
+
+    let find_invariant (n, c, i) =
+      let context: Invariant.context = {
+          i;
+          lval=None;
+          offset=Cil.NoOffset;
+          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+        }
+      in
+      Spec.D.invariant context (get (n, c))
+    in
+
+    let module Task = struct
+        let file = file
+        let specification = Svcomp.unreach_call_specification
+
+        module Cfg = Cfg
+      end
+    in
+
+    let witness_path = get_string "exp.witness_path" in
+    if svcomp_unreach_call then (
+      let module TaskResult =
+      struct
+        module Arg = Arg
+        let result = true
+        let invariant = find_invariant
+        let is_violation _ = false
+        let is_sink _ = false
+      end
+      in
+      write_file witness_path (module Task) (module TaskResult)
+    ) else (
+      let is_violation = function
+        | FunctionEntry f, _, _ when Svcomp.is_error_function f -> true
+        | _, _, _ -> false
+      in
+      (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
+      let is_violation n =
+        Arg.next n
+        |> List.exists (fun (_, to_n) -> is_violation to_n)
+      in
+      let violations =
+        NHT.fold (fun lvar _ acc ->
+            if is_violation lvar then
+              lvar :: acc
+            else
+              acc
+          ) witness_prev_map []
+      in
+      let module ViolationArg =
+      struct
+        include Arg
+
+        let prev = witness_prev
+        let violations = violations
+      end
+      in
+      let write_violation_witness = ref true in
+      if get_bool "ana.wp" then (
+        match Violation.find_path (module ViolationArg) with
+        | Feasible (module PathArg) ->
+          (* TODO: add assumptions *)
+          let module TaskResult =
+          struct
+            module Arg = PathArg
+            let result = false
+            let invariant _ = Invariant.none
+            let is_violation = is_violation
+            let is_sink _ = false
+          end
+          in
+          write_file witness_path (module Task) (module TaskResult);
+          write_violation_witness := false
+        | Infeasible ->
+          rerun := true
+        | Unknown -> ()
+      );
+      if !write_violation_witness then (
+        (* TODO: exclude sinks before find_path? *)
+        let is_sink = Violation.find_sinks (module ViolationArg) in
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = false
+          let invariant _ = Invariant.none
+          let is_violation = is_violation
+          let is_sink = is_sink
+        end
+        in
+        write_file witness_path (module Task) (module TaskResult)
+      )
+    )
+end

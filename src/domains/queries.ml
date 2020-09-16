@@ -17,7 +17,6 @@ module ES =
 struct
   include ES_r
   include Printable.Std
-  include Lattice.StdCousot
   let bot = ES_r.top
   let top = ES_r.bot
   let leq x y = ES_r.leq y x

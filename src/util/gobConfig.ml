@@ -60,6 +60,9 @@ sig
   (** Get a list of values *)
   val get_list : string -> jvalue list
 
+  (** Get a list of strings *)
+  val get_string_list : string -> string list
+
   (** Set a list of values *)
   val set_list : string -> jvalue list -> unit
 
@@ -72,15 +75,17 @@ sig
   (** Functions to modify conf array variables to drop one index. *)
   val drop_index : string -> int    -> unit
 
+  (** Print the current configuration *)
+  val print : 'a BatInnerIO.output -> unit
+
+  (** Write the current configuration to [filename] *)
+  val write_file: string -> unit
+
   (** Merge configurations form a file with current. *)
   val merge_file : string -> unit
 
   (** Add a schema to the conf*)
   val addenum_sch: jvalue -> unit
-
-
-  (** printer for the current configuration *)
-  val print : 'a BatInnerIO.output -> unit
 end
 
 (** The implementation of the [gobConfig] module. *)
@@ -180,6 +185,7 @@ struct
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
     printJson ch !json_conf
+  let write_file filename = File.with_file_out filename print
 
   (** Main function to receive values from the conf. *)
   let rec get_value o pth =
@@ -270,6 +276,7 @@ struct
   let get_string = get_path_string string "string"
   let get_length = List.length % (!) % get_path_string array "array"
   let get_list = List.map (!) % (!) % get_path_string array "array"
+  let get_string_list = List.map string % get_list
 
   (** Helper functions for writing values. *)
   let set_path_string st v =

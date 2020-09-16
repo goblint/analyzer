@@ -87,13 +87,13 @@ let print_group group_name errors =
   ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 let warn_urgent msg =
-  if not !GU.may_narrow then begin
+  if !GU.should_warn then begin
     soundness := false;
     print_msg msg (!Tracing.current_loc)
   end
 
 let warn_all msg =
-  if not !GU.may_narrow then begin
+  if !GU.should_warn then begin
     if !warnings then
       print_msg msg (!Tracing.current_loc);
     soundness := false
@@ -109,7 +109,7 @@ let waitWhat s =
 let report_lin_hashtbl  = Hashtbl.create 10
 
 let report ?loc:(loc= !Tracing.current_loc) msg =
-  if not !GU.may_narrow then begin
+  if !GU.should_warn then begin
     if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
       begin
         print_msg msg loc;
@@ -118,7 +118,7 @@ let report ?loc:(loc= !Tracing.current_loc) msg =
   end
 
 let report_error msg =
-  if not !GU.may_narrow then begin
+  if !GU.should_warn then begin
     let loc = !Tracing.current_loc in
     print_err msg loc
   end
@@ -131,7 +131,7 @@ let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
 let warn ?ctx msg =
-  if not !GU.may_narrow then begin
+  if !GU.should_warn then begin
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_str_hashtbl msg == false) then
       begin
@@ -141,7 +141,7 @@ let warn ?ctx msg =
   end
 
 let warn_each ?ctx msg =
-  if not !GU.may_narrow then begin
+  if !GU.should_warn then begin
     let loc = !Tracing.current_loc in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then

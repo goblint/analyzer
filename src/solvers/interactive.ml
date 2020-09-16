@@ -213,7 +213,7 @@ struct
 
     in
       event "started";
-      GU.may_narrow := false;
+      GU.should_warn := false;
       let add_start (v,d) =
         VMap.add sigma v d;
         let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system v) ([],0)) in

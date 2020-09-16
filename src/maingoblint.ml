@@ -7,7 +7,6 @@ open Printf
 open Json
 open Goblintutil
 
-let writeconf = ref false
 let writeconffile = ref ""
 
 (** Print version and bail. *)
@@ -17,7 +16,7 @@ let print_version ch =
   printf "Goblint version: %s\n" goblint;
   printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
   printf "Configuration:   tracing %a, tracking %a\n" f tracing f tracking ;
-  raise Exit
+  exit 0
 
 (** Print helpful messages. *)
 let print_help ch =
@@ -40,7 +39,8 @@ let print_help ch =
   fprintf ch "A <jvalue> is a string from the JSON language where single-quotes (')";
   fprintf ch " are used instead of double-quotes (\").\n\n";
   fprintf ch "A <jpath> is a path in a json structure. E.g. 'field.another_field[42]';\n";
-  fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n"
+  fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n";
+  exit 0
 
 (* The temp directory for preprocessing the input files *)
 let create_temp_dir () =
@@ -75,7 +75,7 @@ let option_spec_list =
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
     if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" get_goblint_path;
+      set_string "exp.g2html_path" exe_dir;
     set_bool "dbg.print_dead_code" true;
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
@@ -83,7 +83,7 @@ let option_spec_list =
   in
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""
-  ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true), ""
+  ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
   ; "-I"                   , Arg.String (set_string "includes[+]"), ""
   ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
@@ -91,17 +91,16 @@ let option_spec_list =
   ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
   ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
   ; "--conf"               , Arg.String merge_file, ""
-  ; "--writeconf"          , Arg.String (fun fn -> writeconf:=true;writeconffile:=fn), ""
+  ; "--writeconf"          , Arg.String (fun fn -> writeconffile := fn), ""
   ; "--version"            , Arg.Unit print_version, ""
-  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise Exit), ""
-  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise Exit), ""
+  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; exit 0), ""
+  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; exit 0), ""
   ; "--trace"              , Arg.String set_trace, ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
   ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
-  ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
-  ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
   ; "--html"               , Arg.Unit (fun _ -> configure_html ()),""
+  ; "--compare_runs"       , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x))], ""
   ; "--oil"                , Arg.String oil, ""
   (*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
   ; "--osekdefaults"       , Arg.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
@@ -126,7 +125,7 @@ let parse_arguments () =
     else cFileNames := fname :: !cFileNames
   in
   Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
-  if !writeconf then begin File.with_file_out !writeconffile print; raise Exit end
+  if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -134,18 +133,17 @@ let handle_flags () =
   if has_oil then Osek.Spec.parse_oil ();
 
   if get_bool "dbg.debug" then Messages.warnings := true;
-  if get_bool "dbg.verbose" then begin
+  if get_bool "dbg.verbose" then (
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;
     Errormsg.verboseFlag := true
-  end;
+  );
 
   match get_string "dbg.dump" with
   | "" -> ()
-  | path -> begin
+  | path ->
       Messages.warn_out := Legacy.open_out (Legacy.Filename.concat path "warnings.out");
       set_string "outfile" ""
-    end
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let preprocess_one_file cppflags includes fname =
@@ -170,8 +168,7 @@ let preprocess_one_file cppflags includes fname =
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
   (* Handy (almost) constants. *)
-  let myname = Filename.dirname Sys.executable_name in
-  let kernel_root = Filename.concat myname "linux-headers" in
+  let kernel_root = Filename.concat exe_dir "linux-headers" in
   let kernel_dir = kernel_root ^ "/include" in
   let arch_dir = kernel_root ^ "/arch/x86/include" in
 
@@ -180,7 +177,7 @@ let preprocess_files () =
 
   (* the base include directory *)
   let include_dir =
-    let incl1 = Filename.concat myname "includes" in
+    let incl1 = Filename.concat exe_dir "includes" in
     let incl2 = "/usr/share/goblint/includes" in
     if get_string "custom_incl" <> "" then (get_string "custom_incl")
     else if Sys.file_exists incl1 then incl1
@@ -236,7 +233,7 @@ let preprocess_files () =
     cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)
-  if get_bool "kernel" then begin
+  if get_bool "kernel" then (
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
     cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
@@ -246,7 +243,7 @@ let preprocess_files () =
         kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
         arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
       ]
-  end;
+  );
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
@@ -292,7 +289,7 @@ let do_analyze change_info merged_AST =
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST
-  else begin
+  else (
     (* we first find the functions to analyze: *)
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
@@ -334,23 +331,23 @@ let do_analyze change_info merged_AST =
 
     (* Analyze with the new experimental framework. *)
     Stats.time "analysis" (do_all_phases merged_AST) funs
-  end
+  )
 
 let do_html_output () =
   (* if we are in Cygwin, we use the host's Java and GraphViz -> paths need to be converted from Cygwin to Windows style *)
   let get_path path = if Sys.os_type = "Cygwin" then "$(cygpath -wa "^path^")" else path in
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
-  if get_bool "g2html" then begin
-    if Sys.file_exists jar then begin
+  if get_bool "g2html" then (
+    if Sys.file_exists jar then (
       let command = "java -jar "^get_path jar^" --result-dir "^get_path (get_string "outfile")^" "^get_path !Messages.xml_file_name in
       try match Unix.system command with
         | Unix.WEXITED 0 -> ()
         | _ -> eprintf "HTML generation failed!\n"
       with Unix.Unix_error (e, f, a) ->
         eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
-    end else
+    ) else
       eprintf "Warning: jar file %s not found.\n" jar
-  end
+  )
 
 let check_arguments () =
   let fail m = failwith ("Option clash: " ^ m) in
@@ -435,6 +432,10 @@ let main =
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
+        if get_bool "dbg.verbose" then (
+          print_endline (localtime ());
+          print_endline command;
+        );
         let file = preprocess_files () |> merge_preprocessed in
         let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
         file|> do_analyze changeInfo;
@@ -442,7 +443,7 @@ let main =
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
         if !Messages.worldStopped then exit 124 (* timeout! *)
-      with Exit -> ()
+      with Exit -> exit 1
     )
 
 let _ =
