@@ -5,7 +5,8 @@ type t = exp option
 type context = {
   i: int;
   lval: lval option;
-  deref_invariant: varinfo -> lval -> t
+  offset: offset;
+  deref_invariant: varinfo -> offset -> lval -> t
 }
 
 let none: t = None

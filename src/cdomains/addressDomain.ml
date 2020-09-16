@@ -138,7 +138,6 @@ struct
   let narrow x y = merge widen narrow x y
 
   let invariant c x =
-    (* TODO: offsets? *)
     let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
     let i_opt = fold (fun addr acc_opt ->
         Option.bind acc_opt (fun acc ->
@@ -146,7 +145,7 @@ struct
             | Addr.UnknownPtr
             | Addr.SafePtr ->
               None
-            | Addr.Addr (vi, _) as addr when Addr.is_definite addr ->
+            | Addr.Addr (vi, offs) as addr when Addr.is_definite addr ->
               let i =
                 if not (InvariantCil.var_is_heap vi) then
                   let addr_exp = Addr.to_exp (fun _ -> failwith "Addr.to_exp f") addr in
@@ -154,8 +153,14 @@ struct
                 else
                   Invariant.none
               in
+              let rec offs_to_offset = function
+                | `NoOffset -> NoOffset
+                | `Field (f, offs) -> Field (f, offs_to_offset offs)
+                | `Index (i, offs) -> failwith "offs_to_offset: Index"
+              in
+              let offset = offs_to_offset offs in
               let i_deref =
-                c.Invariant.deref_invariant vi (Mem c_exp, NoOffset)
+                c.Invariant.deref_invariant vi offset (Mem c_exp, NoOffset)
               in
 
               Some (Invariant.(acc || (i && i_deref)))

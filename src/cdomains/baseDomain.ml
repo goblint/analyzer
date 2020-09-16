@@ -13,21 +13,21 @@ struct
     (* VS is used to detect and break cycles in deref_invariant calls *)
     let module VS = Set.Make (Basetype.Variables) in
     let rec context vs = {c with
-        deref_invariant=(fun vi lval ->
+        deref_invariant=(fun vi offset lval ->
           let v = find vi m in
-          key_invariant_lval vi lval v vs
+          key_invariant_lval vi offset lval v vs
         )
       }
-    and key_invariant_lval k lval v vs =
+    and key_invariant_lval k offset lval v vs =
       if not (InvariantCil.var_is_tmp k) && not (VS.mem k vs) then
         let vs' = VS.add k vs in
-        let key_context = {(context vs') with lval=Some lval} in
+        let key_context = {(context vs') with offset; lval=Some lval} in
         VD.invariant key_context v
       else
         Invariant.none
     in
 
-    let key_invariant k v = key_invariant_lval k (var k) v VS.empty in
+    let key_invariant k v = key_invariant_lval k NoOffset (var k) v VS.empty in
 
     fold (fun k v a ->
         let i =

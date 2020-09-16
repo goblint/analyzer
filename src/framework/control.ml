@@ -585,7 +585,8 @@ struct
         let context: Invariant.context = {
             i;
             lval=None;
-            deref_invariant=(fun _ _ -> Invariant.none) (* TODO: should throw instead? *)
+            offset=Cil.NoOffset;
+            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
           }
         in
         Spec.D.invariant context (get (n, c))
