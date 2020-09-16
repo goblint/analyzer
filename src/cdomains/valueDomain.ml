@@ -904,6 +904,7 @@ struct
     | `Int n -> ID.invariant c n
     | `Address n -> AD.invariant c n
     | `Blob n -> Blobs.invariant c n
+    | `Struct n -> Structs.invariant c n
     | _ -> None (* TODO *)
 end
 
