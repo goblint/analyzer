@@ -36,6 +36,8 @@ struct
     fold f s2 false
 
   let add e s = join s (singleton e)
+
+  let widen = join
 end
 
 module type CollapseSet = sig
@@ -90,6 +92,8 @@ struct
 
   let add (s:set) (p:t): t = join p (singleton s)
 
+  let widen = join
+  let narrow = meet
 end
 
 
@@ -155,6 +159,8 @@ struct
   let find_class (x: Base.t) (ss: t): set option =
     try Some (E.choose (E.filter (B.mem x) ss)) with Not_found -> None
 
+  let widen = join
+  let narrow = meet
 end
 
 module ExpPartitions = SetSet (Exp.Exp)

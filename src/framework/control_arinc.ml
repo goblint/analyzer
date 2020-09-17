@@ -183,14 +183,14 @@ struct
     let global_xml = ref (GHT.create 0) in
     let lh_ref = ref (LHT.create 0) in
     let do_analyze_using_solver () =
-      if get_bool "dbg.earlywarn" then Goblintutil.may_narrow := false;
+      if get_bool "dbg.earlywarn" then Goblintutil.should_warn := false;
       let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
       lh_ref := lh;
 
 
-      if not (get_bool "noverify") then begin
+      if get_bool "verify" then begin
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
-        Goblintutil.may_narrow := false;
+        Goblintutil.should_warn := false;
         Vrfyr.verify lh gh;
       end;
 

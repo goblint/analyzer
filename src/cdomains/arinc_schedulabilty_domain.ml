@@ -130,7 +130,7 @@ struct
   let advance_all_times_by interval times =
     (* Subtract interval from x and ensure result is not negative *)
     let decrement x  = (* TODO: Do we need this here, even if times does the work to ensure it does not get negative ->
-    Currently yes if otherwise we get something that si entirely negative, the meet will be \bot *)
+    Currently yes if otherwise we get something that is entirely negative, the meet will be \bot *)
       if TInterval.to_int x = Some Int64.zero then
         x
       else
@@ -154,7 +154,6 @@ module OneTask =
 struct
   type t = process [@@deriving to_yojson]
   include Printable.Std
-  include Lattice.StdCousot
 
   (* printing *)
   let short w x = Printf.sprintf "{ pid=%s; priority=%s; period=%s; capacity=%s; proState=%s; waitingFor=%s }"
@@ -201,6 +200,8 @@ struct
 
   let join = op_scheme Pid.join Priority.join Period.join Capacity.join ProcessState.join WaitingForEvent.join
   let meet = op_scheme Pid.meet Priority.meet Period.meet Capacity.meet ProcessState.meet WaitingForEvent.meet
+  let widen = join
+  let narrow = meet
 
   let suspend p = {p with processState = (if p.processState = PState.ready then PState.suspended else PState.susp_wait)}
   let resume p = {p with processState = (if p.processState = PState.suspended then PState.ready else PState.wait)}

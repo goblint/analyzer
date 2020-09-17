@@ -398,7 +398,6 @@ end
 module Integers = (* no top/bot, order is <= *)
 struct
   include Printable.Std
-  include Lattice.StdCousot
   let name () = "integers"
   type t = int64 [@@deriving to_yojson]
   let top () = raise Unknown
@@ -414,7 +413,9 @@ struct
   let equal_to i x = if i > x then `Neq else `Top
   let leq x y = x <= y
   let join x y = if Int64.compare x y > 0 then x else y
+  let widen = join
   let meet x y = if Int64.compare x y > 0 then y else x
+  let narrow = meet
 
   let of_bool x = if x then Int64.one else Int64.zero
   let to_bool' x = x <> Int64.zero
@@ -610,7 +611,6 @@ struct
   module S = SetDomain.Make (Integers)
   module R = Interval32 (* range for exclusion *)
   let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
-  include Lattice.StdCousot
   type t = [
     | `Excluded of S.t * R.t
     | `Definite of Integers.t
@@ -707,6 +707,8 @@ struct
     (* For two exclusion sets, only their intersection can be excluded: *)
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, R.join wx wy)
 
+  let widen = join
+
   let meet x y =
     match (x,y) with
     (* Greatest LOWER bound with the least element is trivial: *)
@@ -725,7 +727,7 @@ struct
       let in_range i = R.leq (R.of_int i) r' in
       let s' = S.union x y |> S.filter in_range in
       `Excluded (s', r')
-
+  let narrow = meet
   let of_int  x = `Definite (Integers.of_int x)
   let to_int  x = match x with
     | `Definite x -> Integers.to_int x
@@ -1236,7 +1238,6 @@ end
 
 module MakeBooleans (N: BooleansNames) =
 struct
-  include Lattice.StdCousot
   type t = bool [@@deriving to_yojson]
   let name () = "booleans"
   let top () = true
@@ -1250,7 +1251,9 @@ struct
 
   let leq x y = not x || y
   let join = (||)
+  let widen = join
   let meet = (&&)
+  let narrow = meet
 
   let of_bool x = x
   let to_bool x = Some x
@@ -1293,17 +1296,18 @@ module Enums : S = struct
   open Batteries
   module I = Integers
   module R = Interval32 (* range for exclusion *)
-  let size t = R.of_interval (Size.bits_i64 t)
+  let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
   type e = I.t (* element *)
   and t = Inc of e list | Exc of e list * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
   let name () = "enums"
+  let top_range = R.of_interval (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let bot () = Inc []
   let top_of ik = Exc ([], size ik)
-  let top () = top_of (Size.max `Signed)
+  let top () = Exc ([], top_range)
   let short _ = function
     | Inc[] -> "bot" | Exc([],r) -> "top"
     | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
-    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
+    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "} " ^ "("^R.short 2 r^")"
   include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
 
   let equal_to i = function
@@ -1316,7 +1320,19 @@ module Enums : S = struct
       if List.mem i x then `Neq
       else `Top
   let of_int x = Inc [x]
-  let cast_to ?torg t = function Inc xs -> (try Inc (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Exc _ -> top_of t
+
+  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
+  let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
+    | Exc (s,r) ->
+      let r' = size ik in
+      if R.leq r r' then (* upcast -> no change *)
+        Exc (s, r)
+      else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
+        let s' = List.map (I.cast_to ik) s in
+        Exc (s', r')
+      else (* downcast: may overflow *)
+        Exc ([], r')
+    |  Inc x -> Inc (List.map (Integers.cast_to ik) x)
 
   let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =
@@ -1364,32 +1380,6 @@ module Enums : S = struct
   let narrow x y = meet x y
 
   let leq x y = join x y = y
-
-  let abstr_compare = curry @@ function
-    | Exc _, Exc _ -> Inc[-1L; 0L ;1L]
-    | Inc[],_ | _,Inc[] -> Inc[]
-    | Inc x, Inc y ->
-      let x_max = List.last x in
-      let x_min = List.hd x in
-      let y_max = List.last y in
-      let y_min = List.hd y in
-      if  x_max < y_min then Inc[-1L]
-      else if y_max < x_min then Inc[1L]
-      else if x_min = y_max then
-        if  y_min = x_max then Inc[0L]
-        else Inc[0L;1L]
-      else if y_min = x_max then Inc[-1L;0L]
-      else Inc[-1L;0L;1L]
-    | Inc l, Exc (l',r) ->
-      (match merge_sub l l' with
-       | [] -> Inc[-1L;1L]
-       | _ -> Inc[-1L;0L;1L]
-      )
-    | Exc (l,r), Inc l' ->
-      (match merge_sub l' l with
-       | [] -> Inc[-1L;1L]
-       | _ -> Inc[-1L;0L;1L]
-      )
 
   let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
   let lift1 f = function
