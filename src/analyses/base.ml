@@ -349,14 +349,19 @@ struct
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
-            match CPA.find x st with
-            | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
-            | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-          else begin
-            if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-            CPA.find x st
-          end
+        (* TODO: Return top for globals *)
+        let var = if GobConfig.get_bool "ana.library" && is_global a x
+          then VD.top ()
+          else (
+            if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
+                match CPA.find x st with
+                | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
+                | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+              else begin
+                if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+                CPA.find x st
+              end
+          )
         in
 
         let v = VD.eval_offset a (fun x -> get a gs (st,fl,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) in
@@ -380,7 +385,7 @@ struct
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
     res
 
-  let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
+  let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype || (GobConfig.get_bool "ana.library" && variable.vglob)
 
 
   (**************************************************************************

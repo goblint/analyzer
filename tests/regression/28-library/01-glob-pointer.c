@@ -1,4 +1,4 @@
-//PARAM: --enable allfuns
+//PARAM: --enable ana.library --enable allfuns
 #include <assert.h>
 
 int g;
