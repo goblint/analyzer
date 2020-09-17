@@ -81,9 +81,11 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
 
     mkEdge (PC ([5; i])) (0, ResumeTask 1) (PC [6; i]);
     mkEdge (PC ([6; i])) (0, TimedWait 20) (PC[12;i]);
-    mkEdge (PC ([12; i])) (0, WaitingForEndWait) (PC[9;i]);
+    mkEdge (PC ([12; i])) (0, WaitingForEndWait) (PC[16;i]);
     mkEdge (PC ([6; i])) (0, WaitEvent 1) (PC [7; i]);
     mkEdge (PC ([7; i])) (0, ResetEvent 1) (PC [8; i]);
+
+    mkEdge (PC ([16; i])) (0, NOP) (PC[9;i]);
 
     mkEdge (PC ([8; i])) (0, StartComputation 42) (PC [15; i]);
     mkEdge (PC ([15; i])) (0, FinishComputation) (PC [9; i]);
@@ -94,7 +96,7 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
     mkEdge (PC ([11; i])) (0, WaitingForPeriod) (PC [4; i]);
 
   done;
-  for i = 0 to 16 do
+  for i = 0 to 17 do
     mkEdge (PC ([i; 0])) (1, SuspendTask 1) (PC [i; 1]);
     mkEdge (PC ([i; 1])) (1, WaitSemaphore 0) (PC [i; 2]);
 
