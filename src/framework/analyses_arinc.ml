@@ -78,7 +78,7 @@ struct
 
   let var_id n =
     match n with
-    | Arinc_cfg.PC s -> string_of_int (10000*(List.nth s 0) + (List.nth s 1))
+    | Arinc_cfg.PC s -> string_of_int (List.nth s 0) ^ " , " ^ string_of_int (List.nth s 1)
 
   let line_nr n = -1
   let file_name n = "n/a"
@@ -219,7 +219,7 @@ struct
 
   let printXml f xs =
     let print_id f = function
-      | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
+      | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d , %d" (List.nth s 0) (List.nth s 1)
     in
     let print_one n v =
       BatPrintf.fprintf f "<call id=\"%a\">\n" print_id n;
@@ -229,7 +229,7 @@ struct
 
   let printJson f xs =
     let print_id f = function
-      | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
+      | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d , %d"  (List.nth s 0) (List.nth s 1)
     in
     let print_one n v =
       BatPrintf.fprintf f "{\n\"id\": \"%a\", \"states\": %s\n},\n" print_id n (Yojson.Safe.to_string (Range.to_yojson v))
