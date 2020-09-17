@@ -106,12 +106,6 @@ struct
       GHT.iter print_globals g
     in
 
-
-    (* analyze cil's global-inits function to get a starting state *)
-    let do_global_inits : Spec.D.t =
-      Spec.startstate MyCFG.dummy_func.svar
-    in
-
     let print_globals glob =
       let out = M.get_out (Spec.name ()) !GU.out in
       let print_one v st =
@@ -124,11 +118,6 @@ struct
     let _ = GU.global_initialization := true in
     let _ = GU.earlyglobs := false in
     Spec.init ();
-
-    let startstate =
-      if (get_bool "dbg.verbose") then print_endline ("Initializing globals.");
-      do_global_inits
-    in
 
     let enter_with st fd =
       let st = st fd.svar in

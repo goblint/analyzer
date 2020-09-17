@@ -9,7 +9,6 @@ include Arinc_node
 type edgeAct =
   | StartComputation of int
   (** Computation that takes a certain WCET *)
-  | ContinueComputation
   | FinishComputation
   | ResumeTask of int
   (** Resume another task *)
@@ -69,7 +68,6 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
   for i = 0 to 7 do
     mkEdge (PC ([0; i])) (0, StartComputation 10) (PC [13; i]);
     mkEdge (PC ([13; i])) (0, FinishComputation) (PC [1; i]);
-    mkEdge (PC ([13; i])) (0, ContinueComputation) (PC [13; i]);
 
     mkEdge (PC ([1; i])) (0, PeriodicWait) (PC [2; i]);
     mkEdge (PC ([2; i])) (0, WaitingForPeriod) (PC [3; i]);
@@ -77,7 +75,6 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
 
     mkEdge (PC ([4; i])) (0, StartComputation 20) (PC [14; i]);
     mkEdge (PC ([14; i])) (0, FinishComputation) (PC [5; i]);
-    mkEdge (PC ([14; i])) (0, ContinueComputation) (PC [14; i]);
 
     mkEdge (PC ([5; i])) (0, ResumeTask 1) (PC [6; i]);
     mkEdge (PC ([6; i])) (0, TimedWait 20) (PC[12;i]);
@@ -89,7 +86,6 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
 
     mkEdge (PC ([8; i])) (0, StartComputation 42) (PC [15; i]);
     mkEdge (PC ([15; i])) (0, FinishComputation) (PC [9; i]);
-    mkEdge (PC ([15; i])) (0, ContinueComputation) (PC [15; i]);
 
     mkEdge (PC ([9; i])) (0, SuspendTask 1) (PC [10; i]);
     mkEdge (PC ([10; i])) (0, PeriodicWait) (PC [11; i]);
@@ -102,7 +98,6 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
 
     mkEdge (PC ([i; 2])) (1, StartComputation 40) (PC [i; 6]);
     mkEdge (PC ([i; 6])) (1, FinishComputation) (PC [i; 3]);
-    mkEdge (PC ([i; 6])) (1, ContinueComputation) (PC [i; 6]);
 
     mkEdge (PC ([i; 3])) (1, SignalSemaphore 0) (PC [i; 4]);
     mkEdge (PC ([i; 4])) (1, SetEvent 1) (PC [i; 5]);

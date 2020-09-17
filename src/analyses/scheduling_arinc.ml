@@ -177,9 +177,23 @@ struct
     if TInterval.leq Times.zeroInterval waiting_time then
       do_end_wait (taskstates, times) tid
     else
+      (* if: highest priority thing is a computation step that might not finish *)
+          (* for taking this edge, it definitely did not finish, so we subtract the waiting_time from the remaining_processing_time of this task to get the new remaining_processing_time *)
+      let other_tid = if tid = 0 then 1 else 0 in
+      if (can_run other_tid taskstates) then
+      begin
+        let remaining_processing_other = Times.get_remaining_processing other_tid times in
+        if TInterval.is_bot remaining_processing_other || TInterval.to_int remaining_processing_other = Some 0L then
+          (* if wait time is zero, then the finish computation edge should be taken *)
+          raise Deadcode
+        else if TInterval.to_int (TInterval.le remaining_processing_other waiting_time) = Some 1L then
+          (* if the remaining processing time must be smaller than the wait_time, the finish computation edge should be taken *)
+          raise Deadcode
+        else
+          let times = Times.update_remaining_processing other_tid (fun x -> TInterval.meet remaining_processing_other (subtract_if_not_zero x waiting_time)) times in
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
       (* TODO: We need to check that this is indeed the longest wait time! *)
-      if (not (any_other_can_run tid taskstates)) then
+
         (* other can not run here, we are in waiting for period *)
         (* TODO: What if both are waiting for a period *)
         (* if other.processState = PState.waiting_for_period then
@@ -201,6 +215,7 @@ struct
           (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
           let times = Times.advance_all_times_by waiting_time times in
           do_end_wait (taskstates, times) tid
+      end
       else
         (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
         raise Deadcode
@@ -234,27 +249,6 @@ struct
       let times = Times.advance_all_times_by wcetInterval times in
       taskstates, times
 
-  let continue_computation (taskstates, times) tid =
-    let wcetInterval = Times.get_remaining_processing tid times in
-    let possibleInterrupters = tasks_waiting_timed_id tid taskstates in
-    if List.length possibleInterrupters == 0 then
-      (* this can definitely finish -> we should only take the FinishComputation edge*)
-      raise Deadcode
-    else
-      (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
-      (* as even when it's wait ends, it will not interrupt this process *)
-      let waiting_time_other = get_wait_interval possibleInterrupters times in
-      let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
-      if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
-        (* This is the minimum interval we can compute for sure, so we can subtract this everywhere *)
-        let minimum_definite_compute_interval = TInterval.of_int (Option.get @@ TInterval.minimal waiting_time_other) in
-        let _ = Printf.printf "minimum waiting time is %s\n" (string_of_int (Int64.to_int @@ Option.get @@ TInterval.minimal waiting_time_other)) in
-        let times = Times.update_remaining_processing tid (fun x -> TInterval.meet wcetInterval (subtract_if_not_zero x minimum_definite_compute_interval)) times in
-        let times = Times.advance_all_times_by minimum_definite_compute_interval times in
-        taskstates, times
-      else
-        (* this can definitely finish -> we should only take the FinishComputation edge*)
-        raise Deadcode
 
   let start_computation (taskstates, times) tid wcet =
     let wcetInterval = TInterval.of_interval (Int64.zero, Int64.of_int wcet) in
@@ -306,7 +300,6 @@ struct
       | SetEvent i -> SD.set_event i taskstates, times
       | StartComputation wcet -> start_computation state tid wcet
       | FinishComputation -> finish_computation state tid
-      | ContinueComputation -> continue_computation state tid
       | PeriodicWait -> periodic_wait state tid node
       | TimedWait tw -> timed_wait state tid tw
       | _ -> state
