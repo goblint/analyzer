@@ -53,7 +53,7 @@ struct
       waitingFor = WaitingForEvent.bot ()
       } in
     let state2 = {
-      pid = Pid.of_int (Int64.of_int 1);
+      pid = Pid.of_int (Int64.of_int 2);
       priority = Priority.of_int (Int64.of_int 10);
       period = Period.top ();
       capacity = Capacity.top ();
@@ -116,7 +116,7 @@ struct
 
   (* Get the join of all waiting times of tasks in tasks *)
   let get_wait_interval tasks times =
-    List.fold_left (fun acc i -> TInterval.join  acc (Times.get_remaining_wait i times)) (TInterval.bot ()) tasks
+    TInterval.meet (TInterval.starting 0L) (List.fold_left (fun acc i -> TInterval.join  acc (Times.get_remaining_wait i times)) (TInterval.bot ()) tasks)
 
   (* Subtract y from x and ensure result is not negative *)
   let subtract_if_not_zero x y  =
