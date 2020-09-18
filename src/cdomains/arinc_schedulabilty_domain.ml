@@ -111,6 +111,8 @@ struct
   type v = TInterval.t
   type tid = int
 
+  let name () = "Time Intervals: [0, max_int]"
+
   let zeroInterval = TInterval.of_int Int64.zero
   let numtasks = 2 (* TODO: Fix *)
 
