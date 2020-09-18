@@ -87,13 +87,9 @@ struct
       else
         (* ours < other *)
         (* we can run if the other is blocked *)
-        if other.processState = PState.ready then
-          false
-        else
-          true
+        other.processState <> PState.ready
 
   let can_run tid taskstates =
-    (* TODO: What if there is only one task *)
     let ours = List.at taskstates tid in
     List.fold_lefti (fun acc i other -> acc && if i=tid then true else can_run_relative ours other) true taskstates
 
@@ -102,11 +98,11 @@ struct
     let ours = List.at taskstates tid in
     List.fold_lefti  (fun acc i other -> acc || if i=tid then false else can_run_relative other ours) false taskstates
 
-  (* Get a list of ids of tasks that are: *)
-  (* - waiting on something that can happen without any further computation occuring, i.e. *)
-  (*      - waiting for period                                                             *)
-  (*      - end of a timed wait                                                            *)
-  (*   NOT waiting for a signal, for the signal to be set, computation needs to be done    *)
+  (* Get a list of ids of other tasks that are: *)
+  (* - waiting on something that can happen without any further computation occuring, i.e.  *)
+  (*      - waiting for period                                                              *)
+  (*      - end of a timed wait                                                             *)
+  (* - NOT waiting for a signal, for the signal to be set, computation needs to be done     *)
   let tasks_waiting_timed_id tid taskstates =
     let t_with_id = List.mapi (fun i x -> (i,x)) taskstates in
     let fn (i,task) = tid <> i && (task.processState = PState.waiting_for_period || (task.processState = PState.wait && task.waitingFor = WaitingForEvent.bot ())) in
