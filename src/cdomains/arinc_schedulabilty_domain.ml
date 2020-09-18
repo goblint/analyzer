@@ -40,7 +40,7 @@ struct
   include Printable.Strings
 end
 
-module TInterval:IntDomain.S = struct
+module TInterval = struct
   include IntDomain.Interval32
 
   let ensure_pos x =
@@ -54,6 +54,10 @@ module TInterval:IntDomain.S = struct
   let ending ?ikind = ensure_pos % ending ?ikind
   let maximal x = Option.map (fun x -> if x < 0L then failwith "Negative max" else x) (maximal x)
   let minmal x =  Option.map (fun x -> if x < 0L then 0L else x) (maximal x)
+
+  let sub_zero_if_neg x y =
+    let r = meet (starting 0L) (sub x y) in
+    if is_bot r then of_int 0L else r
 
   let neg x = failwith "Negating times?"
   let bitnot _  = failwith "Bitwise operation on times"
@@ -110,10 +114,6 @@ struct
   let zeroInterval = TInterval.of_int Int64.zero
   let numtasks = 2 (* TODO: Fix *)
 
-  (* All times are positive *)
-  let add k v x =
-    add k (TInterval.meet (TInterval.starting Int64.zero) v) x
-
   let update_val (k:key) (f:value -> value) t =
     let old = find k t in
     add k (f old) t
@@ -167,14 +167,7 @@ struct
   (** Advance overall and all since_period and remaining_wait by interval  *)
   let advance_all_times_by interval times =
     (* Subtract interval from x and ensure result is not negative *)
-    let decrement x  = (* TODO: Do we need this here, even if times does the work to ensure it does not get negative ->
-    Currently yes if otherwise we get something that is entirely negative, the meet will be \bot *)
-      if TInterval.to_int x = Some Int64.zero then
-        x
-      else
-        let wait_time = TInterval.sub x interval in
-        TInterval.meet wait_time (TInterval.starting Int64.zero) (* These numbers may not become negative *)
-    in
+    let decrement x = TInterval.sub_zero_if_neg x interval in
     let increment = TInterval.add interval in
     let all_tids = List.range 0 `To (numtasks-1) in
     (* update overall time *)

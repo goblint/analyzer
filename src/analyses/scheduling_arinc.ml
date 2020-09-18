@@ -115,15 +115,7 @@ struct
 
   (* Get the join of all waiting times of tasks in tasks *)
   let get_wait_interval tasks times =
-    TInterval.meet (TInterval.starting 0L) (List.fold_left (fun acc i -> TInterval.join  acc (Times.get_remaining_wait i times)) (TInterval.bot ()) tasks)
-
-  (* Subtract y from x and ensure result is not negative *)
-  let subtract_if_not_zero x y  =
-    if TInterval.to_int x = Some Int64.zero then
-      x
-    else
-      let wait_time = TInterval.sub x y in
-      TInterval.meet wait_time (TInterval.starting Int64.zero) (* These numbers may not become negative *)
+    List.fold_left (fun acc i -> TInterval.join  acc (Times.get_remaining_wait i times)) (TInterval.bot ()) tasks
 
   let wait_for_period (taskstates,times) tid =
     let do_restart_period (taskstates, times) tid =
@@ -189,7 +181,7 @@ struct
           (* if the remaining processing time must be smaller than the wait_time, the finish computation edge should be taken *)
           raise Deadcode
         else
-          let times = Times.update_remaining_processing other_tid (fun x -> TInterval.meet remaining_processing_other (subtract_if_not_zero x waiting_time)) times in
+          let times = Times.update_remaining_processing other_tid (fun x -> TInterval.meet remaining_processing_other (TInterval.sub_zero_if_neg x waiting_time)) times in
       (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
       (* TODO: We need to check that this is indeed the longest wait time! *)
 
