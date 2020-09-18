@@ -42,6 +42,41 @@ end
 
 module TInterval:IntDomain.S = struct
   include IntDomain.Interval32
+
+  let ensure_pos x =
+    let r = meet (starting 0L) x in
+    (if is_bot r then Printf.printf "ensure pos returned bot \n\n");
+    r
+
+  let of_int = ensure_pos % of_int
+  let of_interval = ensure_pos % of_interval
+  let starting ?ikind = ensure_pos % starting ?ikind
+  let ending ?ikind = ensure_pos % ending ?ikind
+  let maximal x = Option.map (fun x -> if x < 0L then failwith "Negative max" else x) (maximal x)
+  let minmal x =  Option.map (fun x -> if x < 0L then 0L else x) (maximal x)
+
+  let neg x = failwith "Negating times?"
+  let bitnot _  = failwith "Bitwise operation on times"
+  let bitand _ _ = failwith "Bitwise operation on times"
+  let bitor _ _ = failwith "Bitwise operation on times"
+  let bitxor _ _ = failwith "Bitwise operation on times"
+  let shift_left _ _ = failwith "Shifting on times"
+  let shift_right _ _ = failwith "Shifting on times"
+
+  let op_helper op x y =
+    let r = op x y in
+    ensure_pos r
+
+  let add = op_helper add
+  let sub = op_helper sub
+  let mul = op_helper mul
+  let div = op_helper div
+  let rem = op_helper rem
+
+  let join = op_helper join
+  let meet = op_helper meet
+  let widen = op_helper widen
+  let narrow = op_helper narrow
 end
 
 module Times:(sig

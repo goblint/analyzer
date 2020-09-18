@@ -259,8 +259,9 @@ struct
     let time_since_period = Times.get_since_period tid times in
     let deadline  =  BatOption.get @@ Capacity.to_int ((get_info_for taskstates tid).capacity) in
     let deadline_interval = TInterval.of_int deadline in
-    let miss = TInterval.meet (TInterval.of_int (Int64.of_int 1)) (TInterval.gt time_since_period deadline_interval) in
-    (if not (TInterval.is_bot miss) then Printf.printf "%s deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
+    (* If time_since_period <=_{must} deadline_interval, the comparison is [0,0], meaning that no deadline was missed *)
+    let miss = not (TInterval.to_int (TInterval.gt time_since_period deadline_interval) = Some 0L) in
+    (if miss then Printf.printf "%s deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
       (Arinc_Node.to_string node)
       tid (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval)
       (SD.short 800 (taskstates,times))
