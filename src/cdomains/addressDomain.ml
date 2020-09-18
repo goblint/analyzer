@@ -169,6 +169,13 @@ struct
               in
 
               Some (Invariant.(acc || (i && i_deref)))
+            | Addr.NullPtr ->
+              let i =
+                let addr_exp = integer 0 in
+                Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+              in
+              Some (Invariant.(acc || i))
+            (* TODO: handle Addr.StrPtr? *)
             | _ ->
               None
           )
