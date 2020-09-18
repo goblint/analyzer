@@ -13,7 +13,6 @@ struct
   module D = Lattice.Lift(SD)(Printable.DefaultNames)
   module G = Lattice.Unit
   module C = Lattice.Unit
-  module TInterval = IntDomain.Interval32
 
   let numtasks = 2
 

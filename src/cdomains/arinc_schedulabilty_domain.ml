@@ -40,9 +40,13 @@ struct
   include Printable.Strings
 end
 
+module TInterval:IntDomain.S = struct
+  include IntDomain.Interval32
+end
+
 module Times:(sig
   include Lattice.S
-  type v = IntDomain.Interval32.t
+  type v = TInterval.t
   type tid = int
 
   val start_state: int -> t
@@ -64,8 +68,7 @@ module Times:(sig
   val advance_all_times_by: v -> t -> t
 end) =
 struct
-  include MapDomain.MapBot_LiftTop(GroupableStrings)(IntDomain.Interval32)
-  module TInterval = IntDomain.Interval32
+  include MapDomain.MapBot_LiftTop(GroupableStrings)(TInterval)
   type v = TInterval.t
   type tid = int
 
@@ -74,7 +77,7 @@ struct
 
   (* All times are positive *)
   let add k v x =
-    add k (IntDomain.Interval32.meet (IntDomain.Interval32.starting Int64.zero) v) x
+    add k (TInterval.meet (TInterval.starting Int64.zero) v) x
 
   let update_val (k:key) (f:value -> value) t =
     let old = find k t in
