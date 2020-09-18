@@ -2,7 +2,7 @@
 
 shopt -s extglob
 
-RESULTSDIR=/home/simmo/benchexec/my-bench/results9-tmp
+RESULTSDIR=/home/simmo/benchexec/my-bench/new-results1
 GOBLINTPARALLEL=4
 VALIDATEPARALLEL=2
 
@@ -38,7 +38,7 @@ benchexec --outputpath $RESULTSDIR --numOfThreads $VALIDATEPARALLEL /home/simmo/
 
 # Merge witness validation results
 cd $RESULTSDIR
-python3 /home/simmo/benchexec/mergeBenchmarkSets.py goblint.*.results.!(*merged*).xml.bz2 cpa-validate-correctness-tmp.*.results.*.xml.bz2 cpa-validate-violation-tmp.*.results.*.xml.bz2 uautomizer-validate-correctness-tmp.*.results.*.xml.bz2 uautomizer-validate-violation-tmp.*.results.*.xml.bz2
+python3 /home/simmo/benchexec/benchexec/contrib/mergeBenchmarkSets.py goblint.*.results.!(*merged*).xml.bz2 cpa-validate-correctness-tmp.*.results.*.xml.bz2 cpa-validate-violation-tmp.*.results.*.xml.bz2 uautomizer-validate-correctness-tmp.*.results.*.xml.bz2 uautomizer-validate-violation-tmp.*.results.*.xml.bz2
 
 # Generate table with merged results and witness validation results
 # table-generator goblint.*.results.*.xml.bz2.merged.xml.bz2 cpa-validate-correctness-tmp.*.results.*.xml.bz2 cpa-validate-violation-tmp.*.results.*.xml.bz2 uautomizer-validate-correctness-tmp.*.results.*.xml.bz2 uautomizer-validate-violation-tmp.*.results.*.xml.bz2

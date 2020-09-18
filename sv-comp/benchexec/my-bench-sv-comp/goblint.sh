@@ -3,13 +3,15 @@
 shopt -s extglob
 
 MYBENCHDIR=/home/simmo/benchexec/my-bench-sv-comp
-RESULTSDIR=$MYBENCHDIR/results3-trivial
+RESULTSDIR=$MYBENCHDIR/new-results2-addr-to-exp-fix
+GOBLINTPARALLEL=1 # not enough memory for more
+VALIDATEPARALLEL=1 # not enough memory for more
 
 mkdir $RESULTSDIR
 
 # Run verification
 cd /home/simmo/sv-comp/goblint
-benchexec --outputpath $RESULTSDIR $MYBENCHDIR/goblint.xml
+benchexec --outputpath $RESULTSDIR --numOfThreads $GOBLINTPARALLEL $MYBENCHDIR/goblint.xml
 
 # Extract witness directory
 cd $RESULTSDIR
@@ -28,16 +30,16 @@ sed -e "s|RESULTSDIR|$RESULTSDIR|" -e "s/LOGDIR/$LOGDIR/" uautomizer-validate-vi
 # Run validation
 # CPAChecker
 cd /home/simmo/benchexec/tools/CPAchecker-1.9-unix
-benchexec --outputpath $RESULTSDIR $MYBENCHDIR/cpa-validate-correctness-tmp.xml
-benchexec --outputpath $RESULTSDIR $MYBENCHDIR/cpa-validate-violation-tmp.xml
+benchexec --outputpath $RESULTSDIR --numOfThreads $VALIDATEPARALLEL $MYBENCHDIR/cpa-validate-correctness-tmp.xml
+benchexec --outputpath $RESULTSDIR --numOfThreads $VALIDATEPARALLEL $MYBENCHDIR/cpa-validate-violation-tmp.xml
 # Ultimate
 cd /home/simmo/benchexec/tools/UAutomizer-linux
-benchexec --outputpath $RESULTSDIR $MYBENCHDIR/uautomizer-validate-correctness-tmp.xml
-benchexec --outputpath $RESULTSDIR $MYBENCHDIR/uautomizer-validate-violation-tmp.xml
+benchexec --outputpath $RESULTSDIR --numOfThreads $VALIDATEPARALLEL $MYBENCHDIR/uautomizer-validate-correctness-tmp.xml
+benchexec --outputpath $RESULTSDIR --numOfThreads $VALIDATEPARALLEL $MYBENCHDIR/uautomizer-validate-violation-tmp.xml
 
 # Merge witness validation results
 cd $RESULTSDIR
-python3 /home/simmo/benchexec/mergeBenchmarkSets.py goblint.*.results.!(*merged*).xml.bz2 cpa-validate-correctness-tmp.*.results.*.xml.bz2 cpa-validate-violation-tmp.*.results.*.xml.bz2 uautomizer-validate-correctness-tmp.*.results.*.xml.bz2 uautomizer-validate-violation-tmp.*.results.*.xml.bz2
+python3 /home/simmo/benchexec/benchexec/contrib/mergeBenchmarkSets.py goblint.*.results.!(*merged*).xml.bz2 cpa-validate-correctness-tmp.*.results.*.xml.bz2 cpa-validate-violation-tmp.*.results.*.xml.bz2 uautomizer-validate-correctness-tmp.*.results.*.xml.bz2 uautomizer-validate-violation-tmp.*.results.*.xml.bz2
 
 # Generate table with merged results and witness validation results
 # table-generator goblint.*.results.*.xml.bz2.merged.xml.bz2 cpa-validate-correctness-tmp.*.results.*.xml.bz2 cpa-validate-violation-tmp.*.results.*.xml.bz2 uautomizer-validate-correctness-tmp.*.results.*.xml.bz2 uautomizer-validate-violation-tmp.*.results.*.xml.bz2
