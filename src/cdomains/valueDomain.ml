@@ -300,7 +300,7 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to ?torg (ptr_ikind ()) @@ ID.of_int Int64.zero
+              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to (ptr_ikind ()) @@ ID.of_int Int64.zero
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -316,7 +316,7 @@ struct
         | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
           (match v with
           | `Address a -> v
-          | `Int i -> `Int(ID.cast_to ?torg (ptr_ikind ()) i)
+          | `Int i -> `Int(ID.cast_to (ptr_ikind ()) i)
           | _ -> v (* TODO: Does it make sense to have things here that are neither `Address nor `Int? *)
           )
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
@@ -401,7 +401,9 @@ struct
         | _ -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
-    | (`Union x, `Union y) -> `Union (Unions.join x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
+        | `Lifted f -> (`Lifted f, join x y) (* f = g *)
+        | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.join x y)
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
@@ -427,7 +429,9 @@ struct
         | _ -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.join f g, join_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
+        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
+        | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.join x y) (* `List can not contain array -> normal join  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `List can not contain array -> normal join  *)
@@ -453,7 +457,9 @@ struct
         | _ -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.widen f g, widen_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
+        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
+        | x -> x, `Top) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
@@ -502,7 +508,7 @@ struct
       warn_type "meet" x y;
       `Bot
 
-  let widen x y =
+  let rec widen x y =
     match (x,y) with
     | (`Top, _) -> `Top
     | (_, `Top) -> `Top
@@ -516,7 +522,9 @@ struct
         | _ -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
-    | (`Union x, `Union y) -> `Union (Unions.widen x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
+        | `Lifted f -> (`Lifted f, widen x y) (* f = g *)
+        | x -> (x, `Top))
     | (`Array x, `Array y) -> `Array (CArrays.widen x y)
     | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
@@ -548,7 +556,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
+    | TInt (ik,_) -> `Int (ID.top_of ik)
     | TPtr _ -> `Address AD.unknown_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -631,11 +639,11 @@ struct
           | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
-          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
           end
-        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
         end
-      | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+      | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
     in
     (* Create a typesig from a type, but drop the arraylen attribute *)
     let typeSigWithoutArraylen t =

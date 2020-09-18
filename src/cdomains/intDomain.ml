@@ -28,6 +28,7 @@ sig
   val of_interval: int64 * int64 -> t
   val starting   : ?ikind:Cil.ikind -> int64 -> t
   val ending     : ?ikind:Cil.ikind -> int64 -> t
+  val top_of     : Cil.ikind -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
@@ -204,15 +205,25 @@ struct
     | None | Some (0L, 0L) -> x
     | _ -> if leq zero x then top_bool else one
 
-  let range_opt f = function
-    | None -> None
-    | Some ik -> try Some (Size.range ik |> f) with Size.Not_in_int64 -> None
-
   let starting ?ikind n =
-    norm @@ Some (n, range_opt snd ikind |? max_int)
+    match ikind with
+    | Some ik ->
+      (try
+        norm @@
+        let _, u = Size.range ik in
+        Some (n,u)
+      with Size.Not_in_int64 -> norm @@ Some (n,max_int))
+    | None -> norm @@ Some (n,max_int)
 
   let ending ?ikind n =
-    norm @@ Some (range_opt fst ikind |? min_int, n)
+    match ikind with
+    | Some ik ->
+      (try
+        norm @@
+        let l, _ = Size.range ik in
+        Some (l,n)
+      with Size.Not_in_int64 -> norm @@ Some (min_int,n))
+    | None -> norm @@ Some (min_int,n)
 
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
@@ -226,6 +237,8 @@ struct
         let a,b = if x<>a || y<>b then Size.range t else a,b in
         norm @@ Some (a, b)
       with Size.Not_in_int64 -> top () (* TODO top not safe b/c range too small *)
+
+  let top_of ikind = cast_to ikind (top ())
 
   let widen x y =
     match x, y with
@@ -303,7 +316,8 @@ struct
   let sub i1 i2 = add i1 (neg i2)
 
   let rem x y = match x, y with
-    | None, _ | _, None -> None
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (xl, xu), Some (yl, yu) ->
       (* If we have definite values, Int64.rem will give a definite result.
       * Otherwise we meet with a [range] the result can be in.
@@ -401,6 +415,8 @@ struct
   let name () = "integers"
   type t = int64 [@@deriving to_yojson]
   let top () = raise Unknown
+  let top_of _ = top ()
+
   let bot () = raise Error
   let short _ x = if x = GU.inthack then "*" else Int64.to_string x
 
@@ -455,6 +471,7 @@ struct
 
   let top () = raise Unknown
   let bot () = raise Error
+  let top_of _ = top ()
   let leq = equal
   let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
   let join x y = if equal x y then x else top ()
@@ -467,6 +484,8 @@ struct
       let top_name = "Unknown int"
       let bot_name = "Error int"
     end)
+
+  let top_of _ = top ()
 
   let name () = "flat integers"
   let cast_to ?torg t = function
@@ -566,6 +585,8 @@ struct
     | _ -> None
   let is_bool = is_int
 
+  let top_of       x = top ()
+
   let lift1 f x = match x with
     | `Lifted x -> `Lifted (f x)
     | x -> x
@@ -617,8 +638,11 @@ struct
     | `Bot
   ] [@@deriving to_yojson]
   let name () = "def_exc"
+  let top_of ik = `Excluded (S.empty (), size ik)
+
   let top_range = R.of_interval (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let top () = `Excluded (S.empty (), top_range)
+
   let bot () = `Bot
   let short w x =
     let short_size x = "("^R.short 2 x^")" in
@@ -636,11 +660,17 @@ struct
     | `Excluded (s,r) -> S.hash s + R.hash r
     | `Definite i -> 83*Integers.hash i
     | `Bot -> 61426164
+
+  let equal_to i = function
+    | `Bot -> failwith "unsupported: equal_to with bottom"
+    | `Definite x -> if i = x then `Eq else `Neq
+    | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
+
   let equal x y =
     match x, y with
     | `Bot, `Bot -> true
     | `Definite x, `Definite y -> Integers.equal x y
-    | `Excluded (xs,xw), `Excluded (ys,yw) -> S.equal xs ys && R.equal xw yw
+    | `Excluded (xs,xr), `Excluded (ys,yr) -> S.equal xs ys && R.equal xr yr
     | _ -> false
 
   let equal_to i = function
@@ -668,6 +698,7 @@ struct
           S.empty (), r'
       )
     | `Definite x -> `Definite (Integers.cast_to ik x)
+
     | `Bot -> `Bot
 
   let leq x y = match (x,y) with
@@ -735,15 +766,20 @@ struct
   let is_int  x = match x with
     | `Definite x -> true
     | _ -> false
-
+  let narrow = meet
+(* uncomment if needed
+  let zero_ikind t = cast_to t @@ of_int 0L
+  let not_zero_ikind t = `Excluded (S.singleton 0L, size t)
+*)
   let zero = of_int 0L
   let from_excl ~ikind s = `Excluded (s, BatOption.map size ikind |? top_range)
   let not_zero ~ikind = from_excl ~ikind (S.singleton 0L)
   let top_opt ~ikind = from_excl ~ikind (S.empty ())
 
-  (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp x = of_int (if x then 1L else 0L)
   let of_bool = of_bool_cmp
+  let of_bool_cmp_ikind t x = cast_to t @@ of_int (if x then 1L else 0L)
+
   let to_bool x =
     match x with
     | `Definite x -> Integers.to_bool x
@@ -802,20 +838,34 @@ struct
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
   let lift1 f x = match x with
-    | `Excluded (s,r) ->
-      let s' = S.map f s in
-      `Excluded (s', apply_range f r)
+    | `Excluded (s,r) -> `Excluded (S.map f s, r)
     | `Definite x -> `Definite (f x)
     | `Bot -> `Bot
 
   let lift2 f x y = match x,y with
+    (* The good case: *)
+    | `Definite x, `Definite y ->
+      (try `Definite (f x y) with | Division_by_zero -> top ())
+    (* We don't bother with exclusion sets: *)
+    | `Excluded _, `Definite _
+    | `Definite _, `Excluded _ -> top ()
+    | `Excluded (_, xr), `Excluded (_, yr) -> top ()
+    | ` Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+
+
+  (* For the shift operations, CIL does not cast the right argument to the type of the left argument,    *)
+  (* so we should not warn about operations on different types here. The result has the type of the left *)
+  (* argument *)
+  let lift2_special f x y = match x,y with
+    (* The good case: *)
+    | `Definite x, `Definite y -> (try `Definite (f x y) with | Division_by_zero ->  top ())
     (* We don't bother with exclusion sets: *)
     | `Excluded _, `Definite _
     | `Definite _, `Excluded _
     | `Excluded _, `Excluded _ -> top ()
-    (* The good case: *)
-    | `Definite x, `Definite y ->
-      (try `Definite (f x y) with | Division_by_zero -> top ())
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
@@ -827,7 +877,8 @@ struct
     let def_exc f x s r = `Excluded (S.map (f x) s, apply_range (f x) r) in
     match x,y with
     (* If both are exclusion sets, there isn't anything we can do: *)
-    | `Excluded _, `Excluded _ -> top ()
+    | `Excluded (xs, xr), `Excluded (ys, yr) ->
+      `Excluded(S.empty (), xr)
     (* A definite value should be applied to all members of the exclusion set *)
     | `Definite x, `Excluded (s,r) -> def_exc f x s r
     (* Same thing here, but we should flip the operator to map it properly *)
@@ -840,30 +891,39 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* The equality check: *)
-  let eq x y = match x,y with
+  let eq x y =
+    let f = of_bool_cmp_ikind Cil.IInt false in
+    let top = top_of Cil.IInt in
+    match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> top ()
+    | `Excluded (_, xr), `Excluded(_,yr) -> top
     (* Is x equal to an exclusion set, if it is a member then NO otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool false else top ()
-    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool false else top ()
+    | `Definite x, `Excluded (s,_)
+    | `Excluded (s,_), `Definite x ->
+      if S.mem x s then f else top
     (* The good case: *)
-    | `Definite x, `Definite y -> of_bool (x = y)
+    | `Definite x, `Definite y -> of_bool_cmp_ikind Cil.IInt (x = y)
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* The inequality check: *)
-  let ne x y = match x,y with
+  let ne x y =
+    let t = cast_to Cil.IInt @@ of_bool true in
+    let top = top_of Cil.IInt in
+    match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> top ()
+    | `Excluded (_, xr), `Excluded(_,yr) ->
+      top
     (* Is x unequal to an exclusion set, if it is a member then Yes otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool true else top ()
-    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool true else top ()
+    | `Definite x, `Excluded (s,_)
+    | `Excluded (s,_), `Definite x ->
+      if S.mem x s then t else top
     (* The good case: *)
-    | `Definite x, `Definite y -> of_bool (x <> y)
+    | `Definite x, `Definite y -> cast_to Cil.IInt @@ of_bool (x <> y)
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
@@ -878,20 +938,26 @@ struct
     | _ -> lift2_inj Integers.mul x y
   let div  = lift2 Integers.div
   let rem  = lift2 Integers.rem
-  let lt = lift2 Integers.lt
-  let gt = lift2 Integers.gt
-  let le = lift2 Integers.le
-  let ge = lift2 Integers.ge
+  let lt x y = cast_to IInt @@ lift2 Integers.lt x y
+  let gt x y = cast_to IInt @@ lift2 Integers.gt x y
+  let le x y = cast_to IInt @@ lift2 Integers.le x y
+  let ge x y = cast_to IInt @@ lift2 Integers.ge x y
   let bitnot = lift1 Integers.bitnot
   let bitand = lift2 Integers.bitand
   let bitor  = lift2 Integers.bitor
   let bitxor = lift2 Integers.bitxor
-  let shift_left  = lift2 Integers.shift_left
-  let shift_right = lift2 Integers.shift_right
+  let shift_left  = lift2_special Integers.shift_left  (* Careful, CIL does not guarantee the types of left and right arg are the same *)
+  let shift_right = lift2_special Integers.shift_right (* Careful, CIL does not guarantee the types of left and right arg are the same *)
   (* TODO: lift does not treat Not {0} as true. *)
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
-  let lognot = eq (of_int 0L)
+  let lognot x =
+    match x with
+    | `Definite _
+    | `Excluded _ ->
+        eq (`Definite Int64.zero) x
+    | `Bot -> `Bot
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c (x:t) = match x with
     | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
@@ -986,6 +1052,7 @@ struct
   let of_excl_list t x = Top max_width
   let is_excl_list x = false
 
+
   (* Starting/Ending *)
   let starting ?ikind x =
     let r = I.of_t max_width (C.of_int64 max_width x) (C.max_value max_width)
@@ -997,6 +1064,7 @@ struct
     in
     print_endline ("ending: "^(I.to_string r)^" .. "^(Int64.to_string x));
     r
+
   let maximal x =
     print_endline ("maximal: "^(I.to_string x));
     match I.bounds x with
@@ -1105,6 +1173,7 @@ struct
 
   (* Lattice *)
   let top () = Top max_width
+  let top_of ikind = cast_to ikind (top ())
   let bot () = Bot max_width
   let is_top x =
     match x with
@@ -1248,6 +1317,8 @@ struct
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
   let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
+
+  let top_of _ = true
 
   let leq x y = not x || y
   let join = (||)
@@ -1502,6 +1573,7 @@ module IntDomTuple = struct
   let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
   let of_excl_list t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list t }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
+  let top_of = create { fi = fun (type a) (module I:S with type t = a) -> I.top_of }
   let starting ?ikind = create { fi = fun (type a) (module I:S with type t = a) x -> match ikind with | None -> I.starting x | Some ik -> I.starting ~ikind:ik x } (* Does not compile without making x explicit *)
   let ending ?ikind = create { fi = fun (type a) (module I:S with type t = a) x -> match ikind with | None -> I.ending x | Some ik -> I.ending  ~ikind:ik x } (* Does not compile without making x explicit *)
   let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }

@@ -7,7 +7,7 @@ int main() {
   main2();
 
 
-  int x, y;
+  int x, y, z;
   if (x+1 == 2) {
     assert(x == 1);
   } else {

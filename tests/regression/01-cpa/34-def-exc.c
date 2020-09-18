@@ -2,13 +2,11 @@
 #define LONGS(x) (((x) + sizeof(unsigned long) - 1)/sizeof(unsigned long))
 #include<stdbool.h>
 
+typedef unsigned long custom_t;
 union U1 {
    unsigned char f0;
    int f1;
 };
-
-
-typedef unsigned long custom_t;
 void main()
 {
   char yy[256];
@@ -151,7 +149,6 @@ void main()
   {
 
   }
-
   return;
 }
 

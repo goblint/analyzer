@@ -44,6 +44,7 @@ sig
   val of_interval: int64 * int64 -> t
   val starting   : ?ikind:Cil.ikind -> int64 -> t
   val ending     : ?ikind:Cil.ikind -> int64 -> t
+  val top_of     : Cil.ikind -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
