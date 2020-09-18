@@ -105,7 +105,7 @@ struct
   (* - NOT waiting for a signal, for the signal to be set, computation needs to be done     *)
   let tasks_waiting_timed_id tid taskstates =
     let t_with_id = List.mapi (fun i x -> (i,x)) taskstates in
-    let fn (i,task) = tid <> i && (task.processState = PState.waiting_for_period || (task.processState = PState.wait && task.waitingFor = WaitingForEvent.bot ())) in
+    let fn (i,task) = tid <> i && OneTask.is_waiting_for_time_to_pass task in
     let res = List.filter fn t_with_id in
     List.map (fun (i,_) -> i) res
 

@@ -255,6 +255,11 @@ struct
 
   let timed_wait p =
     {p with processState = PState.wait}
+
+  (* is p either waiting for its period or timed waiting *)
+  let is_waiting_for_time_to_pass p =
+    (p.processState = PState.waiting_for_period || (p.processState = PState.wait && p.waitingFor = WaitingForEvent.bot ()))
+
 end
 
 module D =
