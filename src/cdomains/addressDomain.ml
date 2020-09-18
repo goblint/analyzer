@@ -145,12 +145,12 @@ struct
             | Addr.UnknownPtr
             | Addr.SafePtr ->
               None
-            | Addr.Addr (vi, offs) as addr when Addr.is_definite addr ->
+            | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
               let rec offs_to_offset = function
                 | `NoOffset -> NoOffset
                 | `Field (f, offs) -> Field (f, offs_to_offset offs)
                 | `Index (i, offs) ->
-                  (* Addr.is_definite implies Offs.is_definite implies Idx.is_int *)
+                  (* Addr.Offs.is_definite implies Idx.is_int *)
                   let i_definite = Option.get (Idx.to_int i) in
                   let i_exp = Cil.(kinteger64 ILongLong i_definite) in
                   Index (i_exp, offs_to_offset offs)
