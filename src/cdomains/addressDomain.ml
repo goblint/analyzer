@@ -146,19 +146,24 @@ struct
             | Addr.SafePtr ->
               None
             | Addr.Addr (vi, offs) as addr when Addr.is_definite addr ->
+              let rec offs_to_offset = function
+                | `NoOffset -> NoOffset
+                | `Field (f, offs) -> Field (f, offs_to_offset offs)
+                | `Index (i, offs) ->
+                  (* Addr.is_definite implies Offs.is_definite implies Idx.is_int *)
+                  let i_definite = Option.get (Idx.to_int i) in
+                  let i_exp = Cil.(kinteger64 ILongLong i_definite) in
+                  Index (i_exp, offs_to_offset offs)
+              in
+              let offset = offs_to_offset offs in
+
               let i =
                 if not (InvariantCil.var_is_heap vi) then
-                  let addr_exp = Addr.to_exp (fun _ -> failwith "Addr.to_exp f") addr in
+                  let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
                   Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
                 else
                   Invariant.none
               in
-              let rec offs_to_offset = function
-                | `NoOffset -> NoOffset
-                | `Field (f, offs) -> Field (f, offs_to_offset offs)
-                | `Index (i, offs) -> failwith "offs_to_offset: Index"
-              in
-              let offset = offs_to_offset offs in
               let i_deref =
                 c.Invariant.deref_invariant vi offset (Mem c_exp, NoOffset)
               in
