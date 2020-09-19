@@ -1589,8 +1589,14 @@ module IntDomTuple = struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c x =
-    let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
-    in List.fold_left (fun a i ->
-        Invariant.(a && i)
-      ) Invariant.none is
+    match to_int x with
+    | Some v ->
+      (* If definite, output single equality instead of every subdomain repeating same equality *)
+      let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
+      Invariant.of_exp Cil.(BinOp (Eq, c_exp, kinteger64 IInt v, intType))
+    | None ->
+      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
+      in List.fold_left (fun a i ->
+          Invariant.(a && i)
+        ) Invariant.none is
 end
