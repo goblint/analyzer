@@ -93,5 +93,5 @@ struct
       Val.invariant f_c v
     (* invariant for one index *)
     | Index (i, offset) ->
-      failwith "invariant: Index"
+      Invariant.none
 end
