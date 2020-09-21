@@ -250,8 +250,7 @@ struct
     Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
     Svcomp.task := Some (module Task)
 
-  let write result_fold lh gh local_xml liveness entrystates =
-    let module Task = (val (Option.get !task)) in
+  let determine_result result_fold lh gh local_xml liveness entrystates (module Task:Task): (module WitnessTaskResult) =
     (* TODO: check specification *)
 
     (* TODO: get rid of this and use lh/local_xml directly *)
@@ -391,7 +390,6 @@ struct
       Spec.D.invariant context (get (n, c))
     in
 
-    let witness_path = get_string "exp.witness_path" in
     if svcomp_unreach_call then (
       let module TaskResult =
       struct
@@ -402,8 +400,7 @@ struct
         let is_sink _ = false
       end
       in
-      print_result (module TaskResult);
-      write_file witness_path (module Task) (module TaskResult)
+      (module TaskResult:WitnessTaskResult)
     ) else (
       let is_violation = function
         | FunctionEntry f, _, _ when Svcomp.is_error_function f -> true
@@ -442,8 +439,7 @@ struct
           let is_sink = is_sink
         end
         in
-        print_result (module TaskResult);
-        write_file witness_path (module Task) (module TaskResult)
+        (module TaskResult:WitnessTaskResult)
       in
       if get_bool "ana.wp" then (
         match Violation.find_path (module ViolationArg) with
@@ -458,8 +454,7 @@ struct
             let is_sink _ = false
           end
           in
-          print_result (module TaskResult);
-          write_file witness_path (module Task) (module TaskResult);
+          (module TaskResult:WitnessTaskResult)
         | Infeasible ->
           (* TODO: change find_path not to modify spec directly *)
           raise RestartAnalysis
@@ -469,4 +464,12 @@ struct
       else
         result_unknown ()
     )
+
+  let write result_fold lh gh local_xml liveness entrystates =
+    let module Task = (val (Option.get !task)) in
+    let module TaskResult = (val (determine_result result_fold lh gh local_xml liveness entrystates (module Task))) in
+
+    print_result (module TaskResult);
+    let witness_path = get_string "exp.witness_path" in
+    write_file witness_path (module Task) (module TaskResult)
 end
