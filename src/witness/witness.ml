@@ -430,7 +430,21 @@ struct
         let violations = violations
       end
       in
-      let write_violation_witness = ref true in
+      let result_unknown () =
+        (* TODO: exclude sinks before find_path? *)
+        let is_sink = Violation.find_sinks (module ViolationArg) in
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.False (Some Task.specification)
+          let invariant _ = Invariant.none
+          let is_violation = is_violation
+          let is_sink = is_sink
+        end
+        in
+        print_result (module TaskResult);
+        write_file witness_path (module Task) (module TaskResult)
+      in
       if get_bool "ana.wp" then (
         match Violation.find_path (module ViolationArg) with
         | Feasible (module PathArg) ->
@@ -446,26 +460,13 @@ struct
           in
           print_result (module TaskResult);
           write_file witness_path (module Task) (module TaskResult);
-          write_violation_witness := false
         | Infeasible ->
           (* TODO: change find_path not to modify spec directly *)
           raise RestartAnalysis
-        | Unknown -> ()
-      );
-      if !write_violation_witness then (
-        (* TODO: exclude sinks before find_path? *)
-        let is_sink = Violation.find_sinks (module ViolationArg) in
-        let module TaskResult =
-        struct
-          module Arg = Arg
-          let result = Result.False (Some Task.specification)
-          let invariant _ = Invariant.none
-          let is_violation = is_violation
-          let is_sink = is_sink
-        end
-        in
-        print_result (module TaskResult);
-        write_file witness_path (module Task) (module TaskResult)
+        | Unknown ->
+          result_unknown ()
       )
+      else
+        result_unknown ()
     )
 end
