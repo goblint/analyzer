@@ -220,6 +220,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.stop g;
   close_out_noerr out
 
+
+let print_result (module TaskResult:TaskResult): unit =
+  Printf.printf "SV-COMP result: %s\n" (Result.to_string TaskResult.result)
+
+
 open Analyses
 module Result (Cfg : CfgBidir)
               (Spec : SpecHC)
@@ -247,6 +252,7 @@ struct
     let module Task = (val (Option.get !task)) in
     (* TODO: check specification *)
 
+    (* TODO: get rid of this and use lh/local_xml directly *)
     let svcomp_unreach_call =
       let dead_verifier_error (l, n, f) v acc =
         match n with
@@ -258,8 +264,6 @@ struct
       in
       result_fold dead_verifier_error local_xml true
     in
-    (* Move this after TaskResult *)
-    Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
     let get: node * Spec.C.t -> Spec.D.t =
       fun nc -> LHT.find_default lh nc (Spec.D.bot ())
@@ -396,6 +400,7 @@ struct
         let is_sink _ = false
       end
       in
+      print_result (module TaskResult);
       write_file witness_path (module Task) (module TaskResult)
     ) else (
       let is_violation = function
@@ -437,6 +442,7 @@ struct
             let is_sink _ = false
           end
           in
+          print_result (module TaskResult);
           write_file witness_path (module Task) (module TaskResult);
           write_violation_witness := false
         | Infeasible ->
@@ -455,6 +461,7 @@ struct
           let is_sink = is_sink
         end
         in
+        print_result (module TaskResult);
         write_file witness_path (module Task) (module TaskResult)
       )
     )

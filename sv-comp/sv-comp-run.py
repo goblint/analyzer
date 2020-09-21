@@ -12,7 +12,8 @@ from timeit import default_timer as timer
 
 
 OVERVIEW = False # with True Goblint isn't executed
-GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --disable ana.int.def_exc --enable ana.int.enums --enable ana.int.interval --sets solver td3 --enable exp.widen-context --enable exp.partition-arrays.enabled {code_filename}"
+# TODO: don't hard-code specification
+GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --sets ana.specification ./tests/sv-comp/unreach-call-__VERIFIER_error.prp --disable ana.int.def_exc --enable ana.int.enums --enable ana.int.interval --sets solver td3 --enable exp.widen-context --enable exp.partition-arrays.enabled {code_filename}"
 TIMEOUT = 30 # with some int that's Goblint timeout for single execution
 START = 1
 EXIT_ON_ERROR = True
@@ -82,7 +83,7 @@ try:
                 if "Fatal error: exception " in p.stdout:
                     print(p.stdout)
                     error_exit(1)
-                result = extract_bool(r"SV-COMP \(unreach-call\): (false|true)", p.stdout)
+                result = extract_bool(r"SV-COMP (?:\(unreach-call\)|result): (false|true)", p.stdout)
             except subprocess.TimeoutExpired:
                 result = "timeout"
             finally:
