@@ -209,7 +209,8 @@ struct
               raise Deadcode
             else
               (* We subtract the waiting_time from the remaining_processing_time of this task to get the new remaining_processing_time *)
-              (* To gain precision here, we could encode that computing can not have finished and set the remaining processing time to a minimum of one  *)
+              (* To gain precision here, we could encode that computing can not have finished and set the remaining processing time to a minimum of one *)
+              (* Also, we could encode that this can only last for however long the minimal wait time actually is *)
               let times = Times.update_remaining_processing other_tid (fun x -> TInterval.meet remaining_processing_other (TInterval.sub_zero_if_neg x waiting_time)) times in
               let times = Times.advance_all_times_by waiting_time times in
               do_end_wait (taskstates, times) tid
