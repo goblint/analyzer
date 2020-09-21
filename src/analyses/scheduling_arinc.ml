@@ -215,8 +215,9 @@ struct
               let times = Times.advance_all_times_by waiting_time times in
               do_end_wait (taskstates, times) tid
           | None ->
-            (* TODO: What if no one can run? We should just let the time move forward then *)
-            raise Deadcode
+            (* If no task can compute here, we just simply let time pass *)
+            let times = Times.advance_all_times_by waiting_time times in
+            do_end_wait (taskstates, times) tid
         end
       else
         (* if this may not be the task with the shortest wait_time, this edge should not be taken here *)
