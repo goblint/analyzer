@@ -251,19 +251,6 @@ struct
     Svcomp.task := Some (module Task)
 
   let determine_result lh gh entrystates (module Task:Task): (module WitnessTaskResult) =
-    (* TODO: check specification *)
-
-    let svcomp_unreach_call =
-      LHT.fold (fun (n, c) v acc ->
-          match n with
-          (* FunctionEntry isn't used for extern __VERIFIER_error... *)
-          | FunctionEntry f when Svcomp.is_error_function f ->
-            let is_dead = Spec.D.is_bot v in
-            acc && is_dead
-          | _ -> acc
-        ) lh true
-    in
-
     let get: node * Spec.C.t -> Spec.D.t =
       fun nc -> LHT.find_default lh nc (Spec.D.bot ())
     in
@@ -388,80 +375,97 @@ struct
       Spec.D.invariant context (get (n, c))
     in
 
-    if svcomp_unreach_call then (
-      let module TaskResult =
-      struct
-        module Arg = Arg
-        let result = Result.True
-        let invariant = find_invariant
-        let is_violation _ = false
-        let is_sink _ = false
-      end
+    match Task.specification with
+    | UnreachCall _ ->
+      (* error function name is globally known through Svcomp.task *)
+      let is_unreach_call =
+        LHT.fold (fun (n, c) v acc ->
+            match n with
+            (* FunctionEntry isn't used for extern __VERIFIER_error... *)
+            | FunctionEntry f when Svcomp.is_error_function f ->
+              let is_dead = Spec.D.is_bot v in
+              acc && is_dead
+            | _ -> acc
+          ) lh true
       in
-      (module TaskResult:WitnessTaskResult)
-    ) else (
-      let is_violation = function
-        | FunctionEntry f, _, _ when Svcomp.is_error_function f -> true
-        | _, _, _ -> false
-      in
-      (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
-      let is_violation n =
-        Arg.next n
-        |> List.exists (fun (_, to_n) -> is_violation to_n)
-      in
-      let violations =
-        NHT.fold (fun lvar _ acc ->
-            if is_violation lvar then
-              lvar :: acc
-            else
-              acc
-          ) witness_prev_map []
-      in
-      let module ViolationArg =
-      struct
-        include Arg
 
-        let prev = witness_prev
-        let violations = violations
-      end
-      in
-      let result_unknown () =
-        (* TODO: exclude sinks before find_path? *)
-        let is_sink = Violation.find_sinks (module ViolationArg) in
+      if is_unreach_call then (
         let module TaskResult =
         struct
           module Arg = Arg
-          let result = Result.False (Some Task.specification)
-          let invariant _ = Invariant.none
-          let is_violation = is_violation
-          let is_sink = is_sink
+          let result = Result.True
+          let invariant = find_invariant
+          let is_violation _ = false
+          let is_sink _ = false
         end
         in
         (module TaskResult:WitnessTaskResult)
-      in
-      if get_bool "ana.wp" then (
-        match Violation.find_path (module ViolationArg) with
-        | Feasible (module PathArg) ->
-          (* TODO: add assumptions *)
+      ) else (
+        let is_violation = function
+          | FunctionEntry f, _, _ when Svcomp.is_error_function f -> true
+          | _, _, _ -> false
+        in
+        (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
+        let is_violation n =
+          Arg.next n
+          |> List.exists (fun (_, to_n) -> is_violation to_n)
+        in
+        let violations =
+          NHT.fold (fun lvar _ acc ->
+              if is_violation lvar then
+                lvar :: acc
+              else
+                acc
+            ) witness_prev_map []
+        in
+        let module ViolationArg =
+        struct
+          include Arg
+
+          let prev = witness_prev
+          let violations = violations
+        end
+        in
+        let result_unknown () =
+          (* TODO: exclude sinks before find_path? *)
+          let is_sink = Violation.find_sinks (module ViolationArg) in
           let module TaskResult =
           struct
-            module Arg = PathArg
+            module Arg = Arg
+            (* TODO: Result.Unknown *)
             let result = Result.False (Some Task.specification)
             let invariant _ = Invariant.none
             let is_violation = is_violation
-            let is_sink _ = false
+            let is_sink = is_sink
           end
           in
           (module TaskResult:WitnessTaskResult)
-        | Infeasible ->
-          (* TODO: change find_path not to modify spec directly *)
-          raise RestartAnalysis
-        | Unknown ->
+        in
+        if get_bool "ana.wp" then (
+          match Violation.find_path (module ViolationArg) with
+          | Feasible (module PathArg) ->
+            (* TODO: add assumptions *)
+            let module TaskResult =
+            struct
+              module Arg = PathArg
+              let result = Result.False (Some Task.specification)
+              let invariant _ = Invariant.none
+              let is_violation = is_violation
+              let is_sink _ = false
+            end
+            in
+            (module TaskResult:WitnessTaskResult)
+          | Infeasible ->
+            (* TODO: change find_path not to modify spec directly *)
+            raise RestartAnalysis
+          | Unknown ->
+            result_unknown ()
+        )
+        else
           result_unknown ()
       )
-      else
-        result_unknown ()
-    )
+    | NoDataRace ->
+        failwith "no-data-race"
 
   let write lh gh entrystates =
     let module Task = (val (Option.get !task)) in
