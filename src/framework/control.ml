@@ -60,6 +60,9 @@ struct
     (* Analysis result structure---a hashtable from program points to [LT] *)
     let module Result = Analyses.Result (LT) (struct let result_name = "analysis" end) in
 
+    (* SV-COMP and witness generation *)
+    let module WResult = Witness.Result (Cfg) (Spec) (EQSys) (LHT) (GHT) in
+
     (* print out information about dead code *)
     let print_dead_code (xs:Result.t) =
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
@@ -262,6 +265,9 @@ struct
     in
 
     (* real beginning of the [analyze] function *)
+    if get_bool "ana.sv-comp" then
+      WResult.init file;
+
     GU.global_initialization := true;
     GU.earlyglobs := false;
     Spec.init ();
@@ -479,10 +485,8 @@ struct
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
-    if get_bool "ana.sv-comp" then (
-      let module WResult = Witness.Result (Cfg) (Spec) (EQSys) (LHT) (GHT) in
-      WResult.write Result.fold file lh gh local_xml liveness entrystates rerun
-    );
+    if get_bool "ana.sv-comp" then
+      WResult.write Result.fold lh gh local_xml liveness entrystates rerun;
 
     if get_bool "exp.cfgdot" then
       MyCFG.dead_code_cfg file (module Cfg : CfgBidir) liveness;

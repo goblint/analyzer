@@ -87,7 +87,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_metadata g "witness-type" (if TaskResult.result then "correctness_witness" else "violation_witness");
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
-  GML.write_metadata g "specification" Task.specification;
+  GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
   let programfile = (getLoc (N.cfgnode main_entry)).file in
   GML.write_metadata g "programfile" programfile;
   let programhash =
@@ -229,7 +229,23 @@ module Result (Cfg : CfgBidir)
                                   and module G = Spec.G)
               (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
               (GHT : BatHashtbl.S with type key = EQSys.GVar.t) = struct
-  let write result_fold file lh gh local_xml liveness entrystates rerun =
+
+  let init file =
+    (* TODO: toggle analyses based on specification *)
+    let module Task = struct
+      let file = file
+      let specification = Svcomp.Specification.of_option ()
+
+      module Cfg = Cfg
+    end
+    in
+    Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
+    Svcomp.task := Some (module Task)
+
+  let write result_fold lh gh local_xml liveness entrystates rerun =
+    let module Task = (val (Option.get !task)) in
+    (* TODO: check specification *)
+
     let svcomp_unreach_call =
       let dead_verifier_error (l, n, f) v acc =
         match n with
@@ -365,14 +381,6 @@ module Result (Cfg : CfgBidir)
         }
       in
       Spec.D.invariant context (get (n, c))
-    in
-
-    let module Task = struct
-        let file = file
-        let specification = Svcomp.unreach_call_specification
-
-        module Cfg = Cfg
-      end
     in
 
     let witness_path = get_string "exp.witness_path" in
