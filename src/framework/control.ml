@@ -479,14 +479,14 @@ struct
     let local_xml = solver2source_result lh in
 
     let liveness =
-      if get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp" then
+      if get_bool "dbg.print_dead_code" then
         print_dead_code local_xml
       else
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
     if get_bool "ana.sv-comp" then
-      WResult.write Result.fold lh gh local_xml liveness entrystates;
+      WResult.write lh gh entrystates;
 
     if get_bool "exp.cfgdot" then
       MyCFG.dead_code_cfg file (module Cfg : CfgBidir) liveness;

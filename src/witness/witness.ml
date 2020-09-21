@@ -250,20 +250,18 @@ struct
     Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
     Svcomp.task := Some (module Task)
 
-  let determine_result result_fold lh gh local_xml liveness entrystates (module Task:Task): (module WitnessTaskResult) =
+  let determine_result lh gh entrystates (module Task:Task): (module WitnessTaskResult) =
     (* TODO: check specification *)
 
-    (* TODO: get rid of this and use lh/local_xml directly *)
     let svcomp_unreach_call =
-      let dead_verifier_error (l, n, f) v acc =
-        match n with
-        (* FunctionEntry isn't used for extern __VERIFIER_error... *)
-        | FunctionEntry f when Svcomp.is_error_function f ->
-          let is_dead = not (liveness n) in
-          acc && is_dead
-        | _ -> acc
-      in
-      result_fold dead_verifier_error local_xml true
+      LHT.fold (fun (n, c) v acc ->
+          match n with
+          (* FunctionEntry isn't used for extern __VERIFIER_error... *)
+          | FunctionEntry f when Svcomp.is_error_function f ->
+            let is_dead = Spec.D.is_bot v in
+            acc && is_dead
+          | _ -> acc
+        ) lh true
     in
 
     let get: node * Spec.C.t -> Spec.D.t =
@@ -465,9 +463,9 @@ struct
         result_unknown ()
     )
 
-  let write result_fold lh gh local_xml liveness entrystates =
+  let write lh gh entrystates =
     let module Task = (val (Option.get !task)) in
-    let module TaskResult = (val (determine_result result_fold lh gh local_xml liveness entrystates (module Task))) in
+    let module TaskResult = (val (determine_result lh gh entrystates (module Task))) in
 
     print_result (module TaskResult);
     let witness_path = get_string "exp.witness_path" in
