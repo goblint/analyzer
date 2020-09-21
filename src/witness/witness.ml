@@ -465,7 +465,37 @@ struct
           result_unknown ()
       )
     | NoDataRace ->
-        failwith "no-data-race"
+      (* TODO: something better than trivial ARG *)
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if Access.is_all_safe () then (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      ) else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          (* TODO: Result.Unknown *)
+          let result = Result.False (Some Task.specification)
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
 
   let write lh gh entrystates =
     let module Task = (val (Option.get !task)) in

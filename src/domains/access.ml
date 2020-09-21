@@ -495,6 +495,18 @@ let check_safe ls (accs,lp) prev_safe =
       (* ignore(printf "race with %d\n" n); *)
       Some n
 
+let is_all_safe () =
+  let safe = ref true in
+  let h ty lv ht =
+    let safety = PartOptHash.fold check_safe ht None in
+    match safety with
+    | None -> ()
+    | Some n -> safe := false
+  in
+  let f ty = LvalOptHash.iter (h ty) in
+  TypeHash.iter f accs;
+  !safe
+
 
 let print_races_oldscool () =
   let allglobs = get_bool "allglobs" in
