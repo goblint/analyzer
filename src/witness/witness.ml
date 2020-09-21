@@ -84,7 +84,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_key g "edge" "goblintEdge" "string" None;
   GML.write_key g "edge" "goblintLine" "string" None;
 
-  GML.write_metadata g "witness-type" (if TaskResult.result then "correctness_witness" else "violation_witness");
+  GML.write_metadata g "witness-type" (if Result.to_bool TaskResult.result then "correctness_witness" else "violation_witness");
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
@@ -228,8 +228,9 @@ module Result (Cfg : CfgBidir)
                                   and module D = Spec.D
                                   and module G = Spec.G)
               (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
-              (GHT : BatHashtbl.S with type key = EQSys.GVar.t) = struct
-
+              (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+struct
+  open Svcomp
   let init file =
     (* TODO: toggle analyses based on specification *)
     let module Task = struct
@@ -257,6 +258,7 @@ module Result (Cfg : CfgBidir)
       in
       result_fold dead_verifier_error local_xml true
     in
+    (* Move this after TaskResult *)
     Printf.printf "SV-COMP (unreach-call): %B\n" svcomp_unreach_call;
 
     let get: node * Spec.C.t -> Spec.D.t =
@@ -388,7 +390,7 @@ module Result (Cfg : CfgBidir)
       let module TaskResult =
       struct
         module Arg = Arg
-        let result = true
+        let result = Result.True
         let invariant = find_invariant
         let is_violation _ = false
         let is_sink _ = false
@@ -429,7 +431,7 @@ module Result (Cfg : CfgBidir)
           let module TaskResult =
           struct
             module Arg = PathArg
-            let result = false
+            let result = Result.False (Some Task.specification)
             let invariant _ = Invariant.none
             let is_violation = is_violation
             let is_sink _ = false
@@ -447,7 +449,7 @@ module Result (Cfg : CfgBidir)
         let module TaskResult =
         struct
           module Arg = Arg
-          let result = false
+          let result = Result.False (Some Task.specification)
           let invariant _ = Invariant.none
           let is_violation = is_violation
           let is_sink = is_sink

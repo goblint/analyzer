@@ -74,11 +74,35 @@ let is_special_function f =
   is_svcomp && is_verifier
 
 
+module Result =
+struct
+  type t =
+    | True
+    | False of Specification.t option
+    | Unknown
+
+  let to_bool = function
+    | True -> true
+    | False _ -> false
+    | Unknown -> failwith "Svcomp.Result.to_bool: Unknown"
+
+  let to_string = function
+    | True -> "true"
+    | False None -> "false"
+    | False (Some spec) ->
+      let result_spec = match spec with
+        | UnreachCall _ -> "unreach-call"
+        | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
+      in
+      "false(" ^ result_spec ^ ")"
+    | Unknown -> "unknown"
+end
+
 module type TaskResult =
 sig
   module Arg: MyARG.S
 
-  val result: bool
+  val result: Result.t
 
   (* correctness witness *)
   val invariant: Arg.Node.t -> Invariant.t
