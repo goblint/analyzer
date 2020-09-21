@@ -44,7 +44,7 @@ struct
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     let t = Times.start_state 2 in
     let state1 = {
-      pid = Pid.of_int (Int64.of_int 1);
+      pid = Pid.of_int (Int64.of_int 0);
       priority = Priority.of_int (Int64.of_int 15);
       period = Period.of_int (Int64.of_int 600);
       capacity = Capacity.of_int (Int64.of_int 600);
@@ -52,7 +52,7 @@ struct
       waitingFor = WaitingForEvent.bot ()
       } in
     let state2 = {
-      pid = Pid.of_int (Int64.of_int 2);
+      pid = Pid.of_int (Int64.of_int 1);
       priority = Priority.of_int (Int64.of_int 10);
       period = Period.top ();
       capacity = Capacity.top ();
@@ -113,6 +113,33 @@ struct
   let get_wait_interval tasks times =
     List.fold_left (fun acc i -> TInterval.join  acc (Times.get_remaining_wait i times)) (TInterval.bot ()) tasks
 
+  (* Can tid be the task that has the shortest wait_time? *)
+  let may_be_task_with_min_wait (taskstates, times) tid  =
+    let this = List.at taskstates tid in
+    let this_wait_time = Times.get_remaining_wait tid times in
+    if (not (OneTask.is_waiting_for_time_to_pass this)) then
+      (Printf.printf "may be task with min wait for not waiting task";
+      false)
+    else
+      let tasks_with_ids = List.mapi (fun i x -> (i,x)) taskstates in
+      let other_waiting_tasks = List.filter (fun (i,x) -> tid <> i && OneTask.is_waiting_for_time_to_pass x) tasks_with_ids in
+      (* may t wait for a longer time then tid *)
+      let may_wait_longer t =
+        let other_wait_time = Times.get_remaining_wait t times in
+        TInterval.to_int (TInterval.le this_wait_time other_wait_time) <> Some 0L
+      in
+      (* if no other tasks are waiting, then this one is the one with the min wait, and fold_left will return true *)
+      List.fold_left (fun acc (i,x) -> acc && may_wait_longer i) true other_waiting_tasks
+
+  (* Return taskstate of the task that has the highest priority and is ready to compute *)
+  let highest_compute_task (taskstates, times) =
+    let ready_tasks = List.filter (fun x -> x.processState = PState.ready) taskstates in
+    if List.length ready_tasks = 0 then
+      None
+    else
+      let r = List.reduce (fun acc x -> if Option.get (Priority.to_int acc.priority) < Option.get (Priority.to_int x.priority) then x else acc) ready_tasks in
+      Some r
+
   let wait_for_period (taskstates,times) tid =
     let do_restart_period (taskstates, times) tid =
       let times = Times.set_since_period tid Times.zeroInterval times in
@@ -162,49 +189,36 @@ struct
     in
     let waiting_time = Times.get_remaining_wait tid times in
     if TInterval.leq Times.zeroInterval waiting_time then
+      (* the waiting time may be zero, we can end waiting *)
       do_end_wait (taskstates, times) tid
     else
-      (* if: highest priority thing is a computation step that might not finish *)
-          (* for taking this edge, it definitely did not finish, so we subtract the waiting_time from the remaining_processing_time of this task to get the new remaining_processing_time *)
-      let other_tid = if tid = 0 then 1 else 0 in
-      if (can_run other_tid taskstates) then
-      begin
-        let remaining_processing_other = Times.get_remaining_processing other_tid times in
-        if TInterval.is_bot remaining_processing_other || TInterval.to_int remaining_processing_other = Some 0L then
-          (* if wait time is zero, then the finish computation edge should be taken *)
-          raise Deadcode
-        else if TInterval.to_int (TInterval.le remaining_processing_other waiting_time) = Some 1L then
-          (* if the remaining processing time must be smaller than the wait_time, the finish computation edge should be taken *)
-          raise Deadcode
-        else
-          let times = Times.update_remaining_processing other_tid (fun x -> TInterval.meet remaining_processing_other (TInterval.sub_zero_if_neg x waiting_time)) times in
-      (* if no other task can take any action, and this is longest wait time, we can simply increase the time by how long we are waiting for the start of the period *)
-      (* TODO: We need to check that this is indeed the longest wait time! *)
-
-        (* other can not run here, we are in waiting for period *)
-        (* TODO: What if both are waiting for a period *)
-        (* if other.processState = PState.waiting_for_period then
-          failwith "Both waiting for period - Didn't think about this yet"
-          (* both are waiting for period *)
-          (* if t = 0 then
-            let min_waiting_time_t0 = Option.get @@ TInterval.minimal waiting_time_t0 in
-            let min_waiting_time_t1 = Option.get @@ TInterval.minimal waiting_time_t1 in
-
-            if min_waiting_time_t0 <= min_waiting_time_t1 then
-              let times = Times.update_all ["overall"; "since_period_t0"; "since_period_t1"] (TInterval.add  (TInterval.of_int min_waiting_time_t0)) x in
-              (* If our waiting time is the smaller one, we can increase all other times by this value *)
+      (* waiting time is definitely not zero  *)
+      if may_be_task_with_min_wait (taskstates, times) tid then
+        begin
+          let compute_task = highest_compute_task (taskstates, times) in
+          match compute_task with
+          | Some t ->
+            (* t is the highest priority task that has a compute command going on *)
+            let other_tid = Int64.to_int @@ Option.get @@ Pid.to_int t.pid in
+            let remaining_processing_other = Times.get_remaining_processing other_tid times in
+            if TInterval.is_bot remaining_processing_other || TInterval.to_int remaining_processing_other = Some 0L then
+              (* if remaining processing time is zero, then the finish computation edge should be taken *)
+              raise Deadcode
+            else if TInterval.to_int (TInterval.le remaining_processing_other waiting_time) = Some 1L then
+              (* if the remaining processing time must be smaller or equal to the wait_time, the finish computation edge should be taken *)
               raise Deadcode
             else
-              raise Deadcode
-          else
-            raise Deadcode *)
-        else *)
-          (* Other is blocked for some other reason (not waiting for a period) => We can move ahead*)
-          let times = Times.advance_all_times_by waiting_time times in
-          do_end_wait (taskstates, times) tid
-      end
+              (* We subtract the waiting_time from the remaining_processing_time of this task to get the new remaining_processing_time *)
+              (* To gain precision here, we could encode that computing can not have finished and set the remaining processing time to a minimum of one  *)
+              let times = Times.update_remaining_processing other_tid (fun x -> TInterval.meet remaining_processing_other (TInterval.sub_zero_if_neg x waiting_time)) times in
+              let times = Times.advance_all_times_by waiting_time times in
+              do_end_wait (taskstates, times) tid
+          | None ->
+            (* TODO: What if no one can run? We should just let the time move forward then *)
+            raise Deadcode
+        end
       else
-        (* the other task can execute some sort of task here, we should let it do its business and then come to what we are doing *)
+        (* if this may not be the task with the shortest wait_time, this edge should not be taken here *)
         raise Deadcode
 
 
