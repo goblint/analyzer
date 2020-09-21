@@ -225,6 +225,8 @@ let print_result (module TaskResult:TaskResult): unit =
   Printf.printf "SV-COMP result: %s\n" (Result.to_string TaskResult.result)
 
 
+exception RestartAnalysis
+
 open Analyses
 module Result (Cfg : CfgBidir)
               (Spec : SpecHC)
@@ -248,7 +250,7 @@ struct
     Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
     Svcomp.task := Some (module Task)
 
-  let write result_fold lh gh local_xml liveness entrystates rerun =
+  let write result_fold lh gh local_xml liveness entrystates =
     let module Task = (val (Option.get !task)) in
     (* TODO: check specification *)
 
@@ -446,7 +448,8 @@ struct
           write_file witness_path (module Task) (module TaskResult);
           write_violation_witness := false
         | Infeasible ->
-          rerun := true
+          (* TODO: change find_path not to modify spec directly *)
+          raise RestartAnalysis
         | Unknown -> ()
       );
       if !write_violation_witness then (

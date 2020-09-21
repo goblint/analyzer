@@ -34,7 +34,7 @@ module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) (rerun: bool ref) =
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
 
     let module Inc = struct let increment = increment end in
 
@@ -486,7 +486,7 @@ struct
     in
 
     if get_bool "ana.sv-comp" then
-      WResult.write Result.fold lh gh local_xml liveness entrystates rerun;
+      WResult.write Result.fold lh gh local_xml liveness entrystates;
 
     if get_bool "exp.cfgdot" then
       MyCFG.dead_code_cfg file (module Cfg : CfgBidir) liveness;
@@ -497,13 +497,13 @@ struct
     Result.output (lazy local_xml) gh make_global_xml make_global_fast_xml file
 
 
-  let analyze file fs change_info rerun =
-    analyze file fs (get_spec ()) change_info rerun
+  let analyze file fs change_info =
+    analyze file fs (get_spec ()) change_info
 
   let rec analyze_loop file fs change_info =
-    let rerun = ref false in
-    analyze file fs change_info rerun;
-    if !rerun then
+    try
+      analyze file fs change_info
+    with Witness.RestartAnalysis ->
       analyze_loop file fs change_info
 end
 
