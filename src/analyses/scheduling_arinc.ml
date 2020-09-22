@@ -109,9 +109,16 @@ struct
     let res = List.filter fn t_with_id in
     List.map (fun (i,_) -> i) res
 
-  (* Get the join of all waiting times of tasks in tasks *)
-  let get_wait_interval tasks times =
-    List.fold_left (fun acc i -> TInterval.join  acc (Times.get_remaining_wait i times)) (TInterval.bot ()) tasks
+  (* Computes the minimal wait time for the tasks in tasks. This is useful for example to determine if something must finish
+   * before the wait *)
+  let get_minimum_wait_time tids times =
+    let times = List.map (fun i -> BatOption.get (TInterval.minimal (Times.get_remaining_wait i times))) tids in
+    List.min times
+
+  (* Max wait time before action: This is the minimum of the upper bounds of the wait times *)
+  let get_maximum_wait_time_before_act tids times =
+    let times = List.map (fun i -> BatOption.get (TInterval.maximal (Times.get_remaining_wait i times))) tids in
+    List.min times
 
   (* Can tid be the task that has the shortest wait_time? *)
   let may_be_task_with_min_wait (taskstates, times) tid  =
@@ -201,29 +208,33 @@ struct
     (* We can always take this edge, because we never have a lower bound on how long a computation can take      *)
     (* If I am here, the only thing that could interrupt me is a (higher priority) task finishing waiting on sth *)
     (* If the other task wanted to do computation here, we would raise Deadcode even before calling this         *)
-    let wcetInterval = Times.get_remaining_processing tid times in
+    let remaining_processing = Times.get_remaining_processing tid times in
     let possibleInterrupters = tasks_waiting_timed_id tid taskstates in
     if List.length possibleInterrupters == 0 then
       (* This will be not interrupted *)
       let times = Times.set_remaining_processing tid Times.zeroInterval times in
-      let times = Times.advance_all_times_by wcetInterval times in
+      let times = Times.advance_all_times_by remaining_processing times in
       taskstates, times
     else
       (* As an improvement, we could model here that a "wait" (N/B not a waiting for period) from a lower priority thread will not have any influence here *)
       (* as even when it's wait ends, it will not interrupt this process *)
-      let waiting_time_other = get_wait_interval possibleInterrupters times in
-      let less_than_waiting_time = TInterval.lt waiting_time_other wcetInterval in
-      if not (TInterval.is_bot (TInterval.meet (TInterval.of_int (Int64.of_int 1)) less_than_waiting_time)) then
-        (* This is the minimum interval we can compute for sure, so we can subtract this everywhere. If we take less than this time, we can move on *)
-        let minimum_definite_compute_interval = TInterval.of_interval (Int64.zero, BatOption.get @@ TInterval.minimal waiting_time_other) in
+      let minimum_waiting_time_other = get_minimum_wait_time possibleInterrupters times in
+      (* if minimum_waiting_time_other < wcetInterval must be false *)
+      let must_finish = TInterval.to_int (TInterval.lt (TInterval.of_int minimum_waiting_time_other) remaining_processing) = Some 0L in
+      if not must_finish then
+        (* What is the maximum this can take without being interrupted. *)
+        let maximum_compute_time = get_maximum_wait_time_before_act possibleInterrupters times in
+        (* Taking this edge may take [0, maximum_compute_time]. *)
+        let compute_interval = TInterval.meet remaining_processing (TInterval.of_interval (Int64.zero, maximum_compute_time)) in
+        Printf.printf "compute_interval %s\n" (TInterval.short 80 compute_interval);
         let times = Times.set_remaining_processing tid Times.zeroInterval times in
-        let times = Times.advance_all_times_by minimum_definite_compute_interval times in
+        let times = Times.advance_all_times_by compute_interval times in
         taskstates, times
       else
-      (* We can finish the entire thing, even if it takes WCET *)
-      let times = Times.set_remaining_processing tid Times.zeroInterval times in
-      let times = Times.advance_all_times_by wcetInterval times in
-      taskstates, times
+        (* We can finish the entire thing, even if it takes WCET *)
+        let times = Times.set_remaining_processing tid Times.zeroInterval times in
+        let times = Times.advance_all_times_by remaining_processing times in
+        taskstates, times
 
 
   let start_computation (taskstates, times) tid wcet =
