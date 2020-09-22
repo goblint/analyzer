@@ -54,17 +54,23 @@ let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 let current_node : arinc_node option ref = ref None
 
 
-let our_arinc_cfg:arinc_cfg*arinc_cfg =
+(* Utility function to add stmt edges to the cfg *)
+let mkEdge cfgF cfgB fromNode edge toNode =
+  let addCfg t (e,f)=
+    let addCfg' t xs f =
+      H.add cfgB t (xs,f);
+      H.add cfgF f (xs,t);
+      Messages.trace "cfg" "done\n\n"
+    in
+    addCfg' t [Cil.locUnknown ,e] f
+  in
+  addCfg  toNode (edge, fromNode); ()
+
+let example_extracted () =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
+  let mkEdge = mkEdge cfgF cfgB in
 
-  (* Utility function to add stmt edges to the cfg *)
-  let addCfg' t xs f =
-    H.add cfgB t (xs,f);
-    H.add cfgF f (xs,t);
-    Messages.trace "cfg" "done\n\n" in
-  let addCfg t (e,f) = addCfg' t [Cil.locUnknown ,e] f in
-  let mkEdge fromNode edge toNode = addCfg toNode (edge, fromNode) in
   for i = 0 to 7 do
     mkEdge (PC ([0; i])) (0, StartComputation 10) (PC [13; i]);
     mkEdge (PC ([13; i])) (0, FinishComputation) (PC [1; i]);
@@ -107,8 +113,29 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
   (* H.iter (fun n (e,t) -> match n,t with PC [a;b], PC[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
   H.find_all cfgF, H.find_all cfgB
 
+let minimal_problematic () =
+  let cfgF = H.create 113 in
+  let cfgB = H.create 113 in
+  let mkEdge = mkEdge cfgF cfgB in
+
+  for i = 0 to 2 do
+    mkEdge (PC ([0; i])) (0, TimedWait 20) (PC[1;i]);
+    mkEdge (PC ([1; i])) (0, WaitingForEndWait) (PC[2;i]);
+    mkEdge (PC ([2; i])) (0, PeriodicWait) (PC [3; i]);
+    mkEdge (PC ([3; i])) (0, WaitingForPeriod) (PC [0; i]);
+
+  done;
+  for i = 0 to 3 do
+    mkEdge (PC ([i; 0])) (1, StartComputation 40) (PC [i; 1]);
+    mkEdge (PC ([i; 1])) (1, FinishComputation) (PC [i; 2]);
+    mkEdge (PC ([i; 2])) (1, NOP) (PC [i; 0]);
+  done;
+  (* Printf.printf "!!!!!!!Edge count %i\n" (List.length (H.find_all cfgB (PC ([9; 4])))); *)
+  (* H.iter (fun n (e,t) -> match n,t with PC [a;b], PC[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
+  H.find_all cfgF, H.find_all cfgB
+
 let get_cfg i =
-  if i = 0 then
-    our_arinc_cfg
-  else
-    failwith "Selected unknown CFG"
+  match i with
+  | 0 -> example_extracted ()
+  | 1 -> minimal_problematic ()
+  | _ -> failwith ("Selected unknown CFG " ^ string_of_int(i))
