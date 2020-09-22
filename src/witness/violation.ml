@@ -231,7 +231,7 @@ module type PathArg = MyARG.S with module Edge = MyARG.InlineEdge
 
 type 'node result =
   | Feasible of (module PathArg with type Node.t = 'node)
-  | Infeasible
+  | Infeasible of ('node * MyARG.inline_edge * 'node) list
   | Unknown
 
 let find_path (type node) (module Arg:ViolationArg with type Node.t = node): node result =
@@ -313,24 +313,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node): nod
         print_endline "infeasible";
         print_path subpath;
 
-        let observer_path = List.map (fun (n1, e, n2) ->
-            (Arg.Node.cfgnode n1, Arg.Node.cfgnode n2)
-          ) subpath
-        in
-        let module Spec = ObserverAnalysis.MakePathSpec (
-          struct
-            let path = observer_path
-          end
-        )
-        in
-        MCP.register_analysis (module Spec);
-        (* TODO: don't modify JSON but have ref vars for these instead *)
-        (* GobConfig.set_list "ana.activated" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.activated");
-        GobConfig.set_list "ana.path_sens" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.path_sens"); *)
-        (* TODO: don't append to end; currently done to get observer order to be nice *)
-        GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [Json.Build.string (Spec.name ())]);
-        GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [Json.Build.string (Spec.name ())]);
-        Infeasible
+        Infeasible subpath
       | WP.Unknown ->
         print_endline "unknown";
         Unknown

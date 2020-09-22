@@ -266,7 +266,7 @@ struct
 
     (* real beginning of the [analyze] function *)
     if get_bool "ana.sv-comp" then
-      WResult.init file;
+      WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
     GU.earlyglobs := false;
