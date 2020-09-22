@@ -106,3 +106,9 @@ let our_arinc_cfg:arinc_cfg*arinc_cfg =
   (* Printf.printf "!!!!!!!Edge count %i\n" (List.length (H.find_all cfgB (PC ([9; 4])))); *)
   (* H.iter (fun n (e,t) -> match n,t with PC [a;b], PC[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
   H.find_all cfgF, H.find_all cfgB
+
+let get_cfg i =
+  if i = 0 then
+    our_arinc_cfg
+  else
+    failwith "Selected unknown CFG"
