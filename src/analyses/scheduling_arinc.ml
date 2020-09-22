@@ -140,6 +140,8 @@ struct
       let r = List.reduce (fun acc x -> if Option.get (Priority.to_int acc.priority) < Option.get (Priority.to_int x.priority) then x else acc) ready_tasks in
       Some r
 
+  (* wait and if the wait terminates apply fn, otherwise raise Deadcode *)
+  (* this is the common logic of wait_for_endwait and wait_for_period  *)
   let wait_and_do_if_over (taskstates, times) fn tid =
     let waiting_time = Times.get_remaining_wait tid times in
     if TInterval.leq Times.zeroInterval waiting_time then
