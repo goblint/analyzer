@@ -53,7 +53,7 @@ module TInterval = struct
   let starting ?ikind = ensure_pos % starting ?ikind
   let ending ?ikind = ensure_pos % ending ?ikind
   let maximal x = Option.map (fun x -> if x < 0L then failwith "Negative max" else x) (maximal x)
-  let minmal x =  Option.map (fun x -> if x < 0L then 0L else x) (maximal x)
+  let minimal x =  Option.map (fun x -> if x < 0L then 0L else x) (minimal x)
 
   let sub_zero_if_neg x y =
     let r = meet (starting 0L) (sub x y) in
