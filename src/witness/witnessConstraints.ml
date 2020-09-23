@@ -53,6 +53,66 @@ struct
   let tag _ = failwith "Edge: no tag"
 end
 
+(* TODO: weaken R to Lattice.S ? *)
+module HoareMap (SpecD:Lattice.S) (R:SetDomain.S) =
+struct
+  module SpecDGroupable =
+  struct
+    include Printable.Std
+    include SpecD
+  end
+  module MM = MapDomain.MapBot_LiftTop (SpecDGroupable) (R)
+  include MM
+
+  (* TODO: get rid of these value-ignoring set-mimicing hacks *)
+  let cardinal (s: t): int = match s with
+    | `Top -> failwith "cardinal"
+    | `Lifted s -> M.M.cardinal s
+  let choose (s: t): SpecD.t = match s with
+    | `Top -> failwith "choose"
+    | `Lifted s -> fst (M.M.choose s)
+  let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
+  let iter' = iter
+  let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
+  let for_all' = for_all
+  let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
+  let fold' = fold
+  let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
+  let singleton (x: key) (r: R.t): t = `Lifted (M.M.singleton x r)
+  let empty (): t = `Lifted M.M.empty
+  let add (x: key) (r: R.t) (s: t): t = match s with
+    | `Top -> `Top
+    | `Lifted s -> `Lifted (M.M.add x (R.join r (M.find x s)) s)
+  let map (f: key -> key) (s: t): t = match s with
+    | `Top -> `Top
+    | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
+
+  module S =
+  struct
+    let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
+    let elements (s: M.t): (key * R.t) list = M.M.bindings s
+    let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.M.add x (R.join r (M.find x acc)) acc) M.M.empty l
+  end
+
+
+  (* copied & modified from SetDomain.Hoare *)
+  let mem x xr = function
+    | `Top -> true
+    (* | `Lifted s -> S.exists (Spec.D.leq x) s *)
+    (* exists check per previous VIE.t in R.t *)
+    (* seems to be necessary for correct ARG but why? *)
+    (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr *)
+    (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.exists (fun vie' -> VIE.leq vie vie') yr) s) xr *)
+    | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
+  let leq a b =
+    match a with
+    | `Top -> b = `Top
+    | _ -> for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
+
+  let apply_list f = function
+    | `Top -> `Top
+    | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)
+end
 
 module N = struct let topname = "Top" end
 
@@ -83,6 +143,7 @@ struct
     let join _ _ = failwith "VIE join"
     let meet _ _ = failwith "VIE meet"
     (* widen and narrow are needed for Hoare widen and narrow *)
+    (* TODO: use I ops for these if HoareMap gets proper widen *)
     let widen x y = y
     let narrow x y = x
     let top () = failwith "VIE top"
@@ -99,49 +160,14 @@ struct
 
   module D =
   struct
-    module SpecDGroupable =
-    struct
-      include Printable.Std
-      include Spec.D
-    end
-    include MapDomain.MapBot_LiftTop (SpecDGroupable) (R)
-
-    (* TODO: get rid of these value-ignoring set-mimicing hacks *)
-    let cardinal (s: t): int = match s with
-      | `Top -> failwith "cardinal"
-      | `Lifted s -> M.M.cardinal s
-    let choose (s: t): Spec.D.t = match s with
-      | `Top -> failwith "choose"
-      | `Lifted s -> fst (M.M.choose s)
-    let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
-    let iter' = iter
-    let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
-    let for_all' = for_all
-    let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
-    let fold' = fold
-    let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
-    let singleton (x: key) (r: R.t): t = `Lifted (M.M.singleton x r)
-    let empty (): t = `Lifted M.M.empty
-    let add (x: key) (r: R.t) (s: t): t = match s with
-      | `Top -> `Top
-      | `Lifted s -> `Lifted (M.M.add x (R.join r (M.find x s)) s)
-    let map (f: key -> key) (s: t): t = match s with
-      | `Top -> `Top
-      | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
-
-    module S =
-    struct
-      let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
-      let elements (s: M.t): (key * R.t) list = M.M.bindings s
-      let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.M.add x (R.join r (M.find x acc)) acc) M.M.empty l
-    end
+    include HoareMap (Spec.D) (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
       if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
         try
-          let p t = not (mem t s2) in
+          let p t = not (MM.mem t s2) in
           let evil = choose (filter p s1) in
           let other = choose s2 in
           (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
@@ -161,22 +187,6 @@ struct
       in
       iter' print_one x
 
-    (* copied & modified from SetDomain.Hoare *)
-    let mem x xr = function
-      | `Top -> true
-      (* | `Lifted s -> S.exists (Spec.D.leq x) s *)
-      (* exists check per previous VIE.t in R.t *)
-      (* seems to be necessary for correct ARG but why? *)
-      (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr *)
-      (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.exists (fun vie' -> VIE.leq vie vie') yr) s) xr *)
-      | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr
-    let leq a b =
-      match a with
-      | `Top -> b = `Top
-      | _ -> for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
-    let apply_list f = function
-      | `Top -> `Top
-      | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)
     (* join elements in the same partition (specified by should_join) *)
     let join_reduce a =
       let rec loop js = function
@@ -193,7 +203,7 @@ struct
 
     let binop op a b = op a b |> join_reduce
 
-    (* TODO: fix these operators by implementing corresponding Hoare map ones *)
+    (* TODO: fix these operators by implementing corresponding HoareMap ones *)
     let join = binop join
     let meet = binop meet
     let widen = join
@@ -203,7 +213,7 @@ struct
       match s with
       | `Top -> failwith "invariant Top"
       | `Lifted s ->
-        (* TODO: optimize indexing *)
+        (* TODO: optimize indexing, using inner hashcons somehow? *)
         (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
         let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (S.elements s) in
         Spec.D.invariant c d
