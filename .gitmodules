@@ -6,4 +6,4 @@
 	url = https://github.com/goblint/g2html.git
 [submodule "syntactical_analyzer"]
 	path = syntactical_analyzer
-	url = git@github.com:superbr4in/syntactical_analyzer.git
+	url = git@github.com:faddeenkov/syntactical_analyzer.git
