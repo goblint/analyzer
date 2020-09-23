@@ -193,10 +193,11 @@ struct
 
     let binop op a b = op a b |> join_reduce
 
+    (* TODO: fix these operators by implementing corresponding Hoare map ones *)
     let join = binop join
     let meet = binop meet
-    let widen = binop widen
-    let narrow = binop narrow
+    let widen = join
+    let narrow a b = a
 
     let invariant c s =
       match s with
