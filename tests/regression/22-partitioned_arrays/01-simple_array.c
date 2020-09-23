@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
 int global;
 
 int main(void)
@@ -158,7 +158,7 @@ void example7(void) {
     assert(a[top] == 0); // UNKNOWN
 }
 
-// Check that the global variable is not used for paritioning
+// Check that the global variable is not used for partitioning
 void example8() {
     int a[10];
 

@@ -1,5 +1,5 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']"
-// This is just to test that the analysis does not cause problems for features that are not explicetly dealt with
+// PARAM: --sets solver td3 --enable ana.int.interval --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']"
+// This is just to test that the analysis does not cause problems for features that are not explicitly dealt with
 int main(void) {
   vla();
   callok();

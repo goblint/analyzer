@@ -16,7 +16,7 @@ int main(){
     assert(b == -128);
     unsigned char b2 = -1; // neg to pos
     assert(b2 == 255);
-    // via pointer (same data reinterpretated with different type)
+    // via pointer (same data reinterpreted with different type)
     // downcasts are ok for pos. values
     schar* c = (schar*) &a;
     b = *c;

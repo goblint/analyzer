@@ -582,4 +582,5 @@ struct
     | _ , Set s when cardinal m2 = 1 && SHMap.is_top (choose m2) -> true
     |  _ -> leq m1 m2
 
+  let widen = join
 end
