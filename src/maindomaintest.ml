@@ -1,30 +1,49 @@
 (* open Defaults (* CircInterval needs initialized conf *) *)
 
-module ArbitraryLattice =
+module type FiniteSetElems =
+sig
+  type t
+  val elems: t list
+end
+
+module FiniteSet (E:Printable.S) (Elems:FiniteSetElems with type t = E.t) =
 struct
   module E =
   struct
-    type t = char [@@deriving to_yojson]
-    let short _ x = String.make 1 x
-    module P =
-    struct
-      type t' = t
-      let name () = "ArbitraryLattice element"
-      let short = short
-    end
-    include Printable.Std
-    include Printable.PrintSimple (P)
-
-    let hash = Char.code
-    let equal = Char.equal
-    let arbitrary () = QCheck.oneofl ['a'; 'b'; 'c'; 'd']
+    include E
+    let arbitrary () = QCheck.oneofl Elems.elems
   end
 
   include SetDomain.Make (E)
-
-  let top () = of_list ['a'; 'b'; 'c'; 'd']
+  let top () = of_list Elems.elems
   let is_top x = equal x (top ())
 end
+
+module PrintableChar =
+struct
+  type t = char [@@deriving to_yojson]
+  let name () = "char"
+  let short _ x = String.make 1 x
+
+  module P =
+  struct
+    type t' = t
+    let name = name
+    let short = short
+  end
+  include Printable.Std
+  include Printable.PrintSimple (P)
+
+  let hash = Char.code
+  let equal = Char.equal
+end
+
+module ArbitraryLattice = FiniteSet (PrintableChar) (
+  struct
+    type t = char
+    let elems = ['a'; 'b'; 'c'; 'd']
+  end
+)
 
 let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
