@@ -680,6 +680,35 @@ struct
     | `Definite x -> `Definite (Integers.cast_to ik x)
     | `Bot -> `Bot
 
+  let max_of_range r =
+    match R.maximal r with
+    | Some i when i < 64L -> Some(Int64.(pred @@ shift_left 1L (to_int i))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
+    | _ -> None
+
+  let min_of_range r =
+    match R.minimal r with
+    | Some i when i > -64L -> Some(Int64.(if i = 0L then 0L else neg @@ shift_left 1L (to_int (neg i)))) (* things that are smaller than (-2^63) can not be represented as int64 *)
+    | _ -> None
+
+  let maximal : t -> int64 option = function
+    | `Definite x -> Integers.to_int x
+    | `Excluded (s,r) -> max_of_range r
+    | `Bot -> None
+
+  let minimal = function
+    | `Definite x -> Integers.to_int x
+    | `Excluded (s,r) -> min_of_range r
+    | `Bot -> None
+
+  let in_range r i =
+    match min_of_range r with
+    | None when i < 0L -> true
+    | Some l when i < 0L -> l <= i
+    | _ ->
+      match max_of_range r with
+      | None -> true
+      | Some u -> i <= u
+
   let leq x y = match (x,y) with
     (* `Bot <= x is always true *)
     | `Bot, _ -> true
@@ -688,7 +717,7 @@ struct
     (* Two known values are leq whenever equal *)
     | `Definite x, `Definite y -> x = y
     (* A definite value is leq all exclusion sets that don't contain it *)
-    | `Definite x, `Excluded (s,r) -> not (S.mem x s)
+    | `Definite x, `Excluded (s,r) -> in_range r x && not (S.mem x s)
     (* No finite exclusion set can be leq than a definite value *)
     | `Excluded _, `Definite _ -> false
     (* Excluding X <= Excluding Y whenever Y <= X *)
@@ -712,8 +741,11 @@ struct
      * longer be excluded: *)
     | `Excluded (s,r), `Definite x
     | `Definite x, `Excluded (s,r) ->
-      let a = size (Size.min_for x) in
-      `Excluded (S.remove x s, R.join a r)
+      if not (in_range r x) then
+        let a = size (Size.min_for x) in
+        `Excluded (S.remove x s, R.join a r)
+      else
+        `Excluded (S.remove x s, r)
     (* For two exclusion sets, only their intersection can be excluded: *)
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, R.join wx wy)
 
@@ -734,9 +766,9 @@ struct
      * just DeMorgans Law *)
     | `Excluded (x,r1), `Excluded (y,r2) ->
       let r' = R.meet r1 r2 in
-      let in_range i = R.leq (R.of_int i) r' in
-      let s' = S.union x y |> S.filter in_range in
+      let s' = S.union x y |> S.filter (in_range r') in
       `Excluded (s', r')
+
   let narrow = meet
   let of_int  x = `Definite (Integers.of_int x)
   let to_int  x = match x with
@@ -769,26 +801,6 @@ struct
 
   let starting ?ikind x = if x > 0L then not_zero ~ikind else top_opt ~ikind
   let ending ?ikind x = if x < 0L then not_zero ~ikind else top_opt ~ikind
-
-  let max_of_range r =
-    match R.maximal r with
-    | Some i when i < 64L -> Some(Int64.(pred @@ shift_left 1L (to_int i))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
-    | _ -> None
-
-  let min_of_range r =
-    match R.minimal r with
-    | Some i when i > -64L -> Some(Int64.(if i = 0L then 0L else neg @@ shift_left 1L (to_int (neg i)))) (* things that are smaller than (-2^63) can not be represented as int64 *)
-    | _ -> None
-
-  let maximal : t -> int64 option = function
-    | `Definite x -> Integers.to_int x
-    | `Excluded (s,r) -> max_of_range r
-    | `Bot -> None
-
-  let minimal = function
-    | `Definite x -> Integers.to_int x
-    | `Excluded (s,r) -> min_of_range r
-    | `Bot -> None
 
   (* calculates the minimal extension of range r to cover the exclusion set s *)
   (* let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r *)

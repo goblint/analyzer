@@ -55,7 +55,7 @@ let domains: (module Lattice.S) list = [
 
   (* TODO: fix *)
   (* (module IntDomain.CircInterval); *)
-  (* (module IntDomain.DefExc); *)
+  (module IntDomain.DefExc);
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
 
