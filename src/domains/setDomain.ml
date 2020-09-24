@@ -642,4 +642,17 @@ struct
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce
   let is_element e s = cardinal s = 1 && choose s = e
+
+  (* Copied from ToppedSet *)
+  let arbitrary () =
+    let set x = reduce (Set x) in (* added reduce here to satisfy implicit invariant *)
+    let open QCheck.Iter in
+    let shrink = function
+      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
+      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map set (S.arbitrary ());
+      1, QCheck.always All
+    ] (* S TODO: decide frequencies *)
 end
