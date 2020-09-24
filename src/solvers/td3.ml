@@ -39,12 +39,9 @@ module WP =
       HM.clear data.stable
 
     let print_data data str =
-      print_endline (str ^
-                     "|rho|="^string_of_int (HM.length data.rho) ^ "\n" ^
-                     "|stable|="^string_of_int (HM.length data.stable) ^ "\n" ^
-                     "|infl|="^string_of_int (HM.length data.infl) ^ "\n" ^
-                     "|wpoint|="^string_of_int (HM.length data.wpoint)
-                    )
+      if GobConfig.get_bool "dbg.verbose" then
+        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint)
 
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
@@ -61,6 +58,7 @@ module WP =
 
     let solve box st vs data =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
+      let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
       let called = HM.create 10 in
@@ -70,7 +68,7 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
-      if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis:\n";
+      if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in
 
@@ -165,8 +163,16 @@ module WP =
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
           destabilize y;
-          (* if not (HM.mem stable y) then HM.replace wpoint y () *)
-          if exists_key (neg (HM.mem stable)) called then HM.replace wpoint y ()
+          (* make y a widening point if ... *)
+          let widen_if e = if e then HM.replace wpoint y () in
+          match side_widen with
+          | "always" -> (* any side-effect after the first one will be widened which will unnecessarily lose precision *)
+            widen_if true
+          | "cycle_self" -> (* widen if the side-effect to y destabilized itself via some infl-cycle *)
+            widen_if @@ not (HM.mem stable y)
+          | "cycle" -> (* widen if any called var (not just y) is no longer stable *)
+            widen_if @@ exists_key (neg (HM.mem stable)) called
+          | "never" | _ -> () (* will not terminate if there are side-effect cycles *)
         )
       and init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
@@ -244,7 +250,7 @@ module WP =
         delete_marked wpoint;
         delete_marked stable;
 
-        print_data data "Data after clean-up:\n"
+        print_data data "Data after clean-up"
       );
 
       List.iter set_start st;
@@ -331,7 +337,7 @@ module WP =
       reachability vs;
 
       stop_event ();
-      print_data data "Data after solve completed:\n";
+      print_data data "Data after solve completed";
 
       {st; infl; rho; wpoint; stable}
 

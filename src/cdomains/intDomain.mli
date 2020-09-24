@@ -42,8 +42,8 @@ sig
   (* Checks if the element is an exclusion set. *)
 
   val of_interval: int64 * int64 -> t
-  val starting   : int64 -> t
-  val ending     : int64 -> t
+  val starting   : ?ikind:Cil.ikind -> int64 -> t
+  val ending     : ?ikind:Cil.ikind -> int64 -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
@@ -125,8 +125,8 @@ sig
 
   (** {b Cast} *)
 
-  val cast_to: Cil.ikind -> t -> t
-  (** Cast interval/integer to type of the given width. *)
+  val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
+  (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
 end
 (** The signature of integral value domains. They need to support all integer
   * operations that are allowed in C *)
@@ -135,6 +135,8 @@ module Size : sig
   val top_typ : Cil.typ
   (** The biggest type we support for integers. *)
 end
+
+exception ArithmeticOnIntegerBot of string
 
 exception Unknown
 (** An exception that can be raised when the result of a computation is unknown.

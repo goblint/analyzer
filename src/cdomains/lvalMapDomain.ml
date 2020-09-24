@@ -86,7 +86,6 @@ struct
   let split (x,y) = try Must'.elements x |> Set.of_list, May.elements y |> Set.of_list with SetDomain.Unsupported _ -> Set.empty, Set.empty
 
   include Printable.Std
-  include Lattice.StdCousot
 
   (* special variable used for indirection *)
   let alias_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset

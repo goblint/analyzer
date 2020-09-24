@@ -2,7 +2,6 @@ type t' = Val of int | Bot
 and t = t' * t' * t'* t' [@@deriving to_yojson]
 
 include Printable.Blank
-include Lattice.StdCousot
 
 (* lowest priority obtained over:
    1st component = critical region (between first and last variable access)
@@ -66,7 +65,9 @@ let leq_t' a b = match (a,b) with
 let leq (a1,a2,a3,a4) (b1,b2,b3,b4) = leq_t' a1 b1 && leq_t' a2 b2 && leq_t' a3 b3 && leq_t' a4 b4
 
 let join (a1,a2,a3,a4) (b1,b2,b3,b4) = (min_t' a1 b1 ,min_t' a2 b2 ,min_t' a3 b3 ,min_t' a4 b4 )
+let widen = join
 let meet (a1,a2,a3,a4) (b1,b2,b3,b4) = (max_t' a1 b1 ,max_t' a2 b2 ,max_t' a3 b3 ,max_t' a4 b4 )
+let narrow = meet
 
 (* composition operator  (b \fcon a) *)
 let fcon (a1,a2,a3,a4) (b1,b2,b3,b4) =  match (a2,b2) with

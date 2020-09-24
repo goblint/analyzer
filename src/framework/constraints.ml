@@ -1015,33 +1015,6 @@ struct
 
   module PP = Hashtbl.Make (MyCFG.Node)
 
-  let compare_locals h1 h2 =
-    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
-    let f k v1 =
-      if not (PP.mem h2 k) then () else
-        let v2 = PP.find h2 k in
-        let b1 = D.leq v1 v2 in
-        let b2 = D.leq v2 v1 in
-        if b1 && b2 then
-          incr eq
-        else if b1 then begin
-          if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2));
-          incr le
-        end else if b2 then begin
-          if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2));
-          incr gr
-        end else
-          incr uk
-    in
-    PP.iter f h1;
-    let k1 = Set.of_enum @@ PP.keys h1 in
-    let k2 = Set.of_enum @@ PP.keys h2 in
-    let o1 = Set.cardinal @@ Set.diff k1 k2 in
-    let o2 = Set.cardinal @@ Set.diff k2 k1 in
-    Printf.printf "locals:  eq=%d\t%s=%d[%d]\t%s=%d[%d]\tuk=%d\n" !eq (get_string "solver") !le o1 (get_string "comparesolver") !gr o2 !uk
-
   let compare_globals g1 g2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
     let f_eq () = incr eq in
@@ -1056,26 +1029,54 @@ struct
         f_eq ()
       else if b1 then begin
         if get_bool "solverdiffs" then
-          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k (get_string "solver") G.pretty_diff (v1,v2));
+          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_le ()
       end else if b2 then begin
         if get_bool "solverdiffs" then
-          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k (get_string "comparesolver") G.pretty_diff (v1,v2));
+          ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_gr ()
       end else
         f_uk ()
     in
     GH.iter f g1;
-    Printf.printf "globals: eq=%d\t%s=%d\t%s=%d\tuk=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk
+    Printf.printf "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
+
+  let compare_locals h1 h2 =
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f k v1 =
+      if not (PP.mem h2 k) then () else
+        let v2 = PP.find h2 k in
+        let b1 = D.leq v1 v2 in
+        let b2 = D.leq v2 v1 in
+        if b1 && b2 then
+          incr eq
+        else if b1 then begin
+          if get_bool "solverdiffs" then
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2));
+          incr le
+        end else if b2 then begin
+          if get_bool "solverdiffs" then
+            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2));
+          incr gr
+        end else
+          incr uk
+    in
+    PP.iter f h1;
+    (* let k1 = Set.of_enum @@ PP.keys h1 in
+    let k2 = Set.of_enum @@ PP.keys h2 in
+    let o1 = Set.cardinal @@ Set.diff k1 k2 in
+    let o2 = Set.cardinal @@ Set.diff k2 k1 in
+    Printf.printf "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d\n" !eq !le o1 !gr o2 !uk *)
+    Printf.printf "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
 
   let compare_locals_ctx h1 h2 =
-    let eq, le, gr, uk, n2 = ref 0, ref 0, ref 0, ref 0, ref 0 in
+    let eq, le, gr, uk, no2 = ref 0, ref 0, ref 0, ref 0, ref 0 in
     let f_eq () = incr eq in
     let f_le () = incr le in
     let f_gr () = incr gr in
     let f_uk () = incr uk in
     let f k v1 =
-      if not (LH.mem h2 k) then incr n2 else
+      if not (LH.mem h2 k) then incr no2 else
         let v2 = LH.find h2 k in
         let b1 = D.leq v1 v2 in
         let b2 = D.leq v2 v1 in
@@ -1083,11 +1084,11 @@ struct
           f_eq ()
         else if b1 then begin
           (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2)); *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2)); *)
           f_le ()
         end else if b2 then begin
           (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2)); *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2)); *)
           f_gr ()
         end else
           f_uk ()
@@ -1097,21 +1098,23 @@ struct
     (* let k2 = Set.of_enum @@ PP.keys h2 in *)
     (* let o1 = Set.cardinal @@ Set.diff k1 k2 in *)
     (* let o2 = Set.cardinal @@ Set.diff k2 k1 in *)
-    Printf.printf "locals_ctx:  eq=%d\t%s=%d\t\t%s=%d\tuk=%d\tn2=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk !n2
+    Printf.printf "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\n" !eq !le !gr !uk !no2
 
-  let compare (l1,g1) (l2,g2) =
+  let compare (name1,name2) (l1,g1) (l2,g2) =
     let one_ctx (n,_) v h =
       PP.replace h n (try D.join v (PP.find h n) with Not_found -> v);
       h
     in
+    (* these contain results where the contexts per node have been joined *)
     let h1 = PP.create 113 in
     let h2 = PP.create 113 in
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
-    compare_locals h1 h2;
+    Printf.printf "\nComparing precision of %s (left) with %s (right):\n" name1 name2;
     compare_globals g1 g2;
-    compare_locals_ctx l1 l2
-
+    compare_locals h1 h2;
+    compare_locals_ctx l1 l2;
+    print_newline ();
 end
 
 (** Verify if the hashmap pair is really a (partial) solution. *)
@@ -1204,7 +1207,7 @@ struct
     LH.filteri_inplace (fun x _ ->
         let r = LH.mem reachablel x in
         if not r then
-          ignore (Pretty.printf "Unreachable lvar %a" LVar.pretty_trace x);
+          ignore (Pretty.printf "Unreachable lvar %a\n" LVar.pretty_trace x);
         r
       ) lh
 end

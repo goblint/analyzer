@@ -228,6 +228,7 @@ struct
     | AddrOf l -> occurs_lv l
     | UnOp (_,e,_) -> occurs x e
     | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
+    | CastE (_,e) -> occurs x e
     | _ -> false
 
   let replace (x:varinfo) (exp: exp) (e:exp): exp =
@@ -247,6 +248,7 @@ struct
       | AddrOf l -> Lval (replace_lv l)
       | UnOp (op,e,t) -> UnOp (op, replace_rv e, t)
       | BinOp (op,e1,e2,t) -> BinOp (op, replace_rv e1, replace_rv e2, t)
+      | CastE (t,e) -> CastE(t, replace_rv e)
       | x -> x
     in
     constFold true (replace_rv e)
