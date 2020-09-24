@@ -28,6 +28,7 @@ struct
   let name () = "var"
   let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"
+  let arbitrary () = failwith "PrintableVar: no arbitrary"
 end
 
 module Edge: Printable.S with type t = MyARG.inline_edge =
@@ -51,6 +52,7 @@ struct
 
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Edge: no tag"
+  let arbitrary () = failwith "Edge: no arbitrary"
 end
 
 (* TODO: weaken R to Lattice.S ? *)

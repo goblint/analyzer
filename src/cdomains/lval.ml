@@ -355,6 +355,8 @@ struct
     | `Field (f,o) -> `Field (f, remove_offset o)
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+
+  let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
 module NormalLat (Idx: IntDomain.S) =

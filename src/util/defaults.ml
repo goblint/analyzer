@@ -206,6 +206,7 @@ let _ = ()
       ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
+      ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
 
 let default_schema = "\
 { 'id'              : 'root'

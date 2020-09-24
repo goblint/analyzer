@@ -90,8 +90,12 @@ struct
 
   let short w x =
     let w2 = let n = List.length x in if n=0 then w else w / n in
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.short w2 (obj x) :: a) [] x in
-    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
+    (* width violated anyway? *)
+    let xs = unop_fold (fun a n (module S : Printable.S) x ->
+        let analysis_name = assoc n !analyses_table in
+        (analysis_name ^ ":(" ^ S.short w2 (obj x) ^ ")") :: a) [] x
+    in
+    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
   let to_yojson x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
@@ -119,7 +123,12 @@ struct
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
   let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
 
-  let name () = IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map (flip assoc !analyses_table) @@ map fst @@ domain_list ())
+  let name () =
+    let domain_name (n, (module D: Printable.S)) =
+      let analysis_name = assoc n !analyses_table in
+      analysis_name ^ ":(" ^ D.name () ^ ")"
+    in
+    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
 
   let toXML_f sf x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.toXML (obj x) :: a) [] x in
@@ -142,6 +151,10 @@ struct
   let invariant c = unop_fold (fun a n (module S : Printable.S) x ->
       Invariant.(a && S.invariant c (obj x))
     ) Invariant.none
+
+  let arbitrary () =
+    let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
+    MyCheck.Arbitrary.sequence arbs
 end
 
 let _ =

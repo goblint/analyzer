@@ -926,6 +926,8 @@ struct
     | `Struct n -> Structs.invariant c n
     | `Union n -> Unions.invariant c n
     | _ -> None (* TODO *)
+
+  let arbitrary () = QCheck.always `Bot (* S TODO: other elements *)
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =

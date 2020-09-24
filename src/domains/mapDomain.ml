@@ -210,6 +210,8 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
 end
 
 
