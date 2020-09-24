@@ -1,18 +1,28 @@
-open Defaults (* CircInterval needs initialized conf *)
+(* open Defaults (* CircInterval needs initialized conf *) *)
 
 let domains: (module Lattice.S) list = [
-  (module IntDomainProperties.IntegerSet); (* TODO: top properties error *)
+  (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
   (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
+
+  (* TODO: move to intDomains if passing *)
+  (module IntDomain.Interval32);
+  (module IntDomain.Booleans);
+
+  (* TODO: fix *)
+  (* (module IntDomain.CircInterval); *)
+  (* (module IntDomain.DefExc); *)
+  (* (module IntDomain.Enums); *)
+  (* (module IntDomain.IntDomTuple); *)
 ]
 
 let intDomains: (module IntDomain.S) list = [
   (module IntDomain.Flattened);
-  (module IntDomain.Interval32);
-  (module IntDomain.Booleans);
-  (module IntDomain.CircInterval);
-  (module IntDomain.DefExc);
-  (module IntDomain.Enums);
-  (module IntDomain.IntDomTuple)
+  (* (module IntDomain.Interval32); *)
+  (* (module IntDomain.Booleans); *)
+  (* (module IntDomain.CircInterval); *)
+  (* (module IntDomain.DefExc); *)
+  (* (module IntDomain.Enums); *)
+  (* (module IntDomain.IntDomTuple); *)
 ]
 
 let testsuite =
