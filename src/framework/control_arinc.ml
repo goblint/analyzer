@@ -161,7 +161,10 @@ struct
       if get_bool "exp.forward" then
         List.map (fun (n,e) -> (Arinc_cfg.PC [0;0], Spec.context e)) startvars
       else
-        List.map (fun (n,e) -> (Arinc_cfg.PC [11;5], Spec.context e)) startvars
+        if get_int "arinc_cfg_id" == 0 then
+          List.map (fun (n,e) -> (Arinc_cfg.PC [11;5], Spec.context e)) startvars
+        else
+          List.map (fun (n,e) -> (Arinc_cfg.PC [3;2], Spec.context e)) startvars
     in
 
     let entrystates =
