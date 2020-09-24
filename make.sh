@@ -50,6 +50,10 @@ rule() {
       eval $(opam config env)
       # dune build -w $TARGET.exe
       dune runtest --no-buffer --watch
+    ;; domaintest)
+      eval $(opam config env)
+      dune build src/maindomaintest.exe &&
+      cp _build/default/src/maindomaintest.exe goblint.domaintest
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&

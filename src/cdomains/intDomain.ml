@@ -391,6 +391,15 @@ struct
       let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <= " ^ Int64.to_string x2) else none in
       i1 && i2
     | None -> None
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let pair_arb = QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 in
+    let shrink = function
+      | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval)
+      | None -> empty
+    in
+    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) of_interval pair_arb)
 end
 
 
@@ -447,6 +456,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x = Size.cast t x
+  let arbitrary () = MyCheck.Arbitrary.int64
 end
 
 module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
@@ -901,6 +911,21 @@ struct
           Invariant.(a && i)
         ) s Invariant.none
     | `Bot -> Invariant.none
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let excluded s = `Excluded (s, size Cil.ILongLong) in (* S TODO: non-fixed range *)
+    let definite x = `Definite x in
+    let shrink = function
+      | `Excluded (s, _) -> MyCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
+      | `Definite x -> (return `Bot) <+> (MyCheck.shrink (Integers.arbitrary ()) x >|= definite)
+      | `Bot -> empty
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [
+      20, QCheck.map excluded (S.arbitrary ());
+      10, QCheck.map definite (Integers.arbitrary ());
+      1, QCheck.always `Bot
+    ] (* S TODO: decide frequencies *)
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -1226,6 +1251,23 @@ struct
 
   let narrow = wrap_debug2 "narrow" narrow'
 
+  (* S TODO: shrinker for bigint circular intervals *)
+  (* let arbitrary () = QCheck.set_print (short 10000) @@ QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 *)
+  let arbitrary () =
+    let open QCheck.Iter in
+    let pair_arb = QCheck.pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int in
+    (* let int (a, b) = Int (max_width, a, b) in *) (* shrinker gets stuck, probably doesn't satisfy some invariant *)
+    let int (a, b) = I.of_t max_width a b in
+    let shrink = function
+      | Int (w, a, b) -> (return (Bot w)) <+> (MyCheck.shrink pair_arb (a, b) >|= int)
+      | Bot w -> empty
+      | Top w -> MyCheck.Iter.of_arbitrary ~n:20 pair_arb >|= int
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [
+      20, QCheck.map int pair_arb;
+      1, QCheck.always (Bot max_width);
+      1, QCheck.always (Top max_width)
+    ] (* S TODO: decide frequencies *)
 end
 
 (* BOOLEAN DOMAINS *)
@@ -1283,6 +1325,7 @@ struct
   let lognot = (not)
   let logand = (&&)
   let logor  = (||)
+  let arbitrary () = QCheck.bool
 end
 
 module Booleans = MakeBooleans (
@@ -1459,6 +1502,20 @@ module Enums : S = struct
           let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
           Invariant.(a && i)
         ) Invariant.none ns
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let i_list_arb = QCheck.small_list (Integers.arbitrary ()) in
+    let neg is = Exc (is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
+    let pos is = Inc is in
+    let shrink = function
+      | Exc (is, _) -> MyCheck.shrink i_list_arb is >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Inc is -> MyCheck.shrink i_list_arb is >|= pos
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [
+      20, QCheck.map neg i_list_arb;
+      10, QCheck.map pos i_list_arb;
+    ] (* S TODO: decide frequencies *)
 end
 
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
@@ -1537,7 +1594,7 @@ module IntDomTuple = struct
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
   (* others *)
-  let short _ = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.short 30 }
+  let short w = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.name () ^ ":" ^ (I.short (w / 4) x) }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   (* f2: binary ops *)
@@ -1587,4 +1644,6 @@ module IntDomTuple = struct
     in List.fold_left (fun a i ->
         Invariant.(a && i)
       ) Invariant.none is
+
+  let arbitrary () = QCheck.(set_print (short 10000) @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
 end

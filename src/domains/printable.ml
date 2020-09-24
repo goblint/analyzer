@@ -27,6 +27,8 @@ sig
 
   val invariant: Invariant.context -> t -> Invariant.t
   val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
+
+  val arbitrary: unit -> t QCheck.arbitrary
 end
 
 module type HC = (* HashCons *)
@@ -56,6 +58,7 @@ struct
 
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
+  let arbitrary () = failwith "no arbitrary"
 end
 
 module Blank =
@@ -110,6 +113,8 @@ struct
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.name)
+
+  let arbitrary () = QCheck.unit
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -152,6 +157,7 @@ struct
   let isSimple = lift_f Base.isSimple
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
+
   let invariant c = lift_f (Base.invariant c)
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
     if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
@@ -167,6 +173,7 @@ struct
     )
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   (* let equal = equal_debug *)
+  let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 end
 
 module Lift (Base: S) (N: LiftingNames) =
@@ -174,6 +181,8 @@ struct
   type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving to_yojson]
   include Std
   include N
+
+  let lift x = `Lifted x
 
   let hash = function
     | `Top -> 4627833
@@ -234,6 +243,19 @@ struct
   let invariant c = function
     | `Lifted x -> Base.invariant c x
     | `Top | `Bot -> Invariant.none
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let shrink = function
+      | `Lifted x -> (return `Bot) <+> (MyCheck.shrink (Base.arbitrary ()) x >|= lift)
+      | `Bot -> empty
+      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map lift (Base.arbitrary ());
+      1, QCheck.always `Bot;
+      1, QCheck.always `Top
+    ] (* S TODO: decide frequencies *)
 end
 
 module Either (Base1: S) (Base2: S) =
@@ -447,6 +469,7 @@ struct
       Base1.pretty_diff () (x1,y1)
 
   let invariant c (x, y) = Invariant.(Base1.invariant c x && Base2.invariant c y)
+  let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -502,6 +525,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let invariant c (x, y, z) = Invariant.(Base1.invariant c x && Base2.invariant c y && Base3.invariant c z)
+  let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
 
 module Liszt (Base: S) =
@@ -565,6 +589,8 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%d\n</data>\n</value>\n" x
+
+  let arbitrary () = QCheck.int_range 0 (P.n - 1)
 end
 
 module LiftBot (Base : S) =
@@ -670,6 +696,17 @@ struct
   let printXml f = function
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
     | `Lifted n -> Base.printXml f n
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let shrink = function
+      | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
+      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map lift (Base.arbitrary ());
+      1, QCheck.always `Top
+    ] (* S TODO: decide frequencies *)
 end
 
 

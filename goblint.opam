@@ -19,6 +19,7 @@ depends: [
   "goblint-cil"
   "batteries"
   "xml-light"
+  "qcheck"
   "ppx_distr_guards" {>= "0.2"}
   "ppx_import"
   "ppx_deriving"

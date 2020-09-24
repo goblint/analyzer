@@ -174,6 +174,7 @@ module DefExc
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
 
+module CircInterval: S (* for property-based testing *)
 
 (** {b Domain constructors} *)
 

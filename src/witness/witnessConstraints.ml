@@ -28,6 +28,7 @@ struct
   let name () = "var"
   let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"
+  let arbitrary () = failwith "PrintableVar: no arbitrary"
 end
 
 (* TODO: move this to MyCFG *)
@@ -52,6 +53,7 @@ struct
 
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Edge: no tag"
+  let arbitrary () = failwith "Edge: no arbitrary"
 end
 
 module FlatBot (Base: Printable.S) = Lattice.LiftBot (Lattice.Fake (Base))
