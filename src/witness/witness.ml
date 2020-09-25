@@ -81,8 +81,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_key g "edge" "createThread" "string" None;
 
   GML.write_key g "node" "goblintNode" "string" None;
+  GML.write_key g "node" "sourcecode" "string" None;
   GML.write_key g "edge" "goblintEdge" "string" None;
   GML.write_key g "edge" "goblintLine" "string" None;
+  (* TODO: remove *)
+  GML.write_key g "edge" "enterFunction2" "string" None;
+  GML.write_key g "edge" "returnFromFunction2" "string" None;
 
   GML.write_metadata g "witness-type" (if Result.to_bool TaskResult.result then "correctness_witness" else "violation_witness");
   GML.write_metadata g "sourcecodelang" "C";
