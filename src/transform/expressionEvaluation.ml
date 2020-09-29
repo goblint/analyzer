@@ -9,6 +9,26 @@ module ExpEval : Transform.S =
     let (~?) exception_function =
       try Some (exception_function ()) with
       | _ -> None
+    let (~!) value_option =
+      match value_option with
+      | Some value -> value
+      | None -> raise Exit
+
+    let is_debug () =
+      GobConfig.get_bool "dbg.verbose"
+
+    let string_of_evaluation_result value =
+      match value with
+      | Some value -> if value then "TRUE" else "FALSE"
+      | None -> "UNKNOWN"
+    let string_of_statement statement =
+      statement
+        |> Cil.d_stmt ()
+        |> Pretty.sprint ~width:0
+        |> String.split_on_char '\n'
+        |> List.filter (fun line -> line.[0] <> '#')
+        |> List.map String.trim
+        |> List.fold_left (^) ""
 
     class evaluator (file : Cil.file) (ask : Cil.location -> Queries.t -> Queries.Result.t) =
       object (self)
@@ -39,23 +59,32 @@ module ExpEval : Transform.S =
           (* Compute evaluation result *)
           match ~? (fun () -> Formatcil.cExp expression_string (local_variables @ global_variables)) with
           | None ->
+              if is_debug () then print_endline "| (Unparseable)";
               Some false
           | Some expression ->
               match self#try_ask location expression with
               | None ->
+                  if is_debug () then print_endline "| (Unreachable)";
                   Some false
               | Some value_before ->
                   (* Use the last (TODO -> find_all) matching statement *)
                   let _, statement = Hashtbl.find statements location in
                   (* Use the first (TODO) reachable successor *)
+                  let succeeding_statement = ref None in
                   let successor_evaluation =
                     statement.succs
-                      |> List.find_map_opt (fun (s : Cil.stmt) -> self#try_ask (Cil.get_stmtLoc s.skind) expression)
+                      |> List.find_map_opt (fun (s : Cil.stmt) -> succeeding_statement := Some s; self#try_ask (Cil.get_stmtLoc s.skind) expression)
                   in
                   match successor_evaluation with
                   | Some value_after ->
+                      if is_debug () then
+                        begin
+                          print_endline ("| " ^ (statement |> string_of_statement) ^ "/*" ^ (value_after |> string_of_evaluation_result) ^ "*/");
+                          print_endline ("| " ^ (~! !succeeding_statement |> string_of_statement))
+                        end;
                       value_after
                   | None ->
+                      if is_debug () then print_endline ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement));
                       value_before
 
         method private try_ask location expression =
@@ -89,14 +118,6 @@ module ExpEval : Transform.S =
 
     let string_of_location (location : Cil.location) =
       location.file ^ ":" ^ (location.line |> string_of_int) ^ " [" ^ (location.byte |> string_of_int) ^ "]"
-    let string_of_statement statement =
-      statement
-        |> Cil.d_stmt ()
-        |> Pretty.sprint ~width:0
-        |> String.split_on_char '\n'
-        |> List.filter (fun line -> line.[0] <> '#')
-        |> List.map String.trim
-        |> List.fold_left (^) ""
 
     let location_file_compare (location_1 : Cil.location) (location_2 : Cil.location) = compare location_1.file location_2.file
     let location_byte_compare (location_1 : Cil.location) (location_2 : Cil.location) = compare location_1.byte location_2.byte
@@ -135,16 +156,15 @@ module ExpEval : Transform.S =
           |> List.flatten
       in
       (* Semantic queries *)
-      let debug = GobConfig.get_bool "dbg.verbose" in
       let evaluate location =
         match evaluator#evaluate location query.expression with
         | Some value ->
             if value then
               print_endline (location |> string_of_location)
-            else if debug then
+            else if is_debug () then
               print_endline ((location |> string_of_location) ^ " x")
         | None ->
-            if query.mode = `May || debug then
+            if query.mode = `May || is_debug () then
               print_endline ((location |> string_of_location) ^ " ?")
       in
       List.iter evaluate locations
