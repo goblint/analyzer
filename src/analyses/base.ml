@@ -1477,7 +1477,18 @@ struct
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
     let set' lval v = Tuple3.first (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
     let rec inv_exp c = function
-      | UnOp (op, e, _) -> inv_exp (unop_ID op c) e
+      | UnOp (LNot, e, _) ->
+        let c' =
+          match ID.to_bool (unop_ID LNot c) with
+          | Some true ->
+            (* LNot x is 1 for any x != 0 *)
+            let ikind = Cilfacade.get_ikind @@ typeOf e in
+            ID.of_excl_list ikind [0L]
+          | Some false -> ID.of_bool false
+          | _ -> ID.top ()
+        in
+        inv_exp c' e
+      | UnOp ((BNot|Neg) as op, e, _) -> inv_exp (unop_ID op c) e
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
         inv_exp c (BinOp (op, c1, c2, t))
       | BinOp (op, e1, e2, _) as e ->
