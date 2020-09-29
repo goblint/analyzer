@@ -1481,7 +1481,8 @@ struct
         let c' =
           match ID.to_bool (unop_ID LNot c) with
           | Some true ->
-            (* LNot x is 1 for any x != 0 *)
+            (* i.e. e should evaluate to [1,1] *)
+            (* LNot x is 0 for any x != 0 *)
             let ikind = Cilfacade.get_ikind @@ typeOf e in
             ID.of_excl_list ikind [0L]
           | Some false -> ID.of_bool false
