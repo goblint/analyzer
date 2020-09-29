@@ -242,7 +242,14 @@ struct
     | None -> Messages.warn "Access to unknown address could be global"; []
 end
 
-module Equ = MusteqDomain.Equ
+(* module Equ = MusteqDomain.Equ *)
+module Equ =
+struct
+  include Lattice.Unit
+
+  let assign lval rval st = st
+  let kill_vars vars st = st
+end
 module LD  = Lattice.Prod (Equ) (RegMap)
 module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)
 module Var = Basetype.Variables
