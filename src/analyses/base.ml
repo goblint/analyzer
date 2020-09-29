@@ -881,6 +881,17 @@ struct
         | `Bot   -> `Bot
         | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); `Top
       end
+    | Q.Assert e -> begin
+        match eval_rv ctx.ask ctx.global ctx.local e with
+        | `Int i ->
+            let v = (`Int i) in
+            begin
+              match (VD.invariant "%v:value" v) with
+              | Some s -> `Str s
+              | None -> `Bot
+            end;
+        | v -> `Bot;
+      end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Address a ->

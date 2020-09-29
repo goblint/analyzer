@@ -1,5 +1,7 @@
 open Prelude
 open Cil
+open Formatcil
+open Str
 
 module type S = sig
   val transform : (Cil.location -> Queries.t -> Queries.Result.t) -> file -> unit (* modifications are done in-place by CIL :( *)
@@ -37,3 +39,78 @@ module PartialEval = struct
     visitCilFile (new visitor ask) file
 end
 let _ = register "partial" (module PartialEval)
+
+module EvalAssert = struct
+  let loc = ref locUnknown (* when we visit an expression, we need the current location -> store at stmts *)
+  let ass = ref (makeVarinfo true "unknown" (TVoid []))
+  class visitor ask = object
+    inherit nopCilVisitor
+    method! vglob g =
+      match g with
+      | GVarDecl (v, l) ->
+        if v.vname = "assert" then ass := v;
+        DoChildren
+      | _ -> DoChildren
+    method! vstmt s =
+      let construct_assert v s =
+        let r = regexp "&&\\|||\\|=>\\|<=\\| > \\| < " in
+        global_substitute r (fun s1 ->
+                             match matched_string s with
+                             | "||" -> "&"
+                             | "&&" -> "|"
+                             | "=>" -> "<"
+                             | "<=" -> ">"
+                             | " < " -> " => "
+                             | " > " -> " <= "
+                             | _ -> "NOP"
+                             ) s |> split (regexp " | ")
+      in
+
+      let eval_i il =
+        let list_map i =
+          match i with
+          | Set ((lh, lo), e, l) ->
+             let ai =
+               match lh with
+               | Var v -> begin
+                  match ask l (Queries.Assert e) with
+                  | `Str s ->
+                    List.map (fun ca -> cInstr ("%v:assert (!(" ^ ca ^ "));") l [("assert", Fv !ass); ("value", Fv v)]) (construct_assert v s)
+                  | _ -> [] end
+               | Mem e -> []
+               in
+               [i] @ ai
+          | Call (lv, e, el, l) ->
+            begin
+            match lv with
+              | Some (lh, lo) ->
+                let ai =
+                  match lh with
+                  | Var v -> begin
+                    match ask l (Queries.Assert e) with
+                    | `Str s ->
+                      List.map (fun ca -> cInstr ("%v:assert (!(" ^ ca ^ "));") l [("assert", Fv !ass); ("value", Fv v)]) (construct_assert v s)
+                    | _ -> [] end
+                  | Mem e -> []
+                in
+
+                [i] @ ai
+              | None -> [i] end
+          | _ -> [i]
+        in
+        il |> List.map list_map |> List.concat
+      in
+
+      let eval_s s =
+        match s.skind with
+        | Instr il ->
+          s.skind <- Instr (eval_i il);
+          s
+        | _ -> s
+      in
+      ChangeDoChildrenPost (s, eval_s)
+  end
+  let transform ask file =
+    visitCilFile (new visitor ask) file
+end
+let _ = register "assert" (module EvalAssert)

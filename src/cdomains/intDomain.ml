@@ -449,7 +449,7 @@ struct
   let is_top x = x = top()
   let is_bot = function None -> true | _ -> false
   let zero = Some (SS.add (0L, 0L) SS.empty)
-  let one = Some (SS.add (1L, 1L) SS.empty)
+  let one = Some (SS.empty |> SS.add (1L, 1L))
   let top_bool = Some (SS.add (0L, 1L) SS.empty)
 
   let hash (x:t) = Hashtbl.hash x
@@ -557,14 +557,8 @@ struct
     | x when equal x zero -> Some false
     | x -> if leq zero x then None else Some true
 
-  let to_bool_interval x =
-    match x with
-    | None -> None
-    | _ when equal x zero -> x
-    | _ -> if leq zero x then top_bool else one
-
   let of_bool = function
-    | true -> Some (SS.add (1L, 1L) SS.empty)
+    | true -> Some (SS.empty |> SS.add (1L, 1L))
     | false -> Some (SS.add (0L, 0L) SS.empty)
 
   let is_bool x =
@@ -617,9 +611,6 @@ struct
 
   let of_interval (x,y) = norm @@ Some (x,y)
   let of_int x = of_interval (x,x)
-  let zero = Some (SS.add (0L, 0L) SS.empty)
-  let one = Some (SS.add (1L, 1L) SS.empty)
-  let top_bool = Some (SS.add (0L, 1L) SS.empty)
 
   let starting n = norm @@ Some (n, max_int)
   let ending   n = norm @@ Some (min_int, n)
@@ -926,15 +917,14 @@ struct
   let invariant c x =
     match x with
     | Some s when is_int x ->
-      let (x1, x2) = SS.min_elt s in
+      let (x1, _) = SS.min_elt s in
       Invariant.of_string (c ^ " == " ^ Int64.to_string x1)
     | Some s ->
-      let x1, _ = SS.min_elt s in
-      let _, x2 = SS.max_elt s in
       let open Invariant in
-      let i1 = if Int64.compare min_int x1 <> 0 then of_string (Int64.to_string x1 ^ " <= " ^ c) else none in
-      let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <= " ^ Int64.to_string x2) else none in
-      i1 && i2
+      List.map (fun (x,y) ->
+                          let i1 = if Int64.compare min_int x < 0 then of_string (Int64.to_string x ^ " <= " ^ c) else none in
+                          let i2 = if Int64.compare y max_int < 0 then of_string (c ^ " <= " ^ Int64.to_string y) else none in
+                          i1 && i2) (SS.elements s) |> List.fold_left (||) None
     | None -> None
 
   let cast_to t = function

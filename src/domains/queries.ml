@@ -29,6 +29,7 @@ let iterprevvar_to_yojson _ = `Null
 
 type t = ExpEq of exp * exp
        | EqualSet of exp
+       | Assert of exp
        | MayPointTo of exp
        | ReachableFrom of exp
        | ReachableUkTypes of exp
