@@ -102,6 +102,25 @@ module Size = struct (* size in bits as int, range as int64 *)
     in
     M.tracel "cast_int" "Cast %Li to range [%s, %s] (%s) = %s (%s in int64)\n" x (string_of_big_int a) (string_of_big_int b) (string_of_big_int c) (string_of_big_int y) (if is_int64_big_int y then "fits" else "does not fit");
     try int64_of_big_int y with _ -> raise Not_in_int64
+
+  let min_range_sign_agnostic x =
+    let size ik =
+      let a,b = bits_i64 ik in
+      Int64.neg a,b
+    in
+    if sign x = `Signed then
+      size (min_for x)
+    else
+      let a, b = size (min_for x) in
+      if b <= 64L then
+        let upper_bound_less = Int64.sub b 1L in
+        let max_one_less = Int64.(pred @@ shift_left 1L (to_int upper_bound_less)) in
+        if x < max_one_less then
+          a, upper_bound_less
+        else
+          a,b
+      else
+        a, b
 end
 
 exception Unknown
@@ -734,15 +753,15 @@ struct
       if x = y then `Definite x
       (* Unless one of them is zero, we can exclude it: *)
       else
-        let a,b = Size.(min_for x, min_for y) in
-        let r = R.join (size a) (size b) in
+        let a,b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+        let r = R.join (R.of_interval a) (R.of_interval b) in
         `Excluded ((if x = 0L || y = 0L then S.empty () else S.singleton 0L), r)
     (* A known value and an exclusion set... the definite value should no
      * longer be excluded: *)
     | `Excluded (s,r), `Definite x
     | `Definite x, `Excluded (s,r) ->
       if not (in_range r x) then
-        let a = size (Size.min_for x) in
+        let a = R.of_interval (Size.min_range_sign_agnostic x) in
         `Excluded (S.remove x s, R.join a r)
       else
         `Excluded (S.remove x s, r)
