@@ -266,7 +266,7 @@ struct
       else
       ());
     let period = BatOption.get @@ Period.to_int ((get_info_for taskstates tid).period) in
-    let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
+    let remaining_wait = if miss then Times.zeroInterval else TInterval.sub (TInterval.of_int period) time_since_period in
     let times = Times.set_remaining_wait tid remaining_wait times in (* set remaining wait time *)
     (* since_period_before_wait is not set here, as since_period will be set to [0,0] on restart anyway  *)
     let s = SD.periodic_wait tid taskstates in
