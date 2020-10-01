@@ -17,17 +17,22 @@ module ExpEval : Transform.S =
     let is_debug () =
       GobConfig.get_bool "dbg.verbose"
 
-    let string_of_evaluation_result value =
-      match value with
+    let string_of_evaluation_result evaluation_result =
+      match evaluation_result with
       | Some value -> if value then "TRUE" else "FALSE"
       | None -> "UNKNOWN"
     let string_of_statement statement =
       statement
+        (* Pretty print *)
         |> Cil.d_stmt ()
         |> Pretty.sprint ~width:0
+        (* Split into lines *)
         |> String.split_on_char '\n'
+        (* Remove preprocessor directives *)
         |> List.filter (fun line -> line.[0] <> '#')
+        (* Remove indentation *)
         |> List.map String.trim
+        (* Concatenate lines into one *)
         |> List.fold_left (^) ""
 
     class evaluator (file : Cil.file) (ask : Cil.location -> Queries.t -> Queries.Result.t) =
@@ -56,26 +61,44 @@ module ExpEval : Transform.S =
             | Some (function_definition, _) -> function_definition.slocals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v)
             | None -> []
           in
-          (* Compute evaluation result *)
+          (* Parse expression *)
           match ~? (fun () -> Formatcil.cExp expression_string (local_variables @ global_variables)) with
+            (* Expression unparseable at this location *)
           | None ->
               if is_debug () then print_endline "| (Unparseable)";
               Some false
+            (* Successfully parsed expression *)
           | Some expression ->
+              (* Evaluate at (directly before) the location *)
               match self#try_ask location expression with
+                (* Dead code or not listed as part of the control flow *)
               | None ->
                   if is_debug () then print_endline "| (Unreachable)";
                   Some false
+                (* Valid location *)
               | Some value_before ->
-                  (* Use the last (TODO -> find_all) matching statement *)
+                  (* Use the last listed matching statement; TODO: use Hashtbl.find_all to consider other matching statements *)
                   let _, statement = Hashtbl.find statements location in
-                  (* Use the first (TODO) reachable successor *)
+                  (* Use the first evaluable successor; TODO: consider other successors *)
                   let succeeding_statement = ref None in
                   let successor_evaluation =
-                    statement.succs
-                      |> List.find_map_opt (fun (s : Cil.stmt) -> succeeding_statement := Some s; self#try_ask (Cil.get_stmtLoc s.skind) expression)
+                    List.find_map_opt
+                      begin
+                        fun (s : Cil.stmt) ->
+                          succeeding_statement := Some s;
+                          (* Evaluate at (directly before) a succeeding location *)
+                          self#try_ask (Cil.get_stmtLoc s.skind) expression
+                      end
+                      statement.succs
                   in
+                  (* Prefer successor evaluation *)
                   match successor_evaluation with
+                  | None ->
+                      if is_debug () then
+                        begin
+                          print_endline ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement))
+                        end;
+                      value_before
                   | Some value_after ->
                       if is_debug () then
                         begin
@@ -83,9 +106,6 @@ module ExpEval : Transform.S =
                           print_endline ("| " ^ (~! !succeeding_statement |> string_of_statement))
                         end;
                       value_after
-                  | None ->
-                      if is_debug () then print_endline ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement));
-                      value_before
 
         method private try_ask location expression =
           match ~? (fun () -> ask location (Queries.EvalInt expression)) with
