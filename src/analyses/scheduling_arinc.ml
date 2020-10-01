@@ -1,4 +1,3 @@
-(** An analysis specification for didactic purposes. *)
 open Prelude.Ana
 open Analyses_arinc
 open Arinc_schedulabilty_domain
