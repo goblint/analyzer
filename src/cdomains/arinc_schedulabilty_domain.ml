@@ -45,7 +45,7 @@ module TInterval = struct
 
   let ensure_pos x =
     let r = meet (starting 0L) x in
-    (if is_bot r then Printf.printf "ensure pos returned bot \n\n");
+    (if is_bot r then failwith "ensure pos returned bot \n\n");
     r
 
   let of_int = ensure_pos % of_int
