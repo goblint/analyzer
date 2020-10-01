@@ -200,6 +200,7 @@ struct
       let times = Times.set_remaining_wait t Times.zeroInterval x in
       let newtime = TInterval.add (Times.get_since_period_before_wait t times) (TInterval.of_int (Int64.of_int time)) in
       let times = Times.set_since_period t newtime times in
+      let times = Times.set_since_period_before_wait t Times.zeroInterval times in
       let s = update_info_for t (fun x -> {x with processState = PState.ready}) s in
       s, times
     in
@@ -266,7 +267,7 @@ struct
   let timed_wait (taskstates, times) tid waittime =
     let remaining_wait = TInterval.of_int (Int64.of_int waittime) in
     let times = Times.set_remaining_wait tid remaining_wait times in (* set remaining wait time *)
-    let times = Times.set_since_period_before_wait tid (Times.get_since_period tid times) times in 
+    let times = Times.set_since_period_before_wait tid (Times.get_since_period tid times) times in
     let s = SD.timed_wait tid taskstates in
     s, times
 
