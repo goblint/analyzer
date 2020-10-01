@@ -95,6 +95,10 @@ module Times:(sig
   val set_since_period: tid -> v -> t -> t
   val get_since_period: tid -> t -> v
 
+  val update_since_period_before_wait: tid -> (v -> v) -> t -> t
+  val get_since_period_before_wait: tid -> t -> v
+  val set_since_period_before_wait: tid -> v -> t -> t
+
   val update_remaining_wait: tid -> (v -> v) -> t -> t
   val set_remaining_wait: tid -> v -> t -> t
   val get_remaining_wait: tid -> t -> v
@@ -126,6 +130,7 @@ struct
   let start_state n =
     let t = add "overall" zeroInterval (bot ()) in
     let t = add_list_set ["since_period_t0"; "since_period_t1"] zeroInterval t in
+    let t = add_list_set ["since_period_before_wait_t0"; "since_period_before_wait_t1"] zeroInterval t in
     let t = add_list_set ["remaining_wait_t0"; "remaining_wait_t1"] zeroInterval t in
     let t = add_list_set ["remaining_processing_t0"; "remaining_processing_t1"] zeroInterval t in
     t
@@ -140,6 +145,15 @@ struct
   let get_since_period tid times =
     find ("since_period_t" ^ string_of_int(tid)) times
 
+  (* time since period for each task before wait *)
+  let update_since_period_before_wait tid fn times =
+    update_val ("since_period_before_wait_t" ^ string_of_int(tid)) fn times
+
+  let set_since_period_before_wait tid v times =
+    update_since_period_before_wait tid (fun _ -> v) times
+
+  let get_since_period_before_wait tid times =
+    find ("since_period_before_wait_t" ^ string_of_int(tid)) times
 
   (* remaining wait time for each task *)
   let update_remaining_wait tid fn times =

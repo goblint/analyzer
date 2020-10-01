@@ -22,7 +22,7 @@ type edgeAct =
   | SignalSemaphore of int
   | PeriodicWait
   | WaitingForPeriod
-  | WaitingForEndWait
+  | WaitingForEndWait of int
   | NOP
   [@@deriving to_yojson]
 
@@ -84,7 +84,7 @@ let example_extracted () =
 
     mkEdge (PC ([5; i])) (0, ResumeTask 1) (PC [6; i]);
     mkEdge (PC ([6; i])) (0, TimedWait 20) (PC[12;i]);
-    mkEdge (PC ([12; i])) (0, WaitingForEndWait) (PC[16;i]);
+    mkEdge (PC ([12; i])) (0, WaitingForEndWait 20) (PC[16;i]);
     mkEdge (PC ([6; i])) (0, WaitEvent 1) (PC [7; i]);
     mkEdge (PC ([7; i])) (0, ResetEvent 1) (PC [8; i]);
 
@@ -120,7 +120,7 @@ let minimal_problematic () =
 
   for i = 0 to 2 do
     mkEdge (PC ([0; i])) (0, TimedWait 20) (PC[1;i]);
-    mkEdge (PC ([1; i])) (0, WaitingForEndWait) (PC[2;i]);
+    mkEdge (PC ([1; i])) (0, WaitingForEndWait 20) (PC[2;i]);
     mkEdge (PC ([2; i])) (0, PeriodicWait) (PC [3; i]);
     mkEdge (PC ([3; i])) (0, WaitingForPeriod) (PC [0; i]);
 

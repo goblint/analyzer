@@ -195,9 +195,11 @@ struct
     in
     wait_and_do_if_over (taskstates, times) do_restart_period tid
 
-  let wait_for_endwait (taskstates,times) tid =
+  let wait_for_endwait (taskstates,times) tid time =
     let do_end_wait (s,x) t =
       let times = Times.set_remaining_wait t Times.zeroInterval x in
+      let newtime = TInterval.add (Times.get_since_period_before_wait t times) (TInterval.of_int (Int64.of_int time)) in
+      let times = Times.set_since_period t newtime times in
       let s = update_info_for t (fun x -> {x with processState = PState.ready}) s in
       s, times
     in
@@ -264,6 +266,7 @@ struct
   let timed_wait (taskstates, times) tid waittime =
     let remaining_wait = TInterval.of_int (Int64.of_int waittime) in
     let times = Times.set_remaining_wait tid remaining_wait times in (* set remaining wait time *)
+    let times = Times.set_since_period_before_wait tid (Times.get_since_period tid times) times in 
     let s = SD.timed_wait tid taskstates in
     s, times
 
@@ -271,26 +274,25 @@ struct
     if tid = -1 then
       (* This is some special edge e.g. during init *)
       state
-    else if e = WaitingForPeriod then
-      (* The restart of a period can happen at any time even if the task does not have priority *)
-      wait_for_period state tid
-    else if e = WaitingForEndWait then
-      (* The end of waiting can happen at any time if the task does not have priority *)
-      wait_for_endwait state tid
-    else if not (can_run tid taskstates) then
-      (* all other actions can only happen if this task is in running state, and has the highest priority *)
-      raise Deadcode
     else
+      let canrun = can_run tid taskstates in
       match e with
-      | SuspendTask i -> SD.suspend i taskstates, times
-      | ResumeTask i -> SD.resume i taskstates, times
-      | WaitEvent i -> SD.wait_event tid i taskstates, times
-      | SetEvent i -> SD.set_event i taskstates, times
-      | StartComputation wcet -> start_computation state tid wcet
-      | FinishComputation -> finish_computation state tid
-      | PeriodicWait -> periodic_wait state tid node
-      | TimedWait tw -> timed_wait state tid tw
-      | _ -> state
+      | WaitingForPeriod ->
+        (* The restart of a period can happen at any time even if the task does not have priority *)
+        wait_for_period state tid
+      | WaitingForEndWait i ->
+        (* The end of waiting can happen at any time if the task does not have priority *)
+        wait_for_endwait state tid i
+      | SuspendTask i when canrun -> SD.suspend i taskstates, times
+      | ResumeTask i when canrun -> SD.resume i taskstates, times
+      | WaitEvent i when canrun -> SD.wait_event tid i taskstates, times
+      | SetEvent i when canrun -> SD.set_event i taskstates, times
+      | StartComputation wcet when canrun -> start_computation state tid wcet
+      | FinishComputation when canrun -> finish_computation state tid
+      | PeriodicWait when canrun -> periodic_wait state tid node
+      | TimedWait tw when canrun -> timed_wait state tid tw
+      | _ -> if canrun then state else raise Deadcode
+
 
   let arinc_edge ctx (t,e) =
     match ctx.local with
