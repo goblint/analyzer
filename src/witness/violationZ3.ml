@@ -196,4 +196,6 @@ struct
         Unknown
     in
     iter_wp (List.rev path) (List.length path - 1) Env.empty
+
+  let check_path = wp_path
 end

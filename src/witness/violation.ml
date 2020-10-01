@@ -38,8 +38,7 @@ sig
     | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
     | Unknown
 
-  (* TODO: rename *)
-  val wp_path: (Node.t * MyARG.inline_edge * Node.t) list -> result
+  val check_path: (Node.t * MyARG.inline_edge * Node.t) list -> result
 end
 
 module UnknownFeasibility (Node: MyARG.Node): Feasibility with module Node = Node =
@@ -51,7 +50,7 @@ struct
     | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
     | Unknown
 
-  let wp_path _ = Unknown
+  let check_path _ = Unknown
 end
 
 
@@ -116,7 +115,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
   begin match find_path Arg.violations with
     | Some path ->
       print_path path;
-      begin match Feasibility.wp_path path with
+      begin match Feasibility.check_path path with
       | Feasibility.Feasible ->
         print_endline "feasible";
 
