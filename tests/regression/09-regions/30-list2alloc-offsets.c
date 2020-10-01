@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] "'region'" --enable exp.region-offsets
+// PARAM: --set ana.activated[+] "'region'" --enable exp.region-offsets
 // Copy of 09/30 with region offsets enabled
 #include<pthread.h>
 #include<stdlib.h>
