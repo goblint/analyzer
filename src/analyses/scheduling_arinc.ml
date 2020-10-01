@@ -188,6 +188,7 @@ struct
 
   let wait_for_period (taskstates,times) tid =
     let do_restart_period (taskstates, times) tid =
+      (* As the time_since_period is set to zero here, handling such as in wait_for_endwait is not needed *)
       let times = Times.set_since_period tid Times.zeroInterval times in
       let times = Times.set_remaining_wait tid Times.zeroInterval times in
       let s = update_info_for tid (fun x -> {x with processState = PState.ready}) taskstates in
@@ -198,6 +199,13 @@ struct
   let wait_for_endwait (taskstates,times) tid time =
     let do_end_wait (s,x) t =
       let times = Times.set_remaining_wait t Times.zeroInterval x in
+      (* Justification for setting t_since_period of this task to since_period_before_wait + waiting_time:     *)
+      (*   - wait_for_endwait can happen even if this task does not have priority                              *)
+      (*   - so it should also happen in exactly the point when this time is over                              *)
+      (*   - That the other times have continued running here, just means that we allow more behavior          *)
+      (*   - While this task is timed_waiting a new period can not have started for it                         *)
+      (* It would be UNSOUND to set the time_since_period of other tasks in the same way, as a new period may  *)
+      (* have started for another task                                                                         *)
       let newtime = TInterval.add (Times.get_since_period_before_wait t times) (TInterval.of_int (Int64.of_int time)) in
       let times = Times.set_since_period t newtime times in
       let times = Times.set_since_period_before_wait t Times.zeroInterval times in
@@ -261,6 +269,7 @@ struct
     let period = BatOption.get @@ Period.to_int ((get_info_for taskstates tid).period) in
     let remaining_wait = TInterval.sub (TInterval.of_int period) time_since_period in
     let times = Times.set_remaining_wait tid remaining_wait times in (* set remaining wait time *)
+    (* since_period_before_wait is not set here, as since_period will be set to [0,0] on restart anyway  *)
     let s = SD.periodic_wait tid taskstates in
     s, times
 
