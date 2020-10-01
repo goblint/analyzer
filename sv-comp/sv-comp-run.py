@@ -13,10 +13,15 @@ from timeit import default_timer as timer
 
 OVERVIEW = False # with True Goblint isn't executed
 # TODO: don't hard-code specification
-GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --sets ana.specification ./tests/sv-comp/unreach-call-__VERIFIER_error.prp --disable ana.int.def_exc --enable ana.int.enums --enable ana.int.interval --sets solver td3 --enable exp.widen-context --enable exp.partition-arrays.enabled {code_filename}"
+GOBLINT_COMMAND = "./goblint --enable ana.sv-comp --sets ana.specification ./tests/sv-comp/unreach-call-__VERIFIER_error.prp --sets exp.witness_path {witness_filename} --disable ana.int.def_exc --enable ana.int.enums --enable ana.int.interval --sets solver td3 --enable exp.widen-context --enable exp.partition-arrays.enabled {code_filename}"
 TIMEOUT = 30 # with some int that's Goblint timeout for single execution
 START = 1
 EXIT_ON_ERROR = True
+WITNESS_ROOT = "./witnesses/"
+
+
+if WITNESS_ROOT:
+    os.makedirs(WITNESS_ROOT, exist_ok=True)
 
 
 def error_exit(code=1):
@@ -77,9 +82,15 @@ try:
             result = None
             task_time = None
         else:
+            if WITNESS_ROOT:
+                taskname, _ = os.path.splitext(os.path.basename(task_filename))
+                witness_filename = os.path.join(WITNESS_ROOT, taskname + ".graphml")
+            else:
+                witness_filename = "witness.graphml"
+
             start_time = timer()
             try:
-                p = subprocess.run(shlex.split(GOBLINT_COMMAND.format(code_filename=code_filename)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=TIMEOUT)
+                p = subprocess.run(shlex.split(GOBLINT_COMMAND.format(witness_filename=witness_filename, code_filename=code_filename)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", timeout=TIMEOUT)
                 if "Fatal error: exception " in p.stdout:
                     print(p.stdout)
                     error_exit(1)
