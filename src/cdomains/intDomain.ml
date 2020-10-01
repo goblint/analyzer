@@ -788,7 +788,8 @@ struct
       let s' = S.union x y |> S.filter (in_range r') in
       `Excluded (s', r')
 
-  let narrow = meet
+  let narrow x y = x
+
   let of_int  x = `Definite (Integers.of_int x)
   let to_int  x = match x with
     | `Definite x -> Integers.to_int x
