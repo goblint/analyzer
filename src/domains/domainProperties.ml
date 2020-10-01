@@ -52,7 +52,7 @@ struct
   ]
 end
 
-module Join (D: Lattice.S): S =
+module Join (D: Lattice.S) =
 struct
   include DomainTest (D)
 
@@ -65,6 +65,13 @@ struct
   let tests = [
     join_leq;
     join_assoc;
+    join_comm;
+    join_idem;
+    join_abs
+  ]
+
+  let tests_non_assoc = [
+    join_leq;
     join_comm;
     join_idem;
     join_abs
@@ -172,4 +179,19 @@ struct
   module N = Narrow (D)
 
   let tests = E.tests @ L.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
+end
+
+module AllNonAssoc(D:Lattice.S): S =
+struct
+  module E = Equal (D)
+  module L = Leq (D)
+  module J = Join (D)
+  module M = Meet (D)
+  module B = Bot (D)
+  module T = Top (D)
+  module C = Connect (D)
+  module W = Widen (D)
+  module N = Narrow (D)
+
+  let tests = E.tests @ L.tests @ J.tests_non_assoc @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
 end
