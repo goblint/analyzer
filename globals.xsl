@@ -59,7 +59,7 @@
   
   <xsl:template match="globs">
     <xsl:for-each select="glob[1]/analysis" >
-      <xsl:variable name="analysis" select="position()"/>
+      <xsl:variable name="analysis" select="@name"/>
       <div class="toggle">
         <span>
           <xsl:value-of select="@name" />
@@ -70,13 +70,13 @@
               
               
             <xsl:choose>
-              <xsl:when test="analysis[$analysis]/value//value">
+              <xsl:when test="analysis[@name=$analysis]/value//value">
                 <div class="toggle">
                   <span>
                     <xsl:value-of select="$glob"/>
                   </span> &#8594;
                   <span>
-                    <xsl:apply-templates select="analysis[$analysis]/value"/>
+                    <xsl:apply-templates select="analysis[@name=$analysis]/value"/>
                   </span>
                 </div>
               </xsl:when>
@@ -86,7 +86,7 @@
                     <xsl:value-of select="$glob"/>
                   </span> &#8594;
                   <span class="emph">
-                    <xsl:apply-templates select="analysis[$analysis]/value"/>
+                    <xsl:apply-templates select="analysis[@name=$analysis]/value"/>
                   </span>
                 </div>
               </xsl:otherwise>
