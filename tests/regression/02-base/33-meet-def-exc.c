@@ -15,4 +15,11 @@ void main(void) {
         y = 0;
         j++;
     }
+
+    int z;
+    int k = 41;
+    while(k != 0) {
+        z = 0;
+        k--;
+    }
 }
