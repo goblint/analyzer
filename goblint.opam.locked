@@ -51,7 +51,6 @@ depends: [
   "stdlib-shims" {= "0.1.0"}
   "xml-light" {= "2.4"}
   "yojson" {= "1.7.0"}
-  "z3" {= "4.8.8-1"}
   "zarith" {= "1.10"}
   "zarith_stubs_js" {= "v0.14.0"}
 ]

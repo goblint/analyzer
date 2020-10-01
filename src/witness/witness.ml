@@ -445,9 +445,10 @@ struct
           in
           (module TaskResult:WitnessTaskResult)
         in
+        (* TODO: fix ana.wp if Z3 not compiled *)
         if get_bool "ana.wp" then (
-          match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with
-          (* match Violation.find_path (module ViolationArg) (module Violation.UnknownFeasibility (ViolationArg.Node)) with *)
+          (* match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with *)
+          match Violation.find_path (module ViolationArg) (module Violation.UnknownFeasibility (ViolationArg.Node)) with
           | Feasible (module PathArg) ->
             (* TODO: add assumptions *)
             let module TaskResult =
