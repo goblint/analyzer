@@ -446,7 +446,7 @@ struct
           (module TaskResult:WitnessTaskResult)
         in
         if get_bool "ana.wp" then (
-          match Violation.find_path (module ViolationArg) with
+          match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with
           | Feasible (module PathArg) ->
             (* TODO: add assumptions *)
             let module TaskResult =
