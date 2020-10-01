@@ -32,6 +32,7 @@ module type Feasibility =
 sig
   module Node: MyARG.Node
 
+  (* TODO: avoid copying this to every Feasibility? *)
   type result =
     | Feasible
     | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
@@ -39,6 +40,18 @@ sig
 
   (* TODO: rename *)
   val wp_path: (Node.t * MyARG.inline_edge * Node.t) list -> result
+end
+
+module UnknownFeasibility (Node: MyARG.Node): Feasibility with module Node = Node =
+struct
+  module Node = Node
+
+  type result =
+    | Feasible
+    | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
+    | Unknown
+
+  let wp_path _ = Unknown
 end
 
 
