@@ -1,1 +1,18 @@
-[[0,[[["PC",0],[[[["TimedWait",20]],["PC",1]]]],[["PC",1],[[[["WaitingForEndWait",20]],["PC",2]]]],[["PC",2],[[[["PeriodicWait"]],["PC",3]]]],[["PC",3],[[[["WaitingForPeriod"]],["PC",0]]]]]],[1,[[["PC",0],[[[["StartComputation",40]],["PC",1]]]],[["PC",1],[[[["FinishComputation"]],["PC",2]]]],[["PC",2],[[[["NOP"]],["PC",0]]]]]]]
+[
+    [0,
+        [
+            [["PC",0],[[[["TimedWait",20]],["PC",1]]]],
+            [["PC",1],[[[["WaitingForEndWait",20]],["PC",2]]]],
+            [["PC",2],[[[["PeriodicWait"]],["PC",3]]]],
+            [["PC",3],[[[["WaitingForPeriod"]],["PC",0]]]]
+        ]
+    ],
+
+    [1,
+        [
+            [["PC",0],[[[["StartComputation",40]],["PC",1]]]],
+            [["PC",1],[[[["FinishComputation"]],["PC",2]]]],
+            [["PC",2],[[[["NOP"]],["PC",0]]]]
+        ]
+    ]
+]

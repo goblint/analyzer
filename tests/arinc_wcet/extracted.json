@@ -1,1 +1,40 @@
-[[0,[[["PC",0],[[[["StartComputation",10]],["PC",13]]]],[["PC",13],[[[["FinishComputation"]],["PC",1]]]],[["PC",1],[[[["PeriodicWait"]],["PC",2]]]],[["PC",2],[[[["WaitingForPeriod"]],["PC",3]]]],[["PC",3],[[[["SetEvent",0]],["PC",4]]]],[["PC",4],[[[["StartComputation",20]],["PC",14]]]],[["PC",14],[[[["FinishComputation"]],["PC",5]]]],[["PC",5],[[[["ResumeTask",1]],["PC",6]]]],[["PC",6],[[[["TimedWait",20]],["PC",12]],[[["WaitEvent",1]],["PC",7]]]],[["PC",12],[[[["WaitingForEndWait",20]],["PC",16]]]],[["PC",7],[[[["ResetEvent",1]],["PC",8]]]],[["PC",16],[[[["NOP"]],["PC",9]]]],[["PC",8],[[[["StartComputation",42]],["PC",15]]]],[["PC",15],[[[["StartComputation",42]],["PC",9]]]],[["PC",9],[[[["SuspendTask",1]],["PC",10]]]],[["PC",10],[[[["PeriodicWait"]],["PC",11]]]],[["PC",11],[[[["WaitingForPeriod"]],["PC",4]]]]]],[1,[[["PC",0],[[[["SuspendTask",1]],["PC",1]]]],[["PC",1],[[[["WaitSemaphore",0]],["PC",2]]]],[["PC",2],[[[["StartComputation",40]],["PC",6]]]],[["PC",6],[[[["FinishComputation"]],["PC",3]]]],[["PC",3],[[[["SignalSemaphore",0]],["PC",4]]]],[["PC",4],[[[["SetEvent",1]],["PC",5]]]],[["PC",5],[[[["NOP"]],["PC",1]]]]]]]
+[
+    [0,
+        [
+            [["PC",0],[[[["StartComputation",10]],["PC",13]]]],
+            [["PC",13],[[[["FinishComputation"]],["PC",1]]]],
+            [["PC",1],[[[["PeriodicWait"]],["PC",2]]]],
+            [["PC",2],[[[["WaitingForPeriod"]],["PC",3]]]],
+            [["PC",3],[[[["SetEvent",0]],["PC",4]]]],
+            [["PC",4],[[[["StartComputation",20]],["PC",14]]]],
+            [["PC",14],[[[["FinishComputation"]],["PC",5]]]],
+            [["PC",5],[[[["ResumeTask",1]],["PC",6]]]],
+            [["PC",6],[
+                    [[["TimedWait",20]],["PC",12]],
+                    [[["WaitEvent",1]],["PC",7]]
+                ]
+            ],
+            [["PC",12],[[[["WaitingForEndWait",20]],["PC",16]]]],
+            [["PC",7],[[[["ResetEvent",1]],["PC",8]]]],
+            [["PC",16],[[[["NOP"]],["PC",9]]]],
+            [["PC",8],[[[["StartComputation",42]],["PC",15]]]],
+            [["PC",15],[[[["StartComputation",42]],["PC",9]]]],
+            [["PC",9],[[[["SuspendTask",1]],["PC",10]]]],
+            [["PC",10],[[[["PeriodicWait"]],["PC",11]]]],
+            [["PC",11],[[[["WaitingForPeriod"]],["PC",4]]]]
+        ]
+    ],
+
+
+    [1,
+        [
+            [["PC",0],[[[["SuspendTask",1]],["PC",1]]]],
+            [["PC",1],[[[["WaitSemaphore",0]],["PC",2]]]],
+            [["PC",2],[[[["StartComputation",40]],["PC",6]]]],
+            [["PC",6],[[[["FinishComputation"]],["PC",3]]]],
+            [["PC",3],[[[["SignalSemaphore",0]],["PC",4]]]],
+            [["PC",4],[[[["SetEvent",1]],["PC",5]]]],
+            [["PC",5],[[[["NOP"]],["PC",1]]]]
+        ]
+    ]
+]
