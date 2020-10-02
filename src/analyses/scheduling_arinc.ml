@@ -255,6 +255,8 @@ struct
   let periodic_wait (taskstates, times) tid node =
     (* Check that the deadline is not violated *)
     let time_since_period = Times.get_since_period tid times in
+    let temp =  Capacity.to_int ((get_info_for taskstates tid).capacity) in
+    if temp = None then failwith ("Called periodic_wait for a task without known period " ^ string_of_int tid ^ ": " ^ OneTask.short 800 (get_info_for taskstates tid)) else
     let deadline  =  BatOption.get @@ Capacity.to_int ((get_info_for taskstates tid).capacity) in
     let deadline_interval = TInterval.of_int deadline in
     (* If time_since_period <=_{must} deadline_interval, the comparison is [0,0], meaning that no deadline was missed *)

@@ -24,11 +24,32 @@ type edgeAct =
   | WaitingForPeriod
   | WaitingForEndWait of int
   | NOP
-  [@@deriving to_yojson]
+  [@@deriving yojson]
 
 type edge = int * edgeAct
 
 type arinc_cfg = arinc_node -> ((location * edge) list * arinc_node) list
+
+type task_node = PCSingle of int [@@deriving yojson]
+type task_edge = edgeAct [@@deriving yojson]
+(* with the assumption that very node appears in the list of task_node tuples exactly once *)
+type arinc_task_cfg = int * (task_node * (task_edge list * task_node) list) list [@@deriving yojson]
+
+
+let minimal_task_0:arinc_task_cfg = (0,
+  [
+    (PCSingle 0,[([TimedWait 20], PCSingle 1)]);
+    (PCSingle 1,[([WaitingForEndWait 20], PCSingle 2)]);
+    (PCSingle 2,[([PeriodicWait], PCSingle 3)]);
+    (PCSingle 3,[([WaitingForPeriod], PCSingle 0)]);
+  ])
+
+let minimal_task_1:arinc_task_cfg = (1,
+  [
+    (PCSingle 0,[([StartComputation 40], PCSingle 1)]);
+    (PCSingle 1,[([FinishComputation], PCSingle 2)]);
+    (PCSingle 2,[([NOP], PCSingle 0)]);
+  ])
 
 module type CfgBackward =
 sig
@@ -134,8 +155,36 @@ let minimal_problematic () =
   (* H.iter (fun n (e,t) -> match n,t with PC [a;b], PC[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
   H.find_all cfgF, H.find_all cfgB
 
+let create_from (a:arinc_task_cfg) (b:arinc_task_cfg) =
+  let cfgF = H.create 113 in
+  let cfgB = H.create 113 in
+  let mkEdge = mkEdge cfgF cfgB in
+  let (id0, edges0) = a in
+  let (id1, edges1) = b in
+  let nodeCount0 = List.length edges0 in
+  let nodeCount1 = List.length edges1 in
+  for i = 0 to nodeCount1 -1 do
+    List.iter (function (PCSingle from_node, edges_to_node) ->
+      List.iter (function (edges, PCSingle to_node) ->
+        List.iter (function edge ->
+          mkEdge (PC [from_node; i]) (0,edge) (PC [to_node; i])
+        ) edges
+      ) edges_to_node
+    ) edges0
+  done;
+  for i = 0 to nodeCount0 -0 do
+    List.iter (function (PCSingle from_node, edges_to_node) ->
+      List.iter (function (edges, PCSingle to_node) ->
+        List.iter (function edge ->
+          mkEdge (PC [i; from_node]) (1,edge) (PC [i; to_node])
+        ) edges
+      ) edges_to_node
+    ) edges1
+  done;
+  H.find_all cfgF, H.find_all cfgB
+
 let get_cfg i =
   match i with
   | 0 -> example_extracted ()
-  | 1 -> minimal_problematic ()
+  | 1 -> create_from minimal_task_0 minimal_task_1 (* minimal_problematic () *)
   | _ -> failwith ("Selected unknown CFG " ^ string_of_int(i))
