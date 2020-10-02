@@ -108,7 +108,7 @@ let print_to_json () =
   Yojson.Safe.to_file "extracted.json"  yo;
   failwith "over and out"
 
-let get_cfg =
+let get_cfg () =
   let file = Yojson.Safe.from_file (List.nth !Goblintutil.jsonFiles 0) in
   let tasks = match arinc_tasks_of_yojson file  with
     | Error e -> failwith "invalid input"

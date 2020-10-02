@@ -213,7 +213,7 @@ end
 (** The main function to perform the selected analyses. *)
 let analyze change_info =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
-  let cfgF, cfgB = Arinc_cfg.get_cfg in
+  let cfgF, cfgB = Arinc_cfg.get_cfg () in
   let module CFG = struct let prev = cfgB let next = cfgF end in
   let module A = AnalyzeCFG (CFG) in
   A.analyze change_info
