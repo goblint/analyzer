@@ -80,15 +80,15 @@ struct
       v.vname ^ sprint pretty_offs os
     in
     let es = LSSet.empty () in
-    let add_region xs r =
-      LSSet.add("region", show r) xs
+    let add_region ps r =
+      LSSSet.add (LSSet.singleton ("region", show r)) ps
     in
     match get_region ctx e' with
     | None -> (LSSSet.empty (),es)
     | Some xs ->
-      let ps = List.fold_left add_region (LSSet.empty ()) xs in
+      let ps = List.fold_left add_region (LSSSet.empty ()) xs in
       (* ignore (Pretty.printf "%a in region %a\n" d_exp e LSSSet.pretty ps); *)
-      (LSSSet.singleton ps, es)
+      (ps, es)
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =

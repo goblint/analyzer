@@ -1,5 +1,5 @@
 // PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.activated[+] "'region'"
-// Copy of 06/10 with region enabled
+// Copy of 06/11 with region enabled
 #include<pthread.h>
 #include<stdlib.h>
 
@@ -12,7 +12,7 @@ struct s {
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A.mutex);
-  B.datum = 5; //RACE
+  A.datum = 5; //NORACE
   pthread_mutex_lock(&A.mutex);
   return NULL;
 }
@@ -43,7 +43,7 @@ int main () {
   pthread_create(&id,NULL,t_fun,NULL);
 
   pthread_mutex_lock(m);
-  *d = 8; //RACE
+  *d = 8; //NORACE
   pthread_mutex_unlock(m);
 
   return 0;
