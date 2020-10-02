@@ -390,7 +390,9 @@ let add_propagate e w conf ty ls p =
     List.iter (just_vars t) vars
 
 let rec distribute_access_lval f w r c lv =
-  f w r c (mkAddrOf lv);
+  (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
+  (* f w r c (mkAddrOf lv); *)
+  f w r c (AddrOf lv);
   distribute_access_lval_addr f w r c lv
 
 and distribute_access_lval_addr f w r c lv =

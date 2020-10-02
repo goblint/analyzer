@@ -193,14 +193,21 @@ struct
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
-      | Some (deref_x, x,_), Some (deref_y,y,_) ->
+      (* TODO: should offs_x matter? *)
+      | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
         if VF.equal x y then st else
           let (p,m) = st in begin
+            let append_offs_y = RS.map (function
+                | `Left (v, offs) -> `Left (v, offs @ offs_y)
+                | `Right () -> `Right ()
+              )
+            in
             match is_global x, deref_x, is_global y with
             | false, false, true  ->
-              p, RegMap.add x (RegPart.closure p (RS.single_vf y)) m
+              p, RegMap.add x (append_offs_y (RegPart.closure p (RS.single_vf y))) m
             | false, false, false ->
-              p, RegMap.add x (RegMap.find y m) m
+              p, RegMap.add x (append_offs_y (RegMap.find y m)) m
+            (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
               add_set (RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
             | false, true , false ->
