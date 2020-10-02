@@ -123,7 +123,7 @@ struct
       let st = st fd.svar in
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
-        ; node    = Arinc_cfg.PC [-1; -1]
+        ; node    = Arinc_cfg.PCCombined [-1; -1]
         ; control_context = Obj.repr (fun () -> failwith "enter_func has no context.")
         ; context = (fun () -> failwith "enter_func has no context.")
         ; edge    = (-1, Arinc_cfg.NOP)
@@ -143,7 +143,7 @@ struct
     in
 
     let (_, s) = List.hd (enter_with (Spec.startstate) MyCFG.dummy_func) in
-    let startvars = [[Arinc_cfg.PC [0;0], s]] in
+    let startvars = [[Arinc_cfg.PCCombined [0;0], s]] in
     let exitvars = [] in (* This would only be used for cleanup functions and the like *)
 
     (* let othervars = List.map (enter_with Spec.otherstate) otherfuns in *)
@@ -159,12 +159,12 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (Arinc_cfg.PC [0;0], Spec.context e)) startvars
+        List.map (fun (n,e) -> (Arinc_cfg.PCCombined [0;0], Spec.context e)) startvars
       else
         if get_int "arinc_cfg_id" == 0 then
-          List.map (fun (n,e) -> (Arinc_cfg.PC [11;5], Spec.context e)) startvars
+          List.map (fun (n,e) -> (Arinc_cfg.PCCombined [11;5], Spec.context e)) startvars
         else
-          List.map (fun (n,e) -> (Arinc_cfg.PC [3;2], Spec.context e)) startvars
+          List.map (fun (n,e) -> (Arinc_cfg.PCCombined [3;2], Spec.context e)) startvars
     in
 
     let entrystates =

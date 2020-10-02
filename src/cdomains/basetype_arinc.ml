@@ -56,8 +56,8 @@ struct
   let equal a b = Arinc_cfg.Arinc_Node.equal a b
   let compare a b = Arinc_cfg.node_compare a b
   let hash a = Arinc_cfg.Arinc_Node.hash a
-  let toXML_f _ a = Xml.Element ("Loc", [("lines", match a with Arinc_cfg.PC l -> string_of_int(List.nth l 0) ^ "," ^ string_of_int(List.nth l 1))], [])
-  let short i a = match a with Arinc_cfg.PC l -> string_of_int(List.nth l 0) ^ "," ^ string_of_int(List.nth l 1)
+  let toXML_f _ a = Xml.Element ("Loc", [("lines", match a with Arinc_cfg.PCCombined l -> string_of_int(List.nth l 0) ^ "," ^ string_of_int(List.nth l 1))], [])
+  let short i a = match a with Arinc_cfg.PCCombined l -> string_of_int(List.nth l 0) ^ "," ^ string_of_int(List.nth l 1)
   let pretty_f sf () x = text (sf max_int x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
@@ -112,7 +112,7 @@ struct
   let loopSep _ = true
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
   let var_id _ = "globals"
-  let node _ = Arinc_cfg.PC [-1; -1]
+  let node _ = Arinc_cfg.PCCombined [-1; -1]
 end
 
 

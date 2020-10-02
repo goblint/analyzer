@@ -30,26 +30,13 @@ type edge = int * edgeAct
 
 type arinc_cfg = arinc_node -> ((location * edge) list * arinc_node) list
 
-type task_node = PCSingle of int [@@deriving yojson]
+type task_node = PC of int [@@deriving yojson]
 type task_edge = edgeAct [@@deriving yojson]
-(* with the assumption that very node appears in the list of task_node tuples exactly once *)
+(* with the assumption that every node appears in the list of task_node tuples exactly once *)
 type arinc_task_cfg = int * (task_node * (task_edge list * task_node) list) list [@@deriving yojson]
 
+type arinc_tasks = arinc_task_cfg list [@@deriving yojson]
 
-let minimal_task_0:arinc_task_cfg = (0,
-  [
-    (PCSingle 0,[([TimedWait 20], PCSingle 1)]);
-    (PCSingle 1,[([WaitingForEndWait 20], PCSingle 2)]);
-    (PCSingle 2,[([PeriodicWait], PCSingle 3)]);
-    (PCSingle 3,[([WaitingForPeriod], PCSingle 0)]);
-  ])
-
-let minimal_task_1:arinc_task_cfg = (1,
-  [
-    (PCSingle 0,[([StartComputation 40], PCSingle 1)]);
-    (PCSingle 1,[([FinishComputation], PCSingle 2)]);
-    (PCSingle 2,[([NOP], PCSingle 0)]);
-  ])
 
 module type CfgBackward =
 sig
@@ -93,45 +80,45 @@ let example_extracted () =
   let mkEdge = mkEdge cfgF cfgB in
 
   for i = 0 to 7 do
-    mkEdge (PC ([0; i])) (0, StartComputation 10) (PC [13; i]);
-    mkEdge (PC ([13; i])) (0, FinishComputation) (PC [1; i]);
+    mkEdge (PCCombined ([0; i])) (0, StartComputation 10) (PCCombined [13; i]);
+    mkEdge (PCCombined ([13; i])) (0, FinishComputation) (PCCombined [1; i]);
 
-    mkEdge (PC ([1; i])) (0, PeriodicWait) (PC [2; i]);
-    mkEdge (PC ([2; i])) (0, WaitingForPeriod) (PC [3; i]);
-    mkEdge (PC ([3; i])) (0, SetEvent 0) (PC [4; i]);
+    mkEdge (PCCombined ([1; i])) (0, PeriodicWait) (PCCombined [2; i]);
+    mkEdge (PCCombined ([2; i])) (0, WaitingForPeriod) (PCCombined [3; i]);
+    mkEdge (PCCombined ([3; i])) (0, SetEvent 0) (PCCombined [4; i]);
 
-    mkEdge (PC ([4; i])) (0, StartComputation 20) (PC [14; i]);
-    mkEdge (PC ([14; i])) (0, FinishComputation) (PC [5; i]);
+    mkEdge (PCCombined ([4; i])) (0, StartComputation 20) (PCCombined [14; i]);
+    mkEdge (PCCombined ([14; i])) (0, FinishComputation) (PCCombined [5; i]);
 
-    mkEdge (PC ([5; i])) (0, ResumeTask 1) (PC [6; i]);
-    mkEdge (PC ([6; i])) (0, TimedWait 20) (PC[12;i]);
-    mkEdge (PC ([12; i])) (0, WaitingForEndWait 20) (PC[16;i]);
-    mkEdge (PC ([6; i])) (0, WaitEvent 1) (PC [7; i]);
-    mkEdge (PC ([7; i])) (0, ResetEvent 1) (PC [8; i]);
+    mkEdge (PCCombined ([5; i])) (0, ResumeTask 1) (PCCombined [6; i]);
+    mkEdge (PCCombined ([6; i])) (0, TimedWait 20) (PCCombined[12;i]);
+    mkEdge (PCCombined ([12; i])) (0, WaitingForEndWait 20) (PCCombined[16;i]);
+    mkEdge (PCCombined ([6; i])) (0, WaitEvent 1) (PCCombined [7; i]);
+    mkEdge (PCCombined ([7; i])) (0, ResetEvent 1) (PCCombined [8; i]);
 
-    mkEdge (PC ([16; i])) (0, NOP) (PC[9;i]);
+    mkEdge (PCCombined ([16; i])) (0, NOP) (PCCombined[9;i]);
 
-    mkEdge (PC ([8; i])) (0, StartComputation 42) (PC [15; i]);
-    mkEdge (PC ([15; i])) (0, FinishComputation) (PC [9; i]);
+    mkEdge (PCCombined ([8; i])) (0, StartComputation 42) (PCCombined [15; i]);
+    mkEdge (PCCombined ([15; i])) (0, FinishComputation) (PCCombined [9; i]);
 
-    mkEdge (PC ([9; i])) (0, SuspendTask 1) (PC [10; i]);
-    mkEdge (PC ([10; i])) (0, PeriodicWait) (PC [11; i]);
-    mkEdge (PC ([11; i])) (0, WaitingForPeriod) (PC [4; i]);
+    mkEdge (PCCombined ([9; i])) (0, SuspendTask 1) (PCCombined [10; i]);
+    mkEdge (PCCombined ([10; i])) (0, PeriodicWait) (PCCombined [11; i]);
+    mkEdge (PCCombined ([11; i])) (0, WaitingForPeriod) (PCCombined [4; i]);
 
   done;
   for i = 0 to 17 do
-    mkEdge (PC ([i; 0])) (1, SuspendTask 1) (PC [i; 1]);
-    mkEdge (PC ([i; 1])) (1, WaitSemaphore 0) (PC [i; 2]);
+    mkEdge (PCCombined ([i; 0])) (1, SuspendTask 1) (PCCombined [i; 1]);
+    mkEdge (PCCombined ([i; 1])) (1, WaitSemaphore 0) (PCCombined [i; 2]);
 
-    mkEdge (PC ([i; 2])) (1, StartComputation 40) (PC [i; 6]);
-    mkEdge (PC ([i; 6])) (1, FinishComputation) (PC [i; 3]);
+    mkEdge (PCCombined ([i; 2])) (1, StartComputation 40) (PCCombined [i; 6]);
+    mkEdge (PCCombined ([i; 6])) (1, FinishComputation) (PCCombined [i; 3]);
 
-    mkEdge (PC ([i; 3])) (1, SignalSemaphore 0) (PC [i; 4]);
-    mkEdge (PC ([i; 4])) (1, SetEvent 1) (PC [i; 5]);
-    mkEdge (PC ([i; 5])) (1, NOP) (PC [i; 1]);
+    mkEdge (PCCombined ([i; 3])) (1, SignalSemaphore 0) (PCCombined [i; 4]);
+    mkEdge (PCCombined ([i; 4])) (1, SetEvent 1) (PCCombined [i; 5]);
+    mkEdge (PCCombined ([i; 5])) (1, NOP) (PCCombined [i; 1]);
   done;
-  (* Printf.printf "!!!!!!!Edge count %i\n" (List.length (H.find_all cfgB (PC ([9; 4])))); *)
-  (* H.iter (fun n (e,t) -> match n,t with PC [a;b], PC[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
+  (* Printf.printf "!!!!!!!Edge count %i\n" (List.length (H.find_all cfgB (PCCombined ([9; 4])))); *)
+  (* H.iter (fun n (e,t) -> match n,t with PCCombined [a;b], PCCombined[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
   H.find_all cfgF, H.find_all cfgB
 
 let minimal_problematic () =
@@ -140,19 +127,19 @@ let minimal_problematic () =
   let mkEdge = mkEdge cfgF cfgB in
 
   for i = 0 to 2 do
-    mkEdge (PC ([0; i])) (0, TimedWait 20) (PC[1;i]);
-    mkEdge (PC ([1; i])) (0, WaitingForEndWait 20) (PC[2;i]);
-    mkEdge (PC ([2; i])) (0, PeriodicWait) (PC [3; i]);
-    mkEdge (PC ([3; i])) (0, WaitingForPeriod) (PC [0; i]);
+    mkEdge (PCCombined ([0; i])) (0, TimedWait 20) (PCCombined[1;i]);
+    mkEdge (PCCombined ([1; i])) (0, WaitingForEndWait 20) (PCCombined[2;i]);
+    mkEdge (PCCombined ([2; i])) (0, PeriodicWait) (PCCombined [3; i]);
+    mkEdge (PCCombined ([3; i])) (0, WaitingForPeriod) (PCCombined [0; i]);
 
   done;
   for i = 0 to 3 do
-    mkEdge (PC ([i; 0])) (1, StartComputation 40) (PC [i; 1]);
-    mkEdge (PC ([i; 1])) (1, FinishComputation) (PC [i; 2]);
-    mkEdge (PC ([i; 2])) (1, NOP) (PC [i; 0]);
+    mkEdge (PCCombined ([i; 0])) (1, StartComputation 40) (PCCombined [i; 1]);
+    mkEdge (PCCombined ([i; 1])) (1, FinishComputation) (PCCombined [i; 2]);
+    mkEdge (PCCombined ([i; 2])) (1, NOP) (PCCombined [i; 0]);
   done;
-  (* Printf.printf "!!!!!!!Edge count %i\n" (List.length (H.find_all cfgB (PC ([9; 4])))); *)
-  (* H.iter (fun n (e,t) -> match n,t with PC [a;b], PC[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
+  (* Printf.printf "!!!!!!!Edge count %i\n" (List.length (H.find_all cfgB (PCCombined([9; 4])))); *)
+  (* H.iter (fun n (e,t) -> match n,t with PCCombined[a;b], PC[c;d] -> Printf.printf "[%i,%i] -> [%i,%i]\n" a b c d;) cfgF; *)
   H.find_all cfgF, H.find_all cfgB
 
 let create_from (a:arinc_task_cfg) (b:arinc_task_cfg) =
@@ -164,19 +151,19 @@ let create_from (a:arinc_task_cfg) (b:arinc_task_cfg) =
   let nodeCount0 = List.length edges0 in
   let nodeCount1 = List.length edges1 in
   for i = 0 to nodeCount1 -1 do
-    List.iter (function (PCSingle from_node, edges_to_node) ->
-      List.iter (function (edges, PCSingle to_node) ->
+    List.iter (function (PC from_node, edges_to_node) ->
+      List.iter (function (edges, PC to_node) ->
         List.iter (function edge ->
-          mkEdge (PC [from_node; i]) (0,edge) (PC [to_node; i])
+          mkEdge (PCCombined [from_node; i]) (0,edge) (PCCombined [to_node; i])
         ) edges
       ) edges_to_node
     ) edges0
   done;
   for i = 0 to nodeCount0 -0 do
-    List.iter (function (PCSingle from_node, edges_to_node) ->
-      List.iter (function (edges, PCSingle to_node) ->
+    List.iter (function (PC from_node, edges_to_node) ->
+      List.iter (function (edges, PC to_node) ->
         List.iter (function edge ->
-          mkEdge (PC [i; from_node]) (1,edge) (PC [i; to_node])
+          mkEdge (PCCombined [i; from_node]) (1,edge) (PCCombined [i; to_node])
         ) edges
       ) edges_to_node
     ) edges1
@@ -186,5 +173,11 @@ let create_from (a:arinc_task_cfg) (b:arinc_task_cfg) =
 let get_cfg i =
   match i with
   | 0 -> example_extracted ()
-  | 1 -> create_from minimal_task_0 minimal_task_1 (* minimal_problematic () *)
+  | 1 ->
+    let file = Yojson.Safe.from_file (List.nth !Goblintutil.jsonFiles 0) in
+    let tasks = match arinc_tasks_of_yojson file  with
+      | Error e -> failwith "invalid input"
+      | Ok b -> b
+    in
+    create_from (List.nth tasks 0) (List.nth tasks 1)
   | _ -> failwith ("Selected unknown CFG " ^ string_of_int(i))

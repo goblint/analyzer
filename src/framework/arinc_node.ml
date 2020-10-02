@@ -1,4 +1,4 @@
-type arinc_node = PC of int list  (* list of arinc task locations for each task *)
+type arinc_node = PCCombined of int list  (* list of arinc task locations for each task *)
   [@@deriving to_yojson]
 
 let node_compare x y = compare x y
@@ -23,5 +23,5 @@ struct
   let hash x = Hashtbl.hash x
 
   let compare = node_compare
-  let to_string (PC l) = "(" ^ (List.fold_left (fun acc i -> acc ^ (string_of_int i) ^ ", " ) "" l)^ ")"
+  let to_string (PCCombined l) = "(" ^ (List.fold_left (fun acc i -> acc ^ (string_of_int i) ^ ", " ) "" l)^ ")"
 end

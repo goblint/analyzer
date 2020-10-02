@@ -72,13 +72,13 @@ struct
   let printXml f (n:t) =
     let id ch n =
       match n with
-      | Arinc_cfg.PC a -> BatPrintf.fprintf ch "node"
+      | Arinc_cfg.PCCombined a -> BatPrintf.fprintf ch "node"
     in
     BatPrintf.fprintf f "<call id=\"%a\">\n" id n
 
   let var_id n =
     match n with
-    | Arinc_cfg.PC s -> string_of_int (List.nth s 0) ^ " , " ^ string_of_int (List.nth s 1)
+    | Arinc_cfg.PCCombined s -> string_of_int (List.nth s 0) ^ " , " ^ string_of_int (List.nth s 1)
 
   let line_nr n = -1
   let file_name n = "n/a"
@@ -97,7 +97,7 @@ struct
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
   let hash (x:t) =
     match x with
-    | (Arinc_cfg.PC     s,d) -> hashmul (LD.hash d) (Hashtbl.hash s*17)
+    | (Arinc_cfg.PCCombined     s,d) -> hashmul (LD.hash d) (Hashtbl.hash s*17)
 
   let equal (n1,d1) (n2,d2) = Arinc_cfg.Arinc_Node.equal n1 n2 && LD.equal d1 d2
 
@@ -105,7 +105,7 @@ struct
 
   let pretty () x =
     match x with
-    | (Arinc_cfg.PC     s,d) -> dprintf "node %i %i" (List.nth s 0) (List.nth s 1)
+    | (Arinc_cfg.PCCombined     s,d) -> dprintf "node %i %i" (List.nth s 0) (List.nth s 1)
 
   let pretty_trace () (n,c as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
@@ -114,7 +114,7 @@ struct
   let compare (n1,d1) (n2,d2) =
     let comp =
       match n1, n2 with
-      | Arinc_cfg.PC s, Arinc_cfg.PC t -> compare s t
+      | Arinc_cfg.PCCombined s, Arinc_cfg.PCCombined t -> compare s t
     in
     if comp == 0 then LD.compare d1 d2 else comp
 
@@ -219,7 +219,7 @@ struct
 
   let printXml f xs =
     let print_id f = function
-      | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d , %d" (List.nth s 0) (List.nth s 1)
+      | Arinc_cfg.PCCombined s -> BatPrintf.fprintf f "%d , %d" (List.nth s 0) (List.nth s 1)
     in
     let print_one n v =
       BatPrintf.fprintf f "<call id=\"%a\">\n" print_id n;
@@ -229,7 +229,7 @@ struct
 
   let printJson f xs =
     let print_id f = function
-      | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d , %d"  (List.nth s 0) (List.nth s 1)
+      | Arinc_cfg.PCCombined s -> BatPrintf.fprintf f "%d , %d"  (List.nth s 0) (List.nth s 1)
     in
     let print_one n v =
       BatPrintf.fprintf f "{\n\"id\": \"%a\", \"states\": %s\n},\n" print_id n (Yojson.Safe.to_string (Range.to_yojson v))
@@ -281,7 +281,7 @@ struct
       iter (fun n _ -> SH.add funs2node "none" n) (Lazy.force table);
 
       let p_node f = function
-        | Arinc_cfg.PC s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
+        | Arinc_cfg.PCCombined s -> BatPrintf.fprintf f "%d" (10000*(List.nth s 0) + (List.nth s 1))
       in
       let p_nodes f xs =
         List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
