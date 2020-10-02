@@ -86,7 +86,6 @@ let _ = ()
       ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
-      ; reg Std "arinc_cfg_id"    "0"            "The ARINC cfg we want to consider here"
 
 (* {4 category [Analyses]} *)
 let _ = ()
@@ -270,7 +269,6 @@ let default_schema = "\
   , 'save_run'        : {}
   , 'load_run'        : {}
   , 'compare_runs'    : {}
-  , 'arinc_cfg_id'    : {}
   }
 }"
 

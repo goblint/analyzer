@@ -161,10 +161,7 @@ struct
       if get_bool "exp.forward" then
         List.map (fun (n,e) -> (Arinc_cfg.PCCombined [0;0], Spec.context e)) startvars
       else
-        if get_int "arinc_cfg_id" == 0 then
-          List.map (fun (n,e) -> (Arinc_cfg.PCCombined [11;5], Spec.context e)) startvars
-        else
-          List.map (fun (n,e) -> (Arinc_cfg.PCCombined [3;2], Spec.context e)) startvars
+        List.map (fun (n,e) -> (Arinc_cfg.PCCombined Cfg.startnode, Spec.context e)) startvars
     in
 
     let entrystates =
@@ -213,7 +210,7 @@ end
 (** The main function to perform the selected analyses. *)
 let analyze change_info =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
-  let cfgF, cfgB = Arinc_cfg.get_cfg () in
-  let module CFG = struct let prev = cfgB let next = cfgF end in
+  let cfgF, cfgB, startnode = Arinc_cfg.get_cfg () in
+  let module CFG = struct let prev = cfgB let next = cfgF let startnode = startnode end in
   let module A = AnalyzeCFG (CFG) in
   A.analyze change_info

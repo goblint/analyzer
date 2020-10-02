@@ -35,7 +35,7 @@ type task_edge = edgeAct [@@deriving yojson]
 (* with the assumption that every node appears in the list of task_node tuples exactly once *)
 type arinc_task_cfg = int * (task_node * (task_edge list * task_node) list) list [@@deriving yojson]
 
-type arinc_tasks = arinc_task_cfg list [@@deriving yojson]
+type arinc_tasks = arinc_task_cfg list * int list [@@deriving yojson]
 
 
 module type CfgBackward =
@@ -52,6 +52,7 @@ module type CfgBidir =
 sig
   include CfgBackward
   include CfgForward
+  val startnode: int list
 end
 
 module H = BatHashtbl.Make(Arinc_Node)
@@ -103,15 +104,16 @@ let create_from (a:arinc_task_cfg) (b:arinc_task_cfg) =
   H.find_all cfgF, H.find_all cfgB
 
 let print_to_json () =
-  let tasks = [] in
+  let tasks = [], [] in
   let yo = arinc_tasks_to_yojson tasks in
   Yojson.Safe.to_file "extracted.json"  yo;
   failwith "over and out"
 
 let get_cfg () =
   let file = Yojson.Safe.from_file (List.nth !Goblintutil.jsonFiles 0) in
-  let tasks = match arinc_tasks_of_yojson file  with
+  let tasks, start = match arinc_tasks_of_yojson file  with
     | Error e -> failwith "invalid input"
     | Ok b -> b
   in
-  create_from (List.nth tasks 0) (List.nth tasks 1)
+  let one, two = create_from (List.nth tasks 0) (List.nth tasks 1) in
+  one, two, start
