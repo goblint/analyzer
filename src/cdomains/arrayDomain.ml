@@ -79,7 +79,7 @@ sig
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.S):SPartitioned with type value = Val.t and type idx = Idx.t =
+module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z):SPartitioned with type value = Val.t and type idx = Idx.t =
 struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
@@ -561,7 +561,7 @@ struct
 end
 
 
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
+module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Trivial (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
@@ -595,7 +595,7 @@ struct
 end
 
 
-module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
+module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Partitioned (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
@@ -638,7 +638,7 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
-module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t =
+module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
 struct
   module P = PartitionedWithLength(Val)(Idx)
   module T = TrivialWithLength(Val)(Idx)

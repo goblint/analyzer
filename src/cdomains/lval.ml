@@ -24,7 +24,7 @@ let rec listify ofs =
   | `Field (x,ofs) -> x :: listify ofs
   | _ -> Messages.bailwith "Indexing not supported here!"
 
-module Offset (Idx: IntDomain.S) =
+module Offset (Idx: IntDomain.Z) =
 struct
   type t = (fieldinfo, Idx.t) offs [@@deriving to_yojson]
   include Printable.Std
@@ -173,7 +173,7 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module Normal (Idx: IntDomain.S) =
+module Normal (Idx: IntDomain.Z) =
 struct
   type field = fieldinfo [@@deriving to_yojson]
   type idx = Idx.t [@@deriving to_yojson]
@@ -345,7 +345,7 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
-module NormalLat (Idx: IntDomain.S) =
+module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
 

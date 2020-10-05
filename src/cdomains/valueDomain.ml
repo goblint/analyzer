@@ -41,7 +41,7 @@ sig
   val invalidate_value: Q.ask -> typ -> t -> t
 end
 
-module Blob (Value: S) (Size: IntDomain.S) =
+module Blob (Value: S) (Size: IntDomain.Z) =
 struct
   let name () = "blob"
   include Lattice.Prod (Value) (Size)
@@ -251,7 +251,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.cast_to (Cilfacade.ptrdiff_ikind ()) @@ IndexDomain.of_int 0L, `NoOffset))) (Some false)
+              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) 0L, `NoOffset))) (Some false)
             | _ -> err @@ "Cast to neither array index nor struct field."
                           ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
           end
@@ -288,7 +288,7 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to ?torg (ptr_ikind ()) @@ ID.of_int Int64.zero
+              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to ?torg (ptr_ikind ()) @@ ID.of_int (Cilfacade.ptrdiff_ikind ()) Int64.zero
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -479,7 +479,7 @@ struct
     | (x, `Top) -> x
     | (`Int x, `Int y) -> `Int (ID.meet x y)
     | (`Int _, `Address _) -> meet x (cast (TInt(ptr_ikind (),[])) y)
-    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
+    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
     | (`Union x, `Union y) -> `Union (Unions.meet x y)
@@ -516,7 +516,7 @@ struct
     match (x,y) with
     | (`Int x, `Int y) -> `Int (ID.narrow x y)
     | (`Int _, `Address _) -> narrow x (cast IntDomain.Size.top_typ y)
-    | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
+    | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.narrow x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
     | (`Union x, `Union y) -> `Union (Unions.narrow x y)
@@ -800,10 +800,10 @@ struct
                       | TArray(_, l, _) ->
                         let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        `Array(CArrays.make (IndexDomain.of_int (Int64.of_int len)) `Top), offs
+                        `Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Int64.of_int len)) `Top), offs
                       | _ -> top (), offs (* will not happen*)
                     end
-                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int 0L) ->
+                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) 0L) ->
                     (* Why does cil index unions? We'll just pick the first field. *)
                     top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
                   | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name.";

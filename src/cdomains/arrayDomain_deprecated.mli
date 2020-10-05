@@ -1,4 +1,4 @@
-open ArrayDomain
+(* open ArrayDomain
 
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S): S with type value = Base.t and type idx = Idx.t
 (** Stores values in a real array *)
@@ -23,4 +23,4 @@ module LooseMapArrayDomain
   (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t
 (** Arrays as maps --  keeps at some I.n items in map plus
-    a magic rest (top) indexed element *)
+    a magic rest (top) indexed element *) *)

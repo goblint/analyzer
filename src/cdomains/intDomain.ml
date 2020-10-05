@@ -59,6 +59,50 @@ sig
   val cast_to : ?torg:Cil.typ -> Cil.ikind -> t -> t
 end
 
+module type Z =
+sig
+  open Cil
+  include Lattice.S
+  val to_int: t -> int64 option
+  val of_int: ikind -> int64 -> t
+  val is_int: t -> bool
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
+  val to_bool: t -> bool option
+  val of_bool: ikind -> bool -> t
+  val is_bool: t -> bool
+  val to_excl_list: t -> int64 list option
+  val of_excl_list: ikind -> int64 list -> t
+  val is_excl_list: t -> bool
+  val of_interval: ikind -> int64 * int64 -> t
+  val starting   : ikind -> int64 -> t
+  val ending     : ikind -> int64 -> t
+  val maximal    : t -> int64 option
+  val minimal    : t -> int64 option
+  val neg: t -> t
+  val add: t -> t -> t
+  val sub: t -> t -> t
+  val mul: t -> t -> t
+  val div: t -> t -> t
+  val rem: t -> t -> t
+  val lt: t -> t -> t
+  val gt: t -> t -> t
+  val le: t -> t -> t
+  val ge: t -> t -> t
+  val eq: t -> t -> t
+  val ne: t -> t -> t
+  val bitnot: t -> t
+  val bitand: t -> t -> t
+  val bitor : t -> t -> t
+  val bitxor: t -> t -> t
+  val shift_left : t -> t -> t
+  val shift_right: t -> t -> t
+  val lognot: t -> t
+  val logand: t -> t -> t
+  val logor : t -> t -> t
+  val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
+end
+
+
 module Size = struct (* size in bits as int, range as int64 *)
   exception Not_in_int64
   open Cil open Int64 open Big_int
@@ -433,7 +477,7 @@ end
 
 
 
-module Integers = (* no top/bot, order is <= *)
+module Integers : S with type t = int64 = (* no top/bot, order is <= *)
 struct
   include Printable.Std
   let name () = "integers"
@@ -1568,8 +1612,9 @@ module Enums : S = struct
     ] (* S TODO: decide frequencies *)
 end
 
+
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
-module IntDomTuple = struct
+module IntDomTupleImpl = struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Batteries
@@ -1698,4 +1743,106 @@ module IntDomTuple = struct
         ) Invariant.none is
 
   let arbitrary () = QCheck.(set_print (short 10000) @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
+end
+
+
+module IntDomLifter (I : S) =
+struct
+  open Cil
+  type t = { v : I.t; ikind : ikind }
+  let check_ikinds x y = if x.ikind <> y.ikind then failwith "ikinds are incompatible" else ()
+  let lift op x = {x with v = op x.v }
+  let lift2 op x y = check_ikinds x y; {x with v = op x.v y.v }
+  let lift2_cmp op x y = check_ikinds x y; {v = op x.v y.v;  ikind = Cil.IInt}
+ (* TODO: require ikind argument for bot and top *)
+  let bot () = { v = I.bot (); ikind = Cil.IInt}
+  let is_bot x = I.is_bot x.v
+  let top () = { v = I.top (); ikind = Cil.IInt}
+  let is_top x = I.is_top x.v
+  let leq x y = check_ikinds x y; I.leq x.v y.v
+  let join = lift2 I.join
+  let meet = lift2 I.meet
+  let widen = lift2 I.widen
+  let narrow = lift2 I.narrow
+  let equal x y = if x.ikind <> y.ikind then false else I.equal x.v y.v
+
+  let hash x =
+    let ikind_to_int (ikind: ikind) = match ikind with
+    | IChar 	-> 0
+    | ISChar 	-> 1
+    | IUChar 	-> 2
+    | IBool 	-> 3
+    | IInt 	  -> 4
+    | IUInt 	-> 5
+    | IShort 	-> 6
+    | IUShort -> 7
+    | ILong 	-> 8
+    | IULong 	-> 9
+    | ILongLong -> 10
+    | IULongLong -> 11
+    in
+    3 * (I.hash x.v) + 5 * (ikind_to_int x.ikind)
+  let compare x y = let ik_c = compare x.ikind y.ikind in
+    if ik_c <> 0
+      then ik_c
+      else I.compare x.v y.v
+  let short l x = I.short l x.v  (* TODO add ikind to output *)
+  let isSimple x = I.isSimple x.v
+  let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
+  let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
+  let toXML x = I.toXML x.v
+  let pretty_f f () x = pretty () x (* TODO add ikind to output *)
+  let toXML_f f x = toXML x (* TODO add ikind to output *)
+  let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
+  (* This is for debugging *)
+  let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
+  let to_yojson x = I.to_yojson x.v
+  let invariant c x = I.invariant c x.v
+  let tag x = I.tag x.v
+  let arbitrary () = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
+  let to_int x = I.to_int x.v
+  let of_int ikind x = { v = I.of_int x; ikind}
+  let is_int x = I.is_int x.v
+  let equal_to i x = I.equal_to i x.v
+  let to_bool x = I.to_bool x.v
+  let of_bool ikind b = { v = I.of_bool b; ikind}
+  let is_bool x = I.is_bool x.v
+  let to_excl_list x = I.to_excl_list x.v
+  let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
+  let is_excl_list x = I.is_excl_list x.v
+  let of_interval ikind (lb,ub) = {v = I.of_interval (lb,ub); ikind}
+  let starting ikind i = {v = I.starting ?ikind:(Some ikind) i; ikind}
+  let ending ikind i = {v = I.ending ?ikind:(Some ikind) i; ikind}
+  let maximal x = I.maximal x.v
+  let minimal x = I.minimal x.v
+  let neg = lift I.neg
+  let add = lift2 I.add
+  let sub = lift2 I.sub
+  let mul = lift2 I.mul
+  let div = lift2 I.div
+  let rem = lift2 I.rem
+  let lt = lift2_cmp I.lt
+  let gt = lift2_cmp I.gt
+  let le = lift2_cmp I.le
+  let ge = lift2_cmp I.ge
+  let eq = lift2_cmp I.eq
+  let ne = lift2_cmp I.ne
+  let bitnot = lift I.bitnot
+  let bitand = lift2 I.bitand
+  let bitor = lift2 I.bitor
+  let bitxor = lift2 I.bitxor
+  let shift_left x y = {x with v = I.shift_left x.v y.v } (* TODO check ikinds*)
+  let shift_right x y = {x with v = I.shift_right x.v y.v } (* TODO check ikinds*)
+  let lognot = lift I.lognot
+  let logand = lift2 I.logand
+  let logor = lift2 I.logor
+  let cast_to ?torg ikind x = {v = I.cast_to ?torg ikind x.v; ikind}
+end
+
+
+module IntDomTuple =
+struct
+ module I =  IntDomLifter (IntDomTupleImpl)
+ include I
+ let no_interval32 (x: I.t) = {x with v = IntDomTupleImpl.no_interval32 x.v}
 end

@@ -1,3 +1,4 @@
+open Cil
 (** Abstract Domains for integers. These are domains that support the C
   * operations on integer values. *)
 
@@ -197,9 +198,9 @@ module Reverse (Base: S): S
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 module Enums : S
 
-(* module ManyInts : S *)
-(* module IntDomList : S *)
-module IntDomTuple : sig
+
+module type Z =
+sig
   include Lattice.S
 
   (** {b Accessing values of the ADT} *)
@@ -208,7 +209,7 @@ module IntDomTuple : sig
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
 
-  val of_int: int64 -> t
+  val of_int: ikind -> int64 -> t
   (** Transform an integer literal to your internal domain representation. *)
 
   val is_int: t -> bool
@@ -221,7 +222,7 @@ module IntDomTuple : sig
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
 
-  val of_bool: bool -> t
+  val of_bool: ikind -> bool -> t
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
@@ -238,9 +239,9 @@ module IntDomTuple : sig
   val is_excl_list: t -> bool
   (* Checks if the element is an exclusion set. *)
 
-  val of_interval: int64 * int64 -> t
-  val starting   : ?ikind:Cil.ikind -> int64 -> t
-  val ending     : ?ikind:Cil.ikind -> int64 -> t
+  val of_interval: ikind -> int64 * int64 -> t
+  val starting   : ikind -> int64 -> t
+  val ending     : ikind -> int64 -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
@@ -324,7 +325,16 @@ module IntDomTuple : sig
 
   val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
   (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
+end
 
+module IntDomLifter (I: S): sig
+ include Z
+end
+
+(* module ManyInts : S *)
+(* module IntDomList : S *)
+module IntDomTuple : sig
+  include Z
   val no_interval32: t -> t
 end
 
