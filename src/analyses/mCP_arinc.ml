@@ -664,6 +664,41 @@ struct
     else d
 
 
+  let arinc_start (ctx:(D.t, G.t, C.t) ctx) e =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f post_all (n,(module S:ArincSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+        { local  = obj d
+        ; node   = ctx.node
+        ; control_context = ctx.control_context
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
+        ; edge   = ctx.edge
+        ; ask    = query ctx
+        ; presub = filter_presubs n ctx.local
+        ; postsub= filter_presubs n post_all
+        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
+        }
+      in
+      n, repr @@ S.arinc_start ctx' e
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    if q then
+      begin
+        (* Printf.printf "\nMCP raised deadcode\n"; *)
+        raise Deadcode
+      end
+    else d
+
+
   let body (ctx:(D.t, G.t, C.t) ctx) f =
     let spawns = ref [] in
     let splits = ref [] in

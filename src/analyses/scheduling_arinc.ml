@@ -34,12 +34,6 @@ struct
   let update_info_for t fn s =
     List.modify_at t fn s
 
-  let get_info_for_leg t (a,b) =
-    if t=0 then a else b
-
-  let update_info_for_leg t v (a,b) =
-    if t = 0 then (v,b) else (a,v)
-
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     let t = Times.start_state 2 in
     let state1 = {
@@ -311,6 +305,27 @@ struct
     | `Top -> `Top
     | `Bot -> `Bot
 
+  let arinc_start ctx e =
+    Printf.printf "called enter\n";
+    let t = Times.start_state 2 in
+    let state1 = {
+      pid = Pid.of_int (Int64.of_int 0);
+      priority = Priority.of_int (Int64.of_int 15);
+      period = Period.of_int (Int64.of_int 600);
+      capacity = Capacity.of_int (Int64.of_int 600);
+      processState = PState.ready;
+      waitingFor = WaitingForEvent.bot ()
+      } in
+    let state2 = {
+      pid = Pid.of_int (Int64.of_int 1);
+      priority = Priority.of_int (Int64.of_int 10);
+      period = Period.top ();
+      capacity = Capacity.top ();
+      processState = PState.ready;
+      waitingFor = WaitingForEvent.bot ()
+      }
+    in
+    `Lifted([state1; state2], t)
 
   let should_join_one a b =
     a.processState = b.processState && a.waitingFor = b.waitingFor

@@ -137,12 +137,9 @@ struct
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
-      let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
-      let ents = Spec.enter ctx None fd.svar args in
-      List.map (fun (_,s) -> fd.svar, s) ents
+      Spec.arinc_start ctx []
     in
-
-    let (_, s) = List.hd (enter_with (Spec.startstate) MyCFG.dummy_func) in
+    let s = enter_with (Spec.startstate) MyCFG.dummy_func in
     let startvars = [[Arinc_cfg.PCCombined [0;0], s]] in
     let exitvars = [] in (* This would only be used for cleanup functions and the like *)
 
@@ -159,9 +156,9 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (Arinc_cfg.PCCombined [0;0], Spec.context e)) startvars
+        List.map (fun (n,e) -> (Arinc_cfg.PCCombined [0;0], Spec.context e)) startvars         (* this will always yield unit context *)
       else
-        List.map (fun (n,e) -> (Arinc_cfg.PCCombined Cfg.startnode, Spec.context e)) startvars
+        List.map (fun (n,e) -> (Arinc_cfg.PCCombined Cfg.startnode, Spec.context e)) startvars (* this will always yield unit context *)
     in
 
     let entrystates =
@@ -173,7 +170,7 @@ struct
     let lh_ref = ref (LHT.create 0) in
     let do_analyze_using_solver () =
       if get_bool "dbg.earlywarn" then Goblintutil.should_warn := false;
-      let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
+      let lh, gh = Stats.time "solving" Slvr.solve entrystates [] startvars' in
       lh_ref := lh;
 
 

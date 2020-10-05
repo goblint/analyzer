@@ -73,6 +73,9 @@ struct
   let arinc_edge ctx e =
     D.lift @@ S.arinc_edge (conv ctx) e
 
+  let arinc_start ctx i =
+    D.lift @@ S.arinc_start (conv ctx) i
+
   let enter ctx r f args =
     List.map (fun (x,y) -> D.lift x, D.lift y) @@ S.enter (conv ctx) r f args
 
@@ -135,6 +138,9 @@ struct
 
   let arinc_edge ctx v =
     S.arinc_edge (conv ctx) v
+
+  let arinc_start ctx v =
+    S.arinc_start (conv ctx) v
 
   let branch ctx e tv =
     S.branch (conv ctx) e tv
@@ -239,6 +245,7 @@ struct
   let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let arinc_edge ctx w = lift_fun ctx (lift ctx) S.arinc_edge ((|>) w)
+  let arinc_start ctx w = lift_fun ctx (lift ctx) S.arinc_start ((|>) w)
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args (fst es))
 
@@ -364,6 +371,7 @@ struct
   let intrpt ctx      = lift_fun ctx S.intrpt identity
   let asm ctx         = lift_fun ctx S.asm    identity
   let arinc_edge ctx e = lift_fun ctx S.arinc_edge  ((|>) e)
+  let arinc_start ctx e = lift_fun ctx S.arinc_start ((|>) e)
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let enter ctx r f args =
@@ -414,6 +422,7 @@ struct
   let intrpt ctx      = lift_fun ctx S.intrpt identity
   let asm ctx         = lift_fun ctx S.asm    identity
   let arinc_edge ctx e = lift_fun ctx S.arinc_edge  ((|>) e)
+  let arinc_start ctx e = lift_fun ctx S.arinc_start ((|>) e)
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let enter ctx r f args =
@@ -496,6 +505,7 @@ struct
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args (D.unlift es)) `Bot
   let arinc_edge ctx e = lift_fun ctx D.lift   S.arinc_edge  ((|>) e)            `Bot
+  let arinc_start ctx e = lift_fun ctx D.lift   S.arinc_start  ((|>) e)            `Bot
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -896,6 +906,7 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
   let arinc_edge ctx e  = map ctx Spec.arinc_edge (fun h -> h e)
+  let arinc_start ctx e = map ctx Spec.arinc_start (fun h -> h e)
 
   let fold ctx f g h a =
     let k x a =

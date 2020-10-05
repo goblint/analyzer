@@ -37,6 +37,9 @@ struct
   let arinc_edge ctx e =
     ctx.local
 
+  let arinc_start ctx e =
+    ctx.local
+
   let startstate v = D.bot ()
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
