@@ -33,7 +33,8 @@ type arinc_cfg = arinc_node -> ((location * edge) list * arinc_node) list
 type task_node = PC of int [@@deriving yojson]
 type task_edge = edgeAct [@@deriving yojson]
 (* with the assumption that every node appears in the list of task_node tuples exactly once *)
-type arinc_task_cfg = int * (task_node * (task_edge list * task_node) list) list [@@deriving yojson]
+(* id * priority * cfg *)
+type arinc_task_cfg = int * int * (task_node * (task_edge list * task_node) list) list [@@deriving yojson]
 
 type arinc_tasks = arinc_task_cfg list * int list [@@deriving yojson]
 
@@ -53,6 +54,7 @@ sig
   include CfgBackward
   include CfgForward
   val startnode: int list
+  val taskinfo: int list
 end
 
 module H = BatHashtbl.Make(Arinc_Node)
@@ -79,8 +81,8 @@ let create_from (a:arinc_task_cfg) (b:arinc_task_cfg) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
   let mkEdge = mkEdge cfgF cfgB in
-  let (id0, edges0) = a in
-  let (id1, edges1) = b in
+  let (id0, priority0, edges0) = a in
+  let (id1, priority1, edges1) = b in
   let nodeCount0 = List.length edges0 in
   let nodeCount1 = List.length edges1 in
   for i = 0 to nodeCount1 -1 do
@@ -115,5 +117,6 @@ let get_cfg () =
     | Error e -> failwith "invalid input"
     | Ok b -> b
   in
+  let taskinfo = List.map (fun (a,b,c) -> b) tasks in
   let one, two = create_from (List.nth tasks 0) (List.nth tasks 1) in
-  one, two, start
+  one, two, start, taskinfo
