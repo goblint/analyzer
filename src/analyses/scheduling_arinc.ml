@@ -28,38 +28,20 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     failwith "lol, wut?!!!"
 
-  let get_info_for t s =
-    List.at t s
-
-  let update_info_for t fn s =
-    List.modify_at t fn s
-
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let t = Times.start_state 2 in
-    let state1 = {
-      pid = Pid.of_int (Int64.of_int 0);
-      priority = Priority.of_int (Int64.of_int 15);
-      period = Period.of_int (Int64.of_int 600);
-      capacity = Capacity.of_int (Int64.of_int 600);
-      processState = PState.ready;
-      waitingFor = WaitingForEvent.bot ()
-      } in
-    let state2 = {
-      pid = Pid.of_int (Int64.of_int 1);
-      priority = Priority.of_int (Int64.of_int 10);
-      period = Period.top ();
-      capacity = Capacity.top ();
-      processState = PState.ready;
-      waitingFor = WaitingForEvent.bot ()
-      }
-    in
-    [ctx.local, `Lifted([state1; state2], t)]
+    failwith "lol, wut?!!!"
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     failwith "lol, wut?!!!"
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     failwith "lol, wut?!!!"
+
+  let get_info_for t s =
+    List.at t s
+
+  let update_info_for t fn s =
+    List.modify_at t fn s
 
   (* What if none can run unless time passes? *)
   (* Can ours run relative to other? *)
@@ -305,20 +287,20 @@ struct
     | `Top -> `Top
     | `Bot -> `Bot
 
-  let arinc_start ctx (taskinfo: int list) =
+  let arinc_start ctx taskinfo =
     let t = Times.start_state 2 in
     let state0 = {
       pid = Pid.of_int (Int64.of_int 0);
-      priority = Priority.of_int (Int64.of_int @@ List.at taskinfo 0);
-      period = Period.of_int (Int64.of_int 600);
+      priority = Priority.of_int (Int64.of_int @@ fst @@ List.at taskinfo 0);
+      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (snd @@ List.at taskinfo 0);
       capacity = Capacity.of_int (Int64.of_int 600);
       processState = PState.ready;
       waitingFor = WaitingForEvent.bot ()
       } in
     let state1 = {
       pid = Pid.of_int (Int64.of_int 1);
-      priority = Priority.of_int (Int64.of_int  @@ List.at taskinfo 1);
-      period = Period.top ();
+      priority = Priority.of_int (Int64.of_int  @@ fst @@ List.at taskinfo 1);
+      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (snd @@ List.at taskinfo 1);
       capacity = Capacity.top ();
       processState = PState.ready;
       waitingFor = WaitingForEvent.bot ()

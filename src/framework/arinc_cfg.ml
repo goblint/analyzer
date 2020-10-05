@@ -33,8 +33,8 @@ type arinc_cfg = arinc_node -> ((location * edge) list * arinc_node) list
 type task_node = PC of int [@@deriving yojson]
 type task_edge = edgeAct [@@deriving yojson]
 (* with the assumption that every node appears in the list of task_node tuples exactly once *)
-(* id * priority * cfg *)
-type arinc_task_cfg = int * int * (task_node * (task_edge list * task_node) list) list [@@deriving yojson]
+(* id * (priority * period option) * cfg *)
+type arinc_task_cfg = int * (int * int option) * (task_node * (task_edge list * task_node) list) list [@@deriving yojson]
 
 type arinc_tasks = arinc_task_cfg list * int list [@@deriving yojson]
 
@@ -54,7 +54,7 @@ sig
   include CfgBackward
   include CfgForward
   val startnode: int list
-  val taskinfo: int list
+  val taskinfo: (int * int option) list
 end
 
 module H = BatHashtbl.Make(Arinc_Node)

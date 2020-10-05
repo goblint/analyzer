@@ -413,7 +413,7 @@ sig
   val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
-  val arinc_start : (D.t, G.t, C.t) ctx  -> int list -> D.t
+  val arinc_start : (D.t, G.t, C.t) ctx  -> (int * int option) list -> D.t
   val arinc_edge : (D.t, G.t, C.t) ctx -> Arinc_cfg.edge -> D.t
 end
 

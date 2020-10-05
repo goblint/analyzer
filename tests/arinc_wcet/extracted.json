@@ -1,6 +1,6 @@
 [
     [
-        [0, 15,
+        [0, [15 , 600],
             [
                 [["PC",0],[[[["StartComputation",10]],["PC",13]]]],
                 [["PC",13],[[[["FinishComputation"]],["PC",1]]]],
@@ -19,7 +19,7 @@
                 [["PC",7],[[[["ResetEvent",1]],["PC",8]]]],
                 [["PC",16],[[[["NOP"]],["PC",9]]]],
                 [["PC",8],[[[["StartComputation",42]],["PC",15]]]],
-                [["PC",15],[[[["StartComputation",42]],["PC",9]]]],
+                [["PC",15],[[[["FinishComputation"]],["PC",9]]]],
                 [["PC",9],[[[["SuspendTask",1]],["PC",10]]]],
                 [["PC",10],[[[["PeriodicWait"]],["PC",11]]]],
                 [["PC",11],[[[["WaitingForPeriod"]],["PC",4]]]]
@@ -27,7 +27,7 @@
         ],
 
 
-        [1, 10,
+        [1, [10, null],
             [
                 [["PC",0],[[[["SuspendTask",1]],["PC",1]]]],
                 [["PC",1],[[[["WaitSemaphore",0]],["PC",2]]]],
