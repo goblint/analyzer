@@ -291,17 +291,17 @@ struct
     let t = Times.start_state 2 in
     let state0 = {
       pid = Pid.of_int (Int64.of_int 0);
-      priority = Priority.of_int (Int64.of_int @@ fst @@ List.at taskinfo 0);
-      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (snd @@ List.at taskinfo 0);
-      capacity = Capacity.of_int (Int64.of_int 600);
+      priority = Priority.of_int (Int64.of_int @@ Tuple3.first @@ List.at taskinfo 0);
+      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (Tuple3.second @@ List.at taskinfo 0);
+      capacity = Option.map_default (Capacity.of_int % Int64.of_int) (Capacity.top ()) (Tuple3.third @@ List.at taskinfo 0);
       processState = PState.ready;
       waitingFor = WaitingForEvent.bot ()
       } in
     let state1 = {
       pid = Pid.of_int (Int64.of_int 1);
-      priority = Priority.of_int (Int64.of_int  @@ fst @@ List.at taskinfo 1);
-      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (snd @@ List.at taskinfo 1);
-      capacity = Capacity.top ();
+      priority = Priority.of_int (Int64.of_int  @@ Tuple3.first @@ List.at taskinfo 1);
+      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (Tuple3.second @@ List.at taskinfo 1);
+      capacity =  Option.map_default (Capacity.of_int % Int64.of_int) (Capacity.top ()) (Tuple3.third @@ List.at taskinfo 1);
       processState = PState.ready;
       waitingFor = WaitingForEvent.bot ()
       }
