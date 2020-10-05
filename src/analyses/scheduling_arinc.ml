@@ -13,8 +13,6 @@ struct
   module G = Lattice.Unit
   module C = Lattice.Unit
 
-  let numtasks = 2
-
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     failwith "lol, wut?!!!"
@@ -288,25 +286,18 @@ struct
     | `Bot -> `Bot
 
   let arinc_start ctx taskinfo =
-    let t = Times.start_state 2 in
-    let state0 = {
-      pid = Pid.of_int (Int64.of_int 0);
-      priority = Priority.of_int (Int64.of_int @@ Tuple3.first @@ List.at taskinfo 0);
-      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (Tuple3.second @@ List.at taskinfo 0);
-      capacity = Option.map_default (Capacity.of_int % Int64.of_int) (Capacity.top ()) (Tuple3.third @@ List.at taskinfo 0);
+    let state i = {
+      pid = Pid.of_int (Int64.of_int i);
+      priority = Priority.of_int (Int64.of_int @@ Tuple3.first @@ List.at taskinfo i);
+      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (Tuple3.second @@ List.at taskinfo i);
+      capacity = Option.map_default (Capacity.of_int % Int64.of_int) (Capacity.top ()) (Tuple3.third @@ List.at taskinfo i);
       processState = PState.ready;
       waitingFor = WaitingForEvent.bot ()
-      } in
-    let state1 = {
-      pid = Pid.of_int (Int64.of_int 1);
-      priority = Priority.of_int (Int64.of_int  @@ Tuple3.first @@ List.at taskinfo 1);
-      period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (Tuple3.second @@ List.at taskinfo 1);
-      capacity =  Option.map_default (Capacity.of_int % Int64.of_int) (Capacity.top ()) (Tuple3.third @@ List.at taskinfo 1);
-      processState = PState.ready;
-      waitingFor = WaitingForEvent.bot ()
-      }
-    in
-    `Lifted([state0; state1], t)
+    } in
+    let taskcount = List.length taskinfo in
+    let states = List.map state (List.range 0 `To (taskcount-1)) in
+    let t = Times.start_state taskcount in
+    `Lifted(states, t)
 
   let should_join_one a b =
     a.processState = b.processState && a.waitingFor = b.waitingFor
