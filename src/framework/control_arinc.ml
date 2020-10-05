@@ -137,7 +137,7 @@ struct
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
-      Spec.arinc_start ctx []
+      Spec.arinc_start ctx Cfg.taskinfo
     in
     let s = enter_with (Spec.startstate) MyCFG.dummy_func in
     let startvars = [[Arinc_cfg.PCCombined [0;0], s]] in

@@ -305,27 +305,26 @@ struct
     | `Top -> `Top
     | `Bot -> `Bot
 
-  let arinc_start ctx e =
-    Printf.printf "called enter\n";
+  let arinc_start ctx (taskinfo: int list) =
     let t = Times.start_state 2 in
-    let state1 = {
+    let state0 = {
       pid = Pid.of_int (Int64.of_int 0);
-      priority = Priority.of_int (Int64.of_int 15);
+      priority = Priority.of_int (Int64.of_int @@ List.at taskinfo 0);
       period = Period.of_int (Int64.of_int 600);
       capacity = Capacity.of_int (Int64.of_int 600);
       processState = PState.ready;
       waitingFor = WaitingForEvent.bot ()
       } in
-    let state2 = {
+    let state1 = {
       pid = Pid.of_int (Int64.of_int 1);
-      priority = Priority.of_int (Int64.of_int 10);
+      priority = Priority.of_int (Int64.of_int  @@ List.at taskinfo 1);
       period = Period.top ();
       capacity = Capacity.top ();
       processState = PState.ready;
       waitingFor = WaitingForEvent.bot ()
       }
     in
-    `Lifted([state1; state2], t)
+    `Lifted([state0; state1], t)
 
   let should_join_one a b =
     a.processState = b.processState && a.waitingFor = b.waitingFor
