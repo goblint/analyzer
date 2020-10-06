@@ -1752,14 +1752,18 @@ struct
   type t = { v : I.t; ikind : ikind }
   let check_ikinds x y = if x.ikind <> y.ikind then failwith "ikinds are incompatible" else ()
   let lift op x = {x with v = op x.v }
+  (* For logical operations the result is of type int *)
+  let lift_logical op x = {v = op x.v; ikind = Cil.IInt}
   let lift2 op x y = check_ikinds x y; {x with v = op x.v y.v }
   let lift2_cmp op x y = check_ikinds x y; {v = op x.v y.v;  ikind = Cil.IInt}
+
  (* TODO: require ikind argument for bot and top *)
   let bot () = { v = I.bot (); ikind = Cil.IInt}
   let is_bot x = I.is_bot x.v
   let top () = { v = I.top (); ikind = Cil.IInt}
   let is_top x = I.is_top x.v
-  let leq x y = check_ikinds x y; I.leq x.v y.v
+  (* Leq does not check for ikind, because it is used in invariant with arguments of different type *)
+  let leq x y = I.leq x.v y.v
   let join = lift2 I.join
   let meet = lift2 I.meet
   let widen = lift2 I.widen
@@ -1833,7 +1837,7 @@ struct
   let bitxor = lift2 I.bitxor
   let shift_left x y = {x with v = I.shift_left x.v y.v } (* TODO check ikinds*)
   let shift_right x y = {x with v = I.shift_right x.v y.v } (* TODO check ikinds*)
-  let lognot = lift I.lognot
+  let lognot = lift_logical I.lognot
   let logand = lift2 I.logand
   let logor = lift2 I.logor
   let cast_to ?torg ikind x = {v = I.cast_to ?torg ikind x.v; ikind}
