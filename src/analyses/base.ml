@@ -350,6 +350,7 @@ struct
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
   let rec get ?(full=false) a (gs: glob_fun) (st,fl,dep: store) (addrs:address) (exp:exp option): value =
+    let at = AD.get_type addrs in
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
@@ -380,8 +381,11 @@ struct
         | _ -> `Int (ID.cast_to IChar (ID.top ()))       (* string pointer *)
       in
       (* We form the collecting function by joining *)
-      let f x a = VD.join (f x) a in
-      (* Finally we join over all the addresses in the set. If any of the
+      let c x = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
+        | `Int _ when Cil.isArithmeticType at -> VD.cast at x
+        | _ -> x
+      in
+      let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. If any of the
        * addresses is a topped value, joining will fail. *)
       try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
     in
