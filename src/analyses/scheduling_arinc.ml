@@ -235,10 +235,9 @@ struct
     let deadline_interval = TInterval.of_int deadline in
     (* If time_since_period <=_{must} deadline_interval, the comparison is [0,0], meaning that no deadline was missed *)
     let miss = not (TInterval.to_int (TInterval.gt time_since_period deadline_interval) = Some 0L) in
-    (if miss then Printf.printf "%s deadline of t%i was missed: %s > %s (!!!!)\n%s \n\n"
+    (if miss then Printf.printf "%s deadline of t%i was missed: %s > %s (!!!!) \n\n"
       (Arinc_Node.to_string node)
       tid (TInterval.short 80 time_since_period) (TInterval.short 80 deadline_interval)
-      (SD.short 800 (taskstates,times))
       else
       ());
     let period = BatOption.get @@ Period.to_int ((get_info_for taskstates tid).period) in
@@ -255,33 +254,39 @@ struct
     let s = SD.timed_wait tid taskstates in
     s, times
 
-  let arinc_edge_not_bot ((taskstates, times) as state) (tid,e) node =
+  let arinc_edge_not_bot ((taskstates, events, times) as state) (tid,e) node =
     if tid = -1 then
       (* This is some special edge e.g. during init *)
       state
     else
       let canrun = can_run tid taskstates in
+      let map_tstates fn = fn taskstates, events, times in
+      let map_tstates_times fn =
+        let tstates', times' = fn (taskstates,times) in
+        tstates', events, times'
+      in
       match e with
       | WaitingForPeriod ->
         (* The restart of a period can happen at any time even if the task does not have priority *)
-        wait_for_period state tid
+        map_tstates_times (fun s -> wait_for_period s tid)
       | WaitingForEndWait i ->
         (* The end of waiting can happen at any time if the task does not have priority *)
-        wait_for_endwait state tid i
-      | SuspendTask i when canrun -> SD.suspend i taskstates, times
-      | ResumeTask i when canrun -> SD.resume i taskstates, times
-      | WaitEvent i when canrun -> SD.wait_event tid i taskstates, times
-      | SetEvent i when canrun -> SD.set_event i taskstates, times
-      | StartComputation wcet when canrun -> start_computation state tid wcet
-      | FinishComputation when canrun -> finish_computation state tid
-      | PeriodicWait when canrun -> periodic_wait state tid node
-      | TimedWait tw when canrun -> timed_wait state tid tw
+        map_tstates_times (fun s -> wait_for_endwait s tid i)
+      | SuspendTask i when canrun -> map_tstates @@ SD.suspend i
+      | ResumeTask i when canrun -> map_tstates @@ SD.resume i
+      | WaitEvent i when canrun -> map_tstates @@ SD.wait_event tid i
+      | SetEvent i when canrun -> map_tstates @@ SD.set_event i
+      | ResetEvent i when canrun -> map_tstates @@ SD.reset_event i
+      | StartComputation wcet when canrun -> map_tstates_times (fun s -> start_computation s tid wcet)
+      | FinishComputation when canrun -> map_tstates_times (fun s -> finish_computation s tid)
+      | PeriodicWait when canrun -> map_tstates_times (fun s -> periodic_wait s tid node)
+      | TimedWait tw when canrun -> map_tstates_times (fun s -> timed_wait s tid tw)
       | _ -> if canrun then state else raise Deadcode
 
 
-  let arinc_edge ctx (t,e) =
+  let arinc_edge ctx (tid,edge) =
     match ctx.local with
-    | `Lifted x -> `Lifted (arinc_edge_not_bot x (t,e) ctx.node)
+    | `Lifted x -> `Lifted (arinc_edge_not_bot x (tid,edge) ctx.node)
     | `Top -> `Top
     | `Bot -> `Bot
 
@@ -297,15 +302,15 @@ struct
     let taskcount = List.length taskinfo in
     let states = List.map state (List.range 0 `To (taskcount-1)) in
     let t = Times.start_state taskcount in
-    `Lifted(states, t)
+    `Lifted(states, [], t)
 
   let should_join_one a b =
     a.processState = b.processState && a.waitingFor = b.waitingFor
 
   let should_join a b =
     match a,b with
-    | `Lifted (a,x), `Lifted(b, x') ->
-      List.fold_left2 (fun x e f -> x && should_join_one e f) true a b
+    | `Lifted (a,b,x), `Lifted(a',b', x') ->
+      List.fold_left2 (fun x e f -> x && should_join_one e f) true a a'
     | _ -> true
 
   let val_of () = D.bot ()

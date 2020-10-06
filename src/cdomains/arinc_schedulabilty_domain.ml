@@ -20,6 +20,16 @@ module PartitionMode = IntDomain.Flattened
 (* Preemption lock *)
 module PreemptionLock = IntDomain.Flattened
 
+(* With the assumption that we have identified the events before and given them appropriate numbers   *)
+(* They could be generated dynamically, but there is a fixed maximum number of events coming from the *)
+(* configuration table *)
+module EventState = IntDomain.MakeBooleans (
+  struct
+    let truename = "Up"
+    let falsename = "Down"
+  end)
+module Events = Lattice.Liszt(EventState)
+
 module PState = struct
   let ready = ProcessState.of_int (Int64.of_int 0)
   (* let running = ProcessState.of_int (Int64.of_int 1) (* needed? *) *)
@@ -278,9 +288,9 @@ end
 
 module D =
 struct
-  include Lattice.Prod(Lattice.Liszt(OneTask))(Times)
+  include Lattice.Prod3(Lattice.Liszt(OneTask))(Events)(Times)
 
-  type t = (process list) * Times.t
+  type t = (process list) * (bool list) * Times.t
 
   let apply_to_t t fn s = List.mapi (fun i e -> if i = t then fn e else e) s
   let suspend t x = apply_to_t t OneTask.suspend x
@@ -290,6 +300,7 @@ struct
   let wait_event t i x = apply_to_t t (OneTask.wait_event i) x
 
   let set_event i s = List.map (OneTask.set_event i) s
+  let reset_event i s = s
 end
 
 module LiftedD = Lattice.LiftBot(D)
