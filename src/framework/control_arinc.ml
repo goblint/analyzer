@@ -186,6 +186,10 @@ struct
       if get_bool "dump_globs" then
         print_globals gh;
 
+      (* check for dead code at the last state: *)
+      let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
+      if Spec.D.is_bot main_sol then
+        Printf.printf "NB! Execution does not reach the start var that was specified\n";
     in
 
     (* Use "normal" constraint solving *)
