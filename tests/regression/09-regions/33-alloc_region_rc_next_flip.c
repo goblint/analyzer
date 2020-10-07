@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] "'region'"  --set exp.region-offsets true
+// SKIP PARAM: --set ana.activated[+] "'region'"  --set exp.region-offsets true
+// Copy of 09/26 with next flipped
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -53,8 +54,8 @@ int main () {
   pthread_mutex_lock(&A_mutex);
   p = A;
   while (p->next) {
+    p = p->next; // p points-to disappears!
     printf("%d\n", p->datum); // RACE!
-    p = p->next;
   }
   pthread_mutex_unlock(&A_mutex);
   return 0;
