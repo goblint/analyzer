@@ -1,4 +1,5 @@
-// Copied to 10/17 with thread enabled
+// PARAM: --sets ana.activated[+] thread
+// Copy of 05/08 with thread enabled
 #include <pthread.h>
 
 struct {
@@ -7,7 +8,7 @@ struct {
 } data;
 
 void *t_fun(void *arg) {
-  data.x++; // RACE
+  data.x++; // NORACE
   return NULL;
 }
 

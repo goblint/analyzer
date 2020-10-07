@@ -1,5 +1,5 @@
-// SKIP works with --sets ana.activated[+] symb_locks --sets ana.activated[+] var_eq
-// Copied to 06/23
+// PARAM: --sets ana.activated[+] symb_locks --sets ana.activated[+] var_eq
+// Copy of 05/10 with symb_locks enabled
 #include <pthread.h>
 
 int data[10];
