@@ -300,7 +300,6 @@ struct
   let wait_event t i x = apply_to_t t (OneTask.wait_event i) x
 
   let set_event i s = List.map (OneTask.set_event i) s
-  let reset_event i s = s
 end
 
 module LiftedD = Lattice.LiftBot(D)

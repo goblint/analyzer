@@ -274,9 +274,14 @@ struct
         map_tstates_times (fun s -> wait_for_endwait s tid i)
       | SuspendTask i when canrun -> map_tstates @@ SD.suspend i
       | ResumeTask i when canrun -> map_tstates @@ SD.resume i
-      | WaitEvent i when canrun -> map_tstates @@ SD.wait_event tid i
-      | SetEvent i when canrun -> map_tstates @@ SD.set_event i
-      | ResetEvent i when canrun -> map_tstates @@ SD.reset_event i
+      | WaitEvent i when canrun ->
+        if List.at events i then
+          (* Event is up, we can continue *)
+          state
+        else
+          map_tstates @@ SD.wait_event tid i
+      | SetEvent i when canrun -> SD.set_event i taskstates, List.modify_at i (fun _ -> true) events, times
+      | ResetEvent i when canrun -> taskstates, List.modify_at i (fun _ -> false) events, times (* TODO: This should error if the event is not set *)
       | StartComputation wcet when canrun -> map_tstates_times (fun s -> start_computation s tid wcet)
       | FinishComputation when canrun -> map_tstates_times (fun s -> finish_computation s tid)
       | PeriodicWait when canrun -> map_tstates_times (fun s -> periodic_wait s tid node)
@@ -302,7 +307,7 @@ struct
     let taskcount = List.length taskinfo in
     let states = List.map state (List.range 0 `To (taskcount-1)) in
     let t = Times.start_state taskcount in
-    `Lifted(states, [], t)
+    `Lifted(states, [false; false; false], t)
 
   let should_join_one a b =
     a.processState = b.processState && a.waitingFor = b.waitingFor
@@ -310,7 +315,7 @@ struct
   let should_join a b =
     match a,b with
     | `Lifted (a,b,x), `Lifted(a',b', x') ->
-      List.fold_left2 (fun x e f -> x && should_join_one e f) true a a'
+      List.fold_left2 (fun x e f -> x && should_join_one e f) true a a' && b = b'
     | _ -> true
 
   let val_of () = D.bot ()
