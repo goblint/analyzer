@@ -39,19 +39,19 @@ static inline void list_add(struct list_head *new, struct list_head *head) {
   head->next = new;
 }
 
-void *f(void *arg) { 
+void *f(void *arg) {
   struct s *pos ;
   int j;
   struct list_head  const  *p ;
   struct list_head  const  *q ;
-    
+
   while (j < 10) {
     pthread_mutex_lock(&c.slots_mutex[j]);
     p = c.slot[j].next;
     pos = (struct s *)((char *)p - (size_t)(& ((struct s *)0)->list));
 
     while (& pos->list != & c.slot[j]) {
-      pos->datum++; //RACE
+      pos->datum++; // RACE!
       q = pos->list.next;
       pos = (struct s *)((char *)q - (size_t)(& ((struct s *)0)->list));
     }
@@ -72,13 +72,13 @@ void *g(void *arg) {
     pthread_mutex_lock(&c.slots_mutex[j+1]);
     p = c.slot[j].next;
     pos = (struct s *)((char *)p - (size_t)(& ((struct s *)0)->list));
-  
+
     while (& pos->list != & c.slot[j]) {
-      pos->datum++; //RACE
+      pos->datum++; // RACE!
       q = pos->list.next;
       pos = (struct s *)((char *)q - (size_t)(& ((struct s *)0)->list));
     }
- 
+
     pthread_mutex_unlock(&c.slots_mutex[j+1]);
     j ++;
   }

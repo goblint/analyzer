@@ -36,7 +36,7 @@ int main () {
   int j, k;
   struct s *p;
   pthread_t t1;
- 
+
   slot[j] = new(1);
   list_add(new(2), slot[j]);
 
@@ -49,11 +49,11 @@ int main () {
 
   // If it happens that i = k /= j, then it is a real race: the element in p
   // will be accessed with locks mutex[i] and mutex[j].
- 
+
   pthread_create(&t1, NULL, t_fun, NULL);
-  
+
   pthread_mutex_lock(&mutex[j]);
-  p = slot[j]->next; // RACE
+  p = slot[j]->next; // RACE!
   printf("%d\n", p->datum);
   pthread_mutex_unlock(&mutex[j]);
   return 0;

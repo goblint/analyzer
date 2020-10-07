@@ -16,7 +16,7 @@ void fun(void) {
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex1);
-  myglobal=myglobal+1; // RACE!
+  myglobal=myglobal+1; // RACE
   pthread_mutex_unlock(&mutex1);
   fun();
   return NULL;

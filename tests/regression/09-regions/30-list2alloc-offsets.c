@@ -21,7 +21,7 @@ pthread_mutex_t B_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A_mutex);
-  A->datum++; // RACE <-- this line is also relevant.
+  A->datum++; // RACE! <-- this line is also relevant.
   pthread_mutex_unlock(&A_mutex);
 
   pthread_mutex_lock(&B_mutex);
@@ -42,6 +42,6 @@ int main () {
   pthread_mutex_lock(&A_mutex);
   data = &A->datum; // NORACE
   pthread_mutex_unlock(&A_mutex);
-  *data = 42; // RACE <-- this is the real bug!
+  *data = 42; // RACE! <-- this is the real bug!
   return 0;
 }

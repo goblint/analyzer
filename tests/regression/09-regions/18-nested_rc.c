@@ -38,14 +38,14 @@ int main () {
   int j;
   struct s *p;
   pthread_t t1;
- 
+
   c.slots[j] = new(1);
   list_add(new(2), c.slots[j]);
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  
+
   pthread_mutex_lock(&c.mutex[j]);
-  p = c.slots[j]->next; // RACE
+  p = c.slots[j]->next; // RACE!
   printf("%d\n", p->datum);
   pthread_mutex_unlock(&c.mutex[j]);
   return 0;

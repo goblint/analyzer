@@ -13,14 +13,14 @@ void munge(pthread_mutex_t *m, int *v) {
 }
 
 void *t_fun(void *arg) {
-  munge(&mutex1, &myglobal1); // NOWARN!
+  munge(&mutex1, &myglobal1); // NOWARN
   return NULL;
 }
 
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  munge(&mutex2,&myglobal1); // NOWARN!
+  munge(&mutex2,&myglobal1); // NOWARN
   pthread_join (id, NULL);
   return 0;
 }
