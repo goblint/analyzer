@@ -1,0 +1,26 @@
+// First task sets the event 0, then does something else and only later does the second task wait on it
+// Since the event is not set to down, task 1 should see it is UP and proceed right away
+[
+    [
+        [0, [15, 600, 600],
+            [
+                [["PC",0],[[[["SetEvent", 0]],["PC",1]]]],
+                [["PC",1],[[[["StartComputation",40]],["PC",2]]]],
+                [["PC",2],[[[["FinishComputation"]],["PC",3]]]],
+                [["PC",3],[[[["WaitEvent",1]],["PC",4]]]],
+                [["PC",4],[[[["PeriodicWait"]],["PC",5]]]],
+                [["PC",5],[[[["WaitingForPeriod"]],["PC",0]]]]
+            ]
+        ],
+
+        [1, [10, null, null],
+            [
+                [["PC",0],[[[["WaitEvent",0]],["PC",1]]]],
+                [["PC",1],[[[["NOP"]],["PC",2]]]], //"SetEvent",1 would make it work
+                [["PC",2],[[[["NOP"]],["PC",0]]]]
+            ]
+        ]
+    ],
+
+    [5,2]
+]
