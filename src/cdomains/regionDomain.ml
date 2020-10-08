@@ -148,6 +148,11 @@ struct
       | Index (_, offs) -> do_offs deref def offs
       | NoOffset -> def
     in
+    (* The intuition for the offset computations is that we keep the static _suffix_ of an 
+     * access path. These can be used to partition accesses when fields do not overlap. 
+     * This means that for pointer dereferences and when obtaining the value from an lval 
+     * (but not under AddrOf), we drop the offsets because we land somewhere 
+     * unknown in the region. *)
     let rec eval_rval deref rval =
       match rval with
       | Lval lval -> Option.map (fun (deref, v, offs) -> (deref, v, [])) (eval_lval deref lval)

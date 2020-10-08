@@ -12,7 +12,7 @@ void munge(pthread_mutex_t *m) {
 }
 
 void *t_fun(void *arg) {
-  munge(&mutex2); // NOWARN
+  munge(&mutex2);
   return NULL;
 }
 
@@ -20,7 +20,7 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  munge(&mutex1); // NOWARN
+  munge(&mutex1);
   pthread_join (id, NULL);
   return 0;
 }
