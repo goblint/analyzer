@@ -44,7 +44,7 @@ struct
   (* What if none can run unless time passes? *)
   (* Can ours run relative to other? *)
   let can_run_relative ours other =
-    if ours.processState <> PState.ready then
+    if ours.processState <> ProcessState.ready then
       (* We can not take any actions while not ready *)
       false
     else
@@ -60,7 +60,7 @@ struct
       else
         (* ours < other *)
         (* we can run if the other is blocked *)
-        other.processState <> PState.ready
+        other.processState <> ProcessState.ready
 
   let can_run tid taskstates =
     let ours = List.at taskstates tid in
@@ -113,7 +113,7 @@ struct
 
   (* Return taskstate of the task that has the highest priority and is ready to compute *)
   let highest_compute_task (taskstates, times) =
-    let ready_tasks = List.filter (fun x -> x.processState = PState.ready) taskstates in
+    let ready_tasks = List.filter (fun x -> x.processState = ProcessState.ready) taskstates in
     if List.length ready_tasks = 0 then
       None
     else
@@ -164,7 +164,7 @@ struct
       (* As the time_since_period is set to zero here, handling such as in wait_for_endwait is not needed *)
       let times = Times.set_since_period tid Times.zeroInterval times in
       let times = Times.set_remaining_wait tid Times.zeroInterval times in
-      let s = update_info_for tid (fun x -> {x with processState = PState.ready}) taskstates in
+      let s = update_info_for tid (fun x -> {x with processState = ProcessState.ready}) taskstates in
       s, times
     in
     wait_and_do_if_over (taskstates, times) do_restart_period tid
@@ -182,7 +182,7 @@ struct
       let newtime = TInterval.add (Times.get_since_period_before_wait t times) (TInterval.of_int (Int64.of_int time)) in
       let times = Times.set_since_period t newtime times in
       let times = Times.set_since_period_before_wait t Times.zeroInterval times in
-      let s = update_info_for t (fun x -> {x with processState = PState.ready}) s in
+      let s = update_info_for t (fun x -> {x with processState = ProcessState.ready}) s in
       s, times
     in
     wait_and_do_if_over (taskstates,times) do_end_wait tid
@@ -301,7 +301,7 @@ struct
       priority = Priority.of_int (Int64.of_int @@ Tuple3.first @@ List.at taskinfo i);
       period = Option.map_default (Period.of_int % Int64.of_int) (Period.top ()) (Tuple3.second @@ List.at taskinfo i);
       capacity = Option.map_default (Capacity.of_int % Int64.of_int) (Capacity.top ()) (Tuple3.third @@ List.at taskinfo i);
-      processState = PState.ready;
+      processState = ProcessState.ready;
       waitingFor = WaitingForEvent.bot ()
     } in
     let taskcount = List.length taskinfo in

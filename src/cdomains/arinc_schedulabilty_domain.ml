@@ -10,8 +10,26 @@ module Period = IntDomain.Flattened
 (* Capacity *)
 module Capacity = IntDomain.Flattened
 (* Current state *)
-module ProcessState = IntDomain.Flattened
-(* Ready -> 0, Running -> 1, Suspended -> 2, Done -> 3, Wait -> 4, Susp_Wait -> 5*)
+module ProcessState = struct
+  include IntDomain.Flattened
+  let ready = of_int 0L
+  (* let running = ProcessState.of_int (Int64.of_int 1) (* needed? *) *)
+  let suspended = of_int 2L
+  let tdone = of_int 3L
+  let wait = of_int 4L
+  let susp_wait = of_int 5L
+  let waiting_for_period = of_int 6L
+
+  let short _ x = match x with
+    | _ when x = ready -> "ready"
+    | _ when x = suspended -> "suspended"
+    | _ when x = tdone -> "tdone"
+    | _ when x = wait -> "wait"
+    | _ when x = susp_wait -> "susp_wait"
+    | _ when x = waiting_for_period -> "waiting_for_period"
+    | _ -> failwith "unknown task state"
+end
+
 module WaitingForEvent = IntDomain.Flattened
 
 (* Information for all tasks *)
@@ -29,16 +47,6 @@ module EventState = IntDomain.MakeBooleans (
     let falsename = "Down"
   end)
 module Events = Lattice.Liszt(EventState)
-
-module PState = struct
-  let ready = ProcessState.of_int (Int64.of_int 0)
-  (* let running = ProcessState.of_int (Int64.of_int 1) (* needed? *) *)
-  let suspended = ProcessState.of_int (Int64.of_int 2)
-  let tdone = ProcessState.of_int (Int64.of_int 3)
-  let wait = ProcessState.of_int (Int64.of_int 4)
-  let susp_wait = ProcessState.of_int (Int64.of_int 5)
-  let waiting_for_period = ProcessState.of_int (Int64.of_int 6)
-end
 
 (* define record type here so that fields are accessable outside of D *)
 type process = { pid: Pid.t; priority: Priority.t; period: Period.t; capacity: Capacity.t; processState: ProcessState.t; waitingFor:WaitingForEvent.t } [@@deriving to_yojson]
@@ -265,27 +273,27 @@ struct
   let widen = join
   let narrow = meet
 
-  let suspend p = {p with processState = (if p.processState = PState.ready then PState.suspended else PState.susp_wait)}
-  let resume p = {p with processState = (if p.processState = PState.suspended then PState.ready else PState.wait)}
+  let suspend p = {p with processState = (if p.processState = ProcessState.ready then ProcessState.suspended else ProcessState.susp_wait)}
+  let resume p = {p with processState = (if p.processState = ProcessState.suspended then ProcessState.ready else ProcessState.wait)}
 
   let wait_event i p =
-    {p with processState = PState.wait; waitingFor = WaitingForEvent.of_int (Int64.of_int i)}
+    {p with processState = ProcessState.wait; waitingFor = WaitingForEvent.of_int (Int64.of_int i)}
 
   let set_event i p =
     if p.waitingFor = WaitingForEvent.of_int (Int64.of_int i) then
-      {p with processState = (if p.processState = PState.wait then PState.ready else PState.suspended); waitingFor = WaitingForEvent.bot ()}
+      {p with processState = (if p.processState = ProcessState.wait then ProcessState.ready else ProcessState.suspended); waitingFor = WaitingForEvent.bot ()}
     else
       p
 
   let periodic_wait p =
-    {p with processState = PState.waiting_for_period}
+    {p with processState = ProcessState.waiting_for_period}
 
   let timed_wait p =
-    {p with processState = PState.wait}
+    {p with processState = ProcessState.wait}
 
   (* is p either waiting for its period or timed waiting *)
   let is_waiting_for_time_to_pass p =
-    (p.processState = PState.waiting_for_period || (p.processState = PState.wait && p.waitingFor = WaitingForEvent.bot ()))
+    (p.processState = ProcessState.waiting_for_period || (p.processState = ProcessState.wait && p.waitingFor = WaitingForEvent.bot ()))
 
 end
 
