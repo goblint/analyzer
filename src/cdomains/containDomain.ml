@@ -65,7 +65,6 @@ struct
 
   let short _ x = lookup x
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
 end
@@ -88,7 +87,6 @@ struct
 
   let short _ x = lookup x
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
 end
@@ -159,8 +157,8 @@ struct
 end
 
 
-module VarNameSet = SetDomain.ToppedSet (VarName) (struct let topname = "unkown func ptr" end)
-module ClassNameSet = SetDomain.ToppedSet (ClassName) (struct let topname = "unkown class name" end)
+module VarNameSet = SetDomain.ToppedSet (VarName) (struct let topname = "unknown func ptr" end)
+module ClassNameSet = SetDomain.ToppedSet (ClassName) (struct let topname = "unknown class name" end)
 module Globals = Lattice.Prod3 (FieldSet) (VarNameSet) (ClassNameSet) (*tainted fields * func ptrs * local classes *)
 
 module Diff = SetDomain.ToppedSet (Printable.Prod (Var) (Globals)) (struct let topname = "Unknown fieldset diff" end)
@@ -290,7 +288,7 @@ struct
   let get_name x (fd,_,_) : FuncName.t option =
     FuncName.from_fun_name fd
 
-  let unkown_this = (emptyFunction "@unkown_this").svar
+  let unkown_this = (emptyFunction "@unknown_this").svar
   let return_var = (emptyFunction "@return_var").svar
 
   let isnot_mainclass x = (x <> (get_string "ana.cont.class")) && not (InhRel.mem ((get_string "ana.cont.class"), x) !inc)(*check inheritance*)
@@ -774,7 +772,7 @@ struct
         let must_be_no_global = not is_tainted && not is_danger
         in
         dbg_report ("mbg: " ^(sprint 160 (d_exp () e))^ "\ttaint : "^(string_of_bool is_tainted)^"\tdanger : "^string_of_bool is_danger^"\n");
-        not must_be_no_global (*if it cannot be a global then we don't warn on unkownk ptrs, otherwise we do*)
+        not must_be_no_global (*if it cannot be a global then we don't warn on unknown ptrs, otherwise we do*)
 
       end
     else
@@ -1165,7 +1163,7 @@ struct
       dbg_report ((sprint 160 (d_lval () lval))^" cft "^(string_of_bool cft)^" fse "^(string_of_bool fse));
       if  (mcft && fse) || (not cft) then
         begin
-          let vars = get_vars e in (*not very exact for huge compount statements*)
+          let vars = get_vars e in (*not very exact for huge compound statements*)
           List.fold_left
             (fun y x->dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));
               if not (is_safe_name x.vname) then danger_propagate x args y false fs glob "L1153" else y) (fd,st,gd) vars

@@ -160,21 +160,6 @@ struct
     in
 
     (* exctract global xml from result *)
-    let make_global_xml g =
-      let one_glob k v =
-        let k = Xml.PCData k.vname in
-        let varname = Xml.Element ("td",[],[k]) in
-        let varvalue = Xml.Element ("td",[],[Spec.G.toXML v]) in
-        Xml.Element ("tr",[],[varname; varvalue])
-      in
-      let head =
-        Xml.Element ("tr",[],[Xml.Element ("th",[],[Xml.PCData "var"])
-                             ;Xml.Element ("th",[],[Xml.PCData "value"])])
-      in
-      let collect_globals k v b = one_glob k v :: b in
-      Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
-    in
-    (* exctract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
@@ -501,7 +486,7 @@ struct
     Spec.finalize ();
 
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
-    Result.output (lazy local_xml) gh make_global_xml make_global_fast_xml file
+    Result.output (lazy local_xml) gh make_global_fast_xml file
 
 
   let analyze file fs change_info =

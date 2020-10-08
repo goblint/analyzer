@@ -15,11 +15,9 @@ sig
   val isSimple: t -> bool
   val pretty: unit -> t -> doc
   val pretty_diff: unit -> (t * t) -> Pretty.doc
-  val toXML : t -> Xml.xml
   (* These two lets us reuse the short function, and allows some overriding
    * possibilities. *)
   val pretty_f: (int -> t -> string) -> unit -> t -> doc
-  val toXML_f : (int -> t -> string) -> t -> Xml.xml
   val printXml : 'a BatInnerIO.output -> t -> unit
   (* This is for debugging *)
   val name: unit -> string
@@ -66,10 +64,8 @@ struct
   include Std
   let pretty () _ = text "Output not supported"
   let short _ _ = "Output not supported"
-  let toXML x = Xml.Element ("Leaf", [("text", "Output not supported")], [])
   let isSimple _ = true
   let pretty_f _ = pretty
-  let toXML_f _ = toXML
   let name () = "blank"
   let pretty_diff () (x,y) = dprintf "Unsupported"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
@@ -83,13 +79,7 @@ module PrintSimple (P: sig
 struct
   let isSimple _ = true
   let pretty_f sf () x = text (sf max_int x)
-  let toXML_f sf st =
-    let esc = Goblintutil.escape in
-    let l = Goblintutil.summary_length in
-    let summary = esc (sf l st) in
-    Xml.Element ("Leaf", ["text", summary], [])
   let pretty () x = pretty_f P.short () x
-  let toXML m = toXML_f P.short m
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (P.short 800 x))
@@ -105,10 +95,8 @@ struct
   let equal _ _ = true
   let pretty () _ = text N.name
   let short _ _ = N.name
-  let toXML x = Xml.Element ("Leaf", [("text", N.name)], [])
   let isSimple _ = true
   let pretty_f _ = pretty
-  let toXML_f _ = toXML
   let name () = "Unit"
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -152,8 +140,6 @@ struct
   let to_yojson = lift_f (Base.to_yojson)
   let pretty_f sf () = lift_f (Base.pretty_f (fun w x -> sf w (lift x)) ())
   let pretty = pretty_f short
-  let toXML_f sf = lift_f (Base.toXML_f (fun w x -> sf w (lift x)))
-  let toXML = toXML_f short
   let isSimple = lift_f Base.isSimple
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
@@ -224,14 +210,6 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let toXML_f _ (state:t) =
-    match state with
-    | `Lifted n -> Base.toXML n
-    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
-
-  let toXML m = toXML_f short m
-
   let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -296,13 +274,6 @@ struct
     match x with
     | `Left n ->  Base1.isSimple n
     | `Right n ->  Base2.isSimple n
-
-  let toXML_f _ (state:t) =
-    match state with
-    | `Left n -> Base1.toXML n
-    | `Right n -> Base2.toXML n
-
-  let toXML m = toXML_f short m
 
   let pretty () x = pretty_f short () x
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
@@ -378,15 +349,6 @@ struct
     | `Lifted2 n ->  Base2.isSimple n
     | _ -> true
 
-  let toXML_f _ (state:t) =
-    match state with
-    | `Lifted1 n -> Base1.toXML n
-    | `Lifted2 n -> Base2.toXML n
-    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
-
-  let toXML m = toXML_f short m
-
   let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -446,19 +408,6 @@ struct
 
   let pretty () x = pretty_f short () x
 
-  let toXML_f sf ((x, y) as st) =
-    let esc = Goblintutil.escape in
-    let nodes = match expand_fst,expand_snd with
-      | (true, false) -> [Base1.toXML x]
-      | (false, true) -> [Base2.toXML y]
-      | (true, true) -> [Base1.toXML x; Base2.toXML y]
-      | _ -> []
-    in
-    let node_leaf = if nodes = [] then "Leaf" else "Node" in
-    Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length st))], nodes)
-
-  let toXML m = toXML_f short m
-
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y
 
@@ -510,12 +459,6 @@ struct
     ++ text ")"
 
   let isSimple (x,y,z) = Base1.isSimple x && Base2.isSimple y && Base3.isSimple z
-  let toXML_f sf ((x,y,z) as st) =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Node", [("text", esc (sf Goblintutil.summary_length st))],
-                 [Base1.toXML x; Base2.toXML y; Base3.toXML z])
-
-  let toXML m = toXML_f short m
 
   let printXml f (x,y,z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y (Goblintutil.escape (Base3.name ())) Base3.printXml z
@@ -543,15 +486,6 @@ struct
   let pretty_f sf () x = text (sf max_int x)
   let isSimple _ = true
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    match x with
-    | (y::_) when not (Base.isSimple y) ->
-      let elems = List.map Base.toXML x in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-    | _ -> Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = Base.name () ^ " list"
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
@@ -580,11 +514,9 @@ struct
 
   let short _ x = P.names x
   let pretty_f f () x = text (f max_int x)
-  let toXML_f f x = Xml.Element ("Leaf", ["text",f 80 x], [])
   let isSimple _ = true
   let hash x = x-5284
   let equal (x:int) (y:int) = x=y
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
@@ -624,13 +556,6 @@ struct
     match state with
     | `Lifted n ->  Base.pretty () n
     | `Bot -> text ("bot of " ^ (Base.name ()))
-
-  let toXML_f _ (state:t) =
-    match state with
-    | `Lifted n -> Base.toXML n
-    | `Bot -> Xml.Element ("Leaf", ["text","bot of " ^ (Base.name ())], [])
-
-  let toXML m = toXML_f short m
 
   let pretty () x = pretty_f short () x
   let name () = "bottom or " ^ Base.name ()
@@ -679,13 +604,6 @@ struct
     | `Lifted n ->  Base.pretty () n
     | `Top -> text ("top of " ^ (Base.name ()))
 
-  let toXML_f _ (state:t) =
-    match state with
-    | `Lifted n -> Base.toXML n
-    | `Top -> Xml.Element ("Leaf", ["text","top of " ^ (Base.name ())], [])
-
-  let toXML m = toXML_f short m
-
   let pretty () x = pretty_f short () x
   let name () = "top or " ^ Base.name ()
   let pretty_diff () (x,y) =
@@ -718,10 +636,8 @@ struct
   let equal (x:t) (y:t) = x=y
   let pretty () n = text n
   let short _ n = n
-  let toXML x = Xml.Element ("Leaf", [("text", x)], [])
   let isSimple _ = true
   let pretty_f _ = pretty
-  let toXML_f _ = toXML
   let name () = "String"
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

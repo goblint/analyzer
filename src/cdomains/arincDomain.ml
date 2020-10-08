@@ -40,21 +40,6 @@ struct
       let name () = "ARINC state"
       let short = short
     end)
-  let toXML_f sf d =
-    let replace_top name = function
-      | Xml.Element (node, [text, n], elems) -> Xml.Element (node, [text, name ^ n], elems)
-      | x -> x
-    in
-    let elems = [ replace_top "PID: "   @@ Pid.toXML  d.pid
-                ; replace_top "Priority: "  @@ Pri.toXML d.pri
-                ; replace_top "Period: "  @@ Per.toXML d.per
-                ; replace_top "Capacity: "  @@ Cap.toXML d.cap
-                ; replace_top "Partition mode: "  @@ Pmo.toXML d.pmo
-                ; replace_top "Preemption lock: " @@ PrE.toXML  d.pre
-                ; replace_top "Predecessor nodes: " @@ Pred.toXML d.pred
-                ; replace_top "Context hash: " @@ Ctx.toXML d.ctx ] in
-    Xml.Element ("Node", ["text", "ARINC state"], elems)
-  let toXML s  = toXML_f short s
   (* Printable.S *)
   (* let equal = Util.equals *)
   let equal x y = Pid.equal x.pid y.pid && Pri.equal x.pri y.pri && Per.equal x.per y.per && Cap.equal x.cap y.cap && Pmo.equal x.pmo y.pmo && PrE.equal x.pre y.pre && Pred.equal x.pred y.pred && Ctx.equal x.ctx y.ctx

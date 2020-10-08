@@ -20,8 +20,6 @@ struct
   let pretty = pretty_f short
   let printXml c x = Ad.printXml c x.addr
   let pretty_diff () (x,y) = Ad.pretty_diff () (x.addr,y.addr)
-  let toXML_f sh x = Ad.toXML x.addr
-  let toXML = toXML_f short
 end
 
 module Lockset = SetDomain.ToppedSet (MyLock) (struct let topname = "all locks" end)

@@ -111,31 +111,6 @@ struct
   let short _ x = "mapping"
   let isSimple _ = false
 
-  let toXML_f sf mapping =
-    let f (key,st) =
-      match Domain.toXML key with
-      | Xml.Element ("Loc",attr,[]) ->
-        Xml.Element ("Loc", attr, [Range.toXML st])
-      | Xml.Element ("Leaf",attr,[]) ->
-        let summary =
-          let w = Goblintutil.summary_length - 4 in
-          let key_str = Domain.short w key in
-          let st_str  = Range.short (w - String.length key_str) st in
-          key_str ^ " -> " ^ st_str
-        in
-        let attr = [("text", summary)] in begin
-          match Range.toXML st with
-          | Xml.Element (_, chattr, children) ->
-            if Range.isSimple st then Xml.Element ("Leaf", attr, [])
-            else Xml.Element ("Node", attr, children)
-          | x -> x
-        end
-      | _ -> Xml.Element ("Node", [("text","map")], [Domain.toXML key; Range.toXML st])
-    in
-    let assoclist = fold (fun x y rest -> (x,y)::rest) mapping [] in
-    (* let default = Xml.Element ("Default", [], [Range.toXML defval]) in *)
-    let children = List.rev_map f assoclist in
-    Xml.Element ("Node", [("text", sf Goblintutil.summary_length mapping)], children)
 
   open Pretty
   let pretty_f _ () mapping =
@@ -148,7 +123,7 @@ struct
     dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
 
   let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
+
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f xs =
