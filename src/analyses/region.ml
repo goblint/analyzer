@@ -85,6 +85,7 @@ struct
     in
     match get_region ctx e' with
     | None -> (LSSSet.empty (),es)
+    | Some [] -> (LSSSet.singleton es, es) (* Should it happen in the first place that RegMap has empty value? *)
     | Some xs ->
       let ps = List.fold_left add_region (LSSSet.empty ()) xs in
       (* ignore (Pretty.printf "%a in region %a\n" d_exp e LSSSet.pretty ps); *)
