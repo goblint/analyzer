@@ -187,29 +187,6 @@ sig
   val result_name: string
 end
 
-module type RS =
-sig
-  include Printable.S
-  include ResultConf
-  type key = Basetype.ProgLinesFun.t
-  type value
-  val create: int -> t
-  val clear: t -> unit
-  val copy: t -> t
-  val add: t -> key -> value -> unit
-  val remove: t -> key -> unit
-  val find: t -> key -> value
-  val find_all: t -> key -> value list
-  val replace : t -> key -> value -> unit
-  val mem : t -> key -> bool
-  val iter: (key -> value -> unit) -> t -> unit
-  val fold: (key -> value -> 'b -> 'b) -> t -> 'b -> 'b
-  val length: t -> int
-
-  val resultXML: t -> Xml.xml
-  val output: t -> unit
-end
-
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
   include Hash.Printable (Basetype.ProgLinesFun) (Range)
