@@ -46,7 +46,10 @@ module EventState = IntDomain.MakeBooleans (
     let truename = "Up"
     let falsename = "Down"
   end)
-module Events = Lattice.Liszt(EventState)
+module Events = struct
+  include Lattice.Liszt(EventState)
+  let name () = "Events"
+end
 
 (* define record type here so that fields are accessable outside of D *)
 type process = { pid: Pid.t; priority: Priority.t; period: Period.t; capacity: Capacity.t; processState: ProcessState.t; waitingFor:WaitingForEvent.t } [@@deriving to_yojson]
