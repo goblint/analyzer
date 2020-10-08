@@ -20,12 +20,6 @@ struct
   module D =
   struct
     include RegionDomain.RegionDom
-    let toXML_f sf x =
-      match toXML x with
-      | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Region Analysis"], elems)
-      | x -> x
-
-    let toXML s  = toXML_f short s
   end
   module G = RegPart
   module C = D

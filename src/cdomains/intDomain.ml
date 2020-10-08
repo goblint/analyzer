@@ -159,8 +159,6 @@ module Std (B: sig
   (* all output is based on B.short *)
   let pretty_f sh () x = text (sh Goblintutil.summary_length x)
   let pretty = pretty_f short
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)], [])
-  let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
@@ -1207,9 +1205,6 @@ struct
   let short _ x = I.to_string x
   let pretty_f sh () x = text (sh 10 x)
   let pretty = pretty_f short
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf
-                                              Goblintutil.summary_length x)],[])
-  let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
@@ -1663,10 +1658,6 @@ module IntDomTuple = struct
 
   (* printing boilerplate *)
   let isSimple _ = true
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", [("text", esc (sf Goblintutil.summary_length x))], [])
-  let toXML = toXML_f short
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)

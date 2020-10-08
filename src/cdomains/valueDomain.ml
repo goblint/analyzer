@@ -175,21 +175,7 @@ struct
     | `Blob n ->  Blobs.isSimple n
     | _ -> true
 
-  let toXML_f _ state =
-    match state with
-    | `Int n -> ID.toXML n
-    | `Address n -> AD.toXML n
-    | `Struct n -> Structs.toXML n
-    | `Union n -> Unions.toXML n
-    | `Array n -> CArrays.toXML n
-    (* let (node, attr, children) = Base.toXML n in (node, ("lifted", !liftname)::attr, children) *)
-    | `Blob n -> Blobs.toXML n
-    | `List n -> Lists.toXML n
-    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
-
   let pretty () x = pretty_f short () x
-  let toXML s = toXML_f short s
   let pretty_diff () (x,y) =
     match (x,y) with
     | (`Int x, `Int y) -> ID.pretty_diff () (x,y)

@@ -47,7 +47,6 @@ struct
   let short w x = "Array: " ^ Val.short (w - 7) x
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let toXML m = toXML_f short m
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v
   let make i v = v
@@ -126,7 +125,6 @@ struct
 
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let toXML m = toXML_f short m
 
   let printXml f ((e, (xl, xm, xr)) as x) =
     if is_not_partitioned x then
@@ -681,7 +679,6 @@ struct
   let short l = unop (P.short l) (T.short l)
   let isSimple = unop P.isSimple T.isSimple
   let pretty () = unop (P.pretty ()) (T.pretty ())
-  let toXML = unop P.toXML T.toXML
   let leq = binop P.leq T.leq
   let join = binop_to_t P.join T.join
   let meet = binop_to_t P.meet T.meet
@@ -707,10 +704,8 @@ struct
   let smart_widen f g = binop_to_t (P.smart_widen f g) (T.smart_widen f g)
   let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
 
-  (* TODO: Check if these three are ok to make here *)
   let printXml f = unop (P.printXml f) (T.printXml f)
   let pretty_f _ = pretty
-  let toXML_f _ = unop (P.toXML_f P.short) (T.toXML_f T.short)
 
   let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 

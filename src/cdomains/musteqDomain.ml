@@ -11,7 +11,6 @@ struct
     let v_str = V.short w v in let w = w - String.length v_str in
     let fd_str = F.short w fd in
     v_str ^ fd_str
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let prefix (v1,fd1: t) (v2,fd2: t): F.t option =
@@ -24,22 +23,6 @@ module Equ =
 struct
   include MapDomain.MapTop (P) (F)
 
-  let toXML_f sf mapping =
-    let esc = Goblintutil.escape in
-    let f ((v1,v2: key), (fd: value)) =
-      let w = Goblintutil.summary_length - 4 in
-      let v1_str = V.short w v1 in let w = w - String.length v1_str in
-      let v2_str = V.short w v2 in let w = w - String.length v2_str in
-      let fd_str = F.short w fd in
-      let summary = esc (v1_str ^ " = " ^ v2_str ^ fd_str) in
-      let attr = [("text", summary)] in
-      Xml.Element ("Leaf",attr,[])
-    in
-    let assoclist = fold (fun x y rest -> (x,y)::rest) mapping [] in
-    let children = List.rev_map f assoclist in
-    let node_attrs = [("text", esc (sf Goblintutil.summary_length mapping));("id","map")] in
-    Xml.Element ("Node", node_attrs, children)
-
   let pretty_f short () mapping =
     let f (v1,v2) st dok: doc =
       dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 F.pretty st in
@@ -48,7 +31,6 @@ struct
 
   let short _ _ = "Equalities"
 
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let add_old = add

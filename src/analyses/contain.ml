@@ -25,16 +25,6 @@ struct
   struct
     include ContainDomain.Dom
     let short n (_,x,_:t) = Danger.short n x
-    let toXML_f sf (_,x,_:t) =
-      match Danger.toXML_f (fun _ x -> sf 800 (ContainDomain.FuncName.bot (),x,ContainDomain.Diff.bot ())) x with
-      | Xml.Element (node, (text, _)::xs, elems) when Danger.is_top x ->
-        Xml.Element (node, (text, "Containment Analysis (danger is top)")::xs, [])
-      | Xml.Element (node, (text, _)::xs, elems) when Danger.is_bot x ->
-        Xml.Element (node, (text, "Containment Analysis (danger is bot)")::xs, [])
-      | Xml.Element (node, (text, _)::xs, elems) ->
-        Xml.Element (node, (text, "Containment Analysis")::xs, elems)
-      | x -> x
-    let toXML x = toXML_f short x
   end
   module C = D
   module G = ContainDomain.Globals
@@ -44,7 +34,7 @@ struct
       let get_string so =
         match so with
         | Some (a,b) -> (a,b)
-        | _ -> ("unkown","function")
+        | _ -> ("unknown","function")
       in
       let (_,fn) = get_string (GU.get_class_and_name x) in
       fn
@@ -103,20 +93,20 @@ struct
             Object.iter (add_htbl ContainDomain.fields) !(objekt !(field inhr_tbl "fields"));
             D.inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !D.inc;
           with JsonE x ->
-            failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)
+            failwith ("Containment analysis failed to read CXX.json: " ^ x)
         end
-    in (*read in SAFE.json, supress warnings for safe funs/vars*)
+    in (*read in SAFE.json, suppress warnings for safe funs/vars*)
     json;
     match List.filter (fun x -> Str.string_match (Str.regexp ".*SAFE\\.json$") x 0) !Goblintutil.jsonFiles with
     | [] -> ()
     | f :: _ ->
       try
-        Messages.report "Problems for safe objecst from SAFE.json are suppressed!";
+        Messages.report "Problems for safe objects from SAFE.json are suppressed!";
         let safe_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
         Object.iter (add_htbl_re D.safe_vars) !(objekt !(field safe_tbl "variables"));
         Object.iter (add_htbl_re D.safe_methods) !(objekt !(field safe_tbl "methods"));
       with JsonE x ->
-        failwith ("Contaimnent analysis failed to read SAFE.json: " ^ x)
+        failwith ("Containment analysis failed to read SAFE.json: " ^ x)
 
   let funcount = ref 0
 
@@ -164,10 +154,10 @@ struct
     Hashtbl.iter (check_fun_list " (5) Missing function definition " true) D.required_non_public_funs; (*only error if the missing priv fun was actually used*)
     Hashtbl.iter (check_fun_list " (2) Analysis unsound due to use of public variable, PUBLIC_VAR_FOUND:" false) D.public_vars;
     Hashtbl.iter (check_fun_list " (3) Analysis unsound due to use of friend class " false) D.friends;
-    Hashtbl.iter (fun fn v->D.report (" (6) Function "^fn^" might be called from several threads and should be threat safe.")) D.reentrant_funs;
+    Hashtbl.iter (fun fn v->D.report (" (6) Function "^fn^" might be called from several threads and should be thread safe.")) D.reentrant_funs;
     Hashtbl.iter (fun fn v->D.report (" (NOTE) Class "^fn^" is local.")) D.local_classes;
     (*Hashtbl.iter (fun fn v->D.report (fn^" was entered")) entered_funs;*)
-    D.report ("Finialze Finished!");
+    D.report ("Finalize Finished!");
     (*if not !GU.verify then*)
     (*failwith "exit";*)
     flush stdout;
@@ -182,7 +172,7 @@ struct
 			D.Danger.pp_vars;
       fprintf stderr "\nSUM VARS:%d\n" !sum;
 			*)
-    ignore (fprintf Legacy.stderr "\n************************finialize finished******************\n");
+    ignore (fprintf Legacy.stderr "\n************************finalize finished******************\n");
     flush stderr;
     D.final:=false
   (*failwith "Finished"*)
@@ -213,7 +203,7 @@ struct
         | Some x -> D.isnot_localclass x dom
         | _ -> true
       in
-      (not no_mainclass) && (D.is_private_method_name f.vname) (*uncommenting the rest brakes fptr propagation*)(*&& not (D.is_public_method_name f.vname)*) (*fun may be priv andpub simultaneously*)
+      (not no_mainclass) && (D.is_private_method_name f.vname) (*uncomenting the rest brakes fptr propagation*)(*&& not (D.is_public_method_name f.vname)*) (*fun may be priv andpub simultaneously*)
 
 
   let sync ctx =
@@ -607,7 +597,7 @@ struct
           if true then (*even if there are no bad vals passed, internally the fun may make good ptrs bad*)
             begin
               (*printf "assignment via args: %s\n" f.vname;*)
-              (*since we don't know what the spec_fn does we must assume it copys the passed bad vals into the good ones*)
+              (*since we don't know what the spec_fn does we must assume it copies the passed bad vals into the good ones*)
               let assign_lvals globa (fn,st,gd) arg_num =
                 (*in addition to the function also add the bad var's reason for being bad to the newly bad var, required for function ptrs*)
                 let transfer_culprits v (fn,st,gd) =

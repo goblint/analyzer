@@ -14,7 +14,6 @@ struct
     | `Lifted (m,b,e) -> Method.short 1 m ^"ed "^ Eq.short 1 b ^ " " ^ IntDomain.FlatPureIntegers.short w e
     | `Top -> top_name
     | `Bot -> bot_name
-  let toXML = toXML_f short
 
   let join x y = match x,y with
     | `Bot , z | z , `Bot -> z
@@ -48,11 +47,4 @@ struct
   include MapDomain.MapTop_LiftBot (Basetype.Variables) (P)
 
   (*   let find k x = if mem k x then find k x else P.top() *)
-
-  let toXML_f s x =
-    match toXML_f s x with
-    | Xml.Element ("Node",_,[]) ->  Xml.Element ("Leaf",["text","Flag Modes"],[])
-    | Xml.Element ("Node",_,xs) ->  Xml.Element ("Node",["text","Flag Modes";"id","map"],xs)
-    | x -> x
-  let toXML = toXML_f short
 end

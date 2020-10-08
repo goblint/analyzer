@@ -43,9 +43,7 @@ struct
     in
     M.for_all pred_ok x
 
-  let toXML_f sf = M.toXML_f sf
   let pretty_f sf = M.pretty_f sf
-  let toXML s = M.toXML_f short s
   let pretty () x = M.pretty_f short () x
   let replace s field value = M.add field value s
   let get s field = M.find field s
