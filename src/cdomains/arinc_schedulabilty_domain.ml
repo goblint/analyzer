@@ -139,6 +139,8 @@ struct
   type key = TMap.key
   type value = TMap.value
 
+  let printXml f (_,times) = TMap.printXml f times
+
   let find = TMap.find
 
   let name () = "Time Intervals: [0, max_int]"
