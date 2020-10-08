@@ -7,7 +7,7 @@ pthread_mutex_t *p, *q;
 
 void *f(void *x){
   pthread_mutex_lock(q);
-  glob++; // RACE
+  glob++; // RACE!
   pthread_mutex_unlock(q);
   return NULL;
 }
@@ -30,7 +30,7 @@ int main() {
   pthread_create(&t1, 0, f, 0);
 
   pthread_mutex_lock(p);
-  glob++; // RACE
+  glob++; // RACE!
   pthread_mutex_unlock(p);
 
   return 1;
