@@ -1,5 +1,9 @@
 // PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
 extern int __VERIFIER_nondet_int();
+extern void abort(void);
+void assume_abort_if_not(int cond) {
+  if(!cond) {abort();}
+}
 
 #include<pthread.h>
 #include<stdlib.h>
@@ -43,6 +47,7 @@ static inline void list_add(struct list_head *new, struct list_head *head) {
 
 inline static struct list_head *lookup1 (int d) {
   int hvalue1 = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= hvalue1 && hvalue1 < 10);
   struct list_head *p;
   p = c.slot[hvalue1].next;
   return p;
@@ -50,6 +55,7 @@ inline static struct list_head *lookup1 (int d) {
 
 inline static struct list_head *lookup2 (int d) {
   int hvalue2 = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= hvalue2 && hvalue2 < 10);
   struct list_head *p;
   p = c.slot[hvalue2].next;
   return p;
@@ -58,6 +64,7 @@ inline static struct list_head *lookup2 (int d) {
 void *f(void *arg) {
   struct s *pos ;
   int j = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= j);
   struct list_head  const  *p ;
   struct list_head  const  *q ;
 

@@ -1,5 +1,9 @@
 // PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
 extern int __VERIFIER_nondet_int();
+extern void abort(void);
+void assume_abort_if_not(int cond) {
+  if(!cond) {abort();}
+}
 
 #include<pthread.h>
 #include<stdlib.h>
@@ -44,6 +48,7 @@ static inline void list_add(struct list_head *new, struct list_head *head) {
 void *f(void *arg) {
   struct s *pos ;
   int j = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= j);
   struct list_head  const  *p ;
   struct list_head  const  *q ;
 
@@ -67,6 +72,7 @@ void *f(void *arg) {
 void *g(void *arg) {
   struct s *pos ;
   int j = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= j);
   struct list_head  const  *p ;
   struct list_head  const  *q ;
 

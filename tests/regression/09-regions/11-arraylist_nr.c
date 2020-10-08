@@ -1,5 +1,9 @@
 // PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
 extern int __VERIFIER_nondet_int();
+extern void abort(void);
+void assume_abort_if_not(int cond) {
+  if(!cond) {abort();}
+}
 
 #include<pthread.h>
 #include<stdlib.h>
@@ -28,6 +32,7 @@ struct s *slot[10];
 
 void *t_fun(void *arg) {
   int i = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= i && i < 10);
   pthread_mutex_lock(&mutex[i]);
   list_add(new(3), slot[i]);
   pthread_mutex_unlock(&mutex[i]);
@@ -36,6 +41,7 @@ void *t_fun(void *arg) {
 
 int main () {
   int j = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= j && j < 10);
   struct s *p;
   pthread_t t1;
 
