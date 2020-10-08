@@ -38,8 +38,10 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  pthread_t id;
+  pthread_t id, id2;
   pthread_create(&id, NULL, t_fun, NULL);
+  pthread_create(&id2, NULL, t_fun, NULL);
   pthread_join (id, NULL);
+  pthread_join (id2, NULL);
   return 0;
 }
