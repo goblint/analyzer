@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 #include <pthread.h>
 #include <stdio.h>
 
@@ -6,7 +8,7 @@ pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void fun(void) {
-  int i;
+  int i = __VERIFIER_nondet_int();
   pthread_mutex_lock(&mutex2);
   myglobal=myglobal+1; // RACE!
   pthread_mutex_unlock(&mutex2);

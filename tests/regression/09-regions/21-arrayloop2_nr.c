@@ -1,4 +1,6 @@
 // PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
+extern int __VERIFIER_nondet_int();
+
 #include<pthread.h>
 #include<stdlib.h>
 
@@ -41,7 +43,7 @@ static inline void list_add(struct list_head *new, struct list_head *head) {
 
 void *f(void *arg) {
   struct s *pos ;
-  int j;
+  int j = __VERIFIER_nondet_int();
   struct list_head  const  *p ;
   struct list_head  const  *q ;
 

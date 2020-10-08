@@ -1,4 +1,6 @@
 // PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+extern int __VERIFIER_nondet_int();
+
 #include<pthread.h>
 #include<stdio.h>
 
@@ -8,7 +10,7 @@ struct s {
 } a[10];
 
 void *t_fun(void *arg) {
-  int i;
+  int i = __VERIFIER_nondet_int();
   struct s *p = &a[i];
   pthread_mutex_lock(&p->mutex);
   p->datum++; // NORACE
@@ -17,7 +19,7 @@ void *t_fun(void *arg) {
 }
 
 int main () {
-  int i;
+  int i = __VERIFIER_nondet_int();
   pthread_t t1;
   pthread_create(&t1, NULL, t_fun, NULL);
 

@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 #include <pthread.h>
 #include <stdio.h>
 
@@ -14,7 +16,7 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   // invalidate myglobal
-  int k;
+  int k = __VERIFIER_nondet_int();
   myglobal = k;
   // create thread
   pthread_create(&id, NULL, t_fun, NULL);

@@ -1,5 +1,7 @@
 // PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.activated[+] "'region'"
 // Copy of 06/11 with region enabled
+extern int __VERIFIER_nondet_int();
+
 #include<pthread.h>
 #include<stdlib.h>
 
@@ -18,7 +20,7 @@ void *t_fun(void *arg) {
 }
 
 int main () {
-  int x;
+  int x = __VERIFIER_nondet_int();
   pthread_t id;
 
   // struct s *s = malloc(sizeof(struct s));

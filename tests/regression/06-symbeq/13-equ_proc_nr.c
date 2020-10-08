@@ -1,4 +1,6 @@
 // PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+extern int __VERIFIER_nondet_int();
+
 #include<pthread.h>
 #include<stdlib.h>
 
@@ -19,7 +21,7 @@ void update(int *p) {
 }
 
 int main () {
-  int x;
+  int x = __VERIFIER_nondet_int();
   pthread_t id;
 
   struct s *s;

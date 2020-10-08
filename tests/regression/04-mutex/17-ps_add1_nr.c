@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 #include<stdio.h>
 #include<pthread.h>
 #include<assert.h>
@@ -13,7 +15,7 @@ void *t_fun(void *arg) {
 }
 
 int main() {
-  int i;
+  int i = __VERIFIER_nondet_int();
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
 
