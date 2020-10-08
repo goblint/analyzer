@@ -150,7 +150,7 @@ struct
     in
     let rec eval_rval deref rval =
       match rval with
-      | Lval lval -> eval_lval deref lval
+      | Lval lval -> Option.map (fun (deref, v, offs) -> (deref, v, [])) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
       | CastE (typ, exp) -> eval_rval deref exp
       | BinOp (MinusPI, p, i, typ)

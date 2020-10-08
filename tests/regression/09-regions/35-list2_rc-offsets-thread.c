@@ -1,5 +1,5 @@
-// PARAM: --set ana.activated[+] "'region'" --enable exp.region-offsets
-// Copy of 09/03 with region offsets enabled
+// PARAM: --set ana.activated[+] "'region'" --enable exp.region-offsets --set ana.activated[+] "'thread'"
+// Copy of 09/03 with region offsets and thread enabled
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
