@@ -121,73 +121,78 @@ module Times:(sig
   val advance_all_times_by: v -> t -> t
 end) =
 struct
-  include MapDomain.MapBot_LiftTop(GroupableStrings)(TInterval)
+  module TMap = MapDomain.MapBot_LiftTop(GroupableStrings)(TInterval)
+  include Lattice.Prod(struct
+    include IntDomain.Flattened
+    let name () = "NumberOfTasks"
+    end)(TMap)
   type v = TInterval.t
   type tid = int
+  type key = TMap.key
+  type value = TMap.value
+
+  let find = TMap.find
 
   let name () = "Time Intervals: [0, max_int]"
 
   let zeroInterval = TInterval.of_int Int64.zero
-  let numtasks = 2 (* TODO: Fix *)
 
   let update_val (k:key) (f:value -> value) t =
-    let old = find k t in
-    add k (f old) t
+    let old = TMap.find k t in
+    TMap.add k (f old) t
 
-  let update_all (ks:key list) (f:value -> value) t =
-    List.fold_left (fun t k -> update_val k f t) t ks
 
   let start_state n =
-    let t = add "overall" zeroInterval (bot ()) in
-    let t = add_list_set ["since_period_t0"; "since_period_t1"] zeroInterval t in
-    let t = add_list_set ["since_period_before_wait_t0"; "since_period_before_wait_t1"] zeroInterval t in
-    let t = add_list_set ["remaining_wait_t0"; "remaining_wait_t1"] zeroInterval t in
-    let t = add_list_set ["remaining_processing_t0"; "remaining_processing_t1"] zeroInterval t in
-    t
+    let t = TMap.add "overall" zeroInterval (TMap.bot ()) in
+    let t = TMap.add_list_set ["since_period_t0"; "since_period_t1"] zeroInterval t in
+    let t = TMap.add_list_set ["since_period_before_wait_t0"; "since_period_before_wait_t1"] zeroInterval t in
+    let t = TMap.add_list_set ["remaining_wait_t0"; "remaining_wait_t1"] zeroInterval t in
+    let t = TMap.add_list_set ["remaining_processing_t0"; "remaining_processing_t1"] zeroInterval t in
+    IntDomain.Flattened.of_int (Int64.of_int n),t
 
   (* time since period for each task *)
-  let update_since_period tid fn times =
-    update_val ("since_period_t" ^ string_of_int(tid)) fn times
+  let update_since_period tid fn (c,times) =
+    c,update_val ("since_period_t" ^ string_of_int(tid)) fn times
 
-  let set_since_period tid v times =
-    update_since_period tid (fun _ -> v) times
+  let set_since_period tid v (c,times) =
+    update_since_period tid (fun _ -> v) (c,times)
 
-  let get_since_period tid times =
+  let get_since_period tid (c,times) =
     find ("since_period_t" ^ string_of_int(tid)) times
 
   (* time since period for each task before wait *)
-  let update_since_period_before_wait tid fn times =
-    update_val ("since_period_before_wait_t" ^ string_of_int(tid)) fn times
+  let update_since_period_before_wait tid fn (c,times) =
+    c, update_val ("since_period_before_wait_t" ^ string_of_int(tid)) fn times
 
-  let set_since_period_before_wait tid v times =
-    update_since_period_before_wait tid (fun _ -> v) times
+  let set_since_period_before_wait tid v (c,times) =
+    update_since_period_before_wait tid (fun _ -> v) (c,times)
 
-  let get_since_period_before_wait tid times =
+  let get_since_period_before_wait tid (c,times) =
     find ("since_period_before_wait_t" ^ string_of_int(tid)) times
 
   (* remaining wait time for each task *)
-  let update_remaining_wait tid fn times =
-    update_val ("remaining_wait_t" ^ string_of_int(tid)) fn times
+  let update_remaining_wait tid fn (c,times) =
+    c, update_val ("remaining_wait_t" ^ string_of_int(tid)) fn times
 
-  let set_remaining_wait tid v times =
-    update_remaining_wait tid (fun _ -> v) times
+  let set_remaining_wait tid v (c,times) =
+    update_remaining_wait tid (fun _ -> v) (c,times)
 
-  let get_remaining_wait tid times =
+  let get_remaining_wait tid (c,times) =
     find ("remaining_wait_t" ^ string_of_int(tid)) times
 
   (* remaining compute time for each task *)
-  let update_remaining_processing tid fn times =
-    update_val ("remaining_processing_t" ^ string_of_int(tid)) fn times
+  let update_remaining_processing tid fn (c,times) =
+    c, update_val ("remaining_processing_t" ^ string_of_int(tid)) fn times
 
-  let set_remaining_processing tid v times =
-    update_remaining_processing tid (fun _ -> v) times
+  let set_remaining_processing tid v (c,times) =
+    update_remaining_processing tid (fun _ -> v) (c,times)
 
-  let get_remaining_processing tid times =
+  let get_remaining_processing tid (c,times) =
     find ("remaining_processing_t" ^ string_of_int(tid)) times
 
   (* overall times *)
-  let update_overall fn times =
-    update_val "overall" fn times
+  let update_overall fn (c,times) =
+    c, update_val "overall" fn times
 
 
   (** Advance overall and all since_period and remaining_wait by interval  *)
@@ -195,7 +200,7 @@ struct
     (* Subtract interval from x and ensure result is not negative *)
     let decrement x = TInterval.sub_zero_if_neg x interval in
     let increment = TInterval.add interval in
-    let all_tids = List.range 0 `To (numtasks-1) in
+    let all_tids = List.range 0 `To (Int64.to_int (Option.get (IntDomain.Flattened.to_int (fst times))) -1) in
     (* update overall time *)
     let times = update_overall increment times in
     (* update since_period for all tasks *)
@@ -264,8 +269,6 @@ struct
   let resume p = {p with processState = (if p.processState = PState.suspended then PState.ready else PState.wait)}
 
   let wait_event i p =
-    (* A task may only execute a wait if it currently has the highest priority *)
-    (* TODO: We should only suspend and wait for the event if it is down at the moment *)
     {p with processState = PState.wait; waitingFor = WaitingForEvent.of_int (Int64.of_int i)}
 
   let set_event i p =
