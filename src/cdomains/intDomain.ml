@@ -834,10 +834,17 @@ struct
     | `Bot -> None
 
   let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
-    let rf m = BatOption.map (size % Size.min_for % f) (m r) in
-    match rf min_of_range, rf max_of_range with
-      | Some r1, Some r2 -> R.join r1 r2
-      | _ , _ -> top_range
+    (* If the Int64 might overflow on us during computation, we instead go to top_range *)
+    match R.minimal r, R.maximal r with
+    | Some l, _ when l <= -63L ->
+      top_range
+    | Some _, Some u when u >= 63L ->
+      top_range
+    | _ ->
+      let rf m = BatOption.map (size % Size.min_for % f) (m r) in
+      match rf min_of_range, rf max_of_range with
+        | Some r1, Some r2 -> R.join r1 r2
+        | _ , _ -> top_range
 
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
