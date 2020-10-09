@@ -93,7 +93,7 @@ int main(){
     assert(c == &c[0]);
     assert(c == e);
     assert(&c[1] == e+1);
-    // assert(c[1] == *(e+1)); // TODO array content is still `Bot
+    // assert(c[1] == *(e+1)); // TO-DO array content is still `Bot
     // of structs
     struct a f[5];
     assert((int*)f == &(f[0].x)); // index 0, first field
