@@ -44,7 +44,7 @@ void *t1_fun(void *arg) {
 void *t2_fun(void *arg) {
   int i = __VERIFIER_nondet_int() % 256;
   int j = __VERIFIER_nondet_int() % 256;
-  struct s *p = take(&buckets[j]);
+  struct s *p = take(buckets[j]);
   pthread_mutex_lock(&mutexes[i]);
   access_or_assert_racefree(p->datum); // UNKNOWN
   pthread_mutex_unlock(&mutexes[i]);
