@@ -18,9 +18,9 @@ int main(void) {
   g1 = g2 = &g;
 
   create_threads(t);
-
-  assert_racefree(*g2); // UNKNOWN
-
+  pthread_mutex_lock(&mutex);
+  assert_racefree(*g2);
+  pthread_mutex_lock(&mutex);
   join_threads(t);
   return 0;
 }
