@@ -13,7 +13,7 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  int i;
+  int i = __VERIFIER_nondet_int();
   pthread_mutex_t *m = &mutex1;
   if (i) m = &mutex2;
   create_threads(t);

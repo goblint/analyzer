@@ -14,15 +14,15 @@ void *t_fun(void *arg) {
 }
 
 int main() {
-  int i;
+  int i = __VERIFIER_nondet_int();
   create_threads(t);
-  
+
   printf("Do the work? ");
   if (i) pthread_mutex_lock(&mutex1);
 
   printf("Now we do the work..\n");
   if (i) assert_racefree(global);
-  
+
   printf("Work is completed...");
   if (i) pthread_mutex_unlock(&mutex1);
 
