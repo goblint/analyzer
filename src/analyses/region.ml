@@ -61,10 +61,6 @@ struct
 
   let part_access ctx e _ _ = (*todo: remove regions that cannot be reached from the var*)
     let open Access in
-    let e' = match e with
-      | AddrOf lv -> Lval lv
-      | _ -> e
-    in
     let rec pretty_offs () = function
       | `NoOffset     -> dprintf ""
       | `Field (f,os) -> dprintf ".%s%a" f.fname pretty_offs os
@@ -77,8 +73,9 @@ struct
     let add_region ps r =
       LSSSet.add (LSSet.singleton ("region", show r)) ps
     in
-    match get_region ctx e' with
+    match get_region ctx e with
     | None -> (LSSSet.empty (),es)
+    | Some [] -> (LSSSet.singleton es, es) (* Should it happen in the first place that RegMap has empty value? *)
     | Some xs ->
       let ps = List.fold_left add_region (LSSSet.empty ()) xs in
       (* ignore (Pretty.printf "%a in region %a\n" d_exp e LSSSet.pretty ps); *)

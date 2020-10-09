@@ -5,7 +5,7 @@
 int myglobal;
 
 void *t_fun(void *arg) {
-  myglobal=42; //RACE!
+  myglobal=42; // RACE!
   return NULL;
 }
 

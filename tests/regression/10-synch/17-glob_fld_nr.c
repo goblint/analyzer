@@ -1,17 +1,21 @@
 // PARAM: --sets ana.activated[+] thread
+// Copy of 05/08 with thread enabled
 #include <pthread.h>
-#include <stdio.h>
 
-int myglobal;
+struct {
+  int x;
+  int y;
+} data;
 
 void *t_fun(void *arg) {
-  myglobal=40; // NORACE
+  data.x++; // NORACE
   return NULL;
 }
 
-int main(void) {
+int main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  pthread_join (id, NULL);
+  data.y++; // NORACE
   return 0;
 }
+
