@@ -18,10 +18,9 @@ void *t_fun(void *arg) {
 
 
 int main(void) {
-  pthread_t id;
-  pthread_create(&id, NULL, t_fun, NULL);
+  create_threads(t_fun);
   munge(&mutex1);
-  pthread_join (id, NULL);
+  join_threads();
   assert_racefree(global); // UNKNOWN
   return 0;
 }

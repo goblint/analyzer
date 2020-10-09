@@ -22,9 +22,8 @@ void *t_fun(void *arg) {
 }
 
 int main() {
-  pthread_t id;
-  pthread_create(&id, NULL, t_fun, NULL);
+  create_threads(t_fun);
   ftw(".", reset_glob, 10);
-  pthread_join (id, NULL);
+  join_threads();
   return 0;
 }

@@ -18,10 +18,7 @@ void *t_fun(void *arg) {
 
 int main() {
   int i;
-  pthread_t id;
-
-  // Create the thread
-  pthread_create(&id, NULL, t_fun, NULL);
+  create_threads(t_fun);
   
   printf("Do the work? ");
   if (i) pthread_mutex_lock(&mutex2);
@@ -32,7 +29,7 @@ int main() {
   printf("Work is completed...");
   if (i) pthread_mutex_unlock(&mutex2);
 
-  pthread_join (id, NULL);
+  join_threads();
   return 0;
 }
 

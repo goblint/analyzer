@@ -13,11 +13,10 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  pthread_t id;
-  pthread_create(&id, NULL, t_fun, NULL);
+  create_threads(t_fun);
   pthread_mutex_lock(&mutex1);
   assert_racefree(global);
   pthread_mutex_unlock(&mutex1);
-  pthread_join (id, NULL);
+  join_threads();
   return 0;
 }

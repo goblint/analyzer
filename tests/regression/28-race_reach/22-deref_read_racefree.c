@@ -1,23 +1,23 @@
 #include <pthread.h>
+#include "racemacros.h"
 
-int data;
+int data = 0;
 int *p = &data, *q;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex);
-  *p = 8; // NOWARN!
+  access(*p);
   pthread_mutex_unlock(&mutex);
   return NULL;
 }
 
 int main() {
-  pthread_t id;
-  pthread_create(&id, NULL, t_fun, NULL);
-  q = p; // NOWARN!
+  create_threads(t_fun);
+  q = p;
   pthread_mutex_lock(&mutex);
-  *q = 8; // NOWARN!
+  assert_racefree(*q);  // TODO
   pthread_mutex_unlock(&mutex);
   return 0;
 }

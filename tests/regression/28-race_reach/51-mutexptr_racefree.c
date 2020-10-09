@@ -1,30 +1,29 @@
 #include <pthread.h>
-#include <stdio.h>
+#include "racemacros.h"
 
-int myglobal;
+int global;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t * mp = &mutex1;
 
 void *t_fun(void *arg) {
   pthread_mutex_t * mp1;
-  int *p = &myglobal;
+  int *p = &global;
   mp1 = mp;
   pthread_mutex_lock(mp);
-  *p = *p + 1; // NOWARN!
+  access(global);
   pthread_mutex_unlock(mp);
   return NULL;
 }
 
 int main(void) {
   pthread_mutex_t * mp1;
-  pthread_t id;
   mp = &mutex1;
-  pthread_create(&id, NULL, t_fun, NULL);
+  create_threads(t_fun);
   mp1 = mp;
   pthread_mutex_lock(mp);
-  myglobal=myglobal+1; // NOWARN!
+  assert_racefree(global);
   pthread_mutex_unlock(mp);
-  pthread_join (id, NULL);
+  join_threads();
   return 0;
 }

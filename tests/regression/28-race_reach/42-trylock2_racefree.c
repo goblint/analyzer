@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include "racemacros.h"
 
 int g1,g2;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
@@ -6,31 +7,32 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex1);
-  g1++; // NORACE!
+  access(g1);
   pthread_mutex_unlock(&mutex1);
 
   pthread_mutex_lock(&mutex2);
-  g2++; // NORACE!
+  access(g2);
   pthread_mutex_unlock(&mutex2);
   return NULL;
 }
 
 int main(void) {
-  pthread_t id;
-  pthread_create(&id, NULL, t_fun, NULL);
+  create_threads(t_fun);
 
   pthread_mutex_lock(&mutex1);
+  assert_racefree(g1);
+
   while(pthread_mutex_trylock(&mutex2)){
     pthread_mutex_unlock(&mutex1);
     pthread_mutex_lock(&mutex1);
   }
-  
-  g1=g2+1; // NORACE!
-  
+  assert_racefree(g1);
+  assert_racefree(g2);
   pthread_mutex_unlock(&mutex2);
+
+  assert_racefree(g1);
   pthread_mutex_unlock(&mutex1);
 
-  pthread_join (id, NULL);
+  join_threads();
   return 0;
 }
-
