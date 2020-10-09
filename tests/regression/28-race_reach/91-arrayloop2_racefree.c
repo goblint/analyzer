@@ -53,7 +53,7 @@ void *t_fun(void *arg) {
     pos = (struct s *)((char *)p - (size_t)(& ((struct s *)0)->list));
 
     while (& pos->list != & c.slot[j]) {
-      access_or_assert_racefree(pos->datum);
+      access_or_assert_racefree(pos->datum); // TODO
       q = pos->list.next;
       pos = (struct s *)((char *)q - (size_t)(& ((struct s *)0)->list));
     }
