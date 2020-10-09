@@ -1750,7 +1750,7 @@ module IntDomLifter (I : S) =
 struct
   open Cil
   type t = { v : I.t; ikind : ikind }
-  let check_ikinds x y = if x.ikind <> y.ikind then failwith "ikinds are incompatible" else ()
+  let check_ikinds x y = if x.ikind <> y.ikind then failwith ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible") else ()
   let lift op x = {x with v = op x.v }
   (* For logical operations the result is of type int *)
   let lift_logical op x = {v = op x.v; ikind = Cil.IInt}
