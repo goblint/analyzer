@@ -1,9 +1,15 @@
+#define SVCOMP 0
+
 #include <pthread.h>
 #include <assert.h>
 
+#if SVCOMP
 extern void abort(void);
 void reach_error() { assert(0); }
 void __VERIFIER_assert(int cond) { if(!(cond)) { ERROR: {reach_error();abort();} } }
+#else
+#define __VERIFIER_assert assert
+#endif
 extern int __VERIFIER_nondet_int();
 
 pthread_mutex_t __global_lock = PTHREAD_MUTEX_INITIALIZER;
