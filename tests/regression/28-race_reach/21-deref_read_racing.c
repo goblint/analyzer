@@ -14,7 +14,7 @@ void *t_fun(void *arg) {
 }
 
 int main() {
-  create_threads(t_fun);
+  create_threads(t);
   q = p;
   assert_racefree(*q); // UNKNOWN
   return 0;

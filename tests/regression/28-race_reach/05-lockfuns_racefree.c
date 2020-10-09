@@ -20,10 +20,10 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  create_threads(t_fun);
+  create_threads(t);
   lock();
   assert_racefree(global);
   unlock();
-  join_threads();
+  join_threads(t);
   return 0;
 }

@@ -1,16 +1,19 @@
 #include <pthread.h>
 #include <assert.h>
 
+extern int __VERIFIER_nondet_int();
+
 pthread_mutex_t __global_lock = PTHREAD_MUTEX_INITIALIZER;
 
-#define inc(x) { pthread_mutex_lock(&__global_lock); (x)++; pthread_mutex_unlock(&__global_lock); }
-#define dec(x) { pthread_mutex_lock(&__global_lock); (x)--; pthread_mutex_unlock(&__global_lock); }
+#define inc(x) do { pthread_mutex_lock(&__global_lock); (x)++; pthread_mutex_unlock(&__global_lock); } while (0)
+#define dec(x) do { pthread_mutex_lock(&__global_lock); (x)--; pthread_mutex_unlock(&__global_lock); } while (0)
 
-#define access(x) { inc(x); dec(x); }
+#define access(x) do { inc(x); dec(x); } while (0)
 
-#define assert_racefree(x) { pthread_mutex_lock(&__global_lock); assert((x) == 0); pthread_mutex_unlock(&__global_lock); }
+#define assert_racefree(x) do { pthread_mutex_lock(&__global_lock); assert((x) == 0); pthread_mutex_unlock(&__global_lock); } while (0)
 
-#define min_threads 4
-#define N (min_threads + 10)
-#define create_threads(t_fun) pthread_t ids[N]; for (int i=0; i<N; i++) pthread_create(&ids[i], NULL, t_fun, NULL)
-#define join_threads() for (int i=0; i < N; i++) pthread_join (ids[i], NULL)
+#define access_or_assert_racefree(x) do { if (__VERIFIER_nondet_int()) access(x); else assert_racefree(x); } while (0)
+
+#define N 10000
+#define create_threads(t) pthread_t t##_ids[N]; for (int i=0; i<N; i++) pthread_create(&t##_ids[i], NULL, t##_fun, NULL)
+#define join_threads(t) for (int i=0; i < N; i++) pthread_join (t##_ids[i], NULL)

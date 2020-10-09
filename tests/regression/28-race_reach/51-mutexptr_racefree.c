@@ -19,11 +19,11 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_mutex_t * mp1;
   mp = &mutex1;
-  create_threads(t_fun);
+  create_threads(t);
   mp1 = mp;
   pthread_mutex_lock(mp);
   assert_racefree(global);
   pthread_mutex_unlock(mp);
-  join_threads();
+  join_threads(t);
   return 0;
 }

@@ -17,10 +17,10 @@ void *t_fun(void *arg) {
 int main(void) {
   g1 = g2 = &g;
 
-  create_threads(t_fun);
+  create_threads(t);
 
   assert_racefree(*g2); // UNKNOWN
 
-  join_threads();
+  join_threads(t);
   return 0;
 }

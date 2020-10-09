@@ -13,13 +13,13 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  create_threads(t_fun);
+  create_threads(t);
 
   while(pthread_mutex_trylock(&mutex)){
     // wait for it
   }
   assert_racefree(global);
   pthread_mutex_unlock(&mutex);
-  join_threads();
+  join_threads(t);
   return 0;
 }

@@ -9,20 +9,22 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void munge(pthread_mutex_t *m, int *v) {
   pthread_mutex_lock(m);
-  access(*v);
+  access_or_assert_racefree(*v); // UNKNOWN
   pthread_mutex_unlock(m);
 }
 
-void *t_fun(void *arg) {
+void *t1_fun(void *arg) {
   munge(&mutex1, &global1);
   return NULL;
 }
 
-int main(void) {
-  create_threads(t_fun);
+void *t2_fun(void *arg) {
   munge(&mutex2, &global1);
-  join_threads();
-  assert_racefree(global1); // UNKNOWN
-  assert_racefree(global2);
+  return NULL;
+}
+
+int main(void) {
+  create_threads(t1); create_threads(t2);
+  join_threads(t1); join_threads(t2);
   return 0;
 }

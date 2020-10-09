@@ -30,7 +30,7 @@ void *t_fun(void *arg) {
 }
 
 int main() {
-  create_threads(t_fun);
+  create_threads(t);
 
   pthread_mutex_lock(&fm);
   f = bad;
@@ -40,6 +40,6 @@ int main() {
   assert_racefree(global); // UNKNOWN
   pthread_mutex_unlock(&gm);
 
-  join_threads();
+  join_threads(t);
   return 0;
 }

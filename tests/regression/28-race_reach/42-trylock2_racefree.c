@@ -17,7 +17,7 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  create_threads(t_fun);
+  create_threads(t);
 
   pthread_mutex_lock(&mutex1);
   assert_racefree(g1);
@@ -33,6 +33,6 @@ int main(void) {
   assert_racefree(g1);
   pthread_mutex_unlock(&mutex1);
 
-  join_threads();
+  join_threads(t);
   return 0;
 }

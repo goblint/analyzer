@@ -22,8 +22,8 @@ void *t_fun(void *arg) {
 }
 
 int main() {
-  create_threads(t_fun);
+  create_threads(t);
   ftw(".", reset_glob, 10);
-  join_threads();
+  join_threads(t);
   return 0;
 }
