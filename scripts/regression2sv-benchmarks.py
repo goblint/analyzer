@@ -73,6 +73,13 @@ for goblint_f in sorted(goblint_regression.glob("**/*.c")):
     elif re.search(r"//\s*(NORACE|RACE)", content):
         # if didn't contain RACE!, must be race-free
         properties["../properties/no-data-race.prp"] = True
+
+    if re.search(r"assert_racefree[^\n]*//\s*UNKNOWN", content):
+        properties["../properties/unreach-call.prp"] = False
+    elif "assert_racefree" in content:
+        # if didn't contain UNKNOWN assert_racefree, must be race-free
+        properties["../properties/unreach-call.prp"] = True
+
     # TODO: unreach-call property based on asserts
 
     if properties:
