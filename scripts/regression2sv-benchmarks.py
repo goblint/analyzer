@@ -16,14 +16,22 @@ EXCLUDE_TASKS = [
     "04-mutex_29-funstruct_rc",
     "04-mutex_30-funstruct_nr",
     "04-mutex_30-funstruct_nr",
+
     "06-symbeq_16-type_rc", # extern
     "06-symbeq_17-type_nr", # extern
     "06-symbeq_20-mult_accs_nr", # extern
     "06-symbeq_21-mult_accs_rc", # extern
-    "19-spec_02-mutex_rc", # duplicate
     "10-synch_04-two_mainfuns", # no main
-    "05-lval_ls_17-per_elem_simp" # no pthread include, locksmith pragma
-    "05-lval_ls_08-glob-fld_nr" # duplicate of 10/17
+    "05-lval_ls_17-per_elem_simp", # no pthread include, locksmith pragma
+
+    "09-regions_29-malloc_race_cp", # duplicate of 02/25
+    "09-regions_30-list2alloc-offsets", # duplicate of 09/28
+    "09-regions_31-equ_rc", # duplicate of 06/10
+    "09-regions_32-equ_nr", # duplicate of 06/11
+    "09-regions_34-escape_rc", # duplicate of 04/45
+    "09-regions_35-list2_rc-offsets-thread", # duplicate of 09/03
+    "10-synch_17-glob_fld_nr", # duplicate of 05/08
+    "19-spec_02-mutex_rc", # duplicate of 04/01
 ]
 
 target_root = Path(sys.argv[1])
