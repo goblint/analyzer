@@ -777,8 +777,8 @@ struct
     | `Definite x, `Definite y -> if x = y then `Definite x else `Bot
     (* The glb of a definite element and an exclusion set is either bottom or
      * just the element itself, if it isn't in the exclusion set *)
-    | `Excluded (s,r), `Definite x -> if S.mem x s then `Bot else `Definite x
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then `Bot else `Definite x
+    | `Excluded (s,r), `Definite x
+    | `Definite x, `Excluded (s,r) -> if S.mem x s || not (in_range r x) then `Bot else `Definite x
     (* The greatest lower bound of two exclusion sets is their union, this is
      * just DeMorgans Law *)
     | `Excluded (x,r1), `Excluded (y,r2) ->
