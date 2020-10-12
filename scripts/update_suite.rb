@@ -4,7 +4,6 @@ require 'find'
 require 'fileutils'
 require 'timeout'
 require 'pathname'
-require 'set'
 timeout = 5 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
@@ -58,9 +57,9 @@ failed    = [] # failed tests
 timedout  = [] # timed out tests
 
 class Project
-  attr_reader :id, :name, :group, :path, :params, :tests, :tests_line, :todo
+  attr_reader :id, :name, :group, :path, :params, :tests, :tests_line
   attr_accessor :size, :ok
-  def initialize(id, name, size, group, path, params, tests, tests_line, todo, ok)
+  def initialize(id, name, size, group, path, params, tests, tests_line, ok)
     @id       = id
     @name     = name
     @size     = size
@@ -69,7 +68,6 @@ class Project
     @params   = params
     @tests = tests
     @tests_line = tests_line
-    @todo = todo
     @ok = ok
   end
   def to_html
@@ -134,7 +132,6 @@ regs.sort.each do |d|
     if $1 then params = $1 else params = "" end
 
     tests = Hash.new
-    todo = Set.new
     tests_line = Hash.new
     i = 0
     lines.each do |obj|
@@ -143,7 +140,6 @@ regs.sort.each do |d|
         i = $1.to_i - 1
       end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
-      todo << i if obj =~ /TODO|SKIP/
       tests_line[i] = obj
       if obj =~ /RACE/ then
         tests[i] = if obj =~ /NORACE/ then "norace" else "race" end
@@ -171,7 +167,7 @@ regs.sort.each do |d|
       debug = true
     end
     params << " --set dbg.debug true" if debug
-    p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true)
+    p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, true)
     projects << p
   end
 end
@@ -348,19 +344,14 @@ File.open(theresultfile, "w") do |f|
       end
     end
     correct = 0
-    ignored = 0
     ferr = nil
     p.tests.each_pair do |idx, type|
       check = lambda {|cond|
-        if cond then 
-          correct += 1
-          if p.todo.include? idx then puts "Excellent: ignored check on #{p.name.cyan}:#{idx.to_s.blue} is now passing!" end
+        if cond then correct += 1
         else
-          if p.todo.include? idx then ignored += 1 else 
-            puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
-            puts p.tests_line[idx].rstrip.gray
-            ferr = idx if ferr.nil? or idx < ferr
-          end
+          puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
+          puts p.tests_line[idx].rstrip.gray
+          ferr = idx if ferr.nil? or idx < ferr
         end
       }
       case type
@@ -400,7 +391,7 @@ File.open(theresultfile, "w") do |f|
 #       f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
 #     end
 
-    if correct + ignored == p.tests.size && is_ok then
+    if correct == p.tests.size && is_ok then
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
