@@ -62,18 +62,19 @@ let domains: (module Lattice.S) list = [
   (module SetDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end));
 ]
 
-let nonAssocDomains: (module Lattice.S) list = [
-  (module IntDomain.DefExc);
-]
+let nonAssocDomains: (module Lattice.S) list = []
 
 let intDomains: (module IntDomain.S) list = [
   (module IntDomain.Flattened);
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
   (* (module IntDomain.CircInterval); *)
-  (* (module IntDomain.DefExc); *)
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
+]
+
+let nonAssocIntDomains: (module IntDomain.S) list = [
+  (module IntDomain.DefExc)
 ]
 
 let testsuite =
@@ -97,6 +98,12 @@ let intTestsuite =
       DP.tests)
     intDomains
   |> List.flatten
-
+let nonAssocIntTestsuite =
+  List.map (fun d ->
+      let module D = (val d: IntDomain.S) in
+      let module DP = IntDomainProperties.AllNonAssoc (D) in
+      DP.tests)
+    nonAssocIntDomains
+  |> List.flatten
 let () =
-  QCheck_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite)
+  QCheck_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
