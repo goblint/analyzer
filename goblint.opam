@@ -18,7 +18,6 @@ depends: [
   "zarith_stubs_js"
   "goblint-cil"
   "batteries"
-  "xml-light"
   "qcheck"
   # "z3"
   "ppx_distr_guards" {>= "0.2"}

@@ -49,7 +49,6 @@ depends: [
   "result" {= "1.5"}
   "sexplib0" {= "v0.14.0"}
   "stdlib-shims" {= "0.1.0"}
-  "xml-light" {= "2.4"}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.10"}
   "zarith_stubs_js" {= "v0.14.0"}

@@ -19,7 +19,6 @@ else
         apt libgmp-ocaml-dev
         apt software-properties-common # needed for ppa
         apt make m4  # needed for compiling ocamlfind
-        apt patch    # needed for compiling xml-light
         apt autoconf # needed for compiling cil
         apt git      # needed for cloning goblint source
 
