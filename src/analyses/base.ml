@@ -2032,7 +2032,7 @@ struct
     | `Unknown "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)
-        | _ -> M.bailwith "Strange use of '__builtin_expect' detected --- ignoring."
+        | None -> ctx.local (* just calling __builtin_expect(...) without assigning is a nop, since the arguments are CIl exp and therefore have no side-effects *)
       end
     | `Unknown "spinlock_check" ->
       begin match lv with
@@ -2142,7 +2142,7 @@ struct
         List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
       end
 
-  let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: D.t) : D.t =
+  let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (loc,lf,ldep as st: D.t) ((fun_st,fun_fl,fun_dep) as fun_d: D.t) =
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now

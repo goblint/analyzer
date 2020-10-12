@@ -399,13 +399,15 @@ struct
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top_bool
 
-  let invariant c = function
+  let invariant c x =
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    match x with
     | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
-      Invariant.of_string (c ^ " == " ^ Int64.to_string x1)
+      Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x1, intType))
     | Some (x1, x2) ->
       let open Invariant in
-      let i1 = if Int64.compare min_int x1 <> 0 then of_string (Int64.to_string x1 ^ " <= " ^ c) else none in
-      let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <= " ^ Int64.to_string x2) else none in
+      let i1 = if Int64.compare min_int x1 <> 0 then of_exp Cil.(BinOp (Le, kinteger64 IInt x1, c, intType)) else none in
+      let i2 = if Int64.compare x2 max_int <> 0 then of_exp Cil.(BinOp (Le, c, kinteger64 IInt x2, intType)) else none in
       i1 && i2
     | None -> None
 
@@ -940,11 +942,13 @@ struct
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L)
 
-  let invariant c (x:t) = match x with
-    | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
+  let invariant c (x:t) =
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    match x with
+    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType))
     | `Excluded (s, _) ->
       S.fold (fun x a ->
-          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kinteger64 IInt x, intType)) in
           Invariant.(a && i)
         ) s Invariant.none
     | `Bot -> Invariant.none
@@ -1525,15 +1529,17 @@ module Enums : S = struct
   let minimal = function Inc (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
 
-  let invariant c = function
+  let invariant c x =
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    match x with
     | Inc ps ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_string (c ^ " == " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType)) in
           Invariant.(a || i)
         ) Invariant.none ps
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kinteger64 IInt x, intType)) in
           Invariant.(a && i)
         ) Invariant.none ns
 
@@ -1670,10 +1676,16 @@ module IntDomTuple = struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c x =
-    let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
-    in List.fold_left (fun a i ->
-        Invariant.(a && i)
-      ) Invariant.none is
+    match to_int x with
+    | Some v ->
+      (* If definite, output single equality instead of every subdomain repeating same equality *)
+      let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
+      Invariant.of_exp Cil.(BinOp (Eq, c_exp, kinteger64 IInt v, intType))
+    | None ->
+      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
+      in List.fold_left (fun a i ->
+          Invariant.(a && i)
+        ) Invariant.none is
 
   let arbitrary () = QCheck.(set_print (short 10000) @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
 end

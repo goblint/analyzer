@@ -14,6 +14,10 @@ There's a bunch of very simple files to test with in `./tests/sv-comp/` with the
 
   Adds SV-COMP `__VERIFIER_*` functions, outputs verdict to stdout and outputs witness to `witness.graphml` in current (Goblint root) directory.
 
+* `exp.witness_path`
+
+  Override witness output filename.
+
 * `exp.uncilwitness`
 
   Cil transforms `&&` and `||` into `if`s, which causes the witness to contain spurious conditional control edges where the original program didn't. I'm guessing this would mix up things for witness validators.
@@ -25,6 +29,10 @@ There's a bunch of very simple files to test with in `./tests/sv-comp/` with the
   Minimizes the witness graph by skipping nodes and edges without any useful witness data to make witnesses easier to inspect.
 
   I don't guarantee this minimization to be correct (it may be too aggressive in some places?) nor useful (it may be not aggressive enough in other places).
+
+* `ana.wp`
+
+  Enables weakest precondition feasibility analysis for SV-COMP violations.
 
 
 ## Run Ultimate to verify witness
@@ -47,7 +55,7 @@ Command:
 
 1. Open (Ctrl+o) `witness.graphml` from Goblint root directory.
 2. Click menu "Edit" → "Properties Mapper".
-    1. _First time:_  Click button "Imports additional configurations" and open `yed-sv-comp.cnfx` from Goblint root directory.
+    1. _First time:_  Click button "Imports additional configurations" and open `yed-sv-comp.cnfx` from this directory.
     2. Select "SV-COMP (Node)" and click "Apply".
     3. Select "SV-COMP (Edge)" and click "Ok".
 3. Click menu "Layout" → "Hierarchial" (Alt+shift+h).

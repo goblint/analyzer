@@ -739,7 +739,7 @@ struct
       end else [ctx.local, ctx.local]
 
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     (*eval_funvar ctx fexp;*)
     if danger_bot ctx then ctx.local else
       let a, b, c = ctx.local in

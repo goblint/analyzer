@@ -5,6 +5,7 @@ sig
 
   val start: out_channel -> t
   val write_key: t -> string -> string -> string -> string option -> unit
+  val start_graph: t -> unit
   val write_metadata: t -> string -> string -> unit
   val write_node: t -> node -> (string * string) list -> unit
   val write_edge: t -> node -> node -> (string * string) list -> unit
@@ -15,51 +16,51 @@ module type StringGraphMlWriter = GraphMlWriter with type node = string
 
 module XmlGraphMlWriter: StringGraphMlWriter =
 struct
-  type t =
-    {
-      out: out_channel;
-      mutable children: Xml.xml list;
-      mutable keys: Xml.xml list
-    }
+  type t = unit BatIO.output
   type node = string
 
-  let start out = { out; children = []; keys = [] }
+  open Goblintutil
 
-  let write_key g fr key typ default_value =
-    let xml = Xml.Element ("key", [("id", key); ("for", fr); ("attr.name", key); ("attr.type", typ)], match default_value with
-      | Some value -> [Xml.Element ("default", [], [Xml.PCData value])]
-      | None -> []
-      )
-    in
-    g.keys <- xml :: g.keys
+  let start out =
+    let f = BatIO.output_channel out in
+    BatPrintf.fprintf f "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    BatPrintf.fprintf f "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">\n";
+    f
 
-  let write_child g xml = g.children <- xml :: g.children
+  let write_key f fr key typ default_value =
+    match default_value with
+    | Some value ->
+      BatPrintf.fprintf f "  <key id=\"%s\" for=\"%s\" attr.name=\"%s\" attr.type=\"%s\">\n    <default>%s</default>\n  </key>\n" (escape key) (escape fr) (escape key) (escape typ) (escape value)
+    | None ->
+      BatPrintf.fprintf f "  <key id=\"%s\" for=\"%s\" attr.name=\"%s\" attr.type=\"%s\"/>\n" (escape key) (escape fr) (escape key) (escape typ)
 
-  let xml_data key value = Xml.Element ("data", [("key", key)], [Xml.PCData value])
-  let xml_datas = List.map (fun (key, value) -> xml_data key value)
-  let write_metadata g key value = write_child g (xml_data key value)
+  let start_graph f =
+    BatPrintf.fprintf f "  <graph edgedefault=\"directed\">\n"
 
-  let xml_node id datas =
-    Xml.Element ("node", [("id", id)], xml_datas datas)
-  let write_node g id datas = write_child g (xml_node id datas)
+  let write_metadata f key value =
+    BatPrintf.fprintf f "    <data key=\"%s\">%s</data>\n" (escape key) (escape value)
 
-  let xml_edge source target datas =
-    Xml.Element ("edge", [("source", source); ("target", target)], xml_datas datas)
-  let write_edge g source target datas = write_child g (xml_edge source target datas)
+  let write_data f (key, value) =
+    BatPrintf.fprintf f "      <data key=\"%s\">%s</data>\n" (escape key) (escape value)
+  let write_datas = BatList.print ~first:"" ~sep:"" ~last:"" write_data
 
-  let stop g =
-    let xml =
-      Xml.Element ("graphml", [
-          ("xmlns", "http://graphml.graphdrawing.org/xmlns");
-          ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-          ("xsi:schemaLocation", "http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd")
-        ], List.rev g.keys @ [
-          Xml.Element ("graph", [("edgedefault", "directed")], List.rev g.children)
-        ])
-    in
-    output_string g.out "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    output_string g.out (Xml.to_string_fmt xml);
-    flush g.out
+  let write_node f id datas =
+    match datas with
+    | [] ->
+      BatPrintf.fprintf f "    <node id=\"%s\"/>\n" (escape id)
+    | _ ->
+      BatPrintf.fprintf f "    <node id=\"%s\">\n%a    </node>\n" (escape id) write_datas datas
+
+  let write_edge f source target datas =
+    match datas with
+    | [] ->
+      BatPrintf.fprintf f "    <edge source=\"%s\" target=\"%s\"/>\n" (escape source) (escape target)
+    | _ ->
+      BatPrintf.fprintf f "    <edge source=\"%s\" target=\"%s\">\n%a    </edge>\n" (escape source) (escape target) write_datas datas
+
+  let stop f =
+    BatPrintf.fprintf f "  </graph>\n</graphml>\n";
+    BatIO.close_out f
 end
 
 module ArgNodeGraphMlWriter (N: MyARG.Node) (M: StringGraphMlWriter):
@@ -72,6 +73,7 @@ struct
 
   let start = M.start
   let write_key = M.write_key
+  let start_graph = M.start_graph
   let write_metadata = M.write_metadata
   let write_node g node datas = M.write_node g (string_of_node node) datas
   let write_edge g source target datas = M.write_edge g (string_of_node source) (string_of_node target) datas
@@ -92,6 +94,7 @@ struct
 
   let start out = { delegate = M.start out; added_nodes = H.create 100 }
   let write_key {delegate; _} = M.write_key delegate
+  let start_graph {delegate; _} = M.start_graph delegate
   let write_metadata {delegate; _} = M.write_metadata delegate
   let write_node {delegate; added_nodes} node datas =
     if not (H.mem added_nodes node) then begin

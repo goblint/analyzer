@@ -23,7 +23,6 @@ struct
     include PartitionDomain.ExpPartitions
 
     let invariant c ss =
-      let string_of_exp e = Exp.short 100 e in
       fold (fun s a ->
           if B.mem MyCFG.unknown_exp s then
             a
@@ -32,10 +31,8 @@ struct
             let s_prod = B_prod.cartesian_product s s in
             let i = B_prod.Product.fold (fun (x, y) a ->
                 if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) then (* each equality only one way, no self-equalities *)
-                  let xname = string_of_exp x in
-                  let yname = string_of_exp y in
-                  let eq = xname ^ " == " ^ yname in
-                  Invariant.(a && of_string eq)
+                  let eq = BinOp (Eq, x, y, intType) in
+                  Invariant.(a && of_exp eq)
                 else
                   a
               ) s_prod Invariant.none
@@ -466,7 +463,7 @@ struct
     | true -> raise Analyses.Deadcode
     | false -> [ctx.local,nst]
 
-  let combine ctx lval fexp f args st2 =
+  let combine ctx lval fexp f args fc st2 =
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
     | false ->

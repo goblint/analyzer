@@ -45,7 +45,7 @@ opam init -a
 eval `opam config env`
 
 header "Install goblint's dependencies using opam"
-opam install ocamlfind camomile batteries cil xml-light || return 1
+opam install ocamlfind camomile batteries cil || return 1
 
 header "Get source and compile"
 git clone https://github.com/goblint/analyzer.git && cd analyzer
