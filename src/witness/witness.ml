@@ -88,6 +88,8 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_key g "edge" "enterFunction2" "string" None;
   GML.write_key g "edge" "returnFromFunction2" "string" None;
 
+  GML.start_graph g;
+
   GML.write_metadata g "witness-type" (if Result.to_bool TaskResult.result then "correctness_witness" else "violation_witness");
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
