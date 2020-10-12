@@ -130,14 +130,6 @@ struct
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
 
-  let toXML_f sf x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.toXML (obj x) :: a) [] x in
-    let esc = Goblintutil.escape in
-    let node_leaf = if xs = [] then "Leaf" else "Node" in
-    Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], xs)
-
-  let toXML = toXML_f short
-
   let pretty_diff () (x,y) = text "Please override me!"
 
   let printXml f xs =

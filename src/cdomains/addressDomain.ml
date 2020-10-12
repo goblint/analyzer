@@ -95,14 +95,6 @@ struct
       Printable.get_short_list "{" "}" usable_length all_elems
     with SetDomain.Unsupported _ -> short w x
 
-  let toXML_f sf x =
-    try
-      let esc = Goblintutil.escape in
-      let elems = List.map Addr.toXML (elements x) in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-    with SetDomain.Unsupported _ -> toXML_f sf x
-
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   (*

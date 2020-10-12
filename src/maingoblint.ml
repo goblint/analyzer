@@ -298,7 +298,6 @@ let do_analyze change_info merged_AST =
                                              L.pretty stf L.pretty exf L.pretty otf);
     Goblintutil.has_otherfuns := otf <> [];
     (* and here we run the analysis! *)
-    if get_string "result" = "html" then Report.prepare_html_report ();
 
     let do_all_phases ast funs =
       let do_one_phase ast p =
@@ -418,6 +417,12 @@ let diff_and_rename file =
       | None -> failwith "Failure! Working directory is not clean")
   in change_info
 
+let do_stats () =
+  if get_bool "printstats" then
+    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
+    print_newline ();
+    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
+    flush_all ()
 
 (** the main function *)
 let main =
@@ -439,7 +444,7 @@ let main =
         let file = preprocess_files () |> merge_preprocessed in
         let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
         file|> do_analyze changeInfo;
-        Report.do_stats !cFileNames;
+        do_stats ();
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
         if !Messages.worldStopped then exit 124 (* timeout! *)

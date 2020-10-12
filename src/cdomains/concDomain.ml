@@ -98,7 +98,6 @@ module SimpleThreadDomain = struct
   let short w (x,y) =
     let tid = Lifted.short w y in
     if x > 1 then tid else tid ^ "!" (* ! means unique *)
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let same_tid x y =
     match x,y with
@@ -108,19 +107,7 @@ end
 
 module ThreadSet = SetDomain.ToppedSet (Thread) (struct let topname = "All Threads" end)
 
-module CreatedThreadSet =
-struct
-  include ThreadSet
-
-  let toXML_f sf x =
-    match toXML x with
-    | Xml.Element (node, [text, _], elems) ->
-      let summary = "Created Threads: " ^ sf Goblintutil.summary_length x in
-      Xml.Element (node, [text, summary], elems)
-    | x -> x
-
-  let toXML s  = toXML_f short s
-end
+module CreatedThreadSet = ThreadSet
 
 module ThreadCreation =
 struct
@@ -133,16 +120,4 @@ struct
 end
 
 
-module ThreadStringSet =
-struct
-  include SetDomain.ToppedSet (Printable.Strings) (struct let topname = "All Threads" end)
-
-  let toXML_f sf x =
-    match toXML x with
-    | Xml.Element (node, [text, _], elems) ->
-      let summary = "Thread: " ^ sf Goblintutil.summary_length x in
-      Xml.Element (node, [text, summary], elems)
-    | x -> x
-
-  let toXML s  = toXML_f short s
-end
+module ThreadStringSet = SetDomain.ToppedSet (Printable.Strings) (struct let topname = "All Threads" end)

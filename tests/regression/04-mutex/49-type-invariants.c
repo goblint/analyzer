@@ -19,7 +19,7 @@ extern struct S* getS();
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  getS()->field = 10; // RACE!!11
+  getS()->field = 10; // RACE!
   return 0;
 }
- 
+

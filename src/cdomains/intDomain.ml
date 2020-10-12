@@ -159,8 +159,6 @@ module Std (B: sig
   (* all output is based on B.short *)
   let pretty_f sh () x = text (sh Goblintutil.summary_length x)
   let pretty = pretty_f short
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)], [])
-  let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
@@ -781,8 +779,8 @@ struct
     | `Definite x, `Definite y -> if x = y then `Definite x else `Bot
     (* The glb of a definite element and an exclusion set is either bottom or
      * just the element itself, if it isn't in the exclusion set *)
-    | `Excluded (s,r), `Definite x -> if S.mem x s then `Bot else `Definite x
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then `Bot else `Definite x
+    | `Excluded (s,r), `Definite x
+    | `Definite x, `Excluded (s,r) -> if S.mem x s || not (in_range r x) then `Bot else `Definite x
     (* The greatest lower bound of two exclusion sets is their union, this is
      * just DeMorgans Law *)
     | `Excluded (x,r1), `Excluded (y,r2) ->
@@ -838,10 +836,17 @@ struct
     | `Bot -> None
 
   let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
-    let rf m = BatOption.map (size % Size.min_for % f) (m r) in
-    match rf min_of_range, rf max_of_range with
-      | Some r1, Some r2 -> R.join r1 r2
-      | _ , _ -> top_range
+    (* If the Int64 might overflow on us during computation, we instead go to top_range *)
+    match R.minimal r, R.maximal r with
+    | Some l, _ when l <= -63L ->
+      top_range
+    | Some _, Some u when u >= 63L ->
+      top_range
+    | _ ->
+      let rf m = BatOption.map (size % Size.min_for % f) (m r) in
+      match rf min_of_range, rf max_of_range with
+        | Some r1, Some r2 -> R.join r1 r2
+        | _ , _ -> top_range
 
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
@@ -1211,9 +1216,6 @@ struct
   let short _ x = I.to_string x
   let pretty_f sh () x = text (sh 10 x)
   let pretty = pretty_f short
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf
-                                              Goblintutil.summary_length x)],[])
-  let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
@@ -1669,10 +1671,6 @@ module IntDomTuple = struct
 
   (* printing boilerplate *)
   let isSimple _ = true
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", [("text", esc (sf Goblintutil.summary_length x))], [])
-  let toXML = toXML_f short
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)

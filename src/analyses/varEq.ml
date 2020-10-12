@@ -21,12 +21,6 @@ struct
   module D =
   struct
     include PartitionDomain.ExpPartitions
-    let toXML_f sf x =
-      match toXML x with
-      | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Variable Equalities"], elems)
-      | x -> x
-
-    let toXML s  = toXML_f short s
 
     let invariant c ss =
       fold (fun s a ->

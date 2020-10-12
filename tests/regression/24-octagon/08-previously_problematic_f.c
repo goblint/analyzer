@@ -10,7 +10,7 @@ int main(int argc, char const *argv[])
     int nblock;
 
     while (i < nblock)
-    { // TODO: Here
+    { // TO-DO: Here
         if (a[0] == ll_i) // this needs to be var == var for the problem to occur
         {
             zPend++;

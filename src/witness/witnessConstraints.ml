@@ -19,12 +19,7 @@ struct
     | Statement stmt  -> string_of_int stmt.sid
     | Function f      -> "return of " ^ f.vname ^ "()"
     | FunctionEntry f -> f.vname ^ "()"
-  let toXML x =
-    let text = short 100 x in
-    Xml.Element ("value", [], [Xml.Element ("data", [], [Xml.PCData text])])
-  let toXML_f _ = toXML
-  let printXml f x =
-    BatPrintf.fprintf f "%s" (Xml.to_string (toXML x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 100 x))
   let name () = "var"
   let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"

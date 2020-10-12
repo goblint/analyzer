@@ -30,11 +30,7 @@ struct
   let compare (x:t) (y:t) = compare x y
   let isSimple _ = true
   let short _ x = x
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", ["text", esc (sf 80 x)], [])
   let pretty_f sf () x = text (sf 80 x)
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "strings"
   let pretty_diff () (x,y) =
@@ -51,7 +47,6 @@ struct
     Pretty.text (sf Goblintutil.summary_length (x,y))
   let short _ (x,y) = x^":"^y
   let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
 end
 module LSSet = SetDomain.Make (LabeledString)
 module LSSSet = SetDomain.Make (LSSet)

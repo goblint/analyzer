@@ -1,6 +1,5 @@
 (** Specification and functors for maps. *)
 
-open GobConfig
 open Pretty
 module ME = Messages
 module GU = Goblintutil
@@ -124,50 +123,6 @@ struct
   let short _ x = "mapping"
   let isSimple _ = false
 
-  let toXML_f _ mapping =
-    let esc = Goblintutil.escape in
-    let f (key,st) =
-      match Domain.toXML key with
-      | Xml.Element ("Loc",attr,[]) ->
-        Xml.Element ("Loc", attr, [Range.toXML st])
-      | Xml.Element ("Leaf",attr,[]) ->
-        let w = Goblintutil.summary_length - 4 in
-        let key_str = Domain.short w key in
-        let summary =
-          let st_str = Range.short (w - String.length key_str) st in
-          esc key_str ^ " -> " ^ esc st_str
-        in
-
-        let attr = [("text", summary);("id",esc key_str)] in begin
-          match Range.toXML st with
-          | Xml.Element (_, chattr, children) ->
-            if List.length children=0 || Range.isSimple st
-            then Xml.Element ("Leaf", attr, [])
-            else Xml.Element ("Node", attr, children)
-          | x -> x
-        end
-      | kd -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [kd; Range.toXML st])
-    in
-    let module IMap = Map.Make (struct type t = int let compare = Stdlib.compare end) in
-    let groups =
-      let add_grpd k v m =
-        let group = Domain.classify k in
-        IMap.add group ((k,v) :: try IMap.find group m with Not_found -> []) m
-      in
-      M.fold add_grpd mapping IMap.empty
-    in
-    let children =
-      let h g (kvs:(Domain.t * Range.t) list) xs =
-        match g with
-        | -1 when not (get_bool "dbg.showtemps") ->  xs
-        | 0 -> List.map f kvs @ xs
-        | _ -> (Xml.Element ("Node", [("text", Domain.class_name g);("id",Domain.class_name g)], List.map f kvs))::xs
-      in
-      IMap.fold h groups []
-    in
-    let node_attrs = [("text", esc (short Goblintutil.summary_length mapping));("id","map")] in
-    Xml.Element ("Node", node_attrs, children)
-
   let pretty_f short () mapping =
     let groups =
       let group_fold key itm gps =
@@ -193,8 +148,6 @@ struct
       | a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name a) (pretty_group (snd map)) in
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
-
-  let toXML s  = toXML_f short s
 
   let pretty () x = pretty_f short () x
 

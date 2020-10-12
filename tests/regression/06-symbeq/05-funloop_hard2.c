@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 #include<stdio.h>
 
@@ -9,7 +9,7 @@ struct cache_entry {
 
 void cache_entry_addref(struct cache_entry *entry) {
   pthread_mutex_lock(&entry->refs_mutex);
-  entry->refs++; // NOWARN!
+  entry->refs++; // NORACE
   pthread_mutex_unlock(&entry->refs_mutex);
 }
 
@@ -26,7 +26,7 @@ int main () {
   for(i=0; i<10; i++) cache_entry_addref(&cache[i]);
 
   pthread_mutex_lock(&cache[5].refs_mutex);
-  cache[5].refs++; // NOWARN!
+  cache[5].refs++; // NORACE
   pthread_mutex_lock(&cache[5].refs_mutex);
   return 0;
 }

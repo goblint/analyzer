@@ -181,60 +181,16 @@ struct
 end
 
 
-open Xml
 
 module type ResultConf =
 sig
   val result_name: string
 end
 
-module type RS =
-sig
-  include Printable.S
-  include ResultConf
-  type key = Basetype.ProgLinesFun.t
-  type value
-  val create: int -> t
-  val clear: t -> unit
-  val copy: t -> t
-  val add: t -> key -> value -> unit
-  val remove: t -> key -> unit
-  val find: t -> key -> value
-  val find_all: t -> key -> value list
-  val replace : t -> key -> value -> unit
-  val mem : t -> key -> bool
-  val iter: (key -> value -> unit) -> t -> unit
-  val fold: (key -> value -> 'b -> 'b) -> t -> 'b -> 'b
-  val length: t -> int
-
-  val resultXML: t -> Xml.xml
-  val output: t -> unit
-end
-
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
   include Hash.Printable (Basetype.ProgLinesFun) (Range)
   include C
-
-  let toXML x =
-    let full_result = toXML x in
-    let fatten_maps  (o:xml list) (x:xml) :xml list =
-      match x with
-      | Xml.Element (_,_,child) -> child @ o
-      | z -> z::o in
-
-    let group_loc_ch x =
-      match x with
-      | Xml.Element ("Loc",b,c) -> Xml.Element ("Loc",b,List.fold_left fatten_maps [] c)
-      | z -> z in
-
-    match full_result with
-    | Xml.Element (_,_,child) ->
-      Xml.Element (result_name, [("name", "Who cares?")],
-                   List.map group_loc_ch child)
-    | _ -> failwith "Empty analysis?"
-
-  let resultXML x = toXML x
 
   let printXml f xs =
     let print_id f = function
@@ -282,21 +238,13 @@ struct
     in
     List.iter (one_w f) !Messages.warning_table
 
-  let output table gtable gtxml gtfxml (file: file) =
+  let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
-    | "indented" ->
-        Xmldump.print_fmt out (resultXML (Lazy.force table));
-        output_char out '\n'
-    | "compact" ->
-        if (get_bool "dbg.verbose") then Printf.printf "Converting to xml.%!";
-        let xml = resultXML (Lazy.force table) in
-        if (get_bool "dbg.verbose") then Printf.printf "Printing the result.%!";
-        Xmldump.print out xml;
-        output_char out '\n'
-    | "html" ->
-      Htmldump.print_html out (resultXML (Lazy.force table)) file (lazy ((gtxml gtable) :: []))
+    | "indented" -> failwith " `indented` is no longer supported for `result`, use fast_xml instead "
+    | "compact" -> failwith " `compact` is no longer supported for `result`, use fast_xml instead "
+    | "html" -> failwith " `html` is no longer supported for `result`, run with --html instead "
     | "fast_xml" ->
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
@@ -594,18 +542,6 @@ struct
   include Printable.Prod3 (C) (D) (Basetype.CilFundec)
   let isSimple _ = false
   let short w (es,x,f:t) = call_descr f es
-  let toXML (es,x,_ as st:t) =
-    let open Xml in
-    let flatten_single = function
-      | Element (_,_,[x]) | x ->  x in
-    let try_replace_text s = function
-      | Element (tag, attr, children) -> Element (tag, ["text", s], children)
-      | x -> x
-    in
-    let esc = Goblintutil.escape in
-    let ctx = try_replace_text "Context" (flatten_single (C.toXML es)) in
-    let res = try_replace_text "Value" (flatten_single (D.toXML x)) in
-    Element ("Node",["text",esc (short 80 st)],[ctx;res])
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
