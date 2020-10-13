@@ -102,7 +102,9 @@ struct
     (* seems to be necessary for correct ARG but why? *)
     (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr *)
     (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.exists (fun vie' -> VIE.leq vie vie') yr) s) xr *)
-    | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
+    | `Lifted s ->
+      (* S.exists (SpecD.leq x) s && (* needed for special add *) *)
+      R.for_all (fun vie -> M.M.exists (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
   let leq a b =
     match a with
     | `Top -> b = `Top
@@ -144,6 +146,9 @@ struct
   let meet = product_bot SpecD.meet R.inter
   let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow
   let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
+
+  (* special add should probably be used to keep reduced, requires change in special mem to work for startvars *)
+  (* let add x r a = if mem x r a then a else add x r a (* special mem! *) *)
 
   (* TODO: shouldn't this also reduce? *)
   let apply_list f = function
