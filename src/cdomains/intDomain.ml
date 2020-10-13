@@ -328,8 +328,8 @@ struct
         (* x:     3803957176L -> T in Interval32 *)
         (* y:     4209861404L -> T in Interval32 *)
         (* x % y: 3803957176L -> T in Interval32 *)
-        (* T in Interval32 is [-2147483647,2147483647] *)
-        (* the code below computes [-2147483647,2147483647] in this though which is unsound *)
+        (* T in Interval32 is [-2147483648,2147483647] *)
+        (* the code below computes [-2147483647,2147483647] for this though which is unsound *)
         top ()
       else
         (* If we have definite values, Int64.rem will give a definite result.
