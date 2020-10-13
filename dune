@@ -6,3 +6,4 @@
   (action (copy src/goblint.exe goblint))
   (mode (promote (until-clean))) ; replace existing file in source tree
 )
+(vendored_dirs syntactical_analyzer)
