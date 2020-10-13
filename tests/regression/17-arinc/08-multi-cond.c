@@ -1,6 +1,6 @@
 
 int main(){
-	// TODO: this is a problem of how the results are displayed
+	// TO-DO: this is a problem of how the results are displayed
 	int x;
 	if(x > 1 && x < 10){
 		x = 1; // [2,9] ok

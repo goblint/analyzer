@@ -1,0 +1,18 @@
+# git config blame.ignoreRevsFile .git-blame-ignore-revs
+# requires git 2.23
+# (https://www.moxio.com/blog/43/ignoring-bulk-change-commits-with-git-blame)
+
+# reformat with ocp-indent (see #22)
+43619872f82f84caef93ff6dca5e9f240c5fcd86
+
+# delete trailing spaces
+a4f1a898ee379aba83035e345a60fbcdbc11df9c
+
+# remove trailing whitespace (see #22)
+1f9882fe141995e8b942e44042478b6dcc49bbda
+
+# run deleteTrailingSpaces.sh
+dd220cf089efd7dfb022e6dbc9a00749a5f72cb2
+
+# fix indentation with ocp-indent
+8d6897f0f2fdd86c19da1aa2c6ed1f21b27f7a6e

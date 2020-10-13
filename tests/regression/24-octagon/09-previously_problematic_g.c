@@ -9,7 +9,7 @@ int main(int argc, char const *argv[])
     int inUse16[16];
 
     while (i < 16)
-    { // TODO: here
+    { // TO-DO: here
         inUse16[i] = 0;
         j = 0;
         i++;

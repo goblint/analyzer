@@ -397,7 +397,8 @@ let invalidate_actions = ref [
     "pthread_create", onlyWrites [1];
     "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
-    "zil_replay", writes [1;2;3;5]
+    "zil_replay", writes [1;2;3;5];
+    "__VERIFIER_nondet_int", readsAll (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
   ]
 let add_invalidate_actions xs = invalidate_actions := xs @ !invalidate_actions
 

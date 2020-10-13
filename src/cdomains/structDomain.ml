@@ -43,9 +43,7 @@ struct
     in
     M.for_all pred_ok x
 
-  let toXML_f sf = M.toXML_f sf
   let pretty_f sf = M.pretty_f sf
-  let toXML s = M.toXML_f short s
   let pretty () x = M.pretty_f short () x
   let replace s field value = M.add field value s
   let get s field = M.find field s
@@ -74,4 +72,24 @@ struct
   let widen_with_fct = M.widen_with_fct
   let leq_with_fct = M.leq_with_fct
   let join_with_fct = M.join_with_fct
+
+  let invariant c x =
+    match c.Invariant.offset with
+    (* invariants for all fields *)
+    | NoOffset ->
+      let c_lval = Option.get c.Invariant.lval in
+      fold (fun f v acc ->
+          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
+          let f_c = {c with lval=Some f_lval} in
+          let i = Val.invariant f_c v in
+          Invariant.(acc && i)
+        ) x Invariant.none
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      let f_c = {c with offset} in
+      let v = get x f in
+      Val.invariant f_c v
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      Invariant.none
 end

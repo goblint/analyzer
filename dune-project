@@ -23,7 +23,8 @@
     dune
     zarith_stubs_js ; only needed for js_of_ocaml
     batteries
-    xml-light
+    qcheck
+    ; z3
     (ppx_distr_guards (>= 0.2))
     ppx_import
     ppx_deriving

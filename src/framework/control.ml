@@ -17,10 +17,11 @@ let get_spec () : (module SpecHC) =
             (module MCP.MCP2 : Spec)
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
-            |> lift (get_bool "ana.opt.hashcons") (module HashconsContextLifter)
-            (* hashcons contexts before witness to reduce duplicates, because witness re-uses contexts in domain *)
-            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.WitnessLifter)
-            |> lift true (module PathSensitive2)
+            (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
+            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp") (module HashconsContextLifter)
+            |> lift (get_bool "ana.sv-comp") (module HashconsLifter)
+            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.PathSensitive3)
+            |> lift (not (get_bool "ana.sv-comp")) (module PathSensitive2)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -58,6 +59,9 @@ struct
     let module LT = SetDomain.HeadlessSet (RT) in
     (* Analysis result structure---a hashtable from program points to [LT] *)
     let module Result = Analyses.Result (LT) (struct let result_name = "analysis" end) in
+
+    (* SV-COMP and witness generation *)
+    let module WResult = Witness.Result (Cfg) (Spec) (EQSys) (LHT) (GHT) in
 
     (* print out information about dead code *)
     let print_dead_code (xs:Result.t) =
@@ -160,21 +164,6 @@ struct
     in
 
     (* exctract global xml from result *)
-    let make_global_xml g =
-      let one_glob k v =
-        let k = Xml.PCData k.vname in
-        let varname = Xml.Element ("td",[],[k]) in
-        let varvalue = Xml.Element ("td",[],[Spec.G.toXML v]) in
-        Xml.Element ("tr",[],[varname; varvalue])
-      in
-      let head =
-        Xml.Element ("tr",[],[Xml.Element ("th",[],[Xml.PCData "var"])
-                             ;Xml.Element ("th",[],[Xml.PCData "value"])])
-      in
-      let collect_globals k v b = one_glob k v :: b in
-      Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
-    in
-    (* exctract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
@@ -206,8 +195,9 @@ struct
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> failwith "Global initializers have no context.")
-        ; context = (fun () -> failwith "Global initializers have no context.")
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
+        ; context = (fun () -> ctx_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun _ -> Spec.G.bot ())
@@ -260,10 +250,28 @@ struct
     in
 
     (* real beginning of the [analyze] function *)
+    if get_bool "ana.sv-comp" then
+      WResult.init file; (* TODO: move this out of analyze_loop *)
+
     GU.global_initialization := true;
     GU.earlyglobs := false;
     Spec.init ();
     Access.init file;
+
+    let test_domain (module D: Lattice.S): unit =
+      let module DP = DomainProperties.All (D) in
+      ignore (Pretty.printf "domain testing...: %s\n" (D.name ()));
+      let errcode = QCheck_runner.run_tests DP.tests in
+      if (errcode <> 0) then
+        failwith "domain tests failed"
+    in
+    let _ =
+      if (get_bool "dbg.test.domain") then (
+        ignore (Pretty.printf "domain testing analysis...: %s\n" (Spec.name ()));
+        test_domain (module Spec.D);
+        test_domain (module Spec.G);
+      )
+    in
 
     let startstate, more_funs =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
@@ -277,8 +285,9 @@ struct
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> failwith "enter_func has no context.")
-        ; context = (fun () -> failwith "enter_func has no context.")
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun _ -> Spec.G.bot ())
@@ -440,8 +449,9 @@ struct
           let rec ctx =
             { ask    = query
             ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
-            ; control_context = Obj.repr (fun () -> failwith "No context in query context.")
-            ; context = (fun () -> failwith "No context in query context.")
+            ; prev_node = MyCFG.dummy_node
+            ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+            ; context = (fun () -> ctx_failwith "No context in query context.")
             ; edge    = MyCFG.Skip
             ; local  = Hashtbl.find joined loc
             ; global = GHT.find gh
@@ -469,16 +479,14 @@ struct
     let local_xml = solver2source_result lh in
 
     let liveness =
-      if get_bool "dbg.print_dead_code" || get_bool "ana.sv-comp" then
+      if get_bool "dbg.print_dead_code" then
         print_dead_code local_xml
       else
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
-    if get_bool "ana.sv-comp" then (
-      let module WResult = Witness.Result (Cfg) (Spec) (EQSys) (LHT) (GHT) in
-      WResult.write Result.fold file lh gh local_xml liveness entrystates
-    );
+    if get_bool "ana.sv-comp" then
+      WResult.write lh gh entrystates;
 
     if get_bool "exp.cfgdot" then
       MyCFG.dead_code_cfg file (module Cfg : CfgBidir) liveness;
@@ -486,11 +494,17 @@ struct
     Spec.finalize ();
 
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
-    Result.output (lazy local_xml) gh make_global_xml make_global_fast_xml file
+    Result.output (lazy local_xml) gh make_global_fast_xml file
 
 
   let analyze file fs change_info =
     analyze file fs (get_spec ()) change_info
+
+  let rec analyze_loop file fs change_info =
+    try
+      analyze file fs change_info
+    with Witness.RestartAnalysis ->
+      analyze_loop file fs change_info
 end
 
 (** The main function to perform the selected analyses. *)
@@ -504,4 +518,4 @@ let analyze change_info (file: file) fs =
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
   let module CFG = struct let prev = cfgB let next = cfgF end in
   let module A = AnalyzeCFG (CFG) in
-  A.analyze file fs change_info
+  A.analyze_loop file fs change_info

@@ -1477,7 +1477,19 @@ struct
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
     let set' lval v = Tuple3.first (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
     let rec inv_exp c = function
-      | UnOp (op, e, _) -> inv_exp (unop_ID op c) e
+      | UnOp (LNot, e, _) ->
+        let c' =
+          match ID.to_bool (unop_ID LNot c) with
+          | Some true ->
+            (* i.e. e should evaluate to [1,1] *)
+            (* LNot x is 0 for any x != 0 *)
+            let ikind = Cilfacade.get_ikind @@ typeOf e in
+            ID.of_excl_list ikind [0L]
+          | Some false -> ID.of_bool false
+          | _ -> ID.top ()
+        in
+        inv_exp c' e
+      | UnOp ((BNot|Neg) as op, e, _) -> inv_exp (unop_ID op c) e
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
         inv_exp c (BinOp (op, c1, c2, t))
       | BinOp (op, e1, e2, _) as e ->
@@ -2020,7 +2032,7 @@ struct
     | `Unknown "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)
-        | _ -> M.bailwith "Strange use of '__builtin_expect' detected --- ignoring."
+        | None -> ctx.local (* just calling __builtin_expect(...) without assigning is a nop, since the arguments are CIl exp and therefore have no side-effects *)
       end
     | `Unknown "spinlock_check" ->
       begin match lv with
@@ -2130,7 +2142,7 @@ struct
         List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
       end
 
-  let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: D.t) : D.t =
+  let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (loc,lf,ldep as st: D.t) ((fun_st,fun_fl,fun_dep) as fun_d: D.t) =
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now

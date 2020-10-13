@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -20,7 +20,7 @@ void init (struct s *p, int x) {
 void update (int *p) {
   struct s *s = list_entry(p, struct s, list);
   pthread_mutex_lock(&s->mutex);
-  s->datum++; //NORACE
+  s->datum++; // NORACE
   pthread_mutex_lock(&s->mutex);
 }
 

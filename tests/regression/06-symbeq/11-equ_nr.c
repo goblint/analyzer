@@ -1,4 +1,6 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+extern int __VERIFIER_nondet_int();
+
 #include<pthread.h>
 #include<stdlib.h>
 
@@ -11,13 +13,13 @@ struct s {
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A.mutex);
-  A.datum = 5; //NORACE
+  A.datum = 5; // NORACE
   pthread_mutex_lock(&A.mutex);
   return NULL;
 }
 
 int main () {
-  int x;
+  int x = __VERIFIER_nondet_int();
   pthread_t id;
 
   // struct s *s = malloc(sizeof(struct s));
@@ -42,7 +44,7 @@ int main () {
   pthread_create(&id,NULL,t_fun,NULL);
 
   pthread_mutex_lock(m);
-  *d = 8; //NORACE
+  *d = 8; // NORACE
   pthread_mutex_unlock(m);
 
   return 0;

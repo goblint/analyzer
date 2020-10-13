@@ -4,12 +4,12 @@
 int global;
 pthread_mutex_t gm = PTHREAD_MUTEX_INITIALIZER;
 
-void bad() { 
-  global++;
-} 
-void good() { 
+void bad() {
+  global++; // NORACE
+}
+void good() {
   pthread_mutex_lock(&gm);
-  global++; // NORACE!
+  global++; // NORACE
   pthread_mutex_unlock(&gm);
 }
 
@@ -20,7 +20,7 @@ void *t_fun(void *arg) {
   void (*g)();
 
   pthread_mutex_lock(&fm);
-  g = f;
+  g = f; // NORACE
   pthread_mutex_unlock(&fm);
 
   g();
@@ -32,11 +32,11 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&fm);
-  f = good;
+  f = good; // NORACE
   pthread_mutex_unlock(&fm);
 
   pthread_mutex_lock(&gm);
-  printf("global: %d\n", global); // NORACE!
+  printf("global: %d\n", global); // NORACE
   pthread_mutex_unlock(&gm);
 
   return 0;

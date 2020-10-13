@@ -102,6 +102,25 @@ module Size = struct (* size in bits as int, range as int64 *)
     in
     M.tracel "cast_int" "Cast %Li to range [%s, %s] (%s) = %s (%s in int64)\n" x (string_of_big_int a) (string_of_big_int b) (string_of_big_int c) (string_of_big_int y) (if is_int64_big_int y then "fits" else "does not fit");
     try int64_of_big_int y with _ -> raise Not_in_int64
+
+  let min_range_sign_agnostic x =
+    let size ik =
+      let a,b = bits_i64 ik in
+      Int64.neg a,b
+    in
+    if sign x = `Signed then
+      size (min_for x)
+    else
+      let a, b = size (min_for x) in
+      if b <= 64L then
+        let upper_bound_less = Int64.sub b 1L in
+        let max_one_less = Int64.(pred @@ shift_left 1L (to_int upper_bound_less)) in
+        if x < max_one_less then
+          a, upper_bound_less
+        else
+          a,b
+      else
+        a, b
 end
 
 exception Unknown
@@ -140,8 +159,6 @@ module Std (B: sig
   (* all output is based on B.short *)
   let pretty_f sh () x = text (sh Goblintutil.summary_length x)
   let pretty = pretty_f short
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)], [])
-  let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
@@ -303,16 +320,26 @@ struct
   let sub i1 i2 = add i1 (neg i2)
 
   let rem x y = match x, y with
-    | None, _ | _, None -> None
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (xl, xu), Some (yl, yu) ->
-      (* If we have definite values, Int64.rem will give a definite result.
-      * Otherwise we meet with a [range] the result can be in.
-      * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
-      * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
-      let pos x = if x < 0L then Int64.neg x else x in
-      let b = Int64.sub (max (pos yl) (pos yu)) 1L in
-      let range = if xl >= 0L then Some (0L, min xu b) else Some (max xl (Int64.neg b), min xu b) in
-      meet (bit Int64.rem x y) range
+      if is_top x && is_top y then
+        (* This is needed to preserve soundness also on things bigger than int32 e.g.  *)
+        (* x:     3803957176L -> T in Interval32 *)
+        (* y:     4209861404L -> T in Interval32 *)
+        (* x % y: 3803957176L -> T in Interval32 *)
+        (* T in Interval32 is [-2147483648,2147483647] *)
+        (* the code below computes [-2147483647,2147483647] for this though which is unsound *)
+        top ()
+      else
+        (* If we have definite values, Int64.rem will give a definite result.
+        * Otherwise we meet with a [range] the result can be in.
+        * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
+        * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
+        let pos x = if x < 0L then Int64.neg x else x in
+        let b = Int64.sub (max (pos yl) (pos yu)) 1L in
+        let range = if xl >= 0L then Some (0L, min xu b) else Some (max xl (Int64.neg b), min xu b) in
+        meet (bit Int64.rem x y) range
 
   let mul x y =
     match x, y with
@@ -382,15 +409,26 @@ struct
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top_bool
 
-  let invariant c = function
+  let invariant c x =
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    match x with
     | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
-      Invariant.of_string (c ^ " == " ^ Int64.to_string x1)
+      Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x1, intType))
     | Some (x1, x2) ->
       let open Invariant in
-      let i1 = if Int64.compare min_int x1 <> 0 then of_string (Int64.to_string x1 ^ " <= " ^ c) else none in
-      let i2 = if Int64.compare x2 max_int <> 0 then of_string (c ^ " <= " ^ Int64.to_string x2) else none in
+      let i1 = if Int64.compare min_int x1 <> 0 then of_exp Cil.(BinOp (Le, kinteger64 IInt x1, c, intType)) else none in
+      let i2 = if Int64.compare x2 max_int <> 0 then of_exp Cil.(BinOp (Le, c, kinteger64 IInt x2, intType)) else none in
       i1 && i2
     | None -> None
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let pair_arb = QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 in
+    let shrink = function
+      | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval)
+      | None -> empty
+    in
+    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) of_interval pair_arb)
 end
 
 
@@ -447,6 +485,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x = Size.cast t x
+  let arbitrary () = MyCheck.Arbitrary.int64
 end
 
 module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
@@ -670,6 +709,35 @@ struct
     | `Definite x -> `Definite (Integers.cast_to ik x)
     | `Bot -> `Bot
 
+  let max_of_range r =
+    match R.maximal r with
+    | Some i when i < 64L -> Some(Int64.(pred @@ shift_left 1L (to_int i))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
+    | _ -> None
+
+  let min_of_range r =
+    match R.minimal r with
+    | Some i when i > -64L -> Some(Int64.(if i = 0L then 0L else neg @@ shift_left 1L (to_int (neg i)))) (* things that are smaller than (-2^63) can not be represented as int64 *)
+    | _ -> None
+
+  let maximal : t -> int64 option = function
+    | `Definite x -> Integers.to_int x
+    | `Excluded (s,r) -> max_of_range r
+    | `Bot -> None
+
+  let minimal = function
+    | `Definite x -> Integers.to_int x
+    | `Excluded (s,r) -> min_of_range r
+    | `Bot -> None
+
+  let in_range r i =
+    match min_of_range r with
+    | None when i < 0L -> true
+    | Some l when i < 0L -> l <= i
+    | _ ->
+      match max_of_range r with
+      | None -> true
+      | Some u -> i <= u
+
   let leq x y = match (x,y) with
     (* `Bot <= x is always true *)
     | `Bot, _ -> true
@@ -678,7 +746,7 @@ struct
     (* Two known values are leq whenever equal *)
     | `Definite x, `Definite y -> x = y
     (* A definite value is leq all exclusion sets that don't contain it *)
-    | `Definite x, `Excluded (s,r) -> not (S.mem x s)
+    | `Definite x, `Excluded (s,r) -> in_range r x && not (S.mem x s)
     (* No finite exclusion set can be leq than a definite value *)
     | `Excluded _, `Definite _ -> false
     (* Excluding X <= Excluding Y whenever Y <= X *)
@@ -695,15 +763,18 @@ struct
       if x = y then `Definite x
       (* Unless one of them is zero, we can exclude it: *)
       else
-        let a,b = Size.(min_for x, min_for y) in
-        let r = R.join (size a) (size b) in
+        let a,b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+        let r = R.join (R.of_interval a) (R.of_interval b) in
         `Excluded ((if x = 0L || y = 0L then S.empty () else S.singleton 0L), r)
     (* A known value and an exclusion set... the definite value should no
      * longer be excluded: *)
     | `Excluded (s,r), `Definite x
     | `Definite x, `Excluded (s,r) ->
-      let a = size (Size.min_for x) in
-      `Excluded (S.remove x s, R.join a r)
+      if not (in_range r x) then
+        let a = R.of_interval (Size.min_range_sign_agnostic x) in
+        `Excluded (S.remove x s, R.join a r)
+      else
+        `Excluded (S.remove x s, r)
     (* For two exclusion sets, only their intersection can be excluded: *)
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, R.join wx wy)
 
@@ -718,16 +789,17 @@ struct
     | `Definite x, `Definite y -> if x = y then `Definite x else `Bot
     (* The glb of a definite element and an exclusion set is either bottom or
      * just the element itself, if it isn't in the exclusion set *)
-    | `Excluded (s,r), `Definite x -> if S.mem x s then `Bot else `Definite x
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then `Bot else `Definite x
+    | `Excluded (s,r), `Definite x
+    | `Definite x, `Excluded (s,r) -> if S.mem x s || not (in_range r x) then `Bot else `Definite x
     (* The greatest lower bound of two exclusion sets is their union, this is
      * just DeMorgans Law *)
     | `Excluded (x,r1), `Excluded (y,r2) ->
       let r' = R.meet r1 r2 in
-      let in_range i = R.leq (R.of_int i) r' in
-      let s' = S.union x y |> S.filter in_range in
+      let s' = S.union x y |> S.filter (in_range r') in
       `Excluded (s', r')
-  let narrow = meet
+
+  let narrow x y = x
+
   let of_int  x = `Definite (Integers.of_int x)
   let to_int  x = match x with
     | `Definite x -> Integers.to_int x
@@ -760,26 +832,6 @@ struct
   let starting ?ikind x = if x > 0L then not_zero ~ikind else top_opt ~ikind
   let ending ?ikind x = if x < 0L then not_zero ~ikind else top_opt ~ikind
 
-  let max_of_range r =
-    match R.maximal r with
-    | Some i when i < 64L -> Some(Int64.(pred @@ shift_left 1L (to_int i))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
-    | _ -> None
-
-  let min_of_range r =
-    match R.minimal r with
-    | Some i when i > -64L -> Some(Int64.(if i = 0L then 0L else neg @@ shift_left 1L (to_int (neg i)))) (* things that are smaller than (-2^63) can not be represented as int64 *)
-    | _ -> None
-
-  let maximal : t -> int64 option = function
-    | `Definite x -> Integers.to_int x
-    | `Excluded (s,r) -> max_of_range r
-    | `Bot -> None
-
-  let minimal = function
-    | `Definite x -> Integers.to_int x
-    | `Excluded (s,r) -> min_of_range r
-    | `Bot -> None
-
   (* calculates the minimal extension of range r to cover the exclusion set s *)
   (* let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r *)
 
@@ -794,10 +846,17 @@ struct
     | `Bot -> None
 
   let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
-    let rf m = BatOption.map (size % Size.min_for % f) (m r) in
-    match rf min_of_range, rf max_of_range with
-      | Some r1, Some r2 -> R.join r1 r2
-      | _ , _ -> top_range
+    (* If the Int64 might overflow on us during computation, we instead go to top_range *)
+    match R.minimal r, R.maximal r with
+    | Some l, _ when l <= -63L ->
+      top_range
+    | Some _, Some u when u >= 63L ->
+      top_range
+    | _ ->
+      let rf m = BatOption.map (size % Size.min_for % f) (m r) in
+      match rf min_of_range, rf max_of_range with
+        | Some r1, Some r2 -> R.join r1 r2
+        | _ , _ -> top_range
 
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
@@ -893,14 +952,31 @@ struct
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L)
 
-  let invariant c (x:t) = match x with
-    | `Definite x -> Invariant.of_string (c ^ " == " ^ Int64.to_string x)
+  let invariant c (x:t) =
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    match x with
+    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType))
     | `Excluded (s, _) ->
       S.fold (fun x a ->
-          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kinteger64 IInt x, intType)) in
           Invariant.(a && i)
         ) s Invariant.none
     | `Bot -> Invariant.none
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let excluded s = `Excluded (s, size Cil.ILongLong) in (* S TODO: non-fixed range *)
+    let definite x = `Definite x in
+    let shrink = function
+      | `Excluded (s, _) -> MyCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
+      | `Definite x -> (return `Bot) <+> (MyCheck.shrink (Integers.arbitrary ()) x >|= definite)
+      | `Bot -> empty
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [
+      20, QCheck.map excluded (S.arbitrary ());
+      10, QCheck.map definite (Integers.arbitrary ());
+      1, QCheck.always `Bot
+    ] (* S TODO: decide frequencies *)
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -1150,9 +1226,6 @@ struct
   let short _ x = I.to_string x
   let pretty_f sh () x = text (sh 10 x)
   let pretty = pretty_f short
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf
-                                              Goblintutil.summary_length x)],[])
-  let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
@@ -1226,6 +1299,23 @@ struct
 
   let narrow = wrap_debug2 "narrow" narrow'
 
+  (* S TODO: shrinker for bigint circular intervals *)
+  (* let arbitrary () = QCheck.set_print (short 10000) @@ QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 *)
+  let arbitrary () =
+    let open QCheck.Iter in
+    let pair_arb = QCheck.pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int in
+    (* let int (a, b) = Int (max_width, a, b) in *) (* shrinker gets stuck, probably doesn't satisfy some invariant *)
+    let int (a, b) = I.of_t max_width a b in
+    let shrink = function
+      | Int (w, a, b) -> (return (Bot w)) <+> (MyCheck.shrink pair_arb (a, b) >|= int)
+      | Bot w -> empty
+      | Top w -> MyCheck.Iter.of_arbitrary ~n:20 pair_arb >|= int
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [
+      20, QCheck.map int pair_arb;
+      1, QCheck.always (Bot max_width);
+      1, QCheck.always (Top max_width)
+    ] (* S TODO: decide frequencies *)
 end
 
 (* BOOLEAN DOMAINS *)
@@ -1283,6 +1373,7 @@ struct
   let lognot = (not)
   let logand = (&&)
   let logor  = (||)
+  let arbitrary () = QCheck.bool
 end
 
 module Booleans = MakeBooleans (
@@ -1448,17 +1539,33 @@ module Enums : S = struct
   let minimal = function Inc (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
 
-  let invariant c = function
+  let invariant c x =
+    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    match x with
     | Inc ps ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_string (c ^ " == " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType)) in
           Invariant.(a || i)
         ) Invariant.none ps
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_string (c ^ " != " ^ Int64.to_string x) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kinteger64 IInt x, intType)) in
           Invariant.(a && i)
         ) Invariant.none ns
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let i_list_arb = QCheck.small_list (Integers.arbitrary ()) in
+    let neg is = Exc (is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
+    let pos is = Inc is in
+    let shrink = function
+      | Exc (is, _) -> MyCheck.shrink i_list_arb is >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Inc is -> MyCheck.shrink i_list_arb is >|= pos
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [
+      20, QCheck.map neg i_list_arb;
+      10, QCheck.map pos i_list_arb;
+    ] (* S TODO: decide frequencies *)
 end
 
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
@@ -1537,7 +1644,7 @@ module IntDomTuple = struct
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
   (* others *)
-  let short _ = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.short 30 }
+  let short w = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.name () ^ ":" ^ (I.short (w / 4) x) }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   (* f2: binary ops *)
@@ -1574,17 +1681,21 @@ module IntDomTuple = struct
 
   (* printing boilerplate *)
   let isSimple _ = true
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", [("text", esc (sf Goblintutil.summary_length x))], [])
-  let toXML = toXML_f short
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let invariant c x =
-    let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
-    in List.fold_left (fun a i ->
-        Invariant.(a && i)
-      ) Invariant.none is
+    match to_int x with
+    | Some v ->
+      (* If definite, output single equality instead of every subdomain repeating same equality *)
+      let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
+      Invariant.of_exp Cil.(BinOp (Eq, c_exp, kinteger64 IInt v, intType))
+    | None ->
+      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
+      in List.fold_left (fun a i ->
+          Invariant.(a && i)
+        ) Invariant.none is
+
+  let arbitrary () = QCheck.(set_print (short 10000) @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
 end

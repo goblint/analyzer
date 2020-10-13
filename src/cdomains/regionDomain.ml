@@ -13,7 +13,6 @@ struct
     let v_str = V.short w v in let w = w - String.length v_str in
     let fd_str = F.short w fd in
     v_str ^ fd_str
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let printXml f (v,fi) =
@@ -148,9 +147,14 @@ struct
       | Index (_, offs) -> do_offs deref def offs
       | NoOffset -> def
     in
+    (* The intuition for the offset computations is that we keep the static _suffix_ of an
+     * access path. These can be used to partition accesses when fields do not overlap.
+     * This means that for pointer dereferences and when obtaining the value from an lval
+     * (but not under AddrOf), we drop the offsets because we land somewhere
+     * unknown in the region. *)
     let rec eval_rval deref rval =
       match rval with
-      | Lval lval -> eval_lval deref lval
+      | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, [])) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
       | CastE (typ, exp) -> eval_rval deref exp
       | BinOp (MinusPI, p, i, typ)
@@ -193,14 +197,21 @@ struct
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
-      | Some (deref_x, x,_), Some (deref_y,y,_) ->
+      (* TODO: should offs_x matter? *)
+      | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
         if VF.equal x y then st else
           let (p,m) = st in begin
+            let append_offs_y = RS.map (function
+                | `Left (v, offs) -> `Left (v, offs @ offs_y)
+                | `Right () -> `Right ()
+              )
+            in
             match is_global x, deref_x, is_global y with
             | false, false, true  ->
-              p, RegMap.add x (RegPart.closure p (RS.single_vf y)) m
+              p, RegMap.add x (append_offs_y (RegPart.closure p (RS.single_vf y))) m
             | false, false, false ->
-              p, RegMap.add x (RegMap.find y m) m
+              p, RegMap.add x (append_offs_y (RegMap.find y m)) m
+            (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
               add_set (RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
             | false, true , false ->
@@ -252,6 +263,4 @@ module RegionDom =
 struct
   include Lattice.Prod (Lif) (Vars)
   let short n (x,_:t) = Lif.short n x
-  let toXML_f sf (x,_:t) = Lif.toXML_f (fun x -> sf max_int (x,Vars.empty ())) x
-  let toXML x = toXML_f short x
 end

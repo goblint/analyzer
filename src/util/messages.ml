@@ -1,6 +1,5 @@
 open Cil
 open Pretty
-open Htmldump
 open GobConfig
 module GU = Goblintutil
 
@@ -51,7 +50,6 @@ let colorize ?on:(on=get_bool "colors") msg =
 let print_msg msg loc =
   let msgc = colorize msg in
   let msg  = colorize ~on:false msg in
-  if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
   if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
@@ -61,7 +59,6 @@ let print_msg msg loc =
     Printf.fprintf !warn_out "%s\n%!" (colorize s)
 
 let print_err msg loc =
-  if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
   if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
@@ -71,7 +68,6 @@ let print_err msg loc =
 
 let print_group group_name errors =
   (* Add warnings to global warning list *)
-  if (get_string "result") = "html" then List.iter (fun (msg,loc) -> htmlGlobalWarningList := (loc.file,loc.line,(group_name^" : "^msg))::!htmlGlobalWarningList ) errors;
   if (get_string "result") = "fast_xml" then warning_table := (`group (group_name,errors))::!warning_table;
   let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
   if (get_bool "ana.osek.warnfiles") then begin
