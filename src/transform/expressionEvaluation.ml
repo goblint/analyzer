@@ -143,51 +143,55 @@ module ExpEval : Transform.S =
     let location_byte_compare (location_1 : Cil.location) (location_2 : Cil.location) = compare location_1.byte location_2.byte
 
     let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
-      (* Create an evaluator *)
-      let evaluator = new evaluator file ask in
-      (* Syntactic query *)
+      (* Parse query file *)
       let query_file_name = GobConfig.get_string transformation_query_file_name_identifier in
-      let query =
-        match Yojson.Safe.from_file query_file_name |> query_of_yojson with
-        | Ok parsed_query -> parsed_query
-        | Error message ->
-            prerr_endline ("Parsing error: " ^ message);
-            raise Exit
-      in
-      let query_syntactic : SyntacticalAnalyzer.JsonParser.query =
-        {
-          sel = [];
-          k = query.kind;
-          tar = query.target;
-          f = query.find;
-          str = query.structure;
-          lim = query.limitation;
-        }
-      in
-      let locations =
-        SyntacticalAnalyzer.QueryMapping.map_query query_syntactic file
-          (* Use only locations *)
-          |> List.map (fun (_, l, _, _) -> l)
-          (* Group by source files *)
-          |> List.group location_file_compare
-          (* Sort and remove duplicates *)
-          |> List.map (fun ls -> List.sort_uniq location_byte_compare ls)
-          (* Ungroup *)
-          |> List.flatten
-      in
-      (* Semantic queries *)
-      let evaluate location =
-        match evaluator#evaluate location query.expression with
-        | Some value ->
-            if value then
-              print_endline (location |> string_of_location)
-            else if is_debug () then
-              print_endline ((location |> string_of_location) ^ " x")
-        | None ->
-            if query.mode = `May || is_debug () then
-              print_endline ((location |> string_of_location) ^ " ?")
-      in
-      List.iter evaluate locations
+      match ~? (fun () -> Yojson.Safe.from_file query_file_name) with
+      | None ->
+          prerr_endline ("Invalid JSON query file: \"" ^ query_file_name ^ "\"")
+      | Some query_yojson ->
+          match query_yojson |> query_of_yojson with
+          | Error message ->
+              prerr_endline ("Unable to parse JSON query file: \"" ^ query_file_name ^ "\" (" ^ message ^ ")")
+          | Ok query ->
+              if is_debug () then
+                print_endline ("Successfully parsed JSON query file: \"" ^ query_file_name ^ "\"");
+              (* Create an evaluator *)
+              let evaluator = new evaluator file ask in
+              (* Syntactic query *)
+              let query_syntactic : SyntacticalAnalyzer.JsonParser.query =
+                {
+                  sel = [];
+                  k = query.kind;
+                  tar = query.target;
+                  f = query.find;
+                  str = query.structure;
+                  lim = query.limitation;
+                }
+              in
+              let locations =
+                SyntacticalAnalyzer.QueryMapping.map_query query_syntactic file
+                  (* Use only locations *)
+                  |> List.map (fun (_, l, _, _) -> l)
+                  (* Group by source files *)
+                  |> List.group location_file_compare
+                  (* Sort and remove duplicates *)
+                  |> List.map (fun ls -> List.sort_uniq location_byte_compare ls)
+                  (* Ungroup *)
+                  |> List.flatten
+              in
+              (* Semantic queries *)
+              let evaluate location =
+                match evaluator#evaluate location query.expression with
+                | Some value ->
+                    if value then
+                      print_endline (location |> string_of_location)
+                    else if is_debug () then
+                      print_endline ((location |> string_of_location) ^ " x")
+                | None ->
+                    if query.mode = `May || is_debug () then
+                      print_endline ((location |> string_of_location) ^ " ?")
+              in
+              List.iter evaluate locations
 
   end
 
