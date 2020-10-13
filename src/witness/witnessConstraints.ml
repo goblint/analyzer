@@ -87,8 +87,10 @@ struct
   module S =
   struct
     let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
+    let filter (p: key -> bool) (s: M.t): M.t = M.M.filter (fun x _ -> p x) s
     let elements (s: M.t): (key * R.t) list = M.M.bindings s
     let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.M.add x (R.join r (M.find x acc)) acc) M.M.empty l
+    let union = M.long_map2 R.union
   end
 
 
@@ -106,6 +108,25 @@ struct
     | `Top -> b = `Top
     | _ -> for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
 
+  let le x y = SpecD.leq x y && not (SpecD.equal x y) && not (SpecD.leq y x)
+  let reduce = function
+    | `Top -> `Top
+    | `Lifted s -> `Lifted (S.filter (fun x -> not (S.exists (le x) s) && not (SpecD.is_bot x)) s)
+  let product_bot op op2 a b = match a,b with
+    | `Top, a | a, `Top -> a
+    | `Lifted a, `Lifted b ->
+      let a,b = S.elements a, S.elements b in
+      List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x))
+  (* why are type annotations needed for product_widen? *)
+  let product_widen op op2 (a:t) (b:t): t = match a,b with (* assumes b to be bigger than a *)
+    | `Top, _ | _, `Top -> `Top
+    | `Lifted a, `Lifted b ->
+      let xs,ys = S.elements a, S.elements b in
+      List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (`Lifted (S.union b (S.of_list x)))
+  let join a b = join a b |> reduce
+  let meet = product_bot SpecD.meet R.inter
+  let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow
+  let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
   let apply_list f = function
     | `Top -> `Top
     | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)
@@ -200,11 +221,10 @@ struct
 
     let binop op a b = op a b |> join_reduce
 
-    (* TODO: fix these operators by implementing corresponding HoareMap ones *)
     let join = binop join
     let meet = binop meet
-    let widen = join
-    let narrow a b = a
+    let widen = binop widen
+    let narrow = binop narrow
 
     let invariant c s =
       match s with
