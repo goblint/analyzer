@@ -320,16 +320,26 @@ struct
   let sub i1 i2 = add i1 (neg i2)
 
   let rem x y = match x, y with
-    | None, _ | _, None -> None
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (xl, xu), Some (yl, yu) ->
-      (* If we have definite values, Int64.rem will give a definite result.
-      * Otherwise we meet with a [range] the result can be in.
-      * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
-      * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
-      let pos x = if x < 0L then Int64.neg x else x in
-      let b = Int64.sub (max (pos yl) (pos yu)) 1L in
-      let range = if xl >= 0L then Some (0L, min xu b) else Some (max xl (Int64.neg b), min xu b) in
-      meet (bit Int64.rem x y) range
+      if is_top x && is_top y then
+        (* This is needed to preserve soundness also on things bigger than int32 e.g.  *)
+        (* x:     3803957176L -> T in Interval32 *)
+        (* y:     4209861404L -> T in Interval32 *)
+        (* x % y: 3803957176L -> T in Interval32 *)
+        (* T in Interval32 is [-2147483647,2147483647] *)
+        (* the code below computes [-2147483647,2147483647] in this though which is unsound *)
+        top ()
+      else
+        (* If we have definite values, Int64.rem will give a definite result.
+        * Otherwise we meet with a [range] the result can be in.
+        * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
+        * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
+        let pos x = if x < 0L then Int64.neg x else x in
+        let b = Int64.sub (max (pos yl) (pos yu)) 1L in
+        let range = if xl >= 0L then Some (0L, min xu b) else Some (max xl (Int64.neg b), min xu b) in
+        meet (bit Int64.rem x y) range
 
   let mul x y =
     match x, y with
