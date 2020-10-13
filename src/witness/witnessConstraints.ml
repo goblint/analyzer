@@ -109,9 +109,26 @@ struct
     | _ -> for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
 
   let le x y = SpecD.leq x y && not (SpecD.equal x y) && not (SpecD.leq y x)
-  let reduce = function
+  (* let reduce = function
     | `Top -> `Top
-    | `Lifted s -> `Lifted (S.filter (fun x -> not (S.exists (le x) s) && not (SpecD.is_bot x)) s)
+    | `Lifted s -> `Lifted (S.filter (fun x -> not (S.exists (le x) s) && not (SpecD.is_bot x)) s) *)
+  let reduce: t -> t = function
+    | `Top -> `Top
+    | `Lifted s ->
+      (* get map with just maximal keys and their ranges *)
+      let maximals = S.filter (fun x -> not (S.exists (le x) s) && not (SpecD.is_bot x)) s in
+      (* join le ranges also *)
+      let maximals =
+        M.mapi (fun x xr ->
+            M.fold (fun y yr acc ->
+                if le y x then
+                  R.join acc yr
+                else
+                  acc
+              ) s xr
+          ) maximals
+      in
+      `Lifted maximals
   let product_bot op op2 a b = match a,b with
     | `Top, a | a, `Top -> a
     | `Lifted a, `Lifted b ->
@@ -127,6 +144,8 @@ struct
   let meet = product_bot SpecD.meet R.inter
   let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow
   let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
+
+  (* TODO: shouldn't this also reduce? *)
   let apply_list f = function
     | `Top -> `Top
     | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)
