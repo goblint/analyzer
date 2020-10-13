@@ -50,7 +50,6 @@ let domains: (module Lattice.S) list = [
   (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
 
   (* TODO: move to intDomains if passing *)
-  (module IntDomain.Interval32);
   (module IntDomain.Booleans);
 
   (* TODO: fix *)
@@ -66,7 +65,7 @@ let nonAssocDomains: (module Lattice.S) list = []
 
 let intDomains: (module IntDomain.S) list = [
   (module IntDomain.Flattened);
-  (* (module IntDomain.Interval32); *)
+  (module IntDomain.Interval32);
   (* (module IntDomain.Booleans); *)
   (* (module IntDomain.CircInterval); *)
   (* (module IntDomain.Enums); *)
