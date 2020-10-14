@@ -1,0 +1,28 @@
+{
+  "ana": {
+    "sv-comp": true,
+    "int": {
+      "def_exc": false,
+      "enums": true,
+      "interval": true
+    },
+    "activated": [
+      "base",
+      "mutex",
+      "escape",
+      "expRelation",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread"
+    ]
+  },
+  "exp": {
+    "widen-context": true,
+    "partition-arrays": {
+      "enabled": true
+    },
+    "region-offsets": true
+  },
+  "solver": "td3"
+}
