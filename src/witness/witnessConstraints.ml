@@ -150,36 +150,52 @@ struct
   (* special add should probably be used to keep reduced, requires change in special mem to work for startvars *)
   (* let add x r a = if mem x r a then a else add x r a (* special mem! *) *)
 
+  let elements = function
+    | `Top -> failwith "HoareMap.elements: top"
+    | `Lifted s -> S.elements s |> List.map fst
+
   (* TODO: shouldn't this also reduce? *)
   let apply_list f = function
     | `Top -> `Top
     | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)
 end
 
-module N = struct let topname = "Top" end
+module type PathSensitiveJoin =
+sig
+  type t
+  val should_join: t -> t -> bool
+end
 
-(** Add path sensitivity to a analysis *)
-module PathSensitive3 (Spec:Spec)
-  : Spec
-    (* with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
-     and module G = Spec.G
-     and module C = Spec.C *)
-=
+module type PathSensitiveD =
+sig
+  include Lattice.S
+  module D: Lattice.S
+  module Meta: Printable.S
+  val singleton: D.t -> (Meta.t * D.t) -> t
+  val cardinal: t -> int
+  val choose: t -> D.t
+  val empty: unit -> t
+  val add: D.t -> (Meta.t * D.t) -> t -> t
+  val fold: (D.t -> 'a -> 'a) -> t -> 'a -> 'a
+  val fold': (D.t -> (Meta.t * D.t) -> 'a -> 'a) -> t -> 'a -> 'a
+  val map: (D.t -> D.t) -> t -> t
+  val elements: t -> D.t list
+end
+
+module PathSensitive3D (SpecD: Lattice.S) (Meta: Printable.S) (PSJ: PathSensitiveJoin with type t = SpecD.t): PathSensitiveD with module D = SpecD and module Meta = Meta =
 struct
-  (* module I = IntDomain.Integers *)
   module I =
   struct
-    include Spec.D
+    include SpecD
     (* assumes Hashcons inside PathSensitive *)
-    let to_int = tag
+    (* let to_int = tag *)
   end
-  module VI = Printable.Prod3 (Node) (Spec.C) (I)
   module VIE =
   struct
-    include Printable.Prod (VI) (Edge)
+    include Printable.Prod (I) (Meta)
 
-    let leq ((v, c, x'), e) ((w, d, y'), f) =
-      Node.equal v w && Spec.C.equal c d && I.leq x' y' && Edge.equal e f
+    let leq (x', e) (y', f) =
+      I.leq x' y' && Meta.equal e f
 
     (* TODO: join and meet can be implemented, but are they necessary at all? *)
     let join _ _ = failwith "VIE join"
@@ -200,68 +216,104 @@ struct
 
   module R = VIES
 
+  include HoareMap (SpecD) (R)
+
+  let name () = "PathSensitive (" ^ name () ^ ")"
+
+  let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
+    if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
+      try
+        let p t = not (MM.mem t s2) in
+        let evil = choose (filter p s1) in
+        let other = choose s2 in
+        (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
+           Spec.D.pretty evil Spec.D.pretty other
+           Spec.D.pretty_diff (evil,other) *)
+        SpecD.pretty_diff () (evil,other)
+      with _ ->
+        dprintf "choose failed b/c of empty set s1: %d s2: %d"
+        (cardinal s1)
+        (cardinal s2)
+    end
+
+  let printXml f x =
+    let print_one x r =
+      (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
+      BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" SpecD.printXml x R.printXml r
+    in
+    iter' print_one x
+
+  (* join elements in the same partition (specified by should_join) *)
+  let join_reduce a =
+    let rec loop js = function
+      | [] -> js
+      | (x, xr)::xs -> let ((j, jr),r) = List.fold_left (fun ((j, jr),r) (x,xr) ->
+          if PSJ.should_join x j then (SpecD.join x j, R.join xr jr), r else (j, jr), (x, xr)::r
+        ) ((x, xr),[]) xs in
+        loop ((j, jr)::js) r
+    in
+    apply_list (loop []) a
+
+  let leq a b =
+    leq a b || leq (join_reduce a) (join_reduce b)
+
+  let binop op a b = op a b |> join_reduce
+
+  let join = binop join
+  let meet = binop meet
+  let widen = binop widen
+  let narrow = binop narrow
+
+  let singleton x (a, b) = singleton x (R.singleton (`Lifted (b, a)))
+  let add x (a, b) s = add x (R.singleton (`Lifted (b, a))) s
+  let fold' f s a = fold' (fun x xr acc -> R.fold (fun r acc ->
+      match r with
+      | `Bot -> acc
+      | `Lifted (a, b) -> f x (b, a) acc
+    ) xr acc) s a
+
+  module D = SpecD
+  module Meta = Meta
+end
+
+module N = struct let topname = "Top" end
+
+(** Add path sensitivity to a analysis *)
+module PathSensitive3 (Spec:Spec)
+  : Spec
+    (* with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
+     and module G = Spec.G
+     and module C = Spec.C *)
+=
+struct
+  module I =
+  struct
+    include Spec.D
+    (* assumes Hashcons inside PathSensitive *)
+    let to_int = tag
+  end
+  module Meta = Printable.Prod3 (Node) (Spec.C) (Edge)
+  module PSJ =
+  struct
+    type t = Spec.D.t
+    let should_join = Spec.should_join
+  end
   module D =
   struct
-    include HoareMap (Spec.D) (R)
-
-    let name () = "PathSensitive (" ^ name () ^ ")"
-
-    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
-        try
-          let p t = not (MM.mem t s2) in
-          let evil = choose (filter p s1) in
-          let other = choose s2 in
-          (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
-             Spec.D.pretty evil Spec.D.pretty other
-             Spec.D.pretty_diff (evil,other) *)
-          Spec.D.pretty_diff () (evil,other)
-        with _ ->
-          dprintf "choose failed b/c of empty set s1: %d s2: %d"
-          (cardinal s1)
-          (cardinal s2)
-      end
-
-    let printXml f x =
-      let print_one x r =
-        (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
-        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
-      in
-      iter' print_one x
-
-    (* join elements in the same partition (specified by should_join) *)
-    let join_reduce a =
-      let rec loop js = function
-        | [] -> js
-        | (x, xr)::xs -> let ((j, jr),r) = List.fold_left (fun ((j, jr),r) (x,xr) ->
-            if Spec.should_join x j then (Spec.D.join x j, R.join xr jr), r else (j, jr), (x, xr)::r
-          ) ((x, xr),[]) xs in
-          loop ((j, jr)::js) r
-      in
-      apply_list (loop []) a
-
-    let leq a b =
-      leq a b || leq (join_reduce a) (join_reduce b)
-
-    let binop op a b = op a b |> join_reduce
-
-    let join = binop join
-    let meet = binop meet
-    let widen = binop widen
-    let narrow = binop narrow
+    include PathSensitive3D (Spec.D) (Meta) (PSJ)
 
     let invariant c s =
-      match s with
-      | `Top -> failwith "invariant Top"
-      | `Lifted s ->
-        (* TODO: optimize indexing, using inner hashcons somehow? *)
-        (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
-        let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (S.elements s) in
-        Spec.D.invariant c d
+      (* TODO: optimize indexing, using inner hashcons somehow? *)
+      let d = List.find (fun x -> I.to_int x = c.Invariant.i) (elements s) in
+      Spec.D.invariant c d
   end
-
   module G = Spec.G
   module C = Spec.C
+
+  let dummy_meta: Meta.t =
+    (* TODO: context of bot is safe? *)
+    (MyCFG.dummy_node, Spec.context (Spec.D.bot ()), MyARG.CFGEdge Skip)
+  let dummy_meta = (dummy_meta, Spec.D.bot ())
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
@@ -270,14 +322,14 @@ struct
 
   let should_join x y = true
 
-  let otherstate v = D.singleton (Spec.otherstate v) (R.bot ())
-  let exitstate  v = D.singleton (Spec.exitstate  v) (R.bot ())
-  let startstate v = D.singleton (Spec.startstate v) (R.bot ())
+  let otherstate v = D.singleton (Spec.otherstate v) dummy_meta
+  let exitstate  v = D.singleton (Spec.exitstate  v) dummy_meta
+  let startstate v = D.singleton (Spec.startstate v) dummy_meta
   let morphstate v d = D.map (Spec.morphstate v) d
 
   let call_descr = Spec.call_descr
 
-  let val_of c = D.singleton (Spec.val_of c) (R.bot ())
+  let val_of c = D.singleton (Spec.val_of c) dummy_meta
   let context l =
     if D.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."
@@ -288,17 +340,17 @@ struct
     (* TODO: R.bot () isn't right here *)
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            ; spawn = (fun v -> ctx.spawn v % (fun x -> D.singleton x (R.bot ())) ) (* TODO: use enter-like behavior for spawn, as in WitnessLifter *)
-                            ; split = (ctx.split % (fun x -> D.singleton x (R.bot ()))) }
+                            ; spawn = (fun v -> ctx.spawn v % (fun x -> D.singleton x dummy_meta) ) (* TODO: use enter-like behavior for spawn, as in WitnessLifter *)
+                            ; split = (ctx.split % (fun x -> D.singleton x dummy_meta)) }
     and query x = Spec.query ctx' x in
     ctx'
 
-  let step n c i e = R.singleton (`Lifted ((n, c, i), e))
+  let step (n: MyCFG.node) (c: Spec.C.t) (i: I.t) (e: MyARG.inline_edge): Meta.t * Spec.D.t = ((n, c, e), i)
   let step_ctx ctx x e =
     try
       step ctx.prev_node (ctx.context ()) x e
     with Ctx_failure _ ->
-      R.bot ()
+      dummy_meta
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
 
   let map ctx f g =
@@ -348,19 +400,16 @@ struct
   let query ctx q =
     match q with
     | Queries.IterPrevVars f ->
-      D.iter' (fun x r ->
-          R.iter (function
-              | `Lifted ((n, c, j), e) ->
-                f (I.to_int x) (n, Obj.repr c, I.to_int j) e
-              | `Bot ->
-                failwith "PathSensitive3.query: range contains bot"
-            ) r
-        ) ctx.local;
+      D.fold' (fun x ((n, c, e), j) acc ->
+          f (I.to_int x) (n, Obj.repr c, I.to_int j) e;
+          acc
+        ) ctx.local ();
       `Bot
     | Queries.IterVars f ->
-      D.iter' (fun x r ->
-          f (I.to_int x)
-        ) ctx.local;
+      D.fold (fun x acc ->
+          f (I.to_int x);
+          acc
+        ) ctx.local ();
       `Bot
     | _ ->
       fold' ctx Spec.query identity (fun x _ f -> Queries.Result.meet x (f q)) `Top
@@ -379,9 +428,9 @@ struct
             if should_inline f then
               step_ctx ctx x' (InlineEntry a)
             else
-              R.bot ()
+              dummy_meta
           in
-          (D.singleton x (R.bot ()), D.singleton y yr)
+          (D.singleton x dummy_meta, D.singleton y yr)
         ) ys
       in
       ys' @ xs
