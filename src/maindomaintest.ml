@@ -1,4 +1,4 @@
-(* open Defaults (* CircInterval needs initialized conf *) *)
+open! Defaults (* CircInterval / Enums / ... need initialized conf *)
 
 module type FiniteSetElems =
 sig
