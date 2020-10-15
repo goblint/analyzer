@@ -90,7 +90,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
 
   GML.start_graph g;
 
-  GML.write_metadata g "witness-type" (if Result.to_bool TaskResult.result then "correctness_witness" else "violation_witness");
+  GML.write_metadata g "witness-type" (
+      match TaskResult.result with
+      | Result.True -> "correctness_witness"
+      | Result.False _ -> "violation_witness"
+      | Result.Unknown -> "unknown_witness"
+    );
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
@@ -438,9 +443,8 @@ struct
           let module TaskResult =
           struct
             module Arg = Arg
-            (* TODO: Result.Unknown *)
-            let result = Result.False (Some Task.specification)
-            let invariant _ = Invariant.none
+            let result = Result.Unknown
+            let invariant = find_invariant
             let is_violation = is_violation
             let is_sink = is_sink
           end
@@ -513,8 +517,7 @@ struct
         let module TaskResult =
         struct
           module Arg = TrivialArg
-          (* TODO: Result.Unknown *)
-          let result = Result.False (Some Task.specification)
+          let result = Result.Unknown
           let invariant _ = Invariant.none
           let is_violation _ = false
           let is_sink _ = false
