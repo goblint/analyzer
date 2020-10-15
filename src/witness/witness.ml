@@ -232,8 +232,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   close_out_noerr out
 
 
-let print_result (module TaskResult:TaskResult): unit =
-  Printf.printf "SV-COMP result: %s\n" (Result.to_string TaskResult.result)
+let print_svcomp_result (s: string): unit =
+  Printf.printf "SV-COMP result: %s\n" s
+
+let print_task_result (module TaskResult:TaskResult): unit =
+  print_svcomp_result (Result.to_string TaskResult.result)
 
 
 exception RestartAnalysis
@@ -530,7 +533,12 @@ struct
     let module Task = (val (BatOption.get !task)) in
     let module TaskResult = (val (determine_result lh gh entrystates (module Task))) in
 
-    print_result (module TaskResult);
+    print_task_result (module TaskResult);
     let witness_path = get_string "exp.witness_path" in
     write_file witness_path (module Task) (module TaskResult)
+
+  let write lh gh entrystates =
+    match !Goblintutil.verified with
+    | Some false -> print_svcomp_result "ERROR (verify)"
+    | _ -> write lh gh entrystates
 end
