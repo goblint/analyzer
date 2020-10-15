@@ -11,7 +11,7 @@ struct
     match c.Invariant.offset with
     (* invariants for all fields *)
     | NoOffset ->
-      let c_lval = Option.get c.Invariant.lval in
+      let c_lval = BatOption.get c.Invariant.lval in
       begin match lift_f with
       | `Lifted f ->
         let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in

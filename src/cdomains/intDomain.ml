@@ -410,7 +410,7 @@ struct
       else top_bool
 
   let invariant c x =
-    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
     match x with
     | Some (x1, x2) when Int64.compare x1 x2 = 0 ->
       Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x1, intType))
@@ -953,7 +953,7 @@ struct
   let lognot = eq (of_int 0L)
 
   let invariant c (x:t) =
-    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
     match x with
     | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType))
     | `Excluded (s, _) ->

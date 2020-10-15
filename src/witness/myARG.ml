@@ -335,8 +335,8 @@ struct
     | None -> Arg.next node
     | Some next ->
       next
-      |> List.filter_map (fun (e, to_n) ->
+      |> BatList.filter_map (fun (e, to_n) ->
           Node.move_opt node to_n
-          |> Option.map (fun to_node -> (Edge.embed e, to_node))
+          |> BatOption.map (fun to_node -> (Edge.embed e, to_node))
         )
 end

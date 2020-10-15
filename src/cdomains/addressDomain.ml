@@ -130,9 +130,9 @@ struct
   let narrow x y = merge widen narrow x y
 
   let invariant c x =
-    let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
+    let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
     let i_opt = fold (fun addr acc_opt ->
-        Option.bind acc_opt (fun acc ->
+        BatOption.bind acc_opt (fun acc ->
             match addr with
             | Addr.UnknownPtr
             | Addr.SafePtr ->
@@ -143,7 +143,7 @@ struct
                 | `Field (f, offs) -> Field (f, offs_to_offset offs)
                 | `Index (i, offs) ->
                   (* Addr.Offs.is_definite implies Idx.is_int *)
-                  let i_definite = Option.get (Idx.to_int i) in
+                  let i_definite = BatOption.get (Idx.to_int i) in
                   let i_exp = Cil.(kinteger64 ILongLong i_definite) in
                   Index (i_exp, offs_to_offset offs)
               in

@@ -77,7 +77,7 @@ struct
     match c.Invariant.offset with
     (* invariants for all fields *)
     | NoOffset ->
-      let c_lval = Option.get c.Invariant.lval in
+      let c_lval = BatOption.get c.Invariant.lval in
       fold (fun f v acc ->
           let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
           let f_c = {c with lval=Some f_lval} in

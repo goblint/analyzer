@@ -524,7 +524,7 @@ struct
       )
 
   let write lh gh entrystates =
-    let module Task = (val (Option.get !task)) in
+    let module Task = (val (BatOption.get !task)) in
     let module TaskResult = (val (determine_result lh gh entrystates (module Task))) in
 
     print_result (module TaskResult);
