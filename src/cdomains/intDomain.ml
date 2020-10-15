@@ -1794,9 +1794,7 @@ struct
   let isSimple x = I.isSimple x.v
   let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
-  let toXML x = I.toXML x.v
   let pretty_f f () x = pretty () x (* TODO add ikind to output *)
-  let toXML_f f x = toXML x (* TODO add ikind to output *)
   let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
