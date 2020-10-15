@@ -2,8 +2,8 @@
   "ana": {
     "sv-comp": true,
     "int": {
-      "def_exc": false,
-      "enums": true,
+      "def_exc": true,
+      "enums": false,
       "interval": true
     },
     "activated": [
