@@ -11,6 +11,9 @@ void *t_fun(void *arg) {
 }
 
 int main() {
+  pthread_mutex_init(&m.x, NULL);
+  pthread_mutex_init(&m.y, NULL);
+
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&m.y);

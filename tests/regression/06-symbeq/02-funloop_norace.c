@@ -21,6 +21,9 @@ void *t_fun(void *arg) {
 }
 
 int main () {
+  for (int i = 0; i < 10; i++)
+    pthread_mutex_init(&cache[i].refs_mutex, NULL);
+
   int i;
   pthread_t t1;
   pthread_create(&t1, NULL, t_fun, NULL);

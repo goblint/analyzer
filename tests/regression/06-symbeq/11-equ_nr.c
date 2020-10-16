@@ -19,6 +19,9 @@ void *t_fun(void *arg) {
 }
 
 int main () {
+  pthread_mutex_init(&A.mutex, NULL);
+  pthread_mutex_init(&B.mutex, NULL);
+
   int x = __VERIFIER_nondet_int();
   pthread_t id;
 
