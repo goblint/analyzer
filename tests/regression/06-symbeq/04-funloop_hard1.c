@@ -30,6 +30,6 @@ int main () {
 
   pthread_mutex_lock(&cache[4].refs_mutex);
   cache[5].refs++; // RACE!
-  pthread_mutex_lock(&cache[4].refs_mutex);
+  pthread_mutex_unlock(&cache[4].refs_mutex);
   return 0;
 }

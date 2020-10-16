@@ -22,7 +22,7 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&m.y);
   glob++; // RACE!
-  pthread_mutex_lock(&m.y);
+  pthread_mutex_unlock(&m.y);
   return 0;
 }
 

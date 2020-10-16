@@ -30,6 +30,6 @@ int main () {
 
   pthread_mutex_lock(&cache[5].refs_mutex);
   cache[5].refs++; // NORACE
-  pthread_mutex_lock(&cache[5].refs_mutex);
+  pthread_mutex_unlock(&cache[5].refs_mutex);
   return 0;
 }

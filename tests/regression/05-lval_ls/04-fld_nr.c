@@ -22,7 +22,7 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&m.x);
   glob++; // NORACE
-  pthread_mutex_lock(&m.x);
+  pthread_mutex_unlock(&m.x);
   return 0;
 }
 
