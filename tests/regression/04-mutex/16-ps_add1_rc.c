@@ -27,6 +27,7 @@ int main() {
   if (i)
     glob++; // RACE!
   printf("Work is completed...");
+  i--;
   if (i)
     pthread_mutex_unlock(&m);
 
