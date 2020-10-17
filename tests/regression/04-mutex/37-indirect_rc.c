@@ -8,7 +8,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex);
   (*g1)++; // RACE!
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_unlock(&mutex);
   return NULL;
 }
 
