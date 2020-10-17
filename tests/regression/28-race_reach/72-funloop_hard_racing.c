@@ -31,7 +31,7 @@ int main () {
 
   pthread_mutex_lock(&cache[4].refs_mutex);
   access_or_assert_racefree(cache[5].refs); // UNKNOWN
-  pthread_mutex_lock(&cache[4].refs_mutex);
+  pthread_mutex_unlock(&cache[4].refs_mutex);
 
   join_threads(t);
   return 0;
