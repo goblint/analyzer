@@ -16,6 +16,7 @@ jobs:
           # - windows-latest
         ocaml-version:
           - 4.11.1
+          - 4.07.1
           # - 4.09.1
           # - 4.08.1
 
