@@ -19,6 +19,9 @@ void *t_fun(void *arg) {
 }
 
 int main () {
+  for (int i = 0; i < 10; i++)
+    pthread_mutex_init(&a[i].mutex, NULL);
+
   int i = __VERIFIER_nondet_int();
   assume_abort_if_not(0 <= i && i < 10);
   create_threads(t);

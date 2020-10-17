@@ -22,9 +22,12 @@ void *t_fun(void *arg) {
 }
 
 int main () {
+  for (int i = 0; i < 10; i++)
+    pthread_mutex_init(&cache[i].refs_mutex, NULL);
+
   int i;
   create_threads(t);
-  
+
   for(i=0; i<10; i++)
     cache_entry_addref(&cache[i]);
   access_or_assert_racefree(cache[5].refs); // UNKNOWN
