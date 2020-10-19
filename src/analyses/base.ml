@@ -168,14 +168,29 @@ struct
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
       (* adds n to the last offset *)
-      let rec addToOffset n = function
+      let rec addToOffset n (t:typ) = function
         | `Index (i, `NoOffset) ->
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
-        | `Index (i, o) -> `Index(i, addToOffset n o)
-        | `Field (f, o) -> `Field(f, addToOffset n o)
+        | `Field (f, `NoOffset) as x ->
+          (* If we have arrived at the last Offset and it is a Field,
+           * then check if we're subtracting exactly its offsetof.
+           * If so, n cancels out f exactly.
+           * This is to better handle container_of hacks. *)
+          let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
+          let f_offset = IdxDom.of_int (Int64.of_int (f_offset_bits / 8)) in
+          let n_offset = IdxDom.neg (iDtoIdx n) in
+          begin match IdxDom.(to_bool (eq f_offset n_offset)) with
+          | Some true -> `NoOffset
+          | _ -> x
+          end
+        | `Index (i, o) ->
+          let t' = typeOffset t (Index (integer 0, NoOffset)) in (* actual index value doesn't matter for typeOffset *)
+          `Index(i, addToOffset n t' o)
+        | `Field (f, o) ->
+          let t' = typeOffset t (Field (f, NoOffset)) in
+          `Field(f, addToOffset n t' o)
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
-        | x -> x
       in
       let default = function
         | Addr.NullPtr when ID.to_int n = Some 0L -> Addr.NullPtr
@@ -183,7 +198,7 @@ struct
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_var_offset addr with
-      | [x, o] -> Addr.from_var_offset (x, addToOffset n o)
+      | [x, o] -> Addr.from_var_offset (x, addToOffset n x.vtype o)
       | _ -> default addr
     in
     (* The main function! *)
