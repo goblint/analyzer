@@ -178,21 +178,21 @@ struct
         | `Index (i, `NoOffset) ->
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
-        | `Field (f, `NoOffset) as x ->
+        | `Field (f, `NoOffset) ->
           (* If we have arrived at the last Offset and it is a Field,
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
+          let n_offset = iDtoIdx n in
           begin match t with
             | Some t ->
               let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
               let f_offset = IdxDom.of_int (Int64.of_int (f_offset_bits / 8)) in
-              let n_offset = IdxDom.neg (iDtoIdx n) in
-              begin match IdxDom.(to_bool (eq f_offset n_offset)) with
+              begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
                 | Some true -> `NoOffset
-                | _ -> x
+                | _ -> `Field (f, `Index (n_offset, `NoOffset))
               end
-            | None -> x
+            | None -> `Field (f, `Index (n_offset, `NoOffset))
           end
         | `Index (i, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Index (integer 0, NoOffset))) in (* actual index value doesn't matter for typeOffset *)
