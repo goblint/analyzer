@@ -167,8 +167,14 @@ struct
     let bool_top () = ID.(join (of_int 0L) (of_int 1L)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
+      let typeOffsetOpt o t =
+        try
+          Some (typeOffset t o)
+        with Errormsg.Error ->
+          None
+      in
       (* adds n to the last offset *)
-      let rec addToOffset n (t:typ) = function
+      let rec addToOffset n (t:typ option) = function
         | `Index (i, `NoOffset) ->
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
@@ -177,18 +183,22 @@ struct
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
-          let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
-          let f_offset = IdxDom.of_int (Int64.of_int (f_offset_bits / 8)) in
-          let n_offset = IdxDom.neg (iDtoIdx n) in
-          begin match IdxDom.(to_bool (eq f_offset n_offset)) with
-          | Some true -> `NoOffset
-          | _ -> x
+          begin match t with
+            | Some t ->
+              let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
+              let f_offset = IdxDom.of_int (Int64.of_int (f_offset_bits / 8)) in
+              let n_offset = IdxDom.neg (iDtoIdx n) in
+              begin match IdxDom.(to_bool (eq f_offset n_offset)) with
+                | Some true -> `NoOffset
+                | _ -> x
+              end
+            | None -> x
           end
         | `Index (i, o) ->
-          let t' = typeOffset t (Index (integer 0, NoOffset)) in (* actual index value doesn't matter for typeOffset *)
+          let t' = BatOption.bind t (typeOffsetOpt (Index (integer 0, NoOffset))) in (* actual index value doesn't matter for typeOffset *)
           `Index(i, addToOffset n t' o)
         | `Field (f, o) ->
-          let t' = typeOffset t (Field (f, NoOffset)) in
+          let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
           `Field(f, addToOffset n t' o)
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
@@ -198,7 +208,7 @@ struct
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_var_offset addr with
-      | [x, o] -> Addr.from_var_offset (x, addToOffset n x.vtype o)
+      | [x, o] -> Addr.from_var_offset (x, addToOffset n (Some x.vtype) o)
       | _ -> default addr
     in
     (* The main function! *)
