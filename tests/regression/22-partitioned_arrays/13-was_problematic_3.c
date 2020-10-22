@@ -7,7 +7,7 @@ struct some_struct
     double forwback;
 };
 
-struct some_struct q_paths[688];
+struct some_struct q_paths[200];
 int num_q_paths;
 
 int add_basic_path(int length, double coeff)
