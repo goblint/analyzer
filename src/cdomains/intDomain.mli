@@ -1,19 +1,14 @@
-open Cil
 (** Abstract Domains for integers. These are domains that support the C
   * operations on integer values. *)
 
-module type S =
+module type B =
 sig
-  include Lattice.S
-
+ include Lattice.S
   (** {b Accessing values of the ADT} *)
 
   val to_int: t -> int64 option
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
-
-  val of_int: int64 -> t
-  (** Transform an integer literal to your internal domain representation. *)
 
   val is_int: t -> bool
   (** Checks if the element is a definite integer value. If this function
@@ -24,10 +19,6 @@ sig
   val to_bool: t -> bool option
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
-
-  val of_bool: bool -> t
-  (** Transform a known boolean value to the default internal representation. It
-    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
   val is_bool: t -> bool
   (** Checks if the element is a definite boolean value. If this function
@@ -42,9 +33,6 @@ sig
   val is_excl_list: t -> bool
   (* Checks if the element is an exclusion set. *)
 
-  val of_interval: int64 * int64 -> t
-  val starting   : ?ikind:Cil.ikind -> int64 -> t
-  val ending     : ?ikind:Cil.ikind -> int64 -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
@@ -128,9 +116,41 @@ sig
 
   val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
   (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
+
+end
+module type S =
+sig
+  include B
+  val of_int: int64 -> t
+  (** Transform an integer literal to your internal domain representation. *)
+
+  val of_bool: bool -> t
+  (** Transform a known boolean value to the default internal representation. It
+    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
+
+  val of_interval: int64 * int64 -> t
+  val starting   : ?ikind:Cil.ikind -> int64 -> t
+  val ending     : ?ikind:Cil.ikind -> int64 -> t
 end
 (** The signature of integral value domains. They need to support all integer
   * operations that are allowed in C *)
+
+module type Z =
+sig
+  include B
+  val of_int: Cil.ikind -> int64 -> t
+  (** Transform an integer literal to your internal domain representation with the specified ikind. *)
+
+  val of_bool: Cil.ikind -> bool -> t
+  (** Transform a known boolean value to the default internal representation of the specified ikind. It
+    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
+
+  val of_interval: Cil.ikind -> int64 * int64 -> t
+
+  val starting   : Cil.ikind -> int64 -> t
+  val ending     : Cil.ikind -> int64 -> t
+end
+(** The signature of integral value domains keeping track of ikind information *)
 
 module Size : sig
   val top_typ : Cil.typ
@@ -197,135 +217,6 @@ module Reverse (Base: S): S
 (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 module Enums : S
-
-
-module type Z =
-sig
-  include Lattice.S
-
-  (** {b Accessing values of the ADT} *)
-
-  val to_int: t -> int64 option
-  (** Return a single integer value if the value is a known constant, otherwise
-    * don't return anything. *)
-
-  val of_int: ikind -> int64 -> t
-  (** Transform an integer literal to your internal domain representation. *)
-
-  val is_int: t -> bool
-  (** Checks if the element is a definite integer value. If this function
-    * returns [true], the above [to_int] should return a real value. *)
-
-  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
-
-  val to_bool: t -> bool option
-  (** Give a boolean interpretation of an abstract value if possible, otherwise
-    * don't return anything.*)
-
-  val of_bool: ikind -> bool -> t
-  (** Transform a known boolean value to the default internal representation. It
-    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
-
-  val is_bool: t -> bool
-  (** Checks if the element is a definite boolean value. If this function
-    * returns [true], the above [to_bool] should return a real value. *)
-
-  val to_excl_list: t -> int64 list option
-  (* Gives a list representation of the excluded values if possible. *)
-
-  val of_excl_list: Cil.ikind -> int64 list -> t
-  (* Creates a exclusion set from a given list of integers. *)
-
-  val is_excl_list: t -> bool
-  (* Checks if the element is an exclusion set. *)
-
-  val of_interval: ikind -> int64 * int64 -> t
-  val starting   : ikind -> int64 -> t
-  val ending     : ikind -> int64 -> t
-  val maximal    : t -> int64 option
-  val minimal    : t -> int64 option
-
-
-  (** {b Arithmetic operators} *)
-
-  val neg: t -> t
-  (** Negating an integer value: [-x] *)
-
-  val add: t -> t -> t
-  (** Addition: [x + y] *)
-
-  val sub: t -> t -> t
-  (** Subtraction: [x - y] *)
-
-  val mul: t -> t -> t
-  (** Multiplication: [x * y] *)
-
-  val div: t -> t -> t
-  (** Division: [x / y] *)
-
-  val rem: t -> t -> t
-  (** Integer remainder: [x % y] *)
-
-
-  (** {b Comparison operators} *)
-
-  val lt: t -> t -> t
-  (** Less than: [x < y] *)
-
-  val gt: t -> t -> t
-  (** Greater than: [x > y] *)
-
-  val le: t -> t -> t
-  (** Less than or equal: [x <= y] *)
-
-  val ge: t -> t -> t
-  (** Greater than or equal: [x >= y] *)
-
-  val eq: t -> t -> t
-  (** Equal to: [x == y] *)
-
-  val ne: t -> t -> t
-  (** Not equal to: [x != y] *)
-
-
-  (** {b Bit operators} *)
-
-  val bitnot: t -> t
-  (** Bitwise not (one's complement): [~x] *)
-
-  val bitand: t -> t -> t
-  (** Bitwise and: [x & y] *)
-
-  val bitor : t -> t -> t
-  (** Bitwise or: [x | y] *)
-
-  val bitxor: t -> t -> t
-  (** Bitwise exclusive or: [x ^ y] *)
-
-  val shift_left : t -> t -> t
-  (** Shifting bits left: [x << y] *)
-
-  val shift_right: t -> t -> t
-  (** Shifting bits right: [x >> y] *)
-
-
-  (** {b Logical operators} *)
-
-  val lognot: t -> t
-  (** Logical not: [!x] *)
-
-  val logand: t -> t -> t
-  (** Logical and: [x && y] *)
-
-  val logor : t -> t -> t
-  (** Logical or: [x || y] *)
-
-
-  (** {b Cast} *)
-
-  val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
-  (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
-end
 
 module IntDomLifter (I: S): sig
  include Z

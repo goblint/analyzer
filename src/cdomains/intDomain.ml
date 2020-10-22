@@ -11,95 +11,76 @@ module M = Messages
 let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
 
-module type S =
+(* Shared functions between S and Z *)
+module type B =
 sig
   include Lattice.S
   val to_int: t -> int64 option
-  val of_int: int64 -> t
   val is_int: t -> bool
   val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
-  val of_bool: bool -> t
   val is_bool: t -> bool
   val to_excl_list: t -> int64 list option
   val of_excl_list: Cil.ikind -> int64 list -> t
   val is_excl_list: t -> bool
-  val of_interval: int64 * int64 -> t
-  val starting   : ?ikind:Cil.ikind -> int64 -> t
-  val ending     : ?ikind:Cil.ikind -> int64 -> t
+
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
 
-  val neg: t -> t
-  val add: t -> t -> t
-  val sub: t -> t -> t
-  val mul: t -> t -> t
-  val div: t -> t -> t (* integer division: 5/3 = 1 *)
-  val rem: t -> t -> t (* same as x mod y in OCaml: result is negative iff x is negative: 5%3 = 2, -5%3 = -2, 5%-3 = 2 *)
-
-  val lt: t -> t -> t
-  val gt: t -> t -> t
-  val le: t -> t -> t
-  val ge: t -> t -> t
-  val eq: t -> t -> t
-  val ne: t -> t -> t
-
-  val bitnot: t -> t
-  val bitand: t -> t -> t
-  val bitor : t -> t -> t
-  val bitxor: t -> t -> t
-  val shift_left : t -> t -> t
-  val shift_right: t -> t -> t
-
-  val lognot: t -> t
-  val logand: t -> t -> t
-  val logor : t -> t -> t
-
-  val cast_to : ?torg:Cil.typ -> Cil.ikind -> t -> t
-end
-
-module type Z =
-sig
-  open Cil
-  include Lattice.S
-  val to_int: t -> int64 option
-  val of_int: ikind -> int64 -> t
-  val is_int: t -> bool
-  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
-  val to_bool: t -> bool option
-  val of_bool: ikind -> bool -> t
-  val is_bool: t -> bool
-  val to_excl_list: t -> int64 list option
-  val of_excl_list: ikind -> int64 list -> t
-  val is_excl_list: t -> bool
-  val of_interval: ikind -> int64 * int64 -> t
-  val starting   : ikind -> int64 -> t
-  val ending     : ikind -> int64 -> t
-  val maximal    : t -> int64 option
-  val minimal    : t -> int64 option
   val neg: t -> t
   val add: t -> t -> t
   val sub: t -> t -> t
   val mul: t -> t -> t
   val div: t -> t -> t
   val rem: t -> t -> t
+
   val lt: t -> t -> t
   val gt: t -> t -> t
   val le: t -> t -> t
   val ge: t -> t -> t
   val eq: t -> t -> t
   val ne: t -> t -> t
+
   val bitnot: t -> t
   val bitand: t -> t -> t
   val bitor : t -> t -> t
   val bitxor: t -> t -> t
+
   val shift_left : t -> t -> t
   val shift_right: t -> t -> t
+
   val lognot: t -> t
   val logand: t -> t -> t
   val logor : t -> t -> t
+
   val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
+end
+
+module type S =
+sig
+  include B
+  val of_int: int64 -> t
+  (** Transform an integer literal to your internal domain representation. *)
+
+  val of_bool: bool -> t
+  (** Transform a known boolean value to the default internal representation. It
+    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
+
+  val of_interval: int64 * int64 -> t
+  val starting   : ?ikind:Cil.ikind -> int64 -> t
+  val ending     : ?ikind:Cil.ikind -> int64 -> t
+end
+
+module type Z =
+sig
+  include B
+  val of_int: Cil.ikind -> int64 -> t
+  val of_bool: Cil.ikind -> bool -> t
+  val of_interval: Cil.ikind -> int64 * int64 -> t
+
+  val starting   : Cil.ikind -> int64 -> t
+  val ending     : Cil.ikind -> int64 -> t
 end
 
 
