@@ -3,5 +3,6 @@ eq/*.c
 cfg/multicall_*.c
 cfg/join_true-unreach-call.c
 cfg/builtin_expect_true-unreach-call.c
+cfg/region_global_init_true-unreach-call.c
 cfg/free_spawn_*.c
 cfg/uncil/*.c
