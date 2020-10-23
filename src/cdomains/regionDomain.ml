@@ -259,8 +259,4 @@ module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "
 module Var = Basetype.Variables
 module Vars= SetDomain.Make (Printable.Prod (Var) (RegPart))
 
-module RegionDom =
-struct
-  include Lattice.Prod (Lif) (Vars)
-  let short n (x,_:t) = Lif.short n x
-end
+module RegionDom = Lif
