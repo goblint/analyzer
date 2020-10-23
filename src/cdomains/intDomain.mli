@@ -218,9 +218,7 @@ module Reverse (Base: S): S
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 module Enums : S
 
-module IntDomLifter (I: S): sig
- include Z
-end
+module IntDomLifter (I: S): Z
 
 (* module ManyInts : S *)
 (* module IntDomList : S *)
