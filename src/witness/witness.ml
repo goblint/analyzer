@@ -283,7 +283,7 @@ struct
         ; postsub= []
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }
       and query x = Spec.query ctx x in
