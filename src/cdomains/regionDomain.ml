@@ -256,7 +256,5 @@ end
 module Equ = MusteqDomain.Equ
 module LD  = Lattice.Prod (Equ) (RegMap)
 module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)
-module Var = Basetype.Variables
-module Vars= SetDomain.Make (Printable.Prod (Var) (RegPart))
 
 module RegionDom = Lif

@@ -15,8 +15,6 @@ struct
 
   module LD     = RegionDomain.LD
   module Lif    = RegionDomain.Lif
-  module Var    = RegionDomain.Var
-  module Vars   = RegionDomain.Vars
   module D =
   struct
     include RegionDomain.RegionDom
