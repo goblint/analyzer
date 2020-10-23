@@ -288,7 +288,7 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to ?torg (ptr_ikind ()) @@ ID.of_int (Cilfacade.ptrdiff_ikind ()) Int64.zero
+              | `Address x when AD.equal x AD.null_ptr -> ID.of_int (ptr_ikind ()) Int64.zero
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -391,7 +391,8 @@ struct
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
         | `Lifted f -> (`Lifted f, join x y) (* f = g *)
-        | x -> (x, `Top)) (* f <> g *)    | (`Array x, `Array y) -> `Array (CArrays.join x y)
+        | x -> (x, `Top)) (* f <> g *)
+    | (`Array x, `Array y) -> `Array (CArrays.join x y)
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | `Blob (x,s), y
