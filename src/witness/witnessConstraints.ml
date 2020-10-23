@@ -363,6 +363,11 @@ struct
                 failwith "PathSensitive3.query: range contains bot"
             ) r
         ) (fst ctx.local);
+      (* check that sync mappings don't leak into solution (except Function) *)
+      begin match ctx.node with
+        | Function _ -> () (* returns post-sync in FromSpec *)
+        | _ -> assert (Sync.is_bot (snd ctx.local));
+      end;
       `Bot
     | Queries.IterVars f ->
       Dom.iter' (fun x r ->
