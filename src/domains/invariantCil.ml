@@ -16,8 +16,8 @@ let var_original_names: string VM.t Lazy.t =
 let var_find_original_name vi = VM.find_opt vi (Lazy.force var_original_names)
 let var_replace_original_name vi =
   match var_find_original_name vi with
-  | Some original_name -> {vi with vname = original_name}
-  | None -> vi
+  | Some original_name when original_name <> vi.vname -> {vi with vname = original_name}
+  | _ -> vi
 
 class exp_replace_original_name_visitor = object
   inherit nopCilVisitor
