@@ -1765,10 +1765,10 @@ struct
  (* TODO: require ikind argument for bot and top *)
   let bot_of ikind = { v = I.bot (); ikind}
 
-  let bot () = failwith "bot () is deprecated"
+  let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
   let top_of ikind = { v = I.top (); ikind}
-  let top () = failwith "top () is deprecated"
+  let top () = failwith "top () is not implemented for IntDomLifter."
   let is_top x = I.is_top x.v
   (* Leq does not check for ikind, because it is used in invariant with arguments of different type *)
   let leq x y = I.leq x.v y.v
