@@ -419,7 +419,8 @@ struct
     | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
         | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
-        | x -> (x, `Top)) (* f <> g *)    | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
+        | x -> (x, `Top)) (* f <> g *)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.join x y) (* `List can not contain array -> normal join  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `List can not contain array -> normal join  *)
     | `Blob (x,s), y
