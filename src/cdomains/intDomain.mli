@@ -6,6 +6,10 @@ sig
  include Lattice.S
   (** {b Accessing values of the ADT} *)
 
+  val bot_of: Cil.ikind -> t
+  val top_of: Cil.ikind -> t
+
+
   val to_int: t -> int64 option
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
@@ -219,6 +223,15 @@ module Reverse (Base: S): S
 module Enums : S
 
 module IntDomLifter (I: S): Z
+
+module type Ikind =
+sig
+  val ikind: unit -> Cil.ikind
+end
+
+module PtrDiffIkind : Ikind
+
+module IntDomWithDefaultIkind (I: Z) (Ik: Ikind) : Z with type t = I.t
 
 (* module ManyInts : S *)
 (* module IntDomList : S *)

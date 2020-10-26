@@ -1,7 +1,7 @@
 open Cil
 open Pretty
 module ID = IntDomain.IntDomTuple
-module IndexDomain = ID
+module IndexDomain = IntDomain.IntDomWithDefaultIkind (ID) (IntDomain.PtrDiffIkind)
 module AD = AddressDomain.AddressSet (IndexDomain)
 module Addr = Lval.NormalLat (IndexDomain)
 module Offs = Lval.Offset (IndexDomain)
@@ -294,12 +294,12 @@ struct
                 let some  = List.hd (Structs.keys x) in
                 let first = List.hd some.fcomp.cfields in
                 (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
-              | _ -> log_top __POS__; ID.top ()
+              | _ -> log_top __POS__; ID.top_of ik
             ))
         | TEnum ({ekind=ik; _},_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
-              | _ -> log_top __POS__; ID.top ()
+              | _ -> log_top __POS__; ID.top_of ik
             ))
         | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
           (match v with
@@ -543,7 +543,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
+    | TInt (ik,_) -> `Int (ID.top_of ik)
     | TPtr _ -> `Address AD.unknown_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -887,12 +887,12 @@ struct
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
         let newl = match e with
-          | None -> ID.top () (* TODO: must be non-negative, top is overly cautious *)
+          | None -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO: must be non-negative, top is overly cautious *)
           | Some e ->
             begin
               match eval_exp e with
               | `Int x -> x
-              | _ -> ID.top () (* TODO:Warn *)
+              | _ -> ID.top_of (Cilfacade.get_ikind (typeOf e)) (* TODO:Warn *)
             end
         in
         `Array(CArrays.update_length newl n')

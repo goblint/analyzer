@@ -15,6 +15,8 @@ let (|?) = Batteries.(|?)
 module type B =
 sig
   include Lattice.S
+  val bot_of: Cil.ikind -> t
+  val top_of: Cil.ikind -> t
   val to_int: t -> int64 option
   val is_int: t -> bool
   val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
@@ -198,7 +200,10 @@ struct
 
   let min_int, max_int = Size.range Cil.IInt (* TODO this currently depends on the machine Cil was compiled on... *)
   let top () = Some (min_int, max_int)
+  let top_of ik = top () (* TODO: improve *)
   let bot () = None
+  let bot_of ik = bot () (* TODO: improve *)
+
   let short _ = function None -> "bottom" | Some (x,y) -> "["^Int64.to_string x^","^Int64.to_string y^"]"
 
   include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
@@ -465,6 +470,8 @@ struct
   type t = int64 [@@deriving to_yojson]
   let top () = raise Unknown
   let bot () = raise Error
+  let top_of ik = top () (* TODO: Improve *)
+  let bot_of ik = bot () (* TODO: Improve *)
   let short _ x = if x = GU.inthack then "*" else Int64.to_string x
 
   include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
@@ -531,6 +538,10 @@ struct
       let top_name = "Unknown int"
       let bot_name = "Error int"
     end)
+
+  let top_of ik = top ()
+  let bot_of ik = bot ()
+
 
   let name () = "flat integers"
   let cast_to ?torg t = function
@@ -605,6 +616,8 @@ struct
       let bot_name = "MinInt"
     end)
   include StdTop (struct type nonrec t = t let top = top end)
+  let top_of ik = top ()
+  let bot_of ik = bot ()
 
   let name () = "lifted integers"
   let cast_to ?torg t = function
@@ -684,6 +697,8 @@ struct
   let top_range = R.of_interval (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let top () = `Excluded (S.empty (), top_range)
   let bot () = `Bot
+  let top_of ik = top ()
+  let bot_of ik = bot ()
   let short w x =
     let short_size x = "("^R.short 2 x^")" in
     match x with
@@ -1215,6 +1230,9 @@ struct
     match x with
     | Bot _ -> true
     | _ -> false
+  let top_of ik = top ()
+  let bot_of ik = bot ()
+
 
   (* Logical *)
   let log1 f i1 =
@@ -1357,6 +1375,8 @@ struct
   let name () = "booleans"
   let top () = true
   let bot () = false
+  let top_of ik = top ()
+  let bot_of ik = bot ()
   let short _ x = if x then N.truename else N.falsename
   include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
   let hash = function true -> 51534333 | _ -> 561123444
@@ -1420,6 +1440,8 @@ module Enums : S = struct
   let bot () = Inc []
   let top_of ik = Exc ([], size ik)
   let top () = Exc ([], top_range)
+  let top_of ik = top ()
+  let bot_of ik = bot ()
   let short _ = function
     | Inc[] -> "bot" | Exc([],r) -> "top"
     | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
@@ -1632,6 +1654,8 @@ module IntDomTupleImpl = struct
   (* f0: constructors *)
   let top = create { fi = fun (type a) (module I:S with type t = a) -> I.top }
   let bot = create { fi = fun (type a) (module I:S with type t = a) -> I.bot }
+  let top_of ik = top ()
+  let bot_of ik = bot ()
   let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
   let of_excl_list t = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list t }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
@@ -1739,9 +1763,12 @@ struct
   let lift2_cmp op x y = check_ikinds x y; {v = op x.v y.v;  ikind = Cil.IInt}
 
  (* TODO: require ikind argument for bot and top *)
-  let bot () = { v = I.bot (); ikind = Cil.IInt}
+  let bot_of ikind = { v = I.bot (); ikind}
+
+  let bot () = failwith "bot () is deprecated"
   let is_bot x = I.is_bot x.v
-  let top () = { v = I.top (); ikind = Cil.IInt}
+  let top_of ikind = { v = I.top (); ikind}
+  let top () = failwith "top () is deprecated"
   let is_top x = I.is_top x.v
   (* Leq does not check for ikind, because it is used in invariant with arguments of different type *)
   let leq x y = I.leq x.v y.v
@@ -1822,10 +1849,26 @@ struct
   let cast_to ?torg ikind x = {v = I.cast_to ?torg ikind x.v; ikind}
 end
 
+module type Ikind =
+sig
+  val ikind: unit -> Cil.ikind
+end
+
+module PtrDiffIkind : Ikind =
+struct
+  let ikind = Cilfacade.ptrdiff_ikind
+end
+
+module IntDomWithDefaultIkind (I: Z) (Ik: Ikind) : Z with type t = I.t =
+struct
+  include I
+  let top () = I.top_of (Ik.ikind ())
+  let bot () = I.bot_of (Ik.ikind ())
+end
 
 module IntDomTuple =
 struct
- module I =  IntDomLifter (IntDomTupleImpl)
+ module I = IntDomLifter (IntDomTupleImpl)
  include I
  let no_interval32 (x: I.t) = {x with v = IntDomTupleImpl.no_interval32 x.v}
 end

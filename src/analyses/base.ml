@@ -157,10 +157,11 @@ struct
     | Shiftrt -> ID.shift_right
     | LAnd -> ID.logand
     | LOr -> ID.logor
-    | _ -> (fun x y -> (ID.top ()))
+    | _ -> failwith "Unimplemented arithmetic function" (*; (fun x y -> (ID.top_of ik))*)
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+    let result_ik = Cilfacade.get_ikind t in
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -204,7 +205,7 @@ struct
         (* Pointer subtracted by a value (e-i) is very similar *)
         | MinusPI -> let n = ID.neg n in
           `Address (AD.map (addToAddr n) p)
-        | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
+        | Mod -> `Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
         | _ -> `Address AD.top_ptr
       end
     (* If both are pointer values, we can subtract them and well, we don't
@@ -225,22 +226,23 @@ struct
               | `Index (i, `NoOffset), `Index(j, `NoOffset) ->
                 begin
                   let diff = ValueDomain.IndexDomain.sub i j in
+                  let ik = Cilfacade.get_ikind t in
                   match ValueDomain.IndexDomain.to_int diff with
-                  | Some z -> `Int(ID.of_int (Cilfacade.get_ikind t) z)
-                  | _ -> `Int (ID.top ())
+                  | Some z -> `Int(ID.of_int ik z)
+                  | _ -> `Int (ID.top_of ik)
                 end
               | `Index (xi, xo), `Index(yi, yo) when xi = yi ->
                 calculateDiffFromOffset xo yo
-              | _ -> `Int (ID.top ())
+              | _ -> `Int (ID.top_of result_ik)
             in
             if AD.is_definite p1 && AD.is_definite p2 then
               match Addr.to_var_offset (AD.choose p1), Addr.to_var_offset (AD.choose p2) with
               | [x, xo], [y, yo] when x.vid = y.vid ->
                 calculateDiffFromOffset xo yo
               | _ ->
-                `Int (ID.top ())
+                `Int (ID.top_of result_ik)
             else
-              `Int (ID.top ())
+              `Int (ID.top_of result_ik)
           end
         | Eq ->
           let ik = Cilfacade.get_ikind t in
@@ -378,7 +380,7 @@ struct
         match Addr.to_var_offset x with
         | [x] -> f_addr x                    (* normal reference *)
         | _ when x = Addr.NullPtr -> VD.bot () (* null pointer *)
-        | _ -> `Int (ID.cast_to IChar (ID.top ()))       (* string pointer *)
+        | _ -> `Int (ID.top_of IChar)       (* string pointer *)
       in
       (* We form the collecting function by joining *)
       let c x = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
@@ -736,7 +738,7 @@ struct
   and eval_int a gs st exp =
     match eval_rv a gs st exp with
     | `Int x -> x
-    | _ -> ID.top ()
+    | _ -> ID.top_of (Cilfacade.get_ikind (Cil.typeOf exp))
   (* A function to convert the offset to our abstract representation of
    * offsets, i.e.  evaluate the index expression to the integer domain. *)
   and convert_offset a (gs:glob_fun) (st: store) (ofs: offset) =
@@ -797,9 +799,10 @@ struct
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.bot ())
     | TArray (ai, None, _) ->
       `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value a gs st ai))
-    | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int (Cilfacade.ptrdiff_ikind ())) (IdxDom.bot ()) l) (bot_value a gs st ai))
+      | TArray (ai, Some exp, _) ->
+        let l = Cil.isInteger (Cil.constFold true exp) in
+        let ik = Cilfacade.ptrdiff_ikind () in
+        `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int ik) (IdxDom.bot ()) l) (bot_value a gs st ai))
     | TNamed ({ttype=t; _}, _) -> bot_value a gs st t
     | _ -> `Bot
 
@@ -811,7 +814,7 @@ struct
     in
     match t with
     | t when is_mutex_type t -> `Top
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
+    | TInt (ik,_) -> `Int (ID.top_of ik)
     | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
@@ -830,7 +833,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt _ -> `Int (ID.top ())
+    | TInt _ -> `Int (ID.top_of (Cilfacade.get_ikind t))
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
@@ -906,7 +909,7 @@ struct
             | _ -> None
           in
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
-          let d = List.fold_left ID.join (ID.bot ()) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %Int64.of_int) (slen @ alen)) in
+          let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %Int64.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           (match ID.to_int d with Some i -> `Int i | None -> `Top)
         | `Bot -> `Bot
@@ -1404,7 +1407,7 @@ struct
       let warn_and_top_on_zero x =
         if ID.to_int x = Some 0L then
           (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
-          ID.top ())
+          ID.top_of ikind)
         else
           x
       in
@@ -1502,7 +1505,7 @@ struct
             let ikind = Cilfacade.get_ikind @@ typeOf e in
             ID.of_excl_list ikind [0L]
           | Some false -> ID.of_bool (Cilfacade.get_ikind (typeOf exp)) false
-          | _ -> ID.top ()
+          | _ -> ID.top_of (Cilfacade.get_ikind (typeOf e))
         in
         inv_exp c' e
       | UnOp ((BNot|Neg) as op, e, _) -> inv_exp (unop_ID op c) e
