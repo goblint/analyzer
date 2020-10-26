@@ -1,12 +1,19 @@
 open Cil
 
-let var_find_original_name (vi: varinfo): string option =
-  (* TODO: optimize this *)
-  Hashtbl.fold (fun original_name (envdata, _) acc ->
+module VM = Map.Make (Basetype.Variables)
+
+let var_original_names: string VM.t Lazy.t =
+  (* only invert environment map when necessary (e.g. witnesses) *)
+  lazy (
+    Hashtbl.fold (fun original_name (envdata, _) acc ->
       match envdata with
-      | Cabs2cil.EnvVar vi' when vi' = vi -> Some original_name
+      | Cabs2cil.EnvVar vi ->
+        VM.add vi original_name acc
       | _ -> acc
-    ) Cabs2cil.environment None
+    ) Cabs2cil.environment VM.empty
+  )
+
+let var_find_original_name vi = VM.find_opt vi (Lazy.force var_original_names)
 
 (* TODO: detect temporaries created by Cil? *)
 (* let var_is_tmp {vdescrpure} = not vdescrpure (* doesn't exclude tmp___0 *) *)
