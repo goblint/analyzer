@@ -167,8 +167,16 @@ struct
     include Spec.D
     (* assumes Hashcons inside PathSensitive *)
     let to_int = tag
+    let name () = "D"
+    let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
   end
-  module VI = Printable.Prod3 (Node) (Spec.C) (I)
+  module CC =
+  struct
+    include Spec.C
+    let name () = "C"
+    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c
+  end
+  module VI = Printable.Prod3 (Node) (CC) (I)
   module VIE =
   struct
     include Printable.Prod (VI) (Edge)
