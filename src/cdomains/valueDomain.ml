@@ -347,6 +347,9 @@ struct
               )
         (* | _ -> log_top (); `Top *)
         | TVoid _ -> log_top __POS__; `Top
+        | TBuiltin_va_list _ ->
+          (* cast to __builtin_va_list only happens in preprocessed SV-COMP files where vararg declarations are more explicit *)
+          log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
       let s_torg = match torg with Some t -> Prelude.Ana.sprint d_type t | None -> "?" in
