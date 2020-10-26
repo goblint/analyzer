@@ -260,7 +260,12 @@ struct
    * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
   module SyncSet = SetDomain.Hoare (Spec.D) (struct let topname = "Sync Hoare top" end)
   module Sync = HoareMap (Spec.D) (SyncSet)
-  module D = Lattice.Prod (Dom) (Sync)
+  module D =
+  struct
+    include Lattice.Prod (Dom) (Sync)
+
+    let printXml f (d, _) = Dom.printXml f d
+  end
 
   module G = Spec.G
   module C = Spec.C
