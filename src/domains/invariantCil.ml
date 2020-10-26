@@ -14,6 +14,19 @@ let var_original_names: string VM.t Lazy.t =
   )
 
 let var_find_original_name vi = VM.find_opt vi (Lazy.force var_original_names)
+let var_replace_original_name vi =
+  match var_find_original_name vi with
+  | Some original_name -> {vi with vname = original_name}
+  | None -> vi
+
+class exp_replace_original_name_visitor = object
+  inherit nopCilVisitor
+  method! vvrbl (vi: varinfo) =
+    ChangeTo (var_replace_original_name vi)
+end
+let exp_replace_original_name e =
+  let visitor = new exp_replace_original_name_visitor in
+  visitCilExpr visitor e
 
 (* TODO: detect temporaries created by Cil? *)
 (* let var_is_tmp {vdescrpure} = not vdescrpure (* doesn't exclude tmp___0 *) *)

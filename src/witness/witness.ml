@@ -122,6 +122,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         begin match cfgnode, TaskResult.invariant node with
           | Statement _, Some i ->
+            let i = InvariantCil.exp_replace_original_name i in
             [("invariant", Pretty.sprint 800 (Cil.dn_exp () i));
              ("invariant.scope", (getFun cfgnode).svar.vname)]
           | _ ->

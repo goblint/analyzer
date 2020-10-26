@@ -28,12 +28,7 @@ struct
     in
 
     let key_invariant k v =
-      (* TODO: use elsewhere as well *)
-      let k' = match InvariantCil.var_find_original_name k with
-        | Some original_name -> {k with vname = original_name}
-        | None -> k
-      in
-      key_invariant_lval k NoOffset (var k') v VS.empty in
+      key_invariant_lval k NoOffset (var k) v VS.empty in
 
     fold (fun k v a ->
         let i =
