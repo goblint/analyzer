@@ -1,4 +1,3 @@
-// SKIP
 // Copied from sv-benchmarks
 #include <pthread.h>
 #include <stdio.h>
@@ -13,9 +12,9 @@
 
 extern void abort(void);
 #include <assert.h>
-void reach_error() { assert(0); }
+void reach_error() { assert(0); } // FAIL
 int __VERIFIER_nondet_int(void);
-void ldv_assert(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; }
+void ldv_assert(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; } // NOWARN
 
 pthread_t t1,t2;
 
@@ -97,14 +96,14 @@ int main(void) {
 		probe_ret = my_drv_probe(&data);
 		if(probe_ret==0) {
 			my_drv_disconnect(&data);
-			ldv_assert(data.shared.a==1);
-			ldv_assert(data.shared.b==2);
+			ldv_assert(data.shared.a==1); // RACE
+			ldv_assert(data.shared.b==2); // RACE
 		}
 		my_drv_cleanup();
-		data.shared.a = -1;
-		data.shared.b = -1;
-		ldv_assert(data.shared.a==-1);
-		ldv_assert(data.shared.b==-1);
+		data.shared.a = -1; // RACE
+		data.shared.b = -1; // RACE
+		ldv_assert(data.shared.a==-1); // RACE
+		ldv_assert(data.shared.b==-1); // RACE
 	}
 	return 0;
 }
