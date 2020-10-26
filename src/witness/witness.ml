@@ -381,6 +381,7 @@ struct
 
     let find_invariant (n, c, i) =
       let context: Invariant.context = {
+          scope=getFun n;
           i;
           lval=None;
           offset=Cil.NoOffset;
