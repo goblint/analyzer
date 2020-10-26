@@ -138,7 +138,7 @@ struct
     | `Bot -> `Bot
     | _ -> VD.top ()
 
-  let binop_ID = function
+  let binop_ID (result_ik: Cil.ikind) = function
     | PlusA -> ID.add
     | MinusA -> ID.sub
     | Mult -> ID.mul
@@ -157,7 +157,7 @@ struct
     | Shiftrt -> ID.shift_right
     | LAnd -> ID.logand
     | LOr -> ID.logor
-    | _ -> failwith "Unimplemented arithmetic function" (*; (fun x y -> (ID.top_of ik))*)
+    | b -> (fun x y -> (ID.top_of result_ik))
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
@@ -190,7 +190,7 @@ struct
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
-    | `Int v1, `Int v2 -> `Int (binop_ID op v1 v2)
+    | `Int v1, `Int v2 -> `Int (binop_ID (Cilfacade.get_ikind t) op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
