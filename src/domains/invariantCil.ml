@@ -1,5 +1,13 @@
 open Cil
 
+let var_find_original_name (vi: varinfo): string option =
+  (* TODO: optimize this *)
+  Hashtbl.fold (fun original_name (envdata, _) acc ->
+      match envdata with
+      | Cabs2cil.EnvVar vi' when vi' = vi -> Some original_name
+      | _ -> acc
+    ) Cabs2cil.environment None
+
 (* TODO: detect temporaries created by Cil? *)
 (* let var_is_tmp {vdescrpure} = not vdescrpure (* doesn't exclude tmp___0 *) *)
 (* TODO: instead check if vdescr is nonempty? (doesn't cover all cases, e.g. ternary temporary) *)
