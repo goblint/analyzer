@@ -20,12 +20,6 @@ struct
   module D =
   struct
     include RegionDomain.RegionDom
-    let toXML_f sf x =
-      match toXML x with
-      | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Region Analysis"], elems)
-      | x -> x
-
-    let toXML s  = toXML_f short s
   end
   module G = RegPart
   module C = D
@@ -67,10 +61,6 @@ struct
 
   let part_access ctx e _ _ = (*todo: remove regions that cannot be reached from the var*)
     let open Access in
-    let e' = match e with
-      | AddrOf lv -> Lval lv
-      | _ -> e
-    in
     let rec pretty_offs () = function
       | `NoOffset     -> dprintf ""
       | `Field (f,os) -> dprintf ".%s%a" f.fname pretty_offs os
@@ -80,15 +70,16 @@ struct
       v.vname ^ sprint pretty_offs os
     in
     let es = LSSet.empty () in
-    let add_region xs r =
-      LSSet.add("region", show r) xs
+    let add_region ps r =
+      LSSSet.add (LSSet.singleton ("region", show r)) ps
     in
-    match get_region ctx e' with
+    match get_region ctx e with
     | None -> (LSSSet.empty (),es)
+    | Some [] -> (LSSSet.singleton es, es) (* Should it happen in the first place that RegMap has empty value? *)
     | Some xs ->
-      let ps = List.fold_left add_region (LSSet.empty ()) xs in
+      let ps = List.fold_left add_region (LSSSet.empty ()) xs in
       (* ignore (Pretty.printf "%a in region %a\n" d_exp e LSSSet.pretty ps); *)
-      (LSSSet.singleton ps, es)
+      (ps, es)
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
@@ -153,7 +144,7 @@ struct
       else [ctx.local,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     match au with
     | `Lifted (equ, reg), gd -> begin
         let old_regpart = get_regpart ctx.global in

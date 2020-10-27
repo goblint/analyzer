@@ -6,8 +6,8 @@ TARGET=src/goblint
 
 gen() { # generate configuration files and goblint.ml which opens all modules in src/ such that they will be linked and executed without the need to be referenced somewhere else
   scripts/set_version.sh # generate the version file
-  echo '[@@@ocaml.warning "-33"]' > $TARGET.ml
-  ls -1 src/**/*.ml | egrep -v "goblint.ml|apronDomain|poly" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
+  echo '[@@@ocaml.warning "-33"]' > $TARGET.ml # disable warning 'Unused open statement.'
+  ls -1 src/**/*.ml | egrep -v "goblint.ml|apronDomain|poly|violationZ3" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
   echo "open Maingoblint" >> $TARGET.ml
 }
 
@@ -15,7 +15,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-base-compiler.4.10.0 --locked
+  opam switch -y create . --deps-only ocaml-base-compiler.4.11.1 --locked
   # opam install camlp4 mongo # camlp4 needed for mongo
 }
 
@@ -50,6 +50,10 @@ rule() {
       eval $(opam config env)
       # dune build -w $TARGET.exe
       dune runtest --no-buffer --watch
+    ;; domaintest)
+      eval $(opam config env)
+      dune build src/maindomaintest.exe &&
+      cp _build/default/src/maindomaintest.exe goblint.domaintest
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
@@ -93,10 +97,8 @@ rule() {
       opam_setup
     ;; dev)
       echo "Installing opam packages for development..."
-      opam install utop merlin ocp-indent ocamlformat ounit2
-      # needed for https://github.com/ocamllabs/vscode-ocaml-platform
-      # used https://github.com/jaredly/reason-language-server before, but has no support for OCaml 4.10 yet
-      opam pin add ocaml-lsp-server https://github.com/ocaml/ocaml-lsp.git
+      opam install utop ocaml-lsp-server ocp-indent ocamlformat ounit2
+      # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -

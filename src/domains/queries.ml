@@ -17,7 +17,6 @@ module ES =
 struct
   include ES_r
   include Printable.Std
-  include Lattice.StdCousot
   let bot = ES_r.top
   let top = ES_r.bot
   let leq x y = ES_r.leq y x
@@ -25,8 +24,10 @@ struct
   let meet x y = ES_r.join x y
 end
 
-type iterprevvar = (MyCFG.node * Obj.t) -> MyCFG.edge -> unit
+type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 let iterprevvar_to_yojson _ = `Null
+type itervar = int -> unit
+let itervar_to_yojson _ = `Null
 
 type t = ExpEq of exp * exp
        | EqualSet of exp
@@ -48,6 +49,7 @@ type t = ExpEq of exp * exp
        | CondVars of exp
        | Access of exp * bool * bool * int
        | IterPrevVars of iterprevvar
+       | IterVars of itervar
        | InInterval of exp * IntDomain.Interval32.t
        | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
        | MayBeEqual of exp * exp (* may two expressions be equal? *)
@@ -160,20 +162,7 @@ struct
     | `TypeSet n -> TS.isSimple n
     | _ -> true
 
-  let toXML_f sf state =
-    match state with
-    | `Int n -> ID.toXML n
-    | `Str s -> Xml.Element ("Leaf", [("text", s)],[])
-    | `Bool n -> BD.toXML n
-    | `LvalSet n -> LS.toXML n
-    | `ExprSet n -> ES.toXML n
-    | `ExpTriples n -> PS.toXML n
-    | `TypeSet n -> TS.toXML n
-    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
-
   let pretty () x = pretty_f short () x
-  let toXML s = toXML_f short s
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let leq x y =

@@ -16,7 +16,7 @@ int main(){
     assert(b == -128);
     unsigned char b2 = -1; // neg to pos
     assert(b2 == 255);
-    // via pointer (same data reinterpretated with different type)
+    // via pointer (same data reinterpreted with different type)
     // downcasts are ok for pos. values
     schar* c = (schar*) &a;
     b = *c;
@@ -93,7 +93,7 @@ int main(){
     assert(c == &c[0]);
     assert(c == e);
     assert(&c[1] == e+1);
-    // assert(c[1] == *(e+1)); // TODO array content is still `Bot
+    // assert(c[1] == *(e+1)); // TO-DO array content is still `Bot
     // of structs
     struct a f[5];
     assert((int*)f == &(f[0].x)); // index 0, first field

@@ -36,6 +36,8 @@ struct
     fold f s2 false
 
   let add e s = join s (singleton e)
+
+  let widen = join
 end
 
 module type CollapseSet = sig
@@ -51,7 +53,6 @@ struct
   type elem = S.elt
 
   let short w _ = "Partitions"
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let leq x y =
@@ -90,6 +91,8 @@ struct
 
   let add (s:set) (p:t): t = join p (singleton s)
 
+  let widen = join
+  let narrow = meet
 end
 
 
@@ -102,7 +105,6 @@ struct
   type partition = t
 
   let short w _ = "Partitions"
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let top = E.bot
@@ -155,6 +157,8 @@ struct
   let find_class (x: Base.t) (ss: t): set option =
     try Some (E.choose (E.filter (B.mem x) ss)) with Not_found -> None
 
+  let widen = join
+  let narrow = meet
 end
 
 module ExpPartitions = SetSet (Exp.Exp)

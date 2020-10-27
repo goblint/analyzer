@@ -116,6 +116,47 @@ let getLoc (node: node) =
   | Function fv -> fv.vdecl
   | FunctionEntry fv -> fv.vdecl
 
+(* TODO: refactor duplication with find_loop_heads *)
+module NH = Hashtbl.Make (Node)
+module NS = Set.Make (Node)
+let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
+  let loop_heads = NH.create 100 in
+  let global_visited_nodes = NH.create 100 in
+
+  (* DFS *)
+  let rec iter_node path_visited_nodes node =
+    if NS.mem node path_visited_nodes then
+      NH.add loop_heads node ()
+    else if not (NH.mem global_visited_nodes node) then begin
+      NH.add global_visited_nodes node ();
+      let new_path_visited_nodes = NS.add node path_visited_nodes in
+      List.iter (fun (_, to_node) ->
+          iter_node new_path_visited_nodes to_node
+        ) (Cfg.next node)
+    end
+  in
+
+  let entry_node = FunctionEntry fd.svar in
+  iter_node NS.empty entry_node;
+
+  loop_heads
+
+let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
+  let reachable = NH.create 100 in
+
+  (* DFS, copied from Control is_sink *)
+  let rec iter_node node =
+    if not (NH.mem reachable node) then begin
+      NH.replace reachable node ();
+      List.iter (fun (_, prev_node) ->
+          iter_node prev_node
+        ) (Cfg.prev node)
+    end
+  in
+
+  iter_node node;
+  reachable
+
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
@@ -170,6 +211,18 @@ let createCFG (file: file) =
         let entrynode = realnode true (CF.getFirstStmt fd) in
         (* Add the entry edge to that node *)
         let _ = addCfg (Statement entrynode) ((Entry fd), (FunctionEntry fd.svar)) in
+        (* Return node to be used for infinite loop connection to end of function
+         * lazy, so it's only added when actually needed *)
+        let pseudo_return = lazy (
+          let newst = mkStmt (Return (None, locUnknown)) in
+          let start_id = 10_000_000_000 in (* TODO get max_sid? *)
+          let sid = Hashtbl.hash loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
+          newst.sid <- if sid < start_id then sid + start_id else sid;
+          let newst_node = Statement newst in
+          addCfg (Function fd.svar) (Ret (None,fd), newst_node);
+          newst_node
+        )
+        in
         (* So for each statement in the function body, we do the following: *)
         let handle stmt =
           (* Please ignore the next line. It creates an index of statements
@@ -191,10 +244,16 @@ let createCFG (file: file) =
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
-            let handle_instrs succ = mkEdges (Statement stmt) (List.map handle_instr xs) succ in
+            let handle_instrs' = function
+              (* Empty Instrs are weird: they have edges without any label or transfer function.
+               * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
+              | [] -> [Cil.locUnknown, Skip] (* TODO: better loc from somewhere? *)
+              | xs -> List.map handle_instr xs
+            in
+            let handle_instrs succ = mkEdges (Statement stmt) (handle_instrs' xs) succ in
             (* Sometimes a statement might not have a successor.
              * This can happen if the last statement of a function is a call to exit. *)
-            let succs = if stmt.succs = [] then [Function fd.svar] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
+            let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
             List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
            * it's job well and we just pick out the right successors *)
@@ -221,18 +280,33 @@ let createCFG (file: file) =
                * of the function. In that case, we need to connect it to
                * the [Call] node. *)
               | Not_found ->
-                let newst = mkStmt (Return (None, locUnknown)) in
-                let start_id = 10_000_000_000 in (* TODO get max_sid? *)
-                let sid = Hashtbl.hash loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
-                newst.sid <- if sid < start_id then sid + start_id else sid;
-                mkEdge (realnode true stmt) (Test (one, false)) newst;
-                addCfg (Function fd.svar) (Ret (None,fd), Statement newst);
+                addCfg (Lazy.force pseudo_return) (Test (one, false), Statement (realnode true stmt)) (* TODO: is this necessary anymore? maybe could just leave it out and let the general case below handle it *)
             end
           (* The return edges are connected to the function *)
           | Return (exp,loc) -> addCfg (Function fd.svar) (Ret (exp,fd), Statement stmt)
-          | _ -> ()
+          (* Gotos are skipped over by realnode and usually not needed.
+           * Except goto loops with empty bodies need the Skip edge to be identified as loop heads and connected to return.
+           * This also creates some unconnected but unnecessary edges which are covered by realnode. *)
+          | Goto (target_ref, loc) -> addCfg (Statement !target_ref) (Skip, Statement stmt)
+          | _ ->
+            if Messages.tracing then Messages.trace "cfg" "Unknown stmtkind for %a\n" d_stmt stmt
         in
-        List.iter handle fd.sallstmts
+        List.iter handle fd.sallstmts;
+
+        (* Connect remaining infinite loops (e.g made using goto) to end of function
+         * via pseudo return node for demand driven solvers *)
+        let module TmpCfg: CfgBidir =
+        struct
+          let next = H.find_all cfgF
+          let prev = H.find_all cfgB
+        end
+        in
+        let loop_heads = find_loop_heads_fun (module TmpCfg) fd in
+        let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd.svar) in
+        NH.iter (fun node () ->
+            if not (NH.mem reachable_return node) then
+              addCfg (Lazy.force pseudo_return) (Test (one, false), node)
+          ) loop_heads
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
@@ -314,7 +388,11 @@ let getGlobalInits (file: file) : (edge * location) list  =
       if not (fast_global_inits && is_zero && Hashtbl.mem inits (assign (zero_index lval))) then
         Hashtbl.add inits (assign lval) ()
     | CompoundInit (typ, lst) ->
-      ignore (foldLeftCompound ~implicit:true ~doinit:initoffs ~ct:typ ~initl:lst ~acc:lval)
+      let ntyp = match typ, lst with
+        | TArray(t, None, attr), [] -> TArray(t, Some zero, attr) (* set initializer type to t[0] for flexible array members of structs that are intialized with {} *)
+        | _, _ -> typ
+      in
+      ignore (foldLeftCompound ~implicit:true ~doinit:initoffs ~ct:ntyp ~initl:lst ~acc:lval)
   in
   let f glob =
     match glob with

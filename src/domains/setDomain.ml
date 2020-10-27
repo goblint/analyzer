@@ -74,13 +74,14 @@ end
 module Make (Base: Printable.S) =
 struct
   include Printable.Blank
-  include Lattice.StdCousot
   include BatSet.Make(Base)
   let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
   let leq  = subset
   let join = union
+  let widen = join
   let meet = inter
+  let narrow = meet
   let bot = empty
   let is_bot = is_empty
   let top () = raise (Lattice.Unsupported "Set has no top")
@@ -111,15 +112,6 @@ struct
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    if cardinal x<2 && for_all Base.isSimple x then
-      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-    else
-      let elems = List.map Base.toXML (elements x) in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let equal x y =
@@ -143,6 +135,8 @@ struct
     BatPrintf.fprintf f "<value>\n<set>\n";
     iter (Base.printXml f) xs;
     BatPrintf.fprintf f "</set>\n</value>\n"
+
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (Base.arbitrary ())
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base
@@ -212,7 +206,6 @@ module ToppedSet (Base: Printable.S) (N: ToppedSetNames) =
 struct
   module S = Make (Base)
   include Printable.Blank
-  include Lattice.StdCousot
   type t = All | Set of S.t [@@deriving to_yojson]
   type elt = Base.t
 
@@ -320,13 +313,7 @@ struct
     | All -> true
     | Set t -> S.isSimple t
 
-  let toXML_f _ x =
-    match x with
-    | All -> Xml.Element ("Leaf", [("text", N.topname)], [])
-    | Set t -> S.toXML t
-
   let pretty () x = pretty_f short () x
-  let toXML x = toXML_f short x
 
 
   (* Lattice implementation *)
@@ -338,7 +325,9 @@ struct
 
   let leq = subset
   let join = union
+  let widen = join
   let meet = inter
+  let narrow = meet
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
     | Set x, Set y -> S.pretty_diff () (x,y)
@@ -353,6 +342,18 @@ struct
   let invariant c = function
     | All -> Invariant.none
     | Set s -> S.invariant c s
+
+  let arbitrary () =
+    let set x = Set x in
+    let open QCheck.Iter in
+    let shrink = function
+      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
+      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map set (S.arbitrary ());
+      1, QCheck.always All
+    ] (* S TODO: decide frequencies *)
 end
 
 (* superseded by Hoare *)
@@ -544,12 +545,6 @@ struct
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    let elems = List.map E.toXML (elements x) in
-    Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-
-  let toXML s  = toXML_f short s
   let pretty_f _ () x =
     let content = List.map (E.pretty ()) (elements x) in
     let rec separate x =
@@ -628,4 +623,17 @@ struct
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce
   let is_element e s = cardinal s = 1 && choose s = e
+
+  (* Copied from ToppedSet *)
+  let arbitrary () =
+    let set x = reduce (Set x) in (* added reduce here to satisfy implicit invariant *)
+    let open QCheck.Iter in
+    let shrink = function
+      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
+      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map set (S.arbitrary ());
+      1, QCheck.always All
+    ] (* S TODO: decide frequencies *)
 end

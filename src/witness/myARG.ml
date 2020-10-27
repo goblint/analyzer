@@ -7,15 +7,62 @@ sig
 
   val cfgnode: t -> MyCFG.node
   val to_string: t -> string
+
+  val move_opt: t -> MyCFG.node -> t option
+  val equal_node_context: t -> t -> bool
+end
+
+module type Edge =
+sig
+  type t
+
+  val embed: MyCFG.edge -> t
+  val cfgedge: t -> MyCFG.edge option
+  val to_string: t -> string
+end
+
+module CFGEdge: Edge with type t = MyCFG.edge =
+struct
+  type t = edge
+
+  let embed e = e
+  let cfgedge e = Some e
+  let to_string e = Pretty.sprint 80 (pretty_edge () e)
+end
+
+type inline_edge =
+  | CFGEdge of edge
+  | InlineEntry of Deriving.Cil.exp list
+  | InlineReturn of Deriving.Cil.lval option
+  [@@deriving to_yojson]
+
+let pretty_inline_edge () = function
+  | CFGEdge e -> MyCFG.pretty_edge () e
+  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
+  | InlineReturn None -> Pretty.dprintf "InlineReturn"
+  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+
+module InlineEdge: Edge with type t = inline_edge =
+struct
+  type t = inline_edge [@@deriving to_yojson]
+
+  let embed e = CFGEdge e
+
+  let cfgedge = function
+    | CFGEdge e -> Some e
+    | _ -> None
+
+  let to_string e = Pretty.sprint 80 (pretty_inline_edge () e)
 end
 
 (* Abstract Reachability Graph *)
 module type S =
 sig
   module Node: Node
+  module Edge: Edge
 
   val main_entry: Node.t
-  val next: Node.t -> (MyCFG.edge * Node.t) list
+  val next: Node.t -> (Edge.t * Node.t) list
 end
 
 module StackNode (Node: Node):
@@ -28,12 +75,20 @@ struct
     nl
     |> List.map Node.to_string
     |> String.concat "@"
+
+  let move_opt nl to_node = match nl with
+    | [] -> None
+    | n :: stack ->
+      Node.move_opt n to_node
+      |> BatOption.map (fun to_n -> to_n :: stack)
+  let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
 module Stack (Cfg:CfgForward) (Arg: S):
-  S with module Node = StackNode (Arg.Node) =
+  S with module Node = StackNode (Arg.Node) and module Edge = Arg.Edge =
 struct
   module Node = StackNode (Arg.Node)
+  module Edge = Arg.Edge
 
   let main_entry = [Arg.main_entry]
 
@@ -62,15 +117,23 @@ struct
             begin match call_next with
               | [] -> failwith "StackArg.next: call next empty"
               | [(_, return_node)] ->
-                Arg.next n
-                |> List.filter (fun (edge, to_n) ->
-                    let to_cfgnode = Arg.Node.cfgnode to_n in
-                    MyCFG.Node.equal to_cfgnode return_node
-                  )
-                |> List.map (fun (edge, to_n) ->
-                    let to_n' = to_n :: call_stack in
-                    (edge, to_n')
-                  )
+                begin match Arg.Node.move_opt call_n return_node with
+                  (* TODO: Is it possible to have a calling node without a returning node? *)
+                  (* | None -> [] *)
+                  | None -> failwith "StackArg.next: no return node"
+                  | Some return_n ->
+                    (* TODO: Instead of next & filter, construct unique return_n directly. Currently edge missing. *)
+                    Arg.next n
+                    |> List.filter (fun (edge, to_n) ->
+                        (* let to_cfgnode = Arg.Node.cfgnode to_n in
+                        MyCFG.Node.equal to_cfgnode return_node *)
+                        Arg.Node.equal_node_context to_n return_n
+                      )
+                    |> List.map (fun (edge, to_n) ->
+                        let to_n' = to_n :: call_stack in
+                        (edge, to_n')
+                      )
+                end
               | _ :: _ :: _ -> failwith "StackArg.next: call next ambiguous"
             end
         end
@@ -89,11 +152,12 @@ end
 module type IsInteresting =
 sig
   type node
-  val is_interesting: node -> MyCFG.edge -> node -> bool
+  type edge
+  val is_interesting: node -> edge -> node -> bool
 end
 
-module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t):
-  S with module Node = Arg.Node =
+module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t and type edge := Arg.Edge.t):
+  S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
   include Arg
 
@@ -158,7 +222,7 @@ let partition_if_next if_next_n =
   in
   (* assert (List.length if_next <= 2); *)
   match test_next true, test_next false with
-  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when e_true = e_false ->
+  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when Expcompare.compareExp e_true e_false ->
     (e_true, if_true_next_n, if_false_next_n)
   | _, _ -> failwith "partition_if_next: bad branches"
 
@@ -187,11 +251,14 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
+    | Statement {sid; skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
+      (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
+      (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
+      (* TODO: need to handle longer loops? *)
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | Statement {skind=If (_, _, _, loc2); _}, _ when loc = loc2 ->
+        | Statement {sid=sid2; skind=If (_, _, _, loc2); _}, _ when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
@@ -203,7 +270,7 @@ struct
           else
             None
         (* || *)
-        | _, Statement {skind=If (_, _, _, loc2); _} when loc = loc2 ->
+        | _, Statement {sid=sid2; skind=If (_, _, _, loc2); _} when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
@@ -234,8 +301,7 @@ struct
       (* avoid unnecessary ternary *)
       e_cond
     else
-      (* CIL has no exp for ternary at all..., this string constant is just decorative *)
-      Const (CStr (Pretty.sprint 1000 (Pretty.dprintf "%a ? %a : %a" dn_exp e_cond dn_exp e_true dn_exp e_false)))
+      Question(e_cond, e_true, e_false, typeOf e_false)
 
   let next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
@@ -259,16 +325,8 @@ struct
     | None -> Arg.next n
 end
 
-module type MoveNode =
-sig
-  include Node
-
-  val move: t -> MyCFG.node -> t
-  val is_live: t -> bool
-end
-
-module Intra (Node: MoveNode) (ArgIntra: SIntraOpt) (Arg: S with module Node = Node):
-  S with module Node = Node =
+module Intra (ArgIntra: SIntraOpt) (Arg: S):
+  S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
   include Arg
 
@@ -277,6 +335,8 @@ struct
     | None -> Arg.next node
     | Some next ->
       next
-      |> List.map (fun (e, to_n) -> (e, Node.move node to_n))
-      |> List.filter (fun (_, to_node) -> Node.is_live to_node)
+      |> BatList.filter_map (fun (e, to_n) ->
+          Node.move_opt node to_n
+          |> BatOption.map (fun to_node -> (Edge.embed e, to_node))
+        )
 end

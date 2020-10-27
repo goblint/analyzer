@@ -18,7 +18,7 @@ struct
   let body ctx (f:fundec) : D.t = ctx.local
   let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = au
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =

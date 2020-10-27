@@ -1,0 +1,19 @@
+extern void abort(void);
+void reach_error(){}
+extern int __VERIFIER_nondet_int();
+
+int a, b, c;
+
+int main() {
+    int *p1 = __VERIFIER_nondet_int() ? &a : &c;
+    int *p2 = __VERIFIER_nondet_int() ? &b : 0;
+
+    if (p1 == p2) {
+        goto ERROR;
+    }
+
+    return 0;
+
+    ERROR: {reach_error();abort();}
+    return 1;
+}

@@ -90,8 +90,12 @@ struct
 
   let short w x =
     let w2 = let n = List.length x in if n=0 then w else w / n in
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.short w2 (obj x) :: a) [] x in
-    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
+    (* width violated anyway? *)
+    let xs = unop_fold (fun a n (module S : Printable.S) x ->
+        let analysis_name = assoc n !analyses_table in
+        (analysis_name ^ ":(" ^ S.short w2 (obj x) ^ ")") :: a) [] x
+    in
+    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
   let to_yojson x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
@@ -119,15 +123,12 @@ struct
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
   let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
 
-  let name () = IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map (flip assoc !analyses_table) @@ map fst @@ domain_list ())
-
-  let toXML_f sf x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.toXML (obj x) :: a) [] x in
-    let esc = Goblintutil.escape in
-    let node_leaf = if xs = [] then "Leaf" else "Node" in
-    Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], xs)
-
-  let toXML = toXML_f short
+  let name () =
+    let domain_name (n, (module D: Printable.S)) =
+      let analysis_name = assoc n !analyses_table in
+      analysis_name ^ ":(" ^ D.name () ^ ")"
+    in
+    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
 
   let pretty_diff () (x,y) = text "Please override me!"
 
@@ -142,6 +143,10 @@ struct
   let invariant c = unop_fold (fun a n (module S : Printable.S) x ->
       Invariant.(a && S.invariant c (obj x))
     ) Invariant.none
+
+  let arbitrary () =
+    let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
+    MyCheck.Arbitrary.sequence arbs
 end
 
 let _ =
@@ -425,6 +430,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -453,6 +459,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -489,6 +496,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -581,6 +589,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -611,6 +620,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -641,6 +651,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -672,6 +683,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -703,6 +715,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -734,6 +747,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -756,6 +770,38 @@ struct
     let d = do_assigns ctx !assigns d in
     if q then raise Deadcode else d
 
+  let skip (ctx:(D.t, G.t, C.t) ctx) =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let assigns = ref [] in
+    let f post_all (n,(module S:Spec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+        { local  = obj d
+        ; node   = ctx.node
+        ; prev_node = ctx.prev_node
+        ; control_context = ctx.control_context
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
+        ; edge   = ctx.edge
+        ; ask    = query ctx
+        ; presub = filter_presubs n ctx.local
+        ; postsub= filter_presubs n post_all
+        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
+        }
+      in
+      n, repr @@ S.skip ctx'
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    let d = do_assigns ctx !assigns d in
+    if q then raise Deadcode else d
+
   let special (ctx:(D.t, G.t, C.t) ctx) r f a =
     let spawns = ref [] in
     let splits = ref [] in
@@ -765,6 +811,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -795,6 +842,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -824,6 +872,7 @@ struct
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -844,7 +893,7 @@ struct
     do_spawns ctx !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine (ctx:(D.t, G.t, C.t) ctx) r fe f a fd =
+  let combine (ctx:(D.t, G.t, C.t) ctx) r fe f a fc fd =
     let spawns = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
@@ -852,6 +901,7 @@ struct
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
+        ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
@@ -865,7 +915,7 @@ struct
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
-      n, repr @@ S.combine ctx' r fe f a @@ obj @@ assoc n fd
+      n, repr @@ S.combine ctx' r fe f a (obj (assoc n fc)) (obj (assoc n fd))
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;

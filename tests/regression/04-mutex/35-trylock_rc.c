@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #define err_abort(code,text) do { \
     fprintf (stderr, "%s at \"%s\":%d: %s\n", \
@@ -48,7 +49,7 @@ void *monitor_thread (void *arg) {
     if (status != EBUSY) {
       if (status != 0)
         err_abort (status, "Trylock mutex");
-      printf ("Counter is %ld\n", counter/SPIN); // RACE!
+      printf ("Counter is %ld\n", counter/SPIN); // RACE
       status = pthread_mutex_unlock (&mutex);
       if (status != 0)
         err_abort (status, "Unlock mutex");

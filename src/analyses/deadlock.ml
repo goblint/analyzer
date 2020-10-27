@@ -79,7 +79,7 @@ struct
     [D.bot (),ctx.local]
 
   (* Leaves a function *)
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)

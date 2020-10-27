@@ -10,7 +10,6 @@ module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
   include Printable.Std
-  include Lattice.StdCousot
   type idx = Idx.t
   type value = Base.t
   type t = Base.t array [@@deriving to_yojson]
@@ -59,25 +58,16 @@ struct
   let join a b =
     map_arrays Base.join a b
 
+  let widen = join
+
   let meet a b =
     map_arrays Base.meet a b
 
+  let narrow = meet
   let short w x =
     let itemlist = Array.to_list x in
     let strlist  = List.map (Base.short max_int) itemlist in
     Printable.get_short_list "Array: {" "}" (w-9) strlist
-
-
-  let toXML_f _ a =
-    let text = short Goblintutil.summary_length a in
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = string_of_int i ^ " -> " ^ attrib in
-      match a with
-        Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-      | _ -> a in
-    let indexed_children = A.to_list (A.mapi add_index (A.map Base.toXML a)) in
-    Xml.Element ("Node", [("text", text)], indexed_children )
 
 
   let pretty_f _ () x =
@@ -94,7 +84,6 @@ struct
     (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
   let pretty ()  x = pretty_f short () x
-  let toXML s = toXML_f short s
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let get ask a (_, i) =
@@ -169,6 +158,7 @@ struct
       x
     else
       failwith "NativeArray can not handle variable-length arrays (VLAs)"
+    let widen = join
 
 end
 
@@ -233,7 +223,6 @@ module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
 struct
   module A = NativeArray (Base) (Idx)
   include Printable.Std
-  include Lattice.StdCousot
 
   let name () = "collapsing arrays"
   type idx = Idx.t
@@ -281,6 +270,7 @@ struct
   | (Array v1, Value v2) -> Array (A.join v1 (value_array v1 v2))
   | (Value v1, Array v2) -> Array (A.join v2 (value_array v2 v1))
 
+  let widen = join
 
   let meet a b =
      let arr_len a =
@@ -294,6 +284,7 @@ struct
   | (Array v1, Value v2) -> Array (A.meet v1 (value_array v1 v2))
   | (Value v1, Array v2) -> Array (A.meet v2 (value_array v2 v1))
 
+  let narrow = meet
 
   let short w x =
     match x with
@@ -301,21 +292,6 @@ struct
       | Array v -> A.short w v
 
   let printXml f x = () (* TODO *)
-
-  let valueToXML a =
-    let add_prefix x =
-      let text = Base.short (Goblintutil.summary_length - 9) a in
-      let new_attr = "Array: {" ^ text ^ "}" in
-  match x with
-      Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-    | _ -> x in
-      add_prefix (Base.toXML a)
-
-  let toXML_f _ a =
-    match a with
-  Value v -> valueToXML v
-      | Array v -> A.toXML v
-
 
   let bot () = Value (Base.bot ())
   let is_bot a =
@@ -348,7 +324,6 @@ struct
       | Array v -> Array (A.set ask v i n)
 
   let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let make i v =
@@ -393,7 +368,6 @@ module MapArray (I: sig val n : int option end) (Base: Lattice.S) (Idx: IntDomai
   : S with type value = Base.t and type idx = Idx.t =
 struct
   include Printable.Std
-  include Lattice.StdCousot
 
   module M = Deriving.Map.Make (Idx)
 
@@ -473,24 +447,6 @@ struct
   let pretty () = pretty_f short ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let toXML_f s x =
-    let text = s Goblintutil.summary_length x in
-    match x with
-      | Bot -> Xml.Element ("Node", [("text", text)],[])
-      | Mapping a ->
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = (Idx.short max_int i) ^ " -> " ^ attrib in
-      match a with
-        | Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-        | _ -> a in
-    let transform i v l : Xml.xml list =
-      (add_index i (Base.toXML v)) :: l in
-    let indexed_children = M.fold transform a [] in
-      Xml.Element ("Node", [("text", text)], indexed_children )
-
-  let toXML = toXML_f short
-
   let meet x y =
     let meet_base2 key a b map =
       let m = Base.meet a b in
@@ -505,6 +461,8 @@ struct
       | Bot, _   -> Bot
       | _  , Bot -> Bot
       | Mapping a, Mapping b -> Mapping (meet_mappings a b)
+
+  let narrow = meet
 
   let join x y =
     let join_base2 key a b map =
@@ -523,6 +481,8 @@ struct
       | Bot, a   -> a
       | a  , Bot -> a
       | Mapping a, Mapping b -> Mapping (join_mappings a b)
+
+  let widen = join
 
   let get ask x (_, i) =
     match x with
@@ -743,8 +703,6 @@ end
 module SharedMapArrayParts (Base:Lattice.S) (Idx:IntDomain.S) =
 struct
 
-  include Lattice.StdCousot
-
   module M = CountingMap(Base)(Idx)
 
   type t = M.t * Idx.t [@@deriving to_yojson]
@@ -818,22 +776,6 @@ struct
 
   let pretty () = pretty_f short ()
 
-  let toXML_f s (((map:M.t), length) as a) =
-    let text = s Goblintutil.summary_length a in
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = (Idx.short max_int i) ^ " -> " ^ attrib in
-      match a with
-        | Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-        | _ -> a in
-    let transform i v l : Xml.xml list =
-      (add_index i (Base.toXML v)) :: l in
-    let indexed_children = M.fold map transform [] in
-      Xml.Element ("Node", [("text", text)], indexed_children )
-
-  (* Won't compile unless we give the type *)
-  let toXML: (t -> Xml.xml) = toXML_f short
-
   let printXml _ _ = () (* TODO *)
 end
 
@@ -880,10 +822,14 @@ struct
       then a
       else map2 Base.join a b
 
+  let widen = join
+
   let meet a b =
     if equal a b
       then a
       else map2 Base.meet a b
+
+  let narrow = meet
 
   let set ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin
@@ -1013,10 +959,14 @@ struct
       then a
       else map2 Base.join a b
 
+  let widen = join
+
   let meet a b =
     if equal a b
       then a
       else map2 Base.meet a b
+
+  let narrow = meet
 
   let set ask ((map,len) as emap) (_, index) value =
     if Idx.is_int index then begin

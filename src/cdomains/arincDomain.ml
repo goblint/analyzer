@@ -32,7 +32,6 @@ module D =
 struct
   type t = process [@@deriving to_yojson]
   include Printable.Std
-  include Lattice.StdCousot
 
   (* printing *)
   let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; pred=%s; ctx=%s }" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Pretty.sprint 200 (Pred.pretty () x.pred)) (Ctx.short 50 x.ctx)
@@ -41,21 +40,6 @@ struct
       let name () = "ARINC state"
       let short = short
     end)
-  let toXML_f sf d =
-    let replace_top name = function
-      | Xml.Element (node, [text, n], elems) -> Xml.Element (node, [text, name ^ n], elems)
-      | x -> x
-    in
-    let elems = [ replace_top "PID: "   @@ Pid.toXML  d.pid
-                ; replace_top "Priority: "  @@ Pri.toXML d.pri
-                ; replace_top "Period: "  @@ Per.toXML d.per
-                ; replace_top "Capacity: "  @@ Cap.toXML d.cap
-                ; replace_top "Partition mode: "  @@ Pmo.toXML d.pmo
-                ; replace_top "Preemption lock: " @@ PrE.toXML  d.pre
-                ; replace_top "Predecessor nodes: " @@ Pred.toXML d.pred
-                ; replace_top "Context hash: " @@ Ctx.toXML d.ctx ] in
-    Xml.Element ("Node", ["text", "ARINC state"], elems)
-  let toXML s  = toXML_f short s
   (* Printable.S *)
   (* let equal = Util.equals *)
   let equal x y = Pid.equal x.pid y.pid && Pri.equal x.pri y.pri && Per.equal x.per y.per && Cap.equal x.cap y.cap && Pmo.equal x.pmo y.pmo && PrE.equal x.pre y.pre && Pred.equal x.pred y.pred && Ctx.equal x.ctx y.ctx
@@ -85,5 +69,7 @@ struct
     (* let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r; *)
     if Pred.cardinal r.pred > 5 then (Messages.debug_each @@ "Pred.cardinal r.pred = " ^ string_of_int (Pred.cardinal r.pred) ^ " with value " ^ short 100 r(* ; failwith "STOP" *));
     r
+  let widen = join
   let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Pred.meet Ctx.meet
+  let narrow = meet
 end

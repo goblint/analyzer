@@ -18,7 +18,6 @@ struct
       | (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
 
     let pretty = pretty_f short
-    let toXML = toXML_f short
   end
 
   include Printable.Either (Var) (AdrPair)
@@ -30,7 +29,6 @@ struct
   let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
 
   let pretty = pretty_f short
-  let toXML  = toXML_f short
 
   let classify = function
     | `Left  v -> 1
@@ -60,7 +58,6 @@ struct
     | x -> short w x
 
   let pretty = pretty_f short
-  let toXML  = toXML_f short
 end
 
 module Rhs =
@@ -69,9 +66,7 @@ struct
     (*  module TR = Printable.Prod3 (Edges) (Edges) (ListPtrSetR)
 
         let short w ((p,n),(e,_)) = TR.short w (p,n,e)
-        let pretty = pretty_f short
-        let toXML_f _ ((p,n),(e,_)) = TR.toXML_f TR.short (p,n,e)
-        let toXML  = toXML_f short*)
+        let pretty = pretty_f short*)
 end
 
 let is_private ask (lp:ListPtr.t) =
@@ -582,4 +577,5 @@ struct
     | _ , Set s when cardinal m2 = 1 && SHMap.is_top (choose m2) -> true
     |  _ -> leq m1 m2
 
+  let widen = join
 end

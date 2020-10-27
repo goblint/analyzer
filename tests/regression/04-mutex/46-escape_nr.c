@@ -7,7 +7,7 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 void *t_fun(void *arg) {
   int *p = (int *) arg;
   pthread_mutex_lock(&mutex1);
-  (*p)++; // NOWARN!
+  (*p)++; // NORACE
   pthread_mutex_unlock(&mutex1);
   return NULL;
 }
@@ -17,7 +17,7 @@ int main(void) {
   int i;
   pthread_create(&id, NULL, t_fun, (void *) &i);
   pthread_mutex_lock(&mutex1);
-  i++; // NOWARN!
+  i++; // NORACE
   pthread_mutex_unlock(&mutex1);
   pthread_join (id, NULL);
   return 0;

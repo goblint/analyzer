@@ -32,12 +32,6 @@ sig
   val is_top: t -> bool
 end
 
-module StdCousot =
-struct
-  let widen x y = y
-  let narrow x y = x
-end
-
 exception TopValue
 exception BotValue
 exception Unsupported of string
@@ -46,10 +40,12 @@ let unsupported x = raise (Unsupported x)
 module UnitConf (N: Printable.Name) =
 struct
   include Printable.UnitConf (N)
-  include StdCousot
   let leq _ _ = true
   let join _ _ = ()
+  let widen = join
   let meet _ _ = ()
+
+  let narrow = meet
   let top () = ()
   let is_top _ = true
   let bot () = ()
@@ -61,12 +57,13 @@ module Unit = UnitConf (struct let name = "()" end)
 module Fake (Base: Printable.S) =
 struct
   include Base
-  include StdCousot
   let leq = equal
   let join x y =
     if equal x y then x else raise (Unsupported "fake join")
+  let widen = join
   let meet x y =
     if equal x y then x else raise (Unsupported "fake meet")
+  let narrow = meet
   let top () = raise (Unsupported "fake top")
   let is_top _ = false
   let bot () = raise (Unsupported "fake bot")
@@ -82,10 +79,11 @@ end
 module FakeSingleton (Base: PD) =
 struct
   include Base
-  include StdCousot
   let leq x y = true
   let join x y = x
+  let widen = join
   let meet x y = x
+  let narrow = meet
   let top () = Base.dummy
   let bot () = Base.dummy
   let is_top _ = true
@@ -109,6 +107,8 @@ struct
   let pretty_diff () (x,y) =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml = Base.printXml
+
+  let arbitrary = Base.arbitrary
 end
 
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
@@ -130,8 +130,6 @@ end
 module Flat (Base: Printable.S) (N: Printable.LiftingNames) =
 struct
   include Printable.Lift (Base) (N)
-  include StdCousot
-
   let bot () = `Bot
   let is_bot x = x = `Bot
   let top () = `Top
@@ -158,6 +156,8 @@ struct
     | (`Lifted x, `Lifted y) when Base.equal x y -> `Lifted x
     | _ -> `Top
 
+  let widen = join
+
   let meet x y =
     match (x,y) with
     | (`Bot, _) -> `Bot
@@ -166,6 +166,9 @@ struct
     | (x, `Top) -> x
     | (`Lifted x, `Lifted y) when Base.equal x y -> `Lifted x
     | _ -> `Bot
+
+  let narrow = meet
+
 end
 
 
@@ -566,7 +569,6 @@ module Option (Base: S) (N: Printable.Name) = Either (Base) (UnitConf (N))
 module Liszt (Base: S) =
 struct
   include Printable.Liszt (Base)
-  include StdCousot
   let bot () = raise (Unsupported "bot?")
   let is_top _ = false
   let top () = raise (Unsupported "top?")
@@ -577,14 +579,16 @@ struct
     List.fold_left2 f true
 
   let join = List.map2 Base.join
+  let widen = join
   let meet = List.map2 Base.meet
+  let narrow = meet
 end
 
 module Chain (P: Printable.ChainParams) =
 struct
   include Printable.Std
   include Printable.Chain (P)
-  include StdCousot
+
   let bot () = 0
   let is_bot x = x = 0
   let top () = P.n - 1
@@ -592,5 +596,7 @@ struct
 
   let leq x y = x <= y
   let join x y = max x y
+  let widen = join
   let meet x y = min x y
+  let narrow = meet
 end

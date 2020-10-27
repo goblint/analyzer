@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 #include<stdio.h>
 
@@ -20,6 +20,9 @@ void *t_fun(void *arg) {
 }
 
 int main () {
+  for (int i = 0; i < 10; i++)
+    pthread_mutex_init(&cache[i].refs_mutex, NULL);
+
   int i;
   pthread_t t1;
   pthread_create(&t1, NULL, t_fun, NULL);
@@ -27,6 +30,6 @@ int main () {
 
   pthread_mutex_lock(&cache[4].refs_mutex);
   cache[5].refs++; // RACE!
-  pthread_mutex_lock(&cache[4].refs_mutex);
+  pthread_mutex_unlock(&cache[4].refs_mutex);
   return 0;
 }

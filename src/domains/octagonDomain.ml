@@ -28,7 +28,6 @@ struct
   let copy_oct oct =
     Array.map Array.copy oct
   (* TODO: implement better narrow function *)
-  include Lattice.StdCousot
   include Printable.Blank
 
   type t = elt array array

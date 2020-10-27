@@ -280,7 +280,7 @@ struct
   let enter ctx (lval: lval option) (fn:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (after:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (after:D.t) : D.t =
     match lval with
     | Some (Var v, NoOffset) ->
         let retval = evaluate_exp after (Lval ((Var (return_varinfo ())), NoOffset)) in
