@@ -892,8 +892,8 @@ struct
           | Some e ->
             begin
               match eval_exp e with
-              | `Int x -> x
-              | _ -> ID.top_of (Cilfacade.get_ikind (typeOf e)) (* TODO:Warn *)
+              | `Int x -> ID.cast_to (Cilfacade.ptrdiff_ikind ())  x
+              | _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO:Warn *)
             end
         in
         `Array(CArrays.update_length newl n')
