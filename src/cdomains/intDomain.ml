@@ -1762,7 +1762,6 @@ struct
   let lift2 op x y = check_ikinds x y; {x with v = op x.v y.v }
   let lift2_cmp op x y = check_ikinds x y; {v = op x.v y.v;  ikind = Cil.IInt}
 
- (* TODO: require ikind argument for bot and top *)
   let bot_of ikind = { v = I.bot (); ikind}
 
   let bot () = failwith "bot () is not implemented for IntDomLifter."
@@ -1770,7 +1769,8 @@ struct
   let top_of ikind = { v = I.top (); ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
   let is_top x = I.is_top x.v
-  (* Leq does not check for ikind, because it is used in invariant with arguments of different type *)
+  (* Leq does not check for ikind, because it is used in invariant with arguments of different type.
+     TODO: check ikinds here and fix invariant to work with right ikinds *)
   let leq x y = I.leq x.v y.v
   let join = lift2 I.join
   let meet = lift2 I.meet
