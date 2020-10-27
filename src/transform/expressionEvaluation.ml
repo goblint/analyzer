@@ -125,11 +125,11 @@ module ExpEval : Transform.S =
     type query =
       {
 
-        kind : SyntacticalAnalyzer.JsonParser.kind;
-        target : SyntacticalAnalyzer.JsonParser.target;
-        find : SyntacticalAnalyzer.JsonParser.find;
-        structure : (SyntacticalAnalyzer.JsonParser.structure [@default None_s]);
-        limitation : (SyntacticalAnalyzer.JsonParser.constr [@default None_c]);
+        kind : CodeQuery.kind;
+        target : CodeQuery.target;
+        find : CodeQuery.find;
+        structure : (CodeQuery.structure [@default None_s]);
+        limitation : (CodeQuery.constr [@default None_c]);
 
         expression : string;
         mode : [ `Must | `May ];
@@ -158,7 +158,7 @@ module ExpEval : Transform.S =
               (* Create an evaluator *)
               let evaluator = new evaluator file ask in
               (* Syntactic query *)
-              let query_syntactic : SyntacticalAnalyzer.JsonParser.query =
+              let query_syntactic : CodeQuery.query =
                 {
                   sel = [];
                   k = query.kind;
@@ -169,7 +169,7 @@ module ExpEval : Transform.S =
                 }
               in
               let locations =
-                SyntacticalAnalyzer.QueryMapping.map_query query_syntactic file
+                QueryMapping.map_query query_syntactic file
                   (* Use only locations *)
                   |> List.map (fun (_, l, _, _) -> l)
                   (* Group by source files *)
