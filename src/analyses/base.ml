@@ -40,18 +40,26 @@ let is_private (a: Q.ask) (_,fl,_) (v: varinfo): bool =
    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
    false)
 
-module MainFunctor(RVEval:BaseDomain.ExpEvaluator) =
+
+module type MainSpec = sig
+  include Spec
+  include BaseDomain.ExpEvaluator
+  val return_lval: unit -> Cil.lval
+  val return_varinfo: unit -> Cil.varinfo
+  type extra = (varinfo * Offs.t * bool) list
+  val context_cpa: D.t -> BaseDomain.CPA.t
+end
+
+module rec Main: MainSpec =
 struct
   include Analyses.DefaultSpec
-
-  exception Top
 
   module VD     = BaseDomain.VD
   module CPA    = BaseDomain.CPA
   module Flag   = BaseDomain.Flag
   module Dep    = BaseDomain.PartDeps
 
-  module Dom    = BaseDomain.DomFunctor(RVEval)
+  module Dom    = BaseDomain.DomFunctor(Main)
 
   module G      = BaseDomain.VD
   module D      = Dom
@@ -72,7 +80,6 @@ struct
   let threadstate v = CPA.bot (), create_tid v, Dep.bot ()
 
   type cpa = CPA.t
-  type flag = Flag.t
   type extra = (varinfo * Offs.t * bool) list
   type store = D.t
   type value = VD.t
@@ -2235,17 +2242,6 @@ struct
       Access.LSSSet.empty (), es
 
 end
-
-module type MainSpec = sig
-  include Spec
-  include BaseDomain.ExpEvaluator
-  val return_lval: unit -> Cil.lval
-  val return_varinfo: unit -> Cil.varinfo
-  type extra = (varinfo * Offs.t * bool) list
-  val context_cpa: D.t -> BaseDomain.CPA.t
-end
-
-module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
