@@ -11,25 +11,9 @@ module M = Messages
 let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
 
-(* Shared functions between S and Z *)
-module type B =
+module type Arith =
 sig
-  include Lattice.S
-  val bot_of: Cil.ikind -> t
-  val top_of: Cil.ikind -> t
-  val to_int: t -> int64 option
-  val is_int: t -> bool
-  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
-
-  val to_bool: t -> bool option
-  val is_bool: t -> bool
-  val to_excl_list: t -> int64 list option
-  val of_excl_list: Cil.ikind -> int64 list -> t
-  val is_excl_list: t -> bool
-
-  val maximal    : t -> int64 option
-  val minimal    : t -> int64 option
-
+  type t
   val neg: t -> t
   val add: t -> t -> t
   val sub: t -> t -> t
@@ -56,10 +40,62 @@ sig
   val logand: t -> t -> t
   val logor : t -> t -> t
 
+end
+
+module type ArithIkind =
+sig
+  type t
+  val neg: Cil.ikind -> t -> t
+  val add: Cil.ikind -> t -> t -> t
+  val sub: Cil.ikind -> t -> t -> t
+  val mul: Cil.ikind -> t -> t -> t
+  val div: Cil.ikind -> t -> t -> t
+  val rem: Cil.ikind -> t -> t -> t
+
+  val lt: Cil.ikind -> t -> t -> t
+  val gt: Cil.ikind -> t -> t -> t
+  val le: Cil.ikind -> t -> t -> t
+  val ge: Cil.ikind -> t -> t -> t
+  val eq: Cil.ikind -> t -> t -> t
+  val ne: Cil.ikind -> t -> t -> t
+
+  val bitnot: Cil.ikind -> t -> t
+  val bitand: Cil.ikind -> t -> t -> t
+  val bitor : Cil.ikind -> t -> t -> t
+  val bitxor: Cil.ikind -> t -> t -> t
+
+  val shift_left : Cil.ikind -> t -> t -> t
+  val shift_right: Cil.ikind -> t -> t -> t
+
+  val lognot: Cil.ikind -> t -> t
+  val logand: Cil.ikind -> t -> t -> t
+  val logor : Cil.ikind -> t -> t -> t
+
+end
+
+(* Shared functions between S and Z *)
+module type B =
+sig
+  include Lattice.S
+  val bot_of: Cil.ikind -> t
+  val top_of: Cil.ikind -> t
+  val to_int: t -> int64 option
+  val is_int: t -> bool
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
+
+  val to_bool: t -> bool option
+  val is_bool: t -> bool
+  val to_excl_list: t -> int64 list option
+  val of_excl_list: Cil.ikind -> int64 list -> t
+  val is_excl_list: t -> bool
+
+  val maximal    : t -> int64 option
+  val minimal    : t -> int64 option
+
   val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
 end
 
-module type S =
+module type SBase =
 sig
   include B
   val of_int: int64 -> t
@@ -74,9 +110,25 @@ sig
   val ending     : ?ikind:Cil.ikind -> int64 -> t
 end
 
+module type IkindUnawareS =
+sig
+  include SBase
+  include Arith with type t:= t
+end
+(** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
+   TODO: Should be ported to S in the future. *)
+
+module type S =
+sig
+  include SBase
+  include ArithIkind with type t:= t
+end
+(** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
+
 module type Z =
 sig
   include B
+  include Arith with type t:= t
   val of_int: Cil.ikind -> int64 -> t
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: Cil.ikind -> int64 * int64 -> t
@@ -84,6 +136,37 @@ sig
   val starting   : Cil.ikind -> int64 -> t
   val ending     : Cil.ikind -> int64 -> t
 end
+
+module OldDomainFacade (Old : IkindUnawareS) : S =
+struct
+  include Old
+  let neg _ik = Old.neg
+  let add _ik = Old.add
+  let sub _ik = Old.sub
+  let mul _ik = Old.mul
+  let div _ik = Old.div
+  let rem _ik = Old.rem
+
+  let lt _ik = Old.lt
+  let gt _ik = Old.gt
+  let le _ik = Old.le
+  let ge _ik = Old.ge
+  let eq _ik = Old.eq
+  let ne _ik = Old.ne
+
+  let bitnot _ik = bitnot
+  let bitand _ik = bitand
+  let bitor  _ik = bitor
+  let bitxor _ik = bitxor
+
+  let shift_left  _ik = shift_left
+  let shift_right _ik = shift_right
+
+  let lognot _ik = lognot
+  let logand _ik = logand
+  let logor  _ik = logor
+end
+
 
 
 module Size = struct (* size in bits as int, range as int64 *)
@@ -193,7 +276,7 @@ module Std (B: sig
 end
 (* include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end) *)
 
-module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit ints *)
+module Interval32 : IkindUnawareS with type t = (int64 * int64) option = (* signed 32bit ints *)
 struct
   let name () = "32bit intervals"
   type t = (int64 * int64) option [@@deriving to_yojson]
@@ -463,7 +546,7 @@ end
 
 
 
-module Integers : S with type t = int64 = (* no top/bot, order is <= *)
+module Integers : IkindUnawareS with type t = int64 = (* no top/bot, order is <= *)
 struct
   include Printable.Std
   let name () = "integers"
@@ -532,7 +615,7 @@ struct
   let meet x y = if equal x y then x else bot ()
 end
 
-module Flat (Base: S) = (* identical to Lift, but goes to `Top/`Bot if Base raises Unknown/Error *)
+module Flat (Base: IkindUnawareS) = (* identical to Lift, but goes to `Top/`Bot if Base raises Unknown/Error *)
 struct
   include Lattice.Flat (Base) (struct
       let top_name = "Unknown int"
@@ -609,7 +692,7 @@ struct
   let logor  = lift2 Base.logor
 end
 
-module Lift (Base: S) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
+module Lift (Base: IkindUnawareS) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
   include Lattice.LiftPO (Base) (struct
       let top_name = "MaxInt"
@@ -677,7 +760,7 @@ end
 module Flattened = Flat (Integers)
 module Lifted    = Lift (Integers)
 
-module Reverse (Base: S) =
+module Reverse (Base: IkindUnawareS) =
 struct
   include Base
   include (Lattice.Reverse (Base) : Lattice.S with type t := Base.t)
@@ -1050,7 +1133,7 @@ struct
 
 end
 
-module CircInterval : S with type t = CBigInt.t interval =
+module CircInterval : IkindUnawareS with type t = CBigInt.t interval =
 struct
   include Printable.Std
   module I = CBigInt
@@ -1428,7 +1511,7 @@ module Booleans = MakeBooleans (
   end)
 
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
-module Enums : S = struct
+module Enums : IkindUnawareS = struct
   open Batteries
   module I = Integers
   module R = Interval32 (* range for exclusion *)
@@ -1621,10 +1704,10 @@ module IntDomTupleImpl = struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Batteries
-  module I1 = DefExc
-  module I2 = Interval32
-  module I3 = CircInterval
-  module I4 = Enums
+  module I1 = OldDomainFacade(DefExc)
+  module I2 = OldDomainFacade(Interval32)
+  module I3 = OldDomainFacade(CircInterval)
+  module I4 = OldDomainFacade(Enums)
   type t = I1.t option * I2.t option * I3.t option * I4.t option [@@deriving to_yojson]
 
   (* The Interval32 domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
@@ -1641,7 +1724,7 @@ module IntDomTupleImpl = struct
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
     f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
   let mapp r (a,b,c,d) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
-  let map  r (a,b,c,d) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
+  let map r (a,b,c,d) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
   let map2  r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc, opt_map2 (r.f2  (module I4)) xd yd
   let map2p r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc, opt_map2 (r.f2p  (module I4)) xd yd
@@ -1664,9 +1747,9 @@ module IntDomTupleImpl = struct
   let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }
 
   (* f1: unary ops *)
-  let neg = map { f1 = fun (type a) (module I:S with type t = a) -> I.neg }
-  let bitnot = map { f1 = fun (type a) (module I:S with type t = a) -> I.bitnot }
-  let lognot = map { f1 = fun (type a) (module I:S with type t = a) -> I.lognot }
+  let neg ik = map { f1 = fun (type a) (module I:S with type t = a)  -> (I.neg ik) }
+  let bitnot ik = map { f1 = fun (type a) (module I:S with type t = a) -> (I.bitnot ik) }
+  let lognot ik = map { f1 = fun (type a) (module I:S with type t = a) -> (I.lognot ik) }
   let cast_to ?torg t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to ?torg t }
 
   (* fp: projections *)
@@ -1702,24 +1785,24 @@ module IntDomTupleImpl = struct
   let meet = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.meet }
   let widen  = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.widen }
   let narrow = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.narrow }
-  let add = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.add }
-  let sub = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.sub }
-  let mul = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.mul }
-  let div = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.div }
-  let rem = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.rem }
-  let lt = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.lt }
-  let gt = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.gt }
-  let le = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.le }
-  let ge = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.ge }
-  let eq = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.eq }
-  let ne = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.ne }
-  let bitand = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitand }
-  let bitor = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitor }
-  let bitxor = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitxor }
-  let shift_left = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.shift_left }
-  let shift_right = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.shift_right }
-  let logand = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.logand }
-  let logor = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.logor }
+  let add ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.add ik }
+  let sub ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.sub ik }
+  let mul ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.mul ik }
+  let div ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.div ik }
+  let rem ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.rem ik }
+  let lt ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.lt ik }
+  let gt ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.gt ik }
+  let le ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.le ik }
+  let ge ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.ge ik }
+  let eq ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.eq ik }
+  let ne ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.ne ik }
+  let bitand ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitand ik }
+  let bitor ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitor ik }
+  let bitxor ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitxor ik }
+  let shift_left ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.shift_left ik }
+  let shift_right ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.shift_right ik }
+  let logand ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.logand ik }
+  let logor ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.logor ik }
 
   (* f2p: binary projections *)
   let (%%) f g x = f % (g x) (* composition for binary function g *)
@@ -1755,20 +1838,23 @@ module IntDomLifter (I : S) =
 struct
   open Cil
   type t = { v : I.t; ikind : ikind }
+
+  (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then failwith ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible") else ()
-  let lift op x = {x with v = op x.v }
+  let lift op x = {x with v = op x.ikind x.v }
   (* For logical operations the result is of type int *)
-  let lift_logical op x = {v = op x.v; ikind = Cil.IInt}
+  let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
   let lift2 op x y = check_ikinds x y; {x with v = op x.v y.v }
-  let lift2_cmp op x y = check_ikinds x y; {v = op x.v y.v;  ikind = Cil.IInt}
+  let lift2_arith op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
+  let lift2_cmp op x y = check_ikinds x y; {v = op x.ikind x.v y.v; ikind = Cil.IInt}
 
   let bot_of ikind = { v = I.bot (); ikind}
-
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
   let top_of ikind = { v = I.top (); ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
   let is_top x = I.is_top x.v
+
   (* Leq does not check for ikind, because it is used in invariant with arguments of different type.
      TODO: check ikinds here and fix invariant to work with right ikinds *)
   let leq x y = I.leq x.v y.v
@@ -1825,12 +1911,13 @@ struct
   let ending ikind i = {v = I.ending ?ikind:(Some ikind) i; ikind}
   let maximal x = I.maximal x.v
   let minimal x = I.minimal x.v
+
   let neg = lift I.neg
-  let add = lift2 I.add
-  let sub = lift2 I.sub
-  let mul = lift2 I.mul
-  let div = lift2 I.div
-  let rem = lift2 I.rem
+  let add = lift2_arith I.add
+  let sub = lift2_arith I.sub
+  let mul = lift2_arith I.mul
+  let div = lift2_arith I.div
+  let rem = lift2_arith I.rem
   let lt = lift2_cmp I.lt
   let gt = lift2_cmp I.gt
   let le = lift2_cmp I.le
@@ -1838,14 +1925,15 @@ struct
   let eq = lift2_cmp I.eq
   let ne = lift2_cmp I.ne
   let bitnot = lift I.bitnot
-  let bitand = lift2 I.bitand
-  let bitor = lift2 I.bitor
-  let bitxor = lift2 I.bitxor
-  let shift_left x y = {x with v = I.shift_left x.v y.v } (* TODO check ikinds*)
-  let shift_right x y = {x with v = I.shift_right x.v y.v } (* TODO check ikinds*)
+  let bitand = lift2_arith I.bitand
+  let bitor = lift2_arith I.bitor
+  let bitxor = lift2_arith I.bitxor
+  let shift_left x y = {x with v = I.shift_left x.ikind x.v y.v } (* TODO check ikinds*)
+  let shift_right x y = {x with v = I.shift_right x.ikind x.v y.v } (* TODO check ikinds*)
   let lognot = lift_logical I.lognot
-  let logand = lift2 I.logand
-  let logor = lift2 I.logor
+  let logand = lift2_arith I.logand
+  let logor = lift2_arith I.logor
+
   let cast_to ?torg ikind x = {v = I.cast_to ?torg ikind x.v; ikind}
 end
 
