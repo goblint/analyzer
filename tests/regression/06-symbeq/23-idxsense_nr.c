@@ -13,6 +13,9 @@ void *t_fun(void *arg) {
 }
 
 int main() {
+  for (int i = 0; i < 10; i++)
+    pthread_mutex_init(&m[i], NULL);
+
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&m[3]);

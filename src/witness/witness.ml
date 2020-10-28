@@ -90,7 +90,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
 
   GML.start_graph g;
 
-  GML.write_metadata g "witness-type" (if Result.to_bool TaskResult.result then "correctness_witness" else "violation_witness");
+  GML.write_metadata g "witness-type" (
+      match TaskResult.result with
+      | Result.True -> "correctness_witness"
+      | Result.False _ -> "violation_witness"
+      | Result.Unknown -> "unknown_witness"
+    );
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
@@ -117,6 +122,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         begin match cfgnode, TaskResult.invariant node with
           | Statement _, Some i ->
+            let i = InvariantCil.exp_replace_original_name i in
             [("invariant", Pretty.sprint 800 (Cil.dn_exp () i));
              ("invariant.scope", (getFun cfgnode).svar.vname)]
           | _ ->
@@ -227,8 +233,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   close_out_noerr out
 
 
-let print_result (module TaskResult:TaskResult): unit =
-  Printf.printf "SV-COMP result: %s\n" (Result.to_string TaskResult.result)
+let print_svcomp_result (s: string): unit =
+  Printf.printf "SV-COMP result: %s\n" s
+
+let print_task_result (module TaskResult:TaskResult): unit =
+  print_svcomp_result (Result.to_string TaskResult.result)
 
 
 exception RestartAnalysis
@@ -275,7 +284,7 @@ struct
         ; postsub= []
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"split\" in witness context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }
       and query x = Spec.query ctx x in
@@ -372,6 +381,7 @@ struct
 
     let find_invariant (n, c, i) =
       let context: Invariant.context = {
+          scope=getFun n;
           i;
           lval=None;
           offset=Cil.NoOffset;
@@ -438,9 +448,8 @@ struct
           let module TaskResult =
           struct
             module Arg = Arg
-            (* TODO: Result.Unknown *)
-            let result = Result.False (Some Task.specification)
-            let invariant _ = Invariant.none
+            let result = Result.Unknown
+            let invariant = find_invariant
             let is_violation = is_violation
             let is_sink = is_sink
           end
@@ -513,8 +522,7 @@ struct
         let module TaskResult =
         struct
           module Arg = TrivialArg
-          (* TODO: Result.Unknown *)
-          let result = Result.False (Some Task.specification)
+          let result = Result.Unknown
           let invariant _ = Invariant.none
           let is_violation _ = false
           let is_sink _ = false
@@ -524,10 +532,15 @@ struct
       )
 
   let write lh gh entrystates =
-    let module Task = (val (Option.get !task)) in
+    let module Task = (val (BatOption.get !task)) in
     let module TaskResult = (val (determine_result lh gh entrystates (module Task))) in
 
-    print_result (module TaskResult);
+    print_task_result (module TaskResult);
     let witness_path = get_string "exp.witness_path" in
     write_file witness_path (module Task) (module TaskResult)
+
+  let write lh gh entrystates =
+    match !Goblintutil.verified with
+    | Some false -> print_svcomp_result "ERROR (verify)"
+    | _ -> write lh gh entrystates
 end

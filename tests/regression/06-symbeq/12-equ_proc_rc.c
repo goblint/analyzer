@@ -10,7 +10,7 @@ struct s {
 void *t_fun(void *arg) {
   pthread_mutex_lock(&B.mutex);
   A.datum = 5; // RACE!
-  pthread_mutex_lock(&B.mutex);
+  pthread_mutex_unlock(&B.mutex);
   return NULL;
 }
 

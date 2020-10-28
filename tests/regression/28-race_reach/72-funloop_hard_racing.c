@@ -21,6 +21,9 @@ void *t_fun(void *arg) {
 }
 
 int main () {
+  for (int i = 0; i < 10; i++)
+    pthread_mutex_init(&cache[i].refs_mutex, NULL);
+
   int i;
   create_threads(t);
 
@@ -28,7 +31,7 @@ int main () {
 
   pthread_mutex_lock(&cache[4].refs_mutex);
   access_or_assert_racefree(cache[5].refs); // UNKNOWN
-  pthread_mutex_lock(&cache[4].refs_mutex);
+  pthread_mutex_unlock(&cache[4].refs_mutex);
 
   join_threads(t);
   return 0;

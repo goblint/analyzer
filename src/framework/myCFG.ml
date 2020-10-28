@@ -388,7 +388,11 @@ let getGlobalInits (file: file) : (edge * location) list  =
       if not (fast_global_inits && is_zero && Hashtbl.mem inits (assign (zero_index lval))) then
         Hashtbl.add inits (assign lval) ()
     | CompoundInit (typ, lst) ->
-      ignore (foldLeftCompound ~implicit:true ~doinit:initoffs ~ct:typ ~initl:lst ~acc:lval)
+      let ntyp = match typ, lst with
+        | TArray(t, None, attr), [] -> TArray(t, Some zero, attr) (* set initializer type to t[0] for flexible array members of structs that are intialized with {} *)
+        | _, _ -> typ
+      in
+      ignore (foldLeftCompound ~implicit:true ~doinit:initoffs ~ct:ntyp ~initl:lst ~acc:lval)
   in
   let f glob =
     match glob with

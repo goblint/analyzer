@@ -6,6 +6,8 @@
 #define list_entry(ptr, type, member) \
   ((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
 
+pthread_mutexattr_t mutexattr;
+
 struct s {
   int datum;
   pthread_mutex_t mutex;
@@ -14,7 +16,7 @@ struct s {
 
 void init (struct s *p, int x) {
   p->datum = x;
-  pthread_mutex_init(&p->mutex, NULL);
+  pthread_mutex_init(&p->mutex, &mutexattr);
 }
 
 void update (int *p) {
@@ -22,7 +24,7 @@ void update (int *p) {
   pthread_mutex_lock(&s->mutex);
   s++;
   s->datum++; // RACE!
-  pthread_mutex_lock(&s->mutex);
+  pthread_mutex_unlock(&s->mutex); // no UB because ERRORCHECK
 }
 
 void *t_fun(void *arg) {
@@ -31,9 +33,13 @@ void *t_fun(void *arg) {
 }
 
 int main () {
+  pthread_mutexattr_init(&mutexattr);
+  pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_ERRORCHECK);
+
   pthread_t t1;
-  A = malloc(sizeof(struct s));
+  A = malloc(2 * sizeof(struct s));
   init(A,666);
+  init(&A[1],999); // extra element for s++ in update
 
   pthread_create(&t1, NULL, t_fun, NULL);
   update(&A->list);

@@ -30,7 +30,7 @@ struct
             let module B_prod = BatSet.Make2 (Exp) (Exp) in
             let s_prod = B_prod.cartesian_product s s in
             let i = B_prod.Product.fold (fun (x, y) a ->
-                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) then (* each equality only one way, no self-equalities *)
+                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope c.Invariant.scope x && InvariantCil.exp_is_in_scope c.Invariant.scope y then (* each equality only one way, no self-equalities *)
                   let eq = BinOp (Eq, x, y, intType) in
                   Invariant.(a && of_exp eq)
                 else
@@ -69,16 +69,17 @@ struct
   let rec typ_equal t1 t2 =
     let args_eq (s1,t1,_) (s2,t2,_) = s1 = s2 && typ_equal t1 t2 in
     let eitem_eq (s1,e1,l1) (s2,e2,l2) = s1 = s2 && l1 = l2 && exp_equal e1 e2 in
+    let for_all2 p xs ys = try List.for_all2 p xs ys with Invalid_argument _ -> false in
     match t1, t2 with
     | TVoid _, TVoid _ -> true
     | TInt (k1,_), TInt (k2,_) -> k1 = k2
     | TFloat (k1,_), TFloat (k2,_) -> k1 = k2
     | TPtr (t1,_), TPtr (t2,_) -> typ_equal t1 t2
     | TArray (t1,d1,_), TArray (t2,d2,_) -> option_eq exp_equal d1 d2 && typ_equal t1 t2
-    | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (List.for_all2 args_eq) arg1 arg2
+    | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (for_all2 args_eq) arg1 arg2
     | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
     | TComp (c1,_), TComp (c2,_) -> c1.ckey = c2.ckey
-    | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename && List.for_all2 eitem_eq e1.eitems e2.eitems
+    | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename && for_all2 eitem_eq e1.eitems e2.eitems
     | TBuiltin_va_list _, TBuiltin_va_list _ -> true
     | _ -> false
 

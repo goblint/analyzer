@@ -12,7 +12,7 @@ struct s {
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A.mutex);
   A.datum = 5; // NORACE
-  pthread_mutex_lock(&A.mutex);
+  pthread_mutex_unlock(&A.mutex);
   return NULL;
 }
 
@@ -21,6 +21,9 @@ void update(int *p) {
 }
 
 int main () {
+  pthread_mutex_init(&A.mutex, NULL);
+  pthread_mutex_init(&B.mutex, NULL);
+
   int x = __VERIFIER_nondet_int();
   pthread_t id;
 

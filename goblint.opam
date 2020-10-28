@@ -46,5 +46,5 @@ build: [
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 pin-depends: [
-  [ "goblint-cil.1.7.5" "git+https://github.com/goblint/cil.git#feature/syntactic_search" ]
+  [ "goblint-cil.1.7.8" "git+https://github.com/goblint/cil.git#f0e6e5e3957e62ee3d7e2e23a6fcc8ba0681b788" ]
 ]

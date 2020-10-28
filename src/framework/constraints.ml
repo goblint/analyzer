@@ -316,7 +316,12 @@ end
 module WidenContextLifter (S:Spec)
 =
 struct
-  module M = MapDomain.MapBot (Basetype.Variables) (S.D) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+  module DD =
+  struct
+    include S.D
+    let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
+  end
+  module M = MapDomain.MapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
   module D = struct
     include Lattice.Prod (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m

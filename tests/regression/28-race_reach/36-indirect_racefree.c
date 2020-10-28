@@ -10,7 +10,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex);
   access(*g1);
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_unlock(&mutex);
   return NULL;
 }
 
@@ -20,7 +20,7 @@ int main(void) {
   create_threads(t);
   pthread_mutex_lock(&mutex);
   assert_racefree(*g2);
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_unlock(&mutex);
   join_threads(t);
   return 0;
 }

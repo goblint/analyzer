@@ -1,4 +1,4 @@
-(* open Defaults (* CircInterval needs initialized conf *) *)
+open! Defaults (* CircInterval / Enums / ... need initialized conf *)
 
 module type FiniteSetElems =
 sig
@@ -45,6 +45,8 @@ module ArbitraryLattice = FiniteSet (PrintableChar) (
   end
 )
 
+module HoareArbitrary = SetDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end)
+
 let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
   (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
@@ -58,7 +60,8 @@ let domains: (module Lattice.S) list = [
   (* (module IntDomain.IntDomTuple); *)
 
   (module ArbitraryLattice);
-  (module SetDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end));
+  (module HoareArbitrary);
+  (module WitnessConstraints.HoareMap (ArbitraryLattice) (HoareArbitrary))
 ]
 
 let nonAssocDomains: (module Lattice.S) list = []
