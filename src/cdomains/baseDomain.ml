@@ -56,7 +56,7 @@ let get_heap_var loc =
     let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
     let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
     Hashtbl.add heap_hash loc newvar;
-     (* we use vids her to be robust against casts in the AD modifying the vtype *)
+     (* we use vids here to be robust against casts in the AD modifying the vtype *)
     Hashtbl.add heap_vars newvar.vid ();
     newvar
 
