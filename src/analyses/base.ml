@@ -116,7 +116,8 @@ struct
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    H.clear BaseDomain.heap_hash
+    H.clear BaseDomain.heap_hash;
+    H.clear BaseDomain.heap_vars
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -1088,7 +1089,13 @@ struct
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
-        | None -> Cil.typeOf (Lval(Var x, cil_offset)) in
+        | None ->
+          if BaseDomain.is_heap_var x then
+            (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
+            AD.get_type lval
+          else
+            Cil.typeOf (Lval(Var x, cil_offset))
+        in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
@@ -1938,7 +1945,7 @@ struct
           let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
           if expected <> annot then (
             let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
-            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the orginal source if this is the case. *)
+            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
             M.warn_each ~ctx:ctx.control_context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
