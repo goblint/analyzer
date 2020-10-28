@@ -82,14 +82,15 @@ module ExpEval : Transform.S =
                   (* Use the first evaluable successor; TODO: consider other successors *)
                   let succeeding_statement = ref None in
                   let successor_evaluation =
-                    List.find_map_opt
+                    try BatList.find_map
                       begin
                         fun (s : Cil.stmt) ->
                           succeeding_statement := Some s;
                           (* Evaluate at (directly before) a succeeding location *)
-                          self#try_ask (Cil.get_stmtLoc s.skind) expression
+                          Some(self#try_ask (Cil.get_stmtLoc s.skind) expression)
                       end
                       statement.succs
+                    with Not_found -> None
                   in
                   (* Prefer successor evaluation *)
                   match successor_evaluation with
