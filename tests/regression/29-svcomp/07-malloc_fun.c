@@ -1,5 +1,5 @@
 // SKIP
-// Copied & modified from 02/35.
+// Copied & modified from 02/20.
 #include <stdlib.h>
 #include <assert.h>
 
