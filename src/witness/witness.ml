@@ -533,14 +533,17 @@ struct
 
   let write lh gh entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (determine_result lh gh entrystates (module Task))) in
+    let module TaskResult = (val (Stats.time "determine" (determine_result lh gh entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
     let witness_path = get_string "exp.witness_path" in
-    write_file witness_path (module Task) (module TaskResult)
+    Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
 
   let write lh gh entrystates =
     match !Goblintutil.verified with
     | Some false -> print_svcomp_result "ERROR (verify)"
     | _ -> write lh gh entrystates
+
+  let write lh gh entrystates =
+    Stats.time "witness" (write lh gh) entrystates
 end
