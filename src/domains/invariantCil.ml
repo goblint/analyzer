@@ -34,6 +34,7 @@ let var_fundecs: fundec option VM.t Lazy.t =
     foldGlobals !Cilfacade.ugglyImperativeHack (fun acc global ->
         match global with
         | GFun (fd, _) ->
+          let acc = VM.add fd.svar None acc in (* function itself can be used as a variable (function pointer) *)
           let acc = List.fold_left (fun acc vi -> VM.add vi (Some fd) acc) acc fd.sformals in
           let acc = List.fold_left (fun acc vi -> VM.add vi (Some fd) acc) acc fd.slocals in
           acc
