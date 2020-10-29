@@ -58,6 +58,7 @@ struct
   module CPA    = BaseDomain.CPA
   module Flag   = BaseDomain.Flag
   module Dep    = BaseDomain.PartDeps
+  module CVars  = BaseDomain.CachedVars
 
   module Dom    = BaseDomain.DomFunctor(Main)
 
@@ -75,16 +76,16 @@ struct
   type glob_diff = (V.t * G.t) list
 
   let name () = "base"
-  let startstate v: store = { cpa = CPA.bot (); flag = Flag.bot (); deps = Dep.bot ()}
-  let otherstate v: store = { cpa = CPA.bot (); flag = Flag.start_multi v; deps = Dep.bot ()}
-  let exitstate  v: store = { cpa = CPA.bot (); flag = Flag.start_main v; deps = Dep.bot ()}
+  let startstate v: store = { cpa = CPA.bot (); flag = Flag.bot (); deps = Dep.bot (); cached = CVars.top ()}
+  let otherstate v: store = { cpa = CPA.bot (); flag = Flag.start_multi v; deps = Dep.bot (); cached = CVars.top ()}
+  let exitstate  v: store = { cpa = CPA.bot (); flag = Flag.start_main v; deps = Dep.bot (); cached = CVars.top ()}
 
 
   let morphstate v (st: store) = { st with flag = Flag.start_single v }
   let create_tid v =
     let loc = !Tracing.current_loc in
     Flag.spawn_thread loc v
-  let threadstate v: store = { cpa = CPA.bot (); flag = create_tid v; deps = Dep.bot () }
+  let threadstate v: store = { cpa = CPA.bot (); flag = create_tid v; deps = Dep.bot (); cached = CVars.top ()}
 
 
   (**************************************************************************
@@ -318,7 +319,7 @@ struct
    **************************************************************************)
 
   let globalize ?(privates=false) a store: cpa * glob_diff  =
-    let {cpa = cpa; flag = flag; deps = deps}: store = store in
+    let {cpa; flag; deps; cached}: store = store in
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
@@ -336,10 +337,10 @@ struct
     CPA.fold add_var cpa (cpa, [])
 
   let sync' privates ctx: D.t * glob_diff =
-    let { cpa; flag; deps}: store = ctx.local in
+    let { cpa; flag; deps; cached}: store = ctx.local in
     let privates = privates || (!GU.earlyglobs && not (Flag.is_multi flag)) in
     let cpa, diff = if !GU.earlyglobs || Flag.is_multi flag then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
-    {cpa; flag; deps}, diff
+    {cpa; flag; deps; cached}, diff
 
   let sync = sync' false
 
