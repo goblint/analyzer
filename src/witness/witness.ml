@@ -34,7 +34,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           | _, _ -> false
         end || begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f -> true
-          | Function f, _ -> false
+          | Function f, _ -> true
           | _, _ -> false
         end
     let is_interesting from_node edge to_node =
