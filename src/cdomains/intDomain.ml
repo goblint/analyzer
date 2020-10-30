@@ -1935,15 +1935,8 @@ module IntDomTupleImpl = struct
 
   let name () = "intdomtuple"
 
-  let print_stack () =
-    let callstack = Printexc.get_callstack 3000 in
-    print_endline "printing stack";
-    Printexc.print_raw_backtrace Stdlib.stdout callstack;
-    print_endline "printing stack finished";
-    Stdlib.flush Stdlib.stdout
-
   (* f0: constructors *)
-  let top () = print_stack (); create { fi = fun (type a) (module I:S with type t = a) -> I.top } ()
+  let top () = create { fi = fun (type a) (module I:S with type t = a) -> I.top } ()
   let bot () = create { fi = fun (type a) (module I:S with type t = a) -> I.bot } ()
   let top_of = create { fi = fun (type a) (module I:S with type t = a) -> I.top_of }
   let bot_of = create { fi = fun (type a) (module I:S with type t = a) -> I.bot_of }
