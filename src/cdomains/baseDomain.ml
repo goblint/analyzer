@@ -74,6 +74,7 @@ end
 module CachedVars =
 struct
   module VarSet = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All Variables" end)
+  include VarSet
   include Lattice.Reverse (VarSet)
   let name () = "definitely cached variables"
 end
@@ -99,7 +100,11 @@ struct
       else let comp2 = Flag.compare r1.flag r2.flag in
       if comp2 <> 0
       then comp2
-      else PartDeps.compare r1.deps r2.deps
+      else let comp3 = PartDeps.compare r1.deps r2.deps in
+      if comp3 <> 0
+      then comp3
+      else CachedVars.compare r1.cached r2.cached
+
 
   let short w r =
     let first  = CPA.short (w-6- 12) r.cpa in

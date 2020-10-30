@@ -67,7 +67,6 @@ struct
   module C      = Dom
   module V      = Basetype.Variables
 
-  type cpa = CPA.t
   type extra = (varinfo * Offs.t * bool) list
   type store = D.t
   type value = VD.t
@@ -318,29 +317,34 @@ struct
    * State functions
    **************************************************************************)
 
-  let globalize ?(privates=false) a store: cpa * glob_diff  =
-    let {cpa; flag; deps; cached}: store = store in
+  let globalize ?(privates=false) ctx: store * glob_diff  =
+    let st:store = ctx.local in
     (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (cpa,acc) =
+    let add_var (v: varinfo) (value) (st,acc): store * glob_diff =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a store v)) then begin
-          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          (CPA.remove v cpa, (v,value) :: acc)
-        end else
-          (cpa,acc)
+        if is_global ctx.ask v then
+          let protected = is_private ctx.ask st v in
+          if privates && not (is_precious_glob v) || not protected then begin
+            if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
+            ({ st with cpa = CPA.remove v st.cpa; cached = CVars.remove v st.cached} , (v,value) :: acc)
+          end else
+            if protected && not (CVars.mem v st.cached) then
+              let joined = VD.join (CPA.find v st.cpa) (ctx.global v) in
+              ( {st with cpa = CPA.add v joined st.cpa} ,acc)
+             else (st,acc)
+        else (st,acc)
       in
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
     (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var cpa (cpa, [])
+    CPA.fold add_var st.cpa (st, [])
 
   let sync' privates ctx: D.t * glob_diff =
-    let { cpa; flag; deps; cached}: store = ctx.local in
+    let flag = (ctx.local:store).flag in
     let privates = privates || (!GU.earlyglobs && not (Flag.is_multi flag)) in
-    let cpa, diff = if !GU.earlyglobs || Flag.is_multi flag then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
-    {cpa; flag; deps; cached}, diff
+    if !GU.earlyglobs || Flag.is_multi flag then globalize ~privates:privates ctx else (ctx.local,[])
 
   let sync = sync' false
 
@@ -1110,7 +1114,9 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          { st with cpa = update_variable x (VD.update_offset a var_value offs value lval_raw (Var x, cil_offset) t) st.cpa }
+            { st with
+                cpa = update_variable x (VD.update_offset a var_value offs value lval_raw (Var x, cil_offset) t) st.cpa;
+                cached = CVars.add x st.cached}
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
