@@ -349,28 +349,30 @@ struct
     let ctx_mul = swap_st ctx { st with flag = Flag.get_multi () } in
     List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true ctx_mul))
 
+  let get_var (a: Q.ask) (gs: glob_fun) (st: store) (v: varinfo): store * value =
+    let v = if (!GU.earlyglobs || Flag.is_multi st.flag) && is_global a v then
+      match CPA.find v st.cpa with
+      | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; gs v)
+      | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+    else begin
+      if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+      CPA.find v st.cpa
+    end
+  in
+  (st, v)
+
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
   let rec get ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
-    let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = if (!GU.earlyglobs || Flag.is_multi st.flag) && is_global a x then
-            match CPA.find x st.cpa with
-            | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
-            | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-          else begin
-            if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-            CPA.find x st.cpa
-          end
-        in
-
+        let (st,var) = get_var a gs st x in
         let v = VD.eval_offset a (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
@@ -1072,6 +1074,7 @@ struct
       r
     in
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
+    let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
     if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
@@ -1094,24 +1097,24 @@ struct
       if (!GU.earlyglobs || Flag.is_multi st.flag) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
-        if not effect && not (is_private a st x) then begin
+        let protected = is_private a st x in
+        if not effect && not protected then begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
           st
         end else begin
-          let get x cpa =
-            match CPA.find x cpa with
+          let var_value =
+            match CPA.find x st.cpa with
             | `Bot -> (if M.tracing then M.tracec "set" "Reading from global invariant.\n"; gs x)
             | x -> (if M.tracing then M.tracec "set" "Reading from privatized version.\n"; x)
           in
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          { st with cpa = update_variable x (VD.update_offset a (get x st.cpa) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t) st.cpa }
+          { st with cpa = update_variable x (VD.update_offset a var_value offs value lval_raw (Var x, cil_offset) t) st.cpa }
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
         let new_value = VD.update_offset a (CPA.find x st.cpa) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
