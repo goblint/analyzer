@@ -1,4 +1,7 @@
-module INV = IntDomain.Interval32
+module BI = IntOps.BigIntOps
+
+module ILongLongIkind = struct let ikind () = Cil.ILongLong end
+module INV : IntDomain.Y with type int_t = BI.t = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.Interval)) (ILongLongIkind)
 
   type elt = | Val of float | Infinity
   [@@deriving yojson]
@@ -7,6 +10,8 @@ module INV = IntDomain.Interval32
     match elt with
     | Infinity -> "inf"
     | Val f -> string_of_float f
+
+let oct_ik = Cil.ILongLong
 
 module type S = sig
   include Lattice.S

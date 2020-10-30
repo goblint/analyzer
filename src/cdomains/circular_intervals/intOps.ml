@@ -28,10 +28,12 @@ sig
   val shift_right : t -> int -> t
   val logand : t -> t -> t
   val logor : t -> t -> t
+  val logxor : t -> t -> t
   val lognot : t -> t
 
   (* Comparison *)
   val compare : t -> t -> int
+  val equal : t -> t -> bool
   val top_range : t -> t -> bool
 
   (* Conversions *)
@@ -41,6 +43,8 @@ sig
   val to_int64 : t -> int64
   val of_string : string -> t
   val to_string : t -> string
+  val of_bigint : Big_int_Z.big_int -> t
+  val to_bigint : t -> Big_int_Z.big_int
 end
 
 (* --------------------------------------------------------------
@@ -65,9 +69,11 @@ struct
   let shift_right = (lsr)
   let logand = (land)
   let logor = (lor)
+  let logxor = Int.logxor
   let lognot = (lnot)
 
   let compare = compare
+  let equal = Int.equal
   let top_range a b = (a = min_int) && (b = max_int)
 
   let of_int x = x
@@ -76,6 +82,8 @@ struct
   let to_int64 = Int64.of_int
   let of_string = int_of_string
   let to_string = string_of_int
+  let of_bigint = Big_int_Z.int_of_big_int
+  let to_bigint = Big_int_Z.big_int_of_int
 end
 
 module Int32Ops : IntOps with type t = int32 =
@@ -97,9 +105,13 @@ struct
   let shift_right = Int32.shift_right_logical
   let logand = Int32.logand
   let logor = Int32.logor
+  let logxor = Int32.logxor
+
   let lognot = Int32.lognot
 
   let compare = Int32.compare
+  let equal = Int32.equal
+
   let top_range a b =
     (0 = compare a Int32.min_int) && (0 = compare b Int32.max_int)
 
@@ -109,6 +121,8 @@ struct
   let to_int64 = Int64.of_int32
   let of_string = Int32.of_string
   let to_string = Int32.to_string
+  let of_bigint = Big_int_Z.int32_of_big_int
+  let to_bigint = Big_int_Z.big_int_of_int32
 end
 
 module Int64Ops : IntOps with type t = int64 =
@@ -130,9 +144,13 @@ struct
   let shift_right = Int64.shift_right_logical
   let logand = Int64.logand
   let logor = Int64.logor
+  let logxor = Int64.logxor
+
   let lognot = Int64.lognot
 
   let compare = Int64.compare
+  let equal = Int64.equal
+
   let top_range a b =
     (0 = compare a Int64.min_int) && (0 = compare b Int64.max_int)
 
@@ -142,36 +160,44 @@ struct
   let to_int64 x = x
   let of_string = Int64.of_string
   let to_string = Int64.to_string
+  let of_bigint = Big_int_Z.int64_of_big_int
+  let to_bigint = Big_int_Z.big_int_of_int64
 end
 
-module BigIntOps : IntOps with type t = Big_int.big_int =
+module BigIntOps : IntOps with type t = Big_int_Z.big_int =
 struct
-  type t = Big_int.big_int
-  let zero = Big_int.zero_big_int
-  let one = Big_int.unit_big_int
+  type t = Big_int_Z.big_int
+  let zero = Big_int_Z.zero_big_int
+  let one = Big_int_Z.unit_big_int
   let upper_bound = None
   let lower_bound = None
 
-  let neg = Big_int.minus_big_int
-  let add = Big_int.add_big_int
-  let sub = Big_int.sub_big_int
-  let mul = Big_int.mult_big_int
-  let div = Big_int.div_big_int
-  let rem = Big_int.mod_big_int
+  let neg = Big_int_Z.minus_big_int
+  let add = Big_int_Z.add_big_int
+  let sub = Big_int_Z.sub_big_int
+  let mul = Big_int_Z.mult_big_int
+  let div = Big_int_Z.div_big_int
+  let rem = Big_int_Z.mod_big_int
 
-  let shift_left = Big_int.shift_left_big_int
-  let shift_right = Big_int.shift_right_big_int
-  let logand = Big_int.and_big_int
-  let logor = Big_int.or_big_int
+  let shift_left = Big_int_Z.shift_left_big_int
+  let shift_right = Big_int_Z.shift_right_big_int
+  let logand = Big_int_Z.and_big_int
+  let logor = Big_int_Z.or_big_int
+  let logxor = Big_int_Z.xor_big_int
+
   let lognot x = sub (neg x) one
 
-  let compare = Big_int.compare_big_int
+  let compare = Big_int_Z.compare_big_int
+  let equal = Big_int_Z.eq_big_int
+
   let top_range _ _ = false
 
-  let of_int = Big_int.big_int_of_int
-  let to_int = Big_int.int_of_big_int
-  let of_int64 x = Big_int.big_int_of_int64 x
-  let to_int64 x = Big_int.int64_of_big_int x
-  let of_string = Big_int.big_int_of_string
-  let to_string = Big_int.string_of_big_int
+  let of_int = Big_int_Z.big_int_of_int
+  let to_int = Big_int_Z.int_of_big_int
+  let of_int64 x = Big_int_Z.big_int_of_int64 x
+  let to_int64 x = Big_int_Z.int64_of_big_int x
+  let of_string = Big_int_Z.big_int_of_string
+  let to_string = Big_int_Z.string_of_big_int
+  let of_bigint x = x
+  let to_bigint x = x
 end

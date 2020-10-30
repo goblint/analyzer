@@ -34,7 +34,7 @@ struct
 
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
-    | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to 0L x with
+    | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to (IntOps.BigIntOps.zero) x with
       | `MustNonzero, _
       | _, `Neq -> `MustNonzero
       | `MustZero, `Eq -> `MustZero

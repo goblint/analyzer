@@ -9,6 +9,7 @@ module M = Messages
 module GU = Goblintutil
 module Expp = ExpDomain
 module Q = Queries
+module BI = IntOps.BigIntOps
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -251,7 +252,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) 0L, `NoOffset))) (Some false)
+              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
             | _ -> err @@ "Cast to neither array index nor struct field."
                           ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
           end
@@ -288,8 +289,8 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.of_int (ptr_ikind ()) Int64.zero
-              | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
+              | `Address x when AD.equal x AD.null_ptr -> ID.of_int (ptr_ikind ()) BI.zero
+              | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [BI.zero]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
                 let first = List.hd some.fcomp.cfields in
@@ -310,7 +311,7 @@ struct
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           `Address (match v with
-              | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr
+              | `Int x when ID.to_int x = Some BI.zero -> AD.null_ptr
               | `Int x -> AD.top_ptr
               (* we ignore casts to void*! TODO report UB! *)
               | `Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
@@ -364,7 +365,7 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some 0L && not (AD.is_not_null y) -> true
+    | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
     | (`Address _, `Int y) when ID.is_top y -> true
     | (`Address x, `Address y) -> AD.leq x y
@@ -384,9 +385,9 @@ struct
     | (`Int x, `Int y) -> `Int (ID.join x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.join AD.null_ptr y
-        | Some x when x<>0L -> AD.(join y not_null)
-        | _ -> AD.join y AD.top_ptr)
+        | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
+        | Some x -> AD.(join y not_null)
+        | None -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
@@ -412,9 +413,9 @@ struct
     | (`Int x, `Int y) -> `Int (ID.join x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.join AD.null_ptr y
-        | Some x when x<>0L -> AD.(join y not_null)
-        | _ -> AD.join y AD.top_ptr)
+        | Some x when BI.equal BI.zero x -> AD.join AD.null_ptr y
+        | Some x -> AD.(join y not_null)
+        | None -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
@@ -440,9 +441,9 @@ struct
     | (`Int x, `Int y) -> `Int (ID.widen x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.widen AD.null_ptr y
-        | Some x when x<>0L -> AD.(widen y not_null)
-        | _ -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr y
+        | Some x -> AD.(widen y not_null)
+        | None -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
@@ -464,7 +465,7 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some 0L && not (AD.is_not_null y) -> true
+    | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
     | (`Address _, `Int y) when ID.is_top y -> true
     | (`Address x, `Address y) -> AD.leq x y
@@ -505,9 +506,9 @@ struct
     | (`Int x, `Int y) -> `Int (ID.widen x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.widen AD.null_ptr y
-        | Some x when x<>0L -> AD.(widen y not_null)
-        | _ -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr y
+        | Some x -> AD.(widen y not_null)
+        | None -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
@@ -675,8 +676,6 @@ struct
         end
       | _, _ ->  ExpDomain.top()
 
-
-
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option): t =
     let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option):t =
@@ -733,7 +732,7 @@ struct
               begin
                 do_eval_offset ask f x offs exp l' o' v (* this used to be `blob `address -> we ignore the index *)
               end
-            | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v
+            | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
           end
@@ -808,10 +807,10 @@ struct
                       | TArray(_, l, _) ->
                         let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        `Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Int64.of_int len)) `Top), offs
+                        `Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) `Top), offs
                       | _ -> top (), offs (* will not happen*)
                     end
-                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) 0L) ->
+                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
                     (* Why does cil index unions? We'll just pick the first field. *)
                     top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
                   | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name.";
@@ -836,7 +835,7 @@ struct
               | _ ->  M.warn "Trying to update an array, but the type was not array"; top ())
             | `Bot ->  M.warn_each("encountered array bot, made array top"); `Array (CArrays.top ());
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v t
+            | x when IndexDomain.to_int idx = Some BI.zero -> do_update_offset ask x offs value exp l' o' v t
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result

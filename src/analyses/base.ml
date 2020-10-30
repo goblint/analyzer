@@ -16,6 +16,7 @@ module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
+module BI = IntOps.BigIntOps
 
 let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -165,7 +166,7 @@ struct
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
-    let bool_top ik = ID.(join (of_int ik 0L) (of_int ik 1L)) in
+    let bool_top ik = ID.(join (of_int ik BI.zero) (of_int ik BI.one)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
       (* adds n to the last offset *)
@@ -179,7 +180,7 @@ struct
         | x -> x
       in
       let default = function
-        | Addr.NullPtr when ID.to_int n = Some 0L -> Addr.NullPtr
+        | Addr.NullPtr when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
         | Addr.SafePtr | Addr.NullPtr when get_bool "exp.ptr-arith-safe" -> Addr.SafePtr
         | _ -> Addr.UnknownPtr
       in
@@ -246,10 +247,10 @@ struct
           end
         | Eq ->
           let ik = Cilfacade.get_ikind t in
-          `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik 0L else match eq p1 p2 with Some x when x -> ID.of_int ik 1L | _ -> bool_top ik)
+          `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.zero else match eq p1 p2 with Some x when x -> ID.of_int ik BI.one | _ -> bool_top ik)
         | Ne ->
           let ik = Cilfacade.get_ikind t in
-          `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik 1L else match eq p1 p2 with Some x when x -> ID.of_int ik 0L | _ -> bool_top ik)
+          `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.one else match eq p1 p2 with Some x when x -> ID.of_int ik BI.zero | _ -> bool_top ik)
         | _ -> VD.top ()
       end
     (* For other values, we just give up! *)
@@ -287,11 +288,11 @@ struct
       match op with
       | MinusA when equality () = Some true ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        Some (`Int (ID.of_int ik 0L))
+        Some (`Int (ID.of_int ik BI.zero))
       | MinusPI
-      | MinusPP when equality () = Some true -> Some (`Int (ID.of_int ptrdiff_ikind 0L))
+      | MinusPP when equality () = Some true -> Some (`Int (ID.of_int ptrdiff_ikind BI.zero))
       | MinusPI
-      | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list ptrdiff_ikind [0L]))
+      | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list ptrdiff_ikind [BI.zero]))
       | Le
       | Ge when equality () = Some true ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
@@ -530,7 +531,10 @@ struct
     let rec offsNormal o =
       let toInt i =
         match IdxDom.to_int i with
-        | Some x -> Const (CInt64 (x,IInt, None))
+        | Some x ->
+          (* TODO: Handle values outsie of int64 *)
+          let x = BI.to_int64 x in
+          Const (CInt64 (x,IInt, None))
         | _ -> mkCast (Const (CStr "unknown")) intType
 
       in
@@ -630,7 +634,7 @@ struct
         | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
         | Const (CInt64 (num,ikind,str)) ->
           (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind ikind x | None -> ());
-          `Int (ID.of_int ikind num)
+          `Int (IntDomain.of_const (num,ikind,str))
         (* String literals *)
         | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
         | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
@@ -712,7 +716,7 @@ struct
         (* CIL's very nice implicit conversion of an array name [a] to a pointer
          * to its first element [&a[0]]. *)
         | StartOf lval ->
-          let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) 0L, `NoOffset) in
+          let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
           let array_start ad =
             match Addr.to_var_offset ad with
             | [x, offs] -> Addr.from_var_offset (x, add_offset offs array_ofs)
@@ -800,7 +804,7 @@ struct
     | TArray (ai, None, _) ->
       `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value a gs st ai))
       | TArray (ai, Some exp, _) ->
-        let l = Cil.isInteger (Cil.constFold true exp) in
+        let l = Option.map Cilint.big_int_of_cilint @@ Cil.getInteger (Cil.constFold true exp) in
         let ik = Cilfacade.ptrdiff_ikind () in
         `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int ik) (IdxDom.bot ()) l) (bot_value a gs st ai))
     | TNamed ({ttype=t; _}, _) -> bot_value a gs st t
@@ -821,7 +825,7 @@ struct
     | TArray (ai, None, _) ->
       `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
     | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
+      let l = Option.map Cilint.big_int_of_cilint @@ Cil.getInteger (Cil.constFold true exp) in
       `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int (Cilfacade.ptrdiff_ikind ())) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
     | TNamed ({ttype=t; _}, _) -> init_value a gs st t
     | _ -> `Top
@@ -840,7 +844,7 @@ struct
     | TArray (ai, None, _) ->
       `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
     | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
+      let l = Option.map Cilint.big_int_of_cilint @@ Cil.getInteger (Cil.constFold true exp) in
       `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int (Cilfacade.ptrdiff_ikind ())) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
     | TNamed ({ttype=t; _}, _) -> top_value a gs st t
     | _ -> `Top
@@ -862,7 +866,7 @@ struct
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
-  let eval_exp x (exp:exp):int64 option =
+  let eval_exp x (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
     let knownothing = fun _ -> `Top in (* our version of ask *)
     let gs = fun _ -> `Top in (* the expression is guaranteed to not contain globals *)
@@ -885,6 +889,7 @@ struct
   (* interpreter end *)
 
   let query ctx (q:Q.t) =
+    let to_int = BI.to_int64 in
     match q with
     (* | Q.IsPublic _ ->
        `Bool (BaseDomain.Flag.is_multi (snd ctx.local)) *)
@@ -896,7 +901,7 @@ struct
       end
     | Q.EvalInt e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
-        | `Int i when ID.is_int i -> `Int (Option.get (ID.to_int i))
+        | `Int i when ID.is_int i -> `Int (to_int (Option.get (ID.to_int i)))
         | `Bot   -> `Bot
         | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); `Top
       end
@@ -909,9 +914,9 @@ struct
             | _ -> None
           in
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
-          let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %Int64.of_int) (slen @ alen)) in
+          let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          (match ID.to_int d with Some i -> `Int i | None -> `Top)
+          (match ID.to_int d with Some i -> `Int (to_int i) | None -> `Top)
         | `Bot -> `Bot
         | _ -> `Top
       end
@@ -923,7 +928,7 @@ struct
           let r = get ~full:true ctx.ask ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int i | None -> `Top)
+           | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int (to_int i) | None -> `Top)
            | _ -> `Top)
         | _ -> `Top
       end
@@ -1264,7 +1269,7 @@ struct
               match ID.to_int n with
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
-                if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" d_lval x n;
+                if M.tracing then M.tracec "invariant" "Yes, %a is not %s\n" d_lval x (BI.to_string n);
                 let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
                 Some (x, `Int (ID.of_excl_list ikind [n]))
               | None -> None
@@ -1293,11 +1298,11 @@ struct
           | `Int n -> begin
             let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
             let n = ID.cast_to ikind n in
-            let range_from x = if tv then ID.ending ikind (Int64.sub x 1L) else ID.starting ikind x in
+            let range_from x = if tv then ID.ending ikind (BI.sub x BI.one) else ID.starting ikind x in
             let limit_from = if tv then ID.maximal else ID.minimal in
             match limit_from n with
             | Some n ->
-              if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
+              if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (BI.to_string n);
               Some (x, `Int (range_from n))
             | None -> None
             end
@@ -1308,11 +1313,11 @@ struct
           | `Int n -> begin
             let ikind = Cilfacade.get_ikind (typeOf (Lval lval)) in
             let n = ID.cast_to ikind n in
-            let range_from x = if tv then ID.ending ikind x else ID.starting ikind (Int64.add x 1L) in
+            let range_from x = if tv then ID.ending ikind x else ID.starting ikind (BI.add x BI.one) in
             let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (BI.to_string n);
                 Some (x, `Int (range_from n))
               | None -> None
             end
@@ -1329,7 +1334,7 @@ struct
       match Cil.unrollType typ with
       | TPtr _                    -> `Address AD.null_ptr
       | TEnum({ekind=_;_},_)
-      | _                         -> `Int (ID.of_int (Cilfacade.get_ikind typ) 0L)
+      | _                         -> `Int (ID.of_int (Cilfacade.get_ikind typ) BI.zero)
     in
     let rec derived_invariant exp tv =
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
@@ -1405,7 +1410,7 @@ struct
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
     let inv_bin_int (a, b) ikind c =
       let warn_and_top_on_zero x =
-        if ID.to_int x = Some 0L then
+        if GU.opt_predicate (BI.equal BI.zero) (ID.to_int x) then
           (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
           ID.top_of ikind)
         else
@@ -1425,11 +1430,11 @@ struct
          * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
          * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
         let rem =
-          let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int ikind 0L) = Some true in
-          let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int ikind 0L) = Some true in
+          let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int ikind BI.zero) = Some true in
+          let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int ikind BI.zero) = Some true in
           let full = ID.rem a b in
-          if is_pos then ID.meet (ID.starting ikind 0L) full
-          else if is_neg then ID.meet (ID.ending ikind 0L) full
+          if is_pos then ID.meet (ID.starting ikind BI.zero) full
+          else if is_neg then ID.meet (ID.ending ikind BI.zero) full
           else full
         in
         meet_bin (ID.add (ID.mul b c) rem) (ID.div (ID.sub a rem) c)
@@ -1444,10 +1449,10 @@ struct
          * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
          * If b is negative we have to look at the lower bound. *)
         let is_divisible bound =
-          try ID.rem (bound a |> Option.get |> ID.of_int ikind) b |> ID.to_int = Some 0L with _ -> false
+          try ID.rem (bound a |> Option.get |> ID.of_int ikind) b |> ID.to_int = Some BI.zero with _ -> false
         in
-        let max_pos = match ID.maximal b with None -> true | Some x -> x >= 0L in
-        let min_neg = match ID.minimal b with None -> true | Some x -> x <  0L in
+        let max_pos = match ID.maximal b with None -> true | Some x -> x >= BI.zero in
+        let min_neg = match ID.minimal b with None -> true | Some x -> x <  BI.zero in
         let implies a b = not a || b in
         let a'' =
           if implies max_pos (is_divisible ID.maximal) && implies min_neg (is_divisible ID.minimal) then
@@ -1474,6 +1479,8 @@ struct
         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt as op ->
+        let pred x = BI.sub x BI.one in
+        let succ x = BI.add x BI.one in
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
         | Some l1, Some u1, Some l2, Some u2 ->
           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
@@ -1483,9 +1490,9 @@ struct
           | Ge, Some true
           | Lt, Some false -> meet_bin (ID.starting ikind l2) (ID.ending ikind u1)
           | Lt, Some true
-          | Ge, Some false -> meet_bin (ID.ending ikind (Int64.pred u2)) (ID.starting ikind (Int64.succ l1))
+          | Ge, Some false -> meet_bin (ID.ending ikind (pred u2)) (ID.starting ikind (succ l1))
           | Gt, Some true
-          | Le, Some false -> meet_bin (ID.starting ikind (Int64.succ l2)) (ID.ending ikind (Int64.pred u1))
+          | Le, Some false -> meet_bin (ID.starting ikind (succ l2)) (ID.ending ikind (pred u1))
           | _, _ -> a, b)
         | _ -> a, b)
       | op ->
@@ -1503,7 +1510,7 @@ struct
             (* i.e. e should evaluate to [1,1] *)
             (* LNot x is 0 for any x != 0 *)
             let ikind = Cilfacade.get_ikind @@ typeOf e in
-            ID.of_excl_list ikind [0L]
+            ID.of_excl_list ikind [BI.zero]
           | Some false -> ID.of_bool (Cilfacade.get_ikind (typeOf exp)) false
           | _ -> ID.top_of (Cilfacade.get_ikind (typeOf e))
         in
@@ -1566,7 +1573,7 @@ struct
           ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
         else
           let ik = Cilfacade.get_ikind (typeOf exp) in
-          ID.of_excl_list ik [Int64.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
+          ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
       in
       Tuple3.map1 (fun _ -> inv_exp itv exp) st
 
@@ -2077,7 +2084,7 @@ struct
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
-        | `Int n when ID.to_int n = Some 0L -> cpa,fl,dep
+        | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> cpa,fl,dep
         | _      -> invalidate ctx.ask gs st [ret_var]
       end
     | `Malloc size -> begin
@@ -2097,8 +2104,8 @@ struct
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) 0L, `NoOffset))))]
+          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->

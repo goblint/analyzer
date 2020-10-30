@@ -26,7 +26,7 @@ module Functions = struct
   let ret_no_timeout = List.remove ret_any TIMED_OUT
   (* abstract value for return codes *)
   (* TODO: Check whether Cil.IInt is correct here *)
-  let vd ret = `Int (ValueDomain.ID.(List.map (of_int Cil.IInt % Int64.of_int % return_code_to_enum) ret |> List.fold_left join (bot ()))) (* ana.int.enums should be enabled *)
+  let vd ret = `Int (ValueDomain.ID.(List.map (of_int Cil.IInt % IntOps.BigIntOps.of_int % return_code_to_enum) ret |> List.fold_left join (bot ()))) (* ana.int.enums should be enabled *)
   let effects fname args =
     if not (List.mem fname arinc_special) || List.is_empty args then None
     else

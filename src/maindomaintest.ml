@@ -68,7 +68,7 @@ let nonAssocDomains: (module Lattice.S) list = []
 
 let intDomains: (module IntDomain.IkindUnawareS) list = [
   (module IntDomain.Flattened);
-  (module IntDomain.Interval32);
+  (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
   (* (module IntDomain.CircInterval); *)
   (* (module IntDomain.Enums); *)

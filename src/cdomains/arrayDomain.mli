@@ -1,3 +1,4 @@
+
 (** Abstract domains representing arrays. *)
 module type S =
 sig
@@ -53,7 +54,7 @@ sig
   val smart_leq: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> bool
 end
 
-module Trivial (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
+module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is taken as a parameter to satisfy the type system, it is not
   * used in the implementation. *)

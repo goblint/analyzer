@@ -3,6 +3,7 @@
 open Cil
 
 module VD = ValueDomain.Compound
+module BI = IntOps.BigIntOps
 
 module CPA =
 struct
@@ -73,7 +74,7 @@ end
 
 module type ExpEvaluator =
 sig
-  val eval_exp: CPA.t * Flag.t * PartDeps.t ->  Cil.exp -> int64 option
+  val eval_exp: CPA.t * Flag.t * PartDeps.t ->  Cil.exp -> IntOps.BigIntOps.t option
 end
 
 (* Takes a module specifying how expressions can be evaluated inside the domain and returns the domain *)
@@ -81,16 +82,19 @@ module DomFunctor(ExpEval:ExpEvaluator) =
 struct
   include Lattice.Prod3(CPA)(Flag)(PartDeps)
 
+  let (%) = Batteries.(%)
+
+  let eval_exp x = Option.map BI.to_int64 % (ExpEval.eval_exp x)
   let join ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
-    let cpa_join = CPA.join_with_fct (VD.smart_join (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
+    let cpa_join = CPA.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) in
     (cpa_join a1 a2, Flag.join b1 b2, PartDeps.join c1 c2)
 
   let leq ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
-    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
+    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) in
     cpa_leq a1 a2 && Flag.leq b1 b2 && PartDeps.leq c1 c2
 
   let widen ((a1, b1, c1) as one) ((a2, b2, c2) as two) =
-    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
+    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) in
     (cpa_widen a1 a2, Flag.widen b1 b2, PartDeps.widen c1 c2)
 end
 

@@ -5,7 +5,8 @@ open GobConfig
 module M = Messages
 module A = Array
 module Q = Queries
-
+module Int64 = IntOps.BigIntOps
+module BI = IntOps.BigIntOps
 module type S =
 sig
   include Lattice.S
@@ -266,7 +267,7 @@ struct
                   match Idx.to_int l with
                   | Some i ->
                     begin
-                      match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt i)) with
+                      match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) with
                       | `Bool false -> true (* !(e <_{may} length) => e >=_{must} length *)
                       | _ -> false
                     end
@@ -301,7 +302,7 @@ struct
       | `Lifted e' ->
           begin
             match ask (Q.EvalInt e') with
-            | `Int n -> Q.ID.to_int n
+            | `Int n -> Option.map BI.of_int64 @@ Q.ID.to_int n
             | _ -> None
           end
       |_ -> None
@@ -352,12 +353,15 @@ struct
             (*  e = _{must} i => update strongly *)
             (e, (xl, a, xr))
           else if Cil.isConstant e' && Cil.isConstant i' then
-            match Cil.isInteger e', Cil.isInteger i' with
-              | Some e'', Some i'' ->
-                if i'' = Int64.add e'' Int64.one then
+            match Cil.getInteger e', Cil.getInteger i' with
+              | Some (e'': Cilint.cilint), Some i'' ->
+                let (i'': BI.t) = Cilint.big_int_of_cilint  i'' in
+                let (e'': BI.t) = Cilint.big_int_of_cilint  e'' in
+
+                if BI.equal  i'' (BI.add e'' Int64.one) then
                   (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
                   (i, (Val.join xl xm, a, xr))
-                else if e'' = Int64.add i'' Int64.one then
+                else if e'' = BI.add i'' BI.one then
                   (i, (xl, a, Val.join xm xr))
                 else
                   default
@@ -502,14 +506,16 @@ struct
     | _ ->
       failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
 
+  let (%) = Batteries.(%)
   let smart_join_with_length length x1_eval_int x2_eval_int x1 x2 =
-    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 ((Option.map BI.of_int64) % x1_eval_int) ((Option.map BI.of_int64) % x2_eval_int)
 
   let smart_widen_with_length length x1_eval_int x2_eval_int x1 x2  =
-    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 ((Option.map BI.of_int64) % x1_eval_int) ((Option.map BI.of_int64) %x2_eval_int)
 
   let smart_leq_with_length length x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
+    let x1_eval_int = (Option.map BI.of_int64) % x1_eval_int in
     let must_be_zero v = (v = Some Int64.zero) in
     let must_be_length_minus_one v =  match length with
       | Some l ->
@@ -688,7 +694,7 @@ struct
   let is_bot = unop P.is_bot T.is_bot
   let get a x (e,i) = unop (fun x ->
         if e = `Top then
-          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Idx.to_int i) in
+          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
           P.get a x (e', i)
         else
           P.get a x (e, i)

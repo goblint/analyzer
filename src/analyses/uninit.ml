@@ -36,7 +36,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ikind,_)),o) -> `Index (IdxDom.of_int ikind i, conv_offset o)
+    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 

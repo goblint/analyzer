@@ -163,12 +163,13 @@ end
 module type B =
 sig
   include Lattice.S
+  type int_t
   (** {b Accessing values of the ADT} *)
 
   val bot_of: Cil.ikind -> t
   val top_of: Cil.ikind -> t
 
-  val to_int: t -> int64 option
+  val to_int: t -> int_t option
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
 
@@ -176,7 +177,7 @@ sig
   (** Checks if the element is a definite integer value. If this function
     * returns [true], the above [to_int] should return a real value. *)
 
-  val equal_to: int64 -> t -> [`Eq | `Neq | `Top]
+  val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   (** Give a boolean interpretation of an abstract value if possible, otherwise
@@ -186,17 +187,17 @@ sig
   (** Checks if the element is a definite boolean value. If this function
     * returns [true], the above [to_bool] should return a real value. *)
 
-  val to_excl_list: t -> int64 list option
+  val to_excl_list: t -> int_t list option
   (* Gives a list representation of the excluded values if possible. *)
 
-  val of_excl_list: Cil.ikind -> int64 list -> t
+  val of_excl_list: Cil.ikind -> int_t list -> t
   (* Creates a exclusion set from a given list of integers. *)
 
   val is_excl_list: t -> bool
   (* Checks if the element is an exclusion set. *)
 
-  val maximal    : t -> int64 option
-  val minimal    : t -> int64 option
+  val maximal    : t -> int_t option
+  val minimal    : t -> int_t option
 
   (** {b Cast} *)
 
@@ -204,59 +205,93 @@ sig
   (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
 
 end
-module type SBase =
+
+(** The signature of integral value domains. They need to support all integer
+  * operations that are allowed in C *)
+
+module type IkindUnawareS =
 sig
-  include B
-  val of_int: int64 -> t
+  include B with type int_t = int64
+  include Arith with type t:= t
+  val starting   : ?ikind:Cil.ikind -> int_t -> t
+  val ending     : ?ikind:Cil.ikind -> int_t -> t
+  val of_int: int_t -> t
   (** Transform an integer literal to your internal domain representation. *)
 
   val of_bool: bool -> t
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: int64 * int64 -> t
-  val starting   : ?ikind:Cil.ikind -> int64 -> t
-  val ending     : ?ikind:Cil.ikind -> int64 -> t
-end
-(** The signature of integral value domains. They need to support all integer
-  * operations that are allowed in C *)
-
-module type IkindUnawareS =
-sig
-  include SBase
-  include Arith with type t:= t
+  val of_interval: int_t * int_t -> t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
 
 module type S =
 sig
-  include SBase
+  include B
   include ArithIkind with type t:= t
+  val join: Cil.ikind -> t ->  t -> t
+  val meet: Cil.ikind -> t -> t -> t
+  val narrow: Cil.ikind -> t -> t -> t
+  val widen: Cil.ikind -> t -> t -> t
+  val starting : Cil.ikind -> int_t -> t
+  val ending : Cil.ikind -> int_t -> t
+  val of_int: Cil.ikind -> int_t -> t
+  (** Transform an integer literal to your internal domain representation. *)
+
+  val of_bool: Cil.ikind -> bool -> t
+  (** Transform a known boolean value to the default internal representation. It
+    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
+
+  val of_interval: Cil.ikind -> int_t * int_t -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
-module OldDomainFacade (Old : IkindUnawareS) : S
+module OldDomainFacade (Old : IkindUnawareS) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
 (** Facade for IntDomain implementations that do not implement the interface where arithmetic functions take an ikind parameter. *)
 
-module type Z =
+module type Y =
 sig
   include B
   include Arith with type t:=t
 
-  val of_int: Cil.ikind -> int64 -> t
+  val of_int: Cil.ikind -> int_t -> t
   (** Transform an integer literal to your internal domain representation with the specified ikind. *)
 
   val of_bool: Cil.ikind -> bool -> t
   (** Transform a known boolean value to the default internal representation of the specified ikind. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: Cil.ikind -> int64 * int64 -> t
+  val of_interval: Cil.ikind -> int_t * int_t -> t
 
-  val starting   : Cil.ikind -> int64 -> t
-  val ending     : Cil.ikind -> int64 -> t
+  val starting   : Cil.ikind -> int_t -> t
+  val ending     : Cil.ikind -> int_t -> t
 end
 (** The signature of integral value domains keeping track of ikind information *)
+
+module type Z = Y with type int_t = IntOps.BigIntOps.t
+
+module IntDomLifter (I: S): Y with type int_t = I.int_t
+
+module type Ikind =
+sig
+  val ikind: unit -> Cil.ikind
+end
+
+module PtrDiffIkind : Ikind
+
+module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t
+
+(* module ManyInts : S *)
+(* module IntDomList : S *)
+module IntDomTuple : sig
+  include Z
+  val no_interval32: t -> t
+end
+
+val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
+
 
 module Size : sig
   val top_typ : Cil.typ
@@ -291,7 +326,11 @@ module Flattened : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot]
 module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot]
 (** Artificially bounded integers in their natural ordering. *)
 
-module Interval32 : IkindUnawareS
+module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
+
+module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
+
+module Interval : S with type int_t = IntOps.BigIntOps.t
 module DefExc
   : IkindUnawareS with type t = [
       | `Excluded of SetDomain.Make(Integers).t * Interval32.t
@@ -323,24 +362,6 @@ module Reverse (Base: IkindUnawareS): IkindUnawareS
 (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 module Enums : IkindUnawareS
-
-module IntDomLifter (I: S): Z
-
-module type Ikind =
-sig
-  val ikind: unit -> Cil.ikind
-end
-
-module PtrDiffIkind : Ikind
-
-module IntDomWithDefaultIkind (I: Z) (Ik: Ikind) : Z with type t = I.t
-
-(* module ManyInts : S *)
-(* module IntDomList : S *)
-module IntDomTuple : sig
-  include Z
-  val no_interval32: t -> t
-end
 
 (** {b Boolean domains} *)
 
