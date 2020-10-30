@@ -10,6 +10,13 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module Cfg = Task.Cfg in
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
+  let is_invariant_node cfgnode =
+    if get_bool "exp.witness_loop_invariants" then
+      WitnessUtil.NH.mem loop_heads cfgnode
+    else
+      true
+  in
+
   let module TaskResult = StackTaskResult (Cfg) (TaskResult) in
   let module N = TaskResult.Arg.Node in
   let module IsInteresting =
@@ -29,12 +36,15 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       else begin match edge with
         | MyARG.CFGEdge (Test _) -> true
         | _ -> false
-      end || begin match to_cfgnode, TaskResult.invariant to_node with
-          | Statement _, Some _ -> true
-          | _, _ -> false
+      end || begin if is_invariant_node to_cfgnode then
+            match to_cfgnode, TaskResult.invariant to_node with
+            | Statement _, Some _ -> true
+            | _, _ -> false
+          else
+            false
         end || begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f -> true
-          | Function f, _ -> false
+          | Function f, _ -> true
           | _, _ -> false
         end
     let is_interesting from_node edge to_node =
@@ -120,14 +130,18 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           else
             []
         end;
-        begin match cfgnode, TaskResult.invariant node with
-          | Statement _, Some i ->
-            let i = InvariantCil.exp_replace_original_name i in
-            [("invariant", Pretty.sprint 800 (Cil.dn_exp () i));
-             ("invariant.scope", (getFun cfgnode).svar.vname)]
-          | _ ->
-            (* ignore entry and return invariants, variables of wrong scopes *)
-            (* TODO: don't? fix scopes? *)
+        begin
+          if is_invariant_node cfgnode then
+            match cfgnode, TaskResult.invariant node with
+            | Statement _, Some i ->
+              let i = InvariantCil.exp_replace_original_name i in
+              [("invariant", Pretty.sprint 800 (Cil.dn_exp () i));
+              ("invariant.scope", (getFun cfgnode).svar.vname)]
+            | _ ->
+              (* ignore entry and return invariants, variables of wrong scopes *)
+              (* TODO: don't? fix scopes? *)
+              []
+          else
             []
         end;
         begin match cfgnode with
