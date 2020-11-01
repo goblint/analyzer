@@ -155,7 +155,7 @@ struct
     let _ = GU.global_initialization := false in
 
     let startvars' =
-      if get_bool "exp.forward" then
+      if get_bool "exp.forward" || get_string "solver" = "prop" then
         List.map (fun (n,e) -> (Arinc_cfg.PCCombined [0;0], Spec.context e)) startvars         (* this will always yield unit context *)
       else
         List.map (fun (n,e) -> (Arinc_cfg.PCCombined Cfg.startnode, Spec.context e)) startvars (* this will always yield unit context *)

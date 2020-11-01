@@ -57,17 +57,18 @@ module WP =
 
       (* should be a list of ys and the contributions that x has to them *)
       let prop x d =
-        (* d == HM.find rho x *)
-        []
+        (* d == HM.find rho x, but we are not using it in this implementation *)
+        let contribs = List.map (fun (x,y) -> (x, y (HM.find rho) (fun _ _ -> ()))) (S.outgoing x) in (* TODO: This is a bit odd, set seems wrong *)
+        List.filter (fun (y,d) -> not @@ S.Dom.is_bot d) contribs
       in
       (* this a list of ys and the contributions that x has to them after
          widening / narrowing *)
       let propagate x d =
-        let w = prop x d (*S.system x *) in
+        let w = prop x d in
         let doit (y,d) =
           let tmp =
             if HM.mem wpoint y then
-              (* apply warrow to the old (x,y) and the new (x,y) *)
+              (* apply warrowing to the old (x,y) and the new (x,y) *)
               box y (HPM.find sigma2 (x,y)) d
             else
               d
@@ -78,6 +79,7 @@ module WP =
         in List.map doit w
       in
       let rec h_solve x:unit =
+        M.trace "hsolve" "h_solve for %a\n\n" S.Var.pretty_trace x;
         if HM.mem called x then
           (* if it already called make it a wpoint *)
           HM.replace wpoint x ()
@@ -87,16 +89,15 @@ module WP =
         else
           (* we declare it to be stable *)
           HM.replace stable x ();
-          (* add to called*)
+          (* add to called *)
           HM.replace called x ();
           (* Get list of (y,d) that x contributes to *)
           let work = propagate x (HM.find rho x) in
           let f (y, d) =
-            if S.Dom.leq d (HM.find rho y) then
-              ()
-            else
+            let is_done = try S.Dom.leq d (HM.find rho y) with Not_found -> false in
+            if not is_done then
               (* How can rho y ever become smaller here? *)
-              HM.replace rho y (S.Dom.join (HM.find rho y) d);
+              HM.replace rho y (S.Dom.join (try HM.find rho y with Not_found -> S.Dom.bot ()) d);
               (* y is no longer stable, we just updated it *)
               HM.remove stable y;
               (* we now need to solve y *)

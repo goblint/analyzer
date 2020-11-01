@@ -454,6 +454,9 @@ sig
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
+  (** pair of outgoing edges *)
+  val outgoing : v -> (v * ((v -> d) -> (v -> d -> unit) -> d)) list
+
   (** Data used for incremental analysis *)
   val increment : increment_data
 end
@@ -474,6 +477,7 @@ sig
   module G : Lattice.S
   val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
+  val outgoing : LVar.t -> (LVar.t * ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t)) list
 end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)

@@ -27,6 +27,8 @@ struct
     match S.system x with
     | [] -> None
     | r::rs -> Some (fun get set -> List.fold_left (fun d r' -> Dom.join d (r' get set)) (r get set) rs)
+
+  let outgoing = S.outgoing
 end
 
 (* move this to some other place! *)
@@ -90,6 +92,9 @@ struct
     | xs ->
       try Some (fun get set -> List.at xs n (get % conv) (set % conv))
       with Invalid_argument _ -> None
+
+  let outgoing (x,n) : (v * ((v -> d) -> (v -> d -> unit) -> d)) list =
+    List.map (fun (x, f) -> (conv x, fun get set -> f (get % conv) (set % conv))) (S.outgoing x)
 end
 
 

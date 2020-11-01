@@ -517,7 +517,7 @@ sig
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:ArincSpecHC) (Cfg:CfgBackward) (I: Increment)
+module FromSpec (S:ArincSpecHC) (Cfg:CfgBidir) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = Basetype_arinc.Variables
@@ -578,6 +578,11 @@ struct
       | _ -> tf_arinc var edge
     end getl sidel getg sideg d
 
+  let tf_forward var getl sidel getg sideg edge d =
+    begin match edge with
+      | _ -> tf_arinc var edge
+    end getl sidel getg sideg d
+
   let tf var getl sidel getg sideg (_,edge) d (f,t) =
     let old_loc  = !Tracing.current_loc in
     let old_loc2 = !Tracing.next_loc in
@@ -588,10 +593,26 @@ struct
     let _       = Tracing.next_loc := old_loc2 in
     d
 
+  let tf_forward var getl sidel getg sideg (_,edge) d (f,t) =
+    let old_loc  = !Tracing.current_loc in
+    let old_loc2 = !Tracing.next_loc in
+    let _       = Tracing.current_loc := f in
+    let _       = Tracing.next_loc := t in
+    let d       = tf_forward var getl sidel getg sideg edge d in
+    let _       = Tracing.current_loc := old_loc in
+    let _       = Tracing.next_loc := old_loc2 in
+    d
+
   let tf (v,c) (edges, u) getl sidel getg sideg =
     let pval = getl (u,c) in
     let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Cil.locUnknown,[]) in
     List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg) edges) locs
+
+  (* handle edges from (v,c) to (u,c) *)
+  let tf_forward (v,c) (edges, u) getl sidel getg sideg =
+    let pval = getl (v,c) in
+    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Cil.locUnknown,[]) in
+    List.fold_left2 (|>) pval (List.map (tf_forward (v,Obj.repr (fun () -> c)) getl sidel getg sideg) edges) locs
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
@@ -602,6 +623,16 @@ struct
     let _       = current_node := old_node in
     d
 
+  let tf_forward (v,c) (e,u) getl sidel getg sideg =
+    let old_node = !current_node in
+    let _       = current_node := Some u in
+    let d       = try tf_forward (v,c) (e,u) getl sidel getg sideg
+      with M.StopTheWorld -> D.bot ()
+         | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
+    let _       = current_node := old_node in
+    d
+
+
   let system ((v,c): LVar.t) =
     (* Printf.printf "my system called for [%i, %i]\n" (match v with PCCombined [a; b] -> a) (match v with PCCombined [a; b] -> b); *)
     (* Printf.printf "\tControl-Flow predecessors: %i\n" (List.length (Cfg.prev v));
@@ -609,6 +640,12 @@ struct
     let x:((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list =
     List.map (tf (v,c)) (Cfg.prev v) in
     x
+
+  (* v -> (v*(entire thing)) list *)
+  let outgoing ((v,c): LVar.t) =
+    let outgoing_edges = (Cfg.next v) in
+    List.map (fun (x,t) -> (t,c), tf_forward (v,c) (x,t)) outgoing_edges
+
 end
 
 (** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
@@ -711,6 +748,10 @@ struct
   let system = function
     | `G _ -> []
     | `L x -> List.map conv (S.system x)
+
+  let outgoing = function
+    | `G _ -> []
+    | `L x -> List.map (fun (x,y) -> ((l x), conv y)) (S.outgoing x)
 end
 
 
