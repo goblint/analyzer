@@ -57,15 +57,18 @@ module WP =
 
       (* should be a list of ys and the contributions that x has to them *)
       let prop x d =
+        M.tracel "hsolve" "called it\n\n";
         (* d == HM.find rho x, but we are not using it in this implementation *)
         let contribs = List.map (fun (x,y) -> (x, y (HM.find rho) (fun _ _ -> ()))) (S.outgoing x) in (* TODO: This is a bit odd, set seems wrong *)
-        List.filter (fun (y,d) -> not @@ S.Dom.is_bot d) contribs
+        let list = List.filter (fun (y,d) -> not @@ S.Dom.is_bot d) contribs in
+        List.iter (fun (y,d) -> M.trace "hsolve" "Contribution to %a -> %a\n\n" S.Var.pretty_trace y S.Dom.pretty d) list;
+        list
       in
       (* this a list of ys and the contributions that x has to them after
          widening / narrowing *)
       let propagate x d =
         let w = prop x d in
-        let doit (y,d) =
+        let doit ((y:S.v),(d:S.d)) =
           let tmp =
             if HM.mem wpoint y then
               (* apply warrowing to the old (x,y) and the new (x,y) *)
@@ -78,15 +81,16 @@ module WP =
           (y, tmp)
         in List.map doit w
       in
-      let rec h_solve x:unit =
+      let rec h_solve (x:S.Var.t):unit =
         M.trace "hsolve" "h_solve for %a\n\n" S.Var.pretty_trace x;
         if HM.mem called x then
           (* if it already called make it a wpoint *)
           HM.replace wpoint x ()
         else if HM.mem stable x then
           (* if it is stable, we're done *)
-          ()
-        else
+          (M.trace "hsolve" "h_solve for stable %a\n\n" S.Var.pretty_trace x;
+          ())
+        else ((
           (* we declare it to be stable *)
           HM.replace stable x ();
           (* add to called *)
@@ -96,19 +100,25 @@ module WP =
           let f (y, d) =
             let is_done = try S.Dom.leq d (HM.find rho y) with Not_found -> false in
             if not is_done then
-              (* How can rho y ever become smaller here? *)
-              HM.replace rho y (S.Dom.join (try HM.find rho y with Not_found -> S.Dom.bot ()) d);
-              (* y is no longer stable, we just updated it *)
-              HM.remove stable y;
-              (* we now need to solve y *)
-              h_solve y
+              (
+                (* How can rho y ever become smaller here? *)
+                M.trace "hsolve" "h_solve for the contribution of %a -> %a (is %a)" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d;
+                HM.replace rho y (S.Dom.join (try HM.find rho y with Not_found -> S.Dom.bot ()) d);
+                (* y is no longer stable, we just updated it *)
+                HM.remove stable y;
+                (* we now need to solve y *)
+                h_solve y
+              )
+            else
+              ()
           in
           (* ierate over all contributions to (y,d) s *)
           List.iter f work;
           (* x is no longer called *)
           HM.remove called x;
           (* solve x again *)
-          h_solve x
+          h_solve x)
+        )
       in
       let init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
@@ -122,7 +132,9 @@ module WP =
         if tracing then trace "sol2" "set_start %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
         HM.replace rho x d;
-        HM.replace stable x ();
+        (* With this solver, the starting states should not be delcared stable, as we need to  *)
+        (* visit it at least once to obtain outgoing edges *)
+        (* HM.replace stable x (); *)
       in
 
       start_event ();
