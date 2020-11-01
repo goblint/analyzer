@@ -123,7 +123,7 @@ struct
       let st = st fd.svar in
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
-        ; node    = Arinc_cfg.PCCombined [-1; -1]
+        ; node    = Arinc_cfg.PCCombined (List.make (List.length Cfg.taskinfo) (-1))
         ; control_context = Obj.repr (fun () -> failwith "enter_func has no context.")
         ; context = (fun () -> failwith "enter_func has no context.")
         ; edge    = (-1, Arinc_cfg.NOP)
@@ -140,7 +140,7 @@ struct
       Spec.arinc_start ctx Cfg.taskinfo
     in
     let s = enter_with (Spec.startstate) MyCFG.dummy_func in
-    let startvars = [[Arinc_cfg.PCCombined [0;0], s]] in
+    let startvars = [[(Arinc_cfg.PCCombined (List.make (List.length Cfg.taskinfo) 0), s)]] in
     let exitvars = [] in (* This would only be used for cleanup functions and the like *)
 
     (* let othervars = List.map (enter_with Spec.otherstate) otherfuns in *)
@@ -156,7 +156,7 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" || get_string "solver" = "prop" then
-        List.map (fun (n,e) -> (Arinc_cfg.PCCombined [0;0], Spec.context e)) startvars         (* this will always yield unit context *)
+        List.map (fun (n,e) -> (Arinc_cfg.PCCombined (List.make (List.length Cfg.taskinfo) 0), Spec.context e)) startvars         (* this will always yield unit context *)
       else
         List.map (fun (n,e) -> (Arinc_cfg.PCCombined Cfg.startnode, Spec.context e)) startvars (* this will always yield unit context *)
     in
