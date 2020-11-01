@@ -49,7 +49,7 @@ fi
 
 res=$(./goblint --sets result fast_xml tests/arinc_wcet/missing_set_event.json 2>&1)
 if ! echo $res | grep -q -e 'NB! Execution'; then
-   echo "Test 2 failed, end not reached:"
+   echo "Test 3 failed, end was reached:"
    echo $res
    failure=1
 fi

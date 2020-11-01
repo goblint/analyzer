@@ -161,6 +161,8 @@ struct
         List.map (fun (n,e) -> (Arinc_cfg.PCCombined Cfg.startnode, Spec.context e)) startvars (* this will always yield unit context *)
     in
 
+    let endvars = List.map (fun (n,e) -> (Arinc_cfg.PCCombined Cfg.startnode, Spec.context e)) startvars in
+
     let entrystates =
       List.map (fun (n,e) -> (n, Spec.context e), e) startvars in
 
@@ -187,9 +189,9 @@ struct
         print_globals gh;
 
       (* check for dead code at the last state: *)
-      let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
+      let main_sol = try LHT.find lh (List.hd endvars) with Not_found -> Spec.D.bot () in
       if Spec.D.is_bot main_sol then
-        Printf.printf "NB! Execution does not reach the start var that was specified\n";
+        Printf.printf "NB! Execution does not reach the end variable that was specified for this program\n";
     in
 
     (* Use "normal" constraint solving *)
