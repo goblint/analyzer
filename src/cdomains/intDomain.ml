@@ -217,10 +217,10 @@ struct
   let lift2 op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
   let lift2_cmp op x y = check_ikinds x y; {v = op x.ikind x.v y.v; ikind = Cil.IInt}
 
-  let bot_of ikind = { v = I.bot (); ikind}
+  let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
-  let top_of ikind = { v = I.top (); ikind}
+  let top_of ikind = { v = I.top_of ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
   let is_top x = I.is_top x.v
 
