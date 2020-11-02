@@ -102,11 +102,11 @@ module type IkindUnawareS =
 sig
   include B with type int_t = int64
   include Arith with type t:= t
-  val starting   : ?ikind:Cil.ikind -> int_t -> t
-  val ending     : ?ikind:Cil.ikind -> int_t -> t
+  val starting   : Cil.ikind -> int_t -> t
+  val ending     : Cil.ikind -> int_t -> t
   val of_int: int_t -> t
   val of_bool: bool -> t
-  val of_interval: int_t * int_t -> t
+  val of_interval: Cil.ikind -> int_t * int_t -> t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -189,11 +189,11 @@ struct
 
   let of_int ik x = Old.of_int (BigIntOps.to_int64 x)
   let of_bool ik b = Old.of_bool b
-  let of_interval ik (l, u) = Old.of_interval (BigIntOps.to_int64 l, BigIntOps.to_int64 u)
+  let of_interval ik (l, u) = Old.of_interval ik (BigIntOps.to_int64 l, BigIntOps.to_int64 u)
 
-  let starting ik x = Old.starting (BigIntOps.to_int64 x)
+  let starting ik x = Old.starting ik (BigIntOps.to_int64 x)
 
-  let ending ik x = Old.ending (BigIntOps.to_int64 x)
+  let ending ik x = Old.ending ik (BigIntOps.to_int64 x)
 
   let join _ik = Old.join
   let meet _ik = Old.meet
@@ -394,15 +394,15 @@ exception Unknown
 exception Error
 exception ArithmeticOnIntegerBot of string
 
-module StdTop (B: sig type t val top: unit -> t end) = struct
+module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
-  let of_excl_list    t x = top ()
+  let of_excl_list ik x = top_of ik
   let is_excl_list    x = false
-  let of_interval     x = top ()
-  let starting ?ikind x = top ()
-  let ending ?ikind   x = top ()
+  let of_interval  ik x = top_of ik
+  let starting     ik x = top_of ik
+  let ending       ik x = top_of ik
   let maximal         x = None
   let minimal         x = None
 end
@@ -410,9 +410,10 @@ end
 module Std (B: sig
     type t
     val name: unit -> string
-    val top: unit -> t
-    val bot: unit -> t
+    val top_of: Cil.ikind -> t
+    val bot_of: Cil.ikind -> t
     val short: int -> t -> string
+    val equal: t -> t -> bool
   end) = struct
   include Printable.Std
   let name = B.name (* overwrite the one from Printable.Std *)
@@ -420,8 +421,11 @@ module Std (B: sig
   let isSimple _ = true
   let hash = Hashtbl.hash
   let equal = (=)
-  let is_top x = x = top ()
-  let is_bot x = x = bot ()
+  let is_top x = failwith "is_top not implemented for IntDomain.Std"
+  let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
+                                                This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
+  let is_top_of ik x = B.equal x (top_of ik)
+  (* let is_bot_of ik x = B.equal x (bot_of ik) *)
 
   (* all output is based on B.short *)
   let pretty_f sh () x = text (sh Goblintutil.summary_length x)
@@ -448,9 +452,18 @@ struct
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)
 
+  let is_top x = failwith "is_top not implemented for intervals"
+
+  let is_bot x  = failwith "is_bot not implemented for intervals"
+
   let short _ = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
-  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
+  let equal a b = match a, b with
+    | None, None -> true
+    | Some (a, b), Some (c, d) -> Ints_t.equal a c && Ints_t.equal b d
+    | _, _ -> false
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
 
   let equal_to i = function
     | None -> failwith "unsupported: equal_to with bottom"
@@ -602,7 +615,7 @@ struct
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (xl, xu), Some (yl, yu) ->
-      if is_top x && is_top y then
+      if is_top_of ik x && is_top_of ik y then
         (* This is needed to preserve soundness also on things bigger than int32 e.g.  *)
         (* x:     3803957176L -> T in Interval32 *)
         (* y:     4209861404L -> T in Interval32 *)
@@ -736,7 +749,9 @@ struct
   let bot_of ik = bot () (* TODO: Improve *)
   let short _ x = if x = GU.inthack then "*" else Int64.to_string x
 
-  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
+  let equal = Int64.equal
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
@@ -831,11 +846,11 @@ struct
   let is_bool = is_int
 
   let to_excl_list x = None
-  let of_excl_list t x = top ()
+  let of_excl_list ik x = top_of ik
   let is_excl_list x = false
-  let of_interval  x = top ()
-  let starting     ?ikind x = top ()
-  let ending       ?ikind x = top ()
+  let of_interval ik x = top_of ik
+  let starting     ikind x = top_of ikind
+  let ending       ikind x = top_of ikind
   let maximal      x = None
   let minimal      x = None
 
@@ -878,10 +893,10 @@ struct
       let top_name = "MaxInt"
       let bot_name = "MinInt"
     end)
-  include StdTop (struct type nonrec t = t let top = top end)
   type int_t = Base.int_t
   let top_of ik = top ()
   let bot_of ik = bot ()
+  include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"
   let cast_to ?torg t = function
@@ -976,19 +991,19 @@ struct
     | `Excluded (s,l) when S.is_empty s -> "Unknown int" ^ short_size l
     (* Prepend the exclusion sets with something: *)
     | `Excluded (s,l) -> "Not " ^ S.short w s ^ short_size l
+    let hash (x:t) =
+      match x with
+      | `Excluded (s,r) -> S.hash s + R.hash r
+      | `Definite i -> 83*Integers.hash i
+      | `Bot -> 61426164
+    let equal x y =
+      match x, y with
+      | `Bot, `Bot -> true
+      | `Definite x, `Definite y -> Integers.equal x y
+      | `Excluded (xs,xw), `Excluded (ys,yw) -> S.equal xs ys && R.equal xw yw
+      | _ -> false
 
-  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
-  let hash (x:t) =
-    match x with
-    | `Excluded (s,r) -> S.hash s + R.hash r
-    | `Definite i -> 83*Integers.hash i
-    | `Bot -> 61426164
-  let equal x y =
-    match x, y with
-    | `Bot, `Bot -> true
-    | `Definite x, `Definite y -> Integers.equal x y
-    | `Excluded (xs,xw), `Excluded (ys,yw) -> S.equal xs ys && R.equal xw yw
-    | _ -> false
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
 
   let equal_to i = function
   | `Bot -> failwith "unsupported: equal_to with bottom"
@@ -1117,9 +1132,9 @@ struct
     | _ -> false
 
   let zero = of_int 0L
-  let from_excl ~ikind s = `Excluded (s, BatOption.map size ikind |? top_range)
-  let not_zero ~ikind = from_excl ~ikind (S.singleton 0L)
-  let top_opt ~ikind = from_excl ~ikind (S.empty ())
+  let from_excl ikind s = `Excluded (s, size ikind)
+  let not_zero ikind = from_excl ikind (S.singleton 0L)
+  let top_opt ikind = from_excl ikind (S.empty ())
 
   (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp x = of_int (if x then 1L else 0L)
@@ -1135,10 +1150,10 @@ struct
     | `Excluded (s,r) -> S.mem Int64.zero s
     | _ -> false
 
-  let of_interval (x,y) = if Int64.compare x y == 0 then of_int x else top ()
+  let of_interval ik (x,y) = if Int64.compare x y == 0 then of_int x else top_of ik
 
-  let starting ?ikind x = if x > 0L then not_zero ~ikind else top_opt ~ikind
-  let ending ?ikind x = if x < 0L then not_zero ~ikind else top_opt ~ikind
+  let starting ikind x = if x > 0L then not_zero ikind else top_opt ikind
+  let ending ikind x = if x < 0L then not_zero ikind else top_opt ikind
 
   (* calculates the minimal extension of range r to cover the exclusion set s *)
   (* let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r *)
@@ -1349,7 +1364,7 @@ struct
     | Int(_,a,b) -> C.eq a b
     | _ -> false
 
-  let of_interval (x,y) = I.of_int64 max_width x y
+  let of_interval ik (x,y) = I.of_int64 max_width x y
 
   (* Bool Conversion *)
   let to_bool x =
@@ -1372,12 +1387,12 @@ struct
   let is_excl_list x = false
 
   (* Starting/Ending *)
-  let starting ?ikind x =
+  let starting ikind x =
     let r = I.of_t max_width (C.of_int64 max_width x) (C.max_value max_width)
     in
     print_endline ("starting: "^(I.to_string r)^" .. "^(Int64.to_string x));
     r
-  let ending ?ikind x =
+  let ending ikind x =
     let r = I.of_t max_width C.zero (C.of_int64 max_width x)
     in
     print_endline ("ending: "^(I.to_string r)^" .. "^(Int64.to_string x));
@@ -1648,7 +1663,8 @@ struct
   let top_of ik = top ()
   let bot_of ik = bot ()
   let short _ x = if x then N.truename else N.falsename
-  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
+  let equal = Bool.equal
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
   let hash = function true -> 51534333 | _ -> 561123444
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
@@ -1715,11 +1731,13 @@ module Enums : IkindUnawareS = struct
   let top () = Exc ([], top_range)
   let top_of ik = top ()
   let bot_of ik = bot ()
+
+  let equal a b = a = b (* Be careful: this works only as long as the Range/Interval implementation used does not use big integers *)
   let short _ = function
     | Inc[] -> "bot" | Exc([],r) -> "top"
     | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "} " ^ "("^R.short 2 r^")"
-  include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
 
   let equal_to i = function
     | Inc x ->
@@ -1745,7 +1763,7 @@ module Enums : IkindUnawareS = struct
         Exc ([], r')
     |  Inc x -> Inc (List.map (Integers.cast_to ik) x)
 
-  let of_interval (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
+  let of_interval ik (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =
       if start_num > end_num then set
       else (build_set (set @ [start_num]) (Int64.add start_num (Int64.of_int 1)) end_num) in
@@ -1853,8 +1871,8 @@ module Enums : IkindUnawareS = struct
   let to_excl_list = function Exc (x,r) when x<>[] -> Some x | _ -> None
   let of_excl_list t x = Exc (x, size t)
   let is_excl_list = BatOption.is_some % to_excl_list
-  let starting     ?ikind x = top ()
-  let ending       ?ikind x = top ()
+  let starting     ikind x = top_of ikind
+  let ending       ikind x = top_of ikind
   let maximal = function Inc xs when xs<>[] -> Some (List.last xs) | _ -> None
   let minimal = function Inc (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)

@@ -213,8 +213,8 @@ module type IkindUnawareS =
 sig
   include B with type int_t = int64
   include Arith with type t:= t
-  val starting   : ?ikind:Cil.ikind -> int_t -> t
-  val ending     : ?ikind:Cil.ikind -> int_t -> t
+  val starting   : Cil.ikind -> int_t -> t
+  val ending     : Cil.ikind -> int_t -> t
   val of_int: int_t -> t
   (** Transform an integer literal to your internal domain representation. *)
 
@@ -222,7 +222,7 @@ sig
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: int_t * int_t -> t
+  val of_interval: Cil.ikind -> int_t * int_t -> t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
