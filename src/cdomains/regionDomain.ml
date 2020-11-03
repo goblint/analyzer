@@ -102,7 +102,12 @@ module RegPart = struct
 
   let add r p = if real_region r then add r p else p
 end
-module RegMap = MapDomain.MapBot (VF) (RS)
+
+module RegMap =
+struct
+  include MapDomain.MapBot (VF) (RS)
+  let name () = "regmap"
+end
 
 module Reg =
 struct
