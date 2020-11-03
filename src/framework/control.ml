@@ -214,26 +214,24 @@ struct
       let funs = ref [] in
       (*let count = ref 0 in*)
       let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t =
-        try
-          if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
-          (*incr count;
-            if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-          Tracing.current_loc := loc;
-          match edge with
-          | MyCFG.Entry func        ->
-            if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
-            Spec.body {ctx with local = st} func
-          | MyCFG.Assign (lval,exp) ->
-            if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
-            (match lval, exp with
-              | (Var v,o), (AddrOf (Var f,NoOffset))
-                when v.vstorage <> Static && isFunctionType f.vtype ->
-                (try funs := Cilfacade.getdec f :: !funs with Not_found -> ())
-              | _ -> ()
-            );
-            Spec.assign {ctx with local = st} lval exp
-          | _                       -> raise (Failure "This iz impossible!")
-        with Failure x -> M.warn x; st
+        if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
+        (*incr count;
+          if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
+        Tracing.current_loc := loc;
+        match edge with
+        | MyCFG.Entry func        ->
+          if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
+          Spec.body {ctx with local = st} func
+        | MyCFG.Assign (lval,exp) ->
+          if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
+          (match lval, exp with
+            | (Var v,o), (AddrOf (Var f,NoOffset))
+              when v.vstorage <> Static && isFunctionType f.vtype ->
+              (try funs := Cilfacade.getdec f :: !funs with Not_found -> ())
+            | _ -> ()
+          );
+          Spec.assign {ctx with local = st} lval exp
+        | _                       -> failwith "Unsupported global initializer edge"
       in
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
