@@ -532,7 +532,7 @@ struct
       let toInt i =
         match IdxDom.to_int i with
         | Some x ->
-          (* TODO: Handle values outsie of int64 *)
+          (* TODO: Handle values outside of int64 *)
           let x = BI.to_int64 x in
           Const (CInt64 (x,IInt, None))
         | _ -> mkCast (Const (CStr "unknown")) intType
@@ -1451,8 +1451,8 @@ struct
         let is_divisible bound =
           try ID.rem (bound a |> Option.get |> ID.of_int ikind) b |> ID.to_int = Some BI.zero with _ -> false
         in
-        let max_pos = match ID.maximal b with None -> true | Some x -> x >= BI.zero in
-        let min_neg = match ID.minimal b with None -> true | Some x -> x <  BI.zero in
+        let max_pos = match ID.maximal b with None -> true | Some x -> BI.compare x BI.zero >= 0 in
+        let min_neg = match ID.minimal b with None -> true | Some x -> BI.compare x BI.zero < 0 in
         let implies a b = not a || b in
         let a'' =
           if implies max_pos (is_divisible ID.maximal) && implies min_neg (is_divisible ID.minimal) then
