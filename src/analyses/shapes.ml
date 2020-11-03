@@ -106,7 +106,7 @@ struct
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     let nst, dst, rm, part = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
-    let (nre,nvar), dre = Re.sync (re_context ctx re) in
+    let nre, dre = Re.sync (re_context ctx re) in
     let update k v m =
       let old = try RegMap.find k m with Not_found -> RS.empty () in
       if (not (RS.is_top old)) && RS.for_all (function  (`Left (v,_)) -> not (gl v) |  `Right _ -> true)  old
@@ -131,7 +131,7 @@ struct
     in
     ctx.sideg (Re.partition_varinfo ()) (false, part);
     let is_public (v,_) = gl v in
-    (nst,(nre,nvar)),
+    (nst,nre),
     (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre)
      @ List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst)
 
