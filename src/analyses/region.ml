@@ -21,6 +21,7 @@ struct
   let partition_varinfo () = !partition_varstore
 
   let get_regpart ctx = ctx.global (partition_varinfo ())
+  let set_regpart ctx regpart = ctx.sideg (partition_varinfo ()) regpart
 
   let regions exp part st : Lval.CilLval.t list =
     match st with
@@ -88,7 +89,7 @@ struct
       let equ = Equ.assign lval rval equ in
       let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
       if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg (partition_varinfo ()) regpart;
+        set_regpart ctx regpart;
       `Lifted (equ,reg)
     | x -> x
 
@@ -107,9 +108,9 @@ struct
       let part, reg = match exp with
         | Some exp -> Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
         | None -> old_regpart, reg in
-      let part, reg = Reg.kill_vars locals (Reg.remove_vars locals (part, reg)) in
-      if not (RegPart.leq part old_regpart) then
-        ctx.sideg (partition_varinfo ()) part;
+      let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (part, reg)) in
+      if not (RegPart.leq regpart old_regpart) then
+        set_regpart ctx regpart;
       `Lifted (equ,reg)
     | x -> x
 
@@ -129,7 +130,7 @@ struct
       let old_regpart = get_regpart ctx in
       let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
       if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg (partition_varinfo ()) regpart;
+        set_regpart ctx regpart;
       [ctx.local, `Lifted (equ,reg)]
     | x -> [x,x]
 
@@ -141,13 +142,13 @@ struct
         | None ->
           let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
-            ctx.sideg (partition_varinfo ()) regpart;
+            set_regpart ctx regpart;
           `Lifted (equ,reg)
         | Some lval ->
           let reg = Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg) in
           let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] reg in
           if not (RegPart.leq regpart old_regpart) then
-            ctx.sideg (partition_varinfo ()) regpart;
+            set_regpart ctx regpart;
           `Lifted (equ,reg)
       end
     | _ -> au
@@ -160,7 +161,7 @@ struct
           let old_regpart = get_regpart ctx in
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
-            ctx.sideg (partition_varinfo ()) regpart;
+            set_regpart ctx regpart;
           `Lifted (equ, reg)
         | _ -> ctx.local
       end
