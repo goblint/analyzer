@@ -424,12 +424,12 @@ struct
 
   let pretty () x = pretty_f short () x
 
-  let printInnerXml f = function
+  let rec printInnerXml f = function
     | [] -> ()
     | (`Left x :: xs) ->
-      BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
+      BatPrintf.fprintf f ".%s%a" (F.short 80 x) printInnerXml xs
     | (`Right x :: xs) ->
-      BatPrintf.fprintf f "[%a]%a" I.printXml x printXml xs
+      BatPrintf.fprintf f "[%s]%a" (I.short 80 x) printInnerXml xs
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
 
