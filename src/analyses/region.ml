@@ -20,7 +20,7 @@ struct
   let partition_varstore = ref dummyFunDec.svar
   let partition_varinfo () = !partition_varstore
 
-  let get_regpart gf = gf (partition_varinfo ())
+  let get_regpart ctx = ctx.global (partition_varinfo ())
 
   let regions exp part st : Lval.CilLval.t list =
     match st with
@@ -42,7 +42,7 @@ struct
     | `Bot -> true
 
   let get_region ctx e =
-    let regpart = get_regpart ctx.global in
+    let regpart = get_regpart ctx in
     if is_bullet e regpart ctx.local then
       None
     else
@@ -72,7 +72,7 @@ struct
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
-    let regpart = get_regpart ctx.global in
+    let regpart = get_regpart ctx in
     match q with
     | Queries.Regions e ->
       if is_bullet e regpart ctx.local then `Bot else
@@ -84,7 +84,7 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     match ctx.local with
     | `Lifted (equ,reg) ->
-      let old_regpart = get_regpart ctx.global in
+      let old_regpart = get_regpart ctx in
       let equ = Equ.assign lval rval equ in
       let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
       if not (RegPart.leq regpart old_regpart) then
@@ -103,7 +103,7 @@ struct
     match ctx.local with
     | `Lifted (equ,reg) ->
       let equ = Equ.kill_vars locals equ in
-      let old_regpart = get_regpart ctx.global in
+      let old_regpart = get_regpart ctx in
       let part, reg = match exp with
         | Some exp -> Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
         | None -> old_regpart, reg in
@@ -126,7 +126,7 @@ struct
       let f x r eq = Equ.assign (var x) r eq in
       let equ  = fold_right2 f fundec.sformals args equ in
       let f x r reg = Reg.assign (var x) r reg in
-      let old_regpart = get_regpart ctx.global in
+      let old_regpart = get_regpart ctx in
       let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
       if not (RegPart.leq regpart old_regpart) then
         ctx.sideg (partition_varinfo ()) regpart;
@@ -136,7 +136,7 @@ struct
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     match au with
     | `Lifted (equ, reg) -> begin
-        let old_regpart = get_regpart ctx.global in
+        let old_regpart = get_regpart ctx in
         match lval with
         | None ->
           let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (old_regpart, reg) in
@@ -157,7 +157,7 @@ struct
     | "malloc" | "calloc" | "kmalloc"| "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
         match ctx.local, lval with
         | `Lifted (equ,reg), Some lv ->
-          let old_regpart = get_regpart ctx.global in
+          let old_regpart = get_regpart ctx in
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
             ctx.sideg (partition_varinfo ()) regpart;
