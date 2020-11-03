@@ -105,10 +105,11 @@ struct
     | `Lifted (equ,reg) ->
       let equ = Equ.kill_vars locals equ in
       let old_regpart = get_regpart ctx in
-      let part, reg = match exp with
+      let regpart, reg = match exp with
         | Some exp -> Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
-        | None -> old_regpart, reg in
-      let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (part, reg)) in
+        | None -> (old_regpart, reg)
+      in
+      let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
       if not (RegPart.leq regpart old_regpart) then
         set_regpart ctx regpart;
       `Lifted (equ,reg)
@@ -137,19 +138,15 @@ struct
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     match au with
     | `Lifted (equ, reg) -> begin
-        let old_regpart = get_regpart ctx in
-        match lval with
-        | None ->
-          let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (old_regpart, reg) in
-          if not (RegPart.leq regpart old_regpart) then
-            set_regpart ctx regpart;
-          `Lifted (equ,reg)
-        | Some lval ->
-          let reg = Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg) in
-          let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] reg in
-          if not (RegPart.leq regpart old_regpart) then
-            set_regpart ctx regpart;
-          `Lifted (equ,reg)
+      let old_regpart = get_regpart ctx in
+      let regpart, reg = match lval with
+        | None -> (old_regpart, reg)
+        | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg)
+      in
+      let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (regpart, reg) in
+      if not (RegPart.leq regpart old_regpart) then
+        set_regpart ctx regpart;
+      `Lifted (equ,reg)
       end
     | _ -> au
 
