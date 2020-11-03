@@ -342,10 +342,11 @@ let print cfg  =
     | SelfLoop -> Pretty.text "SelfLoop"
   in
   (* escape string in label, otherwise dot might fail *)
-  let p_edge_escaped () x = Pretty.text (String.escaped (Pretty.sprint ~width:0 (Pretty.dprintf "%a" p_edge x))) in
+  (* Weirdly, this actually causes xdot to fail with \v in string literals. *)
+  (* let p_edge_escaped () x = Pretty.text (String.escaped (Pretty.sprint ~width:0 (Pretty.dprintf "%a" p_edge x))) in *)
   let rec p_edges () = function
     | [] -> Pretty.dprintf ""
-    | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge_escaped x p_edges xs
+    | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
   in
   let printNodeStyle (n:node) () =
     match n with
