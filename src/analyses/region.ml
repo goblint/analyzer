@@ -3,7 +3,8 @@
 open Prelude.Ana
 open Analyses
 
-module Equ = MusteqDomain.Equ
+(* module Equ = MusteqDomain.Equ *)
+module Equ = RegionDomain.Equ
 module RegMap = RegionDomain.RegMap
 module RegPart = RegionDomain.RegPart
 module Reg = RegionDomain.Reg
