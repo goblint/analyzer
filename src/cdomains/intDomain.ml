@@ -420,7 +420,6 @@ module Std (B: sig
   open B
   let isSimple _ = true
   let hash = Hashtbl.hash
-  let equal = (=)
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
@@ -502,7 +501,7 @@ struct
   let top_bool = Some (Ints_t.zero, Ints_t.one)
 
   let of_bool _ik = function true -> one | false -> zero
-  let is_bool x = x <> None && not (leq zero x) || x = zero
+  let is_bool x = x <> None && not (leq zero x) || equal x zero
   let to_bool (a: t) = match a with
     | None -> None
     | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare l Ints_t.zero = 0 -> Some false
