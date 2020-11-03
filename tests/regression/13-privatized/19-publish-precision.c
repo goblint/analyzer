@@ -28,8 +28,8 @@ int main(void) {
   assert(glob1 == 0);
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&mutex2);
-  assert(glob1 == 0); // UNKNOWN
-  assert(glob1 == 5); // UNKNOWN
+  assert(glob1 == 0); // UNKNOWN!
+  assert(glob1 == 5); // UNKNOWN!
   pthread_mutex_unlock(&mutex2);
   pthread_join (id, NULL);
   return 0;
