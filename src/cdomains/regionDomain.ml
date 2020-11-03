@@ -260,6 +260,5 @@ end
 
 module Equ = MusteqDomain.Equ
 module LD  = Lattice.Prod (Equ) (RegMap)
-module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)
 
-module RegionDom = Lif
+module RegionDom = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)

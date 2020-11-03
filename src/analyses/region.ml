@@ -13,12 +13,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module LD     = RegionDomain.LD
-  module Lif    = RegionDomain.Lif
-  module D =
-  struct
-    include RegionDomain.RegionDom
-  end
+  module D = RegionDomain.RegionDom
   module G = RegPart
   module C = D
 
