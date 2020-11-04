@@ -1423,7 +1423,7 @@ struct
       function
       | PlusA  -> meet_com ID.sub
       | Mult   ->
-        (* Only multiplication with odd numbers is an invertible operation in (mod 2^n), *)
+        (* Only multiplication with odd numbers is an invertible operation in (mod 2^n) *)
         (* refine x by information about y, using x * y == c *)
         let refine_by x y = (match ID.to_int y with
           | None -> x
