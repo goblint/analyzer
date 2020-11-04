@@ -4,7 +4,7 @@
 int main() {
   unsigned int top;
   unsigned int x;
-  top = 7;
+
   if (top == 3){
     return 0;
   }
