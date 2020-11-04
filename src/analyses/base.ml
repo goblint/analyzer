@@ -1088,7 +1088,7 @@ struct
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
-        | None -> Cil.typeOf (Lval(Var x, cil_offset)) in
+        | None -> Cilfacade.TypeIncorrect.typeOffset x.vtype cil_offset in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;

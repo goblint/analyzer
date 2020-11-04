@@ -317,3 +317,80 @@ and typeOffset basetyp =
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
     | _ -> raise Not_found
+
+module TypeIncorrect =
+struct
+  (* Copied from CIL *)
+
+
+  (**** Compute the type of an expression ****)
+  let rec typeOf (e: exp) : typ =
+    match e with
+    | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
+
+      (* Character constants have type int.  ISO/IEC 9899:1999 (E),
+      * section 6.4.4.4 [Character constants], paragraph 10, if you
+      * don't believe me. *)
+    | Const(CChr _) -> intType
+
+      (* The type of a string is a pointer to characters ! The only case when
+      * you would want it to be an array is as an argument to sizeof, but we
+      * have SizeOfStr for that *)
+    | Const(CStr s) -> charPtrType (* can't access Cil.stringLiteralType *)
+
+    | Const(CWStr s) -> TPtr(!wcharType,[])
+
+    | Const(CReal (_, fk, _)) -> TFloat(fk, [])
+
+    | Const(CEnum(tag, _, ei)) -> typeOf tag
+    | Real e -> typeOfRealAndImagComponents @@ typeOf e
+    | Imag e -> typeOfRealAndImagComponents @@ typeOf e
+    | Lval(lv) -> typeOfLval lv
+    | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
+    | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
+    | UnOp (_, _, t)
+    | BinOp (_, _, _, t)
+    | Question (_, _, _, t)
+    | CastE (t, _) -> t
+    | AddrOf (lv) -> TPtr(typeOfLval lv, [])
+    | AddrOfLabel (lv) -> voidPtrType
+    | StartOf (lv) -> begin
+        match unrollType (typeOfLval lv) with
+          TArray (t,_, a) -> TPtr(t, a)
+      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
+    end
+
+  and typeOfInit (i: init) : typ =
+    match i with
+      SingleInit e -> typeOf e
+    | CompoundInit (t, _) -> t
+
+  and typeOfLval = function
+      Var vi, off -> typeOffset vi.vtype off
+    | Mem addr, off -> begin
+        match unrollType (typeOf addr) with
+          TPtr (t, _) -> typeOffset t off
+        | _ -> E.s (bug "typeOfLval: Mem on a non-pointer (%a)" d_exp addr)
+    end
+
+  and typeOffset basetyp =
+    let blendAttributes baseAttrs =
+      let (_, _, contageous) =
+        partitionAttributes ~default:(AttrName false) baseAttrs in
+      typeAddAttributes contageous
+    in
+    function
+      NoOffset -> basetyp
+    | Index (_, o) -> begin
+        match unrollType basetyp with
+          TArray (t, _, baseAttrs) ->
+      let elementType = typeOffset t o in
+      blendAttributes baseAttrs elementType
+        | t -> E.s (E.bug "typeOffset: Index on a non-array")
+    end
+    | Field (fi, o) ->
+      (* Ignore basetyp here... *)
+      let baseAttrs = [] in
+      let fieldType = typeOffset fi.ftype o in
+      blendAttributes baseAttrs fieldType
+end
