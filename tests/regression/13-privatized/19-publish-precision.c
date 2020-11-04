@@ -18,8 +18,8 @@ void *t_fun(void *arg) {
   assert(glob1 == 5);
   glob1 = 0;
 
-  pthread_mutex_unlock(&mutex1);
   pthread_mutex_unlock(&mutex2);
+  pthread_mutex_unlock(&mutex1);
   return NULL;
 }
 
