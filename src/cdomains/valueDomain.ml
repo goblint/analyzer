@@ -759,7 +759,6 @@ struct
         | `NoOffset -> begin
             match value with
             | `Blob (y,s) -> mu (`Blob (join x y, s))
-            | `Int _ -> cast t value
             | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
