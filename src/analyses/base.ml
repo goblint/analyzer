@@ -645,7 +645,14 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
+        | Lval ((Var v, ofs) as b) ->
+          let t = typeOfLval b in
+          let p = eval_lv a gs st b in
+          let v = get a gs st p (Some exp) in
+          let v' = VD.cast t v in
+          M.tracel "cast" "Var: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+          let v' = do_offs v' ofs in
+          v'
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
