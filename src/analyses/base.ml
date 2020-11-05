@@ -800,10 +800,10 @@ struct
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
       end
 
-  let rec bot_value a (gs:glob_fun) (st: store) (t: typ): value =
+  let rec bot_value (t: typ): value =
     let bot_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
-      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype) in
+      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value fd.ftype) in
       List.fold_left bot_field nstruct compinfo.cfields
     in
     match t with
@@ -812,17 +812,17 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (bot_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.bot ())
     | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value a gs st ai))
+      `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value ai))
     | TArray (ai, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (bot_value a gs st ai))
-    | TNamed ({ttype=t; _}, _) -> bot_value a gs st t
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (bot_value ai))
+    | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
 
-  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
+  let rec init_value (t: typ): value = (* TODO why is VD.top_value not used here? *)
     let init_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
-      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
+      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value fd.ftype) in
       List.fold_left init_field nstruct compinfo.cfields
     in
     match t with
@@ -832,17 +832,17 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
+      `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t; _}, _) -> init_value a gs st t
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+    | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
 
-  let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
+  let rec top_value (t: typ): value =
     let top_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
-      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype) in
+      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value fd.ftype) in
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
@@ -851,11 +851,39 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
+      `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t; _}, _) -> top_value a gs st t
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+    | TNamed ({ttype=t; _}, _) -> top_value t
+    | _ -> `Top
+
+  let rec zero_init_value (t:typ): value =
+    let zero_init_comp compinfo: ValueDomain.Structs.t =
+      let nstruct = ValueDomain.Structs.top () in
+      let zero_init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (zero_init_value fd.ftype) in
+      List.fold_left zero_init_field nstruct compinfo.cfields
+    in
+    match t with
+    | TInt (ikind, _) -> `Int (ID.of_int 0L)
+    | TPtr _ -> `Address AD.null_ptr
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (zero_init_comp ci)
+    | TComp ({cstruct=false; _} as ci,_) ->
+      let v = try
+        (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
+        let firstmember = List.hd ci.cfields in
+        `Lifted firstmember, zero_init_value firstmember.ftype
+      with
+        (* Union with no members ò.O *)
+        Failure _ -> ValueDomain.Unions.top ()
+      in
+      `Union(v)
+    | TArray (ai, None, _) ->
+      `Array (ValueDomain.CArrays.make (IdxDom.top ()) (zero_init_value ai))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) (zero_init_value ai))
+    | TNamed ({ttype=t; _}, _) -> zero_init_value t
     | _ -> `Top
 
   (* run eval_rv from above and keep a result that is bottom *)
@@ -868,9 +896,9 @@ struct
     try
       let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
-      if VD.is_bot r then top_value a gs st (typeOf exp) else r
+      if VD.is_bot r then top_value (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
-      top_value a gs st (typeOf exp)
+      top_value (typeOf exp)
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
@@ -1603,7 +1631,7 @@ struct
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
     match v with
-    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr)) ?lval_raw ?rval_raw
+    | `Top -> set ask gs st adr (top_value (AD.get_type adr)) ?lval_raw ?rval_raw
     | v -> set ask gs st adr v ?lval_raw ?rval_raw
 
 
@@ -1686,7 +1714,7 @@ struct
         | `Bot -> (* current value is VD `Bot *)
           (match Addr.to_var_offset (AD.choose lval_val) with
           | [(x,offs)] ->
-            let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
+            let iv = bot_value v.vtype in (* correct bottom value for top level variable *)
             let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
             set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
           | _ ->
@@ -1760,7 +1788,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.from_var v, init_value ctx.ask ctx.global ctx.local v.vtype) in
+    let init_var v = (AD.from_var v, init_value v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
     set_many ctx.ask ctx.global ctx.local inits
