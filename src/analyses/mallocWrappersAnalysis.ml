@@ -29,9 +29,13 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let callectx = match List.mem f.vname ["myalloc"; "myalloc2"; "ldv_malloc"] with
-      | true -> `Lifted (MyCFG.getLoc ctx.node) 
-      | _ -> D.top () in     
+    let interestingfunctions = ["myalloc"; "myalloc2"; "ldv_malloc"] in
+    let calleofinterest = List.mem f.vname interestingfunctions in
+    let callectx = if calleofinterest then
+       if ctx.local = `Top then
+        `Lifted (MyCFG.getLoc ctx.node) 
+        else ctx.local
+      else D.top () in     
     [(ctx.local, callectx)]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
