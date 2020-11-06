@@ -25,7 +25,7 @@ let no_read = ref false
 let vips = ref ([]: string list)
 
 let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
-  snd (Obj.obj (List.assoc "base" state))
+  Obj.obj (List.assoc "baseflag" state)
 
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
@@ -146,8 +146,7 @@ struct
 
   let access_one_top ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    let fl = get_flag ctx.presub in
-    if BaseDomain.Flag.is_multi fl then
+    if Base.is_multi ctx then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
   (** We just lift start state, global and dependecy functions: *)
@@ -289,4 +288,4 @@ end
 module Spec = MakeSpec (MyParam)
 
 let _ =
-  MCP.register_analysis ~dep:["base"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["baseflag"] (module Spec : Spec)

@@ -39,7 +39,7 @@ struct
     | _ -> []
 
   let get_current_tid ctx =
-    snd (snd (Obj.obj (List.assoc "base" ctx.presub)))
+    snd (Obj.obj (List.assoc "baseflag" ctx.presub))
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let create_thread fn x =
@@ -157,4 +157,4 @@ struct
 end
 
 let _ = MCP.register_analysis (module StartLocIDs : Spec)
-let _ = MCP.register_analysis ~dep:["base"] (module Spec : Spec)
+let _ = MCP.register_analysis ~dep:["baseflag"] (module Spec : Spec)

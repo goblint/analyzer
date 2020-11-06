@@ -1269,4 +1269,4 @@ struct
     end;
 end
 
-let () = MCP.register_analysis ~dep:["base";"fmode"] (module Spec : Spec)
+let () = MCP.register_analysis ~dep:["base";"baseflag";"fmode"] (module Spec : Spec)
