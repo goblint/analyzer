@@ -110,7 +110,12 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
-  let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
+  let heap_var ctx = 
+    let mallocloc = match (ctx.ask Q.MallocLocation) with
+      | `Location (`Lifted location) -> location
+      | `Top -> MyCFG.getLoc ctx.node
+      | _ -> failwith("Sadly no location found.") in
+    AD.from_var (BaseDomain.get_heap_var mallocloc)
 
   let init () =
     privatization := get_bool "exp.privatization";
@@ -2115,8 +2120,8 @@ struct
         | Some lv ->
           let heap_var =
             if (get_bool "exp.malloc-fail")
-            then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
-            else heap_var !Tracing.current_loc
+            then AD.join (heap_var ctx) AD.null_ptr
+            else heap_var ctx
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));

@@ -24,6 +24,12 @@ struct
   let meet x y = ES_r.join x y
 end
 
+(* For call locations in the code *)
+module CL = Lattice.Flat (Basetype.ProgLines) (struct 
+  let top_name = "Unknown line"
+  let bot_name = "Unreachable line" 
+end)
+
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 let iterprevvar_to_yojson _ = `Null
 type itervar = int -> unit
@@ -55,6 +61,7 @@ type t = ExpEq of exp * exp
        | MayBeEqual of exp * exp (* may two expressions be equal? *)
        | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
        | TheAnswerToLifeUniverseAndEverything
+       | MallocLocation
 [@@deriving to_yojson]
 
 type result = [
@@ -66,6 +73,7 @@ type result = [
   | `ExprSet of ES.t
   | `ExpTriples of PS.t
   | `TypeSet of TS.t
+  | `Location of CL.t
   | `Bot
 ] [@@deriving to_yojson]
 
@@ -95,6 +103,7 @@ struct
     | (`ExprSet x, `ExprSet y) -> ES.equal x y
     | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
     | (`TypeSet x, `TypeSet y) -> TS.equal x y
+    | (`Location x, `Location y) -> CL.equal x y
     | _ -> false
 
   let hash (x:t) =
@@ -105,6 +114,7 @@ struct
     | `ExprSet n -> ES.hash n
     | `ExpTriples n -> PS.hash n
     | `TypeSet n -> TS.hash n
+    | `Location n -> CL.hash n
     | _ -> Hashtbl.hash x
 
   let compare x y =
@@ -118,6 +128,7 @@ struct
       | `Str _ -> 6
       | `IntSet _ -> 8
       | `TypeSet _ -> 9
+      | `Location _ -> 10
       | `Top -> 100
     in match x,y with
     | `Int x, `Int y -> ID.compare x y
@@ -126,6 +137,7 @@ struct
     | `ExprSet x, `ExprSet y -> ES.compare x y
     | `ExpTriples x, `ExpTriples y -> PS.compare x y
     | `TypeSet x, `TypeSet y -> TS.compare x y
+    | `Location x, `Location y -> CL.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
@@ -137,6 +149,7 @@ struct
     | `ExprSet n ->  ES.pretty () n
     | `ExpTriples n ->  PS.pretty () n
     | `TypeSet n -> TS.pretty () n
+    | `Location n -> CL.pretty () n
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -149,6 +162,7 @@ struct
     | `ExprSet n ->  ES.short w n
     | `ExpTriples n ->  PS.short w n
     | `TypeSet n -> TS.short w n
+    | `Location n -> CL.short w n
     | `Bot -> bot_name
     | `Top -> top_name
 

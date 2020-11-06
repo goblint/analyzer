@@ -15,6 +15,8 @@ struct
   module G = Lattice.Unit
   module C = D
 
+  module Q = Queries
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     ctx.local
@@ -29,7 +31,7 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let interestingfunctions = ["myalloc"; "myalloc2"; "ldv_malloc"] in
+    let interestingfunctions = ["myalloc"; "myalloc2"; "ldv_malloc"; "smalloc"; "no_malloc"] in
     let calleofinterest = List.mem f.vname interestingfunctions in
     let callectx = if calleofinterest then
        if ctx.local = `Top then
@@ -47,6 +49,15 @@ struct
   let startstate v = D.bot ()
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
+
+  let query ctx (q:Q.t) : Q.Result.t =
+    let br:Q.Result.t = match q with
+    | Q.MallocLocation -> if ctx.local = `Top then 
+        `Location (`Lifted (MyCFG.getLoc ctx.node))  
+      else 
+        (`Location ctx.local)
+    | _ -> `Top in
+    br
 end
 
 let _ =
