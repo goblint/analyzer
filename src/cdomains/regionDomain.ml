@@ -102,7 +102,12 @@ module RegPart = struct
 
   let add r p = if real_region r then add r p else p
 end
-module RegMap = MapDomain.MapBot (VF) (RS)
+
+module RegMap =
+struct
+  include MapDomain.MapBot (VF) (RS)
+  let name () = "regmap"
+end
 
 module Reg =
 struct
@@ -255,12 +260,5 @@ end
 
 module Equ = MusteqDomain.Equ
 module LD  = Lattice.Prod (Equ) (RegMap)
-module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)
-module Var = Basetype.Variables
-module Vars= SetDomain.Make (Printable.Prod (Var) (RegPart))
 
-module RegionDom =
-struct
-  include Lattice.Prod (Lif) (Vars)
-  let short n (x,_:t) = Lif.short n x
-end
+module RegionDom = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)

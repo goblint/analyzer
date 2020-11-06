@@ -4,6 +4,7 @@ config.log
 config.status
 *.swp
 *.exe
+a.out
 obj
 goblint
 goblint.byte

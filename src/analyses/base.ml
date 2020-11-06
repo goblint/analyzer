@@ -1422,7 +1422,15 @@ struct
       let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
       function
       | PlusA  -> meet_com ID.sub
-      | Mult   -> meet_com ID.div (* Div is ok here, c must be divisible by a and b *)
+      | Mult   ->
+        (* Only multiplication with odd numbers is an invertible operation in (mod 2^n) *)
+        (* refine x by information about y, using x * y == c *)
+        let refine_by x y = (match ID.to_int y with
+          | None -> x
+          | Some v when Int64.rem v 2L = 0L -> x (* A refinement would still be possible here, but has to take non-injectivity into account. *)
+          | Some v (* when Int64.rem v 2L = 1L *) -> ID.meet x (ID.div c y)) (* Div is ok here, c must be divisible by a and b *)
+        in
+        (refine_by a b, refine_by b a)
       | MinusA -> meet_non ID.add ID.sub
       | Div    ->
         (* If b must be zero, we have must UB *)

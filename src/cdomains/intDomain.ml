@@ -934,6 +934,10 @@ struct
   let mul x y = match x, y with
     | `Definite 0L, (`Excluded _ | `Definite _)
     | (`Excluded _ | `Definite _), `Definite 0L -> `Definite 0L
+    | `Definite a, `Excluded (s,r)
+    (* Integer multiplication with even numbers is not injective. *)
+    (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
+    | `Excluded (s,r),`Definite a when Int64.rem a 2L = 0L -> `Excluded (S.empty (), apply_range (Integers.mul a) r)
     | _ -> lift2_inj Integers.mul x y
   let div  = lift2 Integers.div
   let rem  = lift2 Integers.rem
