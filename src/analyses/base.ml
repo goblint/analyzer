@@ -1620,6 +1620,9 @@ struct
   (**************************************************************************
    * Simple defs for the transfer functions
    **************************************************************************)
+  let zeroinit ctx v =
+    set ctx.ask ctx.global ctx.local (AD.from_var v) (zero_init_value v.vtype)
+
   let assign ctx (lval:lval) (rval:exp):store  =
     let char_array_hack () =
       let rec split_offset = function

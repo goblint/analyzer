@@ -429,16 +429,17 @@ sig
   val call_descr : fundec -> C.t -> string
   val part_access: (D.t, G.t, C.t) ctx -> exp -> varinfo option -> bool -> (Access.LSSSet.t * Access.LSSet.t)
 
-  val sync  : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
-  val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
-  val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
-  val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
-  val branch: (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
-  val body  : (D.t, G.t, C.t) ctx -> fundec -> D.t
-  val return: (D.t, G.t, C.t) ctx -> exp option  -> fundec -> D.t
-  val intrpt: (D.t, G.t, C.t) ctx -> D.t
-  val asm   : (D.t, G.t, C.t) ctx -> D.t
-  val skip  : (D.t, G.t, C.t) ctx -> D.t
+  val sync     : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
+  val query    : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
+  val assign   : (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
+  val zeroinit : (D.t, G.t, C.t) ctx -> varinfo -> D.t
+  val vdecl    : (D.t, G.t, C.t) ctx -> varinfo -> D.t
+  val branch   : (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
+  val body     : (D.t, G.t, C.t) ctx -> fundec -> D.t
+  val return   : (D.t, G.t, C.t) ctx -> exp option  -> fundec -> D.t
+  val intrpt   : (D.t, G.t, C.t) ctx -> D.t
+  val asm      : (D.t, G.t, C.t) ctx -> D.t
+  val skip     : (D.t, G.t, C.t) ctx -> D.t
 
 
   val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
@@ -569,6 +570,12 @@ struct
   (* Just ignore. *)
 
   let vdecl ctx _ = ctx.local
+
+  let zeroinit ctx _ = ctx.local
+  (* On a zero initializer, don't do anything. Overwrite this if getting a single assign
+     to the first element of an array to 0 is not enough for intializing global
+     zero-initialized arrays for the purpose of your analysis when running with
+     exp.fast_global_inits                                                               *)
 
   let asm x =
     ignore (M.warn "ASM statement ignored.");

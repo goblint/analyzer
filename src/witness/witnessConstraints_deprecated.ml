@@ -126,6 +126,11 @@ struct
     let w = step_ctx ctx in
     d, w
 
+  let zeroinit ctx v =
+    let d = S.zeroinit (unlift_ctx ctx) v in
+    let w = step_ctx ctx in
+    d, w
+
   let vdecl ctx v =
     let d = S.vdecl (unlift_ctx ctx) v in
     let w = step_ctx ctx in

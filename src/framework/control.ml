@@ -217,7 +217,7 @@ struct
         ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         }
       in
-      let edges = MyCFG.getGlobalInits file in
+      let zeroinits, edges = MyCFG.getGlobalInits file in
       if (get_bool "dbg.verbose") then print_endline ("Executing "^string_of_int (List.length edges)^" assigns.");
       let funs = ref [] in
       (*let count = ref 0 in*)
@@ -244,7 +244,11 @@ struct
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      result, !funs, GHT.to_list gh
+      (* For any global variable that was zero intialized, but edges contained one assign, now init the entire thing *)
+      (* This happens when exp.fast_global_inits is on *)
+      let zero_init st v = Spec.zeroinit {ctx with local= st} v in
+      let with_zeros  = List.fold_left zero_init result zeroinits in
+      with_zeros, !funs, GHT.to_list gh
     in
 
     let print_globals glob =

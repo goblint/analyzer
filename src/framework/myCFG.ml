@@ -366,7 +366,10 @@ let print cfg  =
   flush out;
   close_out_noerr out
 
-let getGlobalInits (file: file) : (edge * location) list  =
+(* creates a list of assign edges to initialize globals                    *)
+(* If "exp.fast_global_inits" is set, it will only create one assign       *)
+(* of zero to the first element of an array completely initialized to zero *)
+let getGlobalInitEdges (file: file) : (edge * location) list  =
   (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
   let inits = Hashtbl.create 13 in
   let fast_global_inits = get_bool "exp.fast_global_inits" in
@@ -384,8 +387,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
     match init with
     | SingleInit exp ->
       let assign lval = Assign (lval, exp), loc in
-      (* This is an optimization so that we don't get n*m assigns for a zero-initialized array a[n][m]
-         TODO This is only sound for our flat array domain. Change this once we use others. *)
+      (* This is an optimization so that we don't get n*m assigns for a zero-initialized array a[n][m] *)
       if not (fast_global_inits && is_zero && Hashtbl.mem inits (assign (zero_index lval))) then
         Hashtbl.add inits (assign lval) ()
     | CompoundInit (typ, lst) ->
@@ -410,6 +412,22 @@ let getGlobalInits (file: file) : (edge * location) list  =
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
   (Entry initfun, {line = 0; file="initfun"; byte= 0} ) :: (BatHashtbl.keys inits |> BatList.of_enum)
+
+
+let getZeroInitializedGlobals (file:file) =
+  let is_zeroinit = function
+    | GVar(v, init, loc) -> if init.init = None then Some v else None
+    | _ -> None
+  in
+  List.filter_map (is_zeroinit) file.globals
+
+let getGlobalInits (file:file) =
+  let init_edges = getGlobalInitEdges file in
+  if get_bool "exp.fast_global_inits" then
+    getZeroInitializedGlobals file, init_edges
+  else
+    (* All global inits were turned into edges, no need to anything special with zero-initialized globals *)
+    [], init_edges
 
 let numGlobals file =
   let n = ref 0 in

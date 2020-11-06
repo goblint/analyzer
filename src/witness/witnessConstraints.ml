@@ -328,15 +328,16 @@ struct
     let d = Dom.fold h (fst ctx.local) (Dom.empty ()) in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
-  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
-  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
-  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
-  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
-  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
-  let asm ctx           = map ctx Spec.asm     identity
-  let skip ctx          = map ctx Spec.skip    identity
-  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+  let assign ctx l e    = map ctx Spec.assign    (fun h -> h l e )
+  let zeroinit ctx v    = map ctx Spec.zeroinit  (fun h -> h v   )
+  let vdecl ctx v       = map ctx Spec.vdecl     (fun h -> h v   )
+  let body   ctx f      = map ctx Spec.body      (fun h -> h f   )
+  let return ctx e f    = map ctx Spec.return    (fun h -> h e f )
+  let branch ctx e tv   = map ctx Spec.branch    (fun h -> h e tv)
+  let intrpt ctx        = map ctx Spec.intrpt    identity
+  let asm ctx           = map ctx Spec.asm       identity
+  let skip ctx          = map ctx Spec.skip      identity
+  let special ctx l f a = map ctx Spec.special   (fun h -> h l f a)
 
   let fold ctx f g h a =
     let k x a =
