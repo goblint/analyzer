@@ -1,11 +1,11 @@
-// PARAM: --set ana.activated "['base','escape','malloc_null']"
+// PARAM: --set ana.activated "['base','baseflag','escape','malloc_null']"
 #include <stdlib.h>
 #include <stdio.h>
 
 
 int main(void) {
   int *v, *u, r;
-  
+
   u = (int*)malloc(sizeof(*u));
   v = (int*)malloc(sizeof(*v));
 
@@ -28,12 +28,12 @@ int main(void) {
     u = (int*)malloc(sizeof(*u));
     v = (int*)malloc(sizeof(*v));
   }
-  
+
   *u = 30; // WARN
   *v = 30; // WARN
-  
+
   printf("???");
-  
+
   if (r){
     if (u == 0 || v == 0)
       exit(-1);
@@ -42,6 +42,6 @@ int main(void) {
   assert(0); // FAIL
   *u = 40; // NOWARN
   *v = 40; // NOWARN
-        
+
   return 0;
 }

@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable exp.fast_global_inits  --sets exp.partition-arrays.keep-expr "last" --enable exp.partition-arrays.enabled --set ana.activated "['base','expRelation','octagon']"
+// PARAM: --sets solver td3 --enable ana.int.interval --disable exp.fast_global_inits  --sets exp.partition-arrays.keep-expr "last" --enable exp.partition-arrays.enabled --set ana.activated "['base','baseflag','expRelation','octagon']"
 void main(void) {
   example1();
 }

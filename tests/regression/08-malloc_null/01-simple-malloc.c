@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','malloc_null']"
+// PARAM: --set ana.activated "['base','baseflag','escape','malloc_null']"
 #include <stdlib.h>
 
 void *smalloc(size_t x){
@@ -17,11 +17,11 @@ void *no_malloc(size_t x){
 
 int main(void) {
         int *v;
-        
+
         v = (int*)smalloc(sizeof(*v));
         *v = 10; // NOWARN
-        
-        
+
+
         v = (int*)malloc(sizeof(*v));
         if (v == 0){
                 assert(0); // FAIL
@@ -29,13 +29,13 @@ int main(void) {
                 assert(0); // FAIL
                 *v != 0; // NOWARN
         }
-        
+
         v = (int*)no_malloc(sizeof(*v));
         *v = 10; //WARN
-        
+
         if (v == 0)
                 exit(0);
- 
+
         assert(0); // NOWARN
 
   return 0;

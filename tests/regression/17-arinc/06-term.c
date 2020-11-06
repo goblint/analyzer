@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','term']" --enable dbg.debug --enable ana.int.interval --sets solver slr3
+// PARAM: --set ana.activated "['base','baseflag','term']" --enable dbg.debug --enable ana.int.interval --sets solver slr3
 
 int main(){
     int i = 0;

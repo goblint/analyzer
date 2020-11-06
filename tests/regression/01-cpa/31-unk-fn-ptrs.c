@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape']"
+// PARAM: --set ana.activated "['base','baseflag','escape']"
 extern void f_everything_up();
 
 struct s {

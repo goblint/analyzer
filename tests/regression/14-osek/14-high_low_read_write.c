@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated "['base','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']" --sets ana.osek.oil 07-flags.oil --sets ana.osek.flags[+] flag
+//PARAM: --set ana.activated "['base','baseflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']" --sets ana.osek.oil 07-flags.oil --sets ana.osek.flags[+] flag
 
 int flag = 0;
 int var = 0;
@@ -14,7 +14,7 @@ int lowread_bad = 0;
 int lowwrite_bad = 0;
 
 
-ISR(high) 
+ISR(high)
 {
   GetResource(r);
   ReleaseResource(r);
@@ -27,7 +27,7 @@ ISR(high)
   lowwrite++;
   lowread_bad++;
   lowwrite_bad++;
-  
+
 }
 
 
@@ -37,13 +37,13 @@ ISR(four)
     var ++;
   }
 
-  
+
   highread_bad++;
   highwrite_bad++;
 
   lowread_bad++;
   lowwrite_bad++;
-  
+
 }
 
 ISR(two)
@@ -53,7 +53,7 @@ ISR(two)
   var = temp - var;     // NORACE
 //   assert(var = 0);      //
   flag = 0;
-  
+
   highread++;
   highwrite++;
   highread_bad++;
@@ -63,7 +63,7 @@ ISR(two)
   lowwrite = 1;
   int tmp = lowread_bad;
   lowwrite_bad = 1;
-  
+
 }
 
 TASK(init)

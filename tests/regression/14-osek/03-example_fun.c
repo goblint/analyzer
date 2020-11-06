@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','fmode','OSEK', 'OSEK2', 'stack_trace_set']" --sets ana.osek.oil 03-example_fun.oil --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
+// PARAM: --set ana.activated "['base','baseflag','escape','fmode','OSEK', 'OSEK2', 'stack_trace_set']" --sets ana.osek.oil 03-example_fun.oil --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 int x;
 int y;
@@ -21,18 +21,18 @@ ISR( i) {
    return;
 }
 
-void g(void){   
+void g(void){
    ReleaseResource(r);
    z= 2*t; // RACE!
    GetResource(r);
    return;
-}    
+}
 
-void f(void){   
+void f(void){
    GetResource(r);
    t=x+y;
    x=t-x;
-   g(); 
+   g();
    y=t-y;
    ReleaseResource(r);
    return;
