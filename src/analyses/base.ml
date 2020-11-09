@@ -343,16 +343,16 @@ struct
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var cpa (cpa, [])
 
-  let sync' privates ctx: D.t * glob_diff =
+  let sync' privates multi ctx: D.t * glob_diff =
     let cpa,dep = ctx.local in
-    let privates = privates || (!GU.earlyglobs && not (is_multi ctx)) in
-    let cpa, diff = if !GU.earlyglobs || is_multi ctx then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
+    let privates = privates || (!GU.earlyglobs && not multi) in
+    let cpa, diff = if !GU.earlyglobs || multi then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
     (cpa, dep), diff
 
-  let sync = sync' false
+  let sync ctx = sync' false (is_multi ctx) ctx
 
   let publish_all ctx =
-    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true ctx))
+    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true true ctx))
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
