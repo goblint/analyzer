@@ -2,6 +2,7 @@
 
 open Prelude.Ana
 open Analyses
+open GobConfig
 
 module Spec : Analyses.Spec =
 struct
@@ -31,7 +32,7 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let interestingfunctions = ["myalloc"; "myalloc2"; "ldv_malloc"; "smalloc"; "no_malloc"] in
+    let interestingfunctions = get_string_list "exp.malloc.wrappers" in
     let calleofinterest = List.mem f.vname interestingfunctions in
     let callectx = if calleofinterest then
        if ctx.local = `Top then

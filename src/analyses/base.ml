@@ -2119,7 +2119,7 @@ struct
         match lv with
         | Some lv ->
           let heap_var =
-            if (get_bool "exp.malloc-fail")
+            if (get_bool "exp.malloc.fail")
             then AD.join (heap_var ctx) AD.null_ptr
             else heap_var ctx
           in
