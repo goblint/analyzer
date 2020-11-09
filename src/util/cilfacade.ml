@@ -317,3 +317,47 @@ and typeOffset basetyp =
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
     | _ -> raise Not_found
+
+let arith_return_ikind ik =
+  match ik with
+  | IChar
+  | ISChar
+  | IUChar
+  | IBool
+  | IShort
+  | IUShort
+  | IInt -> IInt
+  | IUInt
+  | ILong
+  | IULong
+  | ILongLong
+  | IULongLong -> ik
+
+let binop_return_ikind (op: Cil.binop) (o1: Cil.ikind) (o2: Cil.ikind) = match op with
+| 	PlusA
+| 	PlusPI
+| 	IndexPI
+| 	MinusA
+| 	MinusPI
+| 	MinusPP
+| 	Mult
+| 	Div
+| 	Mod
+| 	Shiftlt
+| 	Shiftrt
+| 	BAnd
+| 	BXor
+| 	BOr -> arith_return_ikind o1
+| 	Lt
+| 	Gt
+| 	Le
+| 	Ge
+| 	Eq
+| 	Ne
+| 	LAnd
+| 	LOr -> Cil.IInt
+
+let unop_return_ikind (op: Cil.unop) (operand: Cil.ikind) = match op with
+  | Neg
+  | BNot -> arith_return_ikind operand
+  | LNot -> Cil.IInt

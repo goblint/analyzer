@@ -133,8 +133,8 @@ struct
     | LNot -> ID.lognot
 
   (* Evaluating Cil's unary operators. *)
-  let evalunop op = function
-    | `Int v1 -> `Int (unop_ID op v1)
+  let evalunop op typ = function
+    | `Int v1 -> `Int (ID.cast_to (Cilfacade.unop_return_ikind op (Cilfacade.get_ikind typ))  (unop_ID op v1))
     | `Bot -> `Bot
     | _ -> VD.top ()
 
@@ -214,7 +214,7 @@ struct
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
-    | `Int v1, `Int v2 -> `Int (binop_ID op v1 v2)
+    | `Int v1, `Int v2 -> `Int (ID.cast_to (Cilfacade.binop_return_ikind op (Cilfacade.get_ikind t1) (Cilfacade.get_ikind t2)) (binop_ID op v1 v2))
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -713,7 +713,7 @@ struct
         (* Unary operators *)
         | UnOp (op,arg1,typ) ->
           let a1 = eval_rv a gs st arg1 in
-          evalunop op a1
+          evalunop op typ a1
         (* The &-operator: we create the address abstract element *)
         | AddrOf lval -> `Address (eval_lv a gs st lval)
         (* CIL's very nice implicit conversion of an array name [a] to a pointer
