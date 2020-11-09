@@ -89,6 +89,9 @@ struct
           end
         | _ -> []
       end
+    | `Unknown "LAP_Se_CreateProcess"
+    | `Unknown "LAP_Se_CreateErrorHandler" ->
+      []
     | `ThreadCreate (start,ptc_arg) -> begin
         (* Collect the threads. *)
         let open Queries in
