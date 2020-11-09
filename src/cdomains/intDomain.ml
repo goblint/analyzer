@@ -226,10 +226,14 @@ struct
     | Some ik -> try Some (Size.range ik |> f) with Size.Not_in_int64 -> None
 
   let starting ?ikind n =
-    norm @@ Some (n, range_opt snd ikind |? max_int)
+    if n < min_int || n > max_int
+      then top ()
+      else norm @@ Some (n, range_opt snd ikind |? max_int)
 
   let ending ?ikind n =
-    norm @@ Some (range_opt fst ikind |? min_int, n)
+    if n < min_int || n > max_int
+      then top ()
+      else norm @@ Some (range_opt fst ikind |? min_int, n)
 
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
