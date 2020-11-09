@@ -285,7 +285,6 @@ struct
 
   let should_join x y = true
 
-  let otherstate v = (Dom.singleton (Spec.otherstate v) (R.bot ()), Sync.bot ())
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
   let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot())
@@ -301,9 +300,9 @@ struct
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)
+    (* TODO: implement threadenter *)
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            ; spawn = (fun v -> ctx.spawn v % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ())) ) (* TODO: use enter-like behavior for spawn, as in WitnessLifter *)
                             ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }
     and query x = Spec.query ctx' x in
     ctx'
@@ -337,6 +336,12 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  (* TODO: do additional witness things here *)
+  let threadenter ctx f args = map ctx Spec.threadenter (fun h -> h f args)
+  let threadcombine ctx f args fd =
+    let fd1 = Dom.choose (fst fd) in
+    map ctx Spec.threadcombine (fun h -> h f args fd1)
 
   let fold ctx f g h a =
     let k x a =

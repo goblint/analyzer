@@ -19,7 +19,7 @@ struct
   let name () = "mtflag"
 
   let startstate v = Flag.bot ()
-  let otherstate v = Flag.top ()
+  let threadenter ctx f args = Flag.top ()
   let exitstate  v = Flag.get_main ()
 
   let body ctx f = ctx.local

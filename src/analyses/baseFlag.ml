@@ -18,7 +18,6 @@ struct
   let name () = "baseflag"
 
   let startstate v = Flag.bot ()
-  let otherstate v = Flag.start_multi v
   let exitstate  v = Flag.start_main v
 
   let morphstate v _ = Flag.start_single v
@@ -44,29 +43,6 @@ struct
   open Queries
 
   let assign ctx (lval:lval) (rval:exp) : D.t  =
-    if (not !GU.global_initialization) && GobConfig.get_bool "kernel" then (
-      match ctx.ask (MayPointTo rval) with
-      | `LvalSet rval_val ->
-        let lval_val =
-          match ctx.ask (MayPointTo (AddrOf lval)) with
-          | `LvalSet ls -> ls
-          | _ -> failwith "baseflag assign lval"
-        in
-        let unknownPtr = (dummyFunDec.svar, `NoOffset) in
-        let not_local xs =
-          let not_local x =
-            Lval.CilLval.equal x unknownPtr || Base.is_global ctx.ask (fst x)
-          in
-          LS.is_top xs || LS.exists not_local xs
-        in
-        if not_local lval_val && not (LS.is_top rval_val) && not (LS.mem unknownPtr rval_val) then (
-          let find_fps e xs = (match e with (x, `NoOffset) -> [x] | _ -> []) @ xs in
-          let vars = LS.fold find_fps rval_val [] in
-          let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-          List.iter (fun x -> ctx.spawn x (threadstate x)) funs
-        )
-      | _ -> ()
-    );
     ctx.local
 
   let enter ctx lval f args =
@@ -140,7 +116,8 @@ struct
   let special ctx lval f args =
     let forks = forkfun ctx lval f args in
     if M.tracing then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map fst forks);
-    List.iter (uncurry ctx.spawn) forks;
+    (* TODO: delete forks entirely *)
+    (* List.iter (uncurry ctx.spawn) forks; *)
     match LF.classify f.vname args with
     | `Unknown "LAP_Se_SetPartitionMode" -> begin
         match ctx.ask (Queries.EvalInt (List.hd args)) with
@@ -161,6 +138,7 @@ struct
               let _ = Cilfacade.getdec var in true
             with _ -> acc
           in
+          (* TODO: remove this entirely *)
           if List.fold_right f flist false
           && not (GobConfig.get_bool "exp.single-threaded")
           && GobConfig.get_bool "exp.unknown_funs_spawn" then
@@ -202,6 +180,15 @@ struct
     end else
       Access.LSSSet.empty (), es
 
+  let threadenter ctx f args =
+    create_tid f
+
+  let threadcombine ctx f args fd =
+    if not (GobConfig.get_bool "exp.single-threaded")
+      && GobConfig.get_bool "exp.unknown_funs_spawn" then
+      Flag.make_main ctx.local
+    else
+      ctx.local
 end
 
 let _ =

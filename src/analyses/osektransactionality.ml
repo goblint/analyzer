@@ -114,7 +114,7 @@ struct
       (ctxs, ctxr)
 
   let startstate v = D.bot ()
-  let otherstate v = D.top ()
+  let threadenter ctx f args = D.top ()
   let exitstate  v = D.top ()
 
   (** Finalization and other result printing functions: *)

@@ -696,12 +696,13 @@ struct
     List.concat (List.map do_exp exps)
 
   let startstate v = D.top ()
-  let otherstate v = D.top ()
   let exitstate  v = D.top ()
+
+  let threadenter ctx f args = D.top ()
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in
-    ctx.spawn task.svar (otherstate ())
+    ctx.spawn task.svar []
 
   (* transfer functions *)
   let intrpt ctx : D.t =

@@ -73,7 +73,8 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let forks = fork ctx lval f arglist in
-    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
+    (* TODO: remove forks entirely *)
+    (* let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ; *)
     match f.vname with
     | "pthread_create" -> begin
         match arglist with
@@ -85,8 +86,17 @@ struct
     | _ -> ctx.local
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
+
+  let threadenter ctx f args =
+    match args with
+    | [ptc_arg] -> reachable ctx.ask ptc_arg
+    | _ -> ctx.local
+
+  let threadcombine ctx f args fd =
+    match args with
+    | [ptc_arg] -> reachable ctx.ask ptc_arg (* TODO: just use fd? *)
+    | _ -> ctx.local
 end
 
 let _ =

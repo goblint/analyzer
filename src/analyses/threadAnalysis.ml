@@ -101,7 +101,7 @@ struct
     | _ -> Queries.Result.top ()
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx f args = D.bot ()
   let exitstate  v = D.bot ()
 end
 
@@ -144,16 +144,21 @@ struct
       | `ThreadCreate (fn, x) ->
         let fns = eval_exp_addr ctx.ask fn in
         let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
-        let new_thread x = ctx.spawn x (D.singleton (location x)) in
-        List.iter new_thread (List.concat (List.map ValueDomain.Addr.to_var_may fns))
+        (* TODO: remove entirely *)
+        (* let new_thread x = ctx.spawn x (D.singleton (location x)) in
+        List.iter new_thread (List.concat (List.map ValueDomain.Addr.to_var_may fns)) *)
+        ()
       | _ -> ()
     end;
     ctx.local
 
   let main = D.singleton "main"
   let startstate v = main
-  let otherstate v = D.top ()
   let exitstate  v = D.top ()
+
+  let threadenter ctx f args =
+    let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
+    D.singleton (location f)
 end
 
 let _ = MCP.register_analysis (module StartLocIDs : Spec)

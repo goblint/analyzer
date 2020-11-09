@@ -321,7 +321,27 @@ struct
     in
 
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
-    let othervars = List.map (enter_with Spec.otherstate) otherfuns in
+    let otherstate v =
+      let ctx =
+        { ask     = (fun _ -> Queries.Result.top ())
+        ; node    = MyCFG.dummy_node
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; context = (fun () -> ctx_failwith "enter_func has no context.")
+        ; edge    = MyCFG.Skip
+        ; local   = Spec.D.bot ()
+        ; global  = (fun _ -> Spec.G.bot ())
+        ; presub  = []
+        ; postsub = []
+        ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
+        }
+      in
+      Spec.threadenter ctx v []
+    in
+    let othervars = List.map (enter_with otherstate) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";

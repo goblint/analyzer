@@ -229,7 +229,7 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx f args = D.bot ()
   let exitstate  v = D.bot ()
 end
 

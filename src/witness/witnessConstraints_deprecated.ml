@@ -72,7 +72,6 @@ struct
   let startstate v = (S.startstate v, W.bot ())
   let morphstate v (d, w) = (S.morphstate v d, w)
   let exitstate v = (S.exitstate v, W.bot ())
-  let otherstate v = (S.otherstate v, W.bot ())
 
   let should_join (x, _) (y, _) = S.should_join x y
   let val_of c = (S.val_of c, W.bot ())
@@ -83,7 +82,7 @@ struct
     let w = snd ctx.local in
     { ctx with
       local = fst ctx.local;
-      spawn = (fun v d ->
+      (* spawn = (fun v d ->
           (* like enter *)
           (* TODO: don't duplicate logic with enter *)
           let to_node = (MyCFG.FunctionEntry v, S.context d) in
@@ -94,7 +93,7 @@ struct
               (VES.bot (), `Lifted to_node)
           in
           ctx.spawn v (d, w')
-        );
+        ); *)
       split = (fun d e tv -> ctx.split (d, w) e tv)
     }
   let part_access ctx = S.part_access (unlift_ctx ctx)
@@ -188,5 +187,15 @@ struct
       else
         step_ctx ctx
     in
+    d, w
+
+  let threadenter ctx f args =
+    let d = S.threadenter (unlift_ctx ctx) f args in
+    let w = step_ctx ctx in
+    d, w
+
+  let threadcombine ctx f args fd =
+    let d = S.threadcombine (unlift_ctx ctx) f args (fst fd) in
+    let w = step_ctx ctx in
     d, w
 end

@@ -23,7 +23,7 @@ struct
   let name () = "symb_locks"
 
   let startstate v = D.top ()
-  let otherstate v = D.top ()
+  let threadenter ctx f args = D.top ()
   let exitstate  v = D.top ()
 
   let branch ctx exp tv = ctx.local

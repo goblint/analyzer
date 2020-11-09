@@ -36,7 +36,7 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx f args = D.bot ()
   let exitstate  v = D.top ()
 end
 
@@ -84,13 +84,16 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let forks = fork ctx lval f arglist in
     let spawn (x,y) = ctx.spawn x y in
-    let _ = List.iter spawn forks in
+    (* TODO: remove forks entirely *)
+    (* let _ = List.iter spawn forks in *)
     ctx.local
 
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
   let exitstate  v = D.top ()
+
+  let threadenter ctx f args =
+    D.push !Tracing.current_loc ctx.local
 end
 
 

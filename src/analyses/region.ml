@@ -175,10 +175,10 @@ struct
   let startstate v =
     `Lifted (Equ.top (), RegMap.bot ())
 
-  let otherstate v =
+  let threadenter ctx f args =
     `Lifted (Equ.top (), RegMap.bot ())
 
-  let exitstate = otherstate
+  let exitstate v = `Lifted (Equ.top (), RegMap.bot ())
 
   let name () = "region"
 

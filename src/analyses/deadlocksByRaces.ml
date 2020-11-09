@@ -51,7 +51,7 @@ struct
     | _ -> MSpec.special ctx lval f arglist
 
   let startstate v = MSpec.startstate v
-  let otherstate v = MSpec.otherstate v
+  let threadenter ctx f args = MSpec.threadenter ctx f args
   let exitstate  v = MSpec.exitstate  v
 end
 

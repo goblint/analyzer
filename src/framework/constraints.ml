@@ -29,7 +29,6 @@ struct
 
   let startstate v = D.lift (S.startstate v)
   let exitstate  v = D.lift (S.exitstate  v)
-  let otherstate v = D.lift (S.otherstate v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
   let val_of = D.lift % S.val_of
@@ -38,7 +37,6 @@ struct
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
-             ; spawn = (fun v -> ctx.spawn v % D.lift )
              ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
     }
 
@@ -84,6 +82,12 @@ struct
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
+
+  let threadenter ctx f args =
+    D.lift @@ S.threadenter (conv ctx) f args
+
+  let threadcombine ctx f args fd =
+    D.lift @@ S.threadcombine (conv ctx) f args (D.unlift fd)
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
@@ -106,7 +110,6 @@ struct
 
   let startstate = S.startstate
   let exitstate  = S.exitstate
-  let otherstate = S.otherstate
   let morphstate = S.morphstate
 
   let val_of = S.val_of % C.unlift
@@ -162,6 +165,12 @@ struct
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
+
+  let threadenter ctx f args =
+    S.threadenter (conv ctx) f args
+
+  let threadcombine ctx f args fd =
+    S.threadcombine (conv ctx) f args fd
 end
 
 module NoHashconsLifter (S: Spec) = struct
@@ -204,7 +213,7 @@ struct
 
   let startstate v = (S.startstate v, !start_level)
   let exitstate  v = (S.exitstate  v, !start_level)
-  let otherstate v = (S.otherstate v, !start_level)
+  (* let otherstate v = (S.otherstate v, !start_level) *)
   let morphstate v (d,l) = (S.morphstate v d, l)
 
   let val_of d = (S.val_of d, !error_level)
@@ -213,7 +222,6 @@ struct
 
   let conv ctx =
     { ctx with local = fst ctx.local
-             ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
              ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
     }
 
@@ -241,6 +249,10 @@ struct
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args fc es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es))
+
+  (* TODO: use start_level *)
+  let threadenter ctx f args = lift_fun ctx (lift ctx) S.threadenter ((|>) args % (|>) f)
+  let threadcombine ctx f args fd = lift_fun ctx (lift ctx) S.threadcombine ((|>) (fst fd) % (|>) args % (|>) f)
 
   let leq0 = function
     | `Top -> false
@@ -340,7 +352,7 @@ struct
 
   let startstate = inj S.startstate
   let exitstate  = inj S.exitstate
-  let otherstate = inj S.otherstate
+  (* let otherstate = inj S.otherstate *)
   let morphstate v (d,m) = S.morphstate v d, m
 
   let val_of (c,m) =
@@ -354,7 +366,6 @@ struct
   let conv ctx =
     { ctx with context = (fun () -> fst (ctx.context ()))
              ; local = fst ctx.local
-             ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
              ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
@@ -370,6 +381,9 @@ struct
   let asm ctx         = lift_fun ctx S.asm    identity
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
+
+  let threadenter ctx f args = lift_fun ctx S.threadenter ((|>) args % (|>) f)
+  let threadcombine ctx f args fd = lift_fun ctx S.threadcombine ((|>) (fst fd) % (|>) args % (|>) f)
 
   let enter ctx r f args =
     let m = snd ctx.local in
@@ -404,7 +418,7 @@ struct
   (* copied from WidenContextLifter... *)
   let conv ctx =
     { ctx with local = fst ctx.local
-             ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
+             (* ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) ) *)
              ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
@@ -420,6 +434,9 @@ struct
   let asm ctx         = lift_fun ctx S.asm    identity
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
+
+  let threadenter ctx f args = lift_fun ctx S.threadenter ((|>) args % (|>) f)
+  let threadcombine ctx f args fd = lift_fun ctx S.threadcombine ((|>) (fst fd) % (|>) args % (|>) f)
 
   let enter ctx r f args =
     let m = snd ctx.local in
@@ -458,7 +475,6 @@ struct
 
   let startstate v = `Lifted (S.startstate v)
   let exitstate  v = `Lifted (S.exitstate  v)
-  let otherstate v = `Lifted (S.otherstate v)
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
   let val_of = D.lift % S.val_of
@@ -467,7 +483,6 @@ struct
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
-             ; spawn = (fun v -> ctx.spawn v % D.lift )
              ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
     }
 
@@ -494,6 +509,14 @@ struct
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args fc es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es)) `Bot
+
+  let threadenter ctx f args =
+    if D.is_bot ctx.local then
+      (* TODO: remove hack *)
+      D.lift (S.threadenter {ctx with local=(S.D.bot ()); split = (fun d e tv -> ctx.split (D.lift d) e tv )} f args)
+    else
+      lift_fun ctx D.lift S.threadenter ((|>) args % (|>) f) `Bot
+  let threadcombine ctx f args fd = lift_fun ctx D.lift S.threadcombine ((|>) (D.unlift fd) % (|>) args % (|>) f) `Bot
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -542,14 +565,20 @@ struct
       ; global  = getg
       ; presub  = []
       ; postsub = []
-      ; spawn   = (fun f d -> let c = S.context d in
-                    if not full_context then sidel (FunctionEntry f, c) d;
-                    ignore (getl (Function f, c)))
+      ; spawn   = spawn
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
-    and query x = S.query ctx x in
+    and query x = S.query ctx x
+    and spawn f args =
+      (* TODO: adjust ctx node/edge? *)
+      let d = S.threadenter ctx f args in
+      r := S.threadcombine ctx f args d :: !r;
+      let c = S.context d in
+      if not full_context then sidel (FunctionEntry f, c) d;
+      ignore (getl (Function f, c))
+    in
     (* ... nice, right! *)
     let pval, diff = S.sync ctx in
     let _ = List.iter (uncurry sideg) diff in
@@ -944,7 +973,7 @@ struct
 
   let should_join x y = true
 
-  let otherstate v = D.singleton (Spec.otherstate v)
+  (* let otherstate v = D.singleton (Spec.otherstate v) *)
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
   let morphstate v d = D.map (Spec.morphstate v) d
@@ -961,7 +990,7 @@ struct
   let conv ctx x =
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            ; spawn = (fun v -> ctx.spawn v % D.singleton )
+                            (* ; spawn = (fun v -> ctx.spawn v % D.singleton ) *)
                             ; split = (ctx.split % D.singleton) }
     and query x = Spec.query ctx' x in
     ctx'
@@ -983,6 +1012,16 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  let threadenter ctx f args =
+    if D.is_empty ctx.local then
+      (* hack for allfuns/otherfuns *)
+      D.singleton (Spec.threadenter (conv ctx (Spec.D.bot ())) f args)
+    else
+      map ctx Spec.threadenter (fun h -> h f args)
+  let threadcombine ctx f args fd =
+    let fd1 = D.choose fd in
+    map ctx Spec.threadcombine (fun h -> h f args fd1)
 
   let fold ctx f g h a =
     let k x a =

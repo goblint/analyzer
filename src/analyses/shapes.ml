@@ -63,10 +63,14 @@ struct
 
   let re_context (ctx: (D.t,G.t,C.t) ctx) (re:Re.D.t): (Re.D.t, Re.G.t,C.t) ctx =
     let ge v = let a,b = ctx.global v in b in
-    let spawn f v x = f v (LD.singleton (SHMap.top ()), x) in
+    let spawn f v x = f v x in
     let geffect f v d = f v (false, d) in
     let split f d e t = f (LD.singleton (SHMap.top ()), d) e t in
     set_st_gl ctx re ge spawn geffect split
+
+  let threadenter ctx f args =
+    let st, re = ctx.local in
+    (LD.singleton (SHMap.top ()), Re.threadenter (re_context ctx re) f args)
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=
@@ -269,8 +273,7 @@ struct
     Re.query (re_context ctx re) q
 
   let startstate v = LD.singleton (SHMap.top ()), Re.startstate v
-  let otherstate v = LD.singleton (SHMap.top ()), Re.otherstate v
-  let exitstate  v = LD.singleton (SHMap.top ()), Re.otherstate v
+  let exitstate  v = LD.singleton (SHMap.top ()), Re.exitstate v
 
   let init () = Printexc.record_backtrace true
 

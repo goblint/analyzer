@@ -67,7 +67,6 @@ struct
 
   let name () = "base"
   let startstate v = CPA.bot (), Dep.bot ()
-  let otherstate v = CPA.bot (), Dep.bot ()
   let exitstate  v = CPA.bot (), Dep.bot ()
 
 
@@ -1639,6 +1638,23 @@ struct
       let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
       (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
       (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
+      let not_local xs =
+        let not_local x =
+          match Addr.to_var_may x with
+          | [x] -> is_global ctx.ask x
+          | _ -> x = Addr.UnknownPtr
+        in
+        AD.is_top xs || AD.exists not_local xs
+      in
+      (match rval_val, lval_val with
+      | `Address adrs, lval
+        when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+        let find_fps e xs = Addr.to_var_must e @ xs in
+        let vars = AD.fold find_fps adrs [] in
+        let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
+        List.iter (fun x -> ctx.spawn x []) funs
+      | _ -> ()
+      );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
         let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
@@ -1832,7 +1848,7 @@ struct
 
 
 
-  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
+  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * exp list) list =
     let create_thread arg v =
       try
         (* try to get function declaration *)
@@ -1842,13 +1858,12 @@ struct
           | Some x -> [x]
           | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
         in
-        let nst = make_entry ctx v args in
-        Some (v, nst)
+        Some (v, args)
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then (
           M.warn_each ("Creating a thread from unknown function " ^ v.vname);
-          Some (v, ctx.local)
+          Some (v, args)
         ) else (
           M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
           None
@@ -2173,7 +2188,15 @@ struct
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" 80 args_short
 
 
+  let threadenter ctx (f: varinfo) (args: exp list): D.t =
+    try
+      make_entry ctx f args
+    with Not_found ->
+      (* Unknown functions *)
+      ctx.local
 
+  let threadcombine ctx (f: varinfo) (args: exp list) (fd: D.t): D.t =
+    ctx.local
 end
 
 module type MainSpec = sig

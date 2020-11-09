@@ -126,7 +126,7 @@ struct
     match f.vname with _ -> D.top ()
 
   let startstate v = D.top ()
-  let otherstate v = D.top ()
+  let threadenter ctx f args = D.top ()
   let exitstate  v = D.top ()
 
   let name () = "flag"

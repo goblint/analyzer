@@ -73,7 +73,7 @@ struct
     step_ctx ctx
 
   let startstate v = `Lifted Automaton.initial
-  let otherstate v = D.top ()
+  let threadenter ctx f args = D.top ()
   let exitstate  v = D.top ()
 end
 
