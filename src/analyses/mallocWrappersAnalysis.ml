@@ -55,7 +55,7 @@ struct
     | Q.MallocLocation -> if ctx.local = `Top then 
         `Location (`Lifted (MyCFG.getLoc ctx.node))  
       else 
-        (`Location ctx.local)
+        `Location ctx.local
     | _ -> `Top in
     br
 end
