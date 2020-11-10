@@ -134,7 +134,7 @@ struct
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ = function
-    | `Int v1 -> `Int (ID.cast_to (Cilfacade.unop_return_ikind op (Cilfacade.get_ikind typ))  (unop_ID op v1))
+    | `Int v1 -> `Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
     | `Bot -> `Bot
     | _ -> VD.top ()
 
@@ -160,7 +160,7 @@ struct
     | _ -> (fun x y -> (ID.top ()))
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value): value =
+  let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t_ret: typ): value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -214,7 +214,7 @@ struct
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
-    | `Int v1, `Int v2 -> `Int (ID.cast_to (Cilfacade.binop_return_ikind op (Cilfacade.get_ikind t1) (Cilfacade.get_ikind t2)) (binop_ID op v1 v2))
+    | `Int v1, `Int v2 -> `Int (ID.cast_to (Cilfacade.get_ikind t_ret) (binop_ID op v1 v2))
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -692,24 +692,24 @@ struct
           v'
         (* Binary operators *)
         (* Eq/Ne when both values are equal and casted to the same type *)
-        | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), t) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
+        | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
           let a1 = eval_rv a gs st e1 in
           let a2 = eval_rv a gs st e2 in
           let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
           let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) && not both_arith_type in
           M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
           if is_safe then (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
-            eval_rv a gs st (BinOp (op, e1, e2, t))
+            eval_rv a gs st (BinOp (op, e1, e2, typ))
           else
             let a1 = eval_rv a gs st c1 in
             let a2 = eval_rv a gs st c2 in
-            evalbinop op t1 a1 t2 a2
+            evalbinop op t1 a1 t2 a2 typ
         | BinOp (op,arg1,arg2,typ) ->
           let a1 = eval_rv a gs st arg1 in
           let a2 = eval_rv a gs st arg2 in
           let t1 = typeOf arg1 in
           let t2 = typeOf arg2 in
-          evalbinop op t1 a1 t2 a2
+          evalbinop op t1 a1 t2 a2 typ
         (* Unary operators *)
         | UnOp (op,arg1,typ) ->
           let a1 = eval_rv a gs st arg1 in
