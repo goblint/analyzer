@@ -510,12 +510,7 @@ struct
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args fc es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es)) `Bot
 
-  let threadenter ctx f args =
-    if D.is_bot ctx.local then
-      (* TODO: remove hack *)
-      D.lift (S.threadenter {ctx with local=(S.D.bot ()); split = (fun d e tv -> ctx.split (D.lift d) e tv )} f args)
-    else
-      lift_fun ctx D.lift S.threadenter ((|>) args % (|>) f) `Bot
+  let threadenter ctx f args = lift_fun ctx D.lift S.threadenter ((|>) args % (|>) f) `Bot
   let threadcombine ctx f args fd = lift_fun ctx D.lift S.threadcombine ((|>) (D.unlift fd) % (|>) args % (|>) f) `Bot
 
   let part_access _ _ _ _ =
@@ -1013,12 +1008,7 @@ struct
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
-  let threadenter ctx f args =
-    if D.is_empty ctx.local then
-      (* hack for allfuns/otherfuns *)
-      D.singleton (Spec.threadenter (conv ctx (Spec.D.bot ())) f args)
-    else
-      map ctx Spec.threadenter (fun h -> h f args)
+  let threadenter ctx f args = map ctx Spec.threadenter (fun h -> h f args)
   let threadcombine ctx f args fd =
     let fd1 = D.choose fd in
     map ctx Spec.threadcombine (fun h -> h f args fd1)

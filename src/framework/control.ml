@@ -321,7 +321,7 @@ struct
     in
 
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
-    let otherstate v =
+    let otherstate st v =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
@@ -329,7 +329,7 @@ struct
         ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
-        ; local   = Spec.D.bot ()
+        ; local   = st
         ; global  = (fun _ -> Spec.G.bot ())
         ; presub  = []
         ; postsub = []
@@ -340,8 +340,10 @@ struct
         }
       in
       Spec.threadenter ctx v []
+      (* TODO: do threadcombine to mainfuns? *)
     in
-    let othervars = List.map (enter_with otherstate) otherfuns in
+    let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
+    let othervars = List.map (enter_with (otherstate prestartstate)) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
