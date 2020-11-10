@@ -27,7 +27,8 @@ let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVa
 module type SpecParam =
 sig
   module G: Lattice.S
-  val effect_fun: Lockset.t -> G.t
+  val effect_fun: ?write:bool -> Lockset.t -> G.t
+  val check_fun: ?write:bool -> Lockset.t -> G.t
 end
 
 (** Data race analyzer without base --- this is the new standard *)
@@ -77,7 +78,7 @@ struct
       | Some v ->
         if not (Lockset.is_bot ctx.local) then
           let ls = Lockset.filter snd ctx.local in
-          let el = P.effect_fun ls in
+          let el = P.effect_fun ~write:w ls in
           ctx.sideg v el
       | None -> M.warn "Write to unknown address: privatization is unsound."
     end;
@@ -150,22 +151,21 @@ struct
   let exitstate  v = Lockset.empty ()
 
   let query ctx (q:Queries.t) : Queries.Result.t =
+    let non_overlapping locks1 locks2 =
+      let intersect = G.join locks1 locks2 in
+      let tv = G.is_top intersect in
+      `Bool (tv)
+    in
     match q with
     | Queries.IsPublic _ when Lockset.is_bot ctx.local -> `Bool false
     | Queries.IsPublic v ->
-      let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      let lambda_v = ctx.global v in
-      let intersect = Mutexes.inter held_locks lambda_v in
-      let tv = Mutexes.is_empty intersect in
-      `Bool (tv)
+      let held_locks: G.t = P.check_fun ~write:false (Lockset.filter snd ctx.local) in
+      non_overlapping held_locks (ctx.global v)
+    | Queries.IsNotProtected v ->
+      let held_locks: G.t = P.check_fun ~write:true (Lockset.filter snd ctx.local) in
+      non_overlapping held_locks (ctx.global v)
     | _ -> Queries.Result.top ()
 
-  let may_race (ctx1,ac1) (ctx,ac2) =
-    let write = function `Lval (_,b) | `Reach (_,b) -> b in
-    let prot_locks b ls = if b then D.filter snd ls else D.map (fun (x,_) -> (x,true)) ls in
-    let ls1 = prot_locks (write ac1) ctx1.local in
-    let ls2 = prot_locks (write ac2) ctx.local in
-    Lockset.is_empty (Lockset.ReverseAddrSet.inter ls1 ls2)
 
   (** Transfer functions: *)
 
@@ -276,11 +276,22 @@ end
 module MyParam =
 struct
   module G = LockDomain.Simple
-  let effect_fun ls =
-    Lockset.export_locks ls
+  let effect_fun ?write:(w=false) ls = Lockset.export_locks ls
+  let check_fun = effect_fun
 end
 
-module Spec = MakeSpec (MyParam)
+module WriteBased =
+struct
+  module G = Lattice.Prod (LockDomain.Simple) (LockDomain.Simple)
+  let effect_fun ?write:(w=false) ls =
+    let locks = Lockset.export_locks ls in
+    (locks, if w then locks else Mutexes.top ())
+  let check_fun ?write:(w=false) ls =
+    let locks = Lockset.export_locks ls in
+    if w then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
+end
+
+module Spec = MakeSpec (WriteBased)
 
 let _ =
   MCP.register_analysis ~dep:["base"] (module Spec : Spec)

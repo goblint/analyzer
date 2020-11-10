@@ -33,12 +33,17 @@ let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
 let privatization = ref false
-let is_private (a: Q.ask) (st: BaseDomain.BaseComponents.t) (v: varinfo): bool =
+let is_invisible (a: Q.ask) (st: BaseDomain.BaseComponents.t) (v: varinfo): bool =
   !privatization &&
   (not (BaseDomain.Flag.is_multi st.flag) && is_precious_glob v ||
    match a (Q.IsPublic v) with `Bool tv -> not tv | _ ->
    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
    false)
+
+let is_protected (a: Q.ask) (st: BaseDomain.BaseComponents.t) (v: varinfo): bool =
+  !privatization &&
+  (not (BaseDomain.Flag.is_multi st.flag) && is_precious_glob v ||
+    match a (Q.IsNotProtected v) with `Bool tv -> not tv | _ -> false)
 
 
 module type MainSpec = sig
@@ -324,15 +329,18 @@ struct
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ctx.ask v then
-          let protected = is_private ctx.ask st v in
+          let protected = is_protected ctx.ask st v in
           if privates && not (is_precious_glob v) || not protected then begin
             if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
             ({ st with cpa = CPA.remove v st.cpa; cached = CVars.remove v st.cached} , (v,value) :: acc)
-          end else
-            if protected && not (CVars.mem v st.cached) then
+          end else (* protected == true *)
+            let (st, acc) = if not (CVars.mem v st.cached) then
               let joined = VD.join (CPA.find v st.cpa) (ctx.global v) in
               ( {st with cpa = CPA.add v joined st.cpa} ,acc)
              else (st,acc)
+            in
+            let invisible = is_invisible ctx.ask st v in
+            if not invisible then (st, (v,value) :: acc) else (st,acc)
         else (st,acc)
       in
       if M.tracing then M.traceu "globalize" "Done!\n";
@@ -1101,7 +1109,7 @@ struct
       if (!GU.earlyglobs || Flag.is_multi st.flag) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
-        let protected = is_private a st x in
+        let protected = is_invisible a st x in
         if not effect && not protected then begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
           st
@@ -1840,7 +1848,7 @@ struct
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    let new_cpa = if not (!GU.earlyglobs || Flag.is_multi st.flag) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) st.cpa in
+    let new_cpa = if not (!GU.earlyglobs || Flag.is_multi st.flag) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k && is_invisible ctx.ask ctx.local k) st.cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in

@@ -38,6 +38,7 @@ type t = ExpEq of exp * exp
        | MayEscape of varinfo
        | Priority of string
        | IsPublic of varinfo
+       | IsNotProtected of varinfo
        | SingleThreaded
        | IsNotUnique
        | EvalFunvar of exp
