@@ -1418,8 +1418,15 @@ struct
           x
       in
       let meet_bin a' b'  = ID.meet a a', ID.meet b b' in
-      let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
-      let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
+      let meet_com oi = (* commutative *)
+        try
+          meet_bin (oi c b) (oi c a)
+        with
+          IntDomain.ArithmeticOnIntegerBot _ -> raise Deadcode in
+      let meet_non oi oo = (* non-commutative *)
+        try
+          meet_bin (oi c b) (oo a c)
+        with IntDomain.ArithmeticOnIntegerBot _ -> raise Deadcode in
       function
       | PlusA  -> meet_com ID.sub
       | Mult   ->
@@ -1532,9 +1539,12 @@ struct
           let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
           let a', b' = inv_bin_int (a, b) ikind c op in
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
-          let m1 = inv_exp a' e1 in
-          let m2 = inv_exp b' e2 in
-          CPA.meet m1 m2
+          let m1 = try Some (inv_exp a' e1) with Deadcode -> None in
+          let m2 = try Some (inv_exp b' e2) with Deadcode -> None in
+          (match m1, m2 with
+          | Some m1, Some m2 -> CPA.meet m1 m2
+          | Some m, None | None, Some m -> m
+          | None, None -> raise Deadcode)
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
       | Lval x -> (* meet x with c *)
