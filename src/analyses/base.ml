@@ -112,8 +112,8 @@ struct
 
   let heap_var ctx = 
     let mallocloc = match (ctx.ask Q.HeapVar) with
-      | `Varinfo (`Lifted location) -> location
-      | _ -> failwith("Sadly no location found.") in
+      | `Varinfo (`Lifted vinfo) -> vinfo
+      | _ -> failwith("Sadly no heap variable found.") in
     AD.from_var mallocloc
 
   let init () =

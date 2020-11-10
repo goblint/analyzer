@@ -155,7 +155,7 @@ let _ = ()
       ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
       ; reg Experimental "exp.no-interval32-context" "false" "Ignore integer values of the Interval32 domain in function contexts."
       ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc fails."
-      ; reg Experimental "exp.malloc.wrappers" "[\'myalloc\',\'myalloc2\',\'ldv_malloc\',\'smalloc\',\'no_malloc\']"  "Loads a list of known malloc wrapper functions."
+      ; reg Experimental "exp.malloc.wrappers" "['myalloc','myalloc2','ldv_malloc','smalloc','no_malloc']"  "Loads a list of known malloc wrapper functions."
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
       ; reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
       ; reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."

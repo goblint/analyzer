@@ -8,13 +8,13 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  module CT = Lattice.Flat (Basetype.ProgLines) (struct 
+  module PL = Lattice.Flat (Basetype.ProgLines) (struct 
     let top_name = "Unknown line"
     let bot_name = "Unreachable line" 
   end)
 
   let name () = "mallocWrapper"
-  module D = CT
+  module D = PL
   module G = Lattice.Unit
   module C = D
 
