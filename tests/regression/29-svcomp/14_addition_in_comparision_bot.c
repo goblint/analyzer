@@ -1,4 +1,4 @@
-
+// PARAM: --enable ana.int.interval
 int main()
 {
   unsigned int top;
