@@ -111,17 +111,15 @@ struct
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
   let heap_var ctx = 
-    let mallocloc = match (ctx.ask Q.MallocLocation) with
-      | `Location (`Lifted location) -> location
-      | `Top -> MyCFG.getLoc ctx.node
+    let mallocloc = match (ctx.ask Q.HeapVar) with
+      | `Varinfo (`Lifted location) -> location
       | _ -> failwith("Sadly no location found.") in
-    AD.from_var (BaseDomain.get_heap_var mallocloc)
+    AD.from_var mallocloc
 
   let init () =
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    H.clear BaseDomain.heap_hash
+    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
 
   (**************************************************************************
    * Abstract evaluation functions

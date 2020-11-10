@@ -8,11 +8,13 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
+  module CT = Lattice.Flat (Basetype.ProgLines) (struct 
+    let top_name = "Unknown line"
+    let bot_name = "Unreachable line" 
+  end)
+
   let name () = "mallocWrapper"
-  module D = Lattice.Flat (Basetype.ProgLines) (struct 
-      let top_name = "Unknown line"
-      let bot_name = "Unreachable line" 
-    end)
+  module D = CT
   module G = Lattice.Unit
   module C = D
 
@@ -51,14 +53,27 @@ struct
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
 
+  let heap_hash = Hashtbl.create 113
+
+  let get_heap_var loc =
+    try Hashtbl.find heap_hash loc
+    with Not_found ->
+      let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
+      let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
+      Hashtbl.add heap_hash loc newvar;
+      newvar
+
   let query ctx (q:Q.t) : Q.Result.t =
-    let br:Q.Result.t = match q with
-    | Q.MallocLocation -> if ctx.local = `Top then 
-        `Location (`Lifted (MyCFG.getLoc ctx.node))  
-      else 
-        `Location ctx.local
-    | _ -> `Top in
-    br
+    match q with
+    | Q.HeapVar -> 
+      let b = match ctx.local with
+      | `Lifted vinfo -> vinfo
+      | _ -> MyCFG.getLoc ctx.node in
+      `Varinfo (`Lifted (get_heap_var b))
+    | _ -> `Top
+
+    let init () =
+      Hashtbl.clear heap_hash
 end
 
 let _ =
