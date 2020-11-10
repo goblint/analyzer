@@ -1871,6 +1871,7 @@ struct
     in
     match LF.classify f.vname args with
     (* handling thread creations *)
+    (* TODO: move LAP_Se_* out of base? *)
     | `Unknown "LAP_Se_SetPartitionMode" when List.length args = 2 -> begin
         let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
         match ctx.ask (Queries.EvalInt mode) with

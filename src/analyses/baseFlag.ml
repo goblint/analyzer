@@ -25,7 +25,6 @@ struct
   let create_tid v =
     let loc = !Tracing.current_loc in
     Flag.spawn_thread loc v
-  let threadstate v = create_tid v
 
   let body ctx f = ctx.local
 
@@ -40,8 +39,6 @@ struct
     | _ ->
       ctx.local
 
-  open Queries
-
   let assign ctx (lval:lval) (rval:exp) : D.t  =
     ctx.local
 
@@ -50,104 +47,8 @@ struct
 
   let combine ctx lval fexp f args fc st2 = st2
 
-  let collect_funargs ctx (exps: exp list) =
-    let do_exp e =
-      match ctx.ask (ReachableFrom e) with
-      | `LvalSet ls when not (LS.is_top ls) ->
-        List.map fst (LS.elements ls)
-      | _-> []
-    in
-    List.concat (List.map do_exp exps)
-
-  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
-    let create_thread arg v =
-      try
-        let nfl = create_tid v in
-        let nst = nfl in
-        Some (v, nst)
-      with Not_found ->
-        if LF.use_special f.vname then None (* we handle this function *)
-        else if isFunctionType v.vtype then (
-          M.warn_each ("Creating a thread from unknown function " ^ v.vname);
-          Some (v, create_tid v)
-        ) else (
-          M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
-          None
-        )
-    in
-    match LF.classify f.vname args with
-    (* handling thread creations *)
-    | `Unknown "LAP_Se_SetPartitionMode" when List.length args = 2 -> begin
-        let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
-        match ctx.ask (Queries.EvalInt mode) with
-        | `Int i when i=3L -> begin
-          let open Queries in
-          match ctx.ask (MayPointTo (Lval (var (Base.Main.tasks_var ())))) with
-          | `LvalSet ls ->
-            let varinfos = List.map fst (LS.elements ls) in
-            List.filter_map (create_thread None) varinfos
-          | _ -> failwith "baseflag setpartitionmode"
-          end
-        | _ -> []
-      end
-    | `Unknown "LAP_Se_CreateProcess"
-    | `Unknown "LAP_Se_CreateErrorHandler" ->
-      []
-    | `ThreadCreate (start,ptc_arg) -> begin
-        (* Collect the threads. *)
-        let open Queries in
-        match ctx.ask (MayPointTo start) with
-        | `LvalSet ls ->
-          let varinfos = List.map fst (LS.elements ls) in
-          List.filter_map (create_thread (Some ptc_arg)) varinfos
-        | _ -> failwith "baseflag threadcreate"
-      end
-    | `Unknown _ -> begin
-        let args =
-          match LF.get_invalidate_action f.vname with
-          | Some fnc -> fnc `Write  args (* why do we only spawn arguments that are written?? *)
-          | None -> args
-        in
-        let flist = collect_funargs ctx args in
-        List.filter_map (create_thread None) flist
-      end
-    | _ ->  []
-
   let special ctx lval f args =
-    let forks = forkfun ctx lval f args in
-    if M.tracing then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map fst forks);
-    (* TODO: delete forks entirely *)
-    (* List.iter (uncurry ctx.spawn) forks; *)
-    match LF.classify f.vname args with
-    | `Unknown "LAP_Se_SetPartitionMode" -> begin
-        match ctx.ask (Queries.EvalInt (List.hd args)) with
-        | `Int i when i=1L || i=2L -> ctx.local
-        | `Bot -> ctx.local
-        | _ -> Flag.make_main ctx.local
-      end
-    | `ThreadCreate (f,x) -> Flag.make_main ctx.local
-    | _ -> begin
-      match LF.get_invalidate_action f.vname with
-      | Some _ -> ctx.local
-      | None -> (
-          (* This rest here is just to see if something got spawned. *)
-          let flist = collect_funargs ctx args in
-          let f addr acc =
-            try
-              let var = addr in
-              let _ = Cilfacade.getdec var in true
-            with _ -> acc
-          in
-          (* TODO: remove this entirely *)
-          if List.fold_right f flist false
-          && not (GobConfig.get_bool "exp.single-threaded")
-          && GobConfig.get_bool "exp.unknown_funs_spawn" then
-            Flag.make_main ctx.local
-          else
-            ctx.local
-        )
-    end
-
+    ctx.local
 
   let query ctx x =
     match x with
@@ -184,11 +85,7 @@ struct
     create_tid f
 
   let threadcombine ctx f args fd =
-    if not (GobConfig.get_bool "exp.single-threaded")
-      && GobConfig.get_bool "exp.unknown_funs_spawn" then
-      Flag.make_main ctx.local
-    else
-      ctx.local
+    Flag.make_main ctx.local
 end
 
 let _ =

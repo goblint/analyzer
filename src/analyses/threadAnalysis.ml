@@ -122,35 +122,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = ctx.local
-
-  (* Helper function to convert query-offsets to valuedomain-offsets *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
-  let eval_exp_addr a exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a)
-                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | _ -> []
-
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    begin match LibraryFunctions.classify f.vname arglist with
-      | `ThreadCreate (fn, x) ->
-        let fns = eval_exp_addr ctx.ask fn in
-        let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
-        (* TODO: remove entirely *)
-        (* let new_thread x = ctx.spawn x (D.singleton (location x)) in
-        List.iter new_thread (List.concat (List.map ValueDomain.Addr.to_var_may fns)) *)
-        ()
-      | _ -> ()
-    end;
-    ctx.local
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ctx.local
 
   let main = D.singleton "main"
   let startstate v = main

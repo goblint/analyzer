@@ -68,24 +68,7 @@ struct
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     ctx.local
 
-  let query_lv ask exp =
-    match ask (Queries.MayPointTo exp) with
-    | `LvalSet l when not (Queries.LS.is_top l) ->
-      Queries.LS.elements l
-    | _ -> []
-
-  let fork ctx lv f args =
-    match LF.classify f.vname args with
-    | `ThreadCreate (start,ptc_arg) ->
-      let nst = D.push !Tracing.current_loc ctx.local in
-      List.map (fun (v,_) -> (v,nst)) (query_lv ctx.ask start)
-    | _ ->  []
-
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let forks = fork ctx lval f arglist in
-    let spawn (x,y) = ctx.spawn x y in
-    (* TODO: remove forks entirely *)
-    (* let _ = List.iter spawn forks in *)
     ctx.local
 
 
