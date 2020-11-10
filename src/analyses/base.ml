@@ -640,7 +640,14 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
+        | Lval ((Var v, ofs) as b) ->
+          let t = typeOfLval b in
+          let p = eval_lv a gs st b in
+          let v = get a gs st p (Some exp) in
+          let v' = VD.cast t v in
+          M.tracel "cast" "Var: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+          let v' = do_offs v' ofs in
+          v'
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
@@ -1080,9 +1087,6 @@ struct
      * not include the flag. *)
     let update_one_addr (x, offs) (nst, dep): store =
       let cil_offset = Offs.to_cil_offset offs in
-      let t = match t_override with
-        | Some t -> t
-        | None -> Cil.typeOf (Lval(Var x, cil_offset)) in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
@@ -1109,13 +1113,13 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t) nst, dep
+          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset)) nst, dep
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) t in
+        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -1662,9 +1666,8 @@ struct
         | `Bot -> (* current value is VD `Bot *)
           (match Addr.to_var_offset (AD.choose lval_val) with
           | [(x,offs)] ->
-            let t = v.vtype in
             let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
-            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
             set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
           | _ ->
             set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
