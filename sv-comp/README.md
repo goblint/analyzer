@@ -1,4 +1,33 @@
 # Goblint for SV-COMP
+All the SV-COMP configuration is in `conf/svcomp21.json`.
+
+## Run Goblint in SV-COMP mode
+### ReachSafety
+```
+./goblint --conf conf/svcomp21.json --sets ana.specification ../sv-benchmarks/c/properties/unreach-call.prp ../sv-benchmarks/c/DIR/FILE.i
+```
+
+### NoDataRace
+```
+./goblint --conf conf/svcomp21.json --sets ana.specification ../sv-benchmarks/c/properties/no-data-race.prp ../sv-benchmarks/c/DIR/FILE.i
+```
+
+## Run Goblint under BenchExec
+This requires setting up a bunch of XMLs and running a few things in the right places.
+Also all paths must be properly configured.
+
+There's three shell scripts in `sv-comp/benchexec/my-bench-sv-comp` for streamlining this process:
+* `goblint-all-fast.sh` – "quickly" (with 60s timeout) run Goblint on all ReachSafety (or more specifically SoftwareSystems) tasks without witness validation
+* `goblint-data-race.sh` – run Goblint on all NoDataRace tasks
+* `goblint.sh` (probably outdated) – run Goblint on all SoftwareSystems tasks with witness validation using CPAchecker and Ultimate Automizer
+
+They have corresponding XML files for benchexec and table-generator.
+
+
+---
+
+
+# Goblint for SV-COMP (old)
 
 ## Run Goblint in SV-COMP mode
 Command:
