@@ -766,7 +766,7 @@ struct
             | `Struct str ->
               begin
                 let l', o' = shift_one_over l o in
-                let value' =  (do_update_offset ask (Structs.get str fld) offs value exp l' o' v) in
+                let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v in
                 `Struct (Structs.replace str fld value')
               end
             | `Bot ->
