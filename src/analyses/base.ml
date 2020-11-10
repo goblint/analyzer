@@ -1509,6 +1509,10 @@ struct
           | Le, Some false -> meet_bin (ID.starting ~ikind (Int64.succ l2)) (ID.ending ~ikind (Int64.pred u1))
           | _, _ -> a, b)
         | _ -> a, b)
+      | BOr | BXor as op->
+        if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
+        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+        a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
         a, b
