@@ -294,120 +294,123 @@ struct
   let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
-    normalize @@
-    let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
-    let exp_value e =
-      match e with
-      | `Lifted e' ->
-          begin
-            match ask (Q.EvalInt e') with
-            | `Int n -> Q.ID.to_int n
-            | _ -> None
-          end
-      |_ -> None
-    in
-    let equals_zero e = BatOption.map_default (Int64.equal Int64.zero) false (exp_value e) in
-    let equals_maxIndex e =
-      match length with
-      | Some l ->
-        begin
-          match Idx.to_int l with
-          | Some i -> BatOption.map_default (Int64.equal (Int64.sub i Int64.one)) false (exp_value e)
-          | None -> false
-        end
-      | _ -> false
-    in
-    let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
-    if is_not_partitioned x then
-      if not_allowed_for_part i then
-        let result = Val.join a (join_of_all_parts x) in
-        (e, (result, result, result))
-      else
-        let l = if equals_zero i then Val.bot () else join_of_all_parts x in
-        let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
-        (i, (l, a, r))
+    if i = `Lifted MyCFG.all_array_index_exp then
+      (Expp.top(), (a, a, a))
     else
-      let isEqual e' i' = match ask (Q.MustBeEqual (e',i')) with
-        | `Bool true -> true
+      normalize @@
+      let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
+      let exp_value e =
+        match e with
+        | `Lifted e' ->
+            begin
+              match ask (Q.EvalInt e') with
+              | `Int n -> Q.ID.to_int n
+              | _ -> None
+            end
+        |_ -> None
+      in
+      let equals_zero e = BatOption.map_default (Int64.equal Int64.zero) false (exp_value e) in
+      let equals_maxIndex e =
+        match length with
+        | Some l ->
+          begin
+            match Idx.to_int l with
+            | Some i -> BatOption.map_default (Int64.equal (Int64.sub i Int64.one)) false (exp_value e)
+            | None -> false
+          end
         | _ -> false
       in
-      match e, i with
-      | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
-          let default =
-            let left =
-              match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
-              | `Bool false -> xl
-              | _ -> lubIfNotBot xl in
-            let middle =
-              match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
-              | `Bool false -> xm
-              | _ -> Val.join xm a in
-            let right =
-              match ask (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
-              | `Bool false -> xr
-              | _ -> lubIfNotBot xr in
-            (e, (left, middle, right))
-          in
-          if isEqual e' i' then
-            (*  e = _{must} i => update strongly *)
-            (e, (xl, a, xr))
-          else if Cil.isConstant e' && Cil.isConstant i' then
-            match Cil.isInteger e', Cil.isInteger i' with
-              | Some e'', Some i'' ->
-                if i'' = Int64.add e'' Int64.one then
-                  (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
-                  (i, (Val.join xl xm, a, xr))
-                else if e'' = Int64.add i'' Int64.one then
-                  (i, (xl, a, Val.join xm xr))
-                else
-                  default
-              | _ ->
-                default
-          else
-            default
-        end
-      | `Lifted e', `Lifted i' ->
-        if isEqual e' i' then
-          (e,(xl,a,xr))
+      let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
+      if is_not_partitioned x then
+        if not_allowed_for_part i then
+          let result = Val.join a (join_of_all_parts x) in
+          (e, (result, result, result))
         else
-          let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
-            (match ask (Q.MayBeEqual (e', i')) with
-            | `Bool false -> Val.bot()
-            | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
-            (
-              let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-              match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
-              | `Bool true -> xm
-              | _ ->
-                begin
-                  match ask (Q.MayBeLess (e', i')) with
-                  | `Bool false -> Val.bot()
-                  | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
-                end
-            )
-          in
-          let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
-            (match ask (Q.MayBeEqual (e', i')) with
-            | `Bool false -> Val.bot()
-            | _ -> xm)
+          let l = if equals_zero i then Val.bot () else join_of_all_parts x in
+          let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
+          (i, (l, a, r))
+      else
+        let isEqual e' i' = match ask (Q.MustBeEqual (e',i')) with
+          | `Bool true -> true
+          | _ -> false
+        in
+        match e, i with
+        | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
+            let default =
+              let left =
+                match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
+                | `Bool false -> xl
+                | _ -> lubIfNotBot xl in
+              let middle =
+                match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
+                | `Bool false -> xm
+                | _ -> Val.join xm a in
+              let right =
+                match ask (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
+                | `Bool false -> xr
+                | _ -> lubIfNotBot xr in
+              (e, (left, middle, right))
+            in
+            if isEqual e' i' then
+              (*  e = _{must} i => update strongly *)
+              (e, (xl, a, xr))
+            else if Cil.isConstant e' && Cil.isConstant i' then
+              match Cil.isInteger e', Cil.isInteger i' with
+                | Some e'', Some i'' ->
+                  if i'' = Int64.add e'' Int64.one then
+                    (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
+                    (i, (Val.join xl xm, a, xr))
+                  else if e'' = Int64.add i'' Int64.one then
+                    (i, (xl, a, Val.join xm xr))
+                  else
+                    default
+                | _ ->
+                  default
+            else
+              default
+          end
+        | `Lifted e', `Lifted i' ->
+          if isEqual e' i' then
+            (e,(xl,a,xr))
+          else
+            let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
+              (match ask (Q.MayBeEqual (e', i')) with
+              | `Bool false -> Val.bot()
+              | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
+              (
+                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
+                match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
+                | `Bool true -> xm
+                | _ ->
+                  begin
+                    match ask (Q.MayBeLess (e', i')) with
+                    | `Bool false -> Val.bot()
+                    | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
+                  end
+              )
+            in
+            let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
+              (match ask (Q.MayBeEqual (e', i')) with
+              | `Bool false -> Val.bot()
+              | _ -> xm)
 
-            (
-              let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-              match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
-              | `Bool true -> xm
-              | _ ->
-                begin
-                  match ask (Q.MayBeLess (i', e')) with
-                  | `Bool false -> Val.bot()
-                  | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
-                end
-            )
-          in
-          (* The new thing is partitioned according to i so we can strongly update *)
-          (i,(left, a, right))
-      | _ ->
-        (* If the expression used to write is not known, all segments except the empty ones will be affected *)
-        (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
+              (
+                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
+                match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
+                | `Bool true -> xm
+                | _ ->
+                  begin
+                    match ask (Q.MayBeLess (i', e')) with
+                    | `Bool false -> Val.bot()
+                    | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
+                  end
+              )
+            in
+            (* The new thing is partitioned according to i so we can strongly update *)
+            (i,(left, a, right))
+        | _ ->
+          (* If the expression used to write is not known, all segments except the empty ones will be affected *)
+          (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
 
   let set = set_with_length None
 
