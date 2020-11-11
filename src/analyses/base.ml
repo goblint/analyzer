@@ -113,7 +113,7 @@ struct
   let heap_var ctx = 
     let mallocloc = match (ctx.ask Q.HeapVar) with
       | `Varinfo (`Lifted vinfo) -> vinfo
-      | _ -> failwith("Sadly no heap variable found.") in
+      | _ -> failwith("Ran without a malloc analysis.") in
     AD.from_var mallocloc
 
   let init () =
