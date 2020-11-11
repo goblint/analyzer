@@ -1,4 +1,4 @@
-// PARAM: --conf=conf/svcomp21.json
+// PARAM: --enable ana.int.interval --enable ana.int.def_exc
 // from: ldv-linux-3.0/usb_urb-drivers-vhost-vhost_net.ko.cil.out.i
 typedef unsigned long long u64;
 
