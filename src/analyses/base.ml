@@ -111,10 +111,10 @@ struct
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
   let heap_var ctx = 
-    let mallocloc = match (ctx.ask Q.HeapVar) with
+    let info = match (ctx.ask Q.HeapVar) with
       | `Varinfo (`Lifted vinfo) -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
-    AD.from_var mallocloc
+    info
 
   let init () =
     privatization := get_bool "exp.privatization";
@@ -2118,8 +2118,8 @@ struct
         | Some lv ->
           let heap_var =
             if (get_bool "exp.malloc.fail")
-            then AD.join (heap_var ctx) AD.null_ptr
-            else heap_var ctx
+            then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
+            else AD.from_var (heap_var ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
@@ -2130,8 +2130,8 @@ struct
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = heap_var ctx in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address heap_var)]
+          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
