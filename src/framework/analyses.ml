@@ -432,7 +432,7 @@ sig
   val sync     : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
   val query    : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
   val assign   : (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
-  val zeroinit : (D.t, G.t, C.t) ctx -> varinfo -> D.t
+  val zero_init : (D.t, G.t, C.t) ctx -> varinfo -> D.t
   val vdecl    : (D.t, G.t, C.t) ctx -> varinfo -> D.t
   val branch   : (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
   val body     : (D.t, G.t, C.t) ctx -> fundec -> D.t
@@ -571,7 +571,7 @@ struct
 
   let vdecl ctx _ = ctx.local
 
-  let zeroinit ctx _ = ctx.local
+  let zero_init ctx _ = ctx.local
   (* On a zero initializer, don't do anything. Overwrite this if getting a single assign
      to the first element of an array to 0 is not enough for intializing global
      zero-initialized arrays for the purpose of your analysis when running with

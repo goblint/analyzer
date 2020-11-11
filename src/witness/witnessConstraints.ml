@@ -329,7 +329,7 @@ struct
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
   let assign ctx l e    = map ctx Spec.assign    (fun h -> h l e )
-  let zeroinit ctx v    = map ctx Spec.zeroinit  (fun h -> h v   )
+  let zero_init ctx v   = map ctx Spec.zero_init  (fun h -> h v   )
   let vdecl ctx v       = map ctx Spec.vdecl     (fun h -> h v   )
   let body   ctx f      = map ctx Spec.body      (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return    (fun h -> h e f )

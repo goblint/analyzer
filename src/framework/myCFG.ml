@@ -415,11 +415,11 @@ let getGlobalInitEdges (file: file) : (edge * location) list  =
 
 
 let getZeroInitializedGlobals (file:file) =
-  let is_zeroinit = function
+  let is_zero_init = function
     | GVar(v, init, loc) -> if init.init = None then Some v else None
     | _ -> None
   in
-  List.filter_map (is_zeroinit) file.globals
+  List.filter_map (is_zero_init) file.globals
 
 let getGlobalInits (file:file) =
   let init_edges = getGlobalInitEdges file in

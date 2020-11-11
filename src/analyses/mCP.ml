@@ -611,7 +611,7 @@ struct
     do_splits ctx d !splits;
     if q then raise Deadcode else d
 
-  let zeroinit (ctx:(D.t, G.t, C.t) ctx) v =
+  let zero_init (ctx:(D.t, G.t, C.t) ctx) v =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -633,7 +633,7 @@ struct
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
         }
       in
-      n, repr @@ S.zeroinit ctx' v
+      n, repr @@ S.zero_init ctx' v
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
