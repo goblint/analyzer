@@ -361,15 +361,18 @@ struct
         meet (bit Int64.rem x y) range
 
   let mul x y =
-    on_top_return_top_bin x y @@
-    match x, y with
-    | None, None -> bot ()
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
-    | Some (x1,x2), Some (y1,y2) ->
-      let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
-      let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
-      norm @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
-                    (max (max x1y1 x1y2) (max x2y1 x2y2)))
+    if (is_top x || is_top y) && to_int x <> Some 0L && to_int y <> Some 0L then
+      (* if one of the argument is zero, the result must be zero, even if the value is outside the range of Interval32 *)
+      top ()
+    else
+      match x, y with
+      | None, None -> bot ()
+      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+      | Some (x1,x2), Some (y1,y2) ->
+        let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
+        let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
+        norm @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
+                      (max (max x1y1 x1y2) (max x2y1 x2y2)))
 
   let rec div x y =
     on_top_return_top_bin x y @@

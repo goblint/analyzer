@@ -11,17 +11,14 @@ int f1() {
 
     one = two;
 
-    // We no longer compute with "top" in the interval domain,
-    // leading to a loss of precision here.
-    // Thus the three asserts are here marked with "UNKNOWN".
-    assert(one - two == 0); // UNKNOWN
+    assert(one - two == 0);
     x = f2(one,two);
-    assert(one - two == 0); // UNKNOWN
+    assert(one - two == 0);
     assert(x == 48);
 }
 
 int f2(int a, int b) {
-    assert(a-b == 0); // UNKNOWN
+    assert(a-b == 0);
 
     return 48;
 }
