@@ -32,17 +32,10 @@ let is_static (v:varinfo): bool = v.vstorage == Static
 let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
-let is_multi_a (ask:Q.ask): bool =
-  match ask Q.SingleThreaded with
-  | `Bool b -> not b
-  | `Top -> true
-  | _ -> failwith "is_multi_a"
-let is_multi ctx: bool = is_multi_a ctx.ask
-
 let privatization = ref false
 let is_private (a: Q.ask) (_,_) (v: varinfo): bool =
   !privatization &&
-  (not (is_multi_a a) && is_precious_glob v ||
+  (not (ThreadFlag.is_multi_ask a) && is_precious_glob v ||
    match a (Q.IsPublic v) with `Bool tv -> not tv | _ ->
    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
    false)
@@ -348,7 +341,7 @@ struct
     let cpa, diff = if !GU.earlyglobs || multi then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
     (cpa, dep), diff
 
-  let sync ctx = sync' false (is_multi ctx) ctx
+  let sync ctx = sync' false (ThreadFlag.is_multi ctx) ctx
 
   let publish_all ctx =
     List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true true ctx))
@@ -365,7 +358,7 @@ struct
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = if (!GU.earlyglobs || is_multi_a a) && is_global a x then
+        let var = if (!GU.earlyglobs || ThreadFlag.is_multi_ask a) && is_global a x then
             match CPA.find x st with
             | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
             | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
@@ -1096,7 +1089,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!GU.earlyglobs || is_multi_a a) && is_global a x then
+      if (!GU.earlyglobs || ThreadFlag.is_multi_ask a) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
         if not effect && not (is_private a (st,dep) x) then begin
@@ -1835,7 +1828,7 @@ struct
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    let new_cpa = if not (!GU.earlyglobs || is_multi ctx) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in

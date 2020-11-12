@@ -143,7 +143,7 @@ struct
 
   let access_one_top ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    if Base.is_multi ctx then
+    if ThreadFlag.is_multi ctx then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
   (** We just lift start state, global and dependecy functions: *)
