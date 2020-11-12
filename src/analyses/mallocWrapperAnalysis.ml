@@ -35,13 +35,13 @@ struct
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     let interestingfunctions = get_string_list "exp.malloc.wrappers" in
-    let calleofinterest = List.mem f.vname interestingfunctions in
-    let callectx = if calleofinterest then
+    let calleeofinterest = List.mem f.vname interestingfunctions in
+    let calleectx = if calleeofinterest then
        if ctx.local = `Top then
-        `Lifted (MyCFG.getLoc ctx.node) 
-        else ctx.local
-      else D.top () in     
-    [(ctx.local, callectx)]
+        `Lifted (MyCFG.getLoc ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        else ctx.local (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
+      else D.top () in  (* if an uninteresting callee is called, then we forget what was called before *)
+    [(ctx.local, calleectx)]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     ctx.local
