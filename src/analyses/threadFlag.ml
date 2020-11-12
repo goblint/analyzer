@@ -55,6 +55,8 @@ struct
     match x with
     | Queries.SingleThreaded -> `Bool (Queries.BD.of_bool (not (Flag.is_multi ctx.local)))
     | Queries.IsNotUnique -> `Bool (Flag.is_bad ctx.local)
+    (* This used to be in base but also commented out. *)
+    (* | Queries.IsPublic _ -> `Bool (Flag.is_multi ctx.local) *)
     | _ -> `Top
 
   let part_access ctx e v w =

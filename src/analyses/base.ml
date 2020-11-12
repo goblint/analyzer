@@ -894,8 +894,6 @@ struct
 
   let query ctx (q:Q.t) =
     match q with
-    (* | Q.IsPublic _ ->
-       `Bool (BaseDomain.Flag.is_multi (snd ctx.local)) *)
     | Q.EvalFunvar e ->
       begin
         let fs = eval_funvar ctx e in
