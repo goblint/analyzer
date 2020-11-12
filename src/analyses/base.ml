@@ -2129,9 +2129,13 @@ struct
     | `Calloc size ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = heap_var ctx in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
+          let heap_var = heap_var ctx in
+          let add_null addr =
+            if (get_bool "exp.malloc.fail")
+            then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
+            else addr in
+          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+                                  (eval_lv ctx.ask gs st lv, `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset)))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
