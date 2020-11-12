@@ -154,8 +154,8 @@ let _ = ()
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
       ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
       ; reg Experimental "exp.no-interval32-context" "false" "Ignore integer values of the Interval32 domain in function contexts."
-      ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc fails."
-      ; reg Experimental "exp.malloc.wrappers"   "['kmalloc','kmalloc','usb_alloc_urb','__builtin_alloca','kzalloc']"  "Loads a list of known malloc wrapper functions."
+      ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc or calloc fails."
+      ; reg Experimental "exp.malloc.wrappers"   "['kmalloc','kmalloc','usb_alloc_urb','__builtin_alloca','kzalloc']"  "Loads a list of known malloc wrapper functions." (* When something new that maps to malloc or calloc is added to libraryFunctions.ml, it should also be added here.*)
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
       ; reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
       ; reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."

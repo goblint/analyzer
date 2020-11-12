@@ -110,7 +110,8 @@ let option_spec_list =
   ; "--osekisrsuffix"      , Arg.String (set_string "ana.osek.isrsuffix"), ""
   ; "--osekcheck"          , Arg.Unit (fun () -> set_bool "ana.osek.check" true), ""
   ; "--oseknames"          , Arg.Set_string OilUtil.osek_renames, ""
-  ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""]
+  ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
+  ]
 
 (** List of C files to consider. *)
 let cFileNames = ref []
