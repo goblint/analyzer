@@ -66,10 +66,10 @@ struct
   let query ctx (q:Q.t) : Q.Result.t =
     match q with
     | Q.HeapVar -> 
-      let b = match ctx.local with
+      let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
       | _ -> MyCFG.getLoc ctx.node in
-      `Varinfo (`Lifted (get_heap_var b))
+      `Varinfo (`Lifted (get_heap_var loc))
     | _ -> `Top
 
     let init () =
