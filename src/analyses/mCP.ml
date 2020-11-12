@@ -944,7 +944,7 @@ struct
     do_sideg ctx !sides;
     if q then raise Deadcode else d
 
-  let threadcombine (ctx:(D.t, G.t, C.t) ctx) f a fd =
+  let threadcombine (ctx:(D.t, G.t, C.t) ctx) f a fctx =
     let sides  = ref [] in
     let f post_all (n,(module S:Spec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
@@ -964,7 +964,24 @@ struct
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadcombine context.")
         }
       in
-      n, repr @@ S.threadcombine ctx' f a (obj (assoc n fd))
+      let fctx' : (S.D.t, S.G.t, S.C.t) ctx =
+        { local  = obj (assoc n fctx.local)
+        ; node   = fctx.node
+        ; prev_node = fctx.prev_node
+        ; control_context = fctx.control_context
+        ; context = (fun () -> fctx.context () |> assoc n |> obj)
+        ; edge   = fctx.edge
+        ; ask    = query fctx
+        ; presub = filter_presubs n fctx.local
+        ; postsub= filter_presubs n post_all
+        ; global = (fun v      -> fctx.global v |> assoc n |> obj)
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadcombine context.")
+        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadcombine context.")
+        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadcombine context.")
+        }
+      in
+      n, repr @@ S.threadcombine ctx' f a fctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;

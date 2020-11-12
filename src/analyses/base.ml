@@ -2190,7 +2190,7 @@ struct
       (* Unknown functions *)
       ctx.local
 
-  let threadcombine ctx (f: varinfo) (args: exp list) (fd: D.t): D.t =
+  let threadcombine ctx (f: varinfo) (args: exp list) fctx: D.t =
     D.bot ()
 end
 

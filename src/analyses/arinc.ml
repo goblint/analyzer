@@ -664,7 +664,7 @@ struct
     let f_d = snd (Tasks.choose tasks_f) in
     { f_d with pre = d.pre }
 
-  let threadcombine ctx f args fd = D.bot ()
+  let threadcombine ctx f args fctx = D.bot ()
 end
 
 let _ =

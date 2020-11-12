@@ -29,7 +29,7 @@ struct
 
   let startstate v : D.t = D.empty ()
   let threadenter ctx f args : D.t = D.empty ()
-  let threadcombine ctx f args fd = D.bot ()
+  let threadcombine ctx f args fctx = D.bot ()
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain

@@ -384,7 +384,7 @@ struct
       `Bool (INV.leq linv inv)
     | _ -> Queries.Result.top ()
 
-  let threadcombine ctx f args fd = D.bot ()
+  let threadcombine ctx f args fctx = D.bot ()
 end
 
 

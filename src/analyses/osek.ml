@@ -710,7 +710,7 @@ struct
   let exitstate  v = D.top ()
 
   let threadenter ctx f args = D.top ()
-  let threadcombine ctx f args fd = D.bot ()
+  let threadcombine ctx f args fctx = D.bot ()
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in
