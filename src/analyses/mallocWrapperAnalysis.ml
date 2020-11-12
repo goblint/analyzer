@@ -34,7 +34,7 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let interestingfunctions = get_string_list "exp.malloc.wrappers" in
+    let interestingfunctions = get_string_list "exp.malloc.wrappers" in (* if this list gets bigger, having a Hashtbl should be considered *)
     let calleeofinterest = List.mem f.vname interestingfunctions in
     let calleectx = if calleeofinterest then
        if ctx.local = `Top then
