@@ -62,17 +62,10 @@ struct
     | `Bool false -> true
     | _ -> false
 
-  (* remove this function and everything related to exp.ignored_threads *)
-  let is_special_ignorable_thread = function
-    | (_, `Lifted f) ->
-      let fs = GobConfig.get_list "exp.ignored_threads" |> List.map Json.string in
-      List.mem f.vname fs
-    | _ -> false
-
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
     let fl = ctx.local in
-    if BaseDomain.Flag.is_multi fl && not (is_special_ignorable_thread fl) then begin
+    if BaseDomain.Flag.is_multi fl then begin
       if is_unique ctx fl then
         let tid = BaseDomain.Flag.short 20 fl in
         (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
