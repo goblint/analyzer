@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadflag','escape','uninit']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit']"
 void some_function(int* x){
 	*x = 0;
 }

@@ -1,4 +1,4 @@
-//PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadflag','expRelation']"
+//PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation']"
 # include<stdio.h>
 
 void foo(int n, int a[n]) {

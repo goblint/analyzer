@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadflag']"
+// PARAM: --set ana.activated "['base','threadid','threadflag']"
 #include<pthread.h>
 #include<assert.h>
 

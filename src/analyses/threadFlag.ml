@@ -10,7 +10,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Flag = BaseDomain.Flag
+  module Flag = ConcDomain.Simple
   module D = Flag
   module C = Flag
   module G = Lattice.Unit
@@ -18,13 +18,12 @@ struct
   let name () = "threadflag"
 
   let startstate v = Flag.bot ()
-  let exitstate  v = Flag.start_main v
+  let exitstate  v = Flag.get_multi ()
 
-  let morphstate v _ = Flag.start_single v
+  let morphstate v _ = Flag.get_single ()
 
   let create_tid v =
-    let loc = !Tracing.current_loc in
-    Flag.spawn_thread loc v
+    Flag.get_multi ()
 
   let body ctx f = ctx.local
 
@@ -33,8 +32,10 @@ struct
   let return ctx exp fundec  =
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
-      Flag.make_main ctx.local
+      (* TODO: is this necessary? *)
+      Flag.join ctx.local (Flag.get_main ())
     | "StartupHook" ->
+      (* TODO: is this necessary? *)
       Flag.get_multi ()
     | _ ->
       ctx.local
@@ -57,17 +58,19 @@ struct
 
 
   let is_unique ctx fl =
-    not (BaseDomain.Flag.is_bad fl) ||
+    not (Flag.is_bad fl) ||
     match ctx.ask Queries.IsNotUnique with
     | `Bool false -> true
     | _ -> false
 
+  (* TODO: move part of part_access to threadid *)
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
     let fl = ctx.local in
-    if BaseDomain.Flag.is_multi fl then begin
+    if Flag.is_multi fl then begin
       if is_unique ctx fl then
-        let tid = BaseDomain.Flag.short 20 fl in
+        let tid = ThreadId.get_current ctx in
+        let tid = ThreadId.ThreadLifted.short 20 tid in
         (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
       else
         (Access.LSSSet.singleton es, es)
@@ -78,8 +81,8 @@ struct
     create_tid f
 
   let threadcombine ctx f args fd =
-    Flag.make_main ctx.local
+    Flag.join ctx.local (Flag.get_main ())
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis ~dep:["threadid"] (module Spec : Spec)

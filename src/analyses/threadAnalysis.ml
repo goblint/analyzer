@@ -38,13 +38,10 @@ struct
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
 
-  let get_current_tid ctx =
-    snd (Obj.obj (List.assoc "threadflag" ctx.presub))
-
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let create_thread fn x =
       let l = !Tracing.current_loc in
-      let creator = get_current_tid ctx in
+      let creator = ThreadId.get_current ctx in
       let new_thread x =
         let tid = T.spawn_thread l x in
         let repeated = D.mem tid ctx.local in
@@ -93,7 +90,7 @@ struct
            * Note that starting threads have empty ancestor sets! *)
           rep || n > 1 || n > 0 && check_one (TS.choose parents)
         in
-        let tid = get_current_tid ctx in
+        let tid = ThreadId.get_current ctx in
         match tid with
         | `Lifted tid -> `Bool (check_one tid)
         | _ -> `Bool (true)
@@ -137,4 +134,4 @@ struct
 end
 
 let _ = MCP.register_analysis (module StartLocIDs : Spec)
-let _ = MCP.register_analysis ~dep:["threadflag"] (module Spec : Spec)
+let _ = MCP.register_analysis ~dep:["threadid"] (module Spec : Spec)

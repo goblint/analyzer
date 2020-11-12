@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadflag','escape','uninit']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit']"
 int* some_function(int * x){
 	return x; //NOWARN
 }

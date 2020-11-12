@@ -37,6 +37,9 @@ let is_ignorable lval =
   try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
   with Not_found -> false
 
+let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
+  (Obj.obj (List.assoc "threadflag" state), Obj.obj (List.assoc "threadid" state))
+
 module Spec =
 struct
 
@@ -529,7 +532,7 @@ struct
     | _ -> None
 
   let add_accesses ctx (accessed: accesses) (flagstate: Flags.t) (ust:D.t) =
-    let fl = Mutex.get_flag ctx.presub in
+    let fl = get_flag ctx.presub in
     if BaseDomain.Flag.is_multi fl then
       let loc = !Tracing.current_loc in
       let dispatch ax =
@@ -1271,4 +1274,4 @@ struct
     end;
 end
 
-let () = MCP.register_analysis ~dep:["base";"threadflag";"fmode"] (module Spec : Spec)
+let () = MCP.register_analysis ~dep:["base";"threadid";"threadflag";"fmode"] (module Spec : Spec)

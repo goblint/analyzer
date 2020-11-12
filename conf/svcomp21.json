@@ -8,6 +8,7 @@
     },
     "activated": [
       "base",
+      "threadid",
       "threadflag",
       "mutex",
       "escape",
