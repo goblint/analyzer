@@ -37,7 +37,7 @@ struct
     let interestingfunctions = get_string_list "exp.malloc.wrappers" in
     let calleofinterest = List.mem f.vname interestingfunctions in
     let callectx = if calleofinterest then
-       if ctx.local = `Top then
+       if D.is_top ctx.local then
         `Lifted (MyCFG.getLoc ctx.node) 
         else ctx.local
       else D.top () in     
