@@ -63,7 +63,7 @@ struct
   let threadenter ctx f args =
     match args with
     | [ptc_arg] -> reachable ctx.ask ptc_arg
-    | _ -> ctx.local
+    | _ -> D.bot ()
 
   let threadcombine ctx f args fd =
     match args with
