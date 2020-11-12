@@ -60,7 +60,19 @@ struct
     match x with
     | _ -> `Top
 
-  (* TODO: move part of threadflag part_access here *)
+  let is_unique ctx =
+    match ctx.ask Queries.IsNotUnique with
+    | `Bool false -> true
+    | _ -> false
+
+  let part_access ctx e v w =
+    let es = Access.LSSet.empty () in
+    if is_unique ctx then
+      let tid = ctx.local in
+      let tid = ThreadLifted.short 20 tid in
+      (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
+    else
+      (Access.LSSSet.singleton es, es)
 
   let threadenter ctx f args =
     create_tid f

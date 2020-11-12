@@ -54,28 +54,17 @@ struct
   let query ctx x =
     match x with
     | Queries.SingleThreaded -> `Bool (Queries.BD.of_bool (not (Flag.is_multi ctx.local)))
+    | Queries.IsNotUnique -> `Bool (Flag.is_bad ctx.local)
     | _ -> `Top
 
-
-  let is_unique ctx fl =
-    not (Flag.is_bad fl) ||
-    match ctx.ask Queries.IsNotUnique with
-    | `Bool false -> true
-    | _ -> false
-
-  (* TODO: move part of part_access to threadid *)
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
     let fl = ctx.local in
-    if Flag.is_multi fl then begin
-      if is_unique ctx fl then
-        let tid = ThreadId.get_current ctx in
-        let tid = ThreadId.ThreadLifted.short 20 tid in
-        (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
-      else
-        (Access.LSSSet.singleton es, es)
-    end else
-      Access.LSSSet.empty (), es
+    if Flag.is_multi fl then
+      (Access.LSSSet.singleton es, es)
+    else
+      (* kill access when single threaded *)
+      (Access.LSSSet.empty (), es)
 
   let threadenter ctx f args =
     create_tid f
