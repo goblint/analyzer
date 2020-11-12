@@ -83,6 +83,7 @@ end
 
 (** The basic thread domain that distinguishes singlethreaded mode, a single
   * thread ID, and otherwise goes to top. *)
+(* Only OSEK uses this anymore. *)
 module SimpleThreadDomain = struct
 
   include Lattice.ProdSimple (Simple) (ThreadLifted)

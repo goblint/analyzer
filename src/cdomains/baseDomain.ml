@@ -41,12 +41,6 @@ struct
       ) m Invariant.none
 end
 
-module Flag =
-struct
-  include ConcDomain.SimpleThreadDomain
-  let name () = "flag domain"
-end
-
 let heap_hash = Hashtbl.create 113
 
 let get_heap_var loc =
