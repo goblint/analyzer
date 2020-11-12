@@ -597,6 +597,4 @@ struct
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
     (* No partitioning on accesses and not locks *)
-
-  let threadenter ctx _ _ = ctx.local
 end
