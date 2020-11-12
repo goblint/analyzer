@@ -15,7 +15,7 @@ struct
   module C = Flag
   module G = Lattice.Unit
 
-  let name () = "baseflag"
+  let name () = "threadflag"
 
   let startstate v = Flag.bot ()
   let exitstate  v = Flag.start_main v

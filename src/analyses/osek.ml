@@ -1271,4 +1271,4 @@ struct
     end;
 end
 
-let () = MCP.register_analysis ~dep:["base";"baseflag";"fmode"] (module Spec : Spec)
+let () = MCP.register_analysis ~dep:["base";"threadflag";"fmode"] (module Spec : Spec)

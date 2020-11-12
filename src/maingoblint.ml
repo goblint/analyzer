@@ -68,7 +68,7 @@ let option_spec_list =
   in
   let oil file =
     set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "['base','baseflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']";
+    set_auto "ana.activated" "['base','threadflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']";
     set_auto "mainfun" "[]"
   in
   let configure_html () =

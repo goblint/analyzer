@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','baseflag','escape','uninit']"
+// PARAM: --set ana.activated "['base','threadflag','escape','uninit']"
 typedef union {
 	int i;
 	int j;

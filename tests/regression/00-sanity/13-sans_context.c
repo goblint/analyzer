@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['escape', 'base','baseflag']" --set ana.ctx_insens[+] "'base'"
+// PARAM: --set ana.activated "['escape', 'base','threadflag']" --set ana.ctx_insens[+] "'base'"
 void f(int v, int i){
   assert(v   == 2);
   assert(i*i == 9); // UNKNOWN

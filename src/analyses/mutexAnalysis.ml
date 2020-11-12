@@ -25,7 +25,7 @@ let no_read = ref false
 let vips = ref ([]: string list)
 
 let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
-  Obj.obj (List.assoc "baseflag" state)
+  Obj.obj (List.assoc "threadflag" state)
 
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
@@ -289,4 +289,4 @@ end
 module Spec = MakeSpec (MyParam)
 
 let _ =
-  MCP.register_analysis ~dep:["baseflag"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["threadflag"] (module Spec : Spec)

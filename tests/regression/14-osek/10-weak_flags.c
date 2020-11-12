@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated "['base','baseflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']" --sets ana.osek.oil 07-flags.oil --sets ana.osek.flags[+] flag
+//PARAM: --set ana.activated "['base','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']" --sets ana.osek.oil 07-flags.oil --sets ana.osek.flags[+] flag
 
 int flag = 0;
 int var = 0;

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','baseflag','escape']"
+// PARAM: --set ana.activated "['base','threadflag','escape']"
 
 #include<pthread.h>
 #include<stdio.h>

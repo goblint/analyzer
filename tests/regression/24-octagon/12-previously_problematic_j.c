@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --disable exp.fast_global_inits --set ana.activated "['base','baseflag','octagon']"
+// PARAM: --sets solver td3 --disable exp.fast_global_inits --set ana.activated "['base','threadflag','octagon']"
 void main(void) {
   int i = 0;
   int j = i;
