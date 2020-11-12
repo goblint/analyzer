@@ -12,6 +12,11 @@ module ThreadLifted = ConcDomain.ThreadLifted
 let get_current ctx: ThreadLifted.t =
   Obj.obj (List.assoc "threadid" ctx.presub)
 
+let get_current_unlift ctx: Thread.t =
+  match get_current ctx with
+  | `Lifted thread -> thread
+  | _ -> failwith "ThreadId.get_current_unlift"
+
 
 module Spec =
 struct

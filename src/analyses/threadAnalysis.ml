@@ -46,9 +46,8 @@ struct
   let startstate v = D.bot ()
   let threadenter ctx f args = D.bot ()
   let threadcombine ctx f args fctx =
-    let l = !Tracing.current_loc in
     let creator = ThreadId.get_current ctx in
-    let tid = T.spawn_thread l f in (* TODO: get new thread id from threadid analysis *)
+    let tid = ThreadId.get_current_unlift fctx in
     let repeated = D.mem tid ctx.local in
     let eff =
       match creator with
