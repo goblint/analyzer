@@ -1,3 +1,5 @@
+// PARAM: --set exp.malloc.wrappers "['myalloc']"
+
 // Copied & modified from 02/20.
 #include <stdlib.h>
 #include <assert.h>
