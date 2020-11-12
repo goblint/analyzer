@@ -599,5 +599,4 @@ struct
     (* No partitioning on accesses and not locks *)
 
   let threadenter ctx _ _ = ctx.local
-  let threadcombine ctx _ _ _ = ctx.local
 end

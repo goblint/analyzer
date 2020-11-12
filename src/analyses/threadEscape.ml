@@ -68,7 +68,7 @@ struct
   let threadcombine ctx f args fd =
     match args with
     | [ptc_arg] -> reachable ctx.ask ptc_arg (* TODO: just use fd? *)
-    | _ -> ctx.local
+    | _ -> D.bot ()
 end
 
 let _ =

@@ -52,6 +52,7 @@ struct
 
   let startstate v = MSpec.startstate v
   let threadenter ctx f args = MSpec.threadenter ctx f args
+  let threadcombine ctx f args fd = MSpec.threadcombine ctx f args fd
   let exitstate  v = MSpec.exitstate  v
 end
 

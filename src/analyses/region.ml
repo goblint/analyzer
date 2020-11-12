@@ -177,6 +177,7 @@ struct
 
   let threadenter ctx f args =
     `Lifted (Equ.top (), RegMap.bot ())
+  let threadcombine ctx f args fd = D.bot ()
 
   let exitstate v = `Lifted (Equ.top (), RegMap.bot ())
 

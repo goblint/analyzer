@@ -383,6 +383,8 @@ struct
       let linv = evaluate_exp ctx.local exp in
       `Bool (INV.leq linv inv)
     | _ -> Queries.Result.top ()
+
+  let threadcombine ctx f args fd = D.bot ()
 end
 
 

@@ -102,6 +102,7 @@ struct
 
   let startstate v = D.bot ()
   let threadenter ctx f args = D.bot ()
+  let threadcombine ctx f args fd = D.bot ()
   let exitstate  v = D.bot ()
 end
 
@@ -131,6 +132,8 @@ struct
   let threadenter ctx f args =
     let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
     D.singleton (location f)
+
+  let threadcombine ctx f args fd = D.bot ()
 end
 
 let _ = MCP.register_analysis (module StartLocIDs : Spec)

@@ -2200,7 +2200,7 @@ struct
       ctx.local
 
   let threadcombine ctx (f: varinfo) (args: exp list) (fd: D.t): D.t =
-    ctx.local
+    D.bot ()
 end
 
 module type MainSpec = sig

@@ -400,6 +400,8 @@ struct
     in
     let f_d = snd (Tasks.choose tasks_f) in
     f_d
+
+  let threadcombine ctx f args fd = D.bot ()
 end
 
 let _ =

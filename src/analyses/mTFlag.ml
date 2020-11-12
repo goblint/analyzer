@@ -20,6 +20,7 @@ struct
 
   let startstate v = Flag.bot ()
   let threadenter ctx f args = Flag.top ()
+  let threadcombine ctx f args fd = Flag.bot ()
   let exitstate  v = Flag.get_main ()
 
   let body ctx f = ctx.local
