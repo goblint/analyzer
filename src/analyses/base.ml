@@ -1892,7 +1892,7 @@ struct
           []
         | _ -> []
       end
-    | `ThreadCreate (start,ptc_arg) -> begin
+    | `ThreadCreate (id,start,ptc_arg) -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
         publish_all ctx;
         (* Collect the threads. *)
