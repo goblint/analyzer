@@ -172,6 +172,7 @@ struct
   let logand _ik = logand
   let logor  _ik = logor
 
+
   let to_int a = Option.map BigIntOps.of_int64 (Old.to_int a)
 
   let equal_to (x: int_t) (a: t)=
@@ -187,13 +188,24 @@ struct
   let maximal a = Option.map BigIntOps.of_int64 (Old.maximal a)
   let minimal a = Option.map BigIntOps.of_int64 (Old.minimal a)
 
-  let of_int ik x = Old.of_int (BigIntOps.to_int64 x)
+  let of_int ik x =
+    (* If we cannot convert x to int64, we have to represent it with top in the underlying domain*)
+    try
+      Old.of_int (BigIntOps.to_int64 x)
+    with
+      Failure _ -> top_of ik
+
   let of_bool ik b = Old.of_bool b
-  let of_interval ik (l, u) = Old.of_interval ik (BigIntOps.to_int64 l, BigIntOps.to_int64 u)
+  let of_interval ik (l, u) =
+    try
+      Old.of_interval ik (BigIntOps.to_int64 l, BigIntOps.to_int64 u)
+    with
+      Failure _ -> top_of ik
 
-  let starting ik x = Old.starting ik (BigIntOps.to_int64 x)
-
-  let ending ik x = Old.ending ik (BigIntOps.to_int64 x)
+  let starting ik x =
+    try Old.starting ik (BigIntOps.to_int64 x) with Failure _ -> top_of ik
+  let ending ik x =
+    try Old.ending ik (BigIntOps.to_int64 x) with Failure _ -> top_of ik
 
   let join _ik = Old.join
   let meet _ik = Old.meet
