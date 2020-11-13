@@ -45,7 +45,7 @@ struct
 
   let startstate v = D.bot ()
   let threadenter ctx f args = D.bot ()
-  let threadcombine ctx f args fctx =
+  let threadspawn ctx f args fctx =
     let creator = ThreadId.get_current ctx in
     let tid = ThreadId.get_current_unlift fctx in
     let repeated = D.mem tid ctx.local in
@@ -87,7 +87,7 @@ struct
     let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
     D.singleton (location f)
 
-  let threadcombine ctx f args fctx = D.bot ()
+  let threadspawn ctx f args fctx = D.bot ()
 end
 
 let _ = MCP.register_analysis (module StartLocIDs : Spec)

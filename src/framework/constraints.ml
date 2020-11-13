@@ -86,8 +86,8 @@ struct
   let threadenter ctx f args =
     D.lift @@ S.threadenter (conv ctx) f args
 
-  let threadcombine ctx f args fctx =
-    D.lift @@ S.threadcombine (conv ctx) f args (conv fctx)
+  let threadspawn ctx f args fctx =
+    D.lift @@ S.threadspawn (conv ctx) f args (conv fctx)
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
@@ -169,8 +169,8 @@ struct
   let threadenter ctx f args =
     S.threadenter (conv ctx) f args
 
-  let threadcombine ctx f args fctx =
-    S.threadcombine (conv ctx) f args (conv fctx)
+  let threadspawn ctx f args fctx =
+    S.threadspawn (conv ctx) f args (conv fctx)
 end
 
 module NoHashconsLifter (S: Spec) = struct
@@ -252,7 +252,7 @@ struct
 
   (* TODO: use start_level *)
   let threadenter ctx f args = lift_fun ctx (lift ctx) S.threadenter ((|>) args % (|>) f)
-  let threadcombine ctx f args fctx = lift_fun ctx (lift ctx) S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f)
+  let threadspawn ctx f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f)
 
   let leq0 = function
     | `Top -> false
@@ -383,7 +383,7 @@ struct
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let threadenter ctx f args = lift_fun ctx S.threadenter ((|>) args % (|>) f)
-  let threadcombine ctx f args fctx = lift_fun ctx S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f)
+  let threadspawn ctx f args fctx = lift_fun ctx S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f)
 
   let enter ctx r f args =
     let m = snd ctx.local in
@@ -436,7 +436,7 @@ struct
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
   let threadenter ctx f args = lift_fun ctx S.threadenter ((|>) args % (|>) f)
-  let threadcombine ctx f args fctx = lift_fun ctx S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f)
+  let threadspawn ctx f args fctx = lift_fun ctx S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f)
 
   let enter ctx r f args =
     let m = snd ctx.local in
@@ -511,7 +511,7 @@ struct
   let combine ctx r fe f args fc es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es)) `Bot
 
   let threadenter ctx f args = lift_fun ctx D.lift S.threadenter ((|>) args % (|>) f) `Bot
-  let threadcombine ctx f args fctx = lift_fun ctx D.lift S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f) `Bot
+  let threadspawn ctx f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f) `Bot
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -577,7 +577,7 @@ struct
         }
       and fquery x = S.query fctx x
       in
-      r := S.threadcombine ctx f args fctx :: !r;
+      r := S.threadspawn ctx f args fctx :: !r;
       if not full_context then sidel (FunctionEntry f, c) d;
       ignore (getl (Function f, c))
     in
@@ -1016,9 +1016,9 @@ struct
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
   let threadenter ctx f args = map ctx Spec.threadenter (fun h -> h f args)
-  let threadcombine ctx f args fctx =
+  let threadspawn ctx f args fctx =
     let fd1 = D.choose fctx.local in
-    map ctx Spec.threadcombine (fun h -> h f args (conv fctx fd1))
+    map ctx Spec.threadspawn (fun h -> h f args (conv fctx fd1))
 
   let fold ctx f g h a =
     let k x a =

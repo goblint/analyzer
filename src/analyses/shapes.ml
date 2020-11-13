@@ -71,7 +71,7 @@ struct
   let threadenter ctx f args =
     let st, re = ctx.local in
     (LD.singleton (SHMap.top ()), Re.threadenter (re_context ctx re) f args)
-  let threadcombine ctx f args fctx = D.bot ()
+  let threadspawn ctx f args fctx = D.bot ()
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=

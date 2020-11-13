@@ -340,7 +340,7 @@ struct
         }
       in
       Spec.threadenter ctx v []
-      (* TODO: do threadcombine to mainfuns? *)
+      (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
     let othervars = List.map (enter_with (otherstate prestartstate)) otherfuns in

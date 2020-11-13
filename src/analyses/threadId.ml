@@ -82,7 +82,7 @@ struct
   let threadenter ctx f args =
     create_tid f
 
-  let threadcombine ctx f args fctx =
+  let threadspawn ctx f args fctx =
     (* TODO: could also be bot? *)
     ctx.local
 end

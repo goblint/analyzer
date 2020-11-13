@@ -79,7 +79,7 @@ struct
   let threadenter ctx f args =
     create_tid f
 
-  let threadcombine ctx f args fctx =
+  let threadspawn ctx f args fctx =
     Flag.join ctx.local (Flag.get_main ())
 end
 
