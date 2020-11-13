@@ -673,21 +673,17 @@ struct
             let cast_ok = function
               | Addr a ->
                 begin
-                  if Cil.isVoidType (get_type_addr a) then
-                    (* If the variable has void type, it was something we allocated via malloc / calloc *)
-                    true
-                  else
-                    match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
-                    | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
-                    | _ ->
-                      if contains_vla t || contains_vla (get_type_addr a) then
-                        begin
-                          (* TODO: Is this ok? *)
-                          M.warn "Casting involving a VLA is assumed to work";
-                          true
-                        end
-                      else
-                        false
+                  match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
+                  | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
+                  | _ ->
+                    if contains_vla t || contains_vla (get_type_addr a) then
+                      begin
+                        (* TODO: Is this ok? *)
+                        M.warn "Casting involving a VLA is assumed to work";
+                        true
+                      end
+                    else
+                      false
                 end
               | _ -> false
             in
