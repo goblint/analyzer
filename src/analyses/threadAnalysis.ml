@@ -21,24 +21,61 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = au
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ctx.local
+
+  (* Helper function to convert query-offsets to valuedomain-offsets *)
+  let rec conv_offset x =
+    match x with
+    | `NoOffset    -> `NoOffset
+    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
+    | `Field (f,o) -> `Field (f, conv_offset o)
+
+  let eval_exp_addr a exp =
+    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
+    match a (Queries.MayPointTo exp) with
+    | `LvalSet a when not (Queries.LS.is_top a)
+                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
+    | _ -> []
+
+  let rec is_not_unique ctx tid =
+    let (rep, parents) = ctx.global tid in
+    let n = TS.cardinal parents in
+    (* A thread is not unique if it is
+      * a) repeatedly created,
+      * b) created in multiple threads, or
+      * c) created by a thread that is itself multiply created.
+      * Note that starting threads have empty ancestor sets! *)
+    rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose parents)
+
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    match LibraryFunctions.classify f.vname arglist with
+    | `ThreadJoin (id, ret_var) ->
+      (* TODO: generalize ThreadJoin like ThreadCreate *)
+      let ids = eval_exp_addr ctx.ask id in
+      let threads = List.concat (List.map ValueDomain.Addr.to_var_may ids) in
+      let join_thread s tid =
+        (* TODO: uniqueness isn't enough, must also check all subthreads are joined *)
+        if not (is_not_unique ctx tid) then
+          D.remove tid s
+        else
+          s
+      in
+      List.fold_left join_thread ctx.local threads
+    | _ -> ctx.local
 
   let query ctx (q: Queries.t) =
     match q with
     | Queries.IsNotUnique -> begin
-        let rec check_one tid =
-          let (rep, parents) = ctx.global tid in
-          let n = TS.cardinal parents in
-          (* A thread is not unique if it is
-           * a) repeatedly created,
-           * b) created in multiple threads, or
-           * c) created by a thread that is itself multiply created.
-           * Note that starting threads have empty ancestor sets! *)
-          rep || n > 1 || n > 0 && check_one (TS.choose parents)
-        in
         let tid = ThreadId.get_current ctx in
         match tid with
-        | `Lifted tid -> `Bool (check_one tid)
+        | `Lifted tid -> `Bool (is_not_unique ctx tid)
+        | _ -> `Bool (true)
+      end
+    | Queries.NotSingleThreaded -> begin
+      let tid = ThreadId.get_current ctx in
+        match tid with
+        | `Lifted {vname="main"; _} -> `Bool (not (D.is_empty ctx.local))
         | _ -> `Bool (true)
       end
     | _ -> Queries.Result.top ()

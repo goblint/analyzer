@@ -7,8 +7,8 @@ open Prelude.Ana
 open Analyses
 
 let is_multi_ask (ask: Queries.ask): bool =
-  match ask Queries.SingleThreaded with
-  | `Bool b -> not b
+  match ask Queries.NotSingleThreaded with
+  | `Bool b -> b
   | `Top -> true
   | _ -> failwith "is_multi_ask"
 let is_multi ctx: bool = is_multi_ask ctx.ask
@@ -62,6 +62,7 @@ struct
   let query ctx x =
     match x with
     | Queries.SingleThreaded -> `Bool (Queries.BD.of_bool (not (Flag.is_multi ctx.local)))
+    | Queries.NotSingleThreaded -> `Bool (Queries.BD.of_bool (Flag.is_multi ctx.local))
     | Queries.IsNotUnique -> `Bool (Flag.is_bad ctx.local)
     (* This used to be in base but also commented out. *)
     (* | Queries.IsPublic _ -> `Bool (Flag.is_multi ctx.local) *)
@@ -69,8 +70,7 @@ struct
 
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
-    let fl = ctx.local in
-    if Flag.is_multi fl then
+    if is_multi ctx then
       (Access.LSSSet.singleton es, es)
     else
       (* kill access when single threaded *)

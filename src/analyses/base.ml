@@ -637,8 +637,10 @@ struct
           let t = typeOfLval b in
           let p = eval_lv a gs st b in
           let v = get a gs st p (Some exp) in
-          let v' = VD.cast t v in
-          M.tracel "cast" "Var: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+          (* let v' = VD.cast t v in *)
+          (* M.tracel "cast" "Var: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v'; *)
+          (* TODO: somehow bypass this cast on pthread_t-s *)
+          let v' = v in
           let v' = do_offs v' ofs in
           v'
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
