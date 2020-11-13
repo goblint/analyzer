@@ -10,7 +10,7 @@ struct
   include Analyses.DefaultSpec
 
   let name () = "thread"
-  module D = ConcDomain.ThreadSet
+  module D = ConcDomain.CreatedThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
 
@@ -18,7 +18,13 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
   let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
   let body ctx (f:fundec) : D.t =  ctx.local
-  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
+  let return ctx (exp:exp option) (f:fundec) : D.t =
+    let tid = ThreadId.get_current ctx in
+    begin match tid with
+      | `Lifted tid -> ctx.sideg tid (false, TS.bot (), not (D.is_empty ctx.local))
+      | _ -> ()
+    end;
+    ctx.local
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = au
 
@@ -39,7 +45,7 @@ struct
     | _ -> []
 
   let rec is_not_unique ctx tid =
-    let (rep, parents) = ctx.global tid in
+    let (rep, parents, _) = ctx.global tid in
     let n = TS.cardinal parents in
     (* A thread is not unique if it is
       * a) repeatedly created,
@@ -54,9 +60,9 @@ struct
       (* TODO: generalize ThreadJoin like ThreadCreate *)
       let ids = eval_exp_addr ctx.ask id in
       let threads = List.concat (List.map ValueDomain.Addr.to_var_may ids) in
+      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
       let join_thread s tid =
-        (* TODO: uniqueness isn't enough, must also check all subthreads are joined *)
-        if not (is_not_unique ctx tid) then
+        if has_clean_exit tid && not (is_not_unique ctx tid) then
           D.remove tid s
         else
           s
@@ -73,7 +79,7 @@ struct
         | _ -> `Bool (true)
       end
     | Queries.NotSingleThreaded -> begin
-      let tid = ThreadId.get_current ctx in
+        let tid = ThreadId.get_current ctx in
         match tid with
         | `Lifted {vname="main"; _} -> `Bool (not (D.is_empty ctx.local))
         | _ -> `Bool (true)
@@ -88,9 +94,9 @@ struct
     let repeated = D.mem tid ctx.local in
     let eff =
       match creator with
-      | `Lifted ctid -> (repeated, TS.singleton ctid)
-      | `Top         -> (true,     TS.bot ())
-      | `Bot         -> (false,    TS.bot ())
+      | `Lifted ctid -> (repeated, TS.singleton ctid, false)
+      | `Top         -> (true,     TS.bot (),         false)
+      | `Bot         -> (false,    TS.bot (),         false)
     in
     ctx.sideg tid eff;
     D.singleton tid
