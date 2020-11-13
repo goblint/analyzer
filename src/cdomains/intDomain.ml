@@ -504,7 +504,7 @@ struct
   let is_bool x = x <> None && not (leq zero x) || equal x zero
   let to_bool (a: t) = match a with
     | None -> None
-    | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare l Ints_t.zero = 0 -> Some false
+    | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
   let to_bool_interval x = match x with
     | None -> x
