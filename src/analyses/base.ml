@@ -2194,7 +2194,7 @@ struct
       (* Unknown functions *)
       ctx.local
 
-  let threadcombine ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
+  let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     match lval with
     | Some lval ->
       let tid = ThreadId.get_current_unlift fctx in

@@ -194,8 +194,8 @@ struct
     let w = step_ctx ctx in
     d, w
 
-  let threadcombine ctx lval f args fctx =
-    let d = S.threadcombine (unlift_ctx ctx) lval f args (unlift_ctx fctx) in
+  let threadspawn ctx lval f args fctx =
+    let d = S.threadspawn (unlift_ctx ctx) lval f args (unlift_ctx fctx) in
     let w = step_ctx ctx in
     d, w
 end

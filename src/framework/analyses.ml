@@ -445,7 +445,7 @@ sig
   val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> C.t -> D.t -> D.t
 
   val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
-  val threadcombine : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
+  val threadspawn : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
 end
 
 module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)

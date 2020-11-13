@@ -339,9 +339,9 @@ struct
 
   (* TODO: do additional witness things here *)
   let threadenter ctx lval f args = map ctx Spec.threadenter (fun h -> h lval f args)
-  let threadcombine ctx lval f args fctx =
+  let threadspawn ctx lval f args fctx =
     let fd1 = Dom.choose (fst fctx.local) in
-    map ctx Spec.threadcombine (fun h -> h lval f args (conv fctx fd1))
+    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
   let fold ctx f g h a =
     let k x a =

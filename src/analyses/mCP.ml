@@ -944,7 +944,7 @@ struct
     do_sideg ctx !sides;
     if q then raise Deadcode else d
 
-  let threadcombine (ctx:(D.t, G.t, C.t) ctx) lval f a fctx =
+  let threadspawn (ctx:(D.t, G.t, C.t) ctx) lval f a fctx =
     let sides  = ref [] in
     let f post_all (n,(module S:Spec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
@@ -958,10 +958,10 @@ struct
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadcombine context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadcombine context.")
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
+        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadspawn context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadcombine context.")
+        ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadspawn context.")
         }
       in
       let fctx' : (S.D.t, S.G.t, S.C.t) ctx =
@@ -975,13 +975,13 @@ struct
         ; presub = filter_presubs n fctx.local
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> fctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadcombine context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadcombine context.")
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
+        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadspawn context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadcombine context.")
+        ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadspawn context.")
         }
       in
-      n, repr @@ S.threadcombine ctx' lval f a fctx'
+      n, repr @@ S.threadspawn ctx' lval f a fctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;

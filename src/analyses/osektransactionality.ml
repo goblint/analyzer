@@ -115,7 +115,7 @@ struct
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = D.top ()
-  let threadcombine ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
   (** Finalization and other result printing functions: *)
