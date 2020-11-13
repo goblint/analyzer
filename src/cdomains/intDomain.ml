@@ -614,13 +614,14 @@ struct
 
   let neg ik = function None -> None | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
 
-  let add ik x y =
+  let add_sub_helper f ik x y =
     match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
-    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2)
+    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (f x1 y1, f x2 y2)
 
-  let sub ik i1 i2 = add ik i1 (neg ik i2)
+  let add = add_sub_helper Ints_t.add
+  let sub = add_sub_helper Ints_t.sub
 
   let rem ik x y = match x, y with
     | None, None -> None
