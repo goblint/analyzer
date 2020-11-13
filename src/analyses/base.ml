@@ -2191,7 +2191,12 @@ struct
       ctx.local
 
   let threadcombine ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
-    D.bot ()
+    match lval with
+    | Some lval ->
+      let tid = ThreadId.get_current_unlift fctx in
+      set ctx.ask ctx.global (D.bot ()) (eval_lv ctx.ask ctx.global ctx.local lval) (`Address (AD.from_var tid))
+    | None ->
+      D.bot ()
 end
 
 module type MainSpec = sig
@@ -2208,4 +2213,5 @@ module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis (module Main : Spec)
+  (* TODO: remove threadid dependency via query *)
+  MCP.register_analysis ~dep:["threadid"] (module Main : Spec)
