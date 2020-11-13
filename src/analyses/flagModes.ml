@@ -130,8 +130,8 @@ struct
     ctx.local
 
   let startstate v = D.top ()
-  let threadenter ctx f args = D.top ()
-  let threadcombine ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args = D.top ()
+  let threadcombine ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 end
 

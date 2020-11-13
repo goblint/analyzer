@@ -805,8 +805,8 @@ struct
       end
 
   let startstate v = D.bot ()
-  let threadenter ctx f args = D.bot ()
-  let threadcombine ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadcombine ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 end
 

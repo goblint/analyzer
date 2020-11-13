@@ -1647,7 +1647,7 @@ struct
         let find_fps e xs = Addr.to_var_must e @ xs in
         let vars = AD.fold find_fps adrs [] in
         let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-        List.iter (fun x -> ctx.spawn x []) funs
+        List.iter (fun x -> ctx.spawn None x []) funs
       | _ -> ()
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
@@ -1842,8 +1842,8 @@ struct
 
 
 
-  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * exp list) list =
-    let create_thread arg v =
+  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
+    let create_thread lval arg v =
       try
         (* try to get function declaration *)
         let fd = Cilfacade.getdec v in
@@ -1852,12 +1852,12 @@ struct
           | Some x -> [x]
           | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
         in
-        Some (v, args)
+        Some (lval, v, args)
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then (
           M.warn_each ("Creating a thread from unknown function " ^ v.vname);
-          Some (v, args)
+          Some (lval, v, args)
         ) else (
           M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
           None
@@ -1871,7 +1871,7 @@ struct
         match ctx.ask (Queries.EvalInt mode) with
         | `Int i when i=3L ->
           let a = match ctx.global (tasks_var ()) with `Address a -> a | _ -> AD.empty () in
-          let r = AD.to_var_may a |> List.filter_map (create_thread None) in
+          let r = AD.to_var_may a |> List.filter_map (create_thread None None) in
           ctx.sideg (tasks_var ()) (`Address (AD.empty ()));
           ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
           r
@@ -1897,7 +1897,7 @@ struct
         publish_all ctx;
         (* Collect the threads. *)
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
-        List.filter_map (create_thread (Some ptc_arg)) (AD.to_var_may start_addr)
+        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
       end
     | `Unknown _ -> begin
         let args =
@@ -1907,7 +1907,7 @@ struct
         in
         let flist = collect_funargs ctx.ask ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        List.filter_map (create_thread None) addrs
+        List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
 
@@ -1963,8 +1963,8 @@ struct
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
-    if M.tracing then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map fst forks);
-    List.iter (uncurry ctx.spawn) forks;
+    if M.tracing then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
+    List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let cpa,dep as st = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
@@ -2183,14 +2183,14 @@ struct
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" 80 args_short
 
 
-  let threadenter ctx (f: varinfo) (args: exp list): D.t =
+  let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t =
     try
       make_entry ctx f args
     with Not_found ->
       (* Unknown functions *)
       ctx.local
 
-  let threadcombine ctx (f: varinfo) (args: exp list) fctx: D.t =
+  let threadcombine ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     D.bot ()
 end
 

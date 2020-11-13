@@ -60,12 +60,12 @@ struct
   let startstate v = D.bot ()
   let exitstate  v = D.bot ()
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     match args with
     | [ptc_arg] -> reachable ctx.ask ptc_arg
     | _ -> D.bot ()
 
-  let threadcombine ctx f args fctx =
+  let threadcombine ctx lval f args fctx =
     match args with
     | [ptc_arg] -> reachable ctx.ask ptc_arg (* TODO: just use fd? *)
     | _ -> D.bot ()

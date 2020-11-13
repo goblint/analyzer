@@ -79,10 +79,10 @@ struct
     else
       (Access.LSSSet.singleton es, es)
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     create_tid f
 
-  let threadcombine ctx f args fctx =
+  let threadcombine ctx lval f args fctx =
     (* TODO: could also be bot? *)
     ctx.local
 end

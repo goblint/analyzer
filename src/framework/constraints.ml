@@ -83,11 +83,11 @@ struct
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 
-  let threadenter ctx f args =
-    D.lift @@ S.threadenter (conv ctx) f args
+  let threadenter ctx lval f args =
+    D.lift @@ S.threadenter (conv ctx) lval f args
 
-  let threadcombine ctx f args fctx =
-    D.lift @@ S.threadcombine (conv ctx) f args (conv fctx)
+  let threadcombine ctx lval f args fctx =
+    D.lift @@ S.threadcombine (conv ctx) lval f args (conv fctx)
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
@@ -166,11 +166,11 @@ struct
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 
-  let threadenter ctx f args =
-    S.threadenter (conv ctx) f args
+  let threadenter ctx lval f args =
+    S.threadenter (conv ctx) lval f args
 
-  let threadcombine ctx f args fctx =
-    S.threadcombine (conv ctx) f args (conv fctx)
+  let threadcombine ctx lval f args fctx =
+    S.threadcombine (conv ctx) lval f args (conv fctx)
 end
 
 module NoHashconsLifter (S: Spec) = struct
@@ -251,8 +251,8 @@ struct
   let combine' ctx r fe f args fc es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es))
 
   (* TODO: use start_level *)
-  let threadenter ctx f args = lift_fun ctx (lift ctx) S.threadenter ((|>) args % (|>) f)
-  let threadcombine ctx f args fctx = lift_fun ctx (lift ctx) S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f)
+  let threadenter ctx lval f args = lift_fun ctx (lift ctx) S.threadenter ((|>) args % (|>) f % (|>) lval)
+  let threadcombine ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let leq0 = function
     | `Top -> false
@@ -382,8 +382,8 @@ struct
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
-  let threadenter ctx f args = lift_fun ctx S.threadenter ((|>) args % (|>) f)
-  let threadcombine ctx f args fctx = lift_fun ctx S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f)
+  let threadenter ctx lval f args = lift_fun ctx S.threadenter ((|>) args % (|>) f % (|>) lval)
+  let threadcombine ctx lval f args fctx = lift_fun ctx S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let enter ctx r f args =
     let m = snd ctx.local in
@@ -435,8 +435,8 @@ struct
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
-  let threadenter ctx f args = lift_fun ctx S.threadenter ((|>) args % (|>) f)
-  let threadcombine ctx f args fctx = lift_fun ctx S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f)
+  let threadenter ctx lval f args = lift_fun ctx S.threadenter ((|>) args % (|>) f % (|>) lval)
+  let threadcombine ctx lval f args fctx = lift_fun ctx S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let enter ctx r f args =
     let m = snd ctx.local in
@@ -510,8 +510,8 @@ struct
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args fc es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es)) `Bot
 
-  let threadenter ctx f args = lift_fun ctx D.lift S.threadenter ((|>) args % (|>) f) `Bot
-  let threadcombine ctx f args fctx = lift_fun ctx D.lift S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f) `Bot
+  let threadenter ctx lval f args = lift_fun ctx D.lift S.threadenter ((|>) args % (|>) f % (|>) lval) `Bot
+  let threadcombine ctx lval f args fctx = lift_fun ctx D.lift S.threadcombine ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
@@ -566,9 +566,9 @@ struct
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
     and query x = S.query ctx x
-    and spawn f args =
+    and spawn lval f args =
       (* TODO: adjust ctx node/edge? *)
-      let d = S.threadenter ctx f args in
+      let d = S.threadenter ctx lval f args in
       let c = S.context d in
       let rec fctx =
         { ctx with
@@ -577,7 +577,7 @@ struct
         }
       and fquery x = S.query fctx x
       in
-      r := S.threadcombine ctx f args fctx :: !r;
+      r := S.threadcombine ctx lval f args fctx :: !r;
       if not full_context then sidel (FunctionEntry f, c) d;
       ignore (getl (Function f, c))
     in
@@ -1015,10 +1015,10 @@ struct
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
-  let threadenter ctx f args = map ctx Spec.threadenter (fun h -> h f args)
-  let threadcombine ctx f args fctx =
+  let threadenter ctx lval f args = map ctx Spec.threadenter (fun h -> h lval f args)
+  let threadcombine ctx lval f args fctx =
     let fd1 = D.choose fctx.local in
-    map ctx Spec.threadcombine (fun h -> h f args (conv fctx fd1))
+    map ctx Spec.threadcombine (fun h -> h lval f args (conv fctx fd1))
 
   let fold ctx f g h a =
     let k x a =

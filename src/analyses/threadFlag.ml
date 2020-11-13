@@ -76,10 +76,10 @@ struct
       (* kill access when single threaded *)
       (Access.LSSSet.empty (), es)
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     create_tid f
 
-  let threadcombine ctx f args fctx =
+  let threadcombine ctx lval f args fctx =
     Flag.join ctx.local (Flag.get_main ())
 end
 

@@ -52,8 +52,8 @@ struct
 
   (* Some required states *)
   let startstate _ : D.t = D.empty ()
-  let threadenter ctx f args : D.t = D.empty ()
-  let threadcombine ctx f args fctx = D.empty ()
+  let threadenter ctx lval f args : D.t = D.empty ()
+  let threadcombine ctx lval f args fctx = D.empty ()
   let exitstate  _ : D.t = D.empty ()
 
   (* ======== Transfer functions ======== *)

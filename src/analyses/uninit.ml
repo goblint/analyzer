@@ -28,8 +28,8 @@ struct
   let should_join x y = D.equal x y
 
   let startstate v : D.t = D.empty ()
-  let threadenter ctx f args : D.t = D.empty ()
-  let threadcombine ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args : D.t = D.empty ()
+  let threadcombine ctx lval f args fctx = D.bot ()
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain

@@ -47,8 +47,8 @@ struct
   let name () = "var_eq"
 
   let startstate v = D.top ()
-  let threadenter ctx f args = D.top ()
-  let threadcombine ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args = D.top ()
+  let threadcombine ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
   let const_equal c1 c2 =

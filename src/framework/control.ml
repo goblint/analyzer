@@ -339,7 +339,7 @@ struct
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
-      Spec.threadenter ctx v []
+      Spec.threadenter ctx None v []
       (* TODO: do threadcombine to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)

@@ -316,8 +316,8 @@ struct
             ) ctx.local args_product
 
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
-  let threadenter ctx f args = D.bot ()
-  let threadcombine ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadcombine ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 
   let init () = (* registers which functions to extract and writes out their definitions *)
