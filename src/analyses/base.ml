@@ -2061,6 +2061,8 @@ struct
         | None -> ctx.local
       end
     (* handling thread creations *)
+    | `ThreadCreate _ ->
+      D.bot () (* actual results joined via threadcombine *)
     (*       | `Unknown "LAP_Se_CreateProcess" -> begin
               match List.map (fun x -> stripCasts (constFold false x)) args with
                 | [_;AddrOf id;AddrOf r] ->
@@ -2196,7 +2198,7 @@ struct
     match lval with
     | Some lval ->
       let tid = ThreadId.get_current_unlift fctx in
-      set ctx.ask ctx.global (D.bot ()) (eval_lv ctx.ask ctx.global ctx.local lval) (`Address (AD.from_var tid))
+      set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (`Address (AD.from_var tid))
     | None ->
       D.bot ()
 end
