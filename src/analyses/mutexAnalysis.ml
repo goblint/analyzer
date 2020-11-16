@@ -29,6 +29,7 @@ let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
 
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
+let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType))
 
 module type SpecParam =
 sig
@@ -248,6 +249,10 @@ struct
       Lockset.remove (console_sem,true) ctx.local
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ctx.local
+    | _, "__VERIFIER_atomic_begin" ->
+      Lockset.add (verifier_atomic, true) ctx.local
+    | _, "__VERIFIER_atomic_end" ->
+      Lockset.remove (verifier_atomic, true) ctx.local
     | _, x ->
       let arg_acc act =
         match LF.get_threadsafe_inv_ac x with
