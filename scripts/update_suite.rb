@@ -231,7 +231,8 @@ doproject = lambda do |p|
     puts "\t #{id} reached timeout of #{timeout}s!".red + " Killing pgid #{pgid}..."
     timedout.push id
     Process.kill('INT', -1*pgid)
-    return
+    p.ok = false
+    return p
   end
   endtime   = Time.now
   status = $?.exitstatus
@@ -352,11 +353,11 @@ File.open(theresultfile, "w") do |f|
     ferr = nil
     p.tests.each_pair do |idx, type|
       check = lambda {|cond|
-        if cond then 
+        if cond then
           correct += 1
           if p.todo.include? idx then puts "Excellent: ignored check on #{p.name.cyan}:#{idx.to_s.blue} is now passing!" end
         else
-          if p.todo.include? idx then ignored += 1 else 
+          if p.todo.include? idx then ignored += 1 else
             puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
             puts p.tests_line[idx].rstrip.gray
             ferr = idx if ferr.nil? or idx < ferr
