@@ -11,6 +11,7 @@
     },
     "activated": [
       "base",
+      "mallocWrapper",
       "mutex",
       "escape",
       "expRelation",
