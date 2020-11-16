@@ -193,13 +193,21 @@ struct
 
   let return ctx exp fundec : D.t =
     begin match exp with
-      | Some exp ->
-        access_one_top ctx false false exp;
-        ctx.local
-      | None -> ctx.local
-    end
+      | Some exp -> access_one_top ctx false false exp
+      | None -> ()
+    end;
+    (* deprecated but still valid SV-COMP convention for atomic block *)
+    if String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
+      Lockset.remove (verifier_atomic, true) ctx.local
+    else
+      ctx.local
 
-  let body ctx f : D.t = ctx.local
+  let body ctx f : D.t =
+    (* deprecated but still valid SV-COMP convention for atomic block *)
+    if String.starts_with f.svar.vname "__VERIFIER_atomic_" then
+      Lockset.add (verifier_atomic, true) ctx.local
+    else
+      ctx.local
 
   let special ctx lv f arglist : D.t =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
