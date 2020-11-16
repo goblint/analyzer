@@ -31,8 +31,8 @@ module Simple = struct
     let n = 3
     let names = function
       | 0 -> "Singlethreaded"
-      | 1 -> "Main Thread"
-      | 2 -> "Some Threads"
+      | 1 -> "Multithreaded (main)"
+      | 2 -> "Multithreaded (other)"
       | _ -> "WHAT??"
   end
   include Lattice.Chain (SimpleNames)
