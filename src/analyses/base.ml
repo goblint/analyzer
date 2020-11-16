@@ -110,13 +110,16 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
-  let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
+  let heap_var ctx = 
+    let info = match (ctx.ask Q.HeapVar) with
+      | `Varinfo (`Lifted vinfo) -> vinfo
+      | _ -> failwith("Ran without a malloc analysis.") in
+    info
 
   let init () =
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    H.clear BaseDomain.heap_hash
+    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -2114,9 +2117,9 @@ struct
         match lv with
         | Some lv ->
           let heap_var =
-            if (get_bool "exp.malloc-fail")
-            then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
-            else heap_var !Tracing.current_loc
+            if (get_bool "exp.malloc.fail")
+            then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
+            else AD.from_var (heap_var ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
@@ -2126,9 +2129,13 @@ struct
     | `Calloc size ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
+          let heap_var = heap_var ctx in
+          let add_null addr =
+            if get_bool "exp.malloc.fail"
+            then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
+            else addr in
+          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+                                  (eval_lv ctx.ask gs st lv, `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset)))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->

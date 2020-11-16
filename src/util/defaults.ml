@@ -89,7 +89,7 @@ let _ = ()
 
 (* {4 category [Analyses]} *)
 let _ = ()
-      ; reg Analyses "ana.activated"  "['expRelation','base','escape','mutex']"  "Lists of activated analyses in this phase."
+      ; reg Analyses "ana.activated"  "['expRelation','base','escape','mutex', 'mallocWrapper']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
@@ -154,7 +154,8 @@ let _ = ()
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
       ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
       ; reg Experimental "exp.no-interval32-context" "false" "Ignore integer values of the Interval32 domain in function contexts."
-      ; reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails."
+      ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc or calloc fails."
+      ; reg Experimental "exp.malloc.wrappers"   "['kmalloc','__kmalloc','usb_alloc_urb','__builtin_alloca','kzalloc']"  "Loads a list of known malloc wrapper functions." (* When something new that maps to malloc or calloc is added to libraryFunctions.ml, it should also be added here.*)
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
       ; reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
       ; reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
