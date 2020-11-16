@@ -161,10 +161,13 @@ struct
     | Queries.IsPublic _ when Lockset.is_bot ctx.local -> `Bool false
     | Queries.IsPublic v ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      let lambda_v = ctx.global v in
-      let intersect = Mutexes.inter held_locks lambda_v in
-      let tv = Mutexes.is_empty intersect in
-      `Bool (tv)
+      if Mutexes.mem verifier_atomic held_locks then
+        `Bool false
+      else
+        let lambda_v = ctx.global v in
+        let intersect = Mutexes.inter held_locks lambda_v in
+        let tv = Mutexes.is_empty intersect in
+        `Bool tv
     | _ -> Queries.Result.top ()
 
   let may_race (ctx1,ac1) (ctx,ac2) =
