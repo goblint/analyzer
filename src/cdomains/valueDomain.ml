@@ -33,7 +33,8 @@ module type Blob =
 sig
   type value
   type size
-  include Lattice.S with type t = value * size
+  type origin
+  include Lattice.S with type t = value * size * origin 
 
   val make: value -> size -> t
   val value: t -> value
@@ -41,22 +42,22 @@ sig
   val invalidate_value: Q.ask -> typ -> t -> t
 end
 
-module Blob (Value: S) (Size: IntDomain.S) =
+module Blob (Value: S) (Size: IntDomain.S)=
 struct
   let name () = "blob"
-  include Lattice.Prod (Value) (Size)
+  include Lattice.Prod3 (Value) (Size) (Basetype.Strings)
   type value = Value.t
   type size = Size.t
-
-  let printXml f (x,y) =
+  type origin = Basetype.Strings.t
+  let printXml f (x,y, z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y
 
-  let make v s = v, s
-  let value = fst
-  let size = snd
-  let invalidate_value ask t (v, s) = Value.invalidate_value ask t v, s
+  let make v s = v, s, `Lifted " "
+  let value (a, b, c) = a 
+  let size (a, b, c) = b 
+  let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
 
-  let invariant c (v, _) = Value.invariant c v
+  let invariant c (v, _, _) = Value.invariant c v
 end
 
 module rec Compound: S with type t = [
@@ -396,11 +397,17 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.join x y)
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
-    | `Blob (x,s), y
-    | y, `Blob (x,s) ->
-      `Blob (join (x:t) y, s)
+    | `Blob (x,s,o), y
+    | y, `Blob (x,s,o) -> 
+      (match o with
+      | `Lifted "Malloc" -> `Blob (join (x:t) y, s, o)
+      | `Lifted "Calloc" ->
+          (match x with
+            | `Bot -> `Blob (y, s, o)
+            | _ -> `Blob (join (x:t)  y, s, o)) 
+      | _-> `Top )
     | _ ->
-      warn_type "join" x y;
+      warn_type "join" x y;   
       `Top
 
   let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
@@ -422,9 +429,9 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.join x y) (* `List can not contain array -> normal join  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `List can not contain array -> normal join  *)
-    | `Blob (x,s), y
-    | y, `Blob (x,s) ->
-      `Blob (join (x:t) y, s)
+    | `Blob (x,s,o), y
+    | y, `Blob (x,s,o) ->
+      `Blob (join (x:t) y, s, o)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -741,24 +748,24 @@ struct
 
   let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval): t =
     let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval):t =
-      let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
+      let mu = function `Blob (`Blob (y, s',orig), s,orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       match x, offs with
-      | `Blob (x,s), `Index (_,ofs) ->
+      | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
-          mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v), s))
+          mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v), s, orig))
         end
-      | `Blob (x,s),_ ->
+      | `Blob (x,s,orig),_ ->
         begin
           let l', o' = shift_one_over l o in
-          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v), s))
+          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v), s, orig))
         end
       | _ ->
       let result =
         match offs with
         | `NoOffset -> begin
             match value with
-            | `Blob (y,s) -> mu (`Blob (join x y, s))
+            | `Blob (y,s,orig) -> mu (`Blob (join x y, s,orig))
             | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
@@ -927,6 +934,5 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
   ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
-and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
-
+and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = Basetype.Strings.t = Blob (Compound) (ID) 
 and Lists: ListDomain.S with type elem = AD.t = ListDomain.SimpleList (AD)
