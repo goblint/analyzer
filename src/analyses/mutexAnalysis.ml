@@ -197,14 +197,14 @@ struct
       | None -> ()
     end;
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
       Lockset.remove (verifier_atomic, true) ctx.local
     else
       ctx.local
 
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if String.starts_with f.svar.vname "__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
       Lockset.add (verifier_atomic, true) ctx.local
     else
       ctx.local
@@ -260,9 +260,9 @@ struct
       Lockset.remove (console_sem,true) ctx.local
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ctx.local
-    | _, "__VERIFIER_atomic_begin" ->
+    | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
       Lockset.add (verifier_atomic, true) ctx.local
-    | _, "__VERIFIER_atomic_end" ->
+    | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
       Lockset.remove (verifier_atomic, true) ctx.local
     | _, x ->
       let arg_acc act =

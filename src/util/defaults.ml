@@ -131,7 +131,8 @@ let _ = ()
       ; reg Analyses "ana.opt.equal"       "true"  "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags)."
       ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
       ; reg Analyses "ana.mutex.disjoint_types" "true" "Do not propagate basic type writes to all struct fields"
-      ; reg Analyses "ana.sv-comp"         "false" "SV-COMP mode"
+      ; reg Analyses "ana.sv-comp.enabled" "false" "SV-COMP mode"
+      ; reg Analyses "ana.sv-comp.functions" "false" "SV-COMP functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
 

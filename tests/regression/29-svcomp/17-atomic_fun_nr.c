@@ -1,3 +1,4 @@
+// PARAM: --enable ana.sv-comp.functions
 #include <pthread.h>
 
 int myglobal;

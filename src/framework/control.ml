@@ -18,10 +18,10 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp") (module HashconsContextLifter)
-            |> lift (get_bool "ana.sv-comp") (module HashconsLifter)
-            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.PathSensitive3)
-            |> lift (not (get_bool "ana.sv-comp")) (module PathSensitive2)
+            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
+            |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
+            |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
+            |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -256,7 +256,7 @@ struct
     in
 
     (* real beginning of the [analyze] function *)
-    if get_bool "ana.sv-comp" then
+    if get_bool "ana.sv-comp.enabled" then
       WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
@@ -399,7 +399,7 @@ struct
         Vrfyr.verify lh gh;
       );
 
-      if get_bool "ana.sv-comp" then (
+      if get_bool "ana.sv-comp.enabled" then (
         (* prune already here so local_xml and thus HTML are also pruned *)
         let module Reach = Reachability (EQSys) (LHT) (GHT) in
         Reach.prune lh gh startvars'
@@ -491,7 +491,7 @@ struct
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
-    if get_bool "ana.sv-comp" then
+    if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;
 
     if get_bool "exp.cfgdot" then
