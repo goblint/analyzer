@@ -80,7 +80,7 @@ struct
     create_tid f
 
   let threadspawn ctx f args fctx =
-    Flag.join ctx.local (Flag.get_main ())
+    Flag.get_main ()
 end
 
 let _ =
