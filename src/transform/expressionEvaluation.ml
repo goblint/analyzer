@@ -148,11 +148,11 @@ module ExpEval : Transform.S =
       let query_file_name = GobConfig.get_string transformation_query_file_name_identifier in
       match ~? (fun () -> Yojson.Safe.from_file query_file_name) with
       | None ->
-          prerr_endline ("Invalid JSON query file: \"" ^ query_file_name ^ "\"")
+          prerr_endline ("ExpEval: Invalid JSON query file: \"" ^ query_file_name ^ "\". Specify via " ^ transformation_query_file_name_identifier ^ ".")
       | Some query_yojson ->
           match query_yojson |> query_of_yojson with
           | Error message ->
-              prerr_endline ("Unable to parse JSON query file: \"" ^ query_file_name ^ "\" (" ^ message ^ ")")
+              prerr_endline ("ExpEval: Unable to parse JSON query file: \"" ^ query_file_name ^ "\" (" ^ message ^ ")")
           | Ok query ->
               if is_debug () then
                 print_endline ("Successfully parsed JSON query file: \"" ^ query_file_name ^ "\"");
