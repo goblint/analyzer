@@ -1,8 +1,8 @@
-// PARAM: --set ana.activated "['base','escape']"
+// PARAM: --set ana.activated "['base','escape','mallocWrapper']"
 #include <assert.h>
 
 /**
- * foo /migh/ call the argument function
+ * foo /might/ call the argument function
  */
 extern void foo(void (*)(void));
 

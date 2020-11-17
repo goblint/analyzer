@@ -1,4 +1,4 @@
-//PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation']"
+//PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --enable exp.partition-arrays.enabled  --set ana.activated "['base','expRelation','mallocWrapper']"
 
 void foo(int (*a)[40]){
     int x = (*(a + 29))[7];

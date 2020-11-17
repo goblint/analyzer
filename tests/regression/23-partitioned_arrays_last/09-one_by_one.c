@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','expRelation','mallocWrapper']"
 int main(void) {
     int a[4];
     int b[4];

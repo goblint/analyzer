@@ -2281,4 +2281,4 @@ module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis (module Main : Spec)
+  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : Spec)

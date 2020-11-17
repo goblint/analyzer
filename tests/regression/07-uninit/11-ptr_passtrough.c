@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','uninit']"
+// PARAM: --set ana.activated "['base','escape','uninit','mallocWrapper']"
 int* some_function(int * x){
 	return x; //NOWARN
 }

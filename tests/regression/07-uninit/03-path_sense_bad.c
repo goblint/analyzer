@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','uninit']"
+// PARAM: --set ana.activated "['base','escape','uninit','mallocWrapper']"
 #include<stdio.h>
 
 int main() {
@@ -8,7 +8,7 @@ int main() {
   scanf("%d",&change_y);
 
   if (change_y) {
-    save_y = y; 
+    save_y = y;
     y = 10;
   }
 
@@ -16,7 +16,7 @@ int main() {
   printf("Doing some other work");
   change_y--;
 
-  if (!change_y) 
+  if (!change_y)
     y = save_y; // WARN
 
   return 0;
