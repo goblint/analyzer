@@ -33,5 +33,6 @@ __VERIFIER_nondet2(unsigned short, ushort)
 // void* __VERIFIER_nondet_pointer() { void* val; return val; }
 __VERIFIER_nondet2(void*, pointer)
 
-void __VERIFIER_atomic_begin() { } // TODO: use atomic marker in Goblint
-void __VERIFIER_atomic_end() { } // TODO: use atomic marker in Goblint
+// atomics are now special in Goblint
+// void __VERIFIER_atomic_begin() { }
+// void __VERIFIER_atomic_end() { }

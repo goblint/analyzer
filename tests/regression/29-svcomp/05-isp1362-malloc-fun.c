@@ -1,4 +1,5 @@
-// SKIP
+// PARAM: --set exp.malloc.wrappers "['ldv_malloc']"
+
 #include <stdlib.h>
 
 typedef unsigned long __kernel_ulong_t;

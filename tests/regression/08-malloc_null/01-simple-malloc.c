@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']"
 #include <stdlib.h>
 
 void *smalloc(size_t x){
