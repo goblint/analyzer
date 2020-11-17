@@ -42,17 +42,23 @@ sig
   val invalidate_value: Q.ask -> typ -> t -> t
 end
 
+module AllocOrigin = IntDomain.MakeBooleans (
+  struct
+    let truename = "MallocOrigin"
+    let falsename = "CallocOrigin"
+  end)
+
 module Blob (Value: S) (Size: IntDomain.S)=
 struct
   let name () = "blob"
-  include Lattice.Prod3 (Value) (Size) (Basetype.Strings)
+  include Lattice.Prod3 (Value) (Size) (AllocOrigin)
   type value = Value.t
   type size = Size.t
-  type origin = Basetype.Strings.t
+  type origin = AllocOrigin.t
   let printXml f (x,y, z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y
 
-  let make v s = v, s, `Lifted " "
+  let make v s = v, s, true
   let value (a, b, c) = a 
   let size (a, b, c) = b 
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
@@ -399,13 +405,13 @@ struct
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | `Blob (x,s,o), y
     | y, `Blob (x,s,o) -> 
-      (match o with
-      | `Lifted "Malloc" -> `Blob (join (x:t) y, s, o)
-      | `Lifted "Calloc" ->
-          (match x with
-            | `Bot -> `Blob (y, s, o)
-            | _ -> `Blob (join (x:t)  y, s, o)) 
-      | _-> `Top )
+      if o then
+        `Blob (join (x:t) y, s, o) (* the origin is malloc *)
+      else 
+        (match x with  (* the origin is calloc *)
+          | `Bot -> `Blob (y, s, o)  (* nothing was assigned before, so in the case of calloc there is an initial 0 *)
+          | _ -> `Blob (join (x:t)  y, s, o)
+        )
     | _ ->
       warn_type "join" x y;   
       `Top
@@ -934,5 +940,5 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
   ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
-and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = Basetype.Strings.t = Blob (Compound) (ID) 
+and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = AllocOrigin.t = Blob (Compound) (ID) 
 and Lists: ListDomain.S with type elem = AD.t = ListDomain.SimpleList (AD)
