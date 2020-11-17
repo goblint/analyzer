@@ -84,4 +84,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis ~dep:["threadid"] (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)
