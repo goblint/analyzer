@@ -1,4 +1,5 @@
-(** Thread-id analyses. *)
+(** Thread creation and uniqueness analyses. *)
+
 open Prelude.Ana
 open Analyses
 

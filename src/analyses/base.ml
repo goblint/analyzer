@@ -1,4 +1,4 @@
-(** Value analysis + multi-threadedness analysis.  *)
+(** Value analysis.  *)
 
 open Prelude.Ana
 open Analyses
