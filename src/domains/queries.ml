@@ -24,9 +24,9 @@ struct
   let meet x y = ES_r.join x y
 end
 
-module VI = Lattice.Flat (Basetype.Variables) (struct 
+module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
-  let bot_name = "Unreachable line" 
+  let bot_name = "Unreachable line"
 end)
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
@@ -173,6 +173,7 @@ struct
     | `ExprSet n ->  ES.isSimple n
     | `ExpTriples n ->  PS.isSimple n
     | `TypeSet n -> TS.isSimple n
+    | `Varinfo n -> VI.isSimple n
     | _ -> true
 
   let pretty () x = pretty_f short () x
@@ -190,6 +191,7 @@ struct
     | (`ExprSet x, `ExprSet y) -> ES.leq x y
     | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
     | (`TypeSet x, `TypeSet y) -> TS.leq x y
+    | (`Varinfo x, `Varinfo y) -> VI.leq x y
     | _ -> false
 
   let join x y =
@@ -204,6 +206,7 @@ struct
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.join x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.join x y)
+      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.join x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -219,6 +222,7 @@ struct
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.meet x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.meet x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)
+      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.meet x y)
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 
@@ -234,6 +238,7 @@ struct
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)
+      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.widen x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -245,6 +250,7 @@ struct
     | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)
     | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
     | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
+    | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.narrow x y)
     | (x,_) -> x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
