@@ -10,7 +10,11 @@ module Thread = ConcDomain.Thread
 module ThreadLifted = ConcDomain.ThreadLifted
 
 let get_current ctx: ThreadLifted.t =
-  Obj.obj (List.assoc "threadid" ctx.presub)
+  match ctx.ask Queries.CurrentThreadId with
+  | `Varinfo v -> v
+  | `Top -> `Top
+  | `Bot -> `Bot
+  | _ -> failwith "ThreadId.get_current"
 
 let get_current_unlift ctx: Thread.t =
   match get_current ctx with
@@ -61,8 +65,8 @@ struct
     ctx.local
 
   let query ctx x =
-    (* TODO: thread ID query *)
     match x with
+    | Queries.CurrentThreadId -> `Varinfo ctx.local
     | _ -> `Top
 
   let is_unique ctx =

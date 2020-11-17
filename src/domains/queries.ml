@@ -45,6 +45,7 @@ type t = ExpEq of exp * exp
        | IsPublic of varinfo
        | SingleThreaded
        | IsNotUnique
+       | CurrentThreadId
        | EvalFunvar of exp
        | EvalInt of exp
        | EvalStr of exp
