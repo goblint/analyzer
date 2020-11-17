@@ -26,6 +26,7 @@ let vips = ref ([]: string list)
 
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
+let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType))
 
 module type SpecParam =
 sig
@@ -157,10 +158,13 @@ struct
     | Queries.IsPublic _ when Lockset.is_bot ctx.local -> `Bool false
     | Queries.IsPublic v ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      let lambda_v = ctx.global v in
-      let intersect = Mutexes.inter held_locks lambda_v in
-      let tv = Mutexes.is_empty intersect in
-      `Bool (tv)
+      if Mutexes.mem verifier_atomic held_locks then
+        `Bool false
+      else
+        let lambda_v = ctx.global v in
+        let intersect = Mutexes.inter held_locks lambda_v in
+        let tv = Mutexes.is_empty intersect in
+        `Bool tv
     | _ -> Queries.Result.top ()
 
   let may_race (ctx1,ac1) (ctx,ac2) =
@@ -186,13 +190,21 @@ struct
 
   let return ctx exp fundec : D.t =
     begin match exp with
-      | Some exp ->
-        access_one_top ctx false false exp;
-        ctx.local
-      | None -> ctx.local
-    end
+      | Some exp -> access_one_top ctx false false exp
+      | None -> ()
+    end;
+    (* deprecated but still valid SV-COMP convention for atomic block *)
+    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
+      Lockset.remove (verifier_atomic, true) ctx.local
+    else
+      ctx.local
 
-  let body ctx f : D.t = ctx.local
+  let body ctx f : D.t =
+    (* deprecated but still valid SV-COMP convention for atomic block *)
+    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
+      Lockset.add (verifier_atomic, true) ctx.local
+    else
+      ctx.local
 
   let special ctx lv f arglist : D.t =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
@@ -245,6 +257,10 @@ struct
       Lockset.remove (console_sem,true) ctx.local
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ctx.local
+    | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
+      Lockset.add (verifier_atomic, true) ctx.local
+    | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
+      Lockset.remove (verifier_atomic, true) ctx.local
     | _, x ->
       let arg_acc act =
         match LF.get_threadsafe_inv_ac x with

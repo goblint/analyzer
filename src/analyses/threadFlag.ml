@@ -80,8 +80,8 @@ struct
     create_tid f
 
   let threadspawn ctx lval f args fctx =
-    Flag.join ctx.local (Flag.get_main ())
+    Flag.get_main ()
 end
 
 let _ =
-  MCP.register_analysis ~dep:["threadid"] (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

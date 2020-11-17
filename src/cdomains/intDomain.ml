@@ -226,10 +226,16 @@ struct
     | Some ik -> try Some (Size.range ik |> f) with Size.Not_in_int64 -> None
 
   let starting ?ikind n =
-    norm @@ Some (n, range_opt snd ikind |? max_int)
+    (* Our top is limited to min_int, max_int, and as we meet with values returned by this function (and ending),
+       we should return top if n is out of the range represented by top *)
+    if n < min_int || n > max_int
+      then top ()
+      else norm @@ Some (n, range_opt snd ikind |? max_int)
 
   let ending ?ikind n =
-    norm @@ Some (range_opt fst ikind |? min_int, n)
+    if n < min_int || n > max_int
+      then top ()
+      else norm @@ Some (range_opt fst ikind |? min_int, n)
 
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
@@ -260,7 +266,15 @@ struct
       let ur = if Int64.compare max_int x2 = 0 then y2 else x2 in
       norm @@ Some (lr,ur)
 
+  (* Returns top if one of a, b is top, otherwise return result *)
+  let on_top_return_top_bin a b result =
+    if is_top a || is_top b then top () else result
+
+  let on_top_return_top_un a result =
+    if is_top a then top () else result
+
   let log f i1 i2 =
+    on_top_return_top_bin i1 i2 @@
     match is_bot i1, is_bot i2 with
     | true, true -> bot ()
     | true, _
@@ -274,6 +288,7 @@ struct
   let logand = log (&&)
 
   let log1 f i1 =
+    on_top_return_top_un i1 @@
     if is_bot i1 then
       bot ()
     else
@@ -284,6 +299,7 @@ struct
   let lognot = log1 not
 
   let bit f i1 i2 =
+    on_top_return_top_bin i1 i2 @@
     match is_bot i1, is_bot i2 with
     | true, true -> bot ()
     | true, _
@@ -309,9 +325,10 @@ struct
   let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y))
   let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
 
-  let neg = function None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
+  let neg x = on_top_return_top_un x @@ match x with None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
 
   let add x y =
+    on_top_return_top_bin x y @@
     match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
@@ -319,7 +336,9 @@ struct
 
   let sub i1 i2 = add i1 (neg i2)
 
-  let rem x y = match x, y with
+  let rem x y =
+    on_top_return_top_bin x y @@
+    match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (xl, xu), Some (yl, yu) ->
@@ -342,16 +361,21 @@ struct
         meet (bit Int64.rem x y) range
 
   let mul x y =
-    match x, y with
-    | None, None -> bot ()
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
-    | Some (x1,x2), Some (y1,y2) ->
-      let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
-      let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
-      norm @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
-                    (max (max x1y1 x1y2) (max x2y1 x2y2)))
+    if (is_top x || is_top y) && to_int x <> Some 0L && to_int y <> Some 0L then
+      (* if one of the argument is zero, the result must be zero, even if the value is outside the range of Interval32 *)
+      top ()
+    else
+      match x, y with
+      | None, None -> bot ()
+      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+      | Some (x1,x2), Some (y1,y2) ->
+        let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
+        let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
+        norm @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
+                      (max (max x1y1 x1y2) (max x2y1 x2y2)))
 
   let rec div x y =
+    on_top_return_top_bin x y @@
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))

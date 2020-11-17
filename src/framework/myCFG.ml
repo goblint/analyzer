@@ -110,6 +110,8 @@ let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)
 let dummy_node = FunctionEntry Cil.dummyFunDec.svar
 
+let all_array_index_exp : exp = CastE(TInt(Cilfacade.ptrdiff_ikind (),[]), unknown_exp)
+
 let getLoc (node: node) =
   match node with
   | Statement stmt -> get_stmtLoc stmt.skind
@@ -375,19 +377,23 @@ let getGlobalInits (file: file) : (edge * location) list  =
       doInit (addOffsetLval offs lval) loc init is_zero;
       lval
     in
-    let rec zero_index = function
-      | Index (e,o) -> Index (zero, zero_index o)
-      | Field (f,o) -> Field (f, zero_index o)
+    let rec all_index = function
+      | Index (e,o) -> Index (all_array_index_exp, all_index o)
+      | Field (f,o) -> Field (f, all_index o)
       | NoOffset -> NoOffset
     in
-    let zero_index (lh,offs) = lh, zero_index offs in
+    let all_index (lh,offs) = lh, all_index offs in
     match init with
     | SingleInit exp ->
       let assign lval = Assign (lval, exp), loc in
       (* This is an optimization so that we don't get n*m assigns for a zero-initialized array a[n][m]
          TODO This is only sound for our flat array domain. Change this once we use others. *)
-      if not (fast_global_inits && is_zero && Hashtbl.mem inits (assign (zero_index lval))) then
+      if (not fast_global_inits) || (not is_zero) then
         Hashtbl.add inits (assign lval) ()
+      else if not (Hashtbl.mem inits (assign (all_index lval))) then
+        Hashtbl.add inits (assign (all_index lval)) ()
+      else
+        ()
     | CompoundInit (typ, lst) ->
       let ntyp = match typ, lst with
         | TArray(t, None, attr), [] -> TArray(t, Some zero, attr) (* set initializer type to t[0] for flexible array members of structs that are intialized with {} *)

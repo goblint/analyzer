@@ -68,7 +68,7 @@ let option_spec_list =
   in
   let oil file =
     set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "['base','threadid','threadflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']";
+    set_auto "ana.activated" "['base','threadid','threadflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag','mallocWrapper']";
     set_auto "mainfun" "[]"
   in
   let configure_html () =
@@ -229,7 +229,7 @@ let preprocess_files () =
   if get_bool "custom_libc" then
     cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
 
-  if get_bool "ana.sv-comp" then
+  if get_bool "ana.sv-comp.functions" then
     cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)

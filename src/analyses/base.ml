@@ -95,7 +95,11 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
-  let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
+  let heap_var ctx =
+    let info = match (ctx.ask Q.HeapVar) with
+      | `Varinfo (`Lifted vinfo) -> vinfo
+      | _ -> failwith("Ran without a malloc analysis.") in
+    info
 
 
   let tasks_var_ref = ref dummyFunDec.svar
@@ -105,8 +109,7 @@ struct
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    tasks_var_ref := Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType);
-    H.clear BaseDomain.heap_hash
+    tasks_var_ref := Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -123,8 +126,8 @@ struct
     | LNot -> ID.lognot
 
   (* Evaluating Cil's unary operators. *)
-  let evalunop op = function
-    | `Int v1 -> `Int (unop_ID op v1)
+  let evalunop op typ = function
+    | `Int v1 -> `Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
     | `Bot -> `Bot
     | _ -> VD.top ()
 
@@ -150,7 +153,7 @@ struct
     | _ -> (fun x y -> (ID.top ()))
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value): value =
+  let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t_ret: typ): value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -204,7 +207,7 @@ struct
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
-    | `Int v1, `Int v2 -> `Int (binop_ID op v1 v2)
+    | `Int v1, `Int v2 -> `Int (ID.cast_to (Cilfacade.get_ikind t_ret) (binop_ID op v1 v2))
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -689,28 +692,28 @@ struct
           v'
         (* Binary operators *)
         (* Eq/Ne when both values are equal and casted to the same type *)
-        | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), t) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
+        | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
           let a1 = eval_rv a gs st e1 in
           let a2 = eval_rv a gs st e2 in
           let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
           let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) && not both_arith_type in
           M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
           if is_safe then (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
-            eval_rv a gs st (BinOp (op, e1, e2, t))
+            eval_rv a gs st (BinOp (op, e1, e2, typ))
           else
             let a1 = eval_rv a gs st c1 in
             let a2 = eval_rv a gs st c2 in
-            evalbinop op t1 a1 t2 a2
+            evalbinop op t1 a1 t2 a2 typ
         | BinOp (op,arg1,arg2,typ) ->
           let a1 = eval_rv a gs st arg1 in
           let a2 = eval_rv a gs st arg2 in
           let t1 = typeOf arg1 in
           let t2 = typeOf arg2 in
-          evalbinop op t1 a1 t2 a2
+          evalbinop op t1 a1 t2 a2 typ
         (* Unary operators *)
         | UnOp (op,arg1,typ) ->
           let a1 = eval_rv a gs st arg1 in
-          evalunop op a1
+          evalunop op typ a1
         (* The &-operator: we create the address abstract element *)
         | AddrOf lval -> `Address (eval_lv a gs st lval)
         (* CIL's very nice implicit conversion of an array name [a] to a pointer
@@ -1409,8 +1412,15 @@ struct
           x
       in
       let meet_bin a' b'  = ID.meet a a', ID.meet b b' in
-      let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
-      let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
+      let meet_com oi = (* commutative *)
+        try
+          meet_bin (oi c b) (oi c a)
+        with
+          IntDomain.ArithmeticOnIntegerBot _ -> raise Deadcode in
+      let meet_non oi oo = (* non-commutative *)
+        try
+          meet_bin (oi c b) (oo a c)
+        with IntDomain.ArithmeticOnIntegerBot _ -> raise Deadcode in
       function
       | PlusA  -> meet_com ID.sub
       | Mult   ->
@@ -1493,6 +1503,10 @@ struct
           | Le, Some false -> meet_bin (ID.starting ~ikind (Int64.succ l2)) (ID.ending ~ikind (Int64.pred u1))
           | _, _ -> a, b)
         | _ -> a, b)
+      | BOr | BXor as op->
+        if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
+        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+        a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
         a, b
@@ -1523,9 +1537,12 @@ struct
           let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
           let a', b' = inv_bin_int (a, b) ikind c op in
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
-          let m1 = inv_exp a' e1 in
-          let m2 = inv_exp b' e2 in
-          CPA.meet m1 m2
+          let m1 = try Some (inv_exp a' e1) with Deadcode -> None in
+          let m2 = try Some (inv_exp b' e2) with Deadcode -> None in
+          (match m1, m2 with
+          | Some m1, Some m2 -> CPA.meet m1 m2
+          | Some m, None | None, Some m -> m
+          | None, None -> raise Deadcode)
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
       | Lval x -> (* meet x with c *)
@@ -2080,9 +2097,9 @@ struct
         match lv with
         | Some lv ->
           let heap_var =
-            if (get_bool "exp.malloc-fail")
-            then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
-            else heap_var !Tracing.current_loc
+            if (get_bool "exp.malloc.fail")
+            then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
+            else AD.from_var (heap_var ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
@@ -2092,9 +2109,13 @@ struct
     | `Calloc size ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
+          let heap_var = heap_var ctx in
+          let add_null addr =
+            if get_bool "exp.malloc.fail"
+            then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
+            else addr in
+          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+                                  (eval_lv ctx.ask gs st lv, `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset)))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
@@ -2217,5 +2238,4 @@ module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  (* TODO: remove threadid dependency via query *)
-  MCP.register_analysis ~dep:["threadid"] (module Main : Spec)
+  MCP.register_analysis ~dep:["threadid";"mallocWrapper"] (module Main : Spec)
