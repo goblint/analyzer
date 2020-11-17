@@ -8,9 +8,9 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = Lattice.Flat (Basetype.ProgLines) (struct 
+  module PL = Lattice.Flat (Basetype.ProgLines) (struct
     let top_name = "Unknown line"
-    let bot_name = "Unreachable line" 
+    let bot_name = "Unreachable line"
   end)
 
   let name () = "mallocWrapper"
@@ -50,7 +50,8 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let otherstate v = D.top ()
+  let threadenter ctx f args = D.top ()
+  let threadspawn ctx f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
   let heap_hash = Hashtbl.create 113
@@ -65,7 +66,7 @@ struct
 
   let query ctx (q:Q.t) : Q.Result.t =
     match q with
-    | Q.HeapVar -> 
+    | Q.HeapVar ->
       let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
       | _ -> MyCFG.getLoc ctx.node in
