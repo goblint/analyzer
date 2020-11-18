@@ -225,6 +225,7 @@ struct
     | `ExprSet x -> "`ExprSet"
     | `ExpTriples x -> "`ExpTriples"
     | `TypeSet x -> "`TypeSet"
+    | `Varinfo x -> "`Varinfo"
     | `Bot -> "`Bot"
 
 

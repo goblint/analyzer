@@ -1,13 +1,6 @@
-extern int __VERIFIER_nondet_int();
-
 #include<pthread.h>
 
-void foo(int (*callback)()) {
-  for (int i = 0; i < 10; i++) {
-    if (__VERIFIER_nondet_int())
-      callback();
-  }
-}
+extern void foo(int (*callback)());
 
 
 int glob;

@@ -1,11 +1,11 @@
-//PARAM: --set ana.activated "['base','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']" --sets ana.osek.oil 07-flags.oil --sets ana.osek.flags[+] flag
+//PARAM: --set ana.activated "['base','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --sets ana.osek.oil 07-flags.oil --sets ana.osek.flags[+] flag
 
 int flag = 0;
 int var = 0;
 int x = 0;
 int y = 0;
 
-ISR(high) 
+ISR(high)
 {
   GetResource(r);
   ReleaseResource(r);

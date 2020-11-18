@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets otherfun "['f']" --set ana.activated "['base','escape']"
+// SKIP PARAM: --sets otherfun "['f']" --set ana.activated "['base','escape','mallocWrapper']"
 
 int glob1 = 5;
 

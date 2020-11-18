@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape']"
+// PARAM: --set ana.activated "['base','escape','mallocWrapper']"
 extern void f_everything_up();
 
 struct s {
@@ -24,5 +24,3 @@ int main(){
 	assert(fp == &hello);// UNKNOWN
 	return 0;
 }
-
-
