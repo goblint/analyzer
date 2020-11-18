@@ -6,12 +6,11 @@ module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
 
-let is_multi_ask (ask: Queries.ask): bool =
+let is_multi (ask: Queries.ask): bool =
   match ask Queries.SingleThreaded with
   | `Bool b -> not b
   | `Top -> true
-  | _ -> failwith "is_multi_ask"
-let is_multi ctx: bool = is_multi_ask ctx.ask
+  | _ -> failwith "ThreadFlag.is_multi"
 
 
 module Spec =
