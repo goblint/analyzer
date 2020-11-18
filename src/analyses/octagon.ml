@@ -135,7 +135,7 @@ struct
           | exp ->
             let const = evaluate_exp ctx.local exp in
             let oct = D.erase var1 ctx.local in
-            if not (INV.is_top const) then
+            if not (INV.is_top_of (OctagonDomain.IKind.ikind ()) const) then
               D.set_constraint (var1, None, CT.Upper, INV.maximal const |> Option.get)
                 (D.set_constraint (var1, None, CT.Lower, INV.minimal const |> Option.get)
                    oct), true
@@ -240,7 +240,7 @@ struct
     match exp with
     | Some e ->
         let inv = evaluate_exp ctx.local e in
-        if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
+        if not (INV.is_top_of (ikind ()) inv) then (* Add interval for f if there is a known interval *)
           D.set_constraint (return_varinfo (), None, CT.Upper, INV.maximal inv |> Option.get) (D.set_constraint (return_varinfo (), None, CT.Lower, INV.minimal inv |> Option.get) start)
         else
           start
@@ -271,7 +271,7 @@ struct
         | _ -> oct
       in
       let inv = evaluate_exp ctx.local exp in
-      if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
+      if not (INV.is_top_of (ikind ()) inv) then (* Add interval for f if there is a known interval *)
         D.set_constraint (f, None, CT.Upper, INV.maximal inv |> Option.get) (D.set_constraint (f, None, CT.Lower, INV.minimal inv |> Option.get) oct_with_eq)
       else
         oct_with_eq
@@ -287,7 +287,7 @@ struct
     | Some (Var v, NoOffset) ->
         let retval = evaluate_exp after (Lval ((Var (return_varinfo ())), NoOffset)) in
         let oct = D.erase v ctx.local in
-        if not (INV.is_top retval) then
+        if not (INV.is_top_of (ikind ()) retval) then
           D.set_constraint (v, None, CT.Upper, INV.maximal retval |> Option.get)
             (D.set_constraint (v, None, CT.Lower, INV.minimal retval |> Option.get)
                 oct)

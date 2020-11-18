@@ -22,10 +22,11 @@ module MatrixCache = struct
   include Hashtbl.Make (Lattice.Prod (L) (L))
 end
 
+
+let ikind = OctagonDomain.IKind.ikind
 module Liszt (B: Lattice.S) =
 struct
   include Lattice.Liszt (B)
-
 
   let rec map2 keep f x y =
     let concat elt ls = if keep then elt::ls else ls in
@@ -122,7 +123,7 @@ module E = struct
   let leq (lsign, lvar, linv) (rsign, rvar, rinv) =
     lsign = rsign && BV.equal lvar rvar && INV.leq linv rinv
 
-  let is_top (_, _, inv) = INV.is_top inv
+  let is_top (_, _, inv) = INV.is_top_of (ikind ()) inv
 end
 
 
@@ -131,6 +132,8 @@ module MapOctagon : S
   with type key = BV.t
 = struct
   include MapDomain.MapTop (BV) (VD)
+
+  let ikind = OctagonDomain.IKind.ikind
 
   (* TODO: choose ikind dynamically *)
   let print_oct oct =
@@ -172,20 +175,20 @@ module MapOctagon : S
       if cmp = 0 then
         begin
           let inv = construct_inv inv2 in
-          if INV.is_top inv then
+          if INV.is_top_of (ikind ()) inv then
             xs
           else
             (sign, v, inv) :: xs
         end
       else if cmp < 0 then
-        if INV.is_top inv then
+        if  INV.is_top_of (ikind ()) inv then
           ls (* no prexisting constraint on these two vars -> adding top is pointless *)
         else
           (sign, v, inv) :: ls
       else
         x :: (set_constraint_list (sign, v, side, value) xs)
     | [] ->
-      if INV.is_top inv then
+      if INV.is_top_of (ikind ()) inv then
         [] (* no prexisting constraint on these two vars -> adding top is pointless *)
       else
         [(sign, v, inv)]
@@ -607,7 +610,11 @@ module MapOctagon : S
     iter add_constraints oct;
     matrix, vars
 
-  let big_int_of_float x = Big_int_Z.big_int_of_string (Float.to_string x)
+  let big_int_of_float x =
+    let float_str = Float.to_string x in
+    let dot_index = String.index float_str '.' in
+    let integer_str = String.sub float_str 0 dot_index in
+    Big_int_Z.big_int_of_string integer_str
 
   let matrix_to_map matrix vars =
     let inv_vars = Hashtbl.create (Hashtbl.length vars) in
@@ -668,7 +675,7 @@ module MapOctagon : S
   let use_matrix_closure = true
 
   let remove_empty = filter (fun var (const, consts) ->
-      not (INV.is_top const) || not ((List.length consts) = 0))
+      not (INV.is_top_of (ikind ()) const) || not ((List.length consts) = 0))
 
   let strong_closure oct =
     if use_matrix_closure then

@@ -1,7 +1,7 @@
 module BI = IntOps.BigIntOps
 
-module ILongLongIkind = struct let ikind () = Cil.ILongLong end
-module INV : IntDomain.Y with type int_t = BI.t = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.Interval)) (ILongLongIkind)
+module IKind = struct let ikind () = Cil.ILongLong end
+module INV : IntDomain.Y with type int_t = BI.t = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.Interval)) (IKind)
 
   type elt = | Val of float | Infinity
   [@@deriving yojson]
