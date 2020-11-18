@@ -62,8 +62,8 @@ struct
   type value = Value.t
   type size = Size.t
   type origin = AllocOrigin.t
-  let printXml f (x,y, z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y
+  let printXml f (x, y, z) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y AllocOrigin.printXml z
 
   let make v s = v, s, true
   let value (a, b, c) = a 
@@ -853,7 +853,7 @@ struct
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
-          let x2 = if orig then
+          let x = if orig then
             x  (* the origin is malloc *)
           else 
             match x with  (* the origin is calloc *)
@@ -866,7 +866,7 @@ struct
       | `Blob (x,s,orig),_ ->
         begin
           let l', o' = shift_one_over l o in
-          let x2 = if orig then
+          let x = if orig then
             x (* the origin is malloc *)
           else 
             match x with  (* the origin is calloc *)
@@ -943,14 +943,14 @@ struct
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
             match x with
-            | `Array x' ->
-              (match t with
-                | TArray(t1 ,_,_) ->
-                  let e = determine_offset ask l o exp (Some v) in
-                  let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t1 in
-                  let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
-                  `Array new_array_value
-                | _ ->  M.warn "Trying to update an array, but the type was not array"; top ())
+            | `Array x' -> 
+              let t = (match t with
+              | TArray(t1 ,_,_) -> t1
+              | _ -> t) in (* This is necessay because t is not a TArray in case of calloc *)
+              let e = determine_offset ask l o exp (Some v) in
+              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
+              let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
+              `Array new_array_value
             | `Bot ->
               let x' = CArrays.bot () in
               let e = determine_offset ask l o exp (Some v) in
