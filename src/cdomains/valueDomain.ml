@@ -51,8 +51,8 @@ end
 
 module AllocOrigin = IntDomain.MakeBooleans (
   struct
-    let truename = "MallocOrigin"
-    let falsename = "CallocOrigin"
+    let truename = "Malloc"
+    let falsename = "Calloc"
   end)
 
 module Blob (Value: S) (Size: IntDomain.S)=
