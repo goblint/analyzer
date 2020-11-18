@@ -101,15 +101,10 @@ struct
       | _ -> failwith("Ran without a malloc analysis.") in
     info
 
-
-  let tasks_var_ref = ref dummyFunDec.svar
-  let tasks_var () = !tasks_var_ref
-
   let init () =
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    tasks_var_ref := Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
+    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -1882,33 +1877,6 @@ struct
     in
     match LF.classify f.vname args with
     (* handling thread creations *)
-    (* TODO: move LAP_Se_* out of base? *)
-    | `Unknown "LAP_Se_SetPartitionMode" when List.length args = 2 -> begin
-        let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
-        match ctx.ask (Queries.EvalInt mode) with
-        | `Int i when i=3L ->
-          let a = match ctx.global (tasks_var ()) with `Address a -> a | _ -> AD.empty () in
-          let r = AD.to_var_may a |> List.filter_map (create_thread None) in
-          ctx.sideg (tasks_var ()) (`Address (AD.empty ()));
-          ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
-          r
-        | _ -> []
-      end
-    | `Unknown "LAP_Se_CreateProcess"
-    | `Unknown "LAP_Se_CreateErrorHandler" -> begin
-        match List.map (fun x -> stripCasts (constFold false x)) args with
-        (* | [proc_att;AddrOf id;AddrOf r] -> (* CreateProcess *) *)
-        (* | [entry_point;stack_size;AddrOf r] -> (* CreateErrorHandler *) *)
-        | [entry_point; _; AddrOf r] -> (* both *)
-          let pa = eval_fv ctx.ask ctx.global ctx.local entry_point in
-          let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
-          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
-          let a = match ctx.global (tasks_var ()) with `Address a -> a | _ -> AD.empty () in
-          ctx.sideg (tasks_var ()) (`Address (List.map AD.from_var reach_fs |> List.fold_left AD.join a));
-          (* List.filter_map (create_thread None) reach_fs *)
-          []
-        | _ -> []
-      end
     | `ThreadCreate (start,ptc_arg) -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
         publish_all ctx;
@@ -2075,14 +2043,6 @@ struct
         | Some x -> assign ctx x (List.hd args)
         | None -> ctx.local
       end
-    (* handling thread creations *)
-    (*       | `Unknown "LAP_Se_CreateProcess" -> begin
-              match List.map (fun x -> stripCasts (constFold false x)) args with
-                | [_;AddrOf id;AddrOf r] ->
-                    let cpa,_ = invalidate ctx.ask ctx.global ctx.local [Lval id; Lval r] in
-                      cpa, fl
-                | _ -> raise Deadcode
-              end *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
@@ -2222,7 +2182,6 @@ module type MainSpec = sig
   val return_varinfo: unit -> Cil.varinfo
   type extra = (varinfo * Offs.t * bool) list
   val context_cpa: D.t -> BaseDomain.CPA.t
-  val tasks_var: unit -> varinfo
 end
 
 module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
