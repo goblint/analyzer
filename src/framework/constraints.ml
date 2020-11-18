@@ -213,7 +213,6 @@ struct
 
   let startstate v = (S.startstate v, !start_level)
   let exitstate  v = (S.exitstate  v, !start_level)
-  (* let otherstate v = (S.otherstate v, !start_level) *)
   let morphstate v (d,l) = (S.morphstate v d, l)
 
   let val_of d = (S.val_of d, !error_level)
@@ -237,6 +236,7 @@ struct
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
 
   let lift ctx d = (d, snd ctx.local)
+  let lift_start_level d = (d, !start_level)
 
   let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
@@ -250,8 +250,7 @@ struct
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args fc es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es))
 
-  (* TODO: use start_level *)
-  let threadenter ctx lval f args = lift_fun ctx (lift ctx) S.threadenter ((|>) args % (|>) f % (|>) lval)
+  let threadenter ctx lval f args = lift_fun ctx lift_start_level S.threadenter ((|>) args % (|>) f % (|>) lval)
   let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let leq0 = function
@@ -352,7 +351,6 @@ struct
 
   let startstate = inj S.startstate
   let exitstate  = inj S.exitstate
-  (* let otherstate = inj S.otherstate *)
   let morphstate v (d,m) = S.morphstate v d, m
 
   let val_of (c,m) =
@@ -418,7 +416,6 @@ struct
   (* copied from WidenContextLifter... *)
   let conv ctx =
     { ctx with local = fst ctx.local
-             (* ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) ) *)
              ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
@@ -975,7 +972,6 @@ struct
 
   let should_join x y = true
 
-  (* let otherstate v = D.singleton (Spec.otherstate v) *)
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
   let morphstate v d = D.map (Spec.morphstate v) d
@@ -992,7 +988,6 @@ struct
   let conv ctx x =
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            (* ; spawn = (fun v -> ctx.spawn v % D.singleton ) *)
                             ; split = (ctx.split % D.singleton) }
     and query x = Spec.query ctx' x in
     ctx'

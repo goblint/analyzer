@@ -300,7 +300,6 @@ struct
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)
-    (* TODO: implement threadenter *)
     let rec ctx' = { ctx with ask   = query
                             ; local = x
                             ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }

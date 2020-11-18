@@ -20,7 +20,7 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
   let body ctx (f:fundec) : D.t =  ctx.local
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    let tid = ThreadId.get_current ctx in
+    let tid = ThreadId.get_current ctx.ask in
     begin match tid with
       | `Lifted tid -> ctx.sideg tid (false, TS.bot (), not (D.is_empty ctx.local))
       | _ -> ()
@@ -74,13 +74,13 @@ struct
   let query ctx (q: Queries.t) =
     match q with
     | Queries.IsNotUnique -> begin
-        let tid = ThreadId.get_current ctx in
+        let tid = ThreadId.get_current ctx.ask in
         match tid with
         | `Lifted tid -> `Bool (is_not_unique ctx tid)
         | _ -> `Bool (true)
       end
     | Queries.NotSingleThreaded -> begin
-        let tid = ThreadId.get_current ctx in
+        let tid = ThreadId.get_current ctx.ask in
         match tid with
         | `Lifted {vname="main"; _} -> `Bool (not (D.is_empty ctx.local))
         | _ -> `Bool (true)
@@ -90,8 +90,8 @@ struct
   let startstate v = D.bot ()
   let threadenter ctx lval f args = D.bot ()
   let threadspawn ctx lval f args fctx =
-    let creator = ThreadId.get_current ctx in
-    let tid = ThreadId.get_current_unlift fctx in
+    let creator = ThreadId.get_current ctx.ask in
+    let tid = ThreadId.get_current_unlift fctx.ask in
     let repeated = D.mem tid ctx.local in
     let eff =
       match creator with

@@ -6,12 +6,11 @@ module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
 
-let is_multi_ask (ask: Queries.ask): bool =
+let is_multi (ask: Queries.ask): bool =
   match ask Queries.NotSingleThreaded with
   | `Bool b -> b
   | `Top -> true
-  | _ -> failwith "is_multi_ask"
-let is_multi ctx: bool = is_multi_ask ctx.ask
+  | _ -> failwith "ThreadFlag.is_multi"
 
 
 module Spec =
@@ -70,7 +69,7 @@ struct
 
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
-    if is_multi ctx then
+    if is_multi ctx.ask then
       (Access.LSSSet.singleton es, es)
     else
       (* kill access when single threaded *)

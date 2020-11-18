@@ -106,7 +106,7 @@ struct
   let fname_ctx ctx f = f.vname ^ "_" ^ (match Ctx.to_int ctx with Some i -> i |> i64_to_int |> CtxTbl.get |> string_of_int | None -> "TOP")
 
   let is_single ctx =
-    not (ThreadFlag.is_multi ctx)
+    not (ThreadFlag.is_multi ctx.ask)
   let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
