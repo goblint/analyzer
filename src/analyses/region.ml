@@ -146,8 +146,8 @@ struct
     | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match f.vname with
-    | "malloc" | "calloc" | "kmalloc"| "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
+    match LibraryFunctions.classify f.vname arglist with
+    | `Malloc _ | `Calloc _ -> begin
         match ctx.local, lval with
         | `Lifted reg, Some lv ->
           let old_regpart = get_regpart ctx in
