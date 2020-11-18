@@ -1,5 +1,7 @@
 open Cil
 open Pretty
+open GobConfig
+
 module ID = IntDomain.IntDomTuple
 module IndexDomain = ID
 module AD = AddressDomain.AddressSet (IndexDomain)
@@ -27,6 +29,11 @@ sig
   val smart_join: (exp -> int64 option) -> (exp -> int64 option) -> t -> t ->  t
   val smart_widen: (exp -> int64 option) -> (exp -> int64 option) ->  t -> t -> t
   val smart_leq: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
+  val is_immediate_type: typ -> bool
+  val bot_value: typ -> t
+  val init_value: typ -> t
+  val top_value2: typ -> t
+  val zero_init_value: typ -> t
 end
 
 module type Blob =
@@ -89,6 +96,100 @@ struct
     | `List of Lists.t
     | `Bot
   ] [@@deriving to_yojson]
+
+  let is_mutex_type (t: typ): bool = match t with
+  | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
+  | TInt (IInt, attr) -> hasAttribute "mutex" attr
+  | _ -> false
+
+  let is_immediate_type t = is_mutex_type t || isFunctionType t
+
+  let rec bot_value (t: typ): t =
+    let bot_comp compinfo: Structs.t =
+      let nstruct = Structs.top () in
+      let bot_field nstruct fd = Structs.replace nstruct fd (bot_value fd.ftype) in
+      List.fold_left bot_field nstruct compinfo.cfields
+    in
+    match t with
+    | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
+    | TPtr _ -> `Address (AD.bot ())
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (bot_comp ci)
+    | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
+    | TArray (ai, None, _) ->
+      `Array (CArrays.make (IndexDomain.bot ()) (bot_value ai))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.bot ()) l) (bot_value ai))
+    | TNamed ({ttype=t; _}, _) -> bot_value t
+    | _ -> `Bot
+  
+  let rec init_value (t: typ): t = (* VD.top_value is not used here because structs, blob etc will not contain the right members *)
+    let init_comp compinfo: Structs.t =
+      let nstruct = Structs.top () in
+      let init_field nstruct fd = Structs.replace nstruct fd (init_value fd.ftype) in
+      List.fold_left init_field nstruct compinfo.cfields
+    in
+    match t with
+    | t when is_mutex_type t -> `Top
+    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
+    | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
+    | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
+    | TArray (ai, None, _) ->
+      `Array (CArrays.make (IndexDomain.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+    | TNamed ({ttype=t; _}, _) -> init_value t
+    | _ -> `Top
+  
+  let rec top_value2 (t: typ): t =
+    let top_comp compinfo: Structs.t =
+      let nstruct = Structs.top () in
+      let top_field nstruct fd = Structs.replace nstruct fd (top_value2 fd.ftype) in
+      List.fold_left top_field nstruct compinfo.cfields
+    in
+    match t with
+    | TInt _ -> `Int (ID.top ())
+    | TPtr _ -> `Address AD.top_ptr
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
+    | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
+    | TArray (ai, None, _) ->
+      `Array (CArrays.make (IndexDomain.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value2 ai) else (bot_value ai)))
+    | TArray (ai, Some exp, _) ->
+      let l = Cil.isInteger (Cil.constFold true exp) in
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value2 ai) else (bot_value ai)))
+    | TNamed ({ttype=t; _}, _) -> top_value2 t
+    | _ -> `Top
+  
+  
+    let rec zero_init_value (t:typ): t =
+      let zero_init_comp compinfo: Structs.t =
+        let nstruct = Structs.top () in
+        let zero_init_field nstruct fd = Structs.replace nstruct fd (zero_init_value fd.ftype) in
+        List.fold_left zero_init_field nstruct compinfo.cfields
+      in
+      match t with
+      | TInt (ikind, _) -> `Int (ID.of_int 0L)
+      | TPtr _ -> `Address AD.null_ptr
+      | TComp ({cstruct=true; _} as ci,_) -> `Struct (zero_init_comp ci)
+      | TComp ({cstruct=false; _} as ci,_) ->
+        let v = try
+          (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
+          let firstmember = List.hd ci.cfields in
+          `Lifted firstmember, zero_init_value firstmember.ftype
+        with
+          (* Union with no members ò.O *)
+          Failure _ -> Unions.top ()
+        in
+        `Union(v)
+      | TArray (ai, None, _) ->
+        `Array (CArrays.make (IndexDomain.top ()) (zero_init_value ai))
+      | TArray (ai, Some exp, _) ->
+        let l = Cil.isInteger (Cil.constFold true exp) in
+        `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.top ()) l) (zero_init_value ai))
+      | TNamed ({ttype=t; _}, _) -> zero_init_value t
+      | _ -> `Top
 
   let tag_name : t -> string = function
     | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Bot -> "Bot"
@@ -404,14 +505,7 @@ struct
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | `Blob (x,s,o), y
-    | y, `Blob (x,s,o) -> 
-      if o then
-        `Blob (join (x:t) y, s, o) (* the origin is malloc *)
-      else 
-        (match x with  (* the origin is calloc *)
-          | `Bot -> `Blob (y, s, o)  (* nothing was assigned before, so in the case of calloc there is an initial 0 *)
-          | _ -> `Blob (join (x:t)  y, s, o)
-        )
+    | y, `Blob (x,s,o) -> `Blob (join (x:t) y, s, o) 
     | _ ->
       warn_type "join" x y;   
       `Top
@@ -759,11 +853,27 @@ struct
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
+          let x2 = if orig then
+            x  (* the origin is malloc *)
+          else 
+            match x with  (* the origin is calloc *)
+              | `Bot ->  (* nothing was assigned before, so in the case of calloc there is an initial 0 *)
+                zero_init_value t
+              | _ -> x
+             in 
           mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
         end
       | `Blob (x,s,orig),_ ->
         begin
           let l', o' = shift_one_over l o in
+          let x2 = if orig then
+            x (* the origin is malloc *)
+          else 
+            match x with  (* the origin is calloc *)
+              | `Bot ->  (* nothing was assigned before, so in the case of calloc there is an initial 0 *)
+                zero_init_value t
+              | _ -> x
+             in
           mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
         end
       | _ ->
