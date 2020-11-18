@@ -351,7 +351,6 @@ struct
 
   let startstate = inj S.startstate
   let exitstate  = inj S.exitstate
-  (* let otherstate = inj S.otherstate *)
   let morphstate v (d,m) = S.morphstate v d, m
 
   let val_of (c,m) =
@@ -417,7 +416,6 @@ struct
   (* copied from WidenContextLifter... *)
   let conv ctx =
     { ctx with local = fst ctx.local
-             (* ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) ) *)
              ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
@@ -974,7 +972,6 @@ struct
 
   let should_join x y = true
 
-  (* let otherstate v = D.singleton (Spec.otherstate v) *)
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
   let morphstate v d = D.map (Spec.morphstate v) d
@@ -991,7 +988,6 @@ struct
   let conv ctx x =
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            (* ; spawn = (fun v -> ctx.spawn v % D.singleton ) *)
                             ; split = (ctx.split % D.singleton) }
     and query x = Spec.query ctx' x in
     ctx'
