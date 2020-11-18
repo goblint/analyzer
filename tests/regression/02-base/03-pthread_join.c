@@ -19,7 +19,7 @@ int main() {
 
   // Join the thread
   pthread_join(id, (void**) &i);
-  assert(i == 7); // UNKNOWN, maybe some day...
+  assert(i == 7);
   printf("%d\n", i);
 
   // Another test
