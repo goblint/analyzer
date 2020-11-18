@@ -829,14 +829,22 @@ struct
             let l', o' = shift_one_over l o in
             match x with
             | `Array x' ->
+              let t' = match t with
+                | TArray (t,_, _) -> t
+                | _ -> t
+              in
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
+              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t' in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Bot ->
+              let t' = match t with
+              | TArray (t,_, _) -> t
+              | _ -> t
+              in
               let x' = CArrays.bot () in
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
+              let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t' in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
