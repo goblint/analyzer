@@ -213,7 +213,6 @@ struct
 
   let startstate v = (S.startstate v, !start_level)
   let exitstate  v = (S.exitstate  v, !start_level)
-  (* let otherstate v = (S.otherstate v, !start_level) *)
   let morphstate v (d,l) = (S.morphstate v d, l)
 
   let val_of d = (S.val_of d, !error_level)
@@ -237,6 +236,7 @@ struct
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
 
   let lift ctx d = (d, snd ctx.local)
+  let lift_start_level d = (d, !start_level)
 
   let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
@@ -250,8 +250,7 @@ struct
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args fc es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es))
 
-  (* TODO: use start_level *)
-  let threadenter ctx f args = lift_fun ctx (lift ctx) S.threadenter ((|>) args % (|>) f)
+  let threadenter ctx f args = lift_fun ctx lift_start_level S.threadenter ((|>) args % (|>) f)
   let threadspawn ctx f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f)
 
   let leq0 = function
