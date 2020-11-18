@@ -245,6 +245,7 @@ sig
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
   val of_interval: Cil.ikind -> int_t * int_t -> t
+  val is_top_of: Cil.ikind -> t -> bool
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -267,6 +268,8 @@ sig
 
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
+
+  val is_top_of: Cil.ikind -> t -> bool
 end
 (** The signature of integral value domains keeping track of ikind information *)
 

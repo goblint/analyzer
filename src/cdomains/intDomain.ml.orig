@@ -124,7 +124,6 @@ sig
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
-  val is_top_of: Cil.ikind -> t -> bool
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -139,7 +138,6 @@ sig
 
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
-  val is_top_of: Cil.ikind -> t -> bool
 end
 
 module type Z = Y with type int_t = IntOps.BigIntOps.t
@@ -213,8 +211,6 @@ struct
   let meet _ik = Old.meet
   let narrow _ik = Old.narrow
   let widen _ik = Old.widen
-
-  let is_top_of _ik = Old.is_top
 
 end
 
@@ -320,8 +316,6 @@ struct
   let logor = lift2 I.logor
 
   let cast_to ?torg ikind x = {v = I.cast_to ?torg ikind x.v; ikind}
-
-  let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
 end
 
@@ -533,11 +527,25 @@ struct
     | None -> None
     | Some ik -> Some (Ints_t.of_bigint @@ f @@ Size.range_big_int ik)
 
+<<<<<<< HEAD
   let starting ik n =
     (norm ik) @@ Some (n, range_opt snd (Some ik) |? (max_int ik))
 
   let ending ik n =
     norm ik @@ Some (range_opt fst (Some ik) |? min_int ik, n)
+=======
+  let starting ?ikind n =
+    (* Our top is limited to min_int, max_int, and as we meet with values returned by this function (and ending),
+       we should return top if n is out of the range represented by top *)
+    if n < min_int || n > max_int
+      then top ()
+      else norm @@ Some (n, range_opt snd ikind |? max_int)
+
+  let ending ?ikind n =
+    if n < min_int || n > max_int
+      then top ()
+      else norm @@ Some (range_opt fst ikind |? min_int, n)
+>>>>>>> master
 
   (* TODO: change signarue of maximal, minimal to return big_int*)
   let maximal = function None -> None | Some (x,y) -> Some y
@@ -569,7 +577,19 @@ struct
       let ur = if Ints_t.compare (max_int ik) x2 = 0 then y2 else x2 in
       norm ik @@ Some (lr,ur)
 
+<<<<<<< HEAD
   let log f ik i1 i2 =
+=======
+  (* Returns top if one of a, b is top, otherwise return result *)
+  let on_top_return_top_bin a b result =
+    if is_top a || is_top b then top () else result
+
+  let on_top_return_top_un a result =
+    if is_top a then top () else result
+
+  let log f i1 i2 =
+    on_top_return_top_bin i1 i2 @@
+>>>>>>> master
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
     | true, _
@@ -582,7 +602,12 @@ struct
   let logor = log (||)
   let logand = log (&&)
 
+<<<<<<< HEAD
   let log1 f ik i1 =
+=======
+  let log1 f i1 =
+    on_top_return_top_un i1 @@
+>>>>>>> master
     if is_bot i1 then
       bot_of ik
     else
@@ -592,7 +617,12 @@ struct
 
   let lognot = log1 (fun _ik -> not)
 
+<<<<<<< HEAD
   let bit f ik i1 i2 =
+=======
+  let bit f i1 i2 =
+    on_top_return_top_bin i1 i2 @@
+>>>>>>> master
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
     | true, _
@@ -618,19 +648,36 @@ struct
   let shift_right = bit (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
   let shift_left  = bit (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
 
+<<<<<<< HEAD
   let neg ik = function None -> None | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
 
   let add ik x y = match x, y with
   | None, None -> None
   | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
   | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2)
+=======
+  let neg x = on_top_return_top_un x @@ match x with None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
+
+  let add x y =
+    on_top_return_top_bin x y @@
+    match x, y with
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | Some (x1,x2), Some (y1,y2) -> norm @@ Some (Int64.add x1 y1, Int64.add x2 y2)
+>>>>>>> master
 
   let sub ik x y = match x, y with
   | None, None -> None
   | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
   | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.sub x1 y2, Ints_t.sub x2 y1) (* y1, y2 are in different order here than in add *)
 
+<<<<<<< HEAD
   let rem ik x y = match x, y with
+=======
+  let rem x y =
+    on_top_return_top_bin x y @@
+    match x, y with
+>>>>>>> master
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
     | Some (xl, xu), Some (yl, yu) ->
@@ -652,6 +699,7 @@ struct
         let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, min xu b) else Some (max xl (Ints_t.neg b), min xu b) in
         meet ik (bit (fun _ik -> Ints_t.rem) ik x y) range
 
+<<<<<<< HEAD
   let mul ik x y =
     match x, y with
     | None, None -> bot ()
@@ -663,6 +711,24 @@ struct
                       (max (max x1y1 x1y2) (max x2y1 x2y2)))
 
   let rec div ik x y =
+=======
+  let mul x y =
+    if (is_top x || is_top y) && to_int x <> Some 0L && to_int y <> Some 0L then
+      (* if one of the argument is zero, the result must be zero, even if the value is outside the range of Interval32 *)
+      top ()
+    else
+      match x, y with
+      | None, None -> bot ()
+      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+      | Some (x1,x2), Some (y1,y2) ->
+        let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
+        let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
+        norm @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
+                      (max (max x1y1 x1y2) (max x2y1 x2y2)))
+
+  let rec div x y =
+    on_top_return_top_bin x y @@
+>>>>>>> master
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
@@ -2015,7 +2081,6 @@ module IntDomTupleImpl = struct
   (* exists/for_all *)
   let is_bot = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
   let is_top = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top }
-  let is_top_of ik = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top_of ik }
   let is_int = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_int }
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
