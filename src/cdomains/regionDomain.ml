@@ -258,7 +258,5 @@ struct
     | None -> Messages.warn "Access to unknown address could be global"; []
 end
 
-module Equ = MusteqDomain.Equ
-module LD  = Lattice.Prod (Equ) (RegMap)
-
-module RegionDom = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)
+(* TODO: remove Lift *)
+module RegionDom = Lattice.Lift (RegMap) (struct let top_name = "Unknown" let bot_name = "Error" end)
