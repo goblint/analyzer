@@ -21,7 +21,7 @@ int main(void) {
   myglobal=myglobal+1; // RACE
   pthread_mutex_unlock(&mutex);
   for (i=0; i<9; i++)
-    pthread_join(&id[i], NULL, t_fun, NULL);
+    pthread_join(id[i], NULL);
   myglobal=myglobal+1; // RACE!
   return 0;
 }
