@@ -11,6 +11,15 @@ void *t_fun2(void *arg) {
   return NULL;
 }
 
+int foo() {
+  return 4;
+}
+
+void *t_fun3(void *arg) {
+  foo();
+  return (void*) 11;
+}
+
 int glob1 = 5;
 int glob2 = 7;
 
@@ -33,6 +42,14 @@ int main() {
   // Join the thread 2
   pthread_join(id, (void**) &i);
   assert(i == 9);
+  printf("%d\n", i);
+
+  // Create the thread 3
+  pthread_create(&id, NULL, t_fun3, NULL);
+
+  // Join the thread 3
+  pthread_join(id, (void**) &i);
+  assert(i == 11);
   printf("%d\n", i);
 
   // Another test
