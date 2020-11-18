@@ -18,7 +18,7 @@ sig
   include Lattice.S
   type offs
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
-  val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
+  val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
@@ -746,19 +746,19 @@ struct
     in
     do_eval_offset ask f x offs exp l o v
 
-  let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval): t =
-    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval):t =
+  let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
+    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
       let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
       match x, offs with
       | `Blob (x,s), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
-          mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v), s))
+          mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s))
         end
       | `Blob (x,s),_ ->
         begin
           let l', o' = shift_one_over l o in
-          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v), s))
+          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s))
         end
       | _ ->
       let result =
@@ -770,11 +770,12 @@ struct
             | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
+            let t = fld.ftype in
             match x with
             | `Struct str ->
               begin
                 let l', o' = shift_one_over l o in
-                let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v in
+                let value' =  (do_update_offset ask (Structs.get str fld) offs value exp l' o' v t) in
                 `Struct (Structs.replace str fld value')
               end
             | `Bot ->
@@ -785,11 +786,12 @@ struct
               in
               let strc = init_comp fld.fcomp in
               let l', o' = shift_one_over l o in
-              `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v))
+              `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v t))
             | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
+            let t = fld.ftype in
             let l', o' = shift_one_over l o in
             match x with
             | `Union (last_fld, prev_val) ->
@@ -818,8 +820,8 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v)
-            | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v)
+              `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
+            | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v t)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
@@ -828,17 +830,17 @@ struct
             match x with
             | `Array x' ->
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v in
+              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Bot ->
               let x' = CArrays.bot () in
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v in
+              let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v
+            | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result
@@ -847,7 +849,7 @@ struct
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
       | _ -> None, None
     in
-    do_update_offset ask x offs value exp l o v
+    do_update_offset ask x offs value exp l o v t
 
   let rec affect_move ?(replace_with_const=false) ask (x:t) (v:varinfo) movement_for_expr:t =
     let move_fun x = affect_move ~replace_with_const:replace_with_const ask x v movement_for_expr in
