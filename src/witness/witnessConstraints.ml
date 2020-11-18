@@ -167,8 +167,16 @@ struct
     include Spec.D
     (* assumes Hashcons inside PathSensitive *)
     let to_int = tag
+    let name () = "D"
+    let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
   end
-  module VI = Printable.Prod3 (Node) (Spec.C) (I)
+  module CC =
+  struct
+    include Spec.C
+    let name () = "C"
+    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c
+  end
+  module VI = Printable.Prod3 (Node) (CC) (I)
   module VIE =
   struct
     include Printable.Prod (VI) (Edge)
@@ -195,7 +203,7 @@ struct
 
   module R = VIES
 
-  module D =
+  module Dom =
   struct
     include HoareMap (Spec.D) (R)
 
@@ -255,6 +263,18 @@ struct
         Spec.D.invariant c d
   end
 
+  (* Additional dependencies component between values before and after sync.
+   * This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
+   * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
+  module SyncSet = SetDomain.Hoare (Spec.D) (struct let topname = "Sync Hoare top" end)
+  module Sync = HoareMap (Spec.D) (SyncSet)
+  module D =
+  struct
+    include Lattice.Prod (Dom) (Sync)
+
+    let printXml f (d, _) = Dom.printXml f d
+  end
+
   module G = Spec.G
   module C = Spec.C
 
@@ -265,44 +285,48 @@ struct
 
   let should_join x y = true
 
-  let otherstate v = D.singleton (Spec.otherstate v) (R.bot ())
-  let exitstate  v = D.singleton (Spec.exitstate  v) (R.bot ())
-  let startstate v = D.singleton (Spec.startstate v) (R.bot ())
-  let morphstate v d = D.map (Spec.morphstate v) d
+  let otherstate v = (Dom.singleton (Spec.otherstate v) (R.bot ()), Sync.bot ())
+  let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
+  let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
+  let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot())
 
   let call_descr = Spec.call_descr
 
-  let val_of c = D.singleton (Spec.val_of c) (R.bot ())
-  let context l =
-    if D.cardinal l <> 1 then
+  let val_of c = (Dom.singleton (Spec.val_of c) (R.bot ()), Sync.bot ())
+  let context (l, _) =
+    if Dom.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."
     else
-      Spec.context @@ D.choose l
+      Spec.context @@ Dom.choose l
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            ; spawn = (fun v -> ctx.spawn v % (fun x -> D.singleton x (R.bot ())) ) (* TODO: use enter-like behavior for spawn, as in WitnessLifter *)
-                            ; split = (ctx.split % (fun x -> D.singleton x (R.bot ()))) }
+                            ; spawn = (fun v -> ctx.spawn v % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ())) ) (* TODO: use enter-like behavior for spawn, as in WitnessLifter *)
+                            ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }
     and query x = Spec.query ctx' x in
     ctx'
 
   let step n c i e = R.singleton (`Lifted ((n, c, i), e))
+  let step n c i e sync =
+    SyncSet.fold (fun xsync acc ->
+        R.join acc (step n c xsync e)
+      ) (Sync.find i sync) (R.bot ())
   let step_ctx ctx x e =
     try
-      step ctx.prev_node (ctx.context ()) x e
+      step ctx.prev_node (ctx.context ()) x e (snd ctx.local)
     with Ctx_failure _ ->
       R.bot ()
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
 
   let map ctx f g =
     let h x xs =
-      try D.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
+      try Dom.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
       with Deadcode -> xs
     in
-    let d = D.fold h ctx.local (D.empty ()) in
-    if D.is_bot d then raise Deadcode else d
+    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) in
+    if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
   let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
   let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
@@ -319,43 +343,49 @@ struct
       try h a @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
-    let d = D.fold k ctx.local a in
-    if D.is_bot d then raise Deadcode else d
+    let d = Dom.fold k (fst ctx.local) a in
+    if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
   let fold' ctx f g h a =
     let k x a =
       try h a x @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
-    D.fold k ctx.local a
+    Dom.fold k (fst ctx.local) a
 
   let fold'' ctx f g h a =
     let k x r a =
       try h a x r @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
-    D.fold' k ctx.local a
+    Dom.fold' k (fst ctx.local) a
 
   let sync ctx =
-    (* TODO: no idea if this is right *)
-    fold'' ctx Spec.sync identity (fun (a,b) _ r (a',b') -> D.add a' r a, b'@b) (D.empty (), [])
+    fold'' ctx Spec.sync identity (fun ((a, async),b) x r (a',b') ->
+        (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async), b'@b
+      ) ((Dom.empty (), Sync.bot ()), [])
 
   let query ctx q =
     match q with
     | Queries.IterPrevVars f ->
-      D.iter' (fun x r ->
+      Dom.iter' (fun x r ->
           R.iter (function
               | `Lifted ((n, c, j), e) ->
                 f (I.to_int x) (n, Obj.repr c, I.to_int j) e
               | `Bot ->
                 failwith "PathSensitive3.query: range contains bot"
             ) r
-        ) ctx.local;
+        ) (fst ctx.local);
+      (* check that sync mappings don't leak into solution (except Function) *)
+      begin match ctx.node with
+        | Function _ -> () (* returns post-sync in FromSpec *)
+        | _ -> assert (Sync.is_bot (snd ctx.local));
+      end;
       `Bot
     | Queries.IterVars f ->
-      D.iter' (fun x r ->
+      Dom.iter' (fun x r ->
           f (I.to_int x)
-        ) ctx.local;
+        ) (fst ctx.local);
       `Bot
     | _ ->
       fold' ctx Spec.query identity (fun x _ f -> Queries.Result.meet x (f q)) `Top
@@ -376,7 +406,8 @@ struct
             else
               R.bot ()
           in
-          (D.singleton x (R.bot ()), D.singleton y yr)
+          (* keep left syncs so combine gets them for no-inline case *)
+          ((Dom.singleton x (R.bot ()), snd ctx.local), (Dom.singleton y yr, Sync.bot ()))
         ) ys
       in
       ys' @ xs
@@ -384,20 +415,22 @@ struct
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
   let combine ctx l fe f a fc d =
-    assert (D.cardinal ctx.local = 1);
-    let cd = D.choose ctx.local in
+    assert (Dom.cardinal (fst ctx.local) = 1);
+    let cd = Dom.choose (fst ctx.local) in
     let k x y =
       let r =
         if should_inline f then
-          step (Function f) fc x (InlineReturn l)
+          let nosync = (Sync.singleton x (SyncSet.singleton x)) in
+          (* returns already post-sync in FromSpec *)
+          step (Function f) fc x (InlineReturn l) nosync
         else
           step_ctx_edge ctx cd
       in
-      try D.add (Spec.combine (conv ctx cd) l fe f a fc x) r y
+      try Dom.add (Spec.combine (conv ctx cd) l fe f a fc x) r y
       with Deadcode -> y
     in
-    let d = D.fold k d (D.bot ()) in
-    if D.is_bot d then raise Deadcode else d
+    let d = Dom.fold k (fst d) (Dom.bot ()) in
+    if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
   let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())

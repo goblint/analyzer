@@ -16,3 +16,6 @@ dd220cf089efd7dfb022e6dbc9a00749a5f72cb2
 
 # fix indentation with ocp-indent
 8d6897f0f2fdd86c19da1aa2c6ed1f21b27f7a6e
+
+# begin/end has no highlighting and end is shared with struct
+823626143828e0612687dffd3c93df69904a97b6

@@ -1,6 +1,9 @@
 {
   "ana": {
-    "sv-comp": true,
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
     "int": {
       "def_exc": true,
       "enums": false,
@@ -8,6 +11,7 @@
     },
     "activated": [
       "base",
+      "mallocWrapper",
       "mutex",
       "escape",
       "expRelation",
@@ -22,7 +26,18 @@
     "partition-arrays": {
       "enabled": true
     },
-    "region-offsets": true
+    "region-offsets": true,
+    "malloc": {
+      "wrappers": [
+        "kmalloc",
+        "__kmalloc",
+        "usb_alloc_urb",
+        "__builtin_alloca",
+        "kzalloc",
+
+        "ldv_malloc"
+      ]
+    }
   },
   "solver": "td3"
 }

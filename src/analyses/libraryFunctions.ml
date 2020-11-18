@@ -398,7 +398,10 @@ let invalidate_actions = ref [
     "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
-    "__VERIFIER_nondet_int", readsAll (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
+    "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
+    (* no args, declare invalidate actions to prevent invalidating globals *)
+    "__VERIFIER_atomic_begin", readsAll;
+    "__VERIFIER_atomic_end", readsAll
   ]
 let add_invalidate_actions xs = invalidate_actions := xs @ !invalidate_actions
 
@@ -451,7 +454,7 @@ let get_threadsafe_inv_ac name =
 
 
 
-let lib_funs = ref (Set.String.of_list ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_trylock"; "spin_unlock_irqrestore"])
+let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_trylock"; "spin_unlock_irqrestore"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 

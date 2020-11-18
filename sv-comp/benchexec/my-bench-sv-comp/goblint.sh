@@ -3,7 +3,7 @@
 shopt -s extglob
 
 MYBENCHDIR=/home/simmo/benchexec/my-bench-sv-comp
-RESULTSDIR=$MYBENCHDIR/new-results2-addr-to-exp-fix
+RESULTSDIR=$MYBENCHDIR/new-results7-region-no-xml
 GOBLINTPARALLEL=1 # not enough memory for more
 VALIDATEPARALLEL=1 # not enough memory for more
 

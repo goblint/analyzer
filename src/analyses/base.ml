@@ -111,13 +111,16 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
-  let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
+  let heap_var ctx =
+    let info = match (ctx.ask Q.HeapVar) with
+      | `Varinfo (`Lifted vinfo) -> vinfo
+      | _ -> failwith("Ran without a malloc analysis.") in
+    info
 
   let init () =
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    H.clear BaseDomain.heap_hash
+    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -134,8 +137,8 @@ struct
     | LNot -> ID.lognot
 
   (* Evaluating Cil's unary operators. *)
-  let evalunop op = function
-    | `Int v1 -> `Int (unop_ID op v1)
+  let evalunop op typ = function
+    | `Int v1 -> `Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
     | `Bot -> `Bot
     | _ -> VD.top ()
 
@@ -169,15 +172,40 @@ struct
     let bool_top ik = ID.(join (of_int ik BI.zero) (of_int ik BI.one)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
+      let typeOffsetOpt o t =
+        try
+          Some (typeOffset t o)
+        with Errormsg.Error ->
+          None
+      in
       (* adds n to the last offset *)
-      let rec addToOffset n = function
+      let rec addToOffset n (t:typ option) = function
         | `Index (i, `NoOffset) ->
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
-        | `Index (i, o) -> `Index(i, addToOffset n o)
-        | `Field (f, o) -> `Field(f, addToOffset n o)
+        | `Field (f, `NoOffset) ->
+          (* If we have arrived at the last Offset and it is a Field,
+           * then check if we're subtracting exactly its offsetof.
+           * If so, n cancels out f exactly.
+           * This is to better handle container_of hacks. *)
+          let n_offset = iDtoIdx n in
+          begin match t with
+            | Some t ->
+              let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
+              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int (f_offset_bits / 8)) in
+              begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
+                | Some true -> `NoOffset
+                | _ -> `Field (f, `Index (n_offset, `NoOffset))
+              end
+            | None -> `Field (f, `Index (n_offset, `NoOffset))
+          end
+        | `Index (i, o) ->
+          let t' = BatOption.bind t (typeOffsetOpt (Index (integer 0, NoOffset))) in (* actual index value doesn't matter for typeOffset *)
+          `Index(i, addToOffset n t' o)
+        | `Field (f, o) ->
+          let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
+          `Field(f, addToOffset n t' o)
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
-        | x -> x
       in
       let default = function
         | Addr.NullPtr when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
@@ -185,7 +213,7 @@ struct
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_var_offset addr with
-      | [x, o] -> Addr.from_var_offset (x, addToOffset n o)
+      | [x, o] -> Addr.from_var_offset (x, addToOffset n (Some x.vtype) o)
       | _ -> default addr
     in
     (* The main function! *)
@@ -642,7 +670,14 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
+        | Lval ((Var v, ofs) as b) ->
+          let t = typeOfLval b in
+          let p = eval_lv a gs st b in
+          let v = get a gs st p (Some exp) in
+          let v' = VD.cast t v in
+          M.tracel "cast" "Var: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+          let v' = do_offs v' ofs in
+          v'
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
@@ -689,28 +724,28 @@ struct
           v'
         (* Binary operators *)
         (* Eq/Ne when both values are equal and casted to the same type *)
-        | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), t) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
+        | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
           let a1 = eval_rv a gs st e1 in
           let a2 = eval_rv a gs st e2 in
           let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
           let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) && not both_arith_type in
           M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
           if is_safe then (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
-            eval_rv a gs st (BinOp (op, e1, e2, t))
+            eval_rv a gs st (BinOp (op, e1, e2, typ))
           else
             let a1 = eval_rv a gs st c1 in
             let a2 = eval_rv a gs st c2 in
-            evalbinop op t1 a1 t2 a2 t
-        | BinOp (op,arg1,arg2,t) ->
+            evalbinop op t1 a1 t2 a2 typ
+        | BinOp (op,arg1,arg2,typ) ->
           let a1 = eval_rv a gs st arg1 in
           let a2 = eval_rv a gs st arg2 in
           let t1 = typeOf arg1 in
           let t2 = typeOf arg2 in
-          evalbinop op t1 a1 t2 a2 t
+          evalbinop op t1 a1 t2 a2 typ
         (* Unary operators *)
         | UnOp (op,arg1,typ) ->
           let a1 = eval_rv a gs st arg1 in
-          evalunop op a1
+          evalunop op typ a1
         (* The &-operator: we create the address abstract element *)
         | AddrOf lval -> `Address (eval_lv a gs st lval)
         (* CIL's very nice implicit conversion of an array name [a] to a pointer
@@ -1085,9 +1120,6 @@ struct
      * not include the flag. *)
     let update_one_addr (x, offs) (nst, fl, dep): store =
       let cil_offset = Offs.to_cil_offset offs in
-      let t = match t_override with
-        | Some t -> t
-        | None -> Cil.typeOf (Lval(Var x, cil_offset)) in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
@@ -1114,13 +1146,13 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t) nst, fl, dep
+          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset)) nst, fl, dep
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) t in
+        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -1417,11 +1449,26 @@ struct
           x
       in
       let meet_bin a' b'  = ID.meet a a', ID.meet b b' in
-      let meet_com oi    = meet_bin (oi c b) (oi c a) in (* commutative *)
-      let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
+      let meet_com oi = (* commutative *)
+        try
+          meet_bin (oi c b) (oi c a)
+        with
+          IntDomain.ArithmeticOnIntegerBot _ -> raise Deadcode in
+      let meet_non oi oo = (* non-commutative *)
+        try
+          meet_bin (oi c b) (oo a c)
+        with IntDomain.ArithmeticOnIntegerBot _ -> raise Deadcode in
       function
       | PlusA  -> meet_com ID.sub
-      | Mult   -> meet_com ID.div (* Div is ok here, c must be divisible by a and b *)
+      | Mult   ->
+        (* Only multiplication with odd numbers is an invertible operation in (mod 2^n) *)
+        (* refine x by information about y, using x * y == c *)
+        let refine_by x y = (match ID.to_int y with
+          | None -> x
+          | Some v when BI.equal (BI.rem v (BI.of_int 2)) BI.zero (* v % 2 = 0 *) -> x (* A refinement would still be possible here, but has to take non-injectivity into account. *)
+          | Some v (* when Int64.rem v 2L = 1L *) -> ID.meet x (ID.div c y)) (* Div is ok here, c must be divisible by a and b *)
+        in
+        (refine_by a b, refine_by b a)
       | MinusA -> meet_non ID.add ID.sub
       | Div    ->
         (* If b must be zero, we have must UB *)
@@ -1495,6 +1542,10 @@ struct
           | Le, Some false -> meet_bin (ID.starting ikind (succ l2)) (ID.ending ikind (pred u1))
           | _, _ -> a, b)
         | _ -> a, b)
+      | BOr | BXor as op->
+        if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
+        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+        a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
         a, b
@@ -1525,9 +1576,12 @@ struct
           let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
           let a', b' = inv_bin_int (a, b) ikind c op in
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
-          let m1 = inv_exp a' e1 in
-          let m2 = inv_exp b' e2 in
-          CPA.meet m1 m2
+          let m1 = try Some (inv_exp a' e1) with Deadcode -> None in
+          let m2 = try Some (inv_exp b' e2) with Deadcode -> None in
+          (match m1, m2 with
+          | Some m1, Some m2 -> CPA.meet m1 m2
+          | Some m, None | None, Some m -> m
+          | None, None -> raise Deadcode)
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
       | Lval x -> (* meet x with c *)
@@ -1662,9 +1716,8 @@ struct
         | `Bot -> (* current value is VD `Bot *)
           (match Addr.to_var_offset (AD.choose lval_val) with
           | [(x,offs)] ->
-            let t = v.vtype in
             let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
-            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
             set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
           | _ ->
             set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
@@ -2091,9 +2144,9 @@ struct
         match lv with
         | Some lv ->
           let heap_var =
-            if (get_bool "exp.malloc-fail")
-            then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
-            else heap_var !Tracing.current_loc
+            if (get_bool "exp.malloc.fail")
+            then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
+            else AD.from_var (heap_var ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
@@ -2103,9 +2156,13 @@ struct
     | `Calloc size ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))))]
+          let heap_var = heap_var ctx in
+          let add_null addr =
+            if get_bool "exp.malloc.fail"
+            then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
+            else addr in
+          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+                                  (eval_lv ctx.ask gs st lv, `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
@@ -2251,4 +2308,4 @@ module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis (module Main : Spec)
+  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : Spec)

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','uninit']" 
+// PARAM: --set ana.activated "['base','escape','uninit','mallocWrapper']"
 typedef union {
 	union {
 		struct {

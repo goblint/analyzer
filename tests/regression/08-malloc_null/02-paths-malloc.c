@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','malloc_null']"
+// PARAM: --set ana.activated "['base','escape','malloc_null','mallocWrapper']"
 #include <stdlib.h>
 #include <stdio.h>
 

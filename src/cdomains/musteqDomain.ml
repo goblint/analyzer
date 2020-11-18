@@ -23,6 +23,8 @@ module Equ =
 struct
   include MapDomain.MapTop (P) (F)
 
+  let name () = "musteq"
+
   let pretty_f short () mapping =
     let f (v1,v2) st dok: doc =
       dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 F.pretty st in

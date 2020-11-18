@@ -20,7 +20,7 @@ struct
         )
       }
     and key_invariant_lval k offset lval v vs =
-      if not (InvariantCil.var_is_tmp k) && not (VS.mem k vs) then
+      if not (InvariantCil.var_is_tmp k) && InvariantCil.var_is_in_scope c.scope k && not (VS.mem k vs) then
         let vs' = VS.add k vs in
         let key_context = {(context vs') with offset; lval=Some lval} in
         VD.invariant key_context v
@@ -28,7 +28,8 @@ struct
         Invariant.none
     in
 
-    let key_invariant k v = key_invariant_lval k NoOffset (var k) v VS.empty in
+    let key_invariant k v =
+      key_invariant_lval k NoOffset (var k) v VS.empty in
 
     fold (fun k v a ->
         let i =
@@ -46,16 +47,6 @@ struct
   include ConcDomain.SimpleThreadDomain
   let name () = "flag domain"
 end
-
-let heap_hash = Hashtbl.create 113
-
-let get_heap_var loc =
-  try Hashtbl.find heap_hash loc
-  with Not_found ->
-    let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
-    let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-    Hashtbl.add heap_hash loc newvar;
-    newvar
 
 module Glob =
 struct

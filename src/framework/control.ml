@@ -18,10 +18,10 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp") (module HashconsContextLifter)
-            |> lift (get_bool "ana.sv-comp") (module HashconsLifter)
-            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.PathSensitive3)
-            |> lift (not (get_bool "ana.sv-comp")) (module PathSensitive2)
+            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
+            |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
+            |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
+            |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -191,7 +191,15 @@ struct
     in
 
     (* analyze cil's global-inits function to get a starting state *)
-    let do_global_inits (file: file) : Spec.D.t * fundec list =
+    let do_global_inits (file: file) : Spec.D.t * fundec list * (varinfo * Spec.G.t) list =
+      (* Simulate globals before analysis. *)
+      (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
+      let gh = GHT.create 13 in
+      let getg v = GHT.find_default gh v (Spec.G.bot ()) in
+      let sideg v d = GHT.replace gh v (Spec.G.join (getg v) d) in
+      (* Old-style global function for context.
+       * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
+      let getg v = Spec.G.bot () in
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; node    = MyCFG.dummy_node
@@ -200,12 +208,12 @@ struct
         ; context = (fun () -> ctx_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
-        ; global  = (fun _ -> Spec.G.bot ())
+        ; global  = getg
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
-        ; sideg   = (fun _ -> failwith "Global initializers trying to side-effect globals.")
+        ; sideg   = sideg
         ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         }
       in
@@ -214,31 +222,29 @@ struct
       let funs = ref [] in
       (*let count = ref 0 in*)
       let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t =
-        try
-          if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
-          (*incr count;
-            if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-          Tracing.current_loc := loc;
-          match edge with
-          | MyCFG.Entry func        ->
-            if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
-            Spec.body {ctx with local = st} func
-          | MyCFG.Assign (lval,exp) ->
-            if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
-            (match lval, exp with
-              | (Var v,o), (AddrOf (Var f,NoOffset))
-                when v.vstorage <> Static && isFunctionType f.vtype ->
-                (try funs := Cilfacade.getdec f :: !funs with Not_found -> ())
-              | _ -> ()
-            );
-            Spec.assign {ctx with local = st} lval exp
-          | _                       -> raise (Failure "This iz impossible!")
-        with Failure x -> M.warn x; st
+        if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
+        (*incr count;
+          if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
+        Tracing.current_loc := loc;
+        match edge with
+        | MyCFG.Entry func        ->
+          if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
+          Spec.body {ctx with local = st} func
+        | MyCFG.Assign (lval,exp) ->
+          if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
+          (match lval, exp with
+            | (Var v,o), (AddrOf (Var f,NoOffset))
+              when v.vstorage <> Static && isFunctionType f.vtype ->
+              (try funs := Cilfacade.getdec f :: !funs with Not_found -> ())
+            | _ -> ()
+          );
+          Spec.assign {ctx with local = st} lval exp
+        | _                       -> failwith "Unsupported global initializer edge"
       in
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      result, !funs
+      result, !funs, GHT.to_list gh
     in
 
     let print_globals glob =
@@ -250,7 +256,7 @@ struct
     in
 
     (* real beginning of the [analyze] function *)
-    if get_bool "ana.sv-comp" then
+    if get_bool "ana.sv-comp.enabled" then
       WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
@@ -273,7 +279,7 @@ struct
       )
     in
 
-    let startstate, more_funs =
+    let startstate, more_funs, entrystates_global =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
       do_global_inits file
     in
@@ -356,7 +362,7 @@ struct
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Show stats with ctrl+c, quit with ctrl+\\.");
           if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
-          let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
+          let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
             let config = append_opt "save_run" "config.json" in
             let meta = append_opt "save_run" "meta.json" in
@@ -381,7 +387,7 @@ struct
       if get_string "comparesolver" <> "" then (
         let compare_with (module S2 :  GenericGlobSolver) =
           let module S2' = S2 (EQSys) (LHT) (GHT) in
-          let r2 = S2'.solve entrystates [] startvars' in
+          let r2 = S2'.solve entrystates entrystates_global startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
@@ -393,7 +399,7 @@ struct
         Vrfyr.verify lh gh;
       );
 
-      if get_bool "ana.sv-comp" then (
+      if get_bool "ana.sv-comp.enabled" then (
         (* prune already here so local_xml and thus HTML are also pruned *)
         let module Reach = Reachability (EQSys) (LHT) (GHT) in
         Reach.prune lh gh startvars'
@@ -485,7 +491,7 @@ struct
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
-    if get_bool "ana.sv-comp" then
+    if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;
 
     if get_bool "exp.cfgdot" then

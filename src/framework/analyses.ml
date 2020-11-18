@@ -48,7 +48,7 @@ struct
 
   let pretty () x =
     match x with
-    | MyCFG.Statement     s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+    | MyCFG.Statement     s -> dprintf "node %d \"%a\"" s.sid Basetype.CilStmt.pretty s
     | MyCFG.Function      f -> dprintf "call of %s" f.vname
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
 
@@ -116,7 +116,7 @@ struct
 
   let pretty () x =
     match x with
-    | (MyCFG.Statement     s,d) -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+    | (MyCFG.Statement     s,d) -> dprintf "node %d \"%a\"" s.sid Basetype.CilStmt.pretty s
     | (MyCFG.Function      f,d) -> dprintf "call of %s" f.vname
     | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
 

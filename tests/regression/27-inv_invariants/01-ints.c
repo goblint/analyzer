@@ -21,16 +21,16 @@ int main() {
     assert(x == 2 && y == 4);
   if (x == 3 && y/x == 2) {
     assert(y == 6); // UNKNOWN!
-    assert(RANGE(y, 6, 8));
+    assert(RANGE(y, 6, 8)); // UNKNOWN
   }
   if (y/3 == -2)
-    assert(RANGE(y, -8, -6));
+    assert(RANGE(y, -8, -6)); // UNKNOWN
   if (y/-3 == -2)
-    assert(RANGE(y, 6, 8));
+    assert(RANGE(y, 6, 8)); // UNKNOWN
   if (y/x == 2 && x == 3)
     assert(x == 3); // TO-DO y == [6,8]; this does not work because CIL transforms this into two if-statements
   if (2+(3-x)*4/5 == 6 && 2*y >= x+5)
-    assert(RANGE(x, -3, -2) && y >= 1);
+    assert(RANGE(x, -3, -2) && y >= 1); // UNKNOWN
   if (x > 1 && x < 5 && x % 2 == 1) // x = [2,4] && x % 2 = 1 => x = 3
     assert(x == 3);
 
@@ -84,7 +84,7 @@ int main() {
   if (2+(3-xs)*4/5 == 6 && 2*ys >= xs+5) {
     // xs could also be -3
     assert(xs == -2 && ys >= 1); //UNKNOWN!
-    assert(RANGE(xs, -3, -2) && ys >= 1);
+    assert(RANGE(xs, -3, -2) && ys >= 1); // UNKNOWN
   }
   if (xs > 1 && xs < 5 && xs % 2 == 1) {
     assert(xs != 2);
@@ -113,7 +113,7 @@ int main2() {
   if (x == three && y/x == two) {
     // y could for example also be 7
     assert(y == six);  // UNKNOWN!
-    assert(RANGE(y, 6, 8));
+    assert(RANGE(y, 6, 8)); // UNKNOWN
   }
   if (y/x == two && x == three)
     assert(x == three); // TO-DO y == six
@@ -124,13 +124,13 @@ int main2() {
     assert(x != two); // [two,four] -> [three,four] TO-DO x % two == one
 
   if (y/three == -two)
-    assert(RANGE(y, -8, -6));
+    assert(RANGE(y, -8, -6)); // UNKNOWN
   if (y/-three == -two)
-    assert(RANGE(y, 6, 8));
+    assert(RANGE(y, 6, 8)); // UNKNOWN
   if (y/x == two && x == three)
     assert(x == 3); // TO-DO y == [6,8]; this does not work because CIL transforms this into two if-statements
   if (two+(three-x)*four/five == six && two*y >= x+five)
-    assert(RANGE(x, -3, -2) && y >= 1);
+    assert(RANGE(x, -3, -2) && y >= 1); // UNKNOWN
   if (x > one && x < five && x % two == one) // x = [2,4] && x % 2 = 1 => x = 3
     assert(x != 2); // [3,4] TO-DO [3,3]
 
@@ -181,7 +181,7 @@ int main2() {
   if (two+(three-xs)*four/five == six && two*ys >= xs+five) {
     // xs could also be -three
     assert(xs == -two && ys >= one); //UNKNOWN!
-    assert(RANGE(xs, -three, -two) && ys >= one);
+    assert(RANGE(xs, -three, -two) && ys >= one); // UNKNOWN
   }
   if (xs > one && xs < five && xs % two == one) {
     assert(xs != two);
