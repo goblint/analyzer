@@ -37,7 +37,7 @@ struct
            * Note that starting threads have empty ancestor sets! *)
           rep || n > 1 || n > 0 && check_one (TS.choose parents)
         in
-        let tid = ThreadId.get_current ctx in
+        let tid = ThreadId.get_current ctx.ask in
         match tid with
         | `Lifted tid -> `Bool (check_one tid)
         | _ -> `Bool (true)
@@ -47,8 +47,8 @@ struct
   let startstate v = D.bot ()
   let threadenter ctx f args = D.bot ()
   let threadspawn ctx f args fctx =
-    let creator = ThreadId.get_current ctx in
-    let tid = ThreadId.get_current_unlift fctx in
+    let creator = ThreadId.get_current ctx.ask in
+    let tid = ThreadId.get_current_unlift fctx.ask in
     let repeated = D.mem tid ctx.local in
     let eff =
       match creator with

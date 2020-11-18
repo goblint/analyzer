@@ -9,15 +9,15 @@ open Analyses
 module Thread = ConcDomain.Thread
 module ThreadLifted = ConcDomain.ThreadLifted
 
-let get_current ctx: ThreadLifted.t =
-  match ctx.ask Queries.CurrentThreadId with
+let get_current (ask: Queries.ask): ThreadLifted.t =
+  match ask Queries.CurrentThreadId with
   | `Varinfo v -> v
   | `Top -> `Top
   | `Bot -> `Bot
   | _ -> failwith "ThreadId.get_current"
 
-let get_current_unlift ctx: Thread.t =
-  match get_current ctx with
+let get_current_unlift ask: Thread.t =
+  match get_current ask with
   | `Lifted thread -> thread
   | _ -> failwith "ThreadId.get_current_unlift"
 
