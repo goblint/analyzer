@@ -2071,7 +2071,17 @@ struct
       end
     | `Unknown "exit" ->  raise Deadcode
     | `Unknown "abort" -> raise Deadcode
-    | `Unknown "pthread_exit" -> raise Deadcode (* TODO: somehow actually return value, pthread_join doesn't handle anyway? *)
+    | `Unknown "pthread_exit" ->
+      begin match args with
+        | [exp] ->
+          let rv = eval_rv ctx.ask ctx.global ctx.local exp in
+          begin match ThreadId.get_current ctx.ask with
+            | `Lifted tid -> ctx.sideg tid rv
+            | _ -> ()
+          end;
+          raise Deadcode
+        | _ -> failwith "Unknown pthread_exit."
+      end
     | `Unknown "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)

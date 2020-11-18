@@ -6,6 +6,11 @@ void *t_fun(void *arg) {
   return (void*) 7;
 }
 
+void *t_fun2(void *arg) {
+  pthread_exit((void*) 9);
+  return NULL;
+}
+
 int glob1 = 5;
 int glob2 = 7;
 
@@ -20,6 +25,14 @@ int main() {
   // Join the thread
   pthread_join(id, (void**) &i);
   assert(i == 7);
+  printf("%d\n", i);
+
+  // Create the thread 2
+  pthread_create(&id, NULL, t_fun2, NULL);
+
+  // Join the thread 2
+  pthread_join(id, (void**) &i);
+  assert(i == 9);
   printf("%d\n", i);
 
   // Another test
