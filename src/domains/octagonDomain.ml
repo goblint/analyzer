@@ -1,6 +1,6 @@
 module BI = IntOps.BigIntOps
 
-module IKind = struct let ikind () = Cil.ILongLong end
+module IKind = struct let ikind () = Cil.IInt end
 module INV : IntDomain.Y with type int_t = BI.t = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.Interval)) (IKind)
 
   type elt = | Val of float | Infinity
@@ -11,7 +11,7 @@ module INV : IntDomain.Y with type int_t = BI.t = IntDomain.IntDomWithDefaultIki
     | Infinity -> "inf"
     | Val f -> string_of_float f
 
-let oct_ik = Cil.ILongLong
+let oct_ik = IKind.ikind ()
 
 module type S = sig
   include Lattice.S

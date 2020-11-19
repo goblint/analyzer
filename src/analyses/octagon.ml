@@ -4,7 +4,7 @@ open OctagonMapDomain
 open OctagonDomain
 module BV = Basetype.Variables
 
-let oct_ik = Cil.ILongLong
+
 let stripCastsDeep e =
   let v = object
     inherit nopCilVisitor
