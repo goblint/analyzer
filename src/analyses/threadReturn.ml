@@ -3,13 +3,6 @@
 open Prelude.Ana
 open Analyses
 
-let is_current (ask: Queries.ask): bool =
-  match ask Queries.IsThreadReturn with
-  | `Bool b -> b
-  | `Top -> true
-  | _ -> failwith "ThreadReturn.is_current"
-
-
 module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
@@ -52,11 +45,6 @@ struct
   let threadenter ctx lval f args = true
   let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
-
-  let query ctx x =
-    match x with
-    | Queries.IsThreadReturn -> `Bool ctx.local
-    | _ -> `Top
 end
 
 let _ =

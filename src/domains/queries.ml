@@ -47,7 +47,6 @@ type t = ExpEq of exp * exp
        | NotSingleThreaded
        | IsNotUnique
        | CurrentThreadId
-       | IsThreadReturn
        | EvalFunvar of exp
        | EvalInt of exp
        | EvalStr of exp
