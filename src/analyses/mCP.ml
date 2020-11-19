@@ -946,8 +946,9 @@ struct
 
   let threadspawn (ctx:(D.t, G.t, C.t) ctx) lval f a fctx =
     let sides  = ref [] in
+    let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -961,7 +962,7 @@ struct
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
         ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadspawn context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadspawn context.")
+        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
       let fctx' : (S.D.t, S.G.t, S.C.t) ctx =
@@ -985,5 +986,6 @@ struct
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
+    let d = do_assigns ctx !assigns d in
     if q then raise Deadcode else d
 end

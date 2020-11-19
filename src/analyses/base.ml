@@ -2093,8 +2093,8 @@ struct
         | None -> ctx.local
       end
     (* handling thread creations *)
-    | `ThreadCreate _ ->
-      D.bot () (* actual results joined via threadcombine *)
+    | `ThreadCreate (id, _, _) ->
+      set ctx.ask gs st (eval_lv ctx.ask gs st (Mem id, NoOffset)) (`Address (AD.empty ())) (* threadid will ctx.assign to id, this removes unknown ptr *)
     (*       | `Unknown "LAP_Se_CreateProcess" -> begin
               match List.map (fun x -> stripCasts (constFold false x)) args with
                 | [_;AddrOf id;AddrOf r] ->
@@ -2237,12 +2237,7 @@ struct
       ctx.local
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
-    match lval with
-    | Some lval ->
-      let tid = ThreadId.get_current_unlift fctx.ask in
-      set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (`Address (AD.from_var tid))
-    | None ->
-      D.bot ()
+    D.bot ()
 end
 
 module type MainSpec = sig

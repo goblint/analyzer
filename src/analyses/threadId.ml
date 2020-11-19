@@ -87,6 +87,11 @@ struct
     create_tid f
 
   let threadspawn ctx lval f args fctx =
+    begin match lval, fctx.local with
+    | Some lval, `Lifted tid ->
+      ctx.assign ~name:"base" lval (AddrOf (var tid))
+    | _, _ -> ()
+    end;
     ThreadLifted.bot ()
 end
 
