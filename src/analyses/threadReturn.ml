@@ -30,6 +30,13 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
+    if ctx.local then (
+      match ThreadId.get_current ctx.ask with
+      | `Lifted tid ->
+        (* can't use exp because it might contain variables, which are out of scope after base return *)
+        ctx.assign ~name:"base" (var tid) (Lval (Base.Main.return_lval ()))
+      | _ -> ()
+    );
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =

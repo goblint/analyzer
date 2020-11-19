@@ -1776,13 +1776,8 @@ struct
           | TFun(ret, _, _, _) -> ret
           | _ -> assert false
         in
-        let rv = eval_rv ctx.ask ctx.global ctx.local exp in
-        let nst =
-          match ThreadId.get_current ctx.ask with
-          | `Lifted tid when ThreadReturn.is_current ctx.ask -> Tuple2.map1 (CPA.add tid rv) nst
-          | _ -> nst
-        in
-        set ~t_override ctx.ask ctx.global nst (return_var ()) rv (* lval_raw:None, and rval_raw:None is correct here *)
+        set ~t_override ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
+        (* lval_raw:None, and rval_raw:None is correct here *)
 
   let vdecl ctx (v:varinfo) =
     if not (Cil.isArrayType v.vtype) then
