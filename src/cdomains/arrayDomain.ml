@@ -295,8 +295,9 @@ struct
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
     if i = `Lifted MyCFG.all_array_index_exp then
-      let r =  Val.join (join_of_all_parts x) a in
-      (Expp.top(), (r, r, r))
+      (assert !Goblintutil.global_initialization; (* just joining with xr here assumes that all values will be set, which is guaranteed during inits *)
+      let r =  Val.join xm a in
+      (Expp.top(), (r, r, r)))
     else
       normalize @@
       let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
