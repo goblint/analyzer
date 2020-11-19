@@ -5,7 +5,6 @@ open GobConfig
 module M = Messages
 module A = Array
 module Q = Queries
-module Int64 = IntOps.BigIntOps
 module BI = IntOps.BigIntOps
 module type S =
 sig
@@ -361,7 +360,7 @@ struct
                   let (i'': BI.t) = Cilint.big_int_of_cilint  i'' in
                   let (e'': BI.t) = Cilint.big_int_of_cilint  e'' in
 
-                  if BI.equal  i'' (BI.add e'' Int64.one) then
+                  if BI.equal  i'' (BI.add e'' BI.one) then
                     (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
                     (i, (Val.join xl xm, a, xr))
                   else if BI.equal e'' (BI.add i'' BI.one) then
@@ -430,7 +429,7 @@ struct
   (* leq needs not be given explicitly, leq from product domain works here *)
 
   let make i v =
-    if Idx.to_int i = Some Int64.one then
+    if Idx.to_int i = Some BI.one then
       (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ()))
     else if Val.is_bot v then
       (Expp.top(), (Val.top(), Val.top(), Val.top()))
@@ -449,12 +448,12 @@ struct
         begin
           match Idx.to_int l with
           | Some i ->
-            v = Some (Int64.sub i Int64.one)
+            v = Some (BI.sub i BI.one)
           | None -> false
         end
       | None -> false
     in
-    let must_be_zero v = v = Some Int64.zero in
+    let must_be_zero v = v = Some BI.zero in
     let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
     match e1, e2 with
     | `Lifted e1e, `Lifted e2e when Basetype.CilExp.equal e1e e2e ->
@@ -519,13 +518,13 @@ struct
   let smart_leq_with_length length x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
     let x1_eval_int = (Option.map BI.of_int64) % x1_eval_int in
-    let must_be_zero v = (v = Some Int64.zero) in
+    let must_be_zero v = (v = Some BI.zero) in
     let must_be_length_minus_one v =  match length with
       | Some l ->
         begin
           match Idx.to_int l with
           | Some i ->
-            v = Some (Int64.sub i Int64.one)
+            v = Some (BI.sub i BI.one)
           | None -> false
         end
       | None -> false
