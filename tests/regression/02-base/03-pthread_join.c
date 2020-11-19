@@ -1,3 +1,4 @@
+// PARAM: --sets ana.activated[+] threadreturn
 #include<pthread.h>
 #include<assert.h>
 #include<stdio.h>
@@ -18,6 +19,13 @@ int foo() {
 void *t_fun3(void *arg) {
   foo();
   return (void*) 11;
+}
+
+void *t_fun4(void *arg) {
+  int n = arg;
+  if (n)
+    t_fun4((void*) 0);
+  return (void*) n;
 }
 
 int glob1 = 5;
@@ -50,6 +58,14 @@ int main() {
   // Join the thread 3
   pthread_join(id, (void**) &i);
   assert(i == 11);
+  printf("%d\n", i);
+
+  // Create the thread 4
+  pthread_create(&id, NULL, t_fun4, (void*) 13);
+
+  // Join the thread 4
+  pthread_join(id, (void**) &i);
+  assert(i == 13);
   printf("%d\n", i);
 
   // Another test

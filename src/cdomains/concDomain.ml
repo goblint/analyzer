@@ -69,8 +69,6 @@ module Thread = struct
 
   let start_thread v: t = get_thread_var v None
   let spawn_thread l v: t = get_thread_var v (Some l)
-
-  let is_function (f: varinfo) (t: t) = BatString.starts_with t.vname f.vname (* compatible with get_thread_var *)
 end
 
 module ThreadLiftNames = struct
