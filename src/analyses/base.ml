@@ -2065,7 +2065,7 @@ struct
                                   (eval_lv ctx.ask gs st lv, `Address heap_var)]
         | _ -> st
       end
-    | `Calloc size ->
+    | `Calloc (n, size) ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = heap_var ctx in
