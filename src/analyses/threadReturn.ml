@@ -39,6 +39,12 @@ struct
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    begin match LibraryFunctions.classify f.vname arglist with
+      | `ThreadJoin (id, ret_val) ->
+        ctx.assign ~name:"base" (Mem ret_val, NoOffset) (Lval (Mem id, NoOffset))
+        (* TODO: crashes because id is actually int and cannot be dereferenced *)
+      | _ -> ()
+    end;
     ctx.local
 
   let startstate v = true

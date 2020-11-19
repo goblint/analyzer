@@ -2101,12 +2101,12 @@ struct
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
         | `Int n when ID.to_int n = Some 0L -> cpa,dep
-        | `Address ret_a ->
+        (* | `Address ret_a ->
           begin match eval_rv ctx.ask gs st id with
             | `Address a ->
               set ctx.ask gs st ret_a (get ctx.ask gs st a None)
             | _      -> invalidate ctx.ask gs st [ret_var]
-          end
+          end *)
         | _      -> invalidate ctx.ask gs st [ret_var]
       end
     | `Malloc size -> begin
