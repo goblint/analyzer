@@ -40,6 +40,17 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     begin match LibraryFunctions.classify f.vname arglist with
+      | `Unknown "pthread_exit" ->
+        begin match arglist with
+          | [exp] ->
+            begin match ThreadId.get_current ctx.ask with
+              | `Lifted tid ->
+                ctx.assign ~name:"base" (var tid) exp
+                (* TODO: is lost because assign happens on bot and isn't synced *)
+              | _ -> ()
+            end
+          | _ -> failwith "Unknown pthread_exit."
+        end
       | `ThreadJoin (id, ret_val) ->
         ctx.assign ~name:"base" (Mem ret_val, NoOffset) (Lval (Mem id, NoOffset))
         (* TODO: crashes because id is actually int and cannot be dereferenced *)
