@@ -136,6 +136,11 @@ struct
     | `Lifted a, `Lifted b ->
       let a,b = S.elements a, S.elements b in
       List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x))
+  let product_bot2 op2 a b = match a,b with
+    | `Top, a | a, `Top -> a
+    | `Lifted a, `Lifted b ->
+      let a,b = S.elements a, S.elements b in
+      List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x))
   (* why are type annotations needed for product_widen? *)
   let product_widen op op2 (a:t) (b:t): t = match a,b with (* assumes b to be bigger than a *)
     | `Top, _ | _, `Top -> `Top
@@ -144,7 +149,9 @@ struct
       List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (`Lifted (S.union b (S.of_list x)))
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
-  let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow
+  (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
+  (* TODO: move PathSensitive3-specific narrow out of HoareMap *)
+  let narrow = product_bot2 (fun (x, xr) (y, yr) -> if SpecD.leq y x then (SpecD.narrow x y, yr) else (x, xr))
   let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
 
   (* TODO: shouldn't this also reduce? *)
