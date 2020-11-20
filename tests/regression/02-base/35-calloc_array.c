@@ -6,7 +6,7 @@
 int main(void) {
     int *r = calloc(5,sizeof(int));
 
-    assert(r[0] == 0); //UNKNOWN 
+    assert(r[0] == 0); 
     
     r[0] = 3;
 

@@ -427,9 +427,9 @@ struct
 
   let make i v =
     if Idx.to_int i = Some Int64.one then
-      (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ()))
+      (`Lifted (Cil.integer 0), (v, v, v))
     else if Val.is_bot v then
-      (Expp.top(), (Val.top(), Val.top(), Val.top()))
+      (Expp.top(), (Val.bot(), Val.bot(), Val.bot()))
     else
       (Expp.top(), (v, v, v))
 

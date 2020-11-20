@@ -18,7 +18,7 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
+  val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
@@ -123,7 +123,7 @@ struct
     | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
   
-  let rec init_value (t: typ): t = (* VD.top_value is not used here because structs, blob etc will not contain the right members *)
+  let rec init_value (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     let init_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
       let init_field nstruct fd = Structs.replace nstruct fd (init_value fd.ftype) in
@@ -150,7 +150,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt _ -> `Int (ID.top ())
+    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -677,7 +677,7 @@ struct
       `Array (CArrays.set ask n (array_idx_top) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
-    |                 t , _             -> top_value t
+    |                 t , _             -> top_value2 t
 
 
   (* take the last offset in offset and move it over to left *)
@@ -780,20 +780,45 @@ struct
 
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option): t =
-    let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option):t =
+  let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
+    let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
       match x, offs with
-      | `Blob c, `Index (_, ox) ->
+      | `Blob((va, _, orig) as c), `Index (_, ox) ->
         begin
           let l', o' = shift_one_over l o in
-          do_eval_offset ask f (Blobs.value c) ox exp l' o' v
+          let ev = do_eval_offset ask f (Blobs.value c) ox exp l' o' v t in
+          if orig then (* This Blob came from malloc *) 
+            ev 
+          else (* This Blob came from calloc *)
+            if ev = `Bot then
+              zero_init_value t (* This should be zero initialized *)
+            else
+              ev (* This already contains some value *)
         end
-      | `Blob c, `Field _ ->
+      | `Blob((va, _, orig) as c), `Field _ ->
         begin
           let l', o' = shift_one_over l o in
-          do_eval_offset ask f (Blobs.value c) offs exp l' o' v
+          let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
+          if orig then (* This Blob came from malloc *) 
+            ev 
+          else (* This Blob came from calloc *)
+            if ev = `Bot then
+              zero_init_value t (* This should be zero initialized *)
+            else
+              ev (* This already contains some value *)
         end
-      | `Blob c, `NoOffset -> `Blob c
+      | `Blob((va, _, orig) as c), `NoOffset -> 
+      begin
+        let l', o' = shift_one_over l o in
+        let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
+        if orig then (* This Blob came from malloc *) 
+          ev 
+        else (* This Blob came from calloc *)
+          if ev = `Bot then
+            zero_init_value t (* This should be zero initialized *)
+          else
+            ev (* This already contains some value *)
+      end
       | `Bot, _ -> `Bot
       | _ ->
         match offs with
@@ -811,7 +836,7 @@ struct
             | `Struct str ->
               let x = Structs.get str fld in
               let l', o' = shift_one_over l o in
-              do_eval_offset ask f x offs exp l' o' v
+              do_eval_offset ask f x offs exp l' o' v t
             | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
           end
@@ -820,7 +845,7 @@ struct
             | `Union (`Lifted l_fld, valu) ->
               let x = cast ~torg:l_fld.ftype fld.ftype valu in
               let l', o' = shift_one_over l o in
-              do_eval_offset ask f x offs exp l' o' v
+              do_eval_offset ask f x offs exp l' o' v t
             | `Union (_, valu) -> top ()
             | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
             | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
@@ -830,12 +855,12 @@ struct
             match x with
             | `Array x ->
               let e = determine_offset ask l o exp v in
-              do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v
+              do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v t
             | `Address _ ->
               begin
-                do_eval_offset ask f x offs exp l' o' v (* this used to be `blob `address -> we ignore the index *)
+                do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
               end
-            | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v
+            | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
           end
@@ -844,7 +869,7 @@ struct
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
       | _ -> None, None
     in
-    do_eval_offset ask f x offs exp l o v
+    do_eval_offset ask f x offs exp l o v t
 
   let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
@@ -916,7 +941,7 @@ struct
                 else begin
                   match offs with
                   | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value fld.ftype), offs
+                    (top_value2 fld.ftype), offs
                   | `Field (fldi, _) -> `Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
                   | `Index (idx, _) when Cil.isArrayType fld.ftype ->
