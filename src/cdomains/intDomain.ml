@@ -125,6 +125,7 @@ sig
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
+  val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -216,6 +217,8 @@ struct
 
   let is_top_of _ik = Old.is_top
 
+  let invariant_ikind c ik t = Old.invariant c t
+
 end
 
 
@@ -278,7 +281,7 @@ struct
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
-  let invariant c x = I.invariant c x.v
+  let invariant c x = I.invariant_ikind c x.ikind x.v
   let tag x = I.tag x.v
   let arbitrary () = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
@@ -722,7 +725,9 @@ struct
       else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
       else top_bool
 
-  let invariant c x =
+  let invariant c x = failwith "unimplemented"
+
+  let invariant_ikind c ik x =
     let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
@@ -731,10 +736,12 @@ struct
     | Some (x1, x2) ->
       let open Invariant in
       let (x1', x2') = BatTuple.Tuple2.mapn (fun a -> Cilint.Big (Ints_t.to_bigint a)) (x1, x2) in
-      let ik = (Cilfacade.get_ikind (Cil.typeOf c)) in
-      let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c, intType)) else none in
-      let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kintegerCilint ik x2', intType)) else none in
-      i1 && i2
+      (try
+        (* typeOf will fail if c is heap allocated *)
+        let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c, intType)) else none in
+        let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kintegerCilint ik x2', intType)) else none in
+        i1 && i2
+      with e -> None)
     | None -> None
 
   let arbitrary () = failwith "arbitrary unimplemented for Interval"
@@ -2060,7 +2067,9 @@ module IntDomTupleImpl = struct
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
-  let invariant c x =
+  let invariant _ _ = failwith "invariant not implemented for IntDomTupleImpl. Use invariant_ikind instead"
+
+  let invariant_ikind c ik x =
     match to_int x with
     | Some v ->
       let v = BigIntOps.to_int64 v in
@@ -2068,7 +2077,7 @@ module IntDomTupleImpl = struct
       let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
       Invariant.of_exp Cil.(BinOp (Eq, c_exp, kinteger64 IInt v, intType))
     | None ->
-      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant c } x)
+      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind c ik } x)
       in List.fold_left (fun a i ->
           Invariant.(a && i)
         ) Invariant.none is

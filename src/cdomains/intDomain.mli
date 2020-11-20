@@ -246,6 +246,7 @@ sig
 
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
+  val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
