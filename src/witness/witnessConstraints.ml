@@ -65,9 +65,11 @@ struct
   let cardinal (s: t): int = match s with
     | `Top -> failwith "cardinal"
     | `Lifted s -> M.M.cardinal s
-  let choose (s: t): SpecD.t = match s with
+  let choose' (s: t) = match s with
     | `Top -> failwith "choose"
-    | `Lifted s -> fst (M.M.choose s)
+    | `Lifted s -> M.M.choose s
+  let choose (s: t): SpecD.t = fst (choose' s)
+  let filter' = filter
   let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
   let iter' = iter
   let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
@@ -212,9 +214,9 @@ struct
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
       if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
         try
-          let p t = not (MM.mem t s2) in
-          let evil = choose (filter p s1) in
-          let other = choose s2 in
+          let p t tr = not (mem t tr s2) in
+          let (evil, evilr) = choose' (filter' p s1) in
+          let (other, otherr) = choose' s2 in
           (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
              Spec.D.pretty evil Spec.D.pretty other
              Spec.D.pretty_diff (evil,other) *)
