@@ -32,7 +32,7 @@ sig
   val is_immediate_type: typ -> bool
   val bot_value: typ -> t
   val init_value: typ -> t
-  val top_value2: typ -> t
+  val top_value: typ -> t
   val zero_init_value: typ -> t
 end
 
@@ -143,10 +143,10 @@ struct
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
   
-  let rec top_value2 (t: typ): t =
+  let rec top_value (t: typ): t =
     let top_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
-      let top_field nstruct fd = Structs.replace nstruct fd (top_value2 fd.ftype) in
+      let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype) in
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
@@ -155,11 +155,11 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value2 ai) else (bot_value ai)))
+      `Array (CArrays.make (IndexDomain.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value2 ai) else (bot_value ai)))
-    | TNamed ({ttype=t; _}, _) -> top_value2 t
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+    | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
   
   
@@ -639,21 +639,6 @@ struct
       warn_type "narrow" x y;
       x
 
-  let rec top_value (t: typ) =
-    let top_comp compinfo: Structs.t =
-      let nstruct = Structs.top () in
-      let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype) in
-      List.fold_left top_field nstruct compinfo.cfields
-    in
-    match t with
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
-    | TPtr _ -> `Address AD.unknown_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
-    | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
-    | TArray _ -> `Array (CArrays.top ())
-    | TNamed ({ttype=t; _}, _) -> top_value t
-    | _ -> `Top
-
   let rec invalidate_value (ask:Q.ask) typ (state:t) : t =
     let typ = unrollType typ in
     let invalid_struct compinfo old =
@@ -677,7 +662,7 @@ struct
       `Array (CArrays.set ask n (array_idx_top) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
-    |                 t , _             -> top_value2 t
+    |                 t , _             -> top_value t
 
 
   (* take the last offset in offset and move it over to left *)
@@ -941,7 +926,7 @@ struct
                 else begin
                   match offs with
                   | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value2 fld.ftype), offs
+                    (top_value fld.ftype), offs
                   | `Field (fldi, _) -> `Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
                   | `Index (idx, _) when Cil.isArrayType fld.ftype ->

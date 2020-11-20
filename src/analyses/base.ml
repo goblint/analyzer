@@ -806,9 +806,9 @@ struct
     try
       let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
-      if VD.is_bot r then ValueDomain.Compound.top_value2 (typeOf exp) else r
+      if VD.is_bot r then ValueDomain.Compound.top_value (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
-    ValueDomain.Compound.top_value2 (typeOf exp)
+    ValueDomain.Compound.top_value (typeOf exp)
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
@@ -1544,7 +1544,7 @@ struct
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
     match v with
-    | `Top -> set ask gs st adr (ValueDomain.Compound.top_value2 (AD.get_type adr)) ?lval_raw ?rval_raw
+    | `Top -> set ask gs st adr (ValueDomain.Compound.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
     | v -> set ask gs st adr v ?lval_raw ?rval_raw
 
 
