@@ -730,11 +730,10 @@ struct
       Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x1, intType))
     | Some (x1, x2) ->
       let open Invariant in
-      let (x1', x2') = BatTuple.Tuple2.mapn Ints_t.to_int64 (x1, x2) in
-      (* TODO: use arbitrary ikind *)
-      let ik = Cil.ILongLong in
-      let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kinteger64 IInt x1', c, intType)) else none in
-      let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kinteger64 IInt x2', intType)) else none in
+      let (x1', x2') = BatTuple.Tuple2.mapn (fun a -> Cilint.Big (Ints_t.to_bigint a)) (x1, x2) in
+      let ik = (Cilfacade.get_ikind (Cil.typeOf c)) in
+      let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c, intType)) else none in
+      let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kintegerCilint ik x2', intType)) else none in
       i1 && i2
     | None -> None
 
