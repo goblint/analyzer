@@ -1439,7 +1439,7 @@ struct
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
-    let inv_bin_int (a, b) ikind c =
+    let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if GU.opt_predicate (BI.equal BI.zero) (ID.to_int x) then
           (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
@@ -1457,7 +1457,7 @@ struct
         try
           meet_bin (oi c b) (oo a c)
         with IntDomain.ArithmeticOnIntegerBot _ -> raise Deadcode in
-      function
+      match op with
       | PlusA  -> meet_com ID.sub
       | Mult   ->
         (* Only multiplication with odd numbers is an invertible operation in (mod 2^n) *)
@@ -1552,7 +1552,10 @@ struct
     let eval e = eval_rv a gs st e in
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
     let set' lval v = Tuple3.first (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
-    let rec inv_exp c = function
+    let rec inv_exp c exp =
+      (* trying to improve variables in an expression so it is bottom means dead code *)
+      if ID.is_bot c then raise Deadcode;
+      match exp with
       | UnOp (LNot, e, _) ->
         let c' =
           match ID.to_bool (unop_ID LNot c) with

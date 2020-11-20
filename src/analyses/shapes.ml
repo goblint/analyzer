@@ -115,12 +115,12 @@ struct
     in
     let nre =
       match nre with
-      | `Lifted (e,m) -> `Lifted (e,RegMap.fold update rm m)
+      | `Lifted m -> `Lifted (RegMap.fold update rm m)
       | x -> x
     in
     let _ =
       match nre with
-      | `Lifted (_,m) ->
+      | `Lifted m ->
         let alive =
           match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
           | Some x -> x
