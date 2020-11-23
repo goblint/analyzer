@@ -353,6 +353,29 @@ struct
       | _ -> D.top ()
     *)
 
+  let rec is_global_var (ask: Queries.ask) x =
+    match x with
+    | SizeOf _
+    | SizeOfE _
+    | SizeOfStr _
+    | AlignOf _
+    | AlignOfE _
+    | UnOp _
+    | BinOp _ -> None
+    | Const _ -> Some false
+    | Lval (Var v,_) -> Some v.vglob
+    | Lval (Mem e, _) ->
+      begin match ask (Queries.MayPointTo e) with
+        | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
+          Some (Queries.LS.exists (fun (v, _) -> is_global_var ask (Lval (var v)) = Some true) ls)
+        | _ -> Some true
+      end
+    | CastE (t,e) -> is_global_var ask e
+    | AddrOf lval -> Some false
+    | StartOf lval -> Some false
+    | Question _ -> failwith "Logical operations should be compiled away by CIL."
+    | _ -> failwith "Unmatched pattern."
+
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
     (*    let is_local x =
@@ -361,9 +384,9 @@ struct
           let st =
     *)  let lvt = typeOf (Lval lv) in
     (*     Messages.report (sprint 80 (d_type () lvt)); *)
-    if Exp.is_global_var (Lval lv) = Some false
+    if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv
-    && Exp.is_global_var rv = Some false
+    && is_global_var ask rv = Some false
     && (isArithmeticType lvt || isPointerType lvt)
     then D.add_eq (rv,Lval lv) (remove ask lv st)
     else remove ask lv st
