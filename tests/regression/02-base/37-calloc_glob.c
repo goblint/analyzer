@@ -1,6 +1,6 @@
 // Made after 02 22 
 
-// PARAM: --set ana.int.interval true
+// PARAM: --set ana.int.interval true --enable exp.partition-arrays.enabled
 
 #include <stdlib.h>
 #include <assert.h>
