@@ -2072,10 +2072,9 @@ module IntDomTupleImpl = struct
   let invariant_ikind c ik x =
     match to_int x with
     | Some v ->
-      let v = BigIntOps.to_int64 v in
       (* If definite, output single equality instead of every subdomain repeating same equality *)
       let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
-      Invariant.of_exp Cil.(BinOp (Eq, c_exp, kinteger64 IInt v, intType))
+      Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik (Big v), intType))
     | None ->
       let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind c ik } x)
       in List.fold_left (fun a i ->
