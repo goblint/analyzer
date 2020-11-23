@@ -472,6 +472,18 @@ struct
       | Some lval -> remove ctx.ask lval st2
       | None -> st2
 
+  let remove_reachable ctx es =
+    match reachables ctx.ask es with
+    | None -> D.top ()
+    | Some rs ->
+      let remove_reachable1 es st =
+        let remove_reachable2 e st =
+          if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
+        in
+        D.B.fold remove_reachable2 es st
+      in
+      D.fold remove_reachable1 ctx.local ctx.local
+
   let unknown_fn ctx lval f args =
     let args =
       match LF.get_invalidate_action f.vname with
@@ -485,17 +497,7 @@ struct
     in
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
-    | false ->
-      match reachables ctx.ask es with
-      | None -> D.top ()
-      | Some rs ->
-        let remove_reachable1 es st =
-          let remove_reachable2 e st =
-            if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
-          in
-          D.B.fold remove_reachable2 es st
-        in
-        D.fold remove_reachable1 ctx.local ctx.local
+    | false -> remove_reachable ctx es
 
   let safe_fn = function
     | "memcpy" -> true
@@ -504,13 +506,18 @@ struct
 
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
-    match f.vname with
-    | "spinlock_check" ->
+    match LibraryFunctions.classify f.vname args with
+    | `Unknown "spinlock_check" ->
       begin match lval with
         | Some x -> assign ctx x (List.hd args)
         | None -> unknown_fn ctx lval f args
       end
-    | x when safe_fn x -> ctx.local
+    | `Unknown x when safe_fn x -> ctx.local
+    | `ThreadCreate (_, arg) ->
+      begin match D.is_bot ctx.local with
+      | true -> raise Analyses.Deadcode
+      | false -> remove_reachable ctx [arg]
+      end
     | _ -> unknown_fn ctx lval f args
   (* query stuff *)
 
