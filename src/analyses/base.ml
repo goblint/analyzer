@@ -1216,8 +1216,8 @@ struct
 
   let set_many a (gs:glob_fun) (st,fl,dep as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
-    let f (acc: store) ((lval:AD.t),(value:value)): store =
-      set a gs acc lval (TVoid []) value
+    let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
+      set a gs acc lval typ value
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f store lval_value_list
@@ -1772,7 +1772,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.from_var v, init_value ctx.ask ctx.global ctx.local v.vtype) in
+    let init_var v = (AD.from_var v, v.vtype, init_value ctx.ask ctx.global ctx.local v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
     set_many ctx.ask ctx.global ctx.local inits
@@ -1821,7 +1821,7 @@ struct
       let t = AD.get_type a in
       let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value ask t v in
-      (a, nv)
+      (a, t, nv)
     in
     (* We define the function that invalidates all the values that an address
      * expression e may point to *)
@@ -1840,9 +1840,10 @@ struct
     let is_fav_addr x =
       List.exists (fun x -> List.mem x.vname my_favorite_things) (AD.to_var_may x)
     in
-    let invalids' = List.filter (fun (x,_) -> not (is_fav_addr x)) invalids in
+    let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
-      let addrs, vs = List.split invalids' in
+      let addrs = List.map (Tuple3.first) invalids' in
+      let vs = List.map (Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
     set_many ask gs st invalids'
@@ -2131,8 +2132,8 @@ struct
             else AD.from_var (heap_var ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
-                                  (eval_lv ctx.ask gs st lv, `Address heap_var)]
+          set_many ctx.ask gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int ctx.ask gs st size));
+                                  (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
         | _ -> st
       end
     | `Calloc size ->
@@ -2143,8 +2144,8 @@ struct
             if get_bool "exp.malloc.fail"
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
-          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset)))))]
+          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
+                                  (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset)))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
