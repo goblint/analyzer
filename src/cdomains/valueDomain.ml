@@ -762,7 +762,14 @@ struct
         end
       | _, _ ->  ExpDomain.top()
 
-
+  let zero_init_calloced_memory orig x t =
+    if orig then (* This Blob came from malloc *) 
+            x 
+          else (* This Blob came from calloc *)
+            if x = `Bot then
+              zero_init_value t (* This should be zero initialized *)
+            else
+              x (* This already contains some value *)
 
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
@@ -772,37 +779,19 @@ struct
         begin
           let l', o' = shift_one_over l o in
           let ev = do_eval_offset ask f (Blobs.value c) ox exp l' o' v t in
-          if orig then (* This Blob came from malloc *) 
-            ev 
-          else (* This Blob came from calloc *)
-            if ev = `Bot then
-              zero_init_value t (* This should be zero initialized *)
-            else
-              ev (* This already contains some value *)
+          zero_init_calloced_memory orig ev t
         end
       | `Blob((va, _, orig) as c), `Field _ ->
         begin
           let l', o' = shift_one_over l o in
           let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
-          if orig then (* This Blob came from malloc *) 
-            ev 
-          else (* This Blob came from calloc *)
-            if ev = `Bot then
-              zero_init_value t (* This should be zero initialized *)
-            else
-              ev (* This already contains some value *)
+          zero_init_calloced_memory orig ev t
         end
       | `Blob((va, _, orig) as c), `NoOffset -> 
       begin
         let l', o' = shift_one_over l o in
         let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
-        if orig then (* This Blob came from malloc *) 
-          ev 
-        else (* This Blob came from calloc *)
-          if ev = `Bot then
-            zero_init_value t (* This should be zero initialized *)
-          else
-            ev (* This already contains some value *)
+        zero_init_calloced_memory orig ev t
       end
       | `Bot, _ -> `Bot
       | _ ->
@@ -863,27 +852,13 @@ struct
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
-          let x = if orig then
-            x  (* the origin is malloc *)
-          else 
-            match x with  (* the origin is calloc *)
-              | `Bot ->  (* nothing was assigned before, so in the case of calloc there is an initial 0 *)
-                zero_init_value t
-              | _ -> x
-             in 
+          let x = zero_init_calloced_memory orig x t in 
           mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
         end
       | `Blob (x,s,orig),_ ->
         begin
           let l', o' = shift_one_over l o in
-          let x = if orig then
-            x (* the origin is malloc *)
-          else 
-            match x with  (* the origin is calloc *)
-              | `Bot ->  (* nothing was assigned before, so in the case of calloc there is an initial 0 *)
-                zero_init_value t
-              | _ -> x
-             in
+          let x = zero_init_calloced_memory orig x t in
           mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
         end
       | _ ->
