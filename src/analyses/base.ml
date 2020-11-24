@@ -1098,7 +1098,12 @@ struct
             (* i.e. use the static type of the pointer here *)
             lval_type
           else
-            Cil.typeOf (Lval(Var x, cil_offset))
+            try
+              Cil.typeOfLval (Var x, cil_offset)
+            with _ ->
+              (* If we cannot determine the correct type here, we go with the one of the LVal *)
+              (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
+              lval_type
       in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin
