@@ -1,8 +1,7 @@
 // PARAM: --set ana.activated[+] "'var_eq'"
 // Own version of 29/20
-// Somehow has NullPtr and UnknownPtr for global instead of Addr like the original. How???
 #include <pthread.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 
 int *global;
