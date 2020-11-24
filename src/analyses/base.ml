@@ -436,7 +436,7 @@ struct
       | `Top ->
         let typ = AD.get_type adr in
         let warning = "Unknown value in " ^ AD.short 40 adr ^ " could be an escaped pointer address!" in
-        if ValueDomain.Compound.is_immediate_type typ then () else M.warn_each warning; empty
+        if VD.is_immediate_type typ then () else M.warn_each warning; empty
       | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
       | `Address adrs when AD.is_top adrs ->
         let warning = "Unknown address in " ^ AD.short 40 adr ^ " has escaped." in
@@ -806,7 +806,7 @@ struct
     try
       let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
-      if VD.is_bot r then ValueDomain.Compound.top_value (typeOf exp) else r
+      if VD.is_bot r then VD.top_value (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
     ValueDomain.Compound.top_value (typeOf exp)
 
@@ -2073,7 +2073,8 @@ struct
             if get_bool "exp.malloc.fail"
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
-          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size, false)))); (* TODO why? should be zero-initialized *)
+          (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
+          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size, false)))); 
                                   (eval_lv ctx.ask gs st lv, `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset)))))]
         | _ -> st
       end
