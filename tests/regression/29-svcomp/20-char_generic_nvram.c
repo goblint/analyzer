@@ -1,7 +1,7 @@
 // PARAM: --set ana.activated[+] "'var_eq'"
 // Minimized from pthread-driver-races/char_generic_nvram_read_nvram_write_nvram.i
-// Somehow global whoop_loff_t may not point to NULL in the original, but it may in this one. How???
 #include <pthread.h>
+#include <stdlib.h>
 #include <assert.h>
 
 typedef long long loff_t;
