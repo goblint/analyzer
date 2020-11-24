@@ -49,21 +49,18 @@ sig
   val invalidate_value: Q.ask -> typ -> t -> t
 end
 
-module AllocOrigin = IntDomain.MakeBooleans (
-  struct
-    let truename = "Malloc"
-    let falsename = "Calloc"
-  end)
+(* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
+module ZeroInit = Lattice.Fake(Basetype.RawBools)
 
 module Blob (Value: S) (Size: IntDomain.S)=
 struct
   let name () = "blob"
-  include Lattice.Prod3 (Value) (Size) (AllocOrigin)
+  include Lattice.Prod3 (Value) (Size) (ZeroInit)
   type value = Value.t
   type size = Size.t
-  type origin = AllocOrigin.t
+  type origin = ZeroInit.t
   let printXml f (x, y, z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y AllocOrigin.printXml z
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
   let make v s = v, s, true
   let value (a, b, c) = a 
@@ -1040,5 +1037,5 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
   ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
-and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = AllocOrigin.t = Blob (Compound) (ID) 
+and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID) 
 and Lists: ListDomain.S with type elem = AD.t = ListDomain.SimpleList (AD)
