@@ -2089,7 +2089,7 @@ struct
  module I = IntDomLifter (IntDomTupleImpl)
  include I
 
- let top () = failwith "asfd"
+ let top () = failwith "top in IntDomTuple not supported. Use top_of instead."
  let no_interval32 (x: I.t) = {x with v = IntDomTupleImpl.no_interval32 x.v}
 
 end

@@ -431,10 +431,10 @@ struct
   (* leq needs not be given explicitly, leq from product domain works here *)
 
   let make i v =
-    if Idx.to_int i = Some BI.one then
-      (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ()))
+    if Idx.to_int i = Some BI.one  then
+      (`Lifted (Cil.integer 0), (v, v, v))
     else if Val.is_bot v then
-      (Expp.top(), (Val.top(), Val.top(), Val.top()))
+      (Expp.top(), (Val.bot(), Val.bot(), Val.bot()))
     else
       (Expp.top(), (v, v, v))
 

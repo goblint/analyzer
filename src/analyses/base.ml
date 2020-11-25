@@ -18,13 +18,6 @@ module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
 
-let is_mutex_type (t: typ): bool = match t with
-  | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
-  | TInt (IInt, attr) -> hasAttribute "mutex" attr
-  | _ -> false
-
-let is_immediate_type t = is_mutex_type t || isFunctionType t
-
 let is_global (a: Q.ask) (v: varinfo): bool =
   v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
 
@@ -399,10 +392,10 @@ struct
           end
         in
 
-        let v = VD.eval_offset a (fun x -> get a gs (st,fl,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) in
+        let v = VD.eval_offset a (fun x -> get a gs (st,fl,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
-          | `Blob (c, s) -> c
+          | `Blob (c,s,_) -> c
           | x -> x
       in
       let f x =
@@ -462,7 +455,7 @@ struct
       | `Top ->
         let typ = AD.get_type adr in
         let warning = "Unknown value in " ^ AD.short 40 adr ^ " could be an escaped pointer address!" in
-        if is_immediate_type typ then () else M.warn_each warning; empty
+        if VD.is_immediate_type typ then () else M.warn_each warning; empty
       | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
       | `Address adrs when AD.is_top adrs ->
         let warning = "Unknown address in " ^ AD.short 40 adr ^ " has escaped." in
@@ -474,7 +467,7 @@ struct
       (* For arrays, we ask to read from an unknown index, this will cause it
        * join all its values. *)
       | `Array a -> reachable_from_value (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ()))
-      | `Blob (e,_) -> reachable_from_value e
+      | `Blob (e,_,_) -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       | `Int _ -> empty
@@ -513,11 +506,11 @@ struct
     if CPA.is_top st then st else
       let rec replace_val = function
         | `Address _ as v -> v
-        | `Blob (v,s) ->
+        | `Blob (v,s,o) ->
           begin match replace_val v with
-            | `Blob (`Top, _)
+            | `Blob (`Top,_,_)
             | `Top -> `Top
-            | t -> `Blob (t, s)
+            | t -> `Blob (t,s,o)
           end
         | `Struct s ->
           let one_field fl vl st =
@@ -537,7 +530,7 @@ struct
         | `Array n     -> `Array (ValueDomain.CArrays.map replace_val n)
         | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
         | `Union (f,v) -> `Union (f,replace_val v)
-        | `Blob (n,s)  -> `Blob (replace_val n,s)
+        | `Blob (n,s,o)  -> `Blob (replace_val n,s,o)
         | `Address x -> `Address (ValueDomain.AD.map ValueDomain.Addr.drop_ints x)
         | x -> x
       in
@@ -608,7 +601,7 @@ struct
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
         | `Array a -> reachable_from_value (ValueDomain.CArrays.get ctx.ask a (ExpDomain.top(), ValueDomain.ArrIdxDomain.top ()))
-        | `Blob (e,_) -> reachable_from_value e
+        | `Blob (e,_,_) -> reachable_from_value e
         | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -712,7 +705,7 @@ struct
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
           M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-          let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None in (* handle offset *)
+          let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
         (* Binary operators *)
@@ -821,65 +814,6 @@ struct
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
       end
 
-  let rec bot_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let bot_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype) in
-      List.fold_left bot_field nstruct compinfo.cfields
-    in
-    match t with
-    | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
-    | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (bot_comp ci)
-    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.bot ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value a gs st ai))
-      | TArray (ai, Some exp, _) ->
-        let l = Option.map Cilint.big_int_of_cilint @@ Cil.getInteger (Cil.constFold true exp) in
-        let ik = Cilfacade.ptrdiff_ikind () in
-        `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int ik) (IdxDom.bot ()) l) (bot_value a gs st ai))
-    | TNamed ({ttype=t; _}, _) -> bot_value a gs st t
-    | _ -> `Bot
-
-  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
-    let init_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
-      List.fold_left init_field nstruct compinfo.cfields
-    in
-    match t with
-    | t when is_mutex_type t -> `Top
-    | TInt (ik,_) -> `Int (ID.top_of ik)
-    | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
-    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-    | TArray (ai, Some exp, _) ->
-      let l = Option.map Cilint.big_int_of_cilint @@ Cil.getInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int (Cilfacade.ptrdiff_ikind ())) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t; _}, _) -> init_value a gs st t
-    | _ -> `Top
-
-  let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let top_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype) in
-      List.fold_left top_field nstruct compinfo.cfields
-    in
-    match t with
-    | TInt _ -> `Int (ID.top_of (Cilfacade.get_ikind t))
-    | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
-    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-    | TArray (ai, Some exp, _) ->
-      let l = Option.map Cilint.big_int_of_cilint @@ Cil.getInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int (Cilfacade.ptrdiff_ikind ())) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t; _}, _) -> top_value a gs st t
-    | _ -> `Top
-
   (* run eval_rv from above and keep a result that is bottom *)
   (* this is needed for global variables *)
   let eval_rv_keep_bot = eval_rv
@@ -890,9 +824,9 @@ struct
     try
       let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
-      if VD.is_bot r then top_value a gs st (typeOf exp) else r
+      if VD.is_bot r then VD.top_value (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
-      top_value a gs st (typeOf exp)
+    ValueDomain.Compound.top_value (typeOf exp)
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
@@ -959,7 +893,7 @@ struct
           let r = get ~full:true ctx.ask ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int (to_int i) | None -> `Top)
+           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> `Int (to_int i) | None -> `Top)
            | _ -> `Top)
         | _ -> `Top
       end
@@ -1649,7 +1583,7 @@ struct
 
   let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     match v with
-    | `Top -> set ask gs st adr lval_t (top_value ask gs st (AD.get_type adr)) ?lval_raw ?rval_raw
+    | `Top -> set ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
     | v -> set ask gs st adr lval_t v ?lval_raw ?rval_raw
 
 
@@ -1734,7 +1668,7 @@ struct
           (match Addr.to_var_offset (AD.choose lval_val) with
           | [(x,offs)] ->
             let t = v.vtype in
-            let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
+            let iv = VD.bot_value t in (* correct bottom value for top level variable *)
             let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
             set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
           | _ ->
@@ -1808,7 +1742,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.from_var v, v.vtype, init_value ctx.ask ctx.global ctx.local v.vtype) in
+    let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
     set_many ctx.ask ctx.global ctx.local inits
@@ -2012,7 +1946,7 @@ struct
           let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
           if expected <> annot then (
             let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
-            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the orginal source if this is the case. *)
+            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
             M.warn_each ~ctx:ctx.control_context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
@@ -2168,11 +2102,11 @@ struct
             else AD.from_var (heap_var ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ctx.ask gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int ctx.ask gs st size));
+          set_many ctx.ask gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int ctx.ask gs st size, true));
                                   (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
         | _ -> st
       end
-    | `Calloc size ->
+    | `Calloc (n, size) ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = heap_var ctx in
@@ -2180,8 +2114,9 @@ struct
             if get_bool "exp.malloc.fail"
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
-          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
+          (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
+          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size, false))));
+                                  (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
@@ -2291,7 +2226,7 @@ struct
       | TPtr (t, attr), `Address a
         when (not (AD.is_top a))
           && List.length (AD.to_var_may a) = 1
-          && not (is_immediate_type t)
+          && not (VD.is_immediate_type t)
         ->
         let cv = List.hd (AD.to_var_may a) in
         "ref " ^ VD.short 26 (CPA.find cv es)

@@ -169,6 +169,28 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
     let bot_name = "-"
   end)
 
+  module RawBools: Printable.S with type t = bool =
+  struct
+    include Printable.Std
+    open Pretty
+    type t = bool [@@deriving to_yojson]
+    let hash (x:t) = Hashtbl.hash x
+    let equal (x:t) (y:t) = x=y
+    let isSimple _ = true
+    let short _ (x:t) =  if x then "\" true \"" else "\" false \""
+    let pretty_f sf () x = text (if x then "true" else "false")
+    let pretty () x = text (short () x)
+    let name () = "raw bools"
+    let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short () x)
+  end
+  
+  module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
+    Lattice.Flat (RawBools) (struct
+      let top_name = "?"
+      let bot_name = "-"
+    end)
+
 module CilExp =
 struct
   include Printable.Std
