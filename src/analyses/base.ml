@@ -1103,6 +1103,7 @@ struct
             with _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
+              M.warn ("Cil.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset));
               lval_type
       in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
