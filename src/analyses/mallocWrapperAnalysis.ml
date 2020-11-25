@@ -8,9 +8,9 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = Lattice.Flat (Basetype.ProgLines) (struct 
+  module PL = Lattice.Flat (Basetype.ProgLines) (struct
     let top_name = "Unknown line"
-    let bot_name = "Unreachable line" 
+    let bot_name = "Unreachable line"
   end)
 
   let name () = "mallocWrapper"
@@ -19,6 +19,8 @@ struct
   module C = D
 
   module Q = Queries
+
+  let wrappers = Hashtbl.create 13
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -34,8 +36,7 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let interestingfunctions = get_string_list "exp.malloc.wrappers" in (* if this list gets bigger, having a Hashtbl should be considered *)
-    let calleeofinterest = List.mem f.vname interestingfunctions in
+    let calleeofinterest = Hashtbl.mem wrappers f.vname in
     let calleectx = if calleeofinterest then
        if ctx.local = `Top then
         `Lifted (MyCFG.getLoc ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
@@ -65,15 +66,16 @@ struct
 
   let query ctx (q:Q.t) : Q.Result.t =
     match q with
-    | Q.HeapVar -> 
+    | Q.HeapVar ->
       let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
       | _ -> MyCFG.getLoc ctx.node in
       `Varinfo (`Lifted (get_heap_var loc))
     | _ -> `Top
 
-    let init () =
-      Hashtbl.clear heap_hash
+  let init () =
+    List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
+    Hashtbl.clear heap_hash
 end
 
 let _ =
