@@ -760,13 +760,14 @@ struct
       | _, _ ->  ExpDomain.top()
 
   let zero_init_calloced_memory orig x t =
-    if orig then (* This Blob came from malloc *)
-            x
-          else (* This Blob came from calloc *)
-            if x = `Bot then
-              zero_init_value t (* This should be zero initialized *)
-            else
-              x (* This already contains some value *)
+    if orig then
+      (* This Blob came from malloc *)
+      x
+    else if x = `Bot then
+      (* This Blob came from calloc *)
+      zero_init_value t (* This should be zero initialized *)
+    else
+      x (* This already contains some value *)
 
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
@@ -852,7 +853,16 @@ struct
           let x = zero_init_calloced_memory orig x t in
           mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
         end
-      | `Blob (x,s,orig),_ ->
+      | `Blob (x,s,orig), `Field(f, _) ->
+        begin
+          (* We only have `Blob for dynamically allocated memort. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
+          (* will be int. Here, we need a zero_init of the entire contents of the blob though, which we get by taking the associated f.fcomp. Putting [] for attributes is ok, as we don't *)
+          (* consider them in VD *)
+          let l', o' = shift_one_over l o in
+          let x = zero_init_calloced_memory orig x (TComp (f.fcomp, [])) in
+          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+        end
+      | `Blob (x,s,orig), _ ->
         begin
           let l', o' = shift_one_over l o in
           let x = zero_init_calloced_memory orig x t in

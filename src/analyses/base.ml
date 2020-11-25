@@ -2197,7 +2197,7 @@ struct
       | TPtr (t, attr), `Address a
         when (not (AD.is_top a))
           && List.length (AD.to_var_may a) = 1
-          && not (ValueDomain.Compound.is_immediate_type t)
+          && not (VD.is_immediate_type t)
         ->
         let cv = List.hd (AD.to_var_may a) in
         "ref " ^ VD.short 26 (CPA.find cv es)
