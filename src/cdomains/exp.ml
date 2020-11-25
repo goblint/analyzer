@@ -98,24 +98,6 @@ struct
     in
     cv e
 
-  let rec is_global_var x =
-    match x with
-    | SizeOf _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | AlignOfE _
-    | UnOp _
-    | BinOp _ -> None
-    | Const _ -> Some false
-    | Lval (Var v,_) -> Some v.vglob
-    | Lval (Mem e,_) -> is_global_var e
-    | CastE (t,e) -> is_global_var e
-    | AddrOf lval -> Some false
-    | StartOf lval -> Some false
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
-
   let rec conv_offs (offs:(fieldinfo,exp) Lval.offs) : offset =
     match offs with
     | `NoOffset -> NoOffset

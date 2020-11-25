@@ -370,7 +370,7 @@ struct
     | (`Int x, `Int y) -> ID.leq x y
     | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top y -> true
+    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) -> Structs.leq x y
     | (`Union x, `Union y) -> Unions.leq x y
@@ -470,7 +470,7 @@ struct
     | (`Int x, `Int y) -> ID.leq x y
     | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top y -> true
+    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) ->
           Structs.leq_with_fct leq_elem x y
@@ -628,7 +628,7 @@ struct
         | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with
-          | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
+          | (var,`Index (i,`NoOffset)) when Expcompare.compareExp i Cil.zero && var.vid = arr_start_var.vid ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
@@ -776,10 +776,10 @@ struct
               begin
                 let l', o' = shift_one_over l o in
 <<<<<<< HEAD
-                let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v in
-=======
                 let value' =  (do_update_offset ask (Structs.get str fld) offs value exp l' o' v t) in
->>>>>>> parent of e3509317... Remove type argument from VD.update_offset
+=======
+                let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v t in
+>>>>>>> master
                 `Struct (Structs.replace str fld value')
               end
             | `Bot ->
@@ -834,18 +834,26 @@ struct
             match x with
             | `Array x' ->
 <<<<<<< HEAD
+              let t' = match t with
+                | TArray (t,_, _) -> t
+                | _ -> t
+              in
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v in
+              let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t' in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Bot ->
+              let t' = match t with
+              | TArray (t,_, _) -> t
+              | _ -> t
+              in
               let x' = CArrays.bot () in
               let e = determine_offset ask l o exp (Some v) in
-              let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v in
+              let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t' in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v
+            | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
 =======
               (match t with
               | TArray(t1 ,_,_) ->
@@ -854,10 +862,18 @@ struct
                 let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
                 `Array new_array_value
               | _ ->  M.warn "Trying to update an array, but the type was not array"; top ())
-            | `Bot ->  M.warn_each("encountered array bot, made array top"); `Array (CArrays.top ());
+            | `Bot ->
+              (match t with
+              | TArray(t1 ,_,_) ->
+                let x' = CArrays.bot () in
+                let e = determine_offset ask l o exp (Some v) in
+                let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t1 in
+                let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
+                `Array new_array_value
+              | _ -> M.warn "Trying to update an array, but the type was not array"; top ())
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v t
->>>>>>> parent of e3509317... Remove type argument from VD.update_offset
+>>>>>>> master
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result

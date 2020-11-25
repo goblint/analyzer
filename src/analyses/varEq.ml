@@ -87,13 +87,13 @@ struct
     let rec offs_equal o1 o2 =
       match o1, o2 with
       | NoOffset, NoOffset -> true
-      | Field (f1, o1), Field (f2,o2) -> f1.fcomp.ckey = f2.fcomp.ckey && f1.fname = f2.fname && offs_equal o1 o2
+      | Field (f1, o1), Field (f2,o2) -> f1.fcomp.ckey = f2.fcomp.ckey && f1.fname = f2.fname && (match Cil.unrollType f1.ftype with | TArray(TFloat _,_,_) | TFloat _ -> false | _ -> true)  &&offs_equal o1 o2
       | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2
       | _ -> false
     in
     offs_equal o1 o2
     && match l1, l2 with
-    | Var v1, Var v2 -> v1.vid = v2.vid
+    | Var v1, Var v2 -> v1.vid = v2.vid && (match Cil.unrollTypeDeep v1.vtype with | TArray(TFloat _,_,_) | TFloat  _-> false | _ -> true)
     | Mem m1, Mem m2 -> exp_equal m1 m2
     | _ -> false
 
@@ -353,18 +353,41 @@ struct
       | _ -> D.top ()
     *)
 
+  let rec is_global_var (ask: Queries.ask) x =
+    match x with
+    | SizeOf _
+    | SizeOfE _
+    | SizeOfStr _
+    | AlignOf _
+    | AlignOfE _
+    | UnOp _
+    | BinOp _ -> None
+    | Const _ -> Some false
+    | Lval (Var v,_) -> Some v.vglob
+    | Lval (Mem e, _) ->
+      begin match ask (Queries.MayPointTo e) with
+        | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
+          Some (Queries.LS.exists (fun (v, _) -> is_global_var ask (Lval (var v)) = Some true) ls)
+        | _ -> Some true
+      end
+    | CastE (t,e) -> is_global_var ask e
+    | AddrOf lval -> Some false
+    | StartOf lval -> Some false
+    | Question _ -> failwith "Logical operations should be compiled away by CIL."
+    | _ -> failwith "Unmatched pattern."
+
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
     (*    let is_local x =
           match x with (Var v,_) -> not v.vglob | _ -> false
           in
           let st =
-    *)  let lvt = typeOf (Lval lv) in
+    *)  let lvt = unrollType @@ typeOf (Lval lv) in
     (*     Messages.report (sprint 80 (d_type () lvt)); *)
-    if Exp.is_global_var (Lval lv) = Some false
+    if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv
-    && Exp.is_global_var rv = Some false
-    && (isArithmeticType lvt || isPointerType lvt)
+    && is_global_var ask rv = Some false
+    && ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt)
     then D.add_eq (rv,Lval lv) (remove ask lv st)
     else remove ask lv st
   (*    in
@@ -472,6 +495,18 @@ struct
       | Some lval -> remove ctx.ask lval st2
       | None -> st2
 
+  let remove_reachable ctx es =
+    match reachables ctx.ask es with
+    | None -> D.top ()
+    | Some rs ->
+      let remove_reachable1 es st =
+        let remove_reachable2 e st =
+          if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
+        in
+        D.B.fold remove_reachable2 es st
+      in
+      D.fold remove_reachable1 ctx.local ctx.local
+
   let unknown_fn ctx lval f args =
     let args =
       match LF.get_invalidate_action f.vname with
@@ -485,17 +520,7 @@ struct
     in
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
-    | false ->
-      match reachables ctx.ask es with
-      | None -> D.top ()
-      | Some rs ->
-        let remove_reachable1 es st =
-          let remove_reachable2 e st =
-            if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
-          in
-          D.B.fold remove_reachable2 es st
-        in
-        D.fold remove_reachable1 ctx.local ctx.local
+    | false -> remove_reachable ctx es
 
   let safe_fn = function
     | "memcpy" -> true
@@ -504,13 +529,18 @@ struct
 
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
-    match f.vname with
-    | "spinlock_check" ->
+    match LibraryFunctions.classify f.vname args with
+    | `Unknown "spinlock_check" ->
       begin match lval with
         | Some x -> assign ctx x (List.hd args)
         | None -> unknown_fn ctx lval f args
       end
-    | x when safe_fn x -> ctx.local
+    | `Unknown x when safe_fn x -> ctx.local
+    | `ThreadCreate (_, arg) ->
+      begin match D.is_bot ctx.local with
+      | true -> raise Analyses.Deadcode
+      | false -> remove_reachable ctx [arg]
+      end
     | _ -> unknown_fn ctx lval f args
   (* query stuff *)
 
