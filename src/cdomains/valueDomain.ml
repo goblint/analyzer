@@ -41,7 +41,7 @@ sig
   type value
   type size
   type origin
-  include Lattice.S with type t = value * size * origin 
+  include Lattice.S with type t = value * size * origin
 
   val make: value -> size -> t
   val value: t -> value
@@ -63,8 +63,8 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
   let make v s = v, s, true
-  let value (a, b, c) = a 
-  let size (a, b, c) = b 
+  let value (a, b, c) = a
+  let size (a, b, c) = b
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
 
   let invariant c (v, _, _) = Value.invariant c v
@@ -119,7 +119,7 @@ struct
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.bot ()) l) (bot_value ai))
     | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
-  
+
   let rec init_value (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     let init_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
@@ -139,7 +139,7 @@ struct
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
-  
+
   let rec top_value (t: typ): t =
     let top_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
@@ -158,8 +158,8 @@ struct
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
-  
-  
+
+
     let rec zero_init_value (t:typ): t =
       let zero_init_comp compinfo: Structs.t =
         let nstruct = Structs.top () in
@@ -502,9 +502,9 @@ struct
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | `Blob (x,s,o), y
-    | y, `Blob (x,s,o) -> `Blob (join (x:t) y, s, o) 
+    | y, `Blob (x,s,o) -> `Blob (join (x:t) y, s, o)
     | _ ->
-      warn_type "join" x y;   
+      warn_type "join" x y;
       `Top
 
   let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
@@ -708,7 +708,7 @@ struct
         | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with
-          | (var,`Index (i,`NoOffset)) when i = Cil.zero && var = arr_start_var ->
+          | (var,`Index (i,`NoOffset)) when Expcompare.compareExp i Cil.zero && var.vid = arr_start_var.vid ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
@@ -760,8 +760,8 @@ struct
       | _, _ ->  ExpDomain.top()
 
   let zero_init_calloced_memory orig x t =
-    if orig then (* This Blob came from malloc *) 
-            x 
+    if orig then (* This Blob came from malloc *)
+            x
           else (* This Blob came from calloc *)
             if x = `Bot then
               zero_init_value t (* This should be zero initialized *)
@@ -784,7 +784,7 @@ struct
           let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
           zero_init_calloced_memory orig ev t
         end
-      | `Blob((va, _, orig) as c), `NoOffset -> 
+      | `Blob((va, _, orig) as c), `NoOffset ->
       begin
         let l', o' = shift_one_over l o in
         let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
@@ -844,12 +844,12 @@ struct
 
   let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
-      let mu = function `Blob (`Blob (y, s',orig), s,orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
+      let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       match x, offs with
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
-          let x = zero_init_calloced_memory orig x t in 
+          let x = zero_init_calloced_memory orig x t in
           mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v t), s, orig))
         end
       | `Blob (x,s,orig),_ ->
@@ -863,7 +863,8 @@ struct
         match offs with
         | `NoOffset -> begin
             match value with
-            | `Blob (y,s,orig) -> mu (`Blob (join x y, s,orig))
+            | `Blob (y, s, orig) -> mu (`Blob (join x y, s, orig))
+            | `Int _ -> cast t value
             | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
@@ -925,15 +926,18 @@ struct
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
             match x with
-            | `Array x' -> 
+            | `Array x' ->
               let t = (match t with
               | TArray(t1 ,_,_) -> t1
-              | _ -> t) in (* This is necessay because t is not a TArray in case of calloc *)
+              | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
               let e = determine_offset ask l o exp (Some v) in
               let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Bot ->
+              let t = (match t with
+              | TArray(t1 ,_,_) -> t1
+              | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
               let x' = CArrays.bot () in
               let e = determine_offset ask l o exp (Some v) in
               let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
@@ -1037,5 +1041,5 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
   ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
-and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID) 
+and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
 and Lists: ListDomain.S with type elem = AD.t = ListDomain.SimpleList (AD)
