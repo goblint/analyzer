@@ -41,7 +41,8 @@ struct
        if ctx.local = `Top then
         `Lifted (MyCFG.getLoc ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
         else ctx.local (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
-      else D.top () in  (* if an uninteresting callee is called, then we forget what was called before *)
+      else if ctx.local = `Bot then D.top () else ctx.local in
+      (* TODO: clean up *)
     [(ctx.local, calleectx)]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
