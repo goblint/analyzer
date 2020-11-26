@@ -3,7 +3,7 @@ open Pretty
 open GobConfig
 
 module ID = IntDomain.IntDomTuple
-module IndexDomain = ID
+module IndexDomain = IntDomain.IntDomWithDefaultIkind (ID) (IntDomain.PtrDiffIkind)
 module AD = AddressDomain.AddressSet (IndexDomain)
 module Addr = Lval.NormalLat (IndexDomain)
 module Offs = Lval.Offset (IndexDomain)
@@ -11,6 +11,7 @@ module M = Messages
 module GU = Goblintutil
 module Expp = ExpDomain
 module Q = Queries
+module BI = IntOps.BigIntOps
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -52,7 +53,7 @@ end
 (* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
 module ZeroInit = Lattice.Fake(Basetype.RawBools)
 
-module Blob (Value: S) (Size: IntDomain.S)=
+module Blob (Value: S) (Size: IntDomain.Z)=
 struct
   let name () = "blob"
   include Lattice.Prod3 (Value) (Size) (ZeroInit)
@@ -115,8 +116,8 @@ struct
     | TArray (ai, None, _) ->
       `Array (CArrays.make (IndexDomain.bot ()) (bot_value ai))
     | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.bot ()) l) (bot_value ai))
+      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
     | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
 
@@ -128,15 +129,15 @@ struct
     in
     match t with
     | t when is_mutex_type t -> `Top
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
+    | TInt (ik,_) -> `Int (ID.top_of ik)
     | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
       `Array (CArrays.make (IndexDomain.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
 
@@ -147,15 +148,15 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
+    | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
       `Array (CArrays.make (IndexDomain.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
@@ -167,7 +168,7 @@ struct
         List.fold_left zero_init_field nstruct compinfo.cfields
       in
       match t with
-      | TInt (ikind, _) -> `Int (ID.of_int 0L)
+      | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
       | TPtr _ -> `Address AD.null_ptr
       | TComp ({cstruct=true; _} as ci,_) -> `Struct (zero_init_comp ci)
       | TComp ({cstruct=false; _} as ci,_) ->
@@ -181,10 +182,10 @@ struct
         in
         `Union(v)
       | TArray (ai, None, _) ->
-        `Array (CArrays.make (IndexDomain.top ()) (zero_init_value ai))
+        `Array (CArrays.make (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
       | TArray (ai, Some exp, _) ->
-        let l = Cil.isInteger (Cil.constFold true exp) in
-        `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int) (IndexDomain.top ()) l) (zero_init_value ai))
+        let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+        `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
       | TNamed ({ttype=t; _}, _) -> zero_init_value t
       | _ -> `Top
 
@@ -356,7 +357,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.cast_to (Cilfacade.ptrdiff_ikind ()) @@ IndexDomain.of_int 0L, `NoOffset))) (Some false)
+              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
             | _ -> err @@ "Cast to neither array index nor struct field."
                           ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
           end
@@ -393,18 +394,18 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.cast_to ?torg (ptr_ikind ()) @@ ID.of_int Int64.zero
-              | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
+              | `Address x when AD.equal x AD.null_ptr -> ID.of_int (ptr_ikind ()) BI.zero
+              | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [BI.zero]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
                 let first = List.hd some.fcomp.cfields in
                 (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
-              | _ -> log_top __POS__; ID.top ()
+              | _ -> log_top __POS__; ID.top_of ik
             ))
         | TEnum ({ekind=ik; _},_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
-              | _ -> log_top __POS__; ID.top ()
+              | _ -> log_top __POS__; ID.top_of ik
             ))
         | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
           (match v with
@@ -415,7 +416,7 @@ struct
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           `Address (match v with
-              | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr
+              | `Int x when ID.to_int x = Some BI.zero -> AD.null_ptr
               | `Int x -> AD.top_ptr
               (* we ignore casts to void*! TODO report UB! *)
               | `Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
@@ -472,9 +473,9 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some 0L && not (AD.is_not_null y) -> true
+    | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top y -> true
+    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) -> Structs.leq x y
     | (`Union x, `Union y) -> Unions.leq x y
@@ -489,15 +490,17 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> `Int (ID.join x y)
+    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_all m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.join AD.null_ptr y
-        | Some x when x<>0L -> AD.(join y not_null)
-        | _ -> AD.join y AD.top_ptr)
+        | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
+        | Some x -> AD.(join y not_null)
+        | None -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
-    | (`Union x, `Union y) -> `Union (Unions.join x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
+        | `Lifted f -> (`Lifted f, join x y) (* f = g *)
+        | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.join x y)
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
@@ -514,15 +517,17 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> `Int (ID.join x y)
+    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_all m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.join AD.null_ptr y
-        | Some x when x<>0L -> AD.(join y not_null)
-        | _ -> AD.join y AD.top_ptr)
+        | Some x when BI.equal BI.zero x -> AD.join AD.null_ptr y
+        | Some x -> AD.(join y not_null)
+        | None -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.join f g, join_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
+        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
+        | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.join x y) (* `List can not contain array -> normal join  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `List can not contain array -> normal join  *)
@@ -543,12 +548,14 @@ struct
     | (`Int x, `Int y) -> `Int (ID.widen x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.widen AD.null_ptr y
-        | Some x when x<>0L -> AD.(widen y not_null)
-        | _ -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr y
+        | Some x -> AD.(widen y not_null)
+        | None -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (UnionDomain.Field.widen f g, widen_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
+        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
+        | x -> x, `Top) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
@@ -565,9 +572,9 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some 0L && not (AD.is_not_null y) -> true
+    | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top y -> true
+    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) ->
           Structs.leq_with_fct leq_elem x y
@@ -586,7 +593,7 @@ struct
     | (x, `Top) -> x
     | (`Int x, `Int y) -> `Int (ID.meet x y)
     | (`Int _, `Address _) -> meet x (cast (TInt(ptr_ikind (),[])) y)
-    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
+    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
     | (`Union x, `Union y) -> `Union (Unions.meet x y)
@@ -597,7 +604,7 @@ struct
       warn_type "meet" x y;
       `Bot
 
-  let widen x y =
+  let rec widen x y =
     match (x,y) with
     | (`Top, _) -> `Top
     | (_, `Top) -> `Top
@@ -606,12 +613,14 @@ struct
     | (`Int x, `Int y) -> `Int (ID.widen x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.widen AD.null_ptr y
-        | Some x when x<>0L -> AD.(widen y not_null)
-        | _ -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr y
+        | Some x -> AD.(widen y not_null)
+        | None -> AD.widen y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
-    | (`Union x, `Union y) -> `Union (Unions.widen x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
+        | `Lifted f -> (`Lifted f, widen x y) (* f = g *)
+        | x -> (x, `Top))
     | (`Array x, `Array y) -> `Array (CArrays.widen x y)
     | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
@@ -623,7 +632,7 @@ struct
     match (x,y) with
     | (`Int x, `Int y) -> `Int (ID.narrow x y)
     | (`Int _, `Address _) -> narrow x (cast IntDomain.Size.top_typ y)
-    | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
+    | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.narrow x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
     | (`Union x, `Union y) -> `Union (Unions.narrow x y)
@@ -832,7 +841,7 @@ struct
               begin
                 do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
               end
-            | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v t
+            | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
           end
@@ -918,10 +927,10 @@ struct
                       | TArray(_, l, _) ->
                         let len = try Cil.lenOfArray l
                           with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        `Array(CArrays.make (IndexDomain.of_int (Int64.of_int len)) `Top), offs
+                        `Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) `Top), offs
                       | _ -> top (), offs (* will not happen*)
                     end
-                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int 0L) ->
+                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
                     (* Why does cil index unions? We'll just pick the first field. *)
                     top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
                   | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name.";
@@ -954,7 +963,7 @@ struct
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v t
+            | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result
@@ -1006,12 +1015,12 @@ struct
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
         let newl = match e with
-          | None -> ID.top () (* TODO: must be non-negative, top is overly cautious *)
+          | None -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO: must be non-negative, top is overly cautious *)
           | Some e ->
             begin
               match eval_exp e with
-              | `Int x -> x
-              | _ -> ID.top () (* TODO:Warn *)
+              | `Int x -> ID.cast_to (Cilfacade.ptrdiff_ikind ())  x
+              | _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO:Warn *)
             end
         in
         `Array(CArrays.update_length newl n')

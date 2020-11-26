@@ -5,7 +5,7 @@ open GobConfig
 module M = Messages
 module A = Array
 module Q = Queries
-
+module BI = IntOps.BigIntOps
 module type S =
 sig
   include Lattice.S
@@ -79,7 +79,7 @@ sig
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.S):SPartitioned with type value = Val.t and type idx = Idx.t =
+module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z):SPartitioned with type value = Val.t and type idx = Idx.t =
 struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
@@ -266,7 +266,7 @@ struct
                   match Idx.to_int l with
                   | Some i ->
                     begin
-                      match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt i)) with
+                      match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) with
                       | `Bool false -> true (* !(e <_{may} length) => e >=_{must} length *)
                       | _ -> false
                     end
@@ -306,18 +306,18 @@ struct
         | `Lifted e' ->
             begin
               match ask (Q.EvalInt e') with
-              | `Int n -> Q.ID.to_int n
+              | `Int n -> Option.map BI.of_int64 (Q.ID.to_int n)
               | _ -> None
             end
         |_ -> None
       in
-      let equals_zero e = BatOption.map_default (Int64.equal Int64.zero) false (exp_value e) in
+      let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
       let equals_maxIndex e =
         match length with
         | Some l ->
           begin
             match Idx.to_int l with
-            | Some i -> BatOption.map_default (Int64.equal (Int64.sub i Int64.one)) false (exp_value e)
+            | Some i -> BatOption.map_default (BI.equal (BI.sub i BI.one)) false (exp_value e)
             | None -> false
           end
         | _ -> false
@@ -357,12 +357,15 @@ struct
               (*  e = _{must} i => update strongly *)
               (e, (xl, a, xr))
             else if Cil.isConstant e' && Cil.isConstant i' then
-              match Cil.isInteger e', Cil.isInteger i' with
-                | Some e'', Some i'' ->
-                  if i'' = Int64.add e'' Int64.one then
+              match Cil.getInteger e', Cil.getInteger i' with
+                | Some (e'': Cilint.cilint), Some i'' ->
+                  let (i'': BI.t) = Cilint.big_int_of_cilint  i'' in
+                  let (e'': BI.t) = Cilint.big_int_of_cilint  e'' in
+
+                  if BI.equal  i'' (BI.add e'' BI.one) then
                     (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
                     (i, (Val.join xl xm, a, xr))
-                  else if e'' = Int64.add i'' Int64.one then
+                  else if BI.equal e'' (BI.add i'' BI.one) then
                     (i, (xl, a, Val.join xm xr))
                   else
                     default
@@ -428,7 +431,7 @@ struct
   (* leq needs not be given explicitly, leq from product domain works here *)
 
   let make i v =
-    if Idx.to_int i = Some Int64.one then
+    if Idx.to_int i = Some BI.one  then
       (`Lifted (Cil.integer 0), (v, v, v))
     else if Val.is_bot v then
       (Expp.top(), (Val.bot(), Val.bot(), Val.bot()))
@@ -447,12 +450,12 @@ struct
         begin
           match Idx.to_int l with
           | Some i ->
-            v = Some (Int64.sub i Int64.one)
+            v = Some (BI.sub i BI.one)
           | None -> false
         end
       | None -> false
     in
-    let must_be_zero v = v = Some Int64.zero in
+    let must_be_zero v = v = Some BI.zero in
     let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
     match e1, e2 with
     | `Lifted e1e, `Lifted e2e when Basetype.CilExp.equal e1e e2e ->
@@ -507,21 +510,23 @@ struct
     | _ ->
       failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
 
+  let (%) = Batteries.(%)
   let smart_join_with_length length x1_eval_int x2_eval_int x1 x2 =
-    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 ((Option.map BI.of_int64) % x1_eval_int) ((Option.map BI.of_int64) % x2_eval_int)
 
   let smart_widen_with_length length x1_eval_int x2_eval_int x1 x2  =
-    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 ((Option.map BI.of_int64) % x1_eval_int) ((Option.map BI.of_int64) %x2_eval_int)
 
   let smart_leq_with_length length x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
-    let must_be_zero v = (v = Some Int64.zero) in
+    let x1_eval_int = (Option.map BI.of_int64) % x1_eval_int in
+    let must_be_zero v = (v = Some BI.zero) in
     let must_be_length_minus_one v =  match length with
       | Some l ->
         begin
           match Idx.to_int l with
           | Some i ->
-            v = Some (Int64.sub i Int64.one)
+            v = Some (BI.sub i BI.one)
           | None -> false
         end
       | None -> false
@@ -566,7 +571,7 @@ struct
 end
 
 
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
+module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Trivial (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
@@ -600,7 +605,7 @@ struct
 end
 
 
-module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
+module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Partitioned (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
@@ -643,7 +648,7 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
-module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t =
+module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
 struct
   module P = PartitionedWithLength(Val)(Idx)
   module T = TrivialWithLength(Val)(Idx)
@@ -693,7 +698,7 @@ struct
   let is_bot = unop P.is_bot T.is_bot
   let get a x (e,i) = unop (fun x ->
         if e = `Top then
-          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Idx.to_int i) in
+          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
           P.get a x (e', i)
         else
           P.get a x (e, i)
