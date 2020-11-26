@@ -1992,9 +1992,10 @@ struct
     | `Unknown "pthread_exit" ->
       begin match args with
         | [exp] ->
-          let rv = eval_rv ctx.ask ctx.global ctx.local exp in
           begin match ThreadId.get_current ctx.ask with
-            | `Lifted tid -> ctx.sideg tid rv
+            | `Lifted tid ->
+              let rv = eval_rv ctx.ask ctx.global ctx.local exp in
+              ctx.sideg tid rv
             | _ -> ()
           end;
           raise Deadcode
@@ -2152,9 +2153,13 @@ struct
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     match lval with
     | Some lval ->
-      let tid = ThreadId.get_current_unlift fctx.ask in
-      (* TODO: is this type right? *)
-      set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
+      begin match ThreadId.get_current fctx.ask with
+        | `Lifted tid ->
+          (* TODO: is this type right? *)
+          set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
+        | _ ->
+          ctx.local
+      end
     | None ->
       ctx.local
 end
@@ -2172,4 +2177,4 @@ module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["threadid";"mallocWrapper"] (module Main : Spec)
+  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : Spec)
