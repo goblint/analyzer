@@ -24,7 +24,8 @@ struct
   let start out =
     let f = BatIO.output_channel out in
     BatPrintf.fprintf f "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    BatPrintf.fprintf f "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">\n";
+    (* BatPrintf.fprintf f "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">\n"; *)
+    BatPrintf.fprintf f "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n";
     f
 
   let write_key f fr key typ default_value =

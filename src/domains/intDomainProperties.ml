@@ -36,13 +36,13 @@ struct
 end
 
 module CD = IntegerSet
-module AF (AD: IntDomain.S) =
+module AF (AD: IntDomain.IkindUnawareS) =
 struct
   let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
   let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int c) x) s
 end
 
-module Valid (AD: IntDomain.S): DomainProperties.S =
+module Valid (AD: IntDomain.IkindUnawareS): DomainProperties.S =
 struct
   include AbstractionDomainProperties.ValidTest (CD) (AD) (AF (AD))
 
@@ -104,7 +104,7 @@ struct
   ]
 end
 
-module All (D: IntDomain.S): DomainProperties.S =
+module All (D: IntDomain.IkindUnawareS): DomainProperties.S =
 struct
   module A = DomainProperties.All (D)
   module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))
@@ -113,7 +113,7 @@ struct
   let tests = A.tests @ M.tests @ V.tests
 end
 
-module AllNonAssoc (D:IntDomain.S): DomainProperties.S =
+module AllNonAssoc (D:IntDomain.IkindUnawareS): DomainProperties.S =
 struct
   module A = DomainProperties.AllNonAssoc (D)
   module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))
