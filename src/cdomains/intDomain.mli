@@ -313,6 +313,8 @@ exception Error
   * caught by lifted domains and the evaluation will then be set to bot, which
   * signifies an error in computation *)
 
+exception IncompatibleIKinds of string
+
 (** {b Predefined domains} *)
 
 module Integers : IkindUnawareS with type t = int64

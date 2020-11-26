@@ -12,6 +12,11 @@ module M = Messages
 let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
 
+exception IncompatibleIKinds of string
+exception Unknown
+exception Error
+exception ArithmeticOnIntegerBot of string
+
 module type Arith =
 sig
   type t
@@ -229,7 +234,7 @@ struct
   type t = { v : I.t; ikind : ikind }
 
   (* Helper functions *)
-  let check_ikinds x y = if x.ikind <> y.ikind then failwith ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v ) else ()
+  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
   let lift op x = {x with v = op x.ikind x.v }
   (* For logical operations the result is of type int *)
   let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
@@ -411,9 +416,6 @@ module Size = struct (* size in bits as int, range as int64 *)
         a, b
 end
 
-exception Unknown
-exception Error
-exception ArithmeticOnIntegerBot of string
 
 module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
   open B
