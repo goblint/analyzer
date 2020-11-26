@@ -20,6 +20,8 @@ struct
 
   module Q = Queries
 
+  let wrappers = Hashtbl.create 13
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     ctx.local
@@ -34,8 +36,7 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let interestingfunctions = get_string_list "exp.malloc.wrappers" in (* if this list gets bigger, having a Hashtbl should be considered *)
-    let calleeofinterest = List.mem f.vname interestingfunctions in
+    let calleeofinterest = Hashtbl.mem wrappers f.vname in
     let calleectx = if calleeofinterest then
        if ctx.local = `Top then
         `Lifted (MyCFG.getLoc ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
@@ -77,6 +78,7 @@ struct
     | _ -> `Top
 
     let init () =
+      List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
       Hashtbl.clear heap_hash;
       Hashtbl.clear heap_vars
 end
