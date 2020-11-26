@@ -173,7 +173,7 @@ let _ = ()
       ; reg Experimental "exp.solver.td3.space" "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Needed for inspecting output!"
-      ; reg Experimental "exp.fast_global_inits" "true" "Only generate 'a[MyCFG.all_array_index_exp] = 0' for a zero-initialized array a[n]."
+      ; reg Experimental "exp.fast_global_inits" "true" "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n]."
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
       ; reg Experimental "exp.witness_path" "'witness.graphml'" "Witness output path"

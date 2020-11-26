@@ -34,7 +34,7 @@ let is_atomic lval =
 
 let is_ignorable lval =
   (*  ignore (printf "Var %a\n" d_lval lval);*)
-  try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
+  try ValueDomain.Compound.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
   with Not_found -> false
 
 

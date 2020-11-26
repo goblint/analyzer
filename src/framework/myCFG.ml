@@ -386,9 +386,9 @@ let getGlobalInits (file: file) : (edge * location) list  =
     match init with
     | SingleInit exp ->
       let assign lval = Assign (lval, exp), loc in
-      (* This is an optimization so that we don't get n*m assigns for a zero-initialized array a[n][m]
-         TODO This is only sound for our flat array domain. Change this once we use others. *)
-      if (not fast_global_inits) || (not is_zero) then
+      (* This is an optimization so that we don't get n*m assigns for an array a[n][m].
+         Instead, we get one assign for each distinct value in the array *)
+      if not fast_global_inits then
         Hashtbl.add inits (assign lval) ()
       else if not (Hashtbl.mem inits (assign (all_index lval))) then
         Hashtbl.add inits (assign (all_index lval)) ()

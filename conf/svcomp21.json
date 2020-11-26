@@ -37,7 +37,12 @@
         "__builtin_alloca",
         "kzalloc",
 
-        "ldv_malloc"
+        "ldv_malloc",
+
+        "kzalloc_node",
+        "ldv_zalloc",
+        "kmalloc_array",
+        "kcalloc"
       ]
     }
   },
