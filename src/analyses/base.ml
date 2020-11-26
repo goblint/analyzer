@@ -2156,7 +2156,7 @@ struct
       (* TODO: is this type right? *)
       set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
     | None ->
-      D.bot ()
+      ctx.local
 end
 
 module type MainSpec = sig
