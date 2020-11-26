@@ -3,7 +3,6 @@
 open Prelude.Ana
 open Analyses
 
-module Equ = MusteqDomain.Equ
 module RegMap = RegionDomain.RegMap
 module RegPart = RegionDomain.RegPart
 module Reg = RegionDomain.Reg
@@ -25,7 +24,7 @@ struct
 
   let regions exp part st : Lval.CilLval.t list =
     match st with
-    | `Lifted (equ,reg) ->
+    | `Lifted reg ->
       let ev = Reg.eval_exp exp in
       let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
       List.map to_exp (Reg.related_globals ev (part,reg))
@@ -34,7 +33,7 @@ struct
 
   let is_bullet exp part st : bool =
     match st with
-    | `Lifted (equ,reg) ->
+    | `Lifted reg ->
       begin match Reg.eval_exp exp with
         | Some (_,v,_) -> (try RegionDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
         | _ -> false
@@ -84,13 +83,12 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     match ctx.local with
-    | `Lifted (equ,reg) ->
+    | `Lifted reg ->
       let old_regpart = get_regpart ctx in
-      let equ = Equ.assign lval rval equ in
       let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
       if not (RegPart.leq regpart old_regpart) then
         set_regpart ctx regpart;
-      `Lifted (equ,reg)
+      `Lifted reg
     | x -> x
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -102,8 +100,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let locals = f.sformals @ f.slocals in
     match ctx.local with
-    | `Lifted (equ,reg) ->
-      let equ = Equ.kill_vars locals equ in
+    | `Lifted reg ->
       let old_regpart = get_regpart ctx in
       let regpart, reg = match exp with
         | Some exp -> Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
@@ -112,7 +109,7 @@ struct
       let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
       if not (RegPart.leq regpart old_regpart) then
         set_regpart ctx regpart;
-      `Lifted (equ,reg)
+      `Lifted reg
     | x -> x
 
 
@@ -123,21 +120,19 @@ struct
       | _ -> r
     in
     match ctx.local with
-    | `Lifted (equ,reg) ->
+    | `Lifted reg ->
       let fundec = Cilfacade.getdec f in
-      let f x r eq = Equ.assign (var x) r eq in
-      let equ  = fold_right2 f fundec.sformals args equ in
       let f x r reg = Reg.assign (var x) r reg in
       let old_regpart = get_regpart ctx in
       let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
       if not (RegPart.leq regpart old_regpart) then
         set_regpart ctx regpart;
-      [ctx.local, `Lifted (equ,reg)]
+      [ctx.local, `Lifted reg]
     | x -> [x,x]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     match au with
-    | `Lifted (equ, reg) -> begin
+    | `Lifted reg -> begin
       let old_regpart = get_regpart ctx in
       let regpart, reg = match lval with
         | None -> (old_regpart, reg)
@@ -146,20 +141,20 @@ struct
       let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (regpart, reg) in
       if not (RegPart.leq regpart old_regpart) then
         set_regpart ctx regpart;
-      `Lifted (equ,reg)
+      `Lifted reg
       end
     | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match f.vname with
-    | "malloc" | "calloc" | "kmalloc"| "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
+    match LibraryFunctions.classify f.vname arglist with
+    | `Malloc _ | `Calloc _ -> begin
         match ctx.local, lval with
-        | `Lifted (equ,reg), Some lv ->
+        | `Lifted reg, Some lv ->
           let old_regpart = get_regpart ctx in
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
             set_regpart ctx regpart;
-          `Lifted (equ, reg)
+          `Lifted reg
         | _ -> ctx.local
       end
     | _ ->
@@ -173,13 +168,13 @@ struct
       | _ -> ctx.local
 
   let startstate v =
-    `Lifted (Equ.top (), RegMap.bot ())
+    `Lifted (RegMap.bot ())
 
   let threadenter ctx lval f args =
-    `Lifted (Equ.top (), RegMap.bot ())
+    `Lifted (RegMap.bot ())
   let threadspawn ctx lval f args fctx = D.bot ()
 
-  let exitstate v = `Lifted (Equ.top (), RegMap.bot ())
+  let exitstate v = `Lifted (RegMap.bot ())
 
   let name () = "region"
 

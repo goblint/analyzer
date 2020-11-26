@@ -281,7 +281,7 @@ struct
 
     let startstate, more_funs, entrystates_global =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
-      do_global_inits file
+      Stats.time "global_inits" do_global_inits file
     in
 
     let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in

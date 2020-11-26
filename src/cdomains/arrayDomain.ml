@@ -295,7 +295,9 @@ struct
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
     if i = `Lifted MyCFG.all_array_index_exp then
-      (Expp.top(), (a, a, a))
+      (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
+      let r =  Val.join xm a in
+      (Expp.top(), (r, r, r)))
     else
       normalize @@
       let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
@@ -427,9 +429,9 @@ struct
 
   let make i v =
     if Idx.to_int i = Some Int64.one then
-      (`Lifted (Cil.integer 0), (Val.bot (), v, Val.bot ()))
+      (`Lifted (Cil.integer 0), (v, v, v))
     else if Val.is_bot v then
-      (Expp.top(), (Val.top(), Val.top(), Val.top()))
+      (Expp.top(), (Val.bot(), Val.bot(), Val.bot()))
     else
       (Expp.top(), (v, v, v))
 

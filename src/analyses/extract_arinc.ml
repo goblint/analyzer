@@ -362,7 +362,6 @@ struct
                   | "SetPartitionMode", "NORMAL"::_ ->
                     let tasks = ctx.global tasks_var in
                     ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
-                    (* TODO: remove spawning? *)
                     Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
                   | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
                   | s, a -> print_endline @@ "arinc: FUN: "^s^"("^String.concat ", " a^")"

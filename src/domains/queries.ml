@@ -64,6 +64,7 @@ type t = ExpEq of exp * exp
        | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
        | TheAnswerToLifeUniverseAndEverything
        | HeapVar
+       | IsHeapVar of varinfo
 [@@deriving to_yojson]
 
 type result = [

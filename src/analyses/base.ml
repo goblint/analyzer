@@ -17,13 +17,6 @@ module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 
-let is_mutex_type (t: typ): bool = match t with
-  | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
-  | TInt (IInt, attr) -> hasAttribute "mutex" attr
-  | _ -> false
-
-let is_immediate_type t = is_mutex_type t || isFunctionType t
-
 let is_global (a: Q.ask) (v: varinfo): bool =
   v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
 
@@ -101,15 +94,10 @@ struct
       | _ -> failwith("Ran without a malloc analysis.") in
     info
 
-
-  let tasks_var_ref = ref dummyFunDec.svar
-  let tasks_var () = !tasks_var_ref
-
   let init () =
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    tasks_var_ref := Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
+    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -371,10 +359,10 @@ struct
           end
         in
 
-        let v = VD.eval_offset a (fun x -> get a gs (st,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) in
+        let v = VD.eval_offset a (fun x -> get a gs (st,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
-          | `Blob (c, s) -> c
+          | `Blob (c,s,_) -> c
           | x -> x
       in
       let f x =
@@ -431,7 +419,7 @@ struct
       | `Top ->
         let typ = AD.get_type adr in
         let warning = "Unknown value in " ^ AD.short 40 adr ^ " could be an escaped pointer address!" in
-        if is_immediate_type typ then () else M.warn_each warning; empty
+        if VD.is_immediate_type typ then () else M.warn_each warning; empty
       | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
       | `Address adrs when AD.is_top adrs ->
         let warning = "Unknown address in " ^ AD.short 40 adr ^ " has escaped." in
@@ -443,7 +431,7 @@ struct
       (* For arrays, we ask to read from an unknown index, this will cause it
        * join all its values. *)
       | `Array a -> reachable_from_value (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ()))
-      | `Blob (e,_) -> reachable_from_value e
+      | `Blob (e,_,_) -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       | `Int _ -> empty
@@ -482,11 +470,11 @@ struct
     if CPA.is_top st then st else
       let rec replace_val = function
         | `Address _ as v -> v
-        | `Blob (v,s) ->
+        | `Blob (v,s,o) ->
           begin match replace_val v with
-            | `Blob (`Top, _)
+            | `Blob (`Top,_,_)
             | `Top -> `Top
-            | t -> `Blob (t, s)
+            | t -> `Blob (t,s,o)
           end
         | `Struct s ->
           let one_field fl vl st =
@@ -506,7 +494,7 @@ struct
         | `Array n     -> `Array (ValueDomain.CArrays.map replace_val n)
         | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
         | `Union (f,v) -> `Union (f,replace_val v)
-        | `Blob (n,s)  -> `Blob (replace_val n,s)
+        | `Blob (n,s,o)  -> `Blob (replace_val n,s,o)
         | `Address x -> `Address (ValueDomain.AD.map ValueDomain.Addr.drop_ints x)
         | x -> x
       in
@@ -574,7 +562,7 @@ struct
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
         | `Array a -> reachable_from_value (ValueDomain.CArrays.get ctx.ask a (ExpDomain.top(), ValueDomain.ArrIdxDomain.top ()))
-        | `Blob (e,_) -> reachable_from_value e
+        | `Blob (e,_,_) -> reachable_from_value e
         | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -636,16 +624,7 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
-        | Lval ((Var v, ofs) as b) ->
-          let t = typeOfLval b in
-          let p = eval_lv a gs st b in
-          let v = get a gs st p (Some exp) in
-          (* let v' = VD.cast t v in *)
-          (* M.tracel "cast" "Var: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v'; *)
-          (* TODO: somehow bypass this cast on pthread_t-s *)
-          let v' = v in
-          let v' = do_offs v' ofs in
-          v'
+        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
@@ -687,7 +666,7 @@ struct
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
           M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-          let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None in (* handle offset *)
+          let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
         (* Binary operators *)
@@ -793,64 +772,6 @@ struct
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
       end
 
-  let rec bot_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let bot_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype) in
-      List.fold_left bot_field nstruct compinfo.cfields
-    in
-    match t with
-    | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
-    | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (bot_comp ci)
-    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.bot ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.bot ()) (bot_value a gs st ai))
-    | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (bot_value a gs st ai))
-    | TNamed ({ttype=t; _}, _) -> bot_value a gs st t
-    | _ -> `Bot
-
-  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
-    let init_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
-      List.fold_left init_field nstruct compinfo.cfields
-    in
-    match t with
-    | t when is_mutex_type t -> `Top
-    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
-    | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
-    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-    | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t; _}, _) -> init_value a gs st t
-    | _ -> `Top
-
-  let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
-    let top_comp compinfo: ValueDomain.Structs.t =
-      let nstruct = ValueDomain.Structs.top () in
-      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype) in
-      List.fold_left top_field nstruct compinfo.cfields
-    in
-    match t with
-    | TInt _ -> `Int (ID.top ())
-    | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
-    | TComp ({cstruct=false; _},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray (ai, None, _) ->
-      `Array (ValueDomain.CArrays.make (IdxDom.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-    | TArray (ai, Some exp, _) ->
-      let l = Cil.isInteger (Cil.constFold true exp) in
-      `Array (ValueDomain.CArrays.make (BatOption.map_default (IdxDom.of_int) (IdxDom.top ()) l) (if get_bool "exp.partition-arrays.enabled" then (top_value a gs st ai) else (bot_value a gs st ai)))
-    | TNamed ({ttype=t; _}, _) -> top_value a gs st t
-    | _ -> `Top
-
   (* run eval_rv from above and keep a result that is bottom *)
   (* this is needed for global variables *)
   let eval_rv_keep_bot = eval_rv
@@ -861,9 +782,9 @@ struct
     try
       let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
-      if VD.is_bot r then top_value a gs st (typeOf exp) else r
+      if VD.is_bot r then VD.top_value (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
-      top_value a gs st (typeOf exp)
+    ValueDomain.Compound.top_value (typeOf exp)
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
@@ -927,7 +848,7 @@ struct
           let r = get ~full:true ctx.ask ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int i | None -> `Top)
+           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> `Int i | None -> `Top)
            | _ -> `Top)
         | _ -> `Top
       end
@@ -1070,7 +991,7 @@ struct
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
-  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st,dep: store) (lval: AD.t) (value: value) : store =
+  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st,dep: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x y z in (* refers to defintion that is outside of set *)
@@ -1083,6 +1004,23 @@ struct
      * not include the flag. *)
     let update_one_addr (x, offs) (nst, dep): store =
       let cil_offset = Offs.to_cil_offset offs in
+      let t = match t_override with
+        | Some t -> t
+        | None ->
+          let is_heap_var = match a (Q.IsHeapVar x) with `Bool(true) -> true | _ -> false in
+          if is_heap_var then
+            (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
+            (* i.e. use the static type of the pointer here *)
+            lval_type
+          else
+            try
+              Cil.typeOfLval (Var x, cil_offset)
+            with _ ->
+              (* If we cannot determine the correct type here, we go with the one of the LVal *)
+              (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
+              M.warn ("Cil.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset));
+              lval_type
+      in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
@@ -1109,13 +1047,13 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset)) nst, dep
+          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t) nst, dep
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) in
+        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -1199,8 +1137,8 @@ struct
 
   let set_many a (gs:glob_fun) (st,dep as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
-    let f (acc: store) ((lval:AD.t),(value:value)): store =
-      set a gs acc lval value
+    let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
+      set a gs acc lval typ value
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f store lval_value_list
@@ -1378,7 +1316,7 @@ struct
       else
         let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
         let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
-        let state_with_excluded = set a gs st addr value ~effect:false ~change_array:false ~ctx:(Some ctx) in
+        let state_with_excluded = set a gs st addr (Cil.typeOfLval lval) value ~effect:false ~change_array:false ~ctx:(Some ctx) in
         let value =  get a gs state_with_excluded addr None in
         let new_val = apply_invariant oldval value in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -1388,8 +1326,8 @@ struct
           raise Analyses.Deadcode
         )
         else if VD.is_bot new_val
-        then set a gs st addr value ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
-        else set a gs st addr new_val ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
+        then set a gs st addr (Cil.typeOfLval lval) value ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
+        else set a gs st addr (Cil.typeOfLval lval) new_val ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
@@ -1403,7 +1341,7 @@ struct
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
-    let inv_bin_int (a, b) ikind c =
+    let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if ID.to_int x = Some 0L then
           (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
@@ -1421,7 +1359,7 @@ struct
         try
           meet_bin (oi c b) (oo a c)
         with IntDomain.ArithmeticOnIntegerBot _ -> raise Deadcode in
-      function
+      match op with
       | PlusA  -> meet_com ID.sub
       | Mult   ->
         (* Only multiplication with odd numbers is an invertible operation in (mod 2^n) *)
@@ -1513,8 +1451,11 @@ struct
     in
     let eval e = eval_rv a gs st e in
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
-    let set' lval v = fst (set a gs st (eval_lv a gs st lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
-    let rec inv_exp c = function
+    let set' lval v = fst (set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
+    let rec inv_exp c exp =
+      (* trying to improve variables in an expression so it is bottom means dead code *)
+      if ID.is_bot c then raise Deadcode;
+      match exp with
       | UnOp (LNot, e, _) ->
         let c' =
           match ID.to_bool (unop_ID LNot c) with
@@ -1591,16 +1532,17 @@ struct
       in
       Tuple2.map1 (fun _ -> inv_exp itv exp) st
 
-  let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr v : store =
+  let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     match v with
-    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr)) ?lval_raw ?rval_raw
-    | v -> set ask gs st adr v ?lval_raw ?rval_raw
+    | `Top -> set ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
+    | v -> set ask gs st adr lval_t v ?lval_raw ?rval_raw
 
 
   (**************************************************************************
    * Simple defs for the transfer functions
    **************************************************************************)
   let assign ctx (lval:lval) (rval:exp):store  =
+    let lval_t = Cil.typeOf rval in
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
@@ -1628,7 +1570,7 @@ struct
           Bytes.blit s 0 dst 0 (Bytes.length s); (* dst[0:len(s)] = s *)
           Bytes.set dst i c; (* set character i to c inplace *)
           Hashtbl.replace char_array lv dst
-        )else(
+        ) else (
           Bytes.set s i c; (* set character i to c inplace *)
           Hashtbl.replace char_array lv s
         )
@@ -1646,7 +1588,7 @@ struct
     in
     match is_list_init () with
     | Some a when (get_bool "exp.list-type") ->
-        set ctx.ask ctx.global ctx.local (AD.singleton (Addr.from_var a)) (`List (ValueDomain.Lists.bot ()))
+        set ctx.ask ctx.global ctx.local (AD.singleton (Addr.from_var a)) lval_t (`List (ValueDomain.Lists.bot ()))
     | _ ->
       let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
       let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
@@ -1676,17 +1618,18 @@ struct
         | `Bot -> (* current value is VD `Bot *)
           (match Addr.to_var_offset (AD.choose lval_val) with
           | [(x,offs)] ->
-            let iv = bot_value ctx.ask ctx.global ctx.local v.vtype in (* correct bottom value for top level variable *)
-            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval in (* do desired update to value *)
-            set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) nv (* set top-level variable to updated value *)
+            let t = v.vtype in
+            let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+            let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+            set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
           | _ ->
-            set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
+            set_savetop ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           )
         | _ ->
-          set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
+          set_savetop ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
         )
       | _ ->
-        set_savetop ctx.ask ctx.global ctx.local lval_val rval_val ~lval_raw:lval ~rval_raw:rval
+        set_savetop ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
 
 
   module Locmap = Deadcode.Locmap
@@ -1750,7 +1693,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.from_var v, init_value ctx.ask ctx.global ctx.local v.vtype) in
+    let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
     set_many ctx.ask ctx.global ctx.local inits
@@ -1782,7 +1725,8 @@ struct
           | `Lifted tid when ThreadReturn.is_current ctx.ask -> Tuple2.map1 (CPA.add tid rv) nst
           | _ -> nst
         in
-        set ~t_override ctx.ask ctx.global nst (return_var ()) rv (* lval_raw:None, and rval_raw:None is correct here *)
+        set ~t_override ctx.ask ctx.global nst (return_var ()) t_override rv
+        (* lval_raw:None, and rval_raw:None is correct here *)
 
   let vdecl ctx (v:varinfo) =
     if not (Cil.isArrayType v.vtype) then
@@ -1791,7 +1735,7 @@ struct
       let lval = eval_lv ctx.ask ctx.global ctx.local (Var v, NoOffset) in
       let current_value = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
       let new_value = VD.update_array_lengths (eval_rv ctx.ask ctx.global ctx.local) current_value v.vtype in
-      set ctx.ask ctx.global ctx.local lval new_value
+      set ctx.ask ctx.global ctx.local lval v.vtype new_value
 
   (**************************************************************************
    * Function calls
@@ -1804,7 +1748,7 @@ struct
       let t = AD.get_type a in
       let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value ask t v in
-      (a, nv)
+      (a, t, nv)
     in
     (* We define the function that invalidates all the values that an address
      * expression e may point to *)
@@ -1823,9 +1767,10 @@ struct
     let is_fav_addr x =
       List.exists (fun x -> List.mem x.vname my_favorite_things) (AD.to_var_may x)
     in
-    let invalids' = List.filter (fun (x,_) -> not (is_fav_addr x)) invalids in
+    let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
-      let addrs, vs = List.split invalids' in
+      let addrs = List.map (Tuple3.first) invalids' in
+      let vs = List.map (Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
     set_many ask gs st invalids'
@@ -1889,33 +1834,6 @@ struct
     in
     match LF.classify f.vname args with
     (* handling thread creations *)
-    (* TODO: move LAP_Se_* out of base? *)
-    | `Unknown "LAP_Se_SetPartitionMode" when List.length args = 2 -> begin
-        let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
-        match ctx.ask (Queries.EvalInt mode) with
-        | `Int i when i=3L ->
-          let a = match ctx.global (tasks_var ()) with `Address a -> a | _ -> AD.empty () in
-          let r = AD.to_var_may a |> List.filter_map (create_thread None None) in
-          ctx.sideg (tasks_var ()) (`Address (AD.empty ()));
-          ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
-          r
-        | _ -> []
-      end
-    | `Unknown "LAP_Se_CreateProcess"
-    | `Unknown "LAP_Se_CreateErrorHandler" -> begin
-        match List.map (fun x -> stripCasts (constFold false x)) args with
-        (* | [proc_att;AddrOf id;AddrOf r] -> (* CreateProcess *) *)
-        (* | [entry_point;stack_size;AddrOf r] -> (* CreateErrorHandler *) *)
-        | [entry_point; _; AddrOf r] -> (* both *)
-          let pa = eval_fv ctx.ask ctx.global ctx.local entry_point in
-          let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
-          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
-          let a = match ctx.global (tasks_var ()) with `Address a -> a | _ -> AD.empty () in
-          ctx.sideg (tasks_var ()) (`Address (List.map AD.from_var reach_fs |> List.fold_left AD.join a));
-          (* List.filter_map (create_thread None) reach_fs *)
-          []
-        | _ -> []
-      end
     | `ThreadCreate (id,start,ptc_arg) -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
         publish_all ctx;
@@ -1956,7 +1874,7 @@ struct
           let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
           if expected <> annot then (
             let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
-            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the orginal source if this is the case. *)
+            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
             M.warn_each ~ctx:ctx.control_context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
@@ -2034,10 +1952,10 @@ struct
               let eadr = AD.singleton (Addr.from_var elm) in
               let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
               let new_list = `List (ValueDomain.Lists.add eadr ld) in
-              let s1 = set ctx.ask ctx.global ctx.local ladr new_list in
-              let s2 = set ctx.ask ctx.global s1 eitemadr (`Address (AD.singleton (Addr.from_var lst))) in
+              let s1 = set ctx.ask ctx.global ctx.local ladr lst.vtype new_list in
+              let s2 = set ctx.ask ctx.global s1 eitemadr (AD.get_type eitemadr) (`Address (AD.singleton (Addr.from_var lst))) in
               s2
-            | _ -> set ctx.ask ctx.global ctx.local ladr `Top
+            | _ -> set ctx.ask ctx.global ctx.local ladr lst.vtype `Top
           end
         | _ -> M.bailwith "List function arguments are strange/complicated."
       end
@@ -2049,13 +1967,13 @@ struct
             let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
             let lprt_val = get ctx.ask ctx.global ctx.local lptr None in
             let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
-            let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison) in
+            let s1 = set ctx.ask ctx.global ctx.local lptr (AD.get_type lptr) (VD.join lprt_val lst_poison) in
             match get ctx.ask ctx.global ctx.local lptr None with
             | `Address ladr -> begin
                 match get ctx.ask ctx.global ctx.local ladr None with
                 | `List ld ->
                   let del_ls = ValueDomain.Lists.del eadr ld in
-                  let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls) in
+                  let s2 = set ctx.ask ctx.global s1 ladr (AD.get_type ladr) (`List del_ls) in
                   s2
                 | _ -> s1
               end
@@ -2094,14 +2012,7 @@ struct
       end
     (* handling thread creations *)
     | `ThreadCreate _ ->
-      D.bot () (* actual results joined via threadcombine *)
-    (*       | `Unknown "LAP_Se_CreateProcess" -> begin
-              match List.map (fun x -> stripCasts (constFold false x)) args with
-                | [_;AddrOf id;AddrOf r] ->
-                    let cpa,_ = invalidate ctx.ask ctx.global ctx.local [Lval id; Lval r] in
-                      cpa, fl
-                | _ -> raise Deadcode
-              end *)
+      D.bot () (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
@@ -2109,7 +2020,8 @@ struct
         | `Address ret_a ->
           begin match eval_rv ctx.ask gs st id with
             | `Address a ->
-              set ctx.ask gs st ret_a (get ctx.ask gs st a None)
+              (* TODO: is this type right? *)
+              set ctx.ask gs st ret_a (Cil.typeOf ret_var) (get ctx.ask gs st a None)
             | _      -> invalidate ctx.ask gs st [ret_var]
           end
         | _      -> invalidate ctx.ask gs st [ret_var]
@@ -2123,11 +2035,11 @@ struct
             else AD.from_var (heap_var ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
-                                  (eval_lv ctx.ask gs st lv, `Address heap_var)]
+          set_many ctx.ask gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int ctx.ask gs st size, true));
+                                  (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
         | _ -> st
       end
-    | `Calloc size ->
+    | `Calloc (n, size) ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = heap_var ctx in
@@ -2135,14 +2047,15 @@ struct
             if get_bool "exp.malloc.fail"
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
-          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
-                                  (eval_lv ctx.ask gs st lv, `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset)))))]
+          (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
+          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int Int64.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size, false))));
+                                  (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset)))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
       begin match args with
         | [Lval lv] | [CastE (_,AddrOf lv)] ->
-          let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) `Top in
+          let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv)  `Top in
           st
         | _ ->
           M.bailwith "Function __goblint_unknown expected one address-of argument."
@@ -2184,7 +2097,7 @@ struct
             invalidate ctx.ask gs st [mkAddrOrStartOf x]
         in
         (* apply all registered abstract effects from other analysis on the base value domain *)
-        List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
+        List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
@@ -2209,7 +2122,7 @@ struct
       let st = add_globals (fun_st, fun_dep) st in
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val
+      | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) (Cil.typeOfLval lval) return_val
     in
     combine_one ctx.local after
 
@@ -2219,7 +2132,7 @@ struct
       | TPtr (t, attr), `Address a
         when (not (AD.is_top a))
           && List.length (AD.to_var_may a) = 1
-          && not (is_immediate_type t)
+          && not (VD.is_immediate_type t)
         ->
         let cv = List.hd (AD.to_var_may a) in
         "ref " ^ VD.short 26 (CPA.find cv es)
@@ -2240,7 +2153,8 @@ struct
     match lval with
     | Some lval ->
       let tid = ThreadId.get_current_unlift fctx.ask in
-      set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (`Address (AD.from_var tid))
+      (* TODO: is this type right? *)
+      set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
     | None ->
       D.bot ()
 end
@@ -2252,7 +2166,6 @@ module type MainSpec = sig
   val return_varinfo: unit -> Cil.varinfo
   type extra = (varinfo * Offs.t * bool) list
   val context_cpa: D.t -> BaseDomain.CPA.t
-  val tasks_var: unit -> varinfo
 end
 
 module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
