@@ -114,7 +114,8 @@ struct
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-    | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+
+    | Index (Const  (CInt64 (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
@@ -134,7 +135,7 @@ struct
     let rec conv_const_offset x =
       match x with
       | NoOffset    -> `NoOffset
-      | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+      | Index (Const  (CInt64 (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
       | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
       | Field (f,o) -> `Field (f, conv_const_offset o)
     in

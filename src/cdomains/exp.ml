@@ -298,7 +298,7 @@ struct
     *)	| EAddr :: EDeref :: x -> ees_to_offs x
     | EDeref :: EAddr :: x -> ees_to_offs x
     | EField f :: x -> `Field (f,ees_to_offs x)
-    | EIndex (Const (CInt64 (i,_,_))) :: x -> `Index (IntDomain.IntDomTuple.of_int i,ees_to_offs x)
+    | EIndex (Const (CInt64 (i, ik, str))) :: x -> `Index (IntDomain.of_const (i, ik, str),ees_to_offs x)
     | EIndex i :: x -> `NoOffset              (* Ideally this would be ValueDomain.IntDomain but that leads to issues *)
     | x  -> raise NotSimpleEnough             (* with a cyclic build *)
 

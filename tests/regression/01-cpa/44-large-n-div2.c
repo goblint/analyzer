@@ -19,5 +19,5 @@ int main(){
         assert(1);
     }
 
-    assert(z > 2); //UNKNOWN
+    assert(z == 4);
 }

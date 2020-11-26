@@ -21,12 +21,12 @@ int main() {
     assert(x == 2 && y == 4);
   if (x == 3 && y/x == 2) {
     assert(y == 6); // UNKNOWN!
-    assert(RANGE(y, 6, 8)); // UNKNOWN
+    assert(RANGE(y, 6, 8));
   }
   if (y/3 == -2)
-    assert(RANGE(y, -8, -6)); // UNKNOWN
+    assert(RANGE(y, -8, -6));
   if (y/-3 == -2)
-    assert(RANGE(y, 6, 8)); // UNKNOWN
+    assert(RANGE(y, 6, 8));
   if (y/x == 2 && x == 3)
     assert(x == 3); // TO-DO y == [6,8]; this does not work because CIL transforms this into two if-statements
   if (2+(3-x)*4/5 == 6 && 2*y >= x+5)
@@ -113,7 +113,7 @@ int main2() {
   if (x == three && y/x == two) {
     // y could for example also be 7
     assert(y == six);  // UNKNOWN!
-    assert(RANGE(y, 6, 8)); // UNKNOWN
+    assert(RANGE(y, 6, 8));
   }
   if (y/x == two && x == three)
     assert(x == three); // TO-DO y == six
@@ -124,9 +124,9 @@ int main2() {
     assert(x != two); // [two,four] -> [three,four] TO-DO x % two == one
 
   if (y/three == -two)
-    assert(RANGE(y, -8, -6)); // UNKNOWN
+    assert(RANGE(y, -8, -6));
   if (y/-three == -two)
-    assert(RANGE(y, 6, 8)); // UNKNOWN
+    assert(RANGE(y, 6, 8));
   if (y/x == two && x == three)
     assert(x == 3); // TO-DO y == [6,8]; this does not work because CIL transforms this into two if-statements
   if (two+(three-x)*four/five == six && two*y >= x+five)

@@ -1,4 +1,4 @@
-open ArrayDomain
+(* open ArrayDomain
 
 open Pretty
 open Messages
@@ -1128,4 +1128,4 @@ struct
     match x with
       | `Lifted x' -> `Lifted (A.update_length newl x')
       | __ -> x
-end
+end *)

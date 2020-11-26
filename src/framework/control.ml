@@ -418,13 +418,13 @@ struct
       if get_bool "verify" && compare_runs = [] then (
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
         Goblintutil.should_warn := true;
-        Vrfyr.verify lh gh;
+        Stats.time "verify" (Vrfyr.verify lh) gh;
       );
 
       if get_bool "ana.sv-comp.enabled" then (
         (* prune already here so local_xml and thus HTML are also pruned *)
         let module Reach = Reachability (EQSys) (LHT) (GHT) in
-        Reach.prune lh gh startvars'
+        Stats.time "reachability" (Reach.prune lh gh) startvars'
       );
 
       if get_bool "dbg.uncalled" then (

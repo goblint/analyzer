@@ -2,7 +2,7 @@ module Q     = Queries
 module GU    = Goblintutil
 module Var   = Basetype.Variables
 module Bool  = IntDomain.Booleans
-module Offs  = Lval.Offset (IntDomain.Integers)
+module Offs  = Lval.Offset (IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.OldDomainFacade (IntDomain.Integers))) (IntDomain.PtrDiffIkind))
 module CLval = Lval.CilLval
 
 open Cil
