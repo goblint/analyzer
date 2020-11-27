@@ -614,6 +614,7 @@ struct
   let inter = product_bot B.meet
   let meet = inter
   let subset = leq
+  let map' = map (* HACK: for PathSensitive morphstate *)
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
   let split x a = failwith "Hoare: unsupported split"
