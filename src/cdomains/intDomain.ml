@@ -994,7 +994,7 @@ struct
   module S = SetDomain.Make (Integers)
   module R = Interval32 (* range for exclusion *)
 
-  (* Ikind used for inervals representing the domain *)
+  (* Ikind used for intervals representing the domain *)
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
   type t = [
@@ -1031,6 +1031,8 @@ struct
       | _ -> false
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+
+  let is_top x = x = top ()
 
   let equal_to i = function
   | `Bot -> failwith "unsupported: equal_to with bottom"
@@ -1762,6 +1764,7 @@ module Enums : IkindUnawareS = struct
   let top () = Exc ([], top_range)
   let top_of ik = top ()
   let bot_of ik = bot ()
+  let is_top x = x = top ()
 
   let equal a b = a = b (* Be careful: this works only as long as the Range/Interval implementation used does not use big integers *)
   let short _ = function
