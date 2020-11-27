@@ -714,7 +714,7 @@ struct
           let a1 = eval_rv a gs st e1 in
           let a2 = eval_rv a gs st e2 in
           let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
-          let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) && not both_arith_type in
+          let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2)) && not both_arith_type in
           M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
           if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
             let e1 = if isArithmeticType (typeOf e1) then c1 else e1 in
