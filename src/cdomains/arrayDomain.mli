@@ -1,3 +1,4 @@
+
 (** Abstract domains representing arrays. *)
 module type S =
 sig
@@ -53,16 +54,16 @@ sig
   val smart_leq: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> bool
 end
 
-module Trivial (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
+module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is taken as a parameter to satisfy the type system, it is not
   * used in the implementation. *)
 
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
+module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
+module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** This functor creates an array representation that allows for partitioned arrays
   * Such an array can be partitioned according to an expression in which case it
   * uses three values from Val to represent the elements of the array to the left,
@@ -70,8 +71,8 @@ module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.S): S with type va
   * have a signature that allows for choosing an array representation at runtime.
    *)
 
-module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.S): S with type value = Val.t and type idx = Idx.t
+module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** Like partitioned but additionally manages the length of the array. *)
 
-module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.S):S with type value = Val.t and type idx = Idx.t
+module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
 (** Switches between PartitionedWithLength and TrivialWithLength based on the value of exp.partition-arrays. *)

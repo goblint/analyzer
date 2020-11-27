@@ -1,6 +1,7 @@
 open Cil
 open Pretty
-
+open Goblintutil
+open IntOps
 let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
@@ -19,7 +20,7 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Idx: IntDomain.S) =
+module AddressSet (Idx: IntDomain.Z) =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
 
@@ -42,12 +43,12 @@ struct
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
   let has_unknown x  = mem Addr.UnknownPtr x
 
-  let of_int (type a) (module ID : IntDomain.S with type t = a) i =
+  let of_int (type a) (module ID : IntDomain.Z with type t = a) i =
     match ID.to_int i with
-    | Some 0L -> null_ptr
-    | Some 1L -> not_null
+    | x when opt_predicate BigIntOps.(equal (zero)) x -> null_ptr
+    | x when opt_predicate BigIntOps.(equal (one)) x -> not_null
     | _ -> match ID.to_excl_list i with
-      | Some xs when List.mem 0L xs -> not_null
+      | Some xs when List.exists BigIntOps.(equal (zero)) xs -> not_null
       | _ -> top_ptr
 
   let get_type xs =
@@ -144,7 +145,7 @@ struct
                 | `Index (i, offs) ->
                   (* Addr.Offs.is_definite implies Idx.is_int *)
                   let i_definite = BatOption.get (Idx.to_int i) in
-                  let i_exp = Cil.(kinteger64 ILongLong i_definite) in
+                  let i_exp = Cil.(kinteger64 ILongLong (BigIntOps.to_int64 i_definite)) in
                   Index (i_exp, offs_to_offset offs)
               in
               let offset = offs_to_offset offs in

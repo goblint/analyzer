@@ -119,7 +119,8 @@ let escape (x:string):string =
   Str.global_replace (Str.regexp "\"") "&quot;" |>
   Str.global_replace (Str.regexp "'") "&apos;" |>
   Str.global_replace (Str.regexp "\x0b") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
-  Str.global_replace (Str.regexp "\001") "" (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "\001") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "\x0c") "" (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
 
 let trim (x:string): string =
   let len = String.length x in
@@ -435,3 +436,7 @@ let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
 let exe_dir = Filename.dirname Sys.executable_name
 let command = String.concat " " (Array.to_list Sys.argv)
+
+let opt_predicate (f : 'a -> bool) = function
+  | Some x -> f x
+  | None -> false

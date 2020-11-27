@@ -85,6 +85,8 @@ struct
   let map (f: key -> key) (s: t): t = match s with
     | `Top -> `Top
     | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
+  let map' = map (* HACK: for PathSensitive morphstate *)
+  (* TODO: reducing map, like HoareSet *)
 
   module S =
   struct
@@ -294,10 +296,9 @@ struct
 
   let should_join x y = true
 
-  let otherstate v = (Dom.singleton (Spec.otherstate v) (R.bot ()), Sync.bot ())
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
-  let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot())
+  let morphstate v (d, _) = (Dom.map' (Spec.morphstate v) d, Sync.bot ())
 
   let call_descr = Spec.call_descr
 
@@ -312,7 +313,6 @@ struct
     (* TODO: R.bot () isn't right here *)
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            ; spawn = (fun v -> ctx.spawn v % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ())) ) (* TODO: use enter-like behavior for spawn, as in WitnessLifter *)
                             ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }
     and query x = Spec.query ctx' x in
     ctx'
@@ -346,6 +346,12 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  (* TODO: do additional witness things here *)
+  let threadenter ctx f args = map ctx Spec.threadenter (fun h -> h f args)
+  let threadspawn ctx f args fctx =
+    let fd1 = Dom.choose (fst fctx.local) in
+    map ctx Spec.threadspawn (fun h -> h f args (conv fctx fd1))
 
   let fold ctx f g h a =
     let k x a =

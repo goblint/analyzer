@@ -170,10 +170,11 @@ struct
   let startstate v =
     `Lifted (RegMap.bot ())
 
-  let otherstate v =
+  let threadenter ctx f args =
     `Lifted (RegMap.bot ())
+  let threadspawn ctx f args fctx = D.bot ()
 
-  let exitstate = otherstate
+  let exitstate v = `Lifted (RegMap.bot ())
 
   let name () = "region"
 
