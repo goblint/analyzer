@@ -324,34 +324,6 @@ struct
    * State functions
    **************************************************************************)
 
-  let globalize ?(privates=false) a (cpa,dep): cpa * glob_diff  =
-    (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (cpa,acc) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
-      let res =
-        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a (cpa,dep) v)) then begin
-          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          (CPA.remove v cpa, (v,value) :: acc)
-        end else
-          (cpa,acc)
-      in
-      if M.tracing then M.traceu "globalize" "Done!\n";
-      res
-    in
-    (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var cpa (cpa, [])
-
-  let sync' privates multi ctx: D.t * glob_diff =
-    let cpa,dep = ctx.local in
-    let privates = privates || (!GU.earlyglobs && not multi) in
-    let cpa, diff = if !GU.earlyglobs || multi then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
-    (cpa, dep), diff
-
-  let sync ctx = sync' false (ThreadFlag.is_multi ctx.ask) ctx
-
-  let publish_all ctx =
-    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true true ctx))
-
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
@@ -1175,7 +1147,7 @@ struct
     List.fold_left f st v_list, List.fold_left g dep v_list
 
   (* Removes all partitionings done according to this variable *)
-  let rem_many_paritioning a (s:store) (v_list: varinfo list):store =
+  let rem_many_partitioning a (s:store) (v_list: varinfo list):store =
     (* Removes the partitioning information from all affected arrays, call before removing locals *)
     let rem_partitioning a (st,dep:store) (x:varinfo):store =
       let affected_arrays =
@@ -1671,6 +1643,35 @@ struct
     else
       Locmap.add h k d
 
+  let globalize ?(privates=false) a (cpa,dep): cpa * glob_diff  =
+    (* For each global variable, we create the diff *)
+    let add_var (v: varinfo) (value) (cpa,acc) =
+      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
+      let res =
+        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a (cpa,dep) v)) then begin
+          let (cpa, dep) = rem_many_partitioning a (cpa,dep) [v]  in
+          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
+          (CPA.remove v cpa, (v,value) :: acc)
+        end else
+          (cpa,acc)
+      in
+      if M.tracing then M.traceu "globalize" "Done!\n";
+      res
+    in
+    (* We fold over the local state, and collect the globals *)
+    CPA.fold add_var cpa (cpa, [])
+
+  let sync' privates multi ctx: D.t * glob_diff =
+    let cpa,dep = ctx.local in
+    let privates = privates || (!GU.earlyglobs && not multi) in
+    let cpa, diff = if !GU.earlyglobs || multi then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
+    (cpa, dep), diff
+
+  let sync ctx = sync' false (ThreadFlag.is_multi ctx.ask) ctx
+
+  let publish_all ctx =
+    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true true ctx))
+
   let branch ctx (exp:exp) (tv:bool) : store =
     Locmap.replace Deadcode.dead_branches_cond !Tracing.next_loc exp;
     let valu = eval_rv ctx.ask ctx.global ctx.local exp in
@@ -1738,7 +1739,7 @@ struct
       cp, dep
     | _ ->
       let locals = (fundec.sformals @ fundec.slocals) in
-      let nst_part = rem_many_paritioning ctx.ask ctx.local locals in
+      let nst_part = rem_many_partitioning ctx.ask ctx.local locals in
       let nst = rem_many ctx.ask nst_part locals in
       match exp with
       | None -> nst
