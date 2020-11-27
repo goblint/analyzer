@@ -300,7 +300,7 @@ struct
     | Some (Mem _, _)
     | None -> ctx.local
   let startstate v = D.top ()
-  let otherstate v = D.top ()
+  let threadenter ctx f args = D.top ()
   let exitstate  v = D.top ()
 
   let query ctx q =
@@ -391,6 +391,8 @@ struct
             let inv = INV.of_interval oct_ik (min, max) in
             `Bool (INV.leq linv inv))
     | _ -> Queries.Result.top ()
+
+  let threadspawn ctx f args fctx = D.bot ()
 end
 
 

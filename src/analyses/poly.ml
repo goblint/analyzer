@@ -19,7 +19,8 @@ struct
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
 
-  let otherstate _ = D.top ()
+  let threadenter ctx f args = D.top ()
+  let threadspawn ctx f args fctx = D.bot ()
   let exitstate  _ = D.top ()
   let startstate _ = D.top ()
 

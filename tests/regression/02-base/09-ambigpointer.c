@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','mallocWrapper']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','mallocWrapper']"
 #include<pthread.h>
 #include<assert.h>
 

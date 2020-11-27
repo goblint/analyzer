@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','uninit','mallocWrapper']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"
 typedef struct {
 	int i;
 } S;

@@ -11,6 +11,8 @@
     },
     "activated": [
       "base",
+      "threadid",
+      "threadflag",
       "mallocWrapper",
       "mutex",
       "escape",

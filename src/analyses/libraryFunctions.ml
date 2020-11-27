@@ -149,6 +149,7 @@ let writesAll a x =
 
 (* Data races: which arguments are read/written?
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
+(* WTF: why are argument numbers 1-indexed (in partition)? *)
 let invalidate_actions = ref [
     "GetResource", readsAll;
     "ReleaseResource", readsAll;
@@ -401,7 +402,11 @@ let invalidate_actions = ref [
     "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     (* no args, declare invalidate actions to prevent invalidating globals *)
     "__VERIFIER_atomic_begin", readsAll;
-    "__VERIFIER_atomic_end", readsAll
+    "__VERIFIER_atomic_end", readsAll;
+    (* prevent base from spawning ARINC processes early, handled by arinc/extract_arinc *)
+    (* "LAP_Se_SetPartitionMode", writes [2]; *)
+    "LAP_Se_CreateProcess", writes [2; 3];
+    "LAP_Se_CreateErrorHandler", writes [2; 3]
   ]
 let add_invalidate_actions xs = invalidate_actions := xs @ !invalidate_actions
 

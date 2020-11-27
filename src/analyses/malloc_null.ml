@@ -226,7 +226,8 @@ struct
   let name () = "malloc_null"
 
   let startstate v = D.empty ()
-  let otherstate v = D.empty ()
+  let threadenter ctx f args = D.empty ()
+  let threadspawn ctx f args fctx = D.empty ()
   let exitstate  v = D.empty ()
 
   let init () =

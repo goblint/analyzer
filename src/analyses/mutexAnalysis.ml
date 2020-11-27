@@ -24,9 +24,6 @@ let no_read = ref false
 (** Only report races on these variables/types. *)
 let vips = ref ([]: string list)
 
-let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
-  snd (Obj.obj (List.assoc "base" state))
-
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
 let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType))
@@ -147,13 +144,13 @@ struct
 
   let access_one_top ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    let fl = get_flag ctx.presub in
-    if BaseDomain.Flag.is_multi fl then
+    if ThreadFlag.is_multi ctx.ask then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
   (** We just lift start state, global and dependecy functions: *)
   let startstate v = Lockset.empty ()
-  let otherstate v = Lockset.empty ()
+  let threadenter ctx f args = Lockset.empty ()
+  let threadspawn ctx f args fctx = Lockset.empty ()
   let exitstate  v = Lockset.empty ()
 
   let query ctx (q:Queries.t) : Queries.Result.t =
@@ -305,4 +302,4 @@ end
 module Spec = MakeSpec (MyParam)
 
 let _ =
-  MCP.register_analysis ~dep:["base"] (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

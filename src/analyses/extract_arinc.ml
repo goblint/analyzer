@@ -362,7 +362,7 @@ struct
                   | "SetPartitionMode", "NORMAL"::_ ->
                     let tasks = ctx.global tasks_var in
                     ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
-                    Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) f_d) fs) tasks;
+                    Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) []) fs) tasks;
                   | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
                   | s, a -> print_endline @@ "arinc: FUN: "^s^"("^String.concat ", " a^")"
                 end;
@@ -371,7 +371,6 @@ struct
               ) ctx.local args_product
 
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
-  let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
 
   let init () = (* registers which functions to extract and writes out their definitions *)
@@ -390,6 +389,18 @@ struct
       print_endline @@ "Model saved as " ^ path;
       print_endline "Run ./spin/check.sh to verify."
     )
+
+  let threadenter ctx f args =
+    let tasks = ctx.global tasks_var in
+    (* TODO: optimize finding *)
+    let tasks_f = Tasks.filter (fun (fs,f_d) ->
+        Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs
+      ) tasks
+    in
+    let f_d = snd (Tasks.choose tasks_f) in
+    f_d
+
+  let threadspawn ctx f args fctx = D.bot ()
 end
 
 let _ =
