@@ -697,7 +697,7 @@ struct
           let a1 = eval_rv a gs st e1 in
           let a2 = eval_rv a gs st e2 in
           let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
-          let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) && not both_arith_type in
+          let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2)) && not both_arith_type in
           M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
           if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
             let e1 = if isArithmeticType (typeOf e1) then c1 else e1 in
@@ -1870,7 +1870,7 @@ struct
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
       end
-    | `Unknown _ -> begin
+    | `Unknown _ when get_bool "exp.unknown_funs_spawn" -> begin
         let args =
           match LF.get_invalidate_action f.vname with
           | Some fnc -> fnc `Write  args (* why do we only spawn arguments that are written?? *)
@@ -1934,7 +1934,7 @@ struct
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
-    if M.tracing then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let cpa,dep as st = ctx.local in
     let gs = ctx.global in

@@ -85,6 +85,8 @@ struct
   let map (f: key -> key) (s: t): t = match s with
     | `Top -> `Top
     | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
+  let map' = map (* HACK: for PathSensitive morphstate *)
+  (* TODO: reducing map, like HoareSet *)
 
   module S =
   struct
@@ -296,7 +298,7 @@ struct
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
-  let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot())
+  let morphstate v (d, _) = (Dom.map' (Spec.morphstate v) d, Sync.bot ())
 
   let call_descr = Spec.call_descr
 
