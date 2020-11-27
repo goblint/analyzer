@@ -24,7 +24,7 @@
     ]
   },
   "exp": {
-    "widen-context": true,
+    "widen-context": false,
     "partition-arrays": {
       "enabled": true
     },
