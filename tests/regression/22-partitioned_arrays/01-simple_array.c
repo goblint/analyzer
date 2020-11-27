@@ -163,17 +163,14 @@ void example8() {
     int a[10];
 
     a[global] = 4;
-    assert(a[global] == 4); // UNKNOWN
+    assert(a[global] == 4);
+
+    global++;
+    assert(a[global] == 4); // UNKNOWN!
 
     for(int i=0; i <5; i++) {
         a[i] = 42;
     }
-
-    assert(a[0] == 42);
-    assert(a[1] == 42);
-    assert(a[2] == 42);
-    assert(a[3] == 42);
-    assert(a[global] == 42);
 }
 
 // Check that arrays of types different from int are handeled correctly

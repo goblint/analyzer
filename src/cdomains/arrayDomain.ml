@@ -200,9 +200,7 @@ struct
     match e with
     | `Top
     | `Bot -> true
-    | `Lifted exp ->
-      let vars = Basetype.CilExp.get_vars exp in
-      List.exists (fun x -> x.vglob) vars || contains_array_access exp
+    | `Lifted exp -> contains_array_access exp
 
 
   let map f (e, (xl, xm, xr)) =

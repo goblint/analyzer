@@ -156,20 +156,18 @@ void example7(void) {
     assert(a[top] == 0); // UNKNOWN
 }
 
-// Check that the global variable is not used for paritioning
+// Check that the global variable is not used for partitioning
 void example8() {
     int a[10];
 
     a[global] = 4;
-    assert(a[global] == 4); // UNKNOWN
+    assert(a[global] == 4);
+
+    global++;
+
+    assert(a[global] == 4); //UNKNOWN!
 
     for(int i=0; i <5; i++) {
         a[i] = 42;
     }
-
-    assert(a[0] == 42);
-    assert(a[1] == 42);
-    assert(a[2] == 42);
-    assert(a[3] == 42);
-    assert(a[global] == 42);
 }
