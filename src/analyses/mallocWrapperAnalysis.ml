@@ -51,8 +51,8 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx f args = D.top ()
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
   let heap_hash = Hashtbl.create 113

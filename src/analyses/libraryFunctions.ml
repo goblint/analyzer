@@ -12,7 +12,7 @@ type categories = [
   | `Assert       of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
-  | `ThreadCreate of exp * exp (* f  * x       *)
+  | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
   | `ThreadJoin   of exp * exp (* id * ret_var *)
   | `Unknown      of string ]
 
@@ -22,7 +22,7 @@ let classify' fn exps =
   match fn with
   | "pthread_create" ->
     begin match exps with
-      | [_;_;fn;x] -> `ThreadCreate (fn, x)
+      | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
       | _ -> M.bailwith "pthread_create arguments are strange."
     end
   | "pthread_join" ->

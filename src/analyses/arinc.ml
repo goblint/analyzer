@@ -403,7 +403,7 @@ struct
             if mode_is_multi (Pmo.of_int i) then (
               let tasks = ctx.global tasks_var in
               ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
-              Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) []) fs) tasks;
+              Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
             );
             add_action (SetPartitionMode pm)
             |> D.pmo (const @@ Pmo.of_int i)
@@ -653,7 +653,7 @@ struct
   let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar); ctx = Ctx.top () }
   let exitstate  v = D.bot ()
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     let d : D.t = ctx.local in
     let tasks = ctx.global tasks_var in
     (* TODO: optimize finding *)
@@ -664,7 +664,7 @@ struct
     let f_d = snd (Tasks.choose tasks_f) in
     { f_d with pre = d.pre }
 
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
 end
 
 let _ =

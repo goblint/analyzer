@@ -83,10 +83,10 @@ struct
     else
       (Access.LSSSet.singleton es, es)
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     create_tid f
 
-  let threadspawn ctx f args fctx =
+  let threadspawn ctx lval f args fctx =
     ThreadLifted.bot ()
 end
 

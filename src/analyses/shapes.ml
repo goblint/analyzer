@@ -68,10 +68,10 @@ struct
     let split f d e t = f (LD.singleton (SHMap.top ()), d) e t in
     set_st_gl ctx re ge spawn geffect split
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     let st, re = ctx.local in
-    (LD.singleton (SHMap.top ()), Re.threadenter (re_context ctx re) f args)
-  let threadspawn ctx f args fctx = D.bot ()
+    (LD.singleton (SHMap.top ()), Re.threadenter (re_context ctx re) lval f args)
+  let threadspawn ctx lval f args fctx = D.bot ()
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=

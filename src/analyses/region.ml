@@ -170,9 +170,9 @@ struct
   let startstate v =
     `Lifted (RegMap.bot ())
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     `Lifted (RegMap.bot ())
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
 
   let exitstate v = `Lifted (RegMap.bot ())
 

@@ -51,8 +51,8 @@ struct
     | _ -> MSpec.special ctx lval f arglist
 
   let startstate v = MSpec.startstate v
-  let threadenter ctx f args = MSpec.threadenter ctx f args
-  let threadspawn ctx f args fctx = MSpec.threadspawn ctx f args fctx
+  let threadenter ctx lval f args = MSpec.threadenter ctx lval f args
+  let threadspawn ctx lval f args fctx = MSpec.threadspawn ctx lval f args fctx
   let exitstate  v = MSpec.exitstate  v
 end
 

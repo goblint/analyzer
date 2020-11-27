@@ -119,7 +119,18 @@ struct
     let falsename = "unique"
   end
   module Uniqueness = IntDomain.MakeBooleans (UNames)
-  include Lattice.ProdSimple (Uniqueness) (ThreadSet)
+  module ParentThreadSet =
+  struct
+    include ThreadSet
+    let name () = "parents"
+  end
+  module DirtyExitNames =
+  struct
+    let truename = "dirty exit"
+    let falsename = "clean exit"
+  end
+  module DirtyExit = IntDomain.MakeBooleans (DirtyExitNames)
+  include Lattice.Prod3 (Uniqueness) (ParentThreadSet) (DirtyExit)
 end
 
 

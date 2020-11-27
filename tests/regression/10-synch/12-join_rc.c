@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] thread
+// PARAM: --sets ana.activated[+] thread
 #include <pthread.h>
 #include <stdio.h>
 
@@ -18,10 +18,10 @@ int main(void) {
   for (i=0; i<10; i++)
     pthread_create(&id[i], NULL, t_fun, NULL);
   pthread_mutex_lock(&mutex);
-  myglobal=myglobal+1; // NORACE
+  myglobal=myglobal+1; // RACE
   pthread_mutex_unlock(&mutex);
   for (i=0; i<9; i++)
-    pthread_join(&id[i], NULL, t_fun, NULL);
+    pthread_join(id[i], NULL);
   myglobal=myglobal+1; // RACE!
   return 0;
 }

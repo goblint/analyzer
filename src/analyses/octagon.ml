@@ -300,7 +300,7 @@ struct
     | Some (Mem _, _)
     | None -> ctx.local
   let startstate v = D.top ()
-  let threadenter ctx f args = D.top ()
+  let threadenter ctx lval f args = D.top ()
   let exitstate  v = D.top ()
 
   let query ctx q =
@@ -392,7 +392,7 @@ struct
             `Bool (INV.leq linv inv))
     | _ -> Queries.Result.top ()
 
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
 end
 
 

@@ -709,12 +709,12 @@ struct
   let startstate v = D.top ()
   let exitstate  v = D.top ()
 
-  let threadenter ctx f args = D.top ()
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in
-    ctx.spawn task.svar []
+    ctx.spawn None task.svar []
 
   (* transfer functions *)
   let intrpt ctx : D.t =

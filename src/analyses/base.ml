@@ -1637,7 +1637,7 @@ struct
         let find_fps e xs = Addr.to_var_must e @ xs in
         let vars = AD.fold find_fps adrs [] in
         let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-        List.iter (fun x -> ctx.spawn x []) funs
+        List.iter (fun x -> ctx.spawn None x []) funs
       | _ -> ()
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
@@ -1748,7 +1748,13 @@ struct
           | TFun(ret, _, _, _) -> ret
           | _ -> assert false
         in
-        set ~t_override ctx.ask ctx.global nst (return_var ()) t_override (eval_rv ctx.ask ctx.global ctx.local exp)
+        let rv = eval_rv ctx.ask ctx.global ctx.local exp in
+        let nst =
+          match ThreadId.get_current ctx.ask with
+          | `Lifted tid when ThreadReturn.is_current ctx.ask -> Tuple2.map1 (CPA.add tid rv) nst
+          | _ -> nst
+        in
+        set ~t_override ctx.ask ctx.global nst (return_var ()) t_override rv
         (* lval_raw:None, and rval_raw:None is correct here *)
 
   let vdecl ctx (v:varinfo) =
@@ -1834,8 +1840,8 @@ struct
 
 
 
-  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * exp list) list =
-    let create_thread arg v =
+  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
+    let create_thread lval arg v =
       try
         (* try to get function declaration *)
         let fd = Cilfacade.getdec v in
@@ -1844,12 +1850,12 @@ struct
           | Some x -> [x]
           | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
         in
-        Some (v, args)
+        Some (lval, v, args)
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then (
           M.warn_each ("Creating a thread from unknown function " ^ v.vname);
-          Some (v, args)
+          Some (lval, v, args)
         ) else (
           M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
           None
@@ -1857,12 +1863,12 @@ struct
     in
     match LF.classify f.vname args with
     (* handling thread creations *)
-    | `ThreadCreate (start,ptc_arg) -> begin
+    | `ThreadCreate (id,start,ptc_arg) -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
         publish_all ctx;
         (* Collect the threads. *)
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
-        List.filter_map (create_thread (Some ptc_arg)) (AD.to_var_may start_addr)
+        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
       end
     | `Unknown _ when get_bool "exp.unknown_funs_spawn" -> begin
         let args =
@@ -1872,7 +1878,7 @@ struct
         in
         let flist = collect_funargs ctx.ask ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        List.filter_map (create_thread None) addrs
+        List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
 
@@ -1928,8 +1934,8 @@ struct
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
-    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map fst forks);
-    List.iter (uncurry ctx.spawn) forks;
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
+    List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let cpa,dep as st = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
@@ -2012,7 +2018,18 @@ struct
       end
     | `Unknown "exit" ->  raise Deadcode
     | `Unknown "abort" -> raise Deadcode
-    | `Unknown "pthread_exit" -> raise Deadcode (* TODO: somehow actually return value, pthread_join doesn't handle anyway? *)
+    | `Unknown "pthread_exit" ->
+      begin match args with
+        | [exp] ->
+          begin match ThreadId.get_current ctx.ask with
+            | `Lifted tid ->
+              let rv = eval_rv ctx.ask ctx.global ctx.local exp in
+              ctx.sideg tid rv
+            | _ -> ()
+          end;
+          raise Deadcode
+        | _ -> failwith "Unknown pthread_exit."
+      end
     | `Unknown "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)
@@ -2023,10 +2040,20 @@ struct
         | Some x -> assign ctx x (List.hd args)
         | None -> ctx.local
       end
+    (* handling thread creations *)
+    | `ThreadCreate _ ->
+      D.bot () (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
         | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> cpa,dep
+        | `Address ret_a ->
+          begin match eval_rv ctx.ask gs st id with
+            | `Address a ->
+              (* TODO: is this type right? *)
+              set ctx.ask gs st ret_a (Cil.typeOf ret_var) (get ctx.ask gs st a None)
+            | _      -> invalidate ctx.ask gs st [ret_var]
+          end
         | _      -> invalidate ctx.ask gs st [ret_var]
       end
     | `Malloc size -> begin
@@ -2145,15 +2172,25 @@ struct
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" 80 args_short
 
 
-  let threadenter ctx (f: varinfo) (args: exp list): D.t =
+  let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t =
     try
       make_entry ctx f args
     with Not_found ->
       (* Unknown functions *)
       ctx.local
 
-  let threadspawn ctx (f: varinfo) (args: exp list) fctx: D.t =
-    D.bot ()
+  let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
+    match lval with
+    | Some lval ->
+      begin match ThreadId.get_current fctx.ask with
+        | `Lifted tid ->
+          (* TODO: is this type right? *)
+          set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
+        | _ ->
+          ctx.local
+      end
+    | None ->
+      ctx.local
 end
 
 module type MainSpec = sig

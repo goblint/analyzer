@@ -9,7 +9,7 @@ type categories = [
   | `Assert       of exp
   | `Lock         of bool * bool * bool (* try? * write? *)
   | `Unlock
-  | `ThreadCreate of exp * exp
+  | `ThreadCreate of exp * exp * exp
   | `ThreadJoin   of exp * exp
   | `Unknown      of string ]
 

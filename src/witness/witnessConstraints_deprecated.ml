@@ -189,13 +189,13 @@ struct
     in
     d, w
 
-  let threadenter ctx f args =
-    let d = S.threadenter (unlift_ctx ctx) f args in
+  let threadenter ctx lval f args =
+    let d = S.threadenter (unlift_ctx ctx) lval f args in
     let w = step_ctx ctx in
     d, w
 
-  let threadspawn ctx f args fctx =
-    let d = S.threadspawn (unlift_ctx ctx) f args (unlift_ctx fctx) in
+  let threadspawn ctx lval f args fctx =
+    let d = S.threadspawn (unlift_ctx ctx) lval f args (unlift_ctx fctx) in
     let w = step_ctx ctx in
     d, w
 end

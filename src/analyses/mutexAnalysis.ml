@@ -149,8 +149,8 @@ struct
 
   (** We just lift start state, global and dependecy functions: *)
   let startstate v = Lockset.empty ()
-  let threadenter ctx f args = Lockset.empty ()
-  let threadspawn ctx f args fctx = Lockset.empty ()
+  let threadenter ctx lval f args = Lockset.empty ()
+  let threadspawn ctx lval f args fctx = Lockset.empty ()
   let exitstate  v = Lockset.empty ()
 
   let query ctx (q:Queries.t) : Queries.Result.t =

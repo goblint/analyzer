@@ -47,8 +47,8 @@ struct
   let name () = "var_eq"
 
   let startstate v = D.top ()
-  let threadenter ctx f args = D.top ()
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
   let const_equal c1 c2 =
@@ -537,7 +537,7 @@ struct
         | None -> unknown_fn ctx lval f args
       end
     | `Unknown x when safe_fn x -> ctx.local
-    | `ThreadCreate (_, arg) ->
+    | `ThreadCreate (_,_, arg) ->
       begin match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> remove_reachable ctx [arg]

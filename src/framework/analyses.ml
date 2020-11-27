@@ -387,7 +387,7 @@ type ('d,'g,'c) ctx =
   ; global   : varinfo -> 'g
   ; presub   : (string * Obj.t) list
   ; postsub  : (string * Obj.t) list
-  ; spawn    : varinfo -> exp list -> unit
+  ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> exp -> bool -> unit
   ; sideg    : varinfo -> 'g -> unit
   ; assign   : ?name:string -> lval -> exp -> unit
@@ -444,9 +444,8 @@ sig
   val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> C.t -> D.t -> D.t
 
-  (* TODO: add more arguments? *)
-  val threadenter : (D.t, G.t, C.t) ctx -> varinfo -> exp list -> D.t
-  val threadspawn : (D.t, G.t, C.t) ctx -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
+  val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  val threadspawn : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
 end
 
 module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)

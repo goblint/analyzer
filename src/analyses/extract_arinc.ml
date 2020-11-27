@@ -362,7 +362,7 @@ struct
                   | "SetPartitionMode", "NORMAL"::_ ->
                     let tasks = ctx.global tasks_var in
                     ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
-                    Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) []) fs) tasks;
+                    Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
                   | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
                   | s, a -> print_endline @@ "arinc: FUN: "^s^"("^String.concat ", " a^")"
                 end;
@@ -390,7 +390,7 @@ struct
       print_endline "Run ./spin/check.sh to verify."
     )
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     let tasks = ctx.global tasks_var in
     (* TODO: optimize finding *)
     let tasks_f = Tasks.filter (fun (fs,f_d) ->
@@ -400,7 +400,7 @@ struct
     let f_d = snd (Tasks.choose tasks_f) in
     f_d
 
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
 end
 
 let _ =

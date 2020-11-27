@@ -36,8 +36,8 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx f args = D.bot ()
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 end
 
@@ -76,10 +76,10 @@ struct
   let startstate v = D.bot ()
   let exitstate  v = D.top ()
 
-  let threadenter ctx f args =
+  let threadenter ctx lval f args =
     D.push !Tracing.current_loc ctx.local
 
-  let threadspawn ctx f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
 end
 
 
