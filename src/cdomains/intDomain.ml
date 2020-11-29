@@ -544,7 +544,7 @@ struct
   let ending ik n =
     norm ik @@ Some (range_opt fst (Some ik) |? min_int ik, n)
 
-  (* TODO: change signarue of maximal, minimal to return big_int*)
+  (* TODO: change signature of maximal, minimal to return big_int*)
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
