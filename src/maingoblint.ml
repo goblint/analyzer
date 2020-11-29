@@ -431,9 +431,9 @@ let main =
       main_running := true;
       try
         Stats.reset Stats.SoftwareTimer;
-        Cilfacade.init ();
         parse_arguments ();
         check_arguments ();
+        Cilfacade.init ();
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
