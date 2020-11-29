@@ -96,7 +96,7 @@ struct
     | False (Some spec) ->
       let result_spec = match spec with
         | UnreachCall _ -> "unreach-call"
-        | NoOverflow -> "overflow"
+        | NoOverflow -> "no-overflow"
         | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
       in
       "false(" ^ result_spec ^ ")"
