@@ -497,7 +497,7 @@ struct
       Goblintutil.did_overflow := true
 
   let norm ik = function None -> None | Some (x,y) ->
-    if Ints_t.compare x y > 0 then (set_overflow_flag ik; None)
+    if Ints_t.compare x y > 0 then None
     else if Ints_t.compare (min_int ik) x > 0 || Ints_t.compare (max_int ik) y < 0 then (set_overflow_flag ik; top_of ik)
     else Some (x,y)
 
@@ -611,6 +611,16 @@ struct
       | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero -> top_of ik)
       | _              -> top_of ik
 
+  let bitcomp f ik i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, true -> bot_of ik
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
+    | _ ->
+      match to_int i1, to_int i2 with
+      | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero -> top_of ik)
+      | _              -> (set_overflow_flag ik;  top_of ik)
+
   let bitxor = bit (fun _ik -> Ints_t.logxor)
   let bitand = bit (fun _ik -> Ints_t.logand)
   let bitor  = bit (fun _ik -> Ints_t.logor)
@@ -624,8 +634,8 @@ struct
       | _      -> top_of ik
 
   let bitnot = bit1 (fun _ik -> Ints_t.lognot)
-  let shift_right = bit (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
-  let shift_left  = bit (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
+  let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
+  let shift_left  = bitcomp (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
 
   let neg ik = function None -> None | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
 
