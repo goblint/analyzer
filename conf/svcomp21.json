@@ -28,7 +28,6 @@
     "partition-arrays": {
       "enabled": true
     },
-    "lower-constants" : false,
     "region-offsets": true,
     "malloc": {
       "wrappers": [
