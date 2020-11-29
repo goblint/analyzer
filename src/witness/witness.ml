@@ -561,9 +561,9 @@ struct
       if not !Goblintutil.did_overflow then
         let module TaskResult =
         struct
-          module Arg = TrivialArg
+          module Arg = Arg
           let result = Result.True
-          let invariant _ = Invariant.none
+          let invariant = find_invariant
           let is_violation _ = false
           let is_sink _ = false
         end
