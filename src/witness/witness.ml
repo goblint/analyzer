@@ -551,6 +551,37 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       )
+    | NoOverflow ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !Goblintutil.did_overflow then
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.True
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+
 
   let write lh gh entrystates =
     let module Task = (val (BatOption.get !task)) in

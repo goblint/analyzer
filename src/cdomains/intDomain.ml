@@ -492,9 +492,13 @@ struct
     | Some (a, b) ->
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
+  let set_overflow_flag ik =
+    if Cil.isSigned ik && !GU.in_verifying_stage then
+      Goblintutil.did_overflow := true
+
   let norm ik = function None -> None | Some (x,y) ->
-    if Ints_t.compare x y > 0 then None
-    else if Ints_t.compare (min_int ik) x > 0 || Ints_t.compare (max_int ik) y < 0 then top_of ik
+    if Ints_t.compare x y > 0 then (set_overflow_flag ik; None)
+    else if Ints_t.compare (min_int ik) x > 0 || Ints_t.compare (max_int ik) y < 0 then (set_overflow_flag ik; top_of ik)
     else Some (x,y)
 
   let leq (x:t) (y:t) =
