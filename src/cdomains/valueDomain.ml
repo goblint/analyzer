@@ -720,11 +720,11 @@ struct
           | (var,`Index (i,`NoOffset)) when Expcompare.compareExp i Cil.zero && var.vid = arr_start_var.vid ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
-          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
           end
-        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
         end
-      | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, intType)
+      | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
     in
     (* Create a typesig from a type, but drop the arraylen attribute *)
     let typeSigWithoutArraylen t =
