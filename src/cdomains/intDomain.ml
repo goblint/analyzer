@@ -178,7 +178,15 @@ struct
 
   let add (x1, x2) (y1, y2) = ((Int64.add x1 y1), (Int64.add x2 y2))
 
-  let neg (x1, x2) _ = (Int64.neg x2, Int64.neg x1)
+  let try_cast x y t =
+    try
+      let a = Size.cast t x in
+      let b = Size.cast t y in
+      let a,b = if x<>a || y<>b then Size.range t else a,b in
+        norm_set @@ Some (a, b)
+    with Size.Not_in_int64 -> (min_int, max_int)
+
+  let neg (x1, x2) = (Int64.neg x2, Int64.neg x1)
 
   let mul (x1, x2) (y1, y2) =
     let x1y1 = (Int64.mul x1 y1) in let x1y2 = (Int64.mul x1 y2) in
@@ -217,6 +225,10 @@ struct
 
   include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end)
 
+  let equal_to i = function
+    | None -> failwith "unsupported: equal_to with bottom"
+    | Some (a, b) -> if a = b && b = i then `Eq else if a <= i && i <= b then `Top else `Neq
+
   let leq = IntPair.leq
 
   let join (x:t) y =
@@ -252,10 +264,10 @@ struct
     | Some ik -> try Some (Size.range ik |> f) with Size.Not_in_int64 -> None
 
   let starting ?ikind n =
-    norm @@ Some (n, range_opt snd ikind |? max_int)
+    IntPair.norm @@ Some (n, range_opt snd ikind |? max_int)
 
   let ending ?ikind n =
-    norm @@ Some (range_opt fst ikind |? min_int, n)
+    IntPair.norm @@ Some (range_opt fst ikind |? min_int, n)
 
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
@@ -335,7 +347,7 @@ struct
   let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y))
   let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
 
-  let neg = function None -> None | Some x -> IntPair.norm @@ Some (IntPair.neg x (0L, 0L))
+  let neg = function None -> None | Some x -> IntPair.norm @@ Some (IntPair.neg x)
 
   let add x y =
     match x, y with
@@ -484,9 +496,9 @@ struct
       else
         let a = max x1 x2 in
         let b = min y1 y2 in
-        if      y1 = y2 then meet_lists ~acc:((a, b)::acc) xs1 xs2
-        else if b = y1  then meet_lists ~acc:((a, b)::acc) xs1 ((x2, y2)::xs2)
-        else                 meet_lists ~acc:((a, b)::acc) ((x1, y1)::xs1) xs2
+        if      y1 = y2 then meet_lists ~acc:((a, b) :: acc) xs1 xs2
+        else if b = y1  then meet_lists ~acc:((a, b) :: acc) xs1 ((x2, y2)::xs2)
+        else                 meet_lists ~acc:((a, b) :: acc) ((x1, y1)::xs1) xs2
     | _, [] | [], _ ->
       if acc = [] then None else Some (SS.of_list acc)
 
@@ -508,10 +520,19 @@ struct
     | Some x, Some y ->
       let l1 = List.sort IntPair.compare (SS.elements x) in
       let l2 = List.sort IntPair.compare (SS.elements y) in
-      let s_meet = meet_lists l1 l2 in
-      match s_meet with
-      | None -> false
-      | Some s -> compare_lists (List.sort IntPair.compare (SS.elements s)) l1
+
+      let rec list_leq l1 l2 =
+        match l1, l2 with
+        | (x1, y1) :: xs1, (x2, y2) :: xs2 ->
+          if Int64.compare y1 x2 < 0 then false else
+          if Int64.compare y2 x1 < 0 then list_leq l1 xs2 else
+          if Int64.compare y1 y2 > 0 then false else
+          if Int64.compare x1 x2 < 0 then false else list_leq xs1 l2
+        | _ :: _, [] -> false
+        | [], _ -> true
+      in
+
+      list_leq l1 l2
 
   let equal x y =
     match x, y with
@@ -612,8 +633,12 @@ struct
   let of_interval (x,y) = norm @@ Some (x,y)
   let of_int x = of_interval (x,x)
 
-  let starting n = norm @@ Some (n, max_int)
-  let ending   n = norm @@ Some (min_int, n)
+  let range_opt f = function
+    | None -> None
+    | Some ik -> try Some (Size.range ik |> f) with Size.Not_in_int64 -> None
+
+  let starting ?ikind n = norm @@ Some (n, range_opt snd ikind |? max_int)
+  let ending  ?ikind n = norm @@ Some (range_opt fst ikind |? min_int, n)
   let maximal = function
     | None -> None
     | Some s ->
@@ -629,7 +654,7 @@ struct
      in case there are too many of them in the operands. In order to lose as little precision
      as possible, the intervals will be merged according to distances between them *)
   let merge_many l1 l2 =
-    if (List.length l1) * (List.length l2) < 256 then
+    if (List.length l1) * (List.length l2) < 25 then
       (l1, l2)
     else begin
       let ls1 = List.sort IntPair.compare l1 in
@@ -646,7 +671,7 @@ struct
       let dist2 = List.sort (fun x y -> Int64.compare (snd x) (snd y)) (distances ls2) in
 
       let rec length_needed len1 len2 =
-        if len1 * len2 < 256 then (len1, len2)
+        if len1 * len2 < 25 then (len1, len2)
         else if len1 > len2 then length_needed (len1 - 1) len2
           else                   length_needed len1 (len2 - 1)
       in
@@ -684,16 +709,16 @@ struct
       (merged1, merged2) end
 
   (* takes a sorted list of intervals, iterates through them and merges two adjacent if they intersect*)
-  let rec merge_intersect ?(acc = []) l =
+  let rec merge_overlap l =
     match l with
     | (x1, x2) :: xs when Int64.compare x1 x2 > 0 ->
-      merge_intersect ~acc:acc xs
+      merge_overlap xs
     | (x1, x2) :: (y1, y2) :: xs ->
       if Int64.compare x2 (Int64.sub y1 1L) >= 0 then
-        merge_intersect ~acc:acc ((x1, max x2 y2) :: xs)
-      else merge_intersect ~acc:((x1, x2) :: acc) ((y1, y2) :: xs)
-    | [(x1, x2)] -> merge_intersect ~acc:((x1, x2) :: acc) []
-    | [] -> acc
+        merge_overlap ((x1, max x2 y2) :: xs)
+      else (x1, x2) :: merge_overlap ((y1, y2) :: xs)
+    | [(x1, x2)] -> (x1, x2) :: merge_overlap []
+    | [] -> []
 
   (* recursive template for evaluating arithmetic operations which are performed pairwise
      for each interval from both set operands *)
@@ -702,11 +727,11 @@ struct
     else
       match l1, l2, acc2 with
       | _, [], _::_ ->
-        let list_merged = merge_intersect (List.sort IntPair.compare acc2) in
+        let list_merged = merge_overlap (List.sort IntPair.compare acc2) in
         if list_merged = [] then None else Some (SS.of_list list_merged)
       | x1 :: xs1, x2 :: xs2, _ ->
         let (y1, y2) = f x1 x2 in
-        if Int64.compare y1 min_int = 0 && Int64.compare y2 max_int = 0 then top ()
+        if Int64.compare y1 min_int <= 0 && Int64.compare y2 max_int >= 0 then top ()
           else arithm ~acc1:(x1 :: acc1) ~acc2:((y1,y2) :: acc2) f xs1 l2
       | [], x2 :: xs2, _ -> arithm ~acc1:[] ~acc2:acc2 f acc1 xs2
       | [], [], [] | _ :: _, [], [] -> failwith "error: empty entry"
@@ -723,7 +748,7 @@ struct
     match x with
     | None -> None
     | Some s ->
-      let f = (fun x y -> IntPair.norm_set @@ Some (IntPair.neg x y)) in
+      let f = (fun x _ -> IntPair.norm_set @@ Some (IntPair.neg x)) in
       arithm f (SS.elements s) [(0L, 0L)]
 
   let sub x y = add x (neg y)
@@ -748,17 +773,18 @@ struct
     match x, y with
     | None, z | z, None -> z
     | Some s1, Some s2 ->
-      let l1 = SS.elements s1 in
-      let l2 = SS.elements s2 in
-      let l_joined = merge_intersect (List.sort IntPair.compare (l1 @ l2)) in
+      let (l1, l2) = merge_many (SS.elements s1) (SS.elements s2) in
+      let l_joined = merge_overlap (List.sort IntPair.compare (l1 @ l2)) in
       Some (SS.of_list l_joined)
 
   let meet x y =
     match x, y with
     | None, _ | _, None -> None
-    | Some s1, Some s2 -> meet_lists
-               (List.sort IntPair.compare (SS.elements s1))
-               (List.sort IntPair.compare (SS.elements s2))
+    | Some s1, Some s2 ->
+      let (l1, l2) = merge_many (SS.elements s1) (SS.elements s2) in
+      meet_lists
+               (List.sort IntPair.compare l1)
+               (List.sort IntPair.compare l2)
 
   (* the result of widening will always be one large interval *)
   let widen x y =
@@ -779,7 +805,7 @@ struct
 
       let l0, _ = SS.min_elt s2 in
       let _, u0 = SS.max_elt s2 in
-      let merged = (SS.elements s1) @ [(widen_set (SS.elements s1) l0 u0)] |> List.sort IntPair.compare |> merge_intersect in
+      let merged = (SS.elements s1) @ [(widen_set (SS.elements s1) l0 u0)] |> List.sort IntPair.compare |> merge_overlap in
       Some (SS.of_list merged)
 
   let narrow x y =
@@ -922,26 +948,18 @@ struct
     | Some s ->
       let open Invariant in
       List.map (fun (x,y) ->
+                          if x = y then of_string (c ^ " == " ^ Int64.to_string x) else
                           let i1 = if Int64.compare min_int x < 0 then of_string (Int64.to_string x ^ " <= " ^ c) else none in
                           let i2 = if Int64.compare y max_int < 0 then of_string (c ^ " <= " ^ Int64.to_string y) else none in
                           i1 && i2) (SS.elements s) |> List.fold_left (||) None
     | None -> None
 
-  let cast_to t = function
+  let cast_to ?torg t = function
     | None -> None
     | Some s ->
-      let x, _ = SS.min_elt s in
-      let _, y = SS.max_elt s in
-      try
-        let a = Size.cast t x in
-        let b = Size.cast t y in
-        let a,b = if x<>a || y<>b then Size.range t else a,b in
-        norm @@ Some (a, b)
-      with Size.Not_in_int64 -> top()
+      let casted = SS.map (fun (x, y) -> IntPair.try_cast x y t) s in
+      Some (casted |> SS.elements |> List.sort IntPair.compare |> merge_overlap |> SS.of_list)
 end
-
-exception Unknown
-exception Error
 
 module Integers = (* no top/bot, order is <= *)
 struct
@@ -2186,5 +2204,33 @@ module IntDomTuple = struct
         Invariant.(a && i)
       ) Invariant.none is
 
-  let arbitrary () = QCheck.(set_print (short 10000) @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
+  let _opt_map_5 ~f a b c d e = match a, b, c, d, e with
+    | Some x, Some y, Some z, Some w, Some v -> Some (f x y z w v)
+    | _ -> None
+
+  let print_quint a b c d e (x,y,z,w,v) = Printf.sprintf "(%s, %s, %s, %s, %s)" (a x) (b y) (c z) (d w) (e v)
+
+  let shrink_quint a b c d e (x,y,z,w,v) yield =
+    a x (fun x' -> yield (x',y,z,w,v));
+    b y (fun y' -> yield (x,y',z,w,v));
+    c z (fun z' -> yield (x,y,z',w,v));
+    d w (fun w' -> yield (x,y,z,w',v));
+    e v (fun v' -> yield (x,y,z,w,v'))
+
+  let gen_quint g1 g2 g3 g4 g5 st = (g1 st, g2 st, g3 st, g4 st, g5 st)
+
+  let _opt_or a b = match a with
+    | None -> b
+    | Some x -> x
+
+  let quint a b c d e =
+    let open QCheck in
+    make
+      ?small:(_opt_map_5 ~f:(fun f g h i j (x,y,z,w,v) -> f x+g y+h z+i w+j v) a.small b.small c.small d.small e.small)
+      ?print:(_opt_map_5 ~f:print_quint a.print b.print c.print d.print e.print)
+      ~shrink:(shrink_quint (_opt_or a.shrink Shrink.nil) (_opt_or b.shrink Shrink.nil) (_opt_or c.shrink Shrink.nil)
+        (_opt_or d.shrink Shrink.nil) (_opt_or e.shrink Shrink.nil))
+      (gen_quint a.gen b.gen c.gen d.gen e.gen)
+
+  let arbitrary () = QCheck.(set_print (short 10000) @@ quint (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())) (option (I5.arbitrary ())))
 end

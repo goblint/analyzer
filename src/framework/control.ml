@@ -500,11 +500,8 @@ struct
 
     Spec.finalize ();
 
-          let oc = Stdlib.open_out "/mnt/k/analyzer/whatever/file.c" in
-          dumpFile defaultCilPrinter oc "/mnt/k/analyzer/whatever/file.c" file;
-
-    if (get_bool "dbg.verbose") then print_endline "Generating output.";
-    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
+    if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
+    Result.output (lazy local_xml) gh make_global_xml make_global_fast_xml file
 
 
   let analyze file fs change_info =

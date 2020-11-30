@@ -881,7 +881,8 @@ struct
         | `Bot   -> `Bot
         | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); `Top
       end
-    | Q.Assert e -> begin
+    | Q.Assert e ->
+      begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Int i ->
             let v = (`Int i) in
@@ -891,6 +892,10 @@ struct
               | None -> `Bot
             end;
         | v -> `Bot;
+      end
+    | Q.GetAllInfo -> begin
+      ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
+      `Bot
       end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
