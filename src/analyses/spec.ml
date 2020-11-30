@@ -225,6 +225,7 @@ struct
     | `ExprSet x -> "`ExprSet"
     | `ExpTriples x -> "`ExpTriples"
     | `TypeSet x -> "`TypeSet"
+    | `Varinfo x -> "`Varinfo"
     | `Bot -> "`Bot"
 
 
@@ -509,7 +510,8 @@ struct
 
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 end
 

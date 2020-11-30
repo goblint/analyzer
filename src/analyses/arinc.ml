@@ -25,7 +25,8 @@ module Functions = struct
   let ret_any     = ret_success @ ret_error
   let ret_no_timeout = List.remove ret_any TIMED_OUT
   (* abstract value for return codes *)
-  let vd ret = `Int (ValueDomain.ID.(List.map (of_int % Int64.of_int % return_code_to_enum) ret |> List.fold_left join (bot ()))) (* ana.int.enums should be enabled *)
+  (* TODO: Check whether Cil.IInt is correct here *)
+  let vd ret = `Int (ValueDomain.ID.(List.map (of_int Cil.IInt % IntOps.BigIntOps.of_int % return_code_to_enum) ret |> List.fold_left join (bot ()))) (* ana.int.enums should be enabled *)
   let effects fname args =
     if not (List.mem fname arinc_special) || List.is_empty args then None
     else
@@ -106,8 +107,7 @@ struct
   let fname_ctx ctx f = f.vname ^ "_" ^ (match Ctx.to_int ctx with Some i -> i |> i64_to_int |> CtxTbl.get |> string_of_int | None -> "TOP")
 
   let is_single ctx =
-    let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
-    not (BaseDomain.Flag.is_multi fl)
+    not (ThreadFlag.is_multi ctx.ask)
   let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
@@ -403,7 +403,7 @@ struct
             if mode_is_multi (Pmo.of_int i) then (
               let tasks = ctx.global tasks_var in
               ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
-              Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) ({ f_d with pre = d.pre })) fs) tasks;
+              Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
             );
             add_action (SetPartitionMode pm)
             |> D.pmo (const @@ Pmo.of_int i)
@@ -651,8 +651,20 @@ struct
     if GobConfig.get_bool "ana.arinc.validate" then ArincUtil.validate ()
 
   let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar); ctx = Ctx.top () }
-  let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
+
+  let threadenter ctx lval f args =
+    let d : D.t = ctx.local in
+    let tasks = ctx.global tasks_var in
+    (* TODO: optimize finding *)
+    let tasks_f = Tasks.filter (fun (fs,f_d) ->
+        Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs
+      ) tasks
+    in
+    let f_d = snd (Tasks.choose tasks_f) in
+    { f_d with pre = d.pre }
+
+  let threadspawn ctx lval f args fctx = D.bot ()
 end
 
 let _ =

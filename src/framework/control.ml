@@ -18,10 +18,10 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp") (module HashconsContextLifter)
-            |> lift (get_bool "ana.sv-comp") (module HashconsLifter)
-            |> lift (get_bool "ana.sv-comp") (module WitnessConstraints.PathSensitive3)
-            |> lift (not (get_bool "ana.sv-comp")) (module PathSensitive2)
+            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
+            |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
+            |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
+            |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -256,7 +256,7 @@ struct
     in
 
     (* real beginning of the [analyze] function *)
-    if get_bool "ana.sv-comp" then
+    if get_bool "ana.sv-comp.enabled" then
       WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
@@ -281,7 +281,7 @@ struct
 
     let startstate, more_funs, entrystates_global =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
-      do_global_inits file
+      Stats.time "global_inits" do_global_inits file
     in
 
     let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
@@ -321,7 +321,29 @@ struct
     in
 
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
-    let othervars = List.map (enter_with Spec.otherstate) otherfuns in
+    let otherstate st v =
+      let ctx =
+        { ask     = (fun _ -> Queries.Result.top ())
+        ; node    = MyCFG.dummy_node
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; context = (fun () -> ctx_failwith "enter_func has no context.")
+        ; edge    = MyCFG.Skip
+        ; local   = st
+        ; global  = (fun _ -> Spec.G.bot ())
+        ; presub  = []
+        ; postsub = []
+        ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
+        }
+      in
+      Spec.threadenter ctx None v []
+      (* TODO: do threadspawn to mainfuns? *)
+    in
+    let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
+    let othervars = List.map (enter_with (otherstate prestartstate)) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
@@ -396,13 +418,13 @@ struct
       if get_bool "verify" && compare_runs = [] then (
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
         Goblintutil.should_warn := true;
-        Vrfyr.verify lh gh;
+        Stats.time "verify" (Vrfyr.verify lh) gh;
       );
 
-      if get_bool "ana.sv-comp" then (
+      if get_bool "ana.sv-comp.enabled" then (
         (* prune already here so local_xml and thus HTML are also pruned *)
         let module Reach = Reachability (EQSys) (LHT) (GHT) in
-        Reach.prune lh gh startvars'
+        Stats.time "reachability" (Reach.prune lh gh) startvars'
       );
 
       if get_bool "dbg.uncalled" then (
@@ -491,7 +513,7 @@ struct
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
-    if get_bool "ana.sv-comp" then
+    if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;
 
     if get_bool "exp.cfgdot" then

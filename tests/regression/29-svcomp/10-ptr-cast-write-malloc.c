@@ -9,4 +9,11 @@ int main() {
 
     signed char *z = y;
     assert(*z == -56);
+
+    // Two
+    signed char* s = malloc(10*sizeof(signed char));
+    s[0] = -5;
+
+    unsigned char* us = s;
+    *us = 12;
 }

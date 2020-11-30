@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']"
 
 #include<pthread.h>
 #include<stdio.h>
@@ -7,7 +7,7 @@
 void *t_fun(void *arg) {
   int *p = (int *) arg;
   int x = 10;
-  (*p) = x; 
+  (*p) = x;
   assert(x == 10);
   x = *p;
   assert(x == 10); //UNKNOWN!

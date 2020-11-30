@@ -68,7 +68,7 @@ let option_spec_list =
   in
   let oil file =
     set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "['base','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']";
+    set_auto "ana.activated" "['base','threadid','threadflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag','mallocWrapper']";
     set_auto "mainfun" "[]"
   in
   let configure_html () =
@@ -229,7 +229,7 @@ let preprocess_files () =
   if get_bool "custom_libc" then
     cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
 
-  if get_bool "ana.sv-comp" then
+  if get_bool "ana.sv-comp.functions" then
     cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)
@@ -431,9 +431,15 @@ let main =
       main_running := true;
       try
         Stats.reset Stats.SoftwareTimer;
-        Cilfacade.init ();
         parse_arguments ();
         check_arguments ();
+
+        (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
+          for overflows, as this will replace potential overflows with constants after wrap-around *)
+        (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
+          set_bool "exp.lower-constants" false);
+        Cilfacade.init ();
+
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();

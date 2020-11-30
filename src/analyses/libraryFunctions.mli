@@ -4,12 +4,12 @@ open Prelude.Ana
 
 type categories = [
   | `Malloc       of exp
-  | `Calloc       of exp
+  | `Calloc       of exp * exp
   | `Realloc      of exp * exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool (* try? * write? *)
   | `Unlock
-  | `ThreadCreate of exp * exp
+  | `ThreadCreate of exp * exp * exp
   | `ThreadJoin   of exp * exp
   | `Unknown      of string ]
 

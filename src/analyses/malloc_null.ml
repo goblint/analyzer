@@ -25,7 +25,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (IdxDom.of_int i, conv_offset o)
+    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -226,11 +226,12 @@ struct
   let name () = "malloc_null"
 
   let startstate v = D.empty ()
-  let otherstate v = D.empty ()
+  let threadenter ctx lval f args = D.empty ()
+  let threadspawn ctx lval f args fctx = D.empty ()
   let exitstate  v = D.empty ()
 
   let init () =
-    set_bool "exp.malloc-fail" true;
+    set_bool "exp.malloc.fail" true;
     return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 

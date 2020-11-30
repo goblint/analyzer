@@ -7,12 +7,12 @@ module M = Messages
 
 type categories = [
   | `Malloc       of exp
-  | `Calloc       of exp
+  | `Calloc       of exp * exp
   | `Realloc      of exp * exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
-  | `ThreadCreate of exp * exp (* f  * x       *)
+  | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
   | `ThreadJoin   of exp * exp (* id * ret_var *)
   | `Unknown      of string ]
 
@@ -22,7 +22,7 @@ let classify' fn exps =
   match fn with
   | "pthread_create" ->
     begin match exps with
-      | [_;_;fn;x] -> `ThreadCreate (fn, x)
+      | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
       | _ -> M.bailwith "pthread_create arguments are strange."
     end
   | "pthread_join" ->
@@ -37,12 +37,12 @@ let classify' fn exps =
     end
   | "kzalloc" ->
     begin match exps with
-      | size::_ -> `Calloc size
+      | size::_ -> `Calloc (Cil.one, size)
       | _ -> M.bailwith (fn^" arguments are strange!")
     end
   | "calloc" ->
     begin match exps with
-      | n::size::_ -> `Calloc Cil.(BinOp (Mult, n, size, typeOf one))
+      | n::size::_ -> `Calloc (n, size)
       | _ -> M.bailwith (fn^" arguments are strange!")
     end
   | "realloc" ->
@@ -149,6 +149,7 @@ let writesAll a x =
 
 (* Data races: which arguments are read/written?
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
+(* WTF: why are argument numbers 1-indexed (in partition)? *)
 let invalidate_actions = ref [
     "GetResource", readsAll;
     "ReleaseResource", readsAll;
@@ -398,7 +399,14 @@ let invalidate_actions = ref [
     "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
-    "__VERIFIER_nondet_int", readsAll (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
+    "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
+    (* no args, declare invalidate actions to prevent invalidating globals *)
+    "__VERIFIER_atomic_begin", readsAll;
+    "__VERIFIER_atomic_end", readsAll;
+    (* prevent base from spawning ARINC processes early, handled by arinc/extract_arinc *)
+    (* "LAP_Se_SetPartitionMode", writes [2]; *)
+    "LAP_Se_CreateProcess", writes [2; 3];
+    "LAP_Se_CreateErrorHandler", writes [2; 3]
   ]
 let add_invalidate_actions xs = invalidate_actions := xs @ !invalidate_actions
 

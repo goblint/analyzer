@@ -1,8 +1,9 @@
 open Analyses
 open Prelude.Ana
 open OctagonMapDomain
-module INV = IntDomain.Interval32
+open OctagonDomain
 module BV = Basetype.Variables
+
 
 let stripCastsDeep e =
   let v = object
@@ -49,7 +50,8 @@ struct
       begin match match_exp expl, match_exp expr with
         | Some(cl, varl), Some(cr, varr) when (BV.compare varl varr <> 0) -> (* this is needed as projection with varl=varr throws an exception (?) *)
           let cr = if op = PlusA then cr else Int64.neg cr in
-          let cl, cr = INV.of_int cl, INV.of_int cr in
+          let cl, cr = Tuple2.mapn BI.of_int64 (cl, cr) in
+          let cl, cr = INV.of_int oct_ik cl, INV.of_int oct_ik cr in
           let varSum = D.projection varl (Some (true, varr)) oct in
           let varDif1 = D.projection varl (Some (false, varr)) oct in
           let varDif2 = D.projection varr (Some (false, varl)) oct in
@@ -73,7 +75,7 @@ struct
     | None ->
       begin
         match exp with
-        | Const (CInt64 (i, _, _)) -> INV.of_int i
+        | Const (CInt64 (i, _, _)) -> INV.of_int oct_ik (BI.of_int64 i)
         | Lval (Var var, NoOffset) -> D.projection var None oct
         | UnOp (Neg, exp, _) ->
           INV.neg (evaluate_exp oct exp)
@@ -118,7 +120,7 @@ struct
           | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _)
             when (op = PlusA || op = MinusA) && is_local_and_not_pointed_to var ->
             begin
-              let integer =
+              let integer = BI.of_int64 @@
                 if op = MinusA then
                   Int64.neg integer
                 else
@@ -127,13 +129,13 @@ struct
               assignVarPlusInt var integer
             end
           | BinOp(PlusA, Const(CInt64 (integer, _, _)), Lval(Var(var), NoOffset), _) when is_local_and_not_pointed_to var ->
-            assignVarPlusInt var integer
+            assignVarPlusInt var (BI.of_int64 integer)
           | Lval(Var var, NoOffset) when is_local_and_not_pointed_to var ->
-            assignVarPlusInt var Int64.zero
+            assignVarPlusInt var BI.zero
           | exp ->
             let const = evaluate_exp ctx.local exp in
             let oct = D.erase var1 ctx.local in
-            if not (INV.is_top const) then
+            if not (INV.is_top_of (OctagonDomain.IKind.ikind ()) const) then
               D.set_constraint (var1, None, CT.Upper, INV.maximal const |> Option.get)
                 (D.set_constraint (var1, None, CT.Lower, INV.minimal const |> Option.get)
                    oct), true
@@ -194,10 +196,10 @@ struct
              | Lt | Le -> false, true
              | _ -> false, false
            in
-           let setUpper = setUpper && not (Int64.equal invUpper max_int) in
-           let setLower = setLower && not (Int64.equal invLower min_int) in
-           let invUpper = if cmp = Lt then Int64.sub invUpper Int64.one else invUpper in
-           let invLower = if cmp = Gt then Int64.add invLower Int64.one else invLower in
+           let setUpper = setUpper && not (BI.equal invUpper max_int) in
+           let setLower = setLower && not (BI.equal invLower min_int) in
+           let invUpper = if cmp = Lt then BI.sub invUpper BI.one else invUpper in
+           let invLower = if cmp = Gt then BI.add invLower BI.one else invLower in
            let oct = begin
              match lexp with
              | BinOp(op, Lval(Var v1, NoOffset), Lval(Var v2, NoOffset), _)
@@ -238,7 +240,7 @@ struct
     match exp with
     | Some e ->
         let inv = evaluate_exp ctx.local e in
-        if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
+        if not (INV.is_top_of (ikind ()) inv) then (* Add interval for f if there is a known interval *)
           D.set_constraint (return_varinfo (), None, CT.Upper, INV.maximal inv |> Option.get) (D.set_constraint (return_varinfo (), None, CT.Lower, INV.minimal inv |> Option.get) start)
         else
           start
@@ -265,11 +267,11 @@ struct
     let add_const (oct:D.t) (f, exp) = (* add the constraints created by setting formal f to exp  *)
       let oct_with_eq =  match exp with
         | Lval(Var v_exp, NoOffset) when is_local_and_not_pointed_to v_exp -> (* For formal f, add constraint f = exp if exp is a variable *)
-            D.set_constraint (f, Some(ConstraintType.minus, v_exp), CT.UpperAndLower, Int64.zero) oct
+            D.set_constraint (f, Some(ConstraintType.minus, v_exp), CT.UpperAndLower, BI.zero) oct
         | _ -> oct
       in
       let inv = evaluate_exp ctx.local exp in
-      if not (INV.is_top inv) then (* Add interval for f if there is a known interval *)
+      if not (INV.is_top_of (ikind ()) inv) then (* Add interval for f if there is a known interval *)
         D.set_constraint (f, None, CT.Upper, INV.maximal inv |> Option.get) (D.set_constraint (f, None, CT.Lower, INV.minimal inv |> Option.get) oct_with_eq)
       else
         oct_with_eq
@@ -285,7 +287,7 @@ struct
     | Some (Var v, NoOffset) ->
         let retval = evaluate_exp after (Lval ((Var (return_varinfo ())), NoOffset)) in
         let oct = D.erase v ctx.local in
-        if not (INV.is_top retval) then
+        if not (INV.is_top_of (ikind ()) retval) then
           D.set_constraint (v, None, CT.Upper, INV.maximal retval |> Option.get)
             (D.set_constraint (v, None, CT.Lower, INV.minimal retval |> Option.get)
                 oct)
@@ -298,12 +300,12 @@ struct
     | Some (Mem _, _)
     | None -> ctx.local
   let startstate v = D.top ()
-  let otherstate v = D.top ()
+  let threadenter ctx lval f args = D.top ()
   let exitstate  v = D.top ()
 
   let query ctx q =
     let rec getSumAndDiffForVars exp1 exp2 =
-      let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int c)) x in
+      let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int oct_ik (BI.of_int64 c))) x in
       match exp1, exp2 with
       | BinOp(PlusA, Lval l1, Const(CInt64(c,_,_)), _), Lval l2 ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
@@ -322,7 +324,7 @@ struct
         if not flag then
           sum, diff
         else
-          sum, BatOption.map (OctagonDomain.INV.mul (OctagonDomain.INV.of_int Int64.minus_one)) diff
+          sum, BatOption.map (OctagonDomain.INV.mul (INV.of_int oct_ik (BI.of_int64 Int64.minus_one))) diff
       | _ -> None, None
     in
     match q with
@@ -332,7 +334,7 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
-            | (Some i) -> `Bool (Int64.equal Int64.zero i)
+            | (Some i) -> `Bool (BI.equal BI.zero i)
             | _ -> Queries.Result.top ()
           end
         | _ -> Queries.Result.top ()
@@ -342,7 +344,7 @@ struct
         match getSumAndDiffForVars exp1 exp2 with
         | _, Some(x) ->
           begin
-            if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int Int64.zero)) then
+            if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)) then
               `Bool (false)
             else
               Queries.Result.top ()
@@ -356,7 +358,7 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.minimal x with
-            | Some i when Int64.compare i Int64.zero >= 0 ->
+            | Some i when BI.compare i BI.zero >= 0 ->
               `Bool(false)
             | _ -> Queries.Result.top ()
           end
@@ -377,12 +379,20 @@ struct
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then `Int(INV.to_int inv |> Option.get)
+      then `Int(INV.to_int inv |> Option.get |> BI.to_int64)
       else `Top
     | Queries.InInterval (exp, inv) ->
       let linv = evaluate_exp ctx.local exp in
-      `Bool (INV.leq linv inv)
+      let min, max = Tuple2.mapn (BI.of_int64 |> Option.map) (IntDomain.Interval32.(minimal inv, maximal inv)) in
+      (match min, max with
+        | None, _ -> `Bool false
+        | _, None -> `Bool false
+        | Some min, Some max ->
+            let inv = INV.of_interval oct_ik (min, max) in
+            `Bool (INV.leq linv inv))
     | _ -> Queries.Result.top ()
+
+  let threadspawn ctx lval f args fctx = D.bot ()
 end
 
 

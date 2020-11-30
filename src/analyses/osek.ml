@@ -34,8 +34,19 @@ let is_atomic lval =
 
 let is_ignorable lval =
   (*  ignore (printf "Var %a\n" d_lval lval);*)
-  try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
+  try ValueDomain.Compound.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
   with Not_found -> false
+
+
+module Flag =
+struct
+  include ConcDomain.SimpleThreadDomain
+  let name () = "flag domain"
+end
+
+let get_flag (state: (string * Obj.t) list) : Flag.t =
+  (Obj.obj (List.assoc "threadflag" state), Obj.obj (List.assoc "threadid" state))
+
 
 module Spec =
 struct
@@ -231,7 +242,7 @@ struct
   module Flags = FlagModes.Spec.D
   module Acc = Hashtbl.Make (Basetype.Variables)
   module AccKeySet = Set.Make (Basetype.Variables)
-  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BaseDomain.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
+  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Flag) (IntDomain.Booleans)) (Lockset) (Offs)
   module AccValSet = Set.Make (Printable.Prod (AccLoc) (Flags))
   let acc     : AccValSet.t Acc.t = Acc.create 100
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty
@@ -530,8 +541,8 @@ struct
     | _ -> None
 
   let add_accesses ctx (accessed: accesses) (flagstate: Flags.t) (ust:D.t) =
-    let fl = Mutex.get_flag ctx.presub in
-    if BaseDomain.Flag.is_multi fl then
+    let fl = get_flag ctx.presub in
+    if Flag.is_multi fl then
       let loc = !Tracing.current_loc in
       let dispatch ax =
         match ax with
@@ -584,14 +595,14 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-    | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+    | Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_const_offset o)
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
@@ -700,12 +711,14 @@ struct
     List.concat (List.map do_exp exps)
 
   let startstate v = D.top ()
-  let otherstate v = D.top ()
   let exitstate  v = D.top ()
+
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in
-    ctx.spawn task.svar (otherstate ())
+    ctx.spawn None task.svar []
 
   (* transfer functions *)
   let intrpt ctx : D.t =
@@ -942,7 +955,7 @@ struct
         List.fold_left f (Lockset.bot ()) acc_list
       in
       let rw ((_,_,x),_,_) = x in
-      let non_main ((_,x,_),_,_) = BaseDomain.Flag.is_bad x in
+      let non_main ((_,x,_),_,_) = Flag.is_bad x in
       let is_race_no_flags acc_list =
         let offpry = offpry acc_list in
         let minpry = minpry acc_list in
@@ -1109,7 +1122,7 @@ struct
           let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
           let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
           let action = if write then "write" else "read" in
-          let thread = "\"" ^ BaseDomain.Flag.short 80 fl ^ "\"" in
+          let thread = "\"" ^ Flag.short 80 fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in
           (warn,loc)
         in (*/f*)
@@ -1273,4 +1286,4 @@ struct
     end;
 end
 
-let () = MCP.register_analysis ~dep:["base";"fmode"] (module Spec : Spec)
+let () = MCP.register_analysis ~dep:["base";"threadid";"threadflag";"fmode"] (module Spec : Spec)

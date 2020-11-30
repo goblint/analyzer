@@ -31,8 +31,8 @@ module Simple = struct
     let n = 3
     let names = function
       | 0 -> "Singlethreaded"
-      | 1 -> "Main Thread"
-      | 2 -> "Some Threads"
+      | 1 -> "Multithreaded (main)"
+      | 2 -> "Multithreaded (other)"
       | _ -> "WHAT??"
   end
   include Lattice.Chain (SimpleNames)
@@ -71,22 +71,25 @@ module Thread = struct
   let spawn_thread l v: t = get_thread_var v (Some l)
 end
 
+module ThreadLiftNames = struct
+  let bot_name = "Bot Threads"
+  let top_name = "Top Threads"
+end
+module ThreadLifted =
+struct
+  include Lattice.Flat (Thread) (ThreadLiftNames)
+  let name () = "Thread"
+end
+
 (** The basic thread domain that distinguishes singlethreaded mode, a single
   * thread ID, and otherwise goes to top. *)
+(* Only OSEK uses this anymore. *)
 module SimpleThreadDomain = struct
-  module ThreadLiftNames = struct
-    let bot_name = "Bot Threads"
-    let top_name = "Top Threads"
-  end
-  module Lifted =
-  struct
-    include Lattice.Flat (Thread) (ThreadLiftNames)
-    let name () = "Thread"
-  end
-  include Lattice.ProdSimple (Simple) (Lifted)
+
+  include Lattice.ProdSimple (Simple) (ThreadLifted)
   let is_multi (x,_) = x > 0
   let is_bad   (x,_) = x > 1
-  let get_multi () = (2, Lifted.top ())
+  let get_multi () = (2, ThreadLifted.top ())
   let make_main (x,y) = (Simple.join 1 x, y)
   let spawn_thread l v = (2, `Lifted (Thread.spawn_thread l v))
   let start_single v : t = (0, `Lifted (Thread.start_thread v))
@@ -96,7 +99,7 @@ module SimpleThreadDomain = struct
 
 
   let short w (x,y) =
-    let tid = Lifted.short w y in
+    let tid = ThreadLifted.short w y in
     if x > 1 then tid else tid ^ "!" (* ! means unique *)
   let pretty () x = pretty_f short () x
   let same_tid x y =
@@ -116,7 +119,18 @@ struct
     let falsename = "unique"
   end
   module Uniqueness = IntDomain.MakeBooleans (UNames)
-  include Lattice.ProdSimple (Uniqueness) (ThreadSet)
+  module ParentThreadSet =
+  struct
+    include ThreadSet
+    let name () = "parents"
+  end
+  module DirtyExitNames =
+  struct
+    let truename = "dirty exit"
+    let falsename = "clean exit"
+  end
+  module DirtyExit = IntDomain.MakeBooleans (DirtyExitNames)
+  include Lattice.Prod3 (Uniqueness) (ParentThreadSet) (DirtyExit)
 end
 
 

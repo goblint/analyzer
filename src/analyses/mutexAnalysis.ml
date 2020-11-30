@@ -18,11 +18,9 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
-let get_flag (state: (string * Obj.t) list) : BaseDomain.Flag.t =
-  snd (Obj.obj (List.assoc "base" state))
-
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
+let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType))
 
 module type SpecParam =
 sig
@@ -53,14 +51,14 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+    | `Index (Const (CInt64 (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_offset o)
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-    | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+    | Index (Const (CInt64 (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_const_offset o)
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
@@ -141,13 +139,13 @@ struct
 
   let access_one_top ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    let fl = get_flag ctx.presub in
-    if BaseDomain.Flag.is_multi fl then
+    if ThreadFlag.is_multi ctx.ask then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = Lockset.empty ()
-  let otherstate v = Lockset.empty ()
+  let threadenter ctx lval f args = Lockset.empty ()
+  let threadspawn ctx lval f args fctx = Lockset.empty ()
   let exitstate  v = Lockset.empty ()
 
   let query ctx (q:Queries.t) : Queries.Result.t =
@@ -160,7 +158,8 @@ struct
     | Queries.IsPublic _ when Lockset.is_bot ctx.local -> `Bool false
     | Queries.IsPublic v ->
       let held_locks: G.t = P.check_fun ~write:false (Lockset.filter snd ctx.local) in
-      non_overlapping held_locks (ctx.global v)
+      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `Bool false
+      else non_overlapping held_locks (ctx.global v)
     | Queries.IsNotProtected v ->
       let held_locks: G.t = P.check_fun ~write:true (Lockset.filter snd ctx.local) in
       non_overlapping held_locks (ctx.global v)
@@ -183,13 +182,21 @@ struct
 
   let return ctx exp fundec : D.t =
     begin match exp with
-      | Some exp ->
-        access_one_top ctx false false exp;
-        ctx.local
-      | None -> ctx.local
-    end
+      | Some exp -> access_one_top ctx false false exp
+      | None -> ()
+    end;
+    (* deprecated but still valid SV-COMP convention for atomic block *)
+    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
+      Lockset.remove (verifier_atomic, true) ctx.local
+    else
+      ctx.local
 
-  let body ctx f : D.t = ctx.local
+  let body ctx f : D.t =
+    (* deprecated but still valid SV-COMP convention for atomic block *)
+    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
+      Lockset.add (verifier_atomic, true) ctx.local
+    else
+      ctx.local
 
   let special ctx lv f arglist : D.t =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
@@ -242,6 +249,10 @@ struct
       Lockset.remove (console_sem,true) ctx.local
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ctx.local
+    | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
+      Lockset.add (verifier_atomic, true) ctx.local
+    | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
+      Lockset.remove (verifier_atomic, true) ctx.local
     | _, x ->
       let arg_acc act =
         match LF.get_threadsafe_inv_ac x with
@@ -294,4 +305,4 @@ end
 module Spec = MakeSpec (WriteBased)
 
 let _ =
-  MCP.register_analysis ~dep:["base"] (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

@@ -94,6 +94,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_key g "node" "sourcecode" "string" None;
   GML.write_key g "edge" "goblintEdge" "string" None;
   GML.write_key g "edge" "goblintLine" "string" None;
+  GML.write_key g "edge" "goblintControl" "string" None;
   (* TODO: remove *)
   GML.write_key g "edge" "enterFunction2" "string" None;
   GML.write_key g "edge" "returnFromFunction2" "string" None;
@@ -204,7 +205,13 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         begin match edge with
           (* control actually only allowed in violation witness *)
           | MyARG.CFGEdge (Test (_, b)) ->
-            [("control", "condition-" ^ string_of_bool b)]
+            begin match TaskResult.result with
+              | Result.True ->
+                [("goblintControl", "condition-" ^ string_of_bool b)]
+              | Result.False _
+              | Result.Unknown ->
+                [("control", "condition-" ^ string_of_bool b)]
+            end
           (* enter and return on other side of nodes,
              more correct loc (startline) but had some scope problem? *)
           | MyARG.CFGEdge (Entry f) ->
@@ -544,6 +551,37 @@ struct
         in
         (module TaskResult:WitnessTaskResult)
       )
+    | NoOverflow ->
+      let module TrivialArg =
+      struct
+        include Arg
+        let next _ = []
+      end
+      in
+      if not !Goblintutil.did_overflow then
+        let module TaskResult =
+        struct
+          module Arg = Arg
+          let result = Result.True
+          let invariant = find_invariant
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      else (
+        let module TaskResult =
+        struct
+          module Arg = TrivialArg
+          let result = Result.Unknown
+          let invariant _ = Invariant.none
+          let is_violation _ = false
+          let is_sink _ = false
+        end
+        in
+        (module TaskResult:WitnessTaskResult)
+      )
+
 
   let write lh gh entrystates =
     let module Task = (val (BatOption.get !task)) in

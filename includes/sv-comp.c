@@ -2,7 +2,8 @@
 void __VERIFIER_error() { abort(); }
 // new error function (https://github.com/sosy-lab/sv-benchmarks/pull/1077)
 // followed by abort() in benchmarks
-void reach_error() { }
+// implemented in benchmarks
+// void reach_error() { }
 
 // Some files define __VERIFIER_assume, some declare as extern. What happens when redefined?
 void __VERIFIER_assume(int expression) { if (!expression) { LOOP: goto LOOP; }; return; }
@@ -33,5 +34,6 @@ __VERIFIER_nondet2(unsigned short, ushort)
 // void* __VERIFIER_nondet_pointer() { void* val; return val; }
 __VERIFIER_nondet2(void*, pointer)
 
-void __VERIFIER_atomic_begin() { } // TODO: use atomic marker in Goblint
-void __VERIFIER_atomic_end() { } // TODO: use atomic marker in Goblint
+// atomics are now special in Goblint
+// void __VERIFIER_atomic_begin() { }
+// void __VERIFIER_atomic_end() { }

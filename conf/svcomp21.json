@@ -1,6 +1,9 @@
 {
   "ana": {
-    "sv-comp": true,
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
     "int": {
       "def_exc": true,
       "enums": false,
@@ -8,6 +11,9 @@
     },
     "activated": [
       "base",
+      "threadid",
+      "threadflag",
+      "mallocWrapper",
       "mutex",
       "escape",
       "expRelation",
@@ -18,11 +24,28 @@
     ]
   },
   "exp": {
-    "widen-context": true,
+    "widen-context": false,
     "partition-arrays": {
       "enabled": true
     },
-    "region-offsets": true
+    "region-offsets": true,
+    "malloc": {
+      "wrappers": [
+        "kmalloc",
+        "__kmalloc",
+        "usb_alloc_urb",
+        "__builtin_alloca",
+        "kzalloc",
+
+        "ldv_malloc",
+
+        "kzalloc_node",
+        "ldv_zalloc",
+        "kmalloc_array",
+        "kcalloc"
+      ]
+    },
+    "unknown_funs_spawn": false
   },
   "solver": "td3"
 }

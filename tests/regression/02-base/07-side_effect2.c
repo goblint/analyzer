@@ -1,9 +1,9 @@
-// PARAM: --set ana.activated "['base','escape']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']"
 
 #include<pthread.h>
 #include<assert.h>
 
-pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; 
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 int glob1 = 5;
 int glob2 = 7;
 int glob3 = 9;

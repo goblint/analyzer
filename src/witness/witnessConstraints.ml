@@ -65,9 +65,11 @@ struct
   let cardinal (s: t): int = match s with
     | `Top -> failwith "cardinal"
     | `Lifted s -> M.M.cardinal s
-  let choose (s: t): SpecD.t = match s with
+  let choose' (s: t) = match s with
     | `Top -> failwith "choose"
-    | `Lifted s -> fst (M.M.choose s)
+    | `Lifted s -> M.M.choose s
+  let choose (s: t): SpecD.t = fst (choose' s)
+  let filter' = filter
   let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
   let iter' = iter
   let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
@@ -83,6 +85,8 @@ struct
   let map (f: key -> key) (s: t): t = match s with
     | `Top -> `Top
     | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
+  let map' = map (* HACK: for PathSensitive morphstate *)
+  (* TODO: reducing map, like HoareSet *)
 
   module S =
   struct
@@ -134,6 +138,11 @@ struct
     | `Lifted a, `Lifted b ->
       let a,b = S.elements a, S.elements b in
       List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x))
+  let product_bot2 op2 a b = match a,b with
+    | `Top, a | a, `Top -> a
+    | `Lifted a, `Lifted b ->
+      let a,b = S.elements a, S.elements b in
+      List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x))
   (* why are type annotations needed for product_widen? *)
   let product_widen op op2 (a:t) (b:t): t = match a,b with (* assumes b to be bigger than a *)
     | `Top, _ | _, `Top -> `Top
@@ -142,7 +151,9 @@ struct
       List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (`Lifted (S.union b (S.of_list x)))
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
-  let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow
+  (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
+  (* TODO: move PathSensitive3-specific narrow out of HoareMap *)
+  let narrow = product_bot2 (fun (x, xr) (y, yr) -> if SpecD.leq y x then (SpecD.narrow x y, yr) else (x, xr))
   let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
 
   (* TODO: shouldn't this also reduce? *)
@@ -212,9 +223,9 @@ struct
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
       if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
         try
-          let p t = not (MM.mem t s2) in
-          let evil = choose (filter p s1) in
-          let other = choose s2 in
+          let p t tr = not (mem t tr s2) in
+          let (evil, evilr) = choose' (filter' p s1) in
+          let (other, otherr) = choose' s2 in
           (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
              Spec.D.pretty evil Spec.D.pretty other
              Spec.D.pretty_diff (evil,other) *)
@@ -285,10 +296,9 @@ struct
 
   let should_join x y = true
 
-  let otherstate v = (Dom.singleton (Spec.otherstate v) (R.bot ()), Sync.bot ())
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
-  let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot())
+  let morphstate v (d, _) = (Dom.map' (Spec.morphstate v) d, Sync.bot ())
 
   let call_descr = Spec.call_descr
 
@@ -303,7 +313,6 @@ struct
     (* TODO: R.bot () isn't right here *)
     let rec ctx' = { ctx with ask   = query
                             ; local = x
-                            ; spawn = (fun v -> ctx.spawn v % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ())) ) (* TODO: use enter-like behavior for spawn, as in WitnessLifter *)
                             ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }
     and query x = Spec.query ctx' x in
     ctx'
@@ -337,6 +346,12 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  (* TODO: do additional witness things here *)
+  let threadenter ctx lval f args = map ctx Spec.threadenter (fun h -> h lval f args)
+  let threadspawn ctx lval f args fctx =
+    let fd1 = Dom.choose (fst fctx.local) in
+    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
   let fold ctx f g h a =
     let k x a =
