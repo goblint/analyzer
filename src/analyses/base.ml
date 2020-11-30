@@ -1492,7 +1492,7 @@ struct
             (* LNot x is 0 for any x != 0 *)
             let ikind = Cilfacade.get_ikind @@ typeOf e in
             ID.of_excl_list ikind [BI.zero]
-          | Some false -> ID.of_bool (Cilfacade.get_ikind (typeOf exp)) false
+          | Some false -> ID.of_bool (Cilfacade.get_ikind (typeOf e)) false
           | _ -> ID.top_of (Cilfacade.get_ikind (typeOf e))
         in
         inv_exp c' e
