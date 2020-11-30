@@ -6,6 +6,7 @@ struct
   type t =
     | UnreachCall of string
     | NoDataRace
+    | NoOverflow
 
   let of_string s =
     let s = String.strip s in
@@ -14,6 +15,8 @@ struct
       let global_not = Str.matched_group 1 s in
       if global_not = "data-race" then
         NoDataRace
+      else if global_not = "overflow" then
+        NoOverflow
       else
         let call_regex = Str.regexp "call(\\(.*\\)())" in
         if Str.string_match call_regex global_not 0 then
@@ -39,6 +42,7 @@ struct
     let global_not = match spec with
       | UnreachCall f -> "call(" ^ f ^ "())"
       | NoDataRace -> "data-race"
+      | NoOverflow -> "overflow"
     in
     "CHECK( init(main()), LTL(G ! " ^ global_not ^ ") )"
 end
@@ -92,6 +96,7 @@ struct
     | False (Some spec) ->
       let result_spec = match spec with
         | UnreachCall _ -> "unreach-call"
+        | NoOverflow -> "no-overflow"
         | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
       in
       "false(" ^ result_spec ^ ")"

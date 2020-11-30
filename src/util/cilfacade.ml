@@ -10,6 +10,7 @@ module GU = Goblintutil
 
 let init () =
   initCIL ();
+  lowerConstants := GobConfig.get_bool "exp.lower-constants";
   Mergecil.ignore_merge_conflicts := true;
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;

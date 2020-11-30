@@ -431,9 +431,15 @@ let main =
       main_running := true;
       try
         Stats.reset Stats.SoftwareTimer;
-        Cilfacade.init ();
         parse_arguments ();
         check_arguments ();
+
+        (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
+          for overflows, as this will replace potential overflows with constants after wrap-around *)
+        (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
+          set_bool "exp.lower-constants" false);
+        Cilfacade.init ();
+
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
