@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=$(git describe --tags --dirty 2> /dev/null | sed s@^v@@)
+VERSION=$(git describe --tags --long --dirty 2> /dev/null | sed s@^v@@)
 CILVERSION=$(git --git-dir=../cil/.git describe --tags 2> /dev/null | sed s@^cil-@@)
 
 if [ ! -f src/version.ml ]; then
