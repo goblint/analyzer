@@ -28,7 +28,7 @@ struct
 
   let startstate v : D.t = D.empty ()
   let threadenter ctx lval f args : D.t = D.empty ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain

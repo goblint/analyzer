@@ -48,7 +48,7 @@ struct
 
   let startstate v = D.top ()
   let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let const_equal c1 c2 =

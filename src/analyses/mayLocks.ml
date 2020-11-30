@@ -70,7 +70,7 @@ struct
 
   let startstate v = D.empty ()
   let threadenter ctx lval f args = D.empty ()
-  let threadspawn ctx lval f args fctx = D.empty ()
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 end
 

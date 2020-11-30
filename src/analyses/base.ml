@@ -2034,7 +2034,7 @@ struct
       end
     (* handling thread creations *)
     | `ThreadCreate _ ->
-      D.bot () (* actual results joined via threadspawn *)
+      ctx.local (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
@@ -2184,6 +2184,7 @@ struct
       ctx.local
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
+    (* D.join ctx.local @@ *)
     match lval with
     | Some lval ->
       begin match ThreadId.get_current fctx.ask with

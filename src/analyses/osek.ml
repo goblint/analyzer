@@ -714,7 +714,7 @@ struct
   let exitstate  v = D.top ()
 
   let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in

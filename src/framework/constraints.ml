@@ -537,8 +537,9 @@ struct
     List.iter (uncurry ctx.sideg) diff;
     d'
 
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
+  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
+    let spawns = ref [] in
     (* now watch this ... *)
     let rec ctx =
       { ask     = query
@@ -562,37 +563,59 @@ struct
       (* TODO: adjust ctx node/edge? *)
       let d = S.threadenter ctx lval f args in
       let c = S.context d in
-      let rec fctx =
-        { ctx with
-          ask = fquery
-        ; local = d
-        }
-      and fquery x = S.query fctx x
-      in
-      r := S.threadspawn ctx lval f args fctx :: !r;
+      spawns := (lval, f, args, d) :: !spawns;
       if not full_context then sidel (FunctionEntry f, c) d;
       ignore (getl (Function f, c))
     in
     (* ... nice, right! *)
     let pval = sync ctx in
-    { ctx with local = pval }, r
+    { ctx with local = pval }, r, spawns
 
   let rec bigsqcup = function
     | []    -> D.bot ()
     | [x]   -> x
     | x::xs -> D.join x (bigsqcup xs)
 
+  let thread_spawns ctx d spawns =
+    if List.is_empty spawns then
+      d
+    else
+      let rec ctx' =
+        { ctx with
+          ask = query'
+        ; local = d
+        }
+      and query' x = S.query ctx' x
+      in
+      let one_spawn (lval, f, args, fd) =
+        let rec fctx =
+          { ctx with
+            ask = fquery
+          ; local = fd
+          }
+        and fquery x = S.query fctx x
+        in
+        S.threadspawn ctx' lval f args fctx
+      in
+      bigsqcup (List.map one_spawn spawns)
+
+  let common_join ctx d splits spawns =
+    (* bigsqcup (d :: splits @ spawns) *)
+    thread_spawns ctx (bigsqcup (d :: splits)) spawns
+
+  let common_joins ctx ds splits spawns = common_join ctx (bigsqcup ds) splits spawns
+
   let tf_loop var edge prev_node getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.intrpt ctx)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.intrpt ctx) !r !spawns
 
   let tf_assign var edge prev_node lv e getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.assign ctx lv e)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.assign ctx lv e) !r !spawns
 
   let tf_vdecl var edge prev_node v getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.vdecl ctx v)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.vdecl ctx v) !r !spawns
 
   let normal_return r fd ctx sideg =
     let spawning_return = S.return ctx r fd in
@@ -608,7 +631,7 @@ struct
     nval
 
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d =
       if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
           List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
@@ -616,15 +639,15 @@ struct
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
     in
-    bigsqcup (d::!r)
+    common_join ctx d !r !spawns
 
   let tf_entry var edge prev_node fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.body ctx fd)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.body ctx fd) !r !spawns
 
   let tf_test var edge prev_node e tv getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.branch ctx e tv)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.branch ctx e tv) !r !spawns
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
     let combine (cd, fc, fd) =
@@ -662,7 +685,7 @@ struct
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
       match ctx.ask (Queries.EvalFunvar e) with
       | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
@@ -679,15 +702,15 @@ struct
       d (* because LevelSliceLifter *)
     else
       let funs = List.map one_function functions in
-      bigsqcup (funs @ !r)
+      common_joins ctx funs !r !spawns
 
   let tf_asm var edge prev_node getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.asm ctx)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.asm ctx) !r !spawns
 
   let tf_skip var edge prev_node getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.skip ctx)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.skip ctx) !r !spawns
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with

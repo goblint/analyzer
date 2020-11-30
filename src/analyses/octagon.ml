@@ -371,7 +371,7 @@ struct
       else `Top
     | _ -> Queries.Result.top ()
 
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 end
 
 

@@ -89,7 +89,7 @@ struct
     create_tid f
 
   let threadspawn ctx lval f args fctx =
-    ThreadLifted.bot ()
+    ctx.local
 end
 
 let _ =

@@ -665,7 +665,7 @@ struct
     let f_d = snd (Tasks.choose tasks_f) in
     { f_d with pre = d.pre }
 
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 end
 
 let _ =
