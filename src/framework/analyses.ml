@@ -444,7 +444,7 @@ sig
   val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> C.t -> D.t -> D.t
 
-  val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t list
   val threadspawn : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
 end
 

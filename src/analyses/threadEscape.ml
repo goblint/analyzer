@@ -66,8 +66,8 @@ struct
       let escaped = reachable ctx.ask ptc_arg in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
-      escaped
-    | _ -> D.bot ()
+      [escaped]
+    | _ -> [D.bot ()]
 
   let threadspawn ctx lval f args fctx =
     D.join ctx.local @@

@@ -42,7 +42,7 @@ struct
     ctx.local
 
   let startstate v = true
-  let threadenter ctx lval f args = true
+  let threadenter ctx lval f args = [true]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 

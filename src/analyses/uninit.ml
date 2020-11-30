@@ -27,7 +27,7 @@ struct
   let should_join x y = D.equal x y
 
   let startstate v : D.t = D.empty ()
-  let threadenter ctx lval f args : D.t = D.empty ()
+  let threadenter ctx lval f args = [D.empty ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 

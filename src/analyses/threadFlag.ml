@@ -81,7 +81,7 @@ struct
   let threadenter ctx lval f args =
     if not (is_multi ctx.ask) then
       ctx.emit Events.EnterMultiThreaded;
-    create_tid f
+    [create_tid f]
 
   let threadspawn ctx lval f args fctx =
     if not (is_multi ctx.ask) then

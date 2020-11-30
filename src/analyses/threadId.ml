@@ -86,7 +86,7 @@ struct
     | _ -> `Top
 
   let threadenter ctx lval f args =
-    create_tid f
+    [create_tid f]
 
   let threadspawn ctx lval f args fctx =
     ctx.local

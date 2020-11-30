@@ -300,7 +300,7 @@ struct
     | Some (Mem _, _)
     | None -> ctx.local
   let startstate v = D.top ()
-  let threadenter ctx lval f args = D.top ()
+  let threadenter ctx lval f args = [D.top ()]
   let exitstate  v = D.top ()
 
   let query ctx q =

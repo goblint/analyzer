@@ -2176,12 +2176,12 @@ struct
     let args_short = List.map short_fun f.sformals in
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" 80 args_short
 
-  let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t =
+  let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     try
-      make_entry ctx f args
+      [make_entry ctx f args]
     with Not_found ->
       (* Unknown functions *)
-      ctx.local
+      [ctx.local]
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     (* D.join ctx.local @@ *)

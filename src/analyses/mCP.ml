@@ -933,7 +933,7 @@ struct
   let threadenter (ctx:(D.t, G.t, C.t) ctx) lval f a =
     let sides  = ref [] in
     let emits = ref [] in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -944,7 +944,7 @@ struct
         ; ask    = query ctx
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
+        ; postsub= []
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadenter context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in threadenter context.")
@@ -952,12 +952,12 @@ struct
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadenter context.")
         }
       in
-      n, repr @@ S.threadenter ctx' lval f a
+      map (fun d -> (n, repr d)) @@ S.threadenter ctx' lval f a
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
+    let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;
-    let d = do_emits ctx !emits d in
-    if q then raise Deadcode else d
+    (* TODO: this do_emits is now different from everything else *)
+    map (do_emits ctx !emits) @@ map topo_sort_an @@ n_cartesian_product css
 
   let threadspawn (ctx:(D.t, G.t, C.t) ctx) lval f a fctx =
     let sides  = ref [] in

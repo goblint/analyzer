@@ -225,7 +225,7 @@ struct
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = Lockset.empty ()
-  let threadenter ctx lval f args = Lockset.empty ()
+  let threadenter ctx lval f args = [Lockset.empty ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = Lockset.empty ()
 
