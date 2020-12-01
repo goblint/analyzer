@@ -90,14 +90,14 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_key g "edge" "threadId" "string" None;
   GML.write_key g "edge" "createThread" "string" None;
 
-  GML.write_key g "node" "goblintNode" "string" None;
-  GML.write_key g "node" "sourcecode" "string" None;
+  (* GML.write_key g "node" "goblintNode" "string" None; *)
+  (* GML.write_key g "node" "sourcecode" "string" None; *)
   GML.write_key g "edge" "goblintEdge" "string" None;
   GML.write_key g "edge" "goblintLine" "string" None;
   GML.write_key g "edge" "goblintControl" "string" None;
   (* TODO: remove *)
-  GML.write_key g "edge" "enterFunction2" "string" None;
-  GML.write_key g "edge" "returnFromFunction2" "string" None;
+  (* GML.write_key g "edge" "enterFunction2" "string" None;
+  GML.write_key g "edge" "returnFromFunction2" "string" None; *)
 
   GML.start_graph g;
 
@@ -145,11 +145,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           else
             []
         end;
-        begin match cfgnode with
+        (* begin match cfgnode with
           | Statement s ->
             [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
           | _ -> []
-        end;
+        end; *)
         (* violation actually only allowed in violation witness *)
         (* maybe should appear on from_node of entry edge instead *)
         begin if TaskResult.is_violation node then
@@ -167,7 +167,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
            | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
            | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
           )] *)
-        [("goblintNode", N.to_string node)]
+        (* [("goblintNode", N.to_string node)] *)
       ])
   in
   let write_edge from_node edge to_node =
@@ -214,10 +214,10 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             end
           (* enter and return on other side of nodes,
              more correct loc (startline) but had some scope problem? *)
-          | MyARG.CFGEdge (Entry f) ->
+          (* | MyARG.CFGEdge (Entry f) ->
             [("enterFunction2", f.svar.vname)]
           | MyARG.CFGEdge (Ret (_, f)) ->
-            [("returnFromFunction2", f.svar.vname)]
+            [("returnFromFunction2", f.svar.vname)] *)
           | _ -> []
         end;
         [("goblintEdge", Arg.Edge.to_string edge)]
