@@ -64,6 +64,7 @@ struct
     BatIO.close_out f
 end
 
+(* TODO: generalize N argument to just to_string *)
 module ArgNodeGraphMlWriter (N: MyARG.Node) (M: StringGraphMlWriter):
   GraphMlWriter with type node = N.t =
 struct
@@ -79,6 +80,39 @@ struct
   let write_node g node datas = M.write_node g (string_of_node node) datas
   let write_edge g source target datas = M.write_edge g (string_of_node source) (string_of_node target) datas
   let stop = M.stop
+end
+
+module EnumerateNodeGraphMlWriter (N: Hashtbl.HashedType) (M: StringGraphMlWriter):
+  GraphMlWriter with type node = N.t =
+struct
+  module H = Hashtbl.Make (N)
+
+  type t =
+    {
+      delegate: M.t;
+      node_numbers: int H.t;
+      mutable next_number: int
+    }
+  type node = N.t
+
+  let string_of_node ({node_numbers; next_number; _} as g) node =
+    let number = match H.find_opt node_numbers node with
+      | Some number -> number
+      | None ->
+        let number = next_number in
+        H.replace node_numbers node number;
+        g.next_number <- number + 1;
+        number
+    in
+    "N" ^ string_of_int number
+
+  let start out = { delegate = M.start out; node_numbers = H.create 100; next_number = 0 }
+  let write_key {delegate; _} = M.write_key delegate
+  let start_graph {delegate; _} = M.start_graph delegate
+  let write_metadata {delegate; _} = M.write_metadata delegate
+  let write_node ({delegate; _} as g) node datas = M.write_node delegate (string_of_node g node) datas
+  let write_edge ({delegate; _} as g) source target datas = M.write_edge delegate (string_of_node g source) (string_of_node g target) datas
+  let stop {delegate; _} = M.stop delegate
 end
 
 module DeDupGraphMlWriter (Node: Hashtbl.HashedType) (M: GraphMlWriter with type node = Node.t):
