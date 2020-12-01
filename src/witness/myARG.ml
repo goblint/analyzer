@@ -147,6 +147,20 @@ struct
             in
             (edge, to_n')
           )
+
+  (* Avoid infinite stack nodes for recursive programs
+     by dropping down to repeated stack node. *)
+  let drop_prefix n stack =
+    if BatList.exists (Arg.Node.equal n) stack then
+      BatList.drop_while (fun x -> not (Arg.Node.equal n x)) stack
+    else
+      n :: stack
+  let dedup = function
+    | [] -> failwith "StackArg.next: dedup empty"
+    | n :: stack -> drop_prefix n stack
+  let next node =
+    next node
+    |> List.map (BatTuple.Tuple2.map2 dedup)
 end
 
 module type IsInteresting =
