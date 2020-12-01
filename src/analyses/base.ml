@@ -1530,12 +1530,14 @@ struct
           set' x v
         )
       | Const _ -> fst st (* nothing to do *)
-      | CastE ((TInt (ik, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
+      | CastE ((TInt (ik, _)) as t, e)
+      | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e with
         | `Int i ->
           if ID.leq i (ID.cast_to ik i) then
              match Cil.typeOf e with
-              | TInt(ik_e, _) ->
+              | TInt(ik_e, _)
+              | TEnum ({ekind = ik_e; _ }, _) ->
                 let c' = ID.cast_to ik_e c in
                 if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                 inv_exp c' e
