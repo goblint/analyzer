@@ -151,10 +151,12 @@ struct
   (* Avoid infinite stack nodes for recursive programs
      by dropping down to repeated stack node. *)
   let drop_prefix n stack =
-    if BatList.exists (Arg.Node.equal n) stack then
-      BatList.drop_while (fun x -> not (Arg.Node.equal n x)) stack
-    else
-      n :: stack
+    let rec drop = function
+      | [] -> n :: stack
+      | (x :: _) as stack when Arg.Node.equal x n -> stack
+      | _ :: xs -> drop xs
+    in
+    drop stack
   let dedup = function
     | [] -> failwith "StackArg.next: dedup empty"
     | n :: stack -> drop_prefix n stack
