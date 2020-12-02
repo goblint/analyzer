@@ -618,7 +618,7 @@ struct
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
     | _ ->
       match to_int i1, to_int i2 with
-      | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero -> top_of ik)
+      | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
       | _              -> (set_overflow_flag ik;  top_of ik)
 
   let bitxor = bit (fun _ik -> Ints_t.logxor)
