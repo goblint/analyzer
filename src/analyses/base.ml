@@ -143,7 +143,6 @@ struct
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
-    let result_ik = Cilfacade.get_ikind t in
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -197,7 +196,9 @@ struct
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
-    | `Int v1, `Int v2 -> `Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
+    | `Int v1, `Int v2 ->
+      let result_ik = Cilfacade.get_ikind t in
+      `Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -218,6 +219,7 @@ struct
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result in most cases, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
+        let result_ik = Cilfacade.get_ikind t in
         let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.Addr.equal (AD.choose x) (AD.choose y)) else None in
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
