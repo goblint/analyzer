@@ -1,0 +1,140 @@
+open Prelude
+open Cil
+open Deriving.Cil
+
+open PthreadCodeSlicer
+
+module PromelaCodegen = struct end
+
+(* module type Ctx = sig
+ *   open PthreadCodeSlicer
+ *
+ *   type t
+ *
+ *   type edge = node * action * node
+ *
+ *   val get_edges: t -> resource_id -> edge Set.t
+ *
+ *   val get_id_from_resource: t -> resource_id -> int
+ *
+ *   val get_resources: t -> resource_id list
+ *
+ *   val get_fun_name_for_proc: t -> process_name -> fun_name option
+ *
+ *   val get_prio_for_proc: t -> process_name -> int64 option
+ * end
+ *
+ * module PromelaCodegen : sig
+ *   (\** promela source code *\)
+ *   type promela_src = string
+ *
+ *   val init : unit -> promela_src
+ *   (\** [init_body ()] map init/main function to `promela_src` *\)
+ *
+ *   val resource_def : Ctx.t -> resource_id -> promela_src
+ *   (\** [resource_def id] maps [resource_id] resource to `promela_src`*\)
+ *
+ *   val codegen : Ctx.t -> promela_src
+ *   (\** [codegen edges] generates `promela_src` from the analyzed and sliced program *\)
+ * end = struct
+ *   let tabulate s = "\t" ^ s
+ *
+ *   let init () =
+ *     let init_lines = [""] in
+ *     let init_body = List.map tabulate init_lines |> String.concat "\n" in
+ *     "init {" ^ init_body ^ "}"
+ *
+ *   let rec resource_def ctx ((resource_type, resource_name) as id) =
+ *     let pid = id |> Ctx.get_resource_id ctx |> string_of_int in
+ *     let fun_name = resource_name |> Ctx.get_fun_name_for_proc ctx |> Option.get in
+ *     (\* shouldn't this be unnecessary since I have different resource types, including functions *\)
+ *     let is_proc = resource_name = fun_name in
+ *     let promela_name =
+ *       let prefix = if is_proc then "P_" else "F_" in
+ *       prefix ^ resource_type
+ *     in
+ *     let head =
+ *       if is_proc then
+ *         (\* process *\)
+ *         let prio =
+ *           match Ctx.get_prio_for_proc ctx resource_name with
+ *           | Some x ->
+ *             " priority " ^ Int64.to_string x
+ *           | None ->
+ *             ""
+ *         in
+ *         "proctype " ^ resource_type ^ "(byte tid)" ^ prio ^ " provided (can_run("
+ *         ^ pid ^ ") PRIO" ^ pid ^ ") {\n  int stack[20]; int sp = -1;"
+ *       else (\* some function call in process *\)
+ *         "Fun_" ^ resource_name ^ ":"
+ *     in
+ *     (\* build adjacency matrix for all nodes of this process *\)
+ *     let module HashtblN = Hashtbl.Make (ArincDomain.Pred.Base) in
+ *     let a2bs = HashtblN.create 97 in
+ *     Set.iter
+ *       (fun ((a, _, b) as edge) ->
+ *          HashtblN.modify_def Set.empty a (Set.add edge) a2bs)
+ *       (Ctx.get_edges ctx id) ;
+ *     let nodes = HashtblN.keys a2bs |> List.of_enum in
+ *     (\* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (\* Set.empty leads to Out_of_memory!? *\) *\)
+ *     let out_edges node =
+ *       try node |> HashtblN.find a2bs |> Set.elements with Not_found -> []
+ *     in
+ *     let in_edges node =
+ *       a2bs
+ *       |> HashtblN.filter (Set.mem node % Set.map Tuple3.third)
+ *       |> HashtblN.values |> List.of_enum |> flat_map Set.elements
+ *     in
+ *     let is_end_node = List.is_empty % out_edges in
+ *     let is_start_node = List.is_empty % in_edges in
+ *     let start_node = List.find is_start_node nodes in
+ *     (\* node with no incoming edges is the start node *\)
+ *     let label n = promela_name ^ "_" ^ Pred.string_of_elt n in
+ *     let end_label = promela_name ^ "_end" in
+ *     let goto label = "goto " ^ label ^ ";" in
+ *     let codegen_edge (a, action, b) =
+ *       let target_label = if is_end_node b then end_label else label b in
+ *       let str_action =
+ *         match action with
+ *         | Call fun_name ->
+ *           let pc = FunCallTbl.get (fun_name, target_label) |> string_of_int in
+ *           "mark(" ^ pc ^ "); " ^ goto ("Fun_" ^ fun_name)
+ *         | Sys x ->
+ *           x
+ *       in
+ *       (\* for function calls the goto will never be reached since the function's return will already jump to that label; however it's nice to see where the program will continue at the site of the call. *\)
+ *       str_action ^ " " ^ goto target_label
+ *     in
+ *     let walk_edges (a, out_edges) =
+ *       let edges = Set.elements out_edges |> List.map codegen_edge in
+ *       let body =
+ *         if List.length edges > 1 then
+ *           (\* choices in if-statements are prefixed with :: *\)
+ *           let prefix_branch x = "::" ^ tabulate x in
+ *           let if_branches = List.map prefix_branch edges in
+ *           ["if"] @ if_branches @ ["fi"]
+ *         else edges
+ *       in
+ *       (label a ^ ":") :: body
+ *     in
+ *     let locals = [] in
+ *     let return =
+ *       if is_proc then " status[tid] = DONE" else " ret_" ^ resource_name ^ "()"
+ *     in
+ *     let body =
+ *       locals
+ *       @ [goto (label start_node)]
+ *       @ flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)
+ *       @ [end_label ^ ":" ^ return]
+ *     in
+ *     String.concat "\n"
+ *     @@ (head :: List.map tabulate body)
+ *        @ [(if is_proc then "}\n" else "")]
+ *
+ *   let codegen ctx =
+ *     let resource_defs =
+ *       ctx |> Ctx.get_resources |> List.map (fun id -> resource_def ctx id)
+ *     in
+ *     let code_components = [init ()] @ resource_defs in
+ *     String.concat "\n" code_components
+ * end *)
