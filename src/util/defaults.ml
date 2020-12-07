@@ -177,7 +177,7 @@ let _ = ()
       ; reg Experimental "exp.fast_global_inits" "true" "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n]."
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
-      ; reg Experimental "exp.witness_path" "'witness.graphml'" "Witness output path"
+      ; reg Experimental "exp.witness.path" "'witness.graphml'" "Witness output path"
       ; reg Experimental "exp.witness_loop_invariants" "false" "Only add loop invariants to witness"
       ; reg Experimental "exp.minwitness"        "false" "Try to minimize the witness"
       ; reg Experimental "exp.uncilwitness"      "false" "Try to undo CIL control flow transformations in witness"

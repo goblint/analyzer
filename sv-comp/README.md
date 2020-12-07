@@ -43,7 +43,7 @@ There's a bunch of very simple files to test with in `./tests/sv-comp/` with the
 
   Adds SV-COMP `__VERIFIER_*` functions, outputs verdict to stdout and outputs witness to `witness.graphml` in current (Goblint root) directory.
 
-* `exp.witness_path`
+* `exp.witness.path`
 
   Override witness output filename.
 

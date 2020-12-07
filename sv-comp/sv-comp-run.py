@@ -13,7 +13,7 @@ from timeit import default_timer as timer
 
 OVERVIEW = False # with True Goblint isn't executed
 # TODO: don't hard-code specification
-GOBLINT_COMMAND = "./goblint --conf conf/svcomp21.json --sets ana.specification ./tests/sv-comp/unreach-call-__VERIFIER_error.prp --sets exp.witness_path {witness_filename} {code_filename}"
+GOBLINT_COMMAND = "./goblint --conf conf/svcomp21.json --sets ana.specification ./tests/sv-comp/unreach-call-__VERIFIER_error.prp --sets exp.witness.path {witness_filename} {code_filename}"
 TIMEOUT = 30 # with some int that's Goblint timeout for single execution
 START = 1
 EXIT_ON_ERROR = True
