@@ -56,9 +56,17 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module Arg = MyARG.InterestingArg (Arg) (IsInteresting) in
 
   let module N = Arg.Node in
-  (* TODO: add an option for which node names to use *)
-  (* let module GML = DeDupGraphMlWriter (N) (ArgNodeGraphMlWriter (N) (XmlGraphMlWriter)) in *)
-  let module GML = DeDupGraphMlWriter (N) (EnumerateNodeGraphMlWriter (N) (XmlGraphMlWriter)) in
+  let module GML = XmlGraphMlWriter in
+  let module GML =
+    (val match get_string "exp.witness.id" with
+      | "node" ->
+        (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
+      | "enumerate" ->
+        (module EnumerateNodeGraphMlWriter (N) (GML))
+      | _ -> failwith "exp.witness.id: illegal value"
+    )
+  in
+  let module GML = DeDupGraphMlWriter (N) (GML) in
   let module NH = Hashtbl.Make (N) in
 
   let main_entry = Arg.main_entry in
