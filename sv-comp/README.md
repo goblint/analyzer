@@ -32,7 +32,7 @@ They have corresponding XML files for benchexec and table-generator.
 ## Run Goblint in SV-COMP mode
 Command:
 ```
-./goblint --enable ana.sv-comp --enable exp.uncilwitness --enable ana.int.interval ./tests/sv-comp/basic/if_mod_true-unreach-call.c
+./goblint --enable ana.sv-comp --enable exp.witness.uncil --enable ana.int.interval ./tests/sv-comp/basic/if_mod_true-unreach-call.c
 ```
 
 There's a bunch of very simple files to test with in `./tests/sv-comp/` with the expected results in the filename (old SV-COMP task definition format).
@@ -47,7 +47,7 @@ There's a bunch of very simple files to test with in `./tests/sv-comp/` with the
 
   Override witness output filename.
 
-* `exp.uncilwitness`
+* `exp.witness.uncil`
 
   Cil transforms `&&` and `||` into `if`s, which causes the witness to contain spurious conditional control edges where the original program didn't. I'm guessing this would mix up things for witness validators.
 
