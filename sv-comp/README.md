@@ -53,7 +53,7 @@ There's a bunch of very simple files to test with in `./tests/sv-comp/` with the
 
   This option does some hacks to try to undo that transformation when writing the witness.
 
-* `exp.minwitness`
+* `exp.witness.minimize`
 
   Minimizes the witness graph by skipping nodes and edges without any useful witness data to make witnesses easier to inspect.
 

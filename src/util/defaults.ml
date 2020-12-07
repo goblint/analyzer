@@ -179,7 +179,7 @@ let _ = ()
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
       ; reg Experimental "exp.witness.path" "'witness.graphml'" "Witness output path"
       ; reg Experimental "exp.witness_loop_invariants" "false" "Only add loop invariants to witness"
-      ; reg Experimental "exp.minwitness"        "false" "Try to minimize the witness"
+      ; reg Experimental "exp.witness.minimize"        "false" "Try to minimize the witness"
       ; reg Experimental "exp.uncilwitness"      "false" "Try to undo CIL control flow transformations in witness"
       ; reg Experimental "exp.architecture"      "'64bit'" "Architecture for analysis, currently for witness"
       ; reg Experimental "exp.partition-arrays.enabled"  "false" "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well."
