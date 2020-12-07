@@ -178,7 +178,7 @@ let _ = ()
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
       ; reg Experimental "exp.witness.path" "'witness.graphml'" "Witness output path"
-      ; reg Experimental "exp.witness_loop_invariants" "false" "Only add loop invariants to witness"
+      ; reg Experimental "exp.witness.invariant.nodes" "'all'" "Which witness nodes to add invariants to? all/loop_heads/none"
       ; reg Experimental "exp.witness.minimize"        "false" "Try to minimize the witness"
       ; reg Experimental "exp.witness.uncil"      "false" "Try to undo CIL control flow transformations in witness"
       ; reg Experimental "exp.architecture"      "'64bit'" "Architecture for analysis, currently for witness"

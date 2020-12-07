@@ -11,10 +11,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
   let is_invariant_node cfgnode =
-    if get_bool "exp.witness_loop_invariants" then
-      WitnessUtil.NH.mem loop_heads cfgnode
-    else
-      true
+    match get_string "exp.witness.invariant.nodes" with
+    | "all" -> true
+    | "loop_heads" -> WitnessUtil.NH.mem loop_heads cfgnode
+    | "none" -> false
+    | _ -> failwith "exp.witness.invariant.nodes: invalid value"
   in
 
   let module TaskResult = StackTaskResult (Cfg) (TaskResult) in
