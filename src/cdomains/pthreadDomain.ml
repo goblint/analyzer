@@ -1,7 +1,7 @@
 open Prelude
 
-(** Process ID *)
-module Pid = IntDomain.Flattened
+(** Thread ID *)
+module Tid = IntDomain.Flattened
 
 (** Priority *)
 module Pri = IntDomain.Reverse (IntDomain.Lifted)
@@ -21,7 +21,7 @@ module Pred = struct
 end
 
 type domain =
-  { pid : Pid.t
+  { tid : Tid.t
   ; pri : Pri.t
   ; pred : Pred.t
   ; ctx : Ctx.t
@@ -36,8 +36,8 @@ module D = struct
   (** printing *)
   let short w x =
     Printf.sprintf
-      "{ pid=%s; pri=%s; pred=%s; ctx=%s }"
-      (Pid.short 3 x.pid)
+      "{ Tid=%s; pri=%s; pred=%s; ctx=%s }"
+      (Tid.short 3 x.tid)
       (Pri.short 3 x.pri)
       (Pretty.sprint 200 (Pred.pretty () x.pred))
       (Ctx.short 50 x.ctx)
@@ -53,7 +53,7 @@ module D = struct
 
   (** let equal = Util.equals *)
   let equal x y =
-    Pid.equal x.pid y.pid
+    Tid.equal x.tid y.tid
     && Pri.equal x.pri y.pri
     && Pred.equal x.pred y.pred
     && Ctx.equal x.ctx y.ctx
@@ -64,7 +64,7 @@ module D = struct
     List.fold_left
       (fun acc v -> if acc = 0 && v <> 0 then v else acc)
       0
-      [ Pid.compare x.pid y.pid
+      [ Tid.compare x.tid y.tid
       ; Pri.compare x.pri y.pri
       ; Pred.compare x.pred y.pred
       ; Ctx.compare x.ctx y.ctx
@@ -74,32 +74,32 @@ module D = struct
   (** let hash = Hashtbl.hash *)
   let hash x =
     Hashtbl.hash
-      (Pid.hash x.pid, Pri.hash x.pri, Pred.hash x.pred, Ctx.hash x.ctx)
+      (Tid.hash x.tid, Pri.hash x.pri, Pred.hash x.pred, Ctx.hash x.ctx)
 
 
-  let make pid pri pred ctx = { pid; pri; pred; ctx }
+  let make tid pri pred ctx = { tid; pri; pred; ctx }
 
   let bot () =
-    { pid = Pid.bot (); pri = Pri.bot (); pred = Pred.bot (); ctx = Ctx.bot () }
+    { tid = Tid.bot (); pri = Pri.bot (); pred = Pred.bot (); ctx = Ctx.bot () }
 
 
   let is_bot x = x = bot ()
 
-  let any_is_bot x = Pid.is_bot x.pid || Pri.is_bot x.pri || Pred.is_bot x.pred
+  let any_is_bot x = Tid.is_bot x.tid || Pri.is_bot x.pri || Pred.is_bot x.pred
 
   let top () =
-    { pid = Pid.top (); pri = Pri.top (); pred = Pred.top (); ctx = Ctx.top () }
+    { tid = Tid.top (); pri = Pri.top (); pred = Pred.top (); ctx = Ctx.top () }
 
 
   let is_top x =
-    Pid.is_top x.pid
+    Tid.is_top x.tid
     && Pri.is_top x.pri
     && Pred.is_top x.pred
     && Ctx.is_top x.ctx
 
 
   let op_scheme op1 op2 op3 op4 x y : t =
-    { pid = op1 x.pid y.pid
+    { tid = op1 x.tid y.tid
     ; pri = op2 x.pri y.pri
     ; pred = op3 x.pred y.pred
     ; ctx = op4 x.ctx y.ctx
@@ -107,17 +107,17 @@ module D = struct
 
 
   let leq x y =
-    Pid.leq x.pid y.pid
+    Tid.leq x.tid y.tid
     && Pri.leq x.pri y.pri
     && Pred.leq x.pred y.pred
     && Ctx.leq x.ctx y.ctx
 
 
-  let join x y = op_scheme Pid.join Pri.join Pred.join Ctx.join x y
+  let join x y = op_scheme Tid.join Pri.join Pred.join Ctx.join x y
 
   let widen = join
 
-  let meet = op_scheme Pid.meet Pri.meet Pred.meet Ctx.meet
+  let meet = op_scheme Tid.meet Pri.meet Pred.meet Ctx.meet
 
   let narrow = meet
 end

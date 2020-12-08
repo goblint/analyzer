@@ -4,7 +4,7 @@ open Cil
 open Deriving.Cil
 open BatteriesExceptionless
 
-module PthreadCodeSlicer : Analyses.Spec = struct
+module Spec : Analyses.Spec = struct
   module M = Messages
   module List = BatList
 
@@ -93,17 +93,16 @@ module PthreadCodeSlicer : Analyses.Spec = struct
 
   type fun_name = string
 
-  type target_label = string
-
   module Action = struct
     type thread =
-      { f : varinfo
-      ; pri : int
+      { t : varinfo (* a global var from Tbls.ResourceTbl *)
+      ; f : varinfo
+      ; pri : int (* TODO: extract this info from the attributes *)
       }
 
     type mutex = { m : varinfo }
 
-    type var_name = string
+    type thread_var = varinfo
 
     (** uniquely identifies the function call
      ** created/defined by `fun_ctx` function *)
@@ -111,10 +110,10 @@ module PthreadCodeSlicer : Analyses.Spec = struct
 
     (** ADT of all possible edge types actions *)
     type t =
-      | Assign of string * string (* var_callee = var_caller *)
+      (* | Assign of string * string (\* var_callee = var_caller *\) *)
       | Call of fun_call_id
       | ThreadCreate of thread
-      | ThreadJoin of var_name
+      | ThreadJoin of thread_var
       | MutexInit of mutex
       | MutexLock (*TODO: add associated args for it*)
       | MutexUnlock (*TODO: add associated args for it*)
@@ -178,6 +177,7 @@ module PthreadCodeSlicer : Analyses.Spec = struct
 
       let make_new_val table k =
         let var_name = Resource.show k in
+        (* creates a global var for resource with the unique var name of type void* *)
         Goblintutil.create_var (makeGlobalVar var_name voidPtrType)
     end)
 
@@ -191,6 +191,14 @@ module PthreadCodeSlicer : Analyses.Spec = struct
       type k = thread_name
 
       type v = fun_name
+    end)
+
+    module ThreadTidTbl = SymTbl (struct
+      type k = thread_name
+
+      type v = int
+
+      let make_new_val table k = key_count table @@ const true
     end)
 
     (* context hash to differentiate function calls *)
@@ -242,20 +250,10 @@ module PthreadCodeSlicer : Analyses.Spec = struct
     let get ctx =
       let d : D.t = ctx.local in
       let node = Option.get !MyCFG.current_node in
-      (* determine if we are at the root of a process or in some called function *)
+      (* determine if we are at the root of a thread or in some called function *)
       let fundec = MyCFG.getFun node in
-      let cur_pid =
-        match Pid.to_int d.pid with
-        | Some i ->
-            i
-        | None ->
-            failwith
-            @@ "get_env: Pid.to_int = None inside function "
-            ^ fundec.svar.vname
-            ^ ". State: "
-            ^ D.short 100 d
-      in
-      let thread_name = Tbls.ThreadPrioTbl.get_key cur_pid in
+      let cur_tid = Int64.of_int 1 in
+      let thread_name = Tbls.ThreadPrioTbl.get_key cur_tid in
       let id =
         let is_main_fun name =
           List.mem name @@ List.map Json.string @@ GobConfig.get_list "mainfun"
@@ -282,26 +280,32 @@ module PthreadCodeSlicer : Analyses.Spec = struct
 
     val funs_for_thread : thread_name -> varinfo list
   end = struct
-    let table = Hashtbl.create 199
+    let table : (Resource.t, edge Set.t) Hashtbl.t = Hashtbl.create 199
 
+    (** [add] adds an edge for the current environment resource id (Thread or Function)
+     ** [r] is return status code
+     ** [dst] destination node
+     ** [d] domain
+     ** [env] environment
+     ** [action] edge action of type `Action.t` *)
     let add ?r ?dst ?d env action =
-      let env_node = Env.node env in
-      let id = Env.id env in
-      let add res_id edge =
-        Hashtbl.modify_def Set.empty res_id (Set.add edge) table
+      let preds =
+        let env_d = Env.d env in
+        (d |? env_d).pred
       in
-      let preds = (d |? Env.d env).pred in
-      Pred.iter
-        (fun node ->
-          let action = (node, action, r, MyCFG.getLoc (dst |? env_node)) in
-          add id action)
-        preds
+      let add_edge_for_node node =
+        let env_node = Env.node env in
+        let env_id = Env.id env in
+        let action_edge = (node, action, r, MyCFG.getLoc (dst |? env_node)) in
+        Hashtbl.modify_def Set.empty env_id (Set.add action_edge) table
+      in
+      Pred.iter add_edge_for_node preds
 
 
     let get res_id = Hashtbl.find_default table res_id Set.empty
 
     let funs_for_thread proc_name =
-      let open Action in
+      (* let open Action in *)
       let get_funs = function
         (* | ThreadCreate t when t.name = proc_name -> *)
         (* Some t.f *)
@@ -338,7 +342,7 @@ module PthreadCodeSlicer : Analyses.Spec = struct
       let base_context =
         Base.Main.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub
       in
-      Int64.of_int @@ Hashtbl.hash (base_context, ctx.local.pid)
+      Int64.of_int @@ Hashtbl.hash (base_context, ctx.local.tid)
     in
     { ctx.local with ctx = Ctx.of_int context_hash }
 
@@ -452,8 +456,6 @@ module PthreadCodeSlicer : Analyses.Spec = struct
 
   module Assign = struct
     let id ctx exp id =
-      if M.tracing
-      then M.trace "extract_arinc" "assign_id %a %s\n" d_exp exp id.vname ;
       match exp with
       | AddrOf lval ->
           ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
@@ -473,12 +475,19 @@ module PthreadCodeSlicer : Analyses.Spec = struct
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) : D.t
       =
     let fun_name = f.vname in
-    let not_pthread_fun = not % Function.is_pthread_fun in
-    if D.any_is_bot ctx.local or not_pthread_fun fun_name
+    let not_pthread_fun = not @@ Function.is_pthread_fun fun_name in
+    if D.any_is_bot ctx.local || not_pthread_fun
     then ctx.local
     else
       let arglist = List.map (stripCasts % constFold false) arglist in
-      let add_actions (actions : Action.t list) = ctx.local in
+      let add_actions (actions : Action.t list) =
+        let env = Env.get ctx in
+        let d = Env.d env in
+        List.iter (Edges.add env) actions ;
+        if List.is_empty actions
+        then d
+        else { d with pred = Pred.of_node @@ Env.node env }
+      in
       let add_action action = add_actions [ action ] in
       let pthread_fun = Function.from_string fun_name in
       let open Function in
@@ -505,10 +514,26 @@ module PthreadCodeSlicer : Analyses.Spec = struct
             funs_ls |> Queries.LS.elements |> List.map fst |> List.unique
           in
 
+          (* TODO: thread name is not unique! *)
+          let thread_name = (List.hd funs).vname in
+          let thread_goblint_var =
+            let thread_res = Resource.make Resource.Thread thread_name in
+            Tbls.ResourceTbl.get thread_res
+          in
+
+          (* TODO: what's the point of the whole assign thingy?
+           *       assign, such that we can later eval it?
+           *       then we need to assign the value from code and not goblint_global_var *)
+          Assign.id ctx (AddrOf thread) thread_goblint_var ;
+
           (* create new task for the new thread created *)
+          (* TODO: why? why do we need tasks for *)
           let tasks =
             let f_d =
-              { pid = Pid.of_int @@ Int64.of_int 1 (* (get_pid name) *)
+              { tid =
+                  Tid.of_int
+                  @@ Int64.of_int
+                  @@ Tbls.ThreadTidTbl.get thread_name
               ; pri = Pri.of_int @@ Int64.of_int pri
               ; pred = Pred.of_node (MyCFG.Function f)
               ; ctx = Ctx.top ()
@@ -519,23 +544,17 @@ module PthreadCodeSlicer : Analyses.Spec = struct
           in
           ctx.sideg tasks_var tasks ;
 
-          (* TODO: what's the point of the whole assign thingy *)
-          let thread_res = Resource.make Resource.Thread "" in
-          Assign.id ctx (AddrOf thread) @@ Tbls.ResourceTbl.get thread_res ;
-
-          let thread_create f = Action.ThreadCreate Action.{ f; pri } in
+          let thread_create f =
+            Action.ThreadCreate Action.{ t = thread_goblint_var; f; pri }
+          in
           add_actions @@ List.map thread_create funs
       | ThreadJoin, [ thread; AddrOf thread_ret ] ->
           (* TODO: take into consideration the return value of thread join *)
           let potential_thread_resources = ExprEval.eval_id ctx thread in
-          let thread_join_for_res = function
-            | Resource.Thread, var_name ->
-                Some (Action.ThreadJoin var_name)
-            | _ ->
-                None
+          let thread_join_for_res res =
+            Action.ThreadJoin (Tbls.ResourceTbl.get res)
           in
-          add_actions
-          @@ List.filter_map thread_join_for_res potential_thread_resources
+          add_actions @@ List.map thread_join_for_res potential_thread_resources
       | MutexInit, [ AddrOf mutex; AddrOf mutex_attr ] ->
           add_action Nop (* add_action (MutexInit mutex) *)
       | MutexLock, [ AddrOf mutex ] ->
@@ -549,8 +568,7 @@ module PthreadCodeSlicer : Analyses.Spec = struct
   let startstate v =
     let open D in
     make
-      (* TODO: remove pids, since they are not necessary *)
-      (Pid.of_int 0L)
+      (Tid.of_int 0L)
       (Pri.top ())
       (Pred.of_node (MyCFG.Function (emptyFunction "main").svar))
       (Ctx.top ())
