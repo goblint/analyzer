@@ -2,6 +2,10 @@
 
 cd ..
 
+make clean
+
+make
+
 rm goblint/sv-comp/goblint.zip
 
 zip goblint/sv-comp/goblint.zip \
