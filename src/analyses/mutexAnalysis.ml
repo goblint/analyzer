@@ -147,7 +147,7 @@ struct
     if ThreadFlag.is_multi ctx.ask then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
-  (** We just lift start state, global and dependecy functions: *)
+  (** We just lift start state, global and dependency functions: *)
   let startstate v = Lockset.empty ()
   let threadenter ctx lval f args = Lockset.empty ()
   let threadspawn ctx lval f args fctx = Lockset.empty ()

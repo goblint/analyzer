@@ -1,4 +1,4 @@
-(** Variable equalities neccessary for per-element patterns. *)
+(** Variable equalities necessary for per-element patterns. *)
 
 module M = Messages
 module GU = Goblintutil

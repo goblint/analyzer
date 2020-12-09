@@ -101,7 +101,7 @@ struct
          Multiple forwarding wildcards are not allowed, i.e. new_a must be None, otherwise we end up in a loop. *)
       if SC.is_wildcard c && fwd && new_a=None then Some (m,fwd,Some (b,a),old_key) (* replace b with a in the following checks *)
       else
-        (* save origninal start state of the constraint (needed to detect reflexive edges) *)
+        (* save original start state of the constraint (needed to detect reflexive edges) *)
         let old_a = a in
         (* Assume new_a  *)
         let a = match new_a with
