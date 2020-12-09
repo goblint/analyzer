@@ -74,7 +74,7 @@ let earlyglobs = ref false
 (** true if in verifying stage *)
 let in_verifying_stage = ref false
 
-(* None if verification is disabled, Some true if verification succeeded, Some false if verfication failed *)
+(* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
 
 let escape (x:string):string =
