@@ -12,4 +12,5 @@ zip goblint/sv-comp/goblint.zip \
     goblint/goblint \
     goblint/conf/svcomp21.json \
     goblint/includes/sv-comp.c \
+    goblint/README.md \
     goblint/LICENSE
