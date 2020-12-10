@@ -11,7 +11,8 @@ module Ctx = IntDomain.Flattened
 
 (** Set of predecessor nodes *)
 module Pred = struct
-  include SetDomain.Make (Basetype.ProgLocation)
+  module Base = Basetype.ProgLocation
+  include SetDomain.Make (Base)
 
   let of_node = singleton % MyCFG.getLoc
 

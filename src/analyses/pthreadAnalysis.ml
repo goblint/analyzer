@@ -4,6 +4,207 @@ open Cil
 open Deriving.Cil
 open BatteriesExceptionless
 
+(** [Function] module represents the supported pthread functions for the analysis *)
+module Function = struct
+  type t =
+    | ThreadCreate
+    | ThreadJoin
+    | MutexInit
+    | MutexLock
+    | MutexUnlock
+    | Other of string
+
+  let prefix = "pthread_"
+
+  let supported =
+    List.map
+      (( ^ ) prefix)
+      [ "create"; "join"; "mutex_init"; "mutex_lock"; "mutex_unlock" ]
+
+
+  let is_pthread_fun f = String.starts_with f prefix
+
+  let from_string = function
+    | "pthread_create" ->
+        ThreadCreate
+    | "pthread_join" ->
+        ThreadJoin
+    | "pthread_mutex_init" ->
+        MutexInit
+    | "pthread_mutex_lock" ->
+        MutexLock
+    | "pthread_mutex_unlock" ->
+        MutexUnlock
+    | s ->
+        Other s
+end
+
+(** [Resource] module represts different resources extracted for the analysis *)
+module Resource = struct
+  (** Enumeration of all resources relevant for the analysis *)
+  type resource_type =
+    | Thread
+    | Function
+    | Mutex
+  [@@deriving show]
+
+  (** name of the resource in code *)
+  type resource_name = string
+
+  (** type [t] represents the resource *)
+  type t = resource_type * resource_name
+
+  let make t n : t = (t, n)
+
+  let res_type = fst
+
+  let res_name = snd
+
+  let show t =
+    let str_res_type = show_resource_type @@ res_type t in
+    let str_res_name = res_name t in
+    str_res_type ^ ":" ^ str_res_name
+end
+
+type thread_name = string
+
+type fun_name = string
+
+module Action = struct
+  type thread =
+    { t : varinfo (* a global var from Tbls.ResourceTbl *)
+    ; f : varinfo
+    ; pri : int (* TODO: extract this info from the attributes *)
+    }
+
+  type mutex = { m : varinfo }
+
+  type thread_var = varinfo
+
+  (** uniquely identifies the function call
+     ** created/defined by `fun_ctx` function *)
+  type fun_call_id = string
+
+  (** ADT of all possible edge types actions *)
+  type t =
+    (* | Assign of string * string (\* var_callee = var_caller *\) *)
+    | Call of fun_call_id
+    | ThreadCreate of thread
+    | ThreadJoin of thread_var
+    | MutexInit of mutex
+    | MutexLock (*TODO: add associated args for it*)
+    | MutexUnlock (*TODO: add associated args for it*)
+    | Nop
+end
+
+module Tbls = struct
+  module type SymTblGen = sig
+    type k
+
+    type v
+
+    val make_new_val : (k, v) Hashtbl.t -> k -> v
+  end
+
+  module type TblGen = sig
+    type k
+
+    type v
+  end
+
+  module SymTbl (G : SymTblGen) = struct
+    let table = (Hashtbl.create 123 : (G.k, G.v) Hashtbl.t)
+
+    let get k =
+      (* in case there is no value for the key, populate the table with the next value (id) *)
+      let new_value_thunk () =
+        let new_val = G.make_new_val table k in
+        Hashtbl.replace table k new_val ;
+        new_val
+      in
+      Hashtbl.find table k |> Option.default_delayed new_value_thunk
+
+
+    let get_key v =
+      table |> Hashtbl.filter (( = ) v) |> Hashtbl.keys |> Enum.get
+
+
+    let to_list () = table |> Hashtbl.enum |> List.of_enum
+  end
+
+  module Tbl (G : TblGen) = struct
+    let table = (Hashtbl.create 123 : (G.k, G.v) Hashtbl.t)
+
+    let add k v = Hashtbl.replace table k v
+
+    let get k = Hashtbl.find table k
+
+    let get_key v = table |> Hashtbl.enum |> List.of_enum |> List.assoc_inv v
+  end
+
+  let all_keys_count table =
+    (* the number of keys in the Hashtbl that pass the filter *)
+    let key_count table f =
+      table |> Hashtbl.keys |> List.of_enum |> List.filter f |> List.length
+    in
+    key_count table @@ const true
+
+
+  module ResourceTbl = SymTbl (struct
+    type k = Resource.t
+
+    type v = varinfo
+
+    let make_new_val table k =
+      let var_name = Resource.show k in
+      (* creates a global var for resource with the unique var name of type void* *)
+      Goblintutil.create_var (makeGlobalVar var_name voidPtrType)
+  end)
+
+  module ThreadPrioTbl = Tbl (struct
+    type k = thread_name
+
+    type v = int64
+  end)
+
+  module ThreadFunTbl = Tbl (struct
+    type k = thread_name
+
+    type v = fun_name
+  end)
+
+  module ThreadTidTbl = SymTbl (struct
+    type k = thread_name
+
+    type v = int
+
+    let make_new_val table k = all_keys_count table
+  end)
+
+  (* context hash to differentiate function calls *)
+  module CtxTbl = SymTbl (struct
+    type k = int
+
+    type v = int
+
+    let make_new_val table k = all_keys_count table
+  end)
+
+  module FunTbl = SymTbl (struct
+    type k = string * string (* TODO: what do they represent *)
+
+    type v = int
+
+    let make_new_val table k = all_keys_count table
+  end)
+end
+
+(** type of a node in CFG *)
+type node = PthreadDomain.Pred.Base.t
+
+(** type of a single edge in CFG *)
+type edge = node * Action.t * string option * node
+
 module Spec : Analyses.Spec = struct
   module M = Messages
   module List = BatList
@@ -27,190 +228,6 @@ module Spec : Analyses.Spec = struct
     Goblintutil.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
 
 
-  (** [Function] module represents the supported pthread functions for the analysis *)
-  module Function = struct
-    type t =
-      | ThreadCreate
-      | ThreadJoin
-      | MutexInit
-      | MutexLock
-      | MutexUnlock
-      | Other of string
-
-    let prefix = "pthread_"
-
-    let supported =
-      List.map
-        (( ^ ) prefix)
-        [ "create"; "join"; "mutex_init"; "mutex_lock"; "mutex_unlock" ]
-
-
-    let is_pthread_fun f = String.starts_with f prefix
-
-    let from_string = function
-      | "pthread_create" ->
-          ThreadCreate
-      | "pthread_join" ->
-          ThreadJoin
-      | "pthread_mutex_init" ->
-          MutexInit
-      | "pthread_mutex_lock" ->
-          MutexLock
-      | "pthread_mutex_unlock" ->
-          MutexUnlock
-      | s ->
-          Other s
-  end
-
-  (** [Resource] module represts different resources extracted for the analysis *)
-  module Resource = struct
-    (** Enumeration of all resources relevant for the analysis *)
-    type resource_type =
-      | Thread
-      | Function
-      | Mutex
-    [@@deriving show]
-
-    (** name of the resource in code *)
-    type resource_name = string
-
-    (** type [t] represents the resource *)
-    type t = resource_type * resource_name
-
-    let make t n : t = (t, n)
-
-    let res_type = fst
-
-    let res_name = snd
-
-    let show t =
-      let str_res_type = show_resource_type @@ res_type t in
-      let str_res_name = res_name t in
-      str_res_type ^ ":" ^ str_res_name
-  end
-
-  type thread_name = string
-
-  type fun_name = string
-
-  module Action = struct
-    type thread =
-      { t : varinfo (* a global var from Tbls.ResourceTbl *)
-      ; f : varinfo
-      ; pri : int (* TODO: extract this info from the attributes *)
-      }
-
-    type mutex = { m : varinfo }
-
-    type thread_var = varinfo
-
-    (** uniquely identifies the function call
-     ** created/defined by `fun_ctx` function *)
-    type fun_call_id = string
-
-    (** ADT of all possible edge types actions *)
-    type t =
-      (* | Assign of string * string (\* var_callee = var_caller *\) *)
-      | Call of fun_call_id
-      | ThreadCreate of thread
-      | ThreadJoin of thread_var
-      | MutexInit of mutex
-      | MutexLock (*TODO: add associated args for it*)
-      | MutexUnlock (*TODO: add associated args for it*)
-      | Nop
-  end
-
-  module Tbls = struct
-    module type SymTblGen = sig
-      type k
-
-      type v
-
-      val make_new_val : (k, v) Hashtbl.t -> k -> v
-    end
-
-    module type TblGen = sig
-      type k
-
-      type v
-    end
-
-    module SymTbl (G : SymTblGen) = struct
-      let table = (Hashtbl.create 123 : (G.k, G.v) Hashtbl.t)
-
-      let get k =
-        (* in case there is no value for the key, populate the table with the next value (id) *)
-        let new_value_thunk () =
-          let new_val = G.make_new_val table k in
-          Hashtbl.replace table k new_val ;
-          new_val
-        in
-        Hashtbl.find table k |> Option.default_delayed new_value_thunk
-
-
-      let get_key v =
-        table |> Hashtbl.filter (( = ) v) |> Hashtbl.keys |> Enum.get
-
-
-      let to_list () = table |> Hashtbl.enum |> List.of_enum
-    end
-
-    module Tbl (G : TblGen) = struct
-      let table = (Hashtbl.create 123 : (G.k, G.v) Hashtbl.t)
-
-      let add k v = Hashtbl.replace table k v
-
-      let get k = Hashtbl.find table k
-
-      let get_key v = table |> Hashtbl.enum |> List.of_enum |> List.assoc_inv v
-    end
-
-    (* the number of keys in the Hashtbl that pass the filter *)
-    let key_count table f =
-      table |> Hashtbl.keys |> List.of_enum |> List.filter f |> List.length
-
-
-    module ResourceTbl = SymTbl (struct
-      type k = Resource.t
-
-      type v = varinfo
-
-      let make_new_val table k =
-        let var_name = Resource.show k in
-        (* creates a global var for resource with the unique var name of type void* *)
-        Goblintutil.create_var (makeGlobalVar var_name voidPtrType)
-    end)
-
-    module ThreadPrioTbl = Tbl (struct
-      type k = thread_name
-
-      type v = int64
-    end)
-
-    module ThreadFunTbl = Tbl (struct
-      type k = thread_name
-
-      type v = fun_name
-    end)
-
-    module ThreadTidTbl = SymTbl (struct
-      type k = thread_name
-
-      type v = int
-
-      let make_new_val table k = key_count table @@ const true
-    end)
-
-    (* context hash to differentiate function calls *)
-    module CtxTbl = SymTbl (struct
-      type k = int
-
-      type v = int
-
-      let make_new_val table k = key_count table (const true)
-    end)
-  end
-
   let fun_ctx ctx f =
     let ctx_hash =
       match Ctx.to_int ctx with
@@ -221,12 +238,6 @@ module Spec : Analyses.Spec = struct
     in
     f.vname ^ "_" ^ ctx_hash
 
-
-  (** type of a node in CFG *)
-  type node = Basetype.ProgLocation.t
-
-  (** type of a single edge in CFG *)
-  type edge = node * Action.t * string option * node
 
   module rec Env : sig
     type t
@@ -253,7 +264,7 @@ module Spec : Analyses.Spec = struct
       (* determine if we are at the root of a thread or in some called function *)
       let fundec = MyCFG.getFun node in
       let cur_tid = Int64.of_int 1 in
-      let thread_name = Tbls.ThreadPrioTbl.get_key cur_tid in
+      let thread_name = Tbls.ThreadPrioTbl.get_key cur_tid |> Option.get in
       let id =
         let is_main_fun name =
           List.mem name @@ List.map Json.string @@ GobConfig.get_list "mainfun"
@@ -276,11 +287,15 @@ module Spec : Analyses.Spec = struct
   end
 
   and Edges : sig
+    val table : (Resource.t, edge Set.t) Hashtbl.t
+
     val add : ?r:string -> ?dst:Node.node -> ?d:D.t -> Env.t -> Action.t -> unit
+
+    val get : Resource.t -> edge Set.t
 
     val funs_for_thread : thread_name -> varinfo list
   end = struct
-    let table : (Resource.t, edge Set.t) Hashtbl.t = Hashtbl.create 199
+    let table = Hashtbl.create 199
 
     (** [add] adds an edge for the current environment resource id (Thread or Function)
      ** [r] is return status code
@@ -578,32 +593,17 @@ module Spec : Analyses.Spec = struct
 
   let exitstate v = D.bot ()
 
-  (* module CodegenCtx : PromelaCodegen.Ctx = struct
-   *   open PthreadCodeSlicer
-   *
-   *   type t = unit
-   *
-   *   type edge = node * action * node
-   *
-   *   let create () = ()
-   *
-   *   let get_edges ctx id = Hashtbl.find_default edges id Set.empty
-   *
-   *   let get_id_from_resource ctx id = Tbls.ResourceTbl.get id
-   *
-   *   let get_resources ctx = Hashtbl.keys edges |> List.of_enum
-   *
-   *   let get_fun_name_for_proc ctx proc_name = Tbls.ProcFunTbl.get proc_name
-   *
-   *   let get_prio_for_proc ctx proc_name = Tbls.ThreadPrioTbl.get proc_name
-   * end
-   *
-   * let finalize () =
-   *   (* if GobConfig.get_bool "ana.arinc.export" then ( *)
-   *   let path = Goblintutil.create_dir "result" ^ "/pthread.pml" in
-   *   let ctx = CodegenCtx.create () in
-   *   let promela_code = PromelaCodegen.codegen ctx in
-   *   output_file path promela_code ;
-   *   print_endline @@ "Model saved as " ^ path ;
-   *   print_endline "Run ./spin/check.sh to verify." *)
+  let finalize () =
+    let module CodegenCtx : PromelaC.Ctx = struct
+      let filter_map_actions f = []
+
+      let get_edges = Edges.get
+
+      let edges_map = Edges.table
+    end in
+    let module Codegen = PromelaC.Codegen (CodegenCtx) in
+    Codegen.save_promela_model ()
+
+  (* print_endline @@ "Model saved as " ^ path ;
+   * print_endline "Run ./spin/check.sh to verify." *)
 end
