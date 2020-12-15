@@ -403,7 +403,7 @@ struct
         ) (fst ctx.local);
       `Bot
     | _ ->
-      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.meet x (f q)) `Top
+      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) `Bot
 
   let should_inline f =
     (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
