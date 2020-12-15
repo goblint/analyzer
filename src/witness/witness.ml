@@ -18,7 +18,13 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
     | _ -> failwith "exp.witness.invariant.nodes: invalid value"
   in
 
-  let module TaskResult = StackTaskResult (Cfg) (TaskResult) in
+  let module TaskResult =
+    (val if get_bool "exp.witness.stack" then
+        (module StackTaskResult (Cfg) (TaskResult) : WitnessTaskResult)
+      else
+        (module TaskResult)
+    )
+  in
   let module N = TaskResult.Arg.Node in
   let module IsInteresting =
   struct

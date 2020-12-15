@@ -182,6 +182,7 @@ let _ = ()
       ; reg Experimental "exp.witness.invariant.nodes" "'all'" "Which witness nodes to add invariants to? all/loop_heads/none"
       ; reg Experimental "exp.witness.minimize"        "false" "Try to minimize the witness"
       ; reg Experimental "exp.witness.uncil"      "false" "Try to undo CIL control flow transformations in witness"
+      ; reg Experimental "exp.witness.stack"      "true" "Construct stacktrace-based witness nodes"
       ; reg Experimental "exp.architecture"      "'64bit'" "Architecture for analysis, currently for witness"
       ; reg Experimental "exp.partition-arrays.enabled"  "false" "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well."
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
