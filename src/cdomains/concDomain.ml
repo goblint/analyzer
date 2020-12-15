@@ -129,6 +129,8 @@ struct
     let truename = "dirty exit"
     let falsename = "clean exit"
   end
+
+  (* A thread exits cleanly iff it joined all threads it started, and they also all exit cleanly *)
   module DirtyExit = IntDomain.MakeBooleans (DirtyExitNames)
   include Lattice.Prod3 (Uniqueness) (ParentThreadSet) (DirtyExit)
 end
