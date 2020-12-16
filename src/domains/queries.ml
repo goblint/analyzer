@@ -46,7 +46,7 @@ type t = EqualSet of exp
        | MayBeNotSingleThreaded
        | MayBeNotUnique
        | CurrentThreadId
-       | IsThreadReturn
+       | MayBeThreadReturn
        | EvalFunvar of exp
        | EvalInt of exp
        | EvalStr of exp
