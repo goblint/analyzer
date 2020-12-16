@@ -220,7 +220,6 @@ struct
     | `Interval x -> "`Interval"
     | `IntSet x -> "`IntSet"
     | `Str x -> "`Str"
-    | `Bool x -> "`Bool"
     | `LvalSet x -> "`LvalSet"
     | `ExprSet x -> "`ExprSet"
     | `ExpTriples x -> "`ExpTriples"
@@ -310,7 +309,6 @@ struct
        (match Queries.ID.to_bool i with
         | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
         | _ -> M.debug_each "EvalInt: `Int no bool")
-     | `Bool b -> M.debug_each "EvalInt: `Bool"
      | x -> M.debug_each @@ "OTHER RESULT: "^dump_query_result x
     );
     let check a b tv =
