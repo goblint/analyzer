@@ -63,6 +63,9 @@ sig
   (** Get a list of strings *)
   val get_string_list : string -> string list
 
+  (** Set a list of values *)
+  val set_list : string -> jvalue list -> unit
+
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
 
@@ -289,6 +292,7 @@ struct
   let set_bool   st i = set_path_string_trace st (Build.bool i)
   let set_string st i = set_path_string_trace st (Build.string i)
   let set_null   st   = set_path_string_trace st Build.null
+  let set_list   st l = set_value (Build.array l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =

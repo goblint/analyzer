@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 1.9//EN" "https://www.sosy-lab.org/benchexec/benchmark-1.9.dtd">
+<benchmark tool="cpachecker" timelimit="30 s" hardtimelimit="32 s" memlimit="7 GB" cpuCores="2">
+
+
+  <resultfiles>**.graphml</resultfiles>
+
+  <option name="-svcomp20"/>
+  <option name="-heap">10000M</option>
+  <option name="-benchmark"/>
+  <option name="-timelimit">900 s</option>
+
+<rundefinition name="sv-comp20_prop-reachsafety">
+  <tasks name="SoftwareSystems-DeviceDriversLinux64-ReachSafety">
+    <includesfile>/home/simmo/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64-ReachSafety.set</includesfile>
+    <propertyfile>/home/simmo/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+    <option name="-64"/>
+  </tasks>
+</rundefinition>
+
+</benchmark>

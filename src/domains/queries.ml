@@ -24,8 +24,15 @@ struct
   let meet x y = ES_r.join x y
 end
 
-type iterprevvar = (MyCFG.node * Obj.t) -> MyCFG.edge -> unit
+module VI = Lattice.Flat (Basetype.Variables) (struct
+  let top_name = "Unknown line"
+  let bot_name = "Unreachable line"
+end)
+
+type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 let iterprevvar_to_yojson _ = `Null
+type itervar = int -> unit
+let itervar_to_yojson _ = `Null
 
 type t = ExpEq of exp * exp
        | EqualSet of exp
@@ -39,7 +46,10 @@ type t = ExpEq of exp * exp
        | IsPublic of varinfo
        | SingleThreaded
        | GetAllInfo
+       | NotSingleThreaded
        | IsNotUnique
+       | CurrentThreadId
+       | IsThreadReturn
        | EvalFunvar of exp
        | EvalInt of exp
        | EvalStr of exp
@@ -49,11 +59,14 @@ type t = ExpEq of exp * exp
        | CondVars of exp
        | Access of exp * bool * bool * int
        | IterPrevVars of iterprevvar
+       | IterVars of itervar
        | InInterval of exp * IntDomain.Interval32.t
        | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
        | MayBeEqual of exp * exp (* may two expressions be equal? *)
        | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
        | TheAnswerToLifeUniverseAndEverything
+       | HeapVar
+       | IsHeapVar of varinfo
 [@@deriving to_yojson]
 
 type result = [
@@ -65,6 +78,7 @@ type result = [
   | `ExprSet of ES.t
   | `ExpTriples of PS.t
   | `TypeSet of TS.t
+  | `Varinfo of VI.t
   | `Bot
 ] [@@deriving to_yojson]
 
@@ -94,6 +108,7 @@ struct
     | (`ExprSet x, `ExprSet y) -> ES.equal x y
     | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
     | (`TypeSet x, `TypeSet y) -> TS.equal x y
+    | (`Varinfo x, `Varinfo y) -> VI.equal x y
     | _ -> false
 
   let hash (x:t) =
@@ -104,6 +119,7 @@ struct
     | `ExprSet n -> ES.hash n
     | `ExpTriples n -> PS.hash n
     | `TypeSet n -> TS.hash n
+    | `Varinfo n -> VI.hash n
     | _ -> Hashtbl.hash x
 
   let compare x y =
@@ -117,6 +133,7 @@ struct
       | `Str _ -> 6
       | `IntSet _ -> 8
       | `TypeSet _ -> 9
+      | `Varinfo _ -> 10
       | `Top -> 100
     in match x,y with
     | `Int x, `Int y -> ID.compare x y
@@ -125,6 +142,7 @@ struct
     | `ExprSet x, `ExprSet y -> ES.compare x y
     | `ExpTriples x, `ExpTriples y -> PS.compare x y
     | `TypeSet x, `TypeSet y -> TS.compare x y
+    | `Varinfo x, `Varinfo y -> VI.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
@@ -136,6 +154,7 @@ struct
     | `ExprSet n ->  ES.pretty () n
     | `ExpTriples n ->  PS.pretty () n
     | `TypeSet n -> TS.pretty () n
+    | `Varinfo n -> VI.pretty () n
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -148,6 +167,7 @@ struct
     | `ExprSet n ->  ES.short w n
     | `ExpTriples n ->  PS.short w n
     | `TypeSet n -> TS.short w n
+    | `Varinfo n -> VI.short w n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -159,22 +179,10 @@ struct
     | `ExprSet n ->  ES.isSimple n
     | `ExpTriples n ->  PS.isSimple n
     | `TypeSet n -> TS.isSimple n
+    | `Varinfo n -> VI.isSimple n
     | _ -> true
 
-  let toXML_f sf state =
-    match state with
-    | `Int n -> ID.toXML n
-    | `Str s -> Xml.Element ("Leaf", [("text", s)],[])
-    | `Bool n -> BD.toXML n
-    | `LvalSet n -> LS.toXML n
-    | `ExprSet n -> ES.toXML n
-    | `ExpTriples n -> PS.toXML n
-    | `TypeSet n -> TS.toXML n
-    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
-
   let pretty () x = pretty_f short () x
-  let toXML s = toXML_f short s
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let leq x y =
@@ -189,6 +197,7 @@ struct
     | (`ExprSet x, `ExprSet y) -> ES.leq x y
     | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
     | (`TypeSet x, `TypeSet y) -> TS.leq x y
+    | (`Varinfo x, `Varinfo y) -> VI.leq x y
     | _ -> false
 
   let join x y =
@@ -203,6 +212,7 @@ struct
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.join x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.join x y)
+      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.join x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -218,6 +228,7 @@ struct
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.meet x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.meet x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)
+      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.meet x y)
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 
@@ -233,6 +244,7 @@ struct
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)
+      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.widen x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -244,6 +256,7 @@ struct
     | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)
     | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
     | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
+    | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.narrow x y)
     | (x,_) -> x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))

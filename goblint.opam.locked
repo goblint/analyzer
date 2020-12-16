@@ -23,7 +23,7 @@ depends: [
   "cppo" {= "1.6.6"}
   "dune" {= "2.7.1"}
   "easy-format" {= "1.3.2"}
-  "goblint-cil" {= "1.7.5"}
+  "goblint-cil" {= "1.7.8"}
   "num" {= "1.3"}
   "ocaml" {= "4.11.1"}
   "ocaml-compiler-libs" {= "v0.12.1"}
@@ -48,7 +48,6 @@ depends: [
   "result" {= "1.5"}
   "sexplib0" {= "v0.14.0"}
   "stdlib-shims" {= "0.1.0"}
-  "xml-light" {= "2.4"}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.10"}
   "zarith_stubs_js" {= "v0.14.0"}
@@ -69,7 +68,7 @@ build: [
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 pin-depends: [
-  [ "goblint-cil.1.7.5" "git+https://github.com/goblint/cil.git" ]
+  [ "goblint-cil.1.7.8" "git+https://github.com/goblint/cil.git#5fdf44c42b194130fefabbbe8a7a29818ad3f539" ]
 ]
 name: "goblint"
 version: "dev"

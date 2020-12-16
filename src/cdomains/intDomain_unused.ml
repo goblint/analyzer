@@ -165,8 +165,6 @@ struct
 
   let pretty_f sh () x = text (sh 10 x)
   let pretty = pretty_f short
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
-  let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 
   let leq  (x1,x2) (y1,y2) = I.leq y1 x1 && I.leq x2 y2
@@ -406,8 +404,6 @@ struct
   let isSimple _ = true
 
   let pretty_f sf () (x:t) = text (sf max_int x)
-  let toXML_f sf (x:t) = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 
@@ -678,8 +674,6 @@ struct
   let isSimple _  = true
   let short _ x = "?"
   let pretty_f _ _ x = text "?"
-  let toXML_f _ x = Xml.Element ("Leaf", [("text", "?")],[])
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let leq x y = true
   let join () () = ()
@@ -1039,13 +1033,6 @@ struct
     | CInterval x -> I3.short w x
   (*      | _ -> raise IntDomListBroken*)
 
-  let toXML_f' sf x =
-    match x with
-    | DefExc x -> I1.toXML_f (fun w x -> sf w (DefExc x)) x
-    | Interval x -> I2.toXML_f (fun w x -> sf w (Interval x)) x
-    | CInterval x -> I3.toXML_f (fun w x -> sf w (CInterval x)) x
-  (*      | _ -> raise IntDomListBroken*)
-
   let pretty_f' sf () x =
     match x with
     | DefExc x -> I1.pretty_f (fun w x -> sf w (DefExc x)) () x
@@ -1053,7 +1040,6 @@ struct
     | CInterval x -> I3.pretty_f (fun w x -> sf w (CInterval x)) () x
   (*      | _ -> raise IntDomListBroken*)
 
-  let toXML' x = toXML_f' short' x
 
   let pretty' x = pretty_f' short' x
 
@@ -1353,12 +1339,6 @@ struct
       text "(" ++ first ++ rest ++ text ")"
 
   let pretty () x = pretty_f short () x
-
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", [("text", esc (sf Goblintutil.summary_length x))], [])
-
-  let toXML = toXML_f short
 
   let compare = (* ?? doesn't use a! just returns the compare value of the last domain or 0 if the one before wasn't equal?! *)
     let f a x y =

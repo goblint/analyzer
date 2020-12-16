@@ -7,7 +7,7 @@ TARGET=src/goblint
 gen() { # generate configuration files and goblint.ml which opens all modules in src/ such that they will be linked and executed without the need to be referenced somewhere else
   scripts/set_version.sh # generate the version file
   echo '[@@@ocaml.warning "-33"]' > $TARGET.ml # disable warning 'Unused open statement.'
-  ls -1 src/**/*.ml | egrep -v "goblint.ml|apronDomain|poly" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
+  ls -1 src/**/*.ml | egrep -v "goblint.ml|apronDomain|poly|violationZ3" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
   echo "open Maingoblint" >> $TARGET.ml
 }
 
@@ -97,10 +97,8 @@ rule() {
       opam_setup
     ;; dev)
       echo "Installing opam packages for development..."
-      opam install utop merlin ocp-indent ocamlformat ounit2
-      # needed for https://github.com/ocamllabs/vscode-ocaml-platform
-      # used https://github.com/jaredly/reason-language-server before, but has no support for OCaml 4.10 yet
-      opam pin add ocaml-lsp-server https://github.com/ocaml/ocaml-lsp.git
+      opam install utop ocaml-lsp-server ocp-indent ocamlformat ounit2
+      # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -

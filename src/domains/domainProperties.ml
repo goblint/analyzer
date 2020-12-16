@@ -52,7 +52,7 @@ struct
   ]
 end
 
-module Join (D: Lattice.S): S =
+module Join (D: Lattice.S) =
 struct
   include DomainTest (D)
 
@@ -65,6 +65,13 @@ struct
   let tests = [
     join_leq;
     join_assoc;
+    join_comm;
+    join_idem;
+    join_abs
+  ]
+
+  let tests_non_assoc = [
+    join_leq;
     join_comm;
     join_idem;
     join_abs
@@ -110,7 +117,10 @@ struct
   include DomainTest (D)
 
   let top_leq = make ~name:"top leq" (arb) (fun a -> D.leq a (D.top ()))
-  let top_is_top = make ~name:"top is_top" (arb) (fun a -> D.is_top a = (a @= (D.top ())))
+  let top_is_top = make ~name:"top is_top" (arb) (fun a -> 
+    try D.is_top a = (a @= (D.top ()))
+    with Failure s -> s = "is_top not implemented for IntDomain.Std"
+  )
   let top_meet = make ~name:"top meet" (arb) (fun a -> (D.meet a (D.top ())) @= a)
 
   let tests = [
@@ -172,4 +182,19 @@ struct
   module N = Narrow (D)
 
   let tests = E.tests @ L.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
+end
+
+module AllNonAssoc(D:Lattice.S): S =
+struct
+  module E = Equal (D)
+  module L = Leq (D)
+  module J = Join (D)
+  module M = Meet (D)
+  module B = Bot (D)
+  module T = Top (D)
+  module C = Connect (D)
+  module W = Widen (D)
+  module N = Narrow (D)
+
+  let tests = E.tests @ L.tests @ J.tests_non_assoc @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
 end

@@ -1,4 +1,4 @@
-(* open Defaults (* CircInterval needs initialized conf *) *)
+open! Defaults (* CircInterval / Enums / ... need initialized conf *)
 
 module type FiniteSetElems =
 sig
@@ -45,32 +45,38 @@ module ArbitraryLattice = FiniteSet (PrintableChar) (
   end
 )
 
+module HoareArbitrary = SetDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end)
+
 let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
   (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
 
   (* TODO: move to intDomains if passing *)
-  (module IntDomain.Interval32);
   (module IntDomain.Booleans);
 
   (* TODO: fix *)
   (* (module IntDomain.CircInterval); *)
-  (* (module IntDomain.DefExc); *)
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
 
   (module ArbitraryLattice);
-  (module SetDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end));
+  (module HoareArbitrary);
+  (module WitnessConstraints.HoareMap (ArbitraryLattice) (HoareArbitrary))
 ]
 
-let intDomains: (module IntDomain.S) list = [
+let nonAssocDomains: (module Lattice.S) list = []
+
+let intDomains: (module IntDomain.IkindUnawareS) list = [
   (module IntDomain.Flattened);
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
   (* (module IntDomain.CircInterval); *)
-  (* (module IntDomain.DefExc); *)
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
+]
+
+let nonAssocIntDomains: (module IntDomain.IkindUnawareS) list = [
+  (module IntDomain.DefExc)
 ]
 
 let testsuite =
@@ -80,13 +86,26 @@ let testsuite =
       DP.tests)
     domains
   |> List.flatten
+let nonAssocTestsuite =
+  List.map (fun d ->
+      let module D = (val d: Lattice.S) in
+      let module DP = DomainProperties.AllNonAssoc (D) in
+      DP.tests)
+    nonAssocDomains
+  |> List.flatten
 let intTestsuite =
   List.map (fun d ->
-      let module D = (val d: IntDomain.S) in
+      let module D = (val d: IntDomain.IkindUnawareS) in
       let module DP = IntDomainProperties.All (D) in
       DP.tests)
     intDomains
   |> List.flatten
-
+let nonAssocIntTestsuite =
+  List.map (fun d ->
+      let module D = (val d: IntDomain.IkindUnawareS) in
+      let module DP = IntDomainProperties.AllNonAssoc (D) in
+      DP.tests)
+    nonAssocIntDomains
+  |> List.flatten
 let () =
-  QCheck_runner.run_tests_main ~argv:Sys.argv (testsuite @ intTestsuite)
+  QCheck_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)

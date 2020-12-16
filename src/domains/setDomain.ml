@@ -112,15 +112,6 @@ struct
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    if cardinal x<2 && for_all Base.isSimple x then
-      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-    else
-      let elems = List.map Base.toXML (elements x) in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let equal x y =
@@ -322,13 +313,7 @@ struct
     | All -> true
     | Set t -> S.isSimple t
 
-  let toXML_f _ x =
-    match x with
-    | All -> Xml.Element ("Leaf", [("text", N.topname)], [])
-    | Set t -> S.toXML t
-
   let pretty () x = pretty_f short () x
-  let toXML x = toXML_f short x
 
 
   (* Lattice implementation *)
@@ -560,12 +545,6 @@ struct
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    let elems = List.map E.toXML (elements x) in
-    Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-
-  let toXML s  = toXML_f short s
   let pretty_f _ () x =
     let content = List.map (E.pretty ()) (elements x) in
     let rec separate x =
@@ -635,6 +614,7 @@ struct
   let inter = product_bot B.meet
   let meet = inter
   let subset = leq
+  let map' = map (* HACK: for PathSensitive morphstate *)
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
   let split x a = failwith "Hoare: unsupported split"

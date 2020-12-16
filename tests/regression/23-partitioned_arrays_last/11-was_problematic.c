@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last"  --set ana.activated "['base','expRelation']"
+// PARAM: --sets solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last"  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper']"
 int main(int argc, char **argv)
 {
   int unLo;

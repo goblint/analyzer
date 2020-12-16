@@ -23,7 +23,8 @@ struct
   let name () = "symb_locks"
 
   let startstate v = D.top ()
-  let otherstate v = D.top ()
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
   let branch ctx exp tv = ctx.local
@@ -41,7 +42,7 @@ struct
     List.fold_right D.remove_var (fundec.sformals@fundec.slocals) ctx.local
 
   let enter ctx lval f args = [(ctx.local,ctx.local)]
-  let combine ctx lval fexp f args st2 = ctx.local
+  let combine ctx lval fexp f args fc st2 = ctx.local
 
   let get_locks e st =
     let add_perel x xs =
@@ -113,7 +114,8 @@ struct
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-    | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+
+    | Index (Const  (CInt64 (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
@@ -133,7 +135,7 @@ struct
     let rec conv_const_offset x =
       match x with
       | NoOffset    -> `NoOffset
-      | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+      | Index (Const  (CInt64 (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
       | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
       | Field (f,o) -> `Field (f, conv_const_offset o)
     in

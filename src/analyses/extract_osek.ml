@@ -222,7 +222,7 @@ struct
     let d_callee = if D.is_bot ctx.local then ctx.local else pid, Ctx.top (), Pred.of_node (MyCFG.Function f) in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     if D.is_bot ctx.local || D.is_bot au then ctx.local else
       let pid, ctxh, pred = ctx.local in (* caller *)
       let _ , _, pred' = au in (* callee *)
@@ -316,7 +316,8 @@ struct
             ) ctx.local args_product
 
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
-  let otherstate v = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 
   let init () = (* registers which functions to extract and writes out their definitions *)

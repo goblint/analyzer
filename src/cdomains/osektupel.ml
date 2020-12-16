@@ -39,8 +39,6 @@ let short _ (a,b,c,d) =
   "("^a'^", "^b'^", "^c'^", "^d'^")"
 
 let pretty_f _ _ x = Pretty.text (short 0 x)
-let toXML_f _ x = Xml.Element ("Leaf", [("text", short 0 x)],[])
-let toXML m = toXML_f short m
 let pretty () x = pretty_f short () x
 
 let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y

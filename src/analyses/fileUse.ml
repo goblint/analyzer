@@ -176,7 +176,7 @@ struct
       D.extend_value unclosed_var (mustOpen, mayOpen) m
     ) else m
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^string_of_callstack au; *)
     let m = ctx.local in
     (* pop the last location off the stack *)
@@ -296,7 +296,8 @@ struct
     | _ -> m
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 end
 

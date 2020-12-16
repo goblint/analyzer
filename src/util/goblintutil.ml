@@ -57,6 +57,8 @@ let has_otherfuns = ref false
     This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
 let should_warn = ref false
 
+let did_overflow = ref false
+
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
 
@@ -112,10 +114,15 @@ let in_verifying_stage = ref false
 let verified : bool option ref = ref None
 
 let escape (x:string):string =
+  (* Safe to escape all these everywhere in XML: https://stackoverflow.com/a/1091953/854540 *)
   Str.global_replace (Str.regexp "&") "&amp;" x |>
   Str.global_replace (Str.regexp "<") "&lt;" |>
   Str.global_replace (Str.regexp ">") "&gt;" |>
-  Str.global_replace (Str.regexp "\"") "&quot;"
+  Str.global_replace (Str.regexp "\"") "&quot;" |>
+  Str.global_replace (Str.regexp "'") "&apos;" |>
+  Str.global_replace (Str.regexp "\x0b") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "\001") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "\x0c") "" (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
 
 let trim (x:string): string =
   let len = String.length x in
@@ -431,3 +438,7 @@ let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
 let exe_dir = Filename.dirname Sys.executable_name
 let command = String.concat " " (Array.to_list Sys.argv)
+
+let opt_predicate (f : 'a -> bool) = function
+  | Some x -> f x
+  | None -> false

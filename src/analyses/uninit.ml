@@ -28,7 +28,8 @@ struct
   let should_join x y = D.equal x y
 
   let startstate v : D.t = D.empty ()
-  let otherstate v : D.t = D.empty ()
+  let threadenter ctx lval f args : D.t = D.empty ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
@@ -36,7 +37,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (IdxDom.of_int i, conv_offset o)
+    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -270,7 +271,7 @@ struct
     let nst = remove_unreachable ctx.ask args ctx.local in
     [ctx.local, nst]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : trans_out =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : trans_out =
     ignore (List.map (fun x -> is_expr_initd ctx.ask x ctx.local) args);
     let cal_st = remove_unreachable ctx.ask args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in

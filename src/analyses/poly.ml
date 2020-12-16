@@ -19,7 +19,8 @@ struct
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
 
-  let otherstate _ = D.top ()
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  _ = D.top ()
   let startstate _ = D.top ()
 
@@ -39,7 +40,7 @@ struct
       [ctx.local, newd]
 
 
-  let combine ctx r fe f args d =
+  let combine ctx r fe f args fc d =
     if D.is_bot ctx.local || D.is_bot d then D.bot () else
       let f = Cilfacade.getdec f in
       match r with

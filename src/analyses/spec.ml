@@ -225,6 +225,7 @@ struct
     | `ExprSet x -> "`ExprSet"
     | `ExpTriples x -> "`ExpTriples"
     | `TypeSet x -> "`TypeSet"
+    | `Varinfo x -> "`Varinfo"
     | `Bot -> "`Bot"
 
 
@@ -443,7 +444,7 @@ struct
         D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
       else ctx.local in [m, m]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^D.string_of_callstack au; *)
     let au = D.edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
@@ -509,7 +510,8 @@ struct
 
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 end
 

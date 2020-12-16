@@ -9,7 +9,7 @@ pthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex1);
-  myglobal=myglobal+1; // NOWARN!
+  myglobal=myglobal+1; // NORACE
   pthread_mutex_unlock(&mutex1);
   return NULL;
 }
@@ -23,11 +23,11 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&mutex1);
-  printf("myglobal equals %d\n",myglobal);
+  printf("myglobal equals %d\n",myglobal); // NORACE
   pthread_mutex_unlock(&mutex1);
 
   pthread_mutex_lock(&mutex1);
-  add1(myglobal); // NOWARN!
+  add1(myglobal); // NORACE
   pthread_mutex_unlock(&mutex1);
 
   pthread_join (id, NULL);

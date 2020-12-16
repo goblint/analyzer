@@ -4,6 +4,8 @@ open Prelude.Ana
 open Analyses
 open OilUtil
 
+module Mutex = MutexAnalysis
+
 module Spec =
 struct
   include Analyses.DefaultSpec
@@ -88,7 +90,7 @@ struct
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, Osektupel.fcon ctxr aus)
@@ -112,7 +114,8 @@ struct
       (ctxs, ctxr)
 
   let startstate v = D.bot ()
-  let otherstate v = D.top ()
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
   (** Finalization and other result printing functions: *)

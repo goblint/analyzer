@@ -24,7 +24,7 @@ let rec listify ofs =
   | `Field (x,ofs) -> x :: listify ofs
   | _ -> Messages.bailwith "Indexing not supported here!"
 
-module Offset (Idx: IntDomain.S) =
+module Offset (Idx: IntDomain.Z) =
 struct
   type t = (fieldinfo, Idx.t) offs [@@deriving to_yojson]
   include Printable.Std
@@ -34,7 +34,7 @@ struct
 
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
-    | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to 0L x with
+    | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to (IntOps.BigIntOps.zero) x with
       | `MustNonzero, _
       | _, `Neq -> `MustNonzero
       | `MustZero, `Eq -> `MustZero
@@ -57,10 +57,8 @@ struct
     | `Field (x,o) -> "." ^ (x.fname) ^ (short w o)
 
   let pretty_f sf () x = text (sf 80 x)
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[])
 
   let pretty x = pretty_f short x
-  let toXML x = toXML_f short x
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
@@ -175,7 +173,7 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module Normal (Idx: IntDomain.S) =
+module Normal (Idx: IntDomain.Z) =
 struct
   type field = fieldinfo [@@deriving to_yojson]
   type idx = Idx.t [@@deriving to_yojson]
@@ -311,21 +309,11 @@ struct
             | StrPtr a, StrPtr b -> compare a b
             | _, _ -> raise @@ Invalid_argument "Invalid argument for Normal.compare"
 
-  let toXML_f_addr sf (x,y) =
-    let esc = Goblintutil.escape in
-    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (d_type () x.vtype)) in
-    let info = "id=" ^ esc (string_of_int x.vid) ^ "; type=" ^ typeinf in
-    Xml.Element ("Leaf", [("text", esc (sf max_int (Addr (x,y)))); ("info", info)],[])
-
-  let toXML_f sf = function
-    | Addr x  -> toXML_f_addr sf x
-    | x -> Xml.Element ("Leaf", [("text", short max_int x)],[])
-
   let pretty_f sf () x = Pretty.text (sf max_int x)
-
-  let toXML = toXML_f short
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  (* TODO: seems to be unused *)
   let to_exp (f:idx -> exp) x =
     let rec to_cil c =
       match c with
@@ -334,7 +322,7 @@ struct
       | `Index (idx, ofs) -> Index (f idx, to_cil ofs)
     in
     match x with
-    | Addr (v,o) -> Lval (Var v, to_cil o)
+    | Addr (v,o) -> AddrOf (Var v, to_cil o)
     | StrPtr x -> mkString x
     | SafePtr -> mkString "a safe pointer/string"
     | NullPtr -> integer 0
@@ -357,7 +345,7 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
-module NormalLat (Idx: IntDomain.S) =
+module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
 
@@ -414,15 +402,7 @@ struct
     in
     (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
 
-  let toXML_f sf (d,x,y) =
-    let esc = Goblintutil.escape in
-    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (d_type () x.vtype)) in
-    let info = "id=" ^ esc (string_of_int x.vid) ^ "; type=" ^ typeinf in
-    Xml.Element ("Leaf", [("text", esc (sf max_int (d,x,y))); ("info", info)],[])
-
   let pretty_f sf () x = Pretty.text (sf max_int x)
-
-  let toXML x = toXML_f short x
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -442,15 +422,14 @@ struct
     | (`Left x :: xs) -> "." ^ F.short w x ^ short w xs
     | (`Right x :: xs) -> "[" ^ I.short w x ^ "]" ^ short w xs
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
-  let printInnerXml f = function
+  let rec printInnerXml f = function
     | [] -> ()
     | (`Left x :: xs) ->
-      BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
+      BatPrintf.fprintf f ".%s%a" (F.short 80 x) printInnerXml xs
     | (`Right x :: xs) ->
-      BatPrintf.fprintf f "[%a]%a" I.printXml x printXml xs
+      BatPrintf.fprintf f "[%s]%a" (I.short 80 x) printInnerXml xs
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
 
@@ -602,9 +581,7 @@ struct
   let short _ (v,o) = short_offs o (GU.demangle v.vname)
 
   let pretty_f sf () x = text (sf 80 x)
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)], [])
   let pretty  = pretty_f short
-  let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))

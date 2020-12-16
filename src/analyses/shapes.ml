@@ -63,10 +63,15 @@ struct
 
   let re_context (ctx: (D.t,G.t,C.t) ctx) (re:Re.D.t): (Re.D.t, Re.G.t,C.t) ctx =
     let ge v = let a,b = ctx.global v in b in
-    let spawn f v x = f v (LD.singleton (SHMap.top ()), x) in
+    let spawn f v x = f v x in
     let geffect f v d = f v (false, d) in
     let split f d e t = f (LD.singleton (SHMap.top ()), d) e t in
     set_st_gl ctx re ge spawn geffect split
+
+  let threadenter ctx lval f args =
+    let st, re = ctx.local in
+    (LD.singleton (SHMap.top ()), Re.threadenter (re_context ctx re) lval f args)
+  let threadspawn ctx lval f args fctx = D.bot ()
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=
@@ -106,7 +111,7 @@ struct
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     let nst, dst, rm, part = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
-    let (nre,nvar), dre = Re.sync (re_context ctx re) in
+    let nre, dre = Re.sync (re_context ctx re) in
     let update k v m =
       let old = try RegMap.find k m with Not_found -> RS.empty () in
       if (not (RS.is_top old)) && RS.for_all (function  (`Left (v,_)) -> not (gl v) |  `Right _ -> true)  old
@@ -115,12 +120,12 @@ struct
     in
     let nre =
       match nre with
-      | `Lifted (e,m) -> `Lifted (e,RegMap.fold update rm m)
+      | `Lifted m -> `Lifted (RegMap.fold update rm m)
       | x -> x
     in
     let _ =
       match nre with
-      | `Lifted (_,m) ->
+      | `Lifted m ->
         let alive =
           match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
           | Some x -> x
@@ -131,7 +136,7 @@ struct
     in
     ctx.sideg (Re.partition_varinfo ()) (false, part);
     let is_public (v,_) = gl v in
-    (nst,(nre,nvar)),
+    (nst,nre),
     (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre)
      @ List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst)
 
@@ -220,7 +225,7 @@ struct
     let es' = Re.enter (re_context ctx re) lval f args in
     List.map (fun (x,y) -> (st,x),(es,y)) es'
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st  =
@@ -269,8 +274,7 @@ struct
     Re.query (re_context ctx re) q
 
   let startstate v = LD.singleton (SHMap.top ()), Re.startstate v
-  let otherstate v = LD.singleton (SHMap.top ()), Re.otherstate v
-  let exitstate  v = LD.singleton (SHMap.top ()), Re.otherstate v
+  let exitstate  v = LD.singleton (SHMap.top ()), Re.exitstate v
 
   let init () = Printexc.record_backtrace true
 

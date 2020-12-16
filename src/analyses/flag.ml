@@ -116,7 +116,7 @@ struct
     let _ = List.iter no_addr_of_flag args in
     [(D.top (),D.top ())]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     let _ = List.iter no_addr_of_flag args in
     let _ = no_addr_of_flag fexp in
     D.top ()
@@ -126,7 +126,8 @@ struct
     match f.vname with _ -> D.top ()
 
   let startstate v = D.top ()
-  let otherstate v = D.top ()
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
   let name () = "flag"

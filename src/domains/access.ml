@@ -30,11 +30,7 @@ struct
   let compare (x:t) (y:t) = compare x y
   let isSimple _ = true
   let short _ x = x
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    Xml.Element ("Leaf", ["text", esc (sf 80 x)], [])
   let pretty_f sf () x = text (sf 80 x)
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "strings"
   let pretty_diff () (x,y) =
@@ -51,7 +47,6 @@ struct
     Pretty.text (sf Goblintutil.summary_length (x,y))
   let short _ (x,y) = x^":"^y
   let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
 end
 module LSSet = SetDomain.Make (LabeledString)
 module LSSSet = SetDomain.Make (LSSet)
@@ -390,7 +385,9 @@ let add_propagate e w conf ty ls p =
     List.iter (just_vars t) vars
 
 let rec distribute_access_lval f w r c lv =
-  f w r c (mkAddrOf lv);
+  (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
+  (* f w r c (mkAddrOf lv); *)
+  f w r c (AddrOf lv);
   distribute_access_lval_addr f w r c lv
 
 and distribute_access_lval_addr f w r c lv =
@@ -494,6 +491,18 @@ let check_safe ls (accs,lp) prev_safe =
     | (Some n,_,_), None ->
       (* ignore(printf "race with %d\n" n); *)
       Some n
+
+let is_all_safe () =
+  let safe = ref true in
+  let h ty lv ht =
+    let safety = PartOptHash.fold check_safe ht None in
+    match safety with
+    | None -> ()
+    | Some n -> safe := false
+  in
+  let f ty = LvalOptHash.iter (h ty) in
+  TypeHash.iter f accs;
+  !safe
 
 
 let print_races_oldscool () =
