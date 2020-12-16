@@ -30,7 +30,7 @@ let privatization = ref false
 let is_private (a: Q.ask) (_,_) (v: varinfo): bool =
   !privatization &&
   (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-   match a (Q.IsPublic v) with `Bool tv -> not tv | _ ->
+   match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
    false)
 

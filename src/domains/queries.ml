@@ -41,7 +41,7 @@ type t = EqualSet of exp
        | Regions of exp
        | MayEscape of varinfo
        | Priority of string
-       | IsPublic of varinfo
+       | MayBePublic of varinfo
        | SingleThreaded
        | NotSingleThreaded
        | IsNotUnique

@@ -64,7 +64,7 @@ struct
     | Queries.NotSingleThreaded -> `Bool (Queries.BD.of_bool (Flag.is_multi ctx.local))
     | Queries.IsNotUnique -> `Bool (Flag.is_bad ctx.local)
     (* This used to be in base but also commented out. *)
-    (* | Queries.IsPublic _ -> `Bool (Flag.is_multi ctx.local) *)
+    (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
     | _ -> `Top
 
   let part_access ctx e v w =
