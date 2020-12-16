@@ -62,7 +62,7 @@ struct
     match x with
     | Queries.SingleThreaded -> `Bool (Queries.BD.of_bool (not (Flag.is_multi ctx.local)))
     | Queries.NotSingleThreaded -> `Bool (Queries.BD.of_bool (Flag.is_multi ctx.local))
-    | Queries.IsNotUnique -> `Bool (Flag.is_bad ctx.local)
+    | Queries.MayBeNotUnique -> `MayBool (Flag.is_bad ctx.local)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
     | _ -> `Top

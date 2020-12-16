@@ -44,7 +44,7 @@ type t = EqualSet of exp
        | MayBePublic of varinfo
        | SingleThreaded
        | NotSingleThreaded
-       | IsNotUnique
+       | MayBeNotUnique
        | CurrentThreadId
        | IsThreadReturn
        | EvalFunvar of exp

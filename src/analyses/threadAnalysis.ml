@@ -73,11 +73,11 @@ struct
 
   let query ctx (q: Queries.t) =
     match q with
-    | Queries.IsNotUnique -> begin
+    | Queries.MayBeNotUnique -> begin
         let tid = ThreadId.get_current ctx.ask in
         match tid with
-        | `Lifted tid -> `Bool (is_not_unique ctx tid)
-        | _ -> `Bool (true)
+        | `Lifted tid -> `MayBool (is_not_unique ctx tid)
+        | _ -> `MayBool (true)
       end
     | Queries.NotSingleThreaded -> begin
         let tid = ThreadId.get_current ctx.ask in

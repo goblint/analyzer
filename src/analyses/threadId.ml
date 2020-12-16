@@ -70,8 +70,8 @@ struct
     | _ -> `Top
 
   let is_unique ctx =
-    match ctx.ask Queries.IsNotUnique with
-    | `Bool false -> true
+    match ctx.ask Queries.MayBeNotUnique with
+    | `MayBool false -> true
     | _ -> false
 
   let part_access ctx e v w =
