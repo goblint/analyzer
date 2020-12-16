@@ -873,10 +873,6 @@ struct
             end;
         | v -> `Bot;
       end
-    | Q.GetAllInfo -> begin
-      ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-      `Bot
-      end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Address a ->

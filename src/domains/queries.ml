@@ -45,7 +45,6 @@ type t = ExpEq of exp * exp
        | Priority of string
        | IsPublic of varinfo
        | SingleThreaded
-       | GetAllInfo
        | NotSingleThreaded
        | IsNotUnique
        | CurrentThreadId
