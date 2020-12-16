@@ -79,11 +79,11 @@ struct
         | `Lifted tid -> `MayBool (is_not_unique ctx tid)
         | _ -> `MayBool (true)
       end
-    | Queries.MayBeNotSingleThreaded -> begin
+    | Queries.MustBeSingleThreaded -> begin
         let tid = ThreadId.get_current ctx.ask in
         match tid with
-        | `Lifted {vname="main"; _} -> `MayBool (not (D.is_empty ctx.local))
-        | _ -> `MayBool (true)
+        | `Lifted {vname="main"; _} -> `MustBool (D.is_empty ctx.local)
+        | _ -> `MustBool (false)
       end
     | _ -> Queries.Result.top ()
 

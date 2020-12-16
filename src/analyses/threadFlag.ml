@@ -7,8 +7,8 @@ open Prelude.Ana
 open Analyses
 
 let is_multi (ask: Queries.ask): bool =
-  match ask Queries.MayBeNotSingleThreaded with
-  | `MayBool b -> b
+  match ask Queries.MustBeSingleThreaded with
+  | `MustBool x -> not x
   | `Top -> true
   | _ -> failwith "ThreadFlag.is_multi"
 
@@ -61,7 +61,6 @@ struct
   let query ctx x =
     match x with
     | Queries.MustBeSingleThreaded -> `MustBool (Queries.BD.of_bool (not (Flag.is_multi ctx.local)))
-    | Queries.MayBeNotSingleThreaded -> `MayBool (Queries.BD.of_bool (Flag.is_multi ctx.local))
     | Queries.MayBeNotUnique -> `MayBool (Flag.is_bad ctx.local)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
