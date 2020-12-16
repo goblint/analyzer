@@ -403,6 +403,7 @@ struct
         ) (fst ctx.local);
       `Bot
     | _ ->
+      (* join results so that they are sound for all paths *)
       fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) `Bot
 
   let should_inline f =

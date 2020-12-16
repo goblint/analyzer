@@ -1034,6 +1034,7 @@ struct
     fold' ctx Spec.sync identity (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
 
   let query ctx q =
+    (* join results so that they are sound for all paths *)
     fold' ctx Spec.query identity (fun x f -> Queries.Result.join x (f q)) `Bot
 
   let enter ctx l f a =

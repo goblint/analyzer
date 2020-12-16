@@ -468,6 +468,7 @@ struct
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
+      (* meet results so that precision from all analyses is combined *)
       Queries.Result.meet a @@ S.query ctx' q
     in
     match q with
