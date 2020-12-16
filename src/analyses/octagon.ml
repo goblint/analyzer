@@ -369,15 +369,6 @@ struct
       if INV.is_int inv
       then `Int(INV.to_int inv |> Option.get |> BI.to_int64)
       else `Top
-    | Queries.InInterval (exp, inv) ->
-      let linv = evaluate_exp ctx.local exp in
-      let min, max = Tuple2.mapn (BI.of_int64 |> Option.map) (IntDomain.Interval32.(minimal inv, maximal inv)) in
-      (match min, max with
-        | None, _ -> `Bool false
-        | _, None -> `Bool false
-        | Some min, Some max ->
-            let inv = INV.of_interval oct_ik (min, max) in
-            `Bool (INV.leq linv inv))
     | _ -> Queries.Result.top ()
 
   let threadspawn ctx lval f args fctx = D.bot ()
