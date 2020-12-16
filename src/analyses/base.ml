@@ -859,8 +859,16 @@ struct
         | `Int i ->
             let v = (`Int i) in
             begin
-              match (VD.invariant "%v:value" v) with
-              | Some s -> `Str s
+              let context: Invariant.context = {
+                scope=MyCFG.getFun ctx.node;
+                i=0;
+                lval=None;
+                offset=Cil.NoOffset;
+                deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+              }
+              in
+              match (VD.invariant context v) with (* %v:value *)
+              | Some s -> `Str (Pretty.sprint 8000 (d_exp () s))
               | None -> `Bot
             end;
         | v -> `Bot;
