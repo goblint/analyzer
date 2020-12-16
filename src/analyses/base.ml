@@ -287,9 +287,9 @@ struct
     let binop op e1 e2 =
       let equality () =
         match ask (Q.MustBeEqual (e1,e2)) with
-        | `MustHold x ->
-          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 x;
-          Some x
+        | `MustHold true ->
+          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
+          Some true
         | _ -> None
       in
       let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
