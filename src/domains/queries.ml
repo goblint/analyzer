@@ -42,7 +42,7 @@ type t = EqualSet of exp
        | MayEscape of varinfo
        | Priority of string
        | MayBePublic of varinfo
-       | SingleThreaded
+       | MustBeSingleThreaded
        | MayBeNotSingleThreaded
        | MayBeNotUnique
        | CurrentThreadId

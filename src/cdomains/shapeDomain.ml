@@ -71,8 +71,8 @@ end
 
 let is_private ask (lp:ListPtr.t) =
   let check v =
-    match ask Queries.SingleThreaded with
-    | `Bot | `Bool true -> true
+    match ask Queries.MustBeSingleThreaded with
+    | `Bot | `MustBool true -> true
     | _ ->
       match ask (Queries.MayBePublic v)  with
       | `Bot | `MayBool false -> true
