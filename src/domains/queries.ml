@@ -43,7 +43,7 @@ type t = EqualSet of exp
        | Priority of string
        | MayBePublic of varinfo
        | SingleThreaded
-       | NotSingleThreaded
+       | MayBeNotSingleThreaded
        | MayBeNotUnique
        | CurrentThreadId
        | IsThreadReturn
