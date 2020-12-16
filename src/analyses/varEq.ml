@@ -1,4 +1,4 @@
-(** Variable equalities neccessary for per-element patterns. *)
+(** Variable equalities necessary for per-element patterns. *)
 
 module M = Messages
 module GU = Goblintutil
@@ -583,7 +583,7 @@ struct
 
   let query ctx x =
     match x with
-    | Queries.ExpEq (e1,e2) when query_exp_equal ctx.ask e1 e2 ctx.global ctx.local ->
+    | Queries.MustBeEqual (e1,e2) when query_exp_equal ctx.ask e1 e2 ctx.global ctx.local ->
       `Bool (Queries.BD.of_bool true)
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in

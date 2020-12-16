@@ -46,17 +46,22 @@ struct
         end
       | x -> x
 
+  let isFloat e =
+    match Cil.unrollTypeDeep (Cil.typeOf e) with
+    | TFloat _ -> true
+    | _ -> false
+
   let query ctx (q:Queries.t) : Queries.Result.t =
     let lvalsEq l1 l2 = Expcompare.compareExp (Lval l1) (Lval l2) in (* == would be wrong here *)
     match q with
-    | Queries.MustBeEqual (e1, e2) ->
+    | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
       begin
         if Expcompare.compareExp (canonize e1) (canonize e2) then
           `Bool (true)
         else
           Queries.Result.top()
       end
-    | Queries.MayBeLess (e1, e2) ->
+    | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
       begin
         match e1, e2 with
         | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
@@ -70,7 +75,7 @@ struct
         | _ ->
             Queries.Result.top ()
       end
-    | Queries.MayBeEqual (e1,e2) ->
+    | Queries.MayBeEqual (e1,e2) when not (isFloat e1) ->
       begin
         match e1,e2 with
         | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2

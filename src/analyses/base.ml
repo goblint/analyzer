@@ -286,9 +286,9 @@ struct
   let eval_rv_pre (ask: Q.ask) exp pr =
     let binop op e1 e2 =
       let equality () =
-        match ask (Q.ExpEq (e1,e2)) with
+        match ask (Q.MustBeEqual (e1,e2)) with
         | `Bool x ->
-          if M.tracing then M.tracel "query" "ExpEq (%a, %a) = %b\n" d_exp e1 d_exp e2 x;
+          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 x;
           Some x
         | _ -> None
       in

@@ -364,18 +364,6 @@ struct
           end
         | _ -> Queries.Result.top ()
       end
-    | Queries.ExpEq (exp1, exp2) ->                           (* TODO: We want to leverage all the additional information we have here *)
-      let inv1, inv2 = evaluate_exp ctx.local exp1,           (* Also, what does ExpEq actually do? Is it must or may equality?        *)
-                       evaluate_exp ctx.local exp2 in
-      if INV.is_int inv1 then
-        if INV.is_bot (INV.meet inv1 inv2) then
-          `Bool false
-        else if INV.compare inv1 inv2 = 0 then
-          `Bool true
-        else
-          `Top
-      else
-        `Top
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv

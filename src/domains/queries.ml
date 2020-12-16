@@ -34,8 +34,7 @@ let iterprevvar_to_yojson _ = `Null
 type itervar = int -> unit
 let itervar_to_yojson _ = `Null
 
-type t = ExpEq of exp * exp
-       | EqualSet of exp
+type t = EqualSet of exp
        | MayPointTo of exp
        | ReachableFrom of exp
        | ReachableUkTypes of exp

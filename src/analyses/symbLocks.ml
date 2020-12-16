@@ -63,7 +63,7 @@ struct
 
   let same_unknown_index ask exp slocks =
     let uk_index_equal i1 i2 =
-      match ask (Queries.ExpEq (i1, i2)) with
+      match ask (Queries.MustBeEqual (i1, i2)) with
       | `Bot | `Bool true -> true
       | _ -> false
     in
