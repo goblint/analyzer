@@ -75,7 +75,7 @@ struct
       | _ -> MyCFG.getLoc ctx.node in
       `Varinfo (`Lifted (get_heap_var loc))
     | Q.IsHeapVar v ->
-      `Bool (Hashtbl.mem heap_vars v.vid)
+      `MayBool (Hashtbl.mem heap_vars v.vid)
     | _ -> `Top
 
     let init () =

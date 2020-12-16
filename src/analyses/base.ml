@@ -1035,7 +1035,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          let is_heap_var = match a (Q.IsHeapVar x) with `Bool(true) -> true | _ -> false in
+          let is_heap_var = match a (Q.IsHeapVar x) with `MayBool(true) -> true | _ -> false in
           if is_heap_var then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
