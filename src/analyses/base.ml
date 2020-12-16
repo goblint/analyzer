@@ -287,7 +287,7 @@ struct
     let binop op e1 e2 =
       let equality () =
         match ask (Q.MustBeEqual (e1,e2)) with
-        | `MustHold true ->
+        | `MustBool true ->
           if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
           Some true
         | _ -> None
@@ -946,10 +946,10 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match ID.to_int i1, ID.to_int i2 with
-            | Some i1', Some i2' when i1' = i2' -> `MustHold true
-            | _ -> `MustHold false
+            | Some i1', Some i2' when i1' = i2' -> `MustBool true
+            | _ -> `MustBool false
             end
-        | _ -> `MustHold false
+        | _ -> `MustBool false
       end
     | Q.MayBeEqual (e1, e2) -> begin
         (* Printf.printf "---------------------->  may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
@@ -964,11 +964,11 @@ struct
             if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
               begin
                 (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
-                `MayHold false
+                `MayBool false
               end
-            else `MayHold true
+            else `MayBool true
           end
-        | _ -> `MayHold true
+        | _ -> `MayBool true
       end
     | Q.MayBeLess (e1, e2) -> begin
         (* Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
@@ -981,12 +981,12 @@ struct
               if i1' >= i2' then
                 begin
                   (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
-                  `MayHold false
+                  `MayBool false
                 end
-              else `MayHold true
-            | _ -> `MayHold true
+              else `MayBool true
+            | _ -> `MayBool true
           end
-        | _ -> `MayHold true
+        | _ -> `MayBool true
       end
     | _ -> Q.Result.top ()
 
@@ -1093,7 +1093,7 @@ struct
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
               match a (Q.MustBeEqual (e1, e2)) with
-              | `MustHold true -> true
+              | `MustBool true -> true
               | _ -> false
             in
             let ik = Cilfacade.get_ikind (typeOf currentE') in

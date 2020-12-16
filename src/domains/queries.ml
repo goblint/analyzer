@@ -76,8 +76,8 @@ type result = [
   | `ExpTriples of PS.t
   | `TypeSet of TS.t
   | `Varinfo of VI.t
-  | `MustHold of bool  (* true \leq false *)
-  | `MayHold of bool   (* false \leq true *)
+  | `MustBool of bool  (* true \leq false *)
+  | `MayBool of bool   (* false \leq true *)
   | `Bot
 ] [@@deriving to_yojson]
 
@@ -133,8 +133,8 @@ struct
       | `IntSet _ -> 8
       | `TypeSet _ -> 9
       | `Varinfo _ -> 10
-      | `MustHold _ -> 11
-      | `MayHold _ -> 12
+      | `MustBool _ -> 11
+      | `MayBool _ -> 12
       | `Top -> 100
     in match x,y with
     | `Int x, `Int y -> ID.compare x y
@@ -156,8 +156,8 @@ struct
     | `ExpTriples n ->  PS.pretty () n
     | `TypeSet n -> TS.pretty () n
     | `Varinfo n -> VI.pretty () n
-    | `MustHold n -> text (string_of_bool n)
-    | `MayHold n -> text (string_of_bool n)
+    | `MustBool n -> text (string_of_bool n)
+    | `MayBool n -> text (string_of_bool n)
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -171,8 +171,8 @@ struct
     | `ExpTriples n ->  PS.short w n
     | `TypeSet n -> TS.short w n
     | `Varinfo n -> VI.short w n
-    | `MustHold n -> string_of_bool n
-    | `MayHold n -> string_of_bool n
+    | `MustBool n -> string_of_bool n
+    | `MayBool n -> string_of_bool n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -203,8 +203,8 @@ struct
     | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
     | (`TypeSet x, `TypeSet y) -> TS.leq x y
     | (`Varinfo x, `Varinfo y) -> VI.leq x y
-    | (`MustHold x, `MustHold y) -> x == y || x
-    | (`MayHold x, `MayHold y) -> x == y || y
+    | (`MustBool x, `MustBool y) -> x == y || x
+    | (`MayBool x, `MayBool y) -> x == y || y
     | _ -> false
 
   let join x y =
@@ -220,8 +220,8 @@ struct
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.join x y)
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.join x y)
-      | (`MustHold x, `MustHold y) -> `MustHold (x && y)
-      | (`MayHold x, `MayHold y) -> `MayHold (x || y)
+      | (`MustBool x, `MustBool y) -> `MustBool (x && y)
+      | (`MayBool x, `MayBool y) -> `MayBool (x || y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -238,8 +238,8 @@ struct
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.meet x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.meet x y)
-      | (`MustHold x, `MustHold y) -> `MustHold (x || y)
-      | (`MayHold x, `MayHold y) -> `MayHold (x && y)
+      | (`MustBool x, `MustBool y) -> `MustBool (x || y)
+      | (`MayBool x, `MayBool y) -> `MayBool (x && y)
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 
@@ -256,8 +256,8 @@ struct
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.widen x y)
-      | (`MustHold x, `MustHold y) -> `MustHold (x && y)
-      | (`MayHold x, `MayHold y) -> `MustHold (x || y)
+      | (`MustBool x, `MustBool y) -> `MustBool (x && y)
+      | (`MayBool x, `MayBool y) -> `MustBool (x || y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
