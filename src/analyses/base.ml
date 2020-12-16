@@ -19,7 +19,7 @@ module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
 
 let is_global (a: Q.ask) (v: varinfo): bool =
-  v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
+  v.vglob || match a (Q.MayEscape v) with `MayBool tv -> tv | _ -> false
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
