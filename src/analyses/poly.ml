@@ -134,8 +134,8 @@ struct
         | _ -> `Top
       end
     | MustBeEqual (e1, e2) ->
-      if D.cil_exp_equals d e1 e2 then `Bool (Queries.BD.of_bool true)
-      else Result.top ()
+      if D.cil_exp_equals d e1 e2 then `MustHold true
+      else `MustHold false
     | _ -> Result.top ()
 end
 

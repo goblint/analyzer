@@ -226,6 +226,8 @@ struct
     | `ExpTriples x -> "`ExpTriples"
     | `TypeSet x -> "`TypeSet"
     | `Varinfo x -> "`Varinfo"
+    | `MustHold x -> "`MustHold"
+    | `MayHold x -> "`MayHold"
     | `Bot -> "`Bot"
 
 

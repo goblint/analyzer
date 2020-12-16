@@ -334,10 +334,10 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
-            | (Some i) -> `Bool (BI.equal BI.zero i)
-            | _ -> Queries.Result.top ()
+            | (Some i) -> `MustHold (BI.equal BI.zero i)
+            | _ -> `MustHold false
           end
-        | _ -> Queries.Result.top ()
+        | _ -> `MustHold false
       end
     | Queries.MayBeEqual (exp1,exp2) ->
       begin
@@ -345,11 +345,11 @@ struct
         | _, Some(x) ->
           begin
             if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)) then
-              `Bool (false)
+              `MayHold false
             else
-              Queries.Result.top ()
+              `MayHold true
           end
-        | _ -> Queries.Result.top ()
+        | _ -> `MayHold true
       end
     | Queries.MayBeLess (exp1, exp2) ->
       (* TODO: Here the order of arguments actually matters, be careful *)
@@ -359,10 +359,10 @@ struct
           begin
             match OctagonDomain.INV.minimal x with
             | Some i when BI.compare i BI.zero >= 0 ->
-              `Bool(false)
-            | _ -> Queries.Result.top ()
+              `MayHold false
+            | _ -> `MayHold true
           end
-        | _ -> Queries.Result.top ()
+        | _ -> `MayHold true
       end
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in

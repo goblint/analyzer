@@ -57,23 +57,23 @@ struct
     | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
       begin
         if Expcompare.compareExp (canonize e1) (canonize e2) then
-          `Bool (true)
+          `MustHold true
         else
-          Queries.Result.top()
+          `MustHold false
       end
     | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
       begin
         match e1, e2 with
         | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-            `Bool(false)   (* c > 0 => (! x+c < x) *)
+            `MayHold false  (* c > 0 => (! x+c < x) *)
         | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-            `Bool(false)   (* c < 0 => (! x < x+c )*)
+            `MayHold false  (* c < 0 => (! x < x+c )*)
         | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-            `Bool(false)   (* c < 0 => (! x-c < x) *)
+            `MayHold false  (* c < 0 => (! x-c < x) *)
         | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-            `Bool(false)   (* c < 0 => (! x < x-c) *)
+            `MayHold false  (* c < 0 => (! x < x-c) *)
         | _ ->
-            Queries.Result.top ()
+            `MayHold true
       end
     | Queries.MayBeEqual (e1,e2) when not (isFloat e1) ->
       begin
@@ -82,8 +82,8 @@ struct
         | Lval l2, BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _)
         | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
         | Lval l2, BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2) && Int64.compare i Int64.zero <> 0  ->
-            `Bool(false)
-        | _ -> Queries.Result.top ()
+            `MayHold false
+        | _ -> `MayHold true
       end
     | _ -> Queries.Result.top ()
 
