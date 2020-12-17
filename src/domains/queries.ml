@@ -5,7 +5,6 @@ open Pretty
 
 module GU = Goblintutil
 module ID = IntDomain.FlatPureIntegers
-module BD = IntDomain.Booleans
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
 module PS = SetDomain.ToppedSet (Exp.LockingPattern) (struct let topname = "All" end)
@@ -99,12 +98,13 @@ struct
     | (`Top, `Top) -> true
     | (`Bot, `Bot) -> true
     | (`Int x, `Int y) -> ID.equal x y
-
     | (`LvalSet x, `LvalSet y) -> LS.equal x y
     | (`ExprSet x, `ExprSet y) -> ES.equal x y
     | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
     | (`TypeSet x, `TypeSet y) -> TS.equal x y
     | (`Varinfo x, `Varinfo y) -> VI.equal x y
+    | (`MustBool x, `MustBool y) -> Bool.equal x y
+    | (`MayBool x, `MayBool y) -> Bool.equal x y
     | _ -> false
 
   let hash (x:t) =
@@ -115,6 +115,7 @@ struct
     | `ExpTriples n -> PS.hash n
     | `TypeSet n -> TS.hash n
     | `Varinfo n -> VI.hash n
+    (* `MustBool and `MayBool should work by the following *)
     | _ -> Hashtbl.hash x
 
   let compare x y =
@@ -138,6 +139,8 @@ struct
     | `ExpTriples x, `ExpTriples y -> PS.compare x y
     | `TypeSet x, `TypeSet y -> TS.compare x y
     | `Varinfo x, `Varinfo y -> VI.compare x y
+    | `MustBool x, `MustBool y -> Bool.compare x y
+    | `MayBool x, `MayBool y -> Bool.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
@@ -176,6 +179,7 @@ struct
     | `ExpTriples n ->  PS.isSimple n
     | `TypeSet n -> TS.isSimple n
     | `Varinfo n -> VI.isSimple n
+    (* `MustBool and `MayBool should work by the following *)
     | _ -> true
 
   let pretty () x = pretty_f short () x
@@ -193,6 +197,7 @@ struct
     | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
     | (`TypeSet x, `TypeSet y) -> TS.leq x y
     | (`Varinfo x, `Varinfo y) -> VI.leq x y
+    (* TODO: should these be more like IntDomain.Booleans? *)
     | (`MustBool x, `MustBool y) -> x == y || x
     | (`MayBool x, `MayBool y) -> x == y || y
     | _ -> false
@@ -256,6 +261,8 @@ struct
     | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
     | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
     | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.narrow x y)
+    | (`MustBool x, `MustBool y) -> `MustBool (x || y)
+    | (`MayBool x, `MayBool y) -> `MayBool (x && y)
     | (x,_) -> x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
