@@ -12,6 +12,8 @@ open Str
       - Does not work for accesses through pointers
       - At join points asserts all locals, but ideally should only assert ones that are
         modified in one of the branches
+      - Removes comments, so if the original program had //UNKNOWN assertions, the unknown
+        will be removed and they will fail on the next iteration
 *)
 module EvalAssert = struct
   let ass = ref (makeVarinfo true "unknown" (TVoid []))
