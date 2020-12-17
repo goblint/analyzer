@@ -3,6 +3,16 @@ open Cil
 open Formatcil
 open Str
 
+(** Instruments a program by inserting asserts:
+      - After an assignment to a variable
+      - At join points about all local variables
+
+    Limitations:
+      - Currently only works for top-level variables (not inside an array, a struct, ...)
+      - Does not work for accesses through pointers
+      - At join points asserts all locals, but ideally should only assert ones that are
+        modified in one of the branches
+*)
 module EvalAssert = struct
   let loc = ref locUnknown (* when we visit an expression, we need the current location -> store at stmts *)
   let ass = ref (makeVarinfo true "unknown" (TVoid []))
@@ -31,28 +41,27 @@ module EvalAssert = struct
         | _ -> []
       in
 
-      let assert_if_var lh loc =
-        match lh with
+      let assert_if_var lh loc = match lh with
         | Var v -> make_assert loc v
         | Mem e -> []
       in
 
-      let rec eval_i il s =
-        match il with
-        | i1 :: i2 :: xs ->
+      let rec instrument_instructions il s = match il with
+        | i1 :: i2 :: is ->
           begin
             match i1 with
             | Set ((lh, _), _, _)
-            | Call (Some (lh,_), _, _, _) -> [i1] @ (assert_if_var lh (get_instrLoc i2)) @ eval_i (i2 :: xs) s
-            | _ -> i1 :: eval_i (i2 :: xs) s
+            | Call (Some (lh,_), _, _, _) -> [i1] @ (assert_if_var lh (get_instrLoc i2)) @ instrument_instructions (i2 :: is) s
+            | _ -> i1 :: instrument_instructions (i2 :: is) s
           end
         | [i] ->
-          if List.length s.succs > 0 && (List.hd s.succs).preds |> List.length <> 2 then begin
-              let l = get_stmtLoc (List.hd s.succs).skind in
-              (match i with
-              | Set ((lh, _), _, _)
-              | Call (Some (lh, _), _, _, _) -> [i] @ (assert_if_var lh l)
-              | _ -> [i])
+          if List.length s.succs > 0 && (List.hd s.succs).preds |> List.length < 2 then begin
+            (* If the successor of this has more than one predecessor, it is a join point, and we can not query for the value there *)
+            let l = get_stmtLoc (List.hd s.succs).skind in
+            match i with
+            | Set ((lh, _), _, _)
+            | Call (Some (lh, _), _, _, _) -> [i] @ (assert_if_var lh l)
+            | _ -> [i]
           end
           else [i]
         | _ -> []
@@ -66,81 +75,22 @@ module EvalAssert = struct
         | _ -> []
       in
 
-      let eval_s s =
-        if List.length s.preds = 2 then begin
-          let p1 = List.hd s.preds in
-          let p1_loc = get_stmtLoc p1.skind in
-
-          let p2 = s.preds |> List.rev |> List.hd in
-          let p2_loc = get_stmtLoc p2.skind in
-
-          let values loc vs =
-            List.map
-              (fun v ->
-                match ask loc (Queries.Assert (Lval (Var v,NoOffset))) with
-                | `ExprSet s -> (v, Some(Queries.ES.choose s))
-                | _ -> (v, None)) vs
-          in
-          let p1_values = values p1_loc !locals in
-          let p2_values = values p2_loc !locals in
+      let instrument_join s =
+        match s.preds with
+        | [p1; p2] ->
+          (* exactly two predecessors -> join point, assert locals if they changed *)
+          (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch *)
           let join_loc = get_stmtLoc s.skind in
+          let asserts = List.map (make_assert join_loc) !locals |> List.concat in
+          self#queueInstr asserts; ()
+        | _ -> ()
+      in
 
-          let last_instruction s =
-            match s with
-            | Instr il ->
-              if List.length il > 0 then
-                let instr = il |> List.hd in
-                begin
-                match instr with
-                | Set ((lh, lo), e, l) ->
-                  let v_instr =
-                    match lh with
-                    | Var v -> Some (v, string_of_int l.line)
-                    | Mem e -> None
-                  in v_instr
-                | Call (lv, e, el, l) ->
-                  begin
-                  match lv with
-                    | Some (lh, lo) ->
-                      let v_instr =
-                        match lh with
-                        | Var v -> Some (v, string_of_int l.line)
-                        | Mem e -> None
-                      in v_instr
-                    | None -> None end
-                | _ -> None
-                end
-              else None
-            | _ -> None
-          in
-
-          let last_p1 = last_instruction p1.skind in
-          let last_p2 = last_instruction p2.skind in
-
-          (* what is the goal here? o.O *)
-          let asserts =
-            List.map2
-              (fun (v1, (s1:exp option)) (v2, (s2:exp option)) ->
-                let new_s1 =
-                  match last_p1 with
-                  | Some (v, s) when v.vname = v1.vname -> Error s
-                  | _ -> Ok s1
-                in
-                let new_s2 =
-                  match last_p2 with
-                  | Some (v, s) when v.vname = v2.vname -> Error s
-                  | _ -> Ok s2
-                in
-                if new_s1 <> new_s2 then (* comparing exp for equality is dangerous *)
-                  make_assert join_loc v1
-                else []) p1_values p2_values |> List.concat
-          in
-          self#queueInstr asserts;
-          end;
-
+      let instrument_statement s =
+        instrument_join s;
         match s.skind with
         | Instr il ->
-          s.skind <- Instr (eval_i il s);
+          s.skind <- Instr (instrument_instructions il s);
           s
         | If (e, b1, b2, l) ->
           let vars = get_vars e in
@@ -162,7 +112,7 @@ module EvalAssert = struct
           s
         | _ -> s
       in
-      ChangeDoChildrenPost (s, eval_s)
+      ChangeDoChildrenPost (s, instrument_statement)
   end
   let transform ask file = begin
     visitCilFile (new visitor ask) file;
