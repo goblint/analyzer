@@ -9,68 +9,50 @@ module EvalAssert = struct
   let locals = ref []
   class visitor ask = object(self)
     inherit nopCilVisitor
+
     method! vfunc f =
       locals := !locals @ f.slocals;
       DoChildren
-    method! vglob g =
-      match g with
+
+    method! vglob g = match g with
       | GVarDecl (v, l) ->
         if v.vname = "assert" then begin
           ass := v;
           SkipChildren end
         else DoChildren
       | _ -> DoChildren
+
     method! vstmt s =
-      let construct_assert s =
-        let r = regexp "&&\\|||" in
-        global_substitute r (fun s1 ->
-                             match matched_string s with
-                             | "||" -> "|"
-                             | "&&" -> "&"
-                             | _ -> "NOP"
-                             ) s
+      let make_assert loc var =
+        match ask loc (Queries.Assert (Lval(Var var, NoOffset))) with
+        | `ExprSet s ->
+          let e = Queries.ES.choose s in
+          [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]]
+        | _ -> []
       in
 
       let ai lh loc =
         match lh with
-        | Var v ->
-          let v_e = cExp "%v:variable" [("variable", Fv v)] in
-          (match ask loc (Queries.Assert v_e) with
-            | `ExprSet s ->
-              let e = Queries.ES.choose s in
-              [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("value", Fv v); ("exp", Fe e)]]
-            | _ -> [])
+        | Var v -> make_assert loc v
         | Mem e -> []
       in
 
       let rec eval_i il s =
         match il with
-        | i1 :: i2 :: xs -> begin try
+        | i1 :: i2 :: xs ->
           begin
           match i1 with
           | Set ((lh, _), _, _) -> [i1] @ (ai lh (get_instrLoc i2)) @ eval_i (i2 :: xs) s
-          | Call (lv, _, _, _) ->
-            begin
-              match lv with
-                | Some (lh, _) -> [i1] @ (ai lh (get_instrLoc i2)) @ eval_i (i2 :: xs) s
-                | None -> []
-            end
+          | Call (Some (lh,_), _, _, _) -> [i1] @ (ai lh (get_instrLoc i2)) @ eval_i (i2 :: xs) s
           | _ -> i1 :: eval_i (i2 :: xs) s
-          end with e -> i1 :: eval_i (i2 :: xs) s end
+          end
         | [i] ->
           if List.length s.succs > 0 && (List.hd s.succs).preds |> List.length <> 2 then begin
-            (* try *)
               let l = get_stmtLoc (List.hd s.succs).skind in
               (match i with
               | Set ((lh, _), _, _) -> [i] @ (ai lh l)
-              | Call (lv, _, _, _) ->
-                begin
-                  match lv with
-                    | Some (lh, _) -> [i] @ (ai lh l)
-                    | None -> []
-                end
+              | Call (Some (lh, _), _, _, _) -> [i] @ (ai lh l)
               | _ -> [i])
-            (* with e -> [] *)
           end
           else [i]
         | _ -> []
@@ -98,11 +80,10 @@ module EvalAssert = struct
 
           let values loc vs =
             List.map
-              (fun v -> try
-                let v_e = cExp "%v:variable" [("variable", Fv v)] in
-                match ask loc (Queries.Assert v_e) with
-                | `Str s -> (v, s)
-                | _ -> (v, "none") with e -> (v, "none")) vs
+              (fun v ->
+                match ask loc (Queries.Assert (Lval (Var v,NoOffset))) with
+                | `ExprSet s -> (v, Some(Queries.ES.choose s))
+                | _ -> (v, None)) vs
           in
           let p1_values = values p1_loc !locals in
           let p2_values = values p2_loc !locals in
@@ -140,25 +121,23 @@ module EvalAssert = struct
           let last_p1 = last_instruction p1.skind in
           let last_p2 = last_instruction p2.skind in
 
+          (* what is the goal here? o.O *)
           let asserts =
             List.map2
-              (fun (v1, s1) (v2, s2) -> try
+              (fun (v1, (s1:exp option)) (v2, (s2:exp option)) ->
                 let new_s1 =
                   match last_p1 with
-                  | Some (v, s) when v.vname = v1.vname -> s
-                  | _ -> s1
+                  | Some (v, s) when v.vname = v1.vname -> Error s
+                  | _ -> Ok s1
                 in
                 let new_s2 =
                   match last_p2 with
-                  | Some (v, s) when v.vname = v2.vname -> s
-                  | _ -> s2
+                  | Some (v, s) when v.vname = v2.vname -> Error s
+                  | _ -> Ok s2
                 in
-                if new_s1 <> new_s2 then begin
-                  let v_e = cExp "%v:variable" [("variable", Fv v1)] in
-                  match ask join_loc (Queries.Assert v_e) with
-                  | `Str s -> [cInstr ("%v:assert (" ^ (construct_assert s) ^ ");") join_loc [("assert", Fv !ass); ("value", Fv v1)]]
-                  | _ -> [] end
-                else [] with e -> []) p1_values p2_values |> List.concat
+                if new_s1 <> new_s2 then (* comparing exp for equality is dangerous *)
+                  make_assert join_loc v1
+                else []) p1_values p2_values |> List.concat
           in
           self#queueInstr asserts;
           end;
@@ -169,37 +148,21 @@ module EvalAssert = struct
           s
         | If (e, b1, b2, l) ->
           let vars = get_vars e in
-          let asserts loc vs =
-            List.map
-              (fun v -> try
-                (let v_e = cExp "%v:variable" [("variable", Fv v)] in
-                match ask loc (Queries.Assert v_e) with
-                | `Str s -> [cInstr ("%v:assert (" ^ (construct_assert s) ^ ");") loc [("assert", Fv !ass); ("value", Fv v)]]
-                | _ ->
-                  []) with e -> []) vs |> List.concat
+          let asserts loc vs = List.map (make_assert loc) vs |> List.concat in
+          let add_asserts block =
+            if List.length block.bstmts > 0 then
+              let with_asserts =
+                let b_loc = get_stmtLoc (List.hd block.bstmts).skind in
+                let b_assert_instr = asserts b_loc vars in
+                [cStmt "{ %I:asserts %S:b }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b_loc [("asserts", FI b_assert_instr); ("b", FS block.bstmts)]]
+              in
+              block.bstmts <- with_asserts
+            else
+              ()
           in
 
-          begin
-          try
-            let b1_ass =
-              let b1_loc = get_stmtLoc (List.hd b1.bstmts).skind in
-              let i1 = (asserts b1_loc vars) in
-              [cStmt "{ %I:asserts %S:b1 }" (fun n t -> makeVarinfo true "unknown" (TVoid []))
-                    b1_loc [("asserts", FI i1); ("b1", FS b1.bstmts)]]
-            in
-            b1.bstmts <- b1_ass;
-          with e -> () end;
-
-          begin
-          try
-            let b2_ass =
-              if b2.bstmts = [] then [] else
-                let b2_loc = get_stmtLoc (List.hd b2.bstmts).skind in
-                let i2 = (asserts b2_loc vars) in
-                [cStmt "{ %I:asserts %S:b2 }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b2_loc [("asserts", FI i2); ("b2", FS b2.bstmts)]]
-            in
-            b2.bstmts <- b2_ass;
-          with e -> () end;
+          add_asserts b1;
+          add_asserts b2;
           s
         | _ -> s
       in
