@@ -14,7 +14,6 @@ open Str
         modified in one of the branches
 *)
 module EvalAssert = struct
-  let loc = ref locUnknown (* when we visit an expression, we need the current location -> store at stmts *)
   let ass = ref (makeVarinfo true "unknown" (TVoid []))
   let locals = ref []
   class visitor ask = object(self)

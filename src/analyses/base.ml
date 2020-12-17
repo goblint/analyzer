@@ -862,7 +862,7 @@ struct
               let tmp = match e with | Lval l -> Some l | _ -> None in
               let context: Invariant.context = {
                 scope=MyCFG.dummy_func;
-                i=0; (* TODO *)
+                i= -1; (* Not used here *)
                 lval=tmp;
                 offset=Cil.NoOffset;
                 deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
