@@ -31,7 +31,7 @@ module EvalAssert = struct
         | _ -> []
       in
 
-      let ai lh loc =
+      let assert_if_var lh loc =
         match lh with
         | Var v -> make_assert loc v
         | Mem e -> []
@@ -41,17 +41,17 @@ module EvalAssert = struct
         match il with
         | i1 :: i2 :: xs ->
           begin
-          match i1 with
-          | Set ((lh, _), _, _) -> [i1] @ (ai lh (get_instrLoc i2)) @ eval_i (i2 :: xs) s
-          | Call (Some (lh,_), _, _, _) -> [i1] @ (ai lh (get_instrLoc i2)) @ eval_i (i2 :: xs) s
-          | _ -> i1 :: eval_i (i2 :: xs) s
+            match i1 with
+            | Set ((lh, _), _, _)
+            | Call (Some (lh,_), _, _, _) -> [i1] @ (assert_if_var lh (get_instrLoc i2)) @ eval_i (i2 :: xs) s
+            | _ -> i1 :: eval_i (i2 :: xs) s
           end
         | [i] ->
           if List.length s.succs > 0 && (List.hd s.succs).preds |> List.length <> 2 then begin
               let l = get_stmtLoc (List.hd s.succs).skind in
               (match i with
-              | Set ((lh, _), _, _) -> [i] @ (ai lh l)
-              | Call (Some (lh, _), _, _, _) -> [i] @ (ai lh l)
+              | Set ((lh, _), _, _)
+              | Call (Some (lh, _), _, _, _) -> [i] @ (assert_if_var lh l)
               | _ -> [i])
           end
           else [i]
@@ -60,13 +60,9 @@ module EvalAssert = struct
 
       let rec get_vars e =
         match e with
-        | Lval (lh, _) -> begin
-          match lh with
-          | Var v ->
-            [v]
-          | _ -> [] end
-        | UnOp (u, ex, t) -> get_vars ex
-        | BinOp (b, e1, e2, t) -> (get_vars e1) @ (get_vars e2)
+        | Lval (Var v, _) -> [v]
+        | UnOp (_, e, _) -> get_vars e
+        | BinOp (_, e1, e2, _) -> (get_vars e1) @ (get_vars e2)
         | _ -> []
       in
 
