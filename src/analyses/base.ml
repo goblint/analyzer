@@ -859,16 +859,17 @@ struct
         | `Int i ->
             let v = (`Int i) in
             begin
+              let tmp = match e with | Lval l -> Some l | _ -> None in
               let context: Invariant.context = {
-                scope=MyCFG.getFun ctx.node;
-                i=0;
-                lval=None;
+                scope=MyCFG.dummy_func;
+                i=0; (* TODO *)
+                lval=tmp;
                 offset=Cil.NoOffset;
                 deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
               }
               in
-              match (VD.invariant context v) with (* %v:value *)
-              | Some s -> `Str (Pretty.sprint 8000 (d_exp () s))
+              match (VD.invariant context v) with
+              | Some s -> `ExprSet (Queries.ES.singleton s)
               | None -> `Bot
             end;
         | v -> `Bot;
