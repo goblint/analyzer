@@ -4,8 +4,8 @@ open Prelude.Ana
 open Analyses
 
 let is_current (ask: Queries.ask): bool =
-  match ask Queries.IsThreadReturn with
-  | `Bool b -> b
+  match ask Queries.MayBeThreadReturn with
+  | `MayBool b -> b
   | `Top -> true
   | _ -> failwith "ThreadReturn.is_current"
 
@@ -48,7 +48,7 @@ struct
 
   let query ctx x =
     match x with
-    | Queries.IsThreadReturn -> `Bool ctx.local
+    | Queries.MayBeThreadReturn -> `MayBool ctx.local
     | _ -> `Top
 end
 

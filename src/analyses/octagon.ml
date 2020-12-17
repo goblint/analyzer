@@ -334,10 +334,10 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
-            | (Some i) -> `Bool (BI.equal BI.zero i)
-            | _ -> Queries.Result.top ()
+            | (Some i) -> `MustBool (BI.equal BI.zero i)
+            | _ -> `MustBool false
           end
-        | _ -> Queries.Result.top ()
+        | _ -> `MustBool false
       end
     | Queries.MayBeEqual (exp1,exp2) ->
       begin
@@ -345,11 +345,11 @@ struct
         | _, Some(x) ->
           begin
             if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)) then
-              `Bool (false)
+              `MayBool false
             else
-              Queries.Result.top ()
+              `MayBool true
           end
-        | _ -> Queries.Result.top ()
+        | _ -> `MayBool true
       end
     | Queries.MayBeLess (exp1, exp2) ->
       (* TODO: Here the order of arguments actually matters, be careful *)
@@ -359,37 +359,16 @@ struct
           begin
             match OctagonDomain.INV.minimal x with
             | Some i when BI.compare i BI.zero >= 0 ->
-              `Bool(false)
-            | _ -> Queries.Result.top ()
+              `MayBool false
+            | _ -> `MayBool true
           end
-        | _ -> Queries.Result.top ()
+        | _ -> `MayBool true
       end
-    | Queries.ExpEq (exp1, exp2) ->                           (* TODO: We want to leverage all the additional information we have here *)
-      let inv1, inv2 = evaluate_exp ctx.local exp1,           (* Also, what does ExpEq actually do? Is it must or may equality?        *)
-                       evaluate_exp ctx.local exp2 in
-      if INV.is_int inv1 then
-        if INV.is_bot (INV.meet inv1 inv2) then
-          `Bool false
-        else if INV.compare inv1 inv2 = 0 then
-          `Bool true
-        else
-          `Top
-      else
-        `Top
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
       then `Int(INV.to_int inv |> Option.get |> BI.to_int64)
       else `Top
-    | Queries.InInterval (exp, inv) ->
-      let linv = evaluate_exp ctx.local exp in
-      let min, max = Tuple2.mapn (BI.of_int64 |> Option.map) (IntDomain.Interval32.(minimal inv, maximal inv)) in
-      (match min, max with
-        | None, _ -> `Bool false
-        | _, None -> `Bool false
-        | Some min, Some max ->
-            let inv = INV.of_interval oct_ik (min, max) in
-            `Bool (INV.leq linv inv))
     | _ -> Queries.Result.top ()
 
   let threadspawn ctx lval f args fctx = D.bot ()

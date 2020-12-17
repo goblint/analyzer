@@ -73,17 +73,17 @@ struct
 
   let query ctx (q: Queries.t) =
     match q with
-    | Queries.IsNotUnique -> begin
+    | Queries.MustBeUniqueThread -> begin
         let tid = ThreadId.get_current ctx.ask in
         match tid with
-        | `Lifted tid -> `Bool (is_not_unique ctx tid)
-        | _ -> `Bool (true)
+        | `Lifted tid -> `MustBool (not (is_not_unique ctx tid))
+        | _ -> `MustBool false
       end
-    | Queries.NotSingleThreaded -> begin
+    | Queries.MustBeSingleThreaded -> begin
         let tid = ThreadId.get_current ctx.ask in
         match tid with
-        | `Lifted {vname="main"; _} -> `Bool (not (D.is_empty ctx.local))
-        | _ -> `Bool (true)
+        | `Lifted {vname="main"; _} -> `MustBool (D.is_empty ctx.local)
+        | _ -> `MustBool false
       end
     | _ -> Queries.Result.top ()
 

@@ -155,16 +155,16 @@ struct
 
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
-    | Queries.IsPublic _ when Lockset.is_bot ctx.local -> `Bool false
-    | Queries.IsPublic v ->
+    | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> `MayBool false
+    | Queries.MayBePublic v ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       if Mutexes.mem verifier_atomic held_locks then
-        `Bool false
+        `MayBool false
       else
         let lambda_v = ctx.global v in
         let intersect = Mutexes.inter held_locks lambda_v in
         let tv = Mutexes.is_empty intersect in
-        `Bool tv
+        `MayBool tv
     | _ -> Queries.Result.top ()
 
   let may_race (ctx1,ac1) (ctx,ac2) =
