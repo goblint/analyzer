@@ -636,7 +636,7 @@ struct
       if Pri.is_int d.pri then
         `Int (Option.get @@ Pri.to_int d.pri)
       else if Pri.is_top d.pri then `Top else `Bot
-    (* | Queries.IsPublic _ -> *)
+    (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)
     | _ -> Queries.Result.top ()
 

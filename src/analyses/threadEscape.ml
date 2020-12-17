@@ -17,7 +17,7 @@ struct
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
-    | Queries.MayEscape v -> `Bool (D.mem v ctx.local)
+    | Queries.MayEscape v -> `MayBool (D.mem v ctx.local)
     | _ -> Queries.Result.top ()
 
   (* transfer functions *)

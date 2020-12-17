@@ -529,7 +529,7 @@ struct
     in
     let has_escaped g =
       match ctx.ask (Queries.MayEscape g) with
-      | `Bool false -> false
+      | `MayBool false -> false
       | _ -> true
     in
     (* The following function adds accesses to the lval-set ls
