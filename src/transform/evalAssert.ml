@@ -34,25 +34,25 @@ module EvalAssert = struct
       | _ -> DoChildren
 
     method! vstmt s =
-      let make_assert loc var =
-        match ask loc (Queries.Assert (Lval(Var var, NoOffset))) with
+      let make_assert loc lval =
+        match ask loc (Queries.Assert (Lval lval)) with
         | `ExprSet s ->
           let e = Queries.ES.choose s in
           [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]]
         | _ -> []
       in
 
-      let assert_if_var lh loc = match lh with
-        | Var v -> make_assert loc v
-        | Mem e -> []
+      let assert_if_var lval loc = match lval with
+        | (Var v, _) -> make_assert loc lval
+        | (Mem e, _) -> []
       in
 
       let rec instrument_instructions il s = match il with
         | i1 :: i2 :: is ->
           begin
             match i1 with
-            | Set ((lh, _), _, _)
-            | Call (Some (lh,_), _, _, _) -> [i1] @ (assert_if_var lh (get_instrLoc i2)) @ instrument_instructions (i2 :: is) s
+            | Set (lval, _, _)
+            | Call (Some lval, _, _, _) -> [i1] @ (assert_if_var lval (get_instrLoc i2)) @ instrument_instructions (i2 :: is) s
             | _ -> i1 :: instrument_instructions (i2 :: is) s
           end
         | [i] ->
@@ -60,8 +60,8 @@ module EvalAssert = struct
             (* If the successor of this has more than one predecessor, it is a join point, and we can not query for the value there *)
             let l = get_stmtLoc (List.hd s.succs).skind in
             match i with
-            | Set ((lh, _), _, _)
-            | Call (Some (lh, _), _, _, _) -> [i] @ (assert_if_var lh l)
+            | Set (lval, _, _)
+            | Call (Some lval, _, _, _) -> [i] @ (assert_if_var lval l)
             | _ -> [i]
           end
           else [i]
@@ -82,7 +82,7 @@ module EvalAssert = struct
           (* exactly two predecessors -> join point, assert locals if they changed *)
           (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch *)
           let join_loc = get_stmtLoc s.skind in
-          let asserts = List.map (make_assert join_loc) !locals |> List.concat in
+          let asserts = List.map (fun x -> make_assert join_loc (Var x,NoOffset)) !locals |> List.concat in
           self#queueInstr asserts; ()
         | _ -> ()
       in
@@ -95,7 +95,7 @@ module EvalAssert = struct
           s
         | If (e, b1, b2, l) ->
           let vars = get_vars e in
-          let asserts loc vs = List.map (make_assert loc) vs |> List.concat in
+          let asserts loc vs = List.map (fun x -> make_assert loc (Var x,NoOffset)) vs |> List.concat in
           let add_asserts block =
             if List.length block.bstmts > 0 then
               let with_asserts =
