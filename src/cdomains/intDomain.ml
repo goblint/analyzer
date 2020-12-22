@@ -1125,11 +1125,11 @@ struct
       )
     | `Definite x ->
       let min, max = Size.range_big_int ik in
-      if not (Cil.isSigned ik) then
+      if not (Cil.isSigned ik) then (
         (* On an usigned integer type, a wrap-around should not result in top.
            Handle wrap-around with cast_to to keep precision. *)
         cast_to ik t
-      else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
+      ) else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
         t
       ) else (
         top_of ik
