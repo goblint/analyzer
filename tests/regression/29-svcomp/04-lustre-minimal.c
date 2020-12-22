@@ -7,5 +7,5 @@ int main() {
     unsigned long n = 16;
     unsigned long size = 4912;
 
-    assert(!(0xffffffffffffffffUL / size < n)); // UNKNOWN (for now)
+    assert(!(0xffffffffffffffffUL / size < n));
 }
