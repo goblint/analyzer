@@ -1368,14 +1368,7 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   let neg ik x = norm ik @@ lift1 BigInt.neg ik x
-  let add ik x y =
-    (match x, y with
-      | `Definite x, `Definite y -> print_endline @@ "Adding" ^ (BigInt.to_string x) ^ " and " ^ (BigInt.to_string y)
-      | _, _ -> ()
-    );
-    let res = norm ik @@ lift2_inj BigInt.add ik x y in
-    print_endline @@ sprint ~width:80 (pretty () res);
-    res
+  let add ik x y = norm ik @@ lift2_inj BigInt.add ik x y
 
   let sub ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
   let mul ik x y = norm ik @@ match x, y with
