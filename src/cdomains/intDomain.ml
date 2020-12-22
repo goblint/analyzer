@@ -1040,7 +1040,7 @@ struct
     | Some l, Some u ->
       let l = Int64.to_int l in
       let u = Int64.to_int u in
-      let min = if l = 0 then BigInt.zero else BigInt.neg @@ BigInt.shift_left BigInt.one l in
+      let min = if l = 0 then BigInt.zero else BigInt.neg @@ BigInt.shift_left BigInt.one (-l) in
       let max = BigInt.sub (BigInt.shift_left BigInt.one u) BigInt.one in
       min, max
 
@@ -1059,25 +1059,7 @@ struct
   let top_of ik = `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
 
-  let norm ik t = match t with
-  | `Excluded (s, r) ->
-    let size_ik = size ik in
-    if not (R.leq r size_ik) then (
-      top_of ik
-    ) else (
-      let min, max = range_min_max r in
-      let all_in_range = S.for_all (fun excluded -> BigInt.compare min excluded <= 0 && BigInt.compare excluded max <= 0) s in
-      if all_in_range then t else top_of ik
-    )
-  | `Definite x ->
-    let min, max = Size.range_big_int ik in
-    (* If the value *)
-    if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
-      t
-    ) else (
-      top_of ik
-    )
-  | `Bot -> `Bot
+
 
   let short w x =
     let short_size x = "("^R.short 2 x^")" in
@@ -1129,6 +1111,29 @@ struct
           S.empty (), r'
       )
     | `Definite x -> `Definite (BigInt.cast_to ik x)
+    | `Bot -> `Bot
+
+    let norm ik t = match t with
+    | `Excluded (s, r) ->
+      let size_ik = size ik in
+      if not (R.leq r size_ik) then (
+        top_of ik
+      ) else (
+        let min, max = range_min_max r in
+        let all_in_range = S.for_all (fun excluded -> BigInt.compare min excluded <= 0 && BigInt.compare excluded max <= 0) s in
+        if all_in_range then t else top_of ik
+      )
+    | `Definite x ->
+      let min, max = Size.range_big_int ik in
+      if not (Cil.isSigned ik) then
+        (* On an usigned integer type, a wrap-around should not result in top.
+           Handle wrap-around with cast_to to keep precision. *)
+        cast_to ik t
+      else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
+        t
+      ) else (
+        top_of ik
+      )
     | `Bot -> `Bot
 
   let max_of_range r =
@@ -1231,7 +1236,7 @@ struct
     | _ -> false
 
   let zero ik = of_int ik BI.zero
-  let from_excl ikind (s: S.t) = `Excluded (s, size ikind)
+  let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
   let not_zero ikind = from_excl ikind (S.singleton BI.zero)
 
   (* let of_bool x = if x then not_zero else zero *)
@@ -1362,10 +1367,18 @@ struct
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
-  let neg = lift1 BigInt.neg
-  let add  = lift2_inj BigInt.add
-  let sub  = lift2_inj BigInt.sub
-  let mul ik x y = match x, y with
+  let neg ik x = norm ik @@ lift1 BigInt.neg ik x
+  let add ik x y =
+    (match x, y with
+      | `Definite x, `Definite y -> print_endline @@ "Adding" ^ (BigInt.to_string x) ^ " and " ^ (BigInt.to_string y)
+      | _, _ -> ()
+    );
+    let res = norm ik @@ lift2_inj BigInt.add ik x y in
+    print_endline @@ sprint ~width:80 (pretty () res);
+    res
+
+  let sub ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
+  let mul ik x y = norm ik @@ match x, y with
     | `Definite z, (`Excluded _ | `Definite _) when BigInt.equal z BigInt.zero -> x
     | (`Excluded _ | `Definite _), `Definite z when BigInt.equal z BigInt.zero -> y
     | `Definite a, `Excluded (s,r)
@@ -1373,8 +1386,8 @@ struct
     (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
     | `Excluded (s,r),`Definite a when BigInt.equal (BigInt.rem a (BigInt.of_int 2)) BigInt.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
     | _ -> lift2_inj BigInt.mul ik x y
-  let div  = lift2 BigInt.div
-  let rem  = lift2 BigInt.rem
+  let div ik x y = norm ik @@ lift2 BigInt.div ik x y
+  let rem ik x y = norm ik @@ lift2 BigInt.rem ik x y
   let lt ik = lift2 BigInt.lt ik
   let gt ik = lift2 BigInt.gt ik
   let le ik = lift2 BigInt.le ik
