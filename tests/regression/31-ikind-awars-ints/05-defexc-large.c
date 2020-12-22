@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.interval --disable exp.lower-constants
+//PARAM: --disable ana.int.interval
 #include <assert.h>
 
 int main(){
