@@ -210,7 +210,9 @@ struct
         | IndexPI | PlusPI ->
           `Address (AD.map (addToAddr n) p)
         (* Pointer subtracted by a value (e-i) is very similar *)
-        | MinusPI -> let n = ID.neg n in
+        (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
+        | MinusPI ->
+          let n = ID.neg (ID.cast_to (Cilfacade.ptrdiff_ikind ()) n) in
           `Address (AD.map (addToAddr n) p)
         | Mod -> `Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
         | _ -> `Address AD.top_ptr
