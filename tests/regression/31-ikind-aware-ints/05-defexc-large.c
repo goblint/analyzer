@@ -21,7 +21,7 @@ int main(){
 
     signed long long t = s + 2;
     // Signed overflow -- The following assertion must be UNKNOWN!
-    assert(t == 1); // UNKNOWN!
+    assert(t == -9223372036854775807); // UNKNOWN!
 
     return 0;
 }
