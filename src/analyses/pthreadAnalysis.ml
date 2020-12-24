@@ -386,21 +386,19 @@ module Codegen = struct
 
     let get_id res : int64 =
       let ((resource, name) as k) = res in
-      match Hashtbl.find table k with
-      | None ->
-          let ids =
-            Hashtbl.filteri (fun (r, n) v -> r = resource) table
-            |> Hashtbl.values
-          in
-          let res =
-            if Enum.is_empty ids
-            then 0L
-            else Int64.succ (Enum.arg_max identity ids)
-          in
-          Hashtbl.replace table k res ;
-          res
-      | Some x ->
-          x
+      let next_id_gen () =
+        let ids =
+          Hashtbl.values @@ Hashtbl.filteri (fun (r, n) v -> r = resource) table
+        in
+        let next_id =
+          if Enum.is_empty ids
+          then 0L
+          else Int64.succ (Enum.arg_max identity ids)
+        in
+        Hashtbl.replace table k next_id ;
+        next_id
+      in
+      Option.default_delayed next_id_gen @@ Hashtbl.find table k
 
 
     let show_id_for_res = Int64.to_string % get_id
