@@ -14,32 +14,27 @@ module Function = struct
     | MutexInit
     | MutexLock
     | MutexUnlock
+    | CondVarInit
+    | CondVarBroadcast
+    | CondVarSignal
+    | CondVarWait
 
-  (* TODO: add cond var support *)
+  let funs =
+    [ ("pthread_create", ThreadCreate)
+    ; ("pthread_join", ThreadJoin)
+    ; ("pthread_mutex_init", MutexInit)
+    ; ("pthread_mutex_lock", MutexLock)
+    ; ("pthread_mutex_unlock", MutexUnlock)
+    ; ("pthread_cond_init", CondVarInit)
+    ; ("pthread_cond_broadcast", CondVarBroadcast)
+    ; ("pthread_cond_signal", CondVarSignal)
+    ; ("pthread_cond_wait", CondVarWait)
+    ]
 
-  let prefix = "pthread_"
 
-  let supported =
-    List.map
-      (( ^ ) prefix)
-      [ "create"; "join"; "mutex_init"; "mutex_lock"; "mutex_unlock" ]
+  let supported = List.map fst funs
 
-
-  let is_pthread_fun f = String.starts_with f prefix
-
-  let from_string = function
-    | "pthread_create" ->
-        Some ThreadCreate
-    | "pthread_join" ->
-        Some ThreadJoin
-    | "pthread_mutex_init" ->
-        Some MutexInit
-    | "pthread_mutex_lock" ->
-        Some MutexLock
-    | "pthread_mutex_unlock" ->
-        Some MutexUnlock
-    | _ ->
-        None
+  let from_string s = Option.map snd @@ List.find (( = ) s % fst) funs
 end
 
 (** [Resource] module represts different resources extracted for the analysis *)
@@ -49,6 +44,7 @@ module Resource = struct
     | Thread
     | Function
     | Mutex
+    | CondVar
   [@@deriving show]
 
   (** name of the resource in code *)
@@ -74,13 +70,17 @@ module Action = struct
     { t : varinfo  (** a global var from Tbls.ResourceTbl *)
     ; f : varinfo  (** a function being called *)
     ; tid : int
-    ; pri : int
-          (* TODO: extract this info from the thread attributes *)
-          (* TODO: have a list of args to pass?*)
-          (* ; args : varinfo list *)
+    ; pri : int (* TODO: extract this info from the thread attributes *)
     }
 
   type mutex = { mid : int }
+
+  type cond_var = { id : int }
+
+  type cond_wait =
+    { cond_var_id : int
+    ; mid : int
+    }
 
   (** uniquely identifies the function call
    ** created/defined by `fun_ctx` function *)
@@ -95,12 +95,18 @@ module Action = struct
     | MutexInit of mutex
     | MutexLock of int (* mid *)
     | MutexUnlock of int (* mid *)
+    | CondVarInit of cond_var
+    | CondVarBroadcast of int (* cond var id *)
+    | CondVarSignal of int (* cond var id *)
+    | CondVarWait of cond_wait
     | Nop
 end
 
 type thread_name = string
 
 type mutex_name = string
+
+type cond_var_name = string
 
 type fun_name = string
 
@@ -186,6 +192,14 @@ module Tbls = struct
     let make_new_val table k = all_keys_count table
   end)
 
+  module CondVarIdTbl = SymTbl (struct
+    type k = cond_var_name
+
+    type v = int
+
+    let make_new_val table k = all_keys_count table
+  end)
+
   (* context hash to differentiate function calls *)
   module CtxTbl = SymTbl (struct
     type k = int
@@ -243,11 +257,6 @@ end = struct
   let get ctx =
     let d : PthreadDomain.D.t = ctx.local in
     let node = Option.get !MyCFG.current_node in
-    (* let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname^". State: " ^ D.short 100 d in
-     * let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
-     * let procid = Process, pname in
-     * let pfuns = funs_for_process (Process,pname) in *)
-    (* determine if we are at the root of a thread or in some called function *)
     let fundec = MyCFG.getFun node in
     let thread_name =
       let cur_tid =
@@ -256,13 +265,20 @@ end = struct
       Option.get @@ Tbls.ThreadTidTbl.get_key cur_tid
     in
     let id =
-      let is_main_fun name =
-        List.mem name @@ List.map Json.string @@ GobConfig.get_list promela_main
+      let is_main_fun =
+        promela_main
+        |> GobConfig.get_list
+        |> List.map Json.string
+        |> List.mem fundec.svar.vname
       in
-      let funs_of_thread = Edges.funs_for_thread thread_name in
+      (* NOTE: but this is error-prone since function may be called directly or via pthread_create *)
+      let is_thread_fun =
+        let fun_of_thread = Edges.fun_for_thread thread_name in
+        Some fundec.svar = fun_of_thread
+      in
       let open Resource in
-      if List.exists (( = ) fundec.svar) funs_of_thread
-         || is_main_fun fundec.svar.vname
+      (* TODO: not sure this is correct. Check where id is used in Env.get *)
+      if is_thread_fun || is_main_fun
       then Resource.make Thread thread_name
       else Resource.make Function (fun_ctx d.ctx fundec.svar)
     in
@@ -291,7 +307,7 @@ and Edges : sig
 
   val filter_map_actions : (Action.t -> 'a option) -> 'a list
 
-  val funs_for_thread : thread_name -> varinfo list
+  val fun_for_thread : thread_name -> varinfo option
 end = struct
   let table = Hashtbl.create 199
 
@@ -330,7 +346,7 @@ end = struct
     List.filter_map (f % action_of_edge) all_edges
 
 
-  let funs_for_thread thread_name =
+  let fun_for_thread thread_name =
     let open Action in
     let get_funs = function
       | ThreadCreate t when Tbls.ThreadTidTbl.get_key t.tid = Some thread_name
@@ -339,7 +355,7 @@ end = struct
       | _ ->
           None
     in
-    filter_map_actions get_funs |> List.unique
+    List.hd @@ filter_map_actions get_funs
 end
 
 (** promela source code *)
@@ -404,24 +420,39 @@ module Codegen = struct
 
     let extract_mutex_init = function MutexInit x -> Some x | _ -> None
 
+    let extract_condvar_init = function CondVarInit x -> Some x | _ -> None
+
     let to_pml res = function
-      | ThreadCreate t ->
-        (* TODO: pass args to the function? like prio *)
-        "ThreadCreate(" ^ string_of_int t.tid ^ "); "
-      | ThreadJoin tid ->
-        "ThreadJoin(" ^ string_of_int tid ^ "); "
-      | MutexInit m ->
-        "MutexInit(" ^ string_of_int m.mid ^ "); "
-      | MutexLock mid ->
-        "MutexLock(" ^ string_of_int mid ^ "); "
-      | MutexUnlock mid ->
-        "MutexUnlock(" ^ string_of_int mid ^ "); "
       | Call fname ->
-        "goto Fun_" ^ fname ^ "; "
+          "goto Fun_" ^ fname ^ "; "
+      | ThreadCreate t ->
+          (* TODO: pass args to the function? like prio *)
+          "ThreadCreate(" ^ string_of_int t.tid ^ "); "
+      | ThreadJoin tid ->
+          "ThreadJoin(" ^ string_of_int tid ^ "); "
+      | MutexInit m ->
+          "MutexInit(" ^ string_of_int m.mid ^ "); "
+      | MutexLock mid ->
+          "MutexLock(" ^ string_of_int mid ^ "); "
+      | MutexUnlock mid ->
+          "MutexUnlock(" ^ string_of_int mid ^ "); "
+      | CondVarInit c_var ->
+          "CondVarInit(" ^ string_of_int c_var.id ^ "); "
+      | CondVarBroadcast id ->
+          "CondVarBroadcast(" ^ string_of_int id ^ "); "
+      | CondVarSignal id ->
+          "CondVarSignal(" ^ string_of_int id ^ "); "
+      | CondVarWait cond_var_wait ->
+          "CondVarWait("
+          ^ string_of_int cond_var_wait.cond_var_id
+          ^ ", "
+          ^ string_of_int cond_var_wait.mid
+          ^ "); "
       | Nop ->
-        ""
+          ""
   end
 
+  (* TODO: currently is not used *)
   module ReturnVarsTbl = struct
     (* this is just used to make sure that every var that is read has been written before *)
     let return_vars =
@@ -479,33 +510,35 @@ module Codegen = struct
     let rest = List.take (List.length xs - 1) xs in
     List.map (fun s -> s ^ " \\") rest @ [ last ]
 
-  let if_clause stmts = ["if"] @ List.map ((^) "::" % tabulate) stmts @ ["fi"]
 
-  let run ?arg f =
-    let arg_str = match arg with
-      | Some s -> s
-      | None -> ""
-    in
-    "run " ^ f ^ "(" ^ arg_str ^ ");"
+  let if_clause stmts =
+    [ "if" ] @ List.map (( ^ ) "::" % tabulate) stmts @ [ "fi" ]
 
-  let _ = PmlResTbl.init ()
+
+  let run ?arg f = "run " ^ f ^ "(" ^ Option.default "" arg ^ ");"
 
   let save_promela_model () =
+    let _ = PmlResTbl.init () in
+
     let threads =
       List.unique @@ Edges.filter_map_actions Action.extract_thread_create
     in
     let mutexes =
       List.unique @@ Edges.filter_map_actions Action.extract_mutex_init
     in
+    let cond_vars =
+      List.unique @@ Edges.filter_map_actions Action.extract_condvar_init
+    in
 
     let thread_count = List.length threads + 1 in
     let mutex_count = List.length mutexes in
+    let cond_var_count = List.length cond_vars in
 
     let current_thread_name = ref "" in
     let called_funs_done = ref Set.empty in
 
     let rec process_def res =
-      let _ = Resource.show res |> print_endline in
+      print_endline @@ Resource.show res ;
 
       let string_of_node = PthreadDomain.Pred.string_of_elt in
 
@@ -590,12 +623,7 @@ module Codegen = struct
 
         let walk_edges (a, out_edges) =
           let edges = Set.elements out_edges |> List.map str_edge in
-          let body =
-            if List.length edges > 1
-            then
-              if_clause edges
-            else edges
-          in
+          let body = if List.length edges > 1 then if_clause edges else edges in
           (label a ^ ":") :: body
         in
 
@@ -716,7 +744,9 @@ module Codegen = struct
               "(stack[sp] == " ^ string_of_int v ^ ") -> sp--; goto " ^ k
             in
             let if_branches = List.map dec_sp fun_calls in
-            let body = ("#define ret_" ^ name ^ "()") :: (if_clause if_branches) in
+            let body =
+              ("#define ret_" ^ name ^ "()") :: if_clause if_branches
+            in
             escape body
       in
       Tbls.FunTbl.to_list ()
@@ -728,6 +758,7 @@ module Codegen = struct
       let defs =
         [ "#define thread_count " ^ string_of_int thread_count
         ; "#define mutex_count " ^ string_of_int mutex_count
+        ; "#define cond_var_count " ^ string_of_int cond_var_count
         ; ""
         ; "#define checkStatus(op1, v, op2) " ^ checkStatus
         ; ""
@@ -752,7 +783,8 @@ module Codegen = struct
           ]
           @ run_threads
         in
-        [ "init {" ] @ List.map tabulate init_body @ [ "}" ] in
+        [ "init {" ] @ List.map tabulate init_body @ [ "}" ]
+      in
 
       let prio_def =
         List.of_enum
@@ -835,7 +867,7 @@ module Spec : Analyses.Spec = struct
 
   let enter ctx (lval : lval option) (f : varinfo) (args : exp list) :
       (D.t * D.t) list =
-        print_endline
+    print_endline
     @@ "Enter of "
     ^ f.vname
     ^ " with tid: "
@@ -843,7 +875,7 @@ module Spec : Analyses.Spec = struct
     @@ Option.default (-1L)
     @@ Tid.to_int ctx.local.tid ;
 
-    (* on function calls (also for main); not called for spawned processes *)
+    (* on function calls (also for main); not called for spawned threads *)
     let d_caller = ctx.local in
     let d_callee =
       if D.is_bot ctx.local
@@ -982,19 +1014,24 @@ module Spec : Analyses.Spec = struct
       in
       let add_action action = add_actions [ action ] in
 
-      let show_mutex mutex =
-        let host, _ = mutex in
+      let show_addr_val addr_val =
+        let host, _ = addr_val in
 
         match host with
         | Var v ->
             show_varinfo v
         | _ ->
-            failwith "can not get the name of the mutex var"
+            failwith "can not get the name of the var"
       in
 
-      let cur_tid = Int64.to_int @@ Option.get @@ PthreadDomain.Tid.to_int ctx.local.tid
+      let cur_tid =
+        Int64.to_int @@ Option.get @@ PthreadDomain.Tid.to_int ctx.local.tid
       in
-      print_endline @@ "Function: " ^ fun_name ^ " tid: " ^ string_of_int cur_tid;
+      print_endline
+      @@ "Function: "
+      ^ fun_name
+      ^ " current tid: "
+      ^ string_of_int cur_tid ;
 
       let open Function in
       match (Option.get pthread_fun, arglist) with
@@ -1026,9 +1063,7 @@ module Spec : Analyses.Spec = struct
             Tbls.ResourceTbl.get thread_res
           in
 
-          (* TODO: what's the point of the whole assign thingy?
-           *       assign, such that we can later eval it?
-           *       then we need to assign the value from code and not goblint_global_var *)
+          (* associate Thread resource with this variable *)
           Assign.id ctx (AddrOf thread) thread_goblint_var ;
 
           let tid = Tbls.ThreadTidTbl.get thread_name in
@@ -1048,11 +1083,11 @@ module Spec : Analyses.Spec = struct
 
           ctx.sideg tasks_var tasks ;
           let thread_create f =
-            Action.ThreadCreate Action.{ t = thread_goblint_var; f; tid; pri }
+            let open Action in
+            ThreadCreate { t = thread_goblint_var; f; tid; pri }
           in
           add_actions @@ List.map thread_create funs
       | ThreadJoin, [ thread; thread_ret ] ->
-          (* TODO: read from the rendezvouz message channel in order to block the execution? *)
           let potential_thread_resources = ExprEval.eval_id ctx thread in
 
           let thread_join_for_res res =
@@ -1068,17 +1103,38 @@ module Spec : Analyses.Spec = struct
           add_actions @@ List.map thread_join_for_res potential_thread_resources
       | MutexInit, [ AddrOf mutex; mutex_attr ] ->
           (* TODO: mutex_attr can be address or NULL *)
-          let mutex_action_obj =
-            let mutex_name = show_mutex mutex in
-            Action.{ mid = Tbls.MutexMidTbl.get mutex_name }
+          (* TODO: assing mutex to a resource and access it lock/unlock functions? *)
+          let mutex_action =
+            let open Action in
+            MutexInit { mid = Tbls.MutexMidTbl.get @@ show_addr_val mutex }
           in
-          add_action @@ MutexInit mutex_action_obj
+          add_action mutex_action
       | MutexLock, [ AddrOf mutex ] ->
-          let mutex_name = show_mutex mutex in
-          add_action @@ MutexLock (Tbls.MutexMidTbl.get mutex_name)
+          add_action @@ MutexLock (Tbls.MutexMidTbl.get @@ show_addr_val mutex)
       | MutexUnlock, [ AddrOf mutex ] ->
-          let mutex_name = show_mutex mutex in
-          add_action @@ MutexUnlock (Tbls.MutexMidTbl.get mutex_name)
+          add_action @@ MutexUnlock (Tbls.MutexMidTbl.get @@ show_addr_val mutex)
+      | CondVarInit, [ AddrOf cond_var; cond_var_attr ] ->
+          (* TODO: cond_var_attr can be address or NULL *)
+          let cond_var_action =
+            let open Action in
+            CondVarInit { id = Tbls.CondVarIdTbl.get @@ show_addr_val cond_var }
+          in
+          add_action cond_var_action
+      | CondVarBroadcast, [ AddrOf cond_var ] ->
+          add_action
+          @@ CondVarBroadcast (Tbls.CondVarIdTbl.get @@ show_addr_val cond_var)
+      | CondVarSignal, [ AddrOf cond_var ] ->
+          add_action
+          @@ CondVarSignal (Tbls.CondVarIdTbl.get @@ show_addr_val cond_var)
+      | CondVarWait, [ AddrOf cond_var; AddrOf mutex ] ->
+          let cond_var_action =
+            let open Action in
+            CondVarWait
+              { cond_var_id = Tbls.CondVarIdTbl.get @@ show_addr_val cond_var
+              ; mid = Tbls.MutexMidTbl.get @@ show_addr_val mutex
+              }
+          in
+          add_action cond_var_action
       | _ ->
           add_action Nop
 
