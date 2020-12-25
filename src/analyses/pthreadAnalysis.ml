@@ -427,7 +427,7 @@ module Codegen = struct
           (* TODO: pass args to the function? like prio *)
           "ThreadCreate(" ^ string_of_int t.tid ^ "); "
       | ThreadJoin tid ->
-          "ThreadJoin(" ^ string_of_int tid ^ "); "
+          "ThreadWait(" ^ string_of_int tid ^ "); "
       | MutexInit m ->
           "MutexInit(" ^ string_of_int m.mid ^ "); "
       | MutexLock mid ->
@@ -635,7 +635,7 @@ module Codegen = struct
               ^ ":"
               ^
               if is_thread
-              then " status[res] = DONE"
+              then " status[res] = DONE; ThreadBroadcast()"
               else " ret_" ^ snd res ^ "()" )
             ]
         in
@@ -661,7 +661,7 @@ module Codegen = struct
               in
               "proctype "
               ^ name
-              ^ "(byte res)"
+              ^ "(byte tid)"
               ^ priority
               ^ " provided (canRun("
               ^ Int64.to_string res_id
@@ -771,7 +771,7 @@ module Codegen = struct
         let run_threads =
           let open Action in
           (* NOTE: assumes no args are passed to the thread func *)
-          List.map (fun t -> run t.f.vname) threads
+          List.map (fun t -> run t.f.vname ~arg:(string_of_int t.tid)) threads
         in
         let init_body =
           [ "preInit;"
