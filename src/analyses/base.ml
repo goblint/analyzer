@@ -26,9 +26,9 @@ let is_static (v:varinfo): bool = v.vstorage == Static
 let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
-let privatization = ref false
+let privatization_old = ref false
 let is_private (a: Q.ask) (_,_) (v: varinfo): bool =
-  !privatization &&
+  !privatization_old &&
   (not (ThreadFlag.is_multi a) && is_precious_glob v ||
    match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
@@ -96,7 +96,7 @@ struct
     info
 
   let init () =
-    privatization := get_bool "exp.privatization";
+    privatization_old := get_string "exp.privatization" = "old";
     precious_globs := get_list "exp.precious_globs";
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
 
