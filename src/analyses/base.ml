@@ -23,30 +23,82 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
+let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
+
 let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
 let privatization_old = ref false
-let is_private (a: Q.ask) (_,_) (v: varinfo): bool =
+let is_private (a: Q.ask) _ (v: varinfo): bool =
   !privatization_old &&
   (not (ThreadFlag.is_multi a) && is_precious_glob v ||
    match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
    false)
 
-module MainFunctor(RVEval:BaseDomain.ExpEvaluator) =
+
+module VD     = BaseDomain.VD
+module CPA    = BaseDomain.CPA
+module Dep    = BaseDomain.PartDeps
+
+module type PrivParam =
+sig
+  module G: Lattice.S
+
+  val read_global: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t * VD.t
+  val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> VD.t -> CPA.t
+
+  val sync: ?privates:bool -> Q.ask -> CPA.t -> CPA.t * (varinfo * G.t) list
+end
+
+module OldPriv: PrivParam =
+struct
+  module G = BaseDomain.VD
+
+  let read_global ask getg cpa x =
+    let v =
+      match CPA.find x cpa with
+      | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
+      | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+    in
+    (cpa, v)
+
+  let write_global ask getg sideg cpa x v =
+    (* Here, an effect should be generated, but we add it to the local
+     * state, waiting for the sync function to publish it. *)
+    (* Copied from MainFunctor.update_variable *)
+    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
+      CPA.add x (VD.top ()) cpa
+    else
+      CPA.add x v cpa
+
+  let sync ?(privates=false) a cpa =
+    (* For each global variable, we create the diff *)
+    let add_var (v: varinfo) (value) (cpa,acc) =
+      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
+      let res =
+        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a cpa v)) then begin
+          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
+          (CPA.remove v cpa, (v,value) :: acc)
+        end else
+          (cpa,acc)
+      in
+      if M.tracing then M.traceu "globalize" "Done!\n";
+      res
+    in
+    (* We fold over the local state, and collect the globals *)
+    CPA.fold add_var cpa (cpa, [])
+end
+
+module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
 struct
   include Analyses.DefaultSpec
 
   exception Top
 
-  module VD     = BaseDomain.VD
-  module CPA    = BaseDomain.CPA
-  module Dep    = BaseDomain.PartDeps
-
   module Dom    = BaseDomain.DomFunctor(RVEval)
 
-  module G      = BaseDomain.VD
+  module G      = Priv.G
   module D      = Dom
   module C      = Dom
   module V      = Basetype.Variables
@@ -326,27 +378,10 @@ struct
    * State functions
    **************************************************************************)
 
-  let globalize ?(privates=false) a (cpa,dep): cpa * glob_diff  =
-    (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (cpa,acc) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
-      let res =
-        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a (cpa,dep) v)) then begin
-          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          (CPA.remove v cpa, (v,value) :: acc)
-        end else
-          (cpa,acc)
-      in
-      if M.tracing then M.traceu "globalize" "Done!\n";
-      res
-    in
-    (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var cpa (cpa, [])
-
   let sync' privates multi ctx: D.t * glob_diff =
     let cpa,dep = ctx.local in
     let privates = privates || (!GU.earlyglobs && not multi) in
-    let cpa, diff = if !GU.earlyglobs || multi then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
+    let cpa, diff = if !GU.earlyglobs || multi then Priv.sync ~privates:privates ctx.ask cpa else (cpa,[]) in
     (cpa, dep), diff
 
   let sync ctx = sync' false (ThreadFlag.is_multi ctx.ask) ctx
@@ -361,21 +396,19 @@ struct
   let rec get ?(full=false) a (gs: glob_fun) (st,dep: store) (addrs:address) (exp:exp option): value =
     let at = AD.get_type addrs in
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
-    let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
     (* Finding a single varinfo*offset pair *)
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-            match CPA.find x st with
-            | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
-            | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+        let (st, var) = if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
+            Priv.read_global a gs st x
           else begin
             if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-            CPA.find x st
+            (st, CPA.find x st)
           end
         in
+        (* TODO: do something with st *)
 
         let v = VD.eval_offset a (fun x -> get a gs (st,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
@@ -400,8 +433,6 @@ struct
     in
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
     res
-
-  let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
 
   (**************************************************************************
@@ -819,7 +850,7 @@ struct
   let eval_exp x (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
     let knownothing = fun _ -> `Top in (* our version of ask *)
-    let gs = fun _ -> `Top in (* the expression is guaranteed to not contain globals *)
+    let gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
     match (eval_rv knownothing gs x exp) with
     | `Int x -> ValueDomain.ID.to_int x
     | _ -> None
@@ -1067,15 +1098,9 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
           nst, dep
         end else begin
-          let get x st =
-            match CPA.find x st with
-            | `Bot -> (if M.tracing then M.tracec "set" "Reading from global invariant.\n"; gs x)
-            | x -> (if M.tracing then M.tracec "set" "Reading from privatized version.\n"; x)
-          in
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-          (* Here, an effect should be generated, but we add it to the local
-           * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t) nst, dep
+          let (nst, var) = Priv.read_global a gs nst x in
+          update_variable x (VD.update_offset a var offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t) nst, dep
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
@@ -2028,7 +2053,8 @@ struct
           begin match ThreadId.get_current ctx.ask with
             | `Lifted tid ->
               let rv = eval_rv ctx.ask ctx.global ctx.local exp in
-              ctx.sideg tid rv
+              let nst = Tuple2.map1 (CPA.add tid rv) st in
+              publish_all {ctx with local=nst} (* like normal return *)
             | _ -> ()
           end;
           raise Deadcode
@@ -2206,7 +2232,7 @@ module type MainSpec = sig
   val context_cpa: D.t -> BaseDomain.CPA.t
 end
 
-module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
+module rec Main:MainSpec = MainFunctor (OldPriv) (Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
