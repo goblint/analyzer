@@ -90,6 +90,37 @@ struct
     CPA.fold add_var cpa (cpa, [])
 end
 
+module PerMutexPrivBase =
+struct
+  module G = CPA
+
+  let is_unprotected ask x: bool =
+    ThreadFlag.is_multi ask &&
+    match ask (Q.MayBePublic x) with
+    | `MayBool x -> x
+    | `Top -> true
+    | _ -> failwith "PerMutexPrivBase.is_unprotected"
+
+  let sync ?privates ask cpa = (cpa, [])
+end
+
+module PerMutexOplusPriv: PrivParam =
+struct
+  include PerMutexPrivBase
+
+  let read_global ask getg cpa x =
+    if is_unprotected ask x then
+      let v = CPA.find x (getg x) in
+      let cpa' = CPA.add x v cpa in
+      (cpa', v)
+    else
+      (cpa, CPA.find x cpa)
+  let write_global ask getg sideg cpa x v =
+    let cpa' = CPA.add x v cpa in
+    sideg x (CPA.add x v (CPA.bot ()));
+    cpa'
+end
+
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
 struct
   include Analyses.DefaultSpec
@@ -2232,7 +2263,7 @@ module type MainSpec = sig
   val context_cpa: D.t -> BaseDomain.CPA.t
 end
 
-module rec Main:MainSpec = MainFunctor (OldPriv) (Main:BaseDomain.ExpEvaluator)
+module rec Main:MainSpec = MainFunctor (PerMutexOplusPriv) (Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
