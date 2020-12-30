@@ -2149,9 +2149,9 @@ struct
               begin match AD.elements a with
                 | [Addr.Addr (m, `NoOffset)] ->
                   (Priv.lock ctx.ask gs cpa m, dep)
-                | _ -> st
+                | _ -> st (* TODO: what to do here? *)
               end
-            | _ -> failwith "MainFunctor.special: weird mutex"
+            | _ -> st (* TODO: what to do here? *)
           end
         | _ -> failwith "MainFunctor.special: weird lock"
       end
@@ -2164,9 +2164,9 @@ struct
               begin match AD.elements a with
                 | [Addr.Addr (m, `NoOffset)] ->
                   (Priv.unlock ctx.ask gs ctx.sideg cpa m, dep)
-                | _ -> st
+                | _ -> st (* TODO: what to do here? *)
               end
-            | _ -> failwith "MainFunctor.special: weird mutex"
+            | _ -> st (* TODO: what to do here? *)
           end
         | _ -> failwith "MainFunctor.special: weird lock"
       end
