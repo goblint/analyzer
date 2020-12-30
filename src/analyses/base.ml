@@ -129,10 +129,19 @@ struct
       (cpa', v)
     else
       (cpa, CPA.find x cpa)
+  (* let read_global ask getg cpa x =
+    let (cpa', v) as r = read_global ask getg cpa x in
+    ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
+    r *)
   let write_global ask getg sideg cpa x v =
     let cpa' = CPA.add x v cpa in
     sideg x (CPA.add x v (CPA.bot ()));
     cpa'
+
+  (* let write_global ask getg sideg cpa x v =
+    let cpa' = write_global ask getg sideg cpa x v in
+    ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
+    cpa' *)
 
   let lock ask getg cpa m =
     let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
@@ -1920,6 +1929,7 @@ struct
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
+    (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
     let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
