@@ -48,6 +48,9 @@ sig
   val read_global: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t * VD.t
   val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> VD.t -> CPA.t
 
+  val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t
+  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> CPA.t
+
   val sync: ?privates:bool -> Q.ask -> CPA.t -> CPA.t * (varinfo * G.t) list
 end
 
@@ -71,6 +74,9 @@ struct
       CPA.add x (VD.top ()) cpa
     else
       CPA.add x v cpa
+
+  let lock ask getg cpa m = cpa
+  let unlock ask getg sideg cpa m = cpa
 
   let sync ?(privates=false) a cpa =
     (* For each global variable, we create the diff *)
@@ -101,6 +107,14 @@ struct
     | `Top -> true
     | _ -> failwith "PerMutexPrivBase.is_unprotected"
 
+  let is_protected_by ask m x: bool =
+    is_global ask x &&
+    not (VD.is_immediate_type x.vtype) &&
+    match ask (Q.MustBeProtectedBy {mutex=m; global=x}) with
+    | `MustBool x -> x
+    | `Top -> false
+    | _ -> failwith "PerMutexPrivBase.is_protected_by"
+
   let sync ?privates ask cpa = (cpa, [])
 end
 
@@ -119,6 +133,15 @@ struct
     let cpa' = CPA.add x v cpa in
     sideg x (CPA.add x v (CPA.bot ()));
     cpa'
+
+  let lock ask getg cpa m =
+    let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
+    let cpa' = CPA.filter is_in_V (getg m) in
+    CPA.fold CPA.add cpa' cpa
+  let unlock ask getg sideg cpa m =
+    let is_in_Gm x _ = is_protected_by ask m x in
+    sideg m (CPA.filter is_in_Gm cpa);
+    cpa
 end
 
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
@@ -2116,6 +2139,36 @@ struct
             | _      -> invalidate ~ctx ctx.ask gs st [ret_var]
           end
         | _      -> invalidate ~ctx ctx.ask gs st [ret_var]
+      end
+    | `Lock _ ->
+      (* TODO: don't duplicte mutexAnalysis logic *)
+      begin match args with
+        | [arg] ->
+          begin match eval_rv ctx.ask gs st arg with
+            | `Address a when not (AD.is_top a) && not (AD.mem Addr.UnknownPtr a) ->
+              begin match AD.elements a with
+                | [Addr.Addr (m, `NoOffset)] ->
+                  (Priv.lock ctx.ask gs cpa m, dep)
+                | _ -> st
+              end
+            | _ -> failwith "MainFunctor.special: weird mutex"
+          end
+        | _ -> failwith "MainFunctor.special: weird lock"
+      end
+    | `Unlock ->
+      (* TODO: don't duplicte mutexAnalysis logic *)
+      begin match args with
+        | [arg] ->
+          begin match eval_rv ctx.ask gs st arg with
+            | `Address a when not (AD.is_top a) && not (AD.mem Addr.UnknownPtr a) ->
+              begin match AD.elements a with
+                | [Addr.Addr (m, `NoOffset)] ->
+                  (Priv.unlock ctx.ask gs ctx.sideg cpa m, dep)
+                | _ -> st
+              end
+            | _ -> failwith "MainFunctor.special: weird mutex"
+          end
+        | _ -> failwith "MainFunctor.special: weird lock"
       end
     | `Malloc size -> begin
         match lv with

@@ -165,6 +165,10 @@ struct
         let intersect = Mutexes.inter held_locks lambda_v in
         let tv = Mutexes.is_empty intersect in
         `MayBool tv
+    | Queries.MustBeProtectedBy {mutex; global} ->
+      let lambda_global = ctx.global global in
+      let addr = Addr.from_var mutex in
+      `MustBool (Mutexes.mem addr lambda_global)
     | _ -> Queries.Result.top ()
 
   let may_race (ctx1,ac1) (ctx,ac2) =
