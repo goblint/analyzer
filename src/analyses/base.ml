@@ -142,6 +142,17 @@ struct
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg m (CPA.filter is_in_Gm cpa);
     cpa
+
+  let sync ?(privates=false) a cpa =
+    (* TODO: only do this for publish_all and return *)
+    let sidegs = CPA.fold (fun x v acc ->
+        if is_global a x then
+          (x, CPA.add x v (CPA.bot ())) :: acc
+        else
+          acc
+      ) cpa []
+    in
+    (cpa, sidegs)
 end
 
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
