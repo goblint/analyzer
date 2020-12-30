@@ -137,7 +137,6 @@ struct
     let cpa' = CPA.add x v cpa in
     sideg x (CPA.add x v (CPA.bot ()));
     cpa'
-
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
@@ -162,6 +161,66 @@ struct
       ) cpa []
     in
     (cpa, sidegs)
+end
+
+module PerMutexMeetPriv: PrivParam =
+struct
+  include PerMutexPrivBase
+
+  let read_global ask getg cpa x =
+    if is_unprotected ask x then (
+      ignore (Pretty.printf "READ GLOBAL UNPROTECTED %a\n" d_varinfo x);
+      (cpa, CPA.find x (getg x))
+    )
+    else
+      (cpa, CPA.find x cpa)
+  let read_global ask getg cpa x =
+    let (cpa', v) as r = read_global ask getg cpa x in
+    ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
+    r
+  let write_global ask getg sideg cpa x v =
+    let cpa' =
+      if is_unprotected ask x then
+        cpa
+      else
+        CPA.add x v cpa
+    in
+    sideg x (CPA.add x v (CPA.bot ()));
+    cpa'
+  let write_global ask getg sideg cpa x v =
+    let cpa' = write_global ask getg sideg cpa x v in
+    ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
+    cpa'
+
+  let lock ask getg cpa m =
+    CPA.meet cpa (getg m)
+  let unlock ask getg sideg cpa m =
+    let is_in_Gm x _ = is_protected_by ask m x in
+    sideg m (CPA.filter is_in_Gm cpa);
+    (* setting new unprotected to top happens in sync *)
+    cpa
+
+  let sync ?(privates=false) a cpa =
+    let (cpa', sidegs) = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
+        if is_global a x then
+          let cpa' =
+            if is_unprotected a x then
+              (* CPA.add x (VD.top ()) cpa *)
+              CPA.remove x cpa
+            else
+              cpa
+          in
+          if is_unprotected a x then (
+            ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
+            (cpa', (x, CPA.add x v (CPA.bot ())) :: sidegs)
+          )
+          else
+            (cpa', sidegs)
+        else
+          acc
+      ) cpa (cpa, [])
+    in
+    (cpa', sidegs)
 end
 
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
