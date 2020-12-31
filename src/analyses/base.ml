@@ -28,14 +28,6 @@ let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volat
 let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
-let privatization_old = ref false
-let is_private (a: Q.ask) (v: varinfo): bool =
-  !privatization_old &&
-  (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-   match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
-   if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
-   false)
-
 
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
@@ -81,6 +73,12 @@ struct
   let lock ask getg cpa m = cpa
   let unlock ask getg sideg cpa m = cpa
 
+  let is_private (a: Q.ask) (v: varinfo): bool =
+    (not (ThreadFlag.is_multi a) && is_precious_glob v ||
+     match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
+     if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
+     false)
+
   let sync ?(privates=false) a cpa =
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) (cpa,acc) =
@@ -97,8 +95,6 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var cpa (cpa, [])
-
-  let is_private = is_private
 end
 
 module PerMutexPrivBase =
@@ -300,7 +296,6 @@ struct
     info
 
   let init () =
-    privatization_old := get_string "exp.privatization" = "old";
     precious_globs := get_list "exp.precious_globs";
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
 
