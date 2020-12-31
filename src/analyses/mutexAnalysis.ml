@@ -12,7 +12,6 @@ module IdxDom = ValueDomain.IndexDomain
 module LockingPattern = Exp.LockingPattern
 module Exp = Exp.Exp
 (*module BS = Base.Spec*)
-module BS = Base.Main
 module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses

@@ -167,8 +167,7 @@ struct
     (* let _ = print_endline ( "Finalize trans") in *)
     let _ = Hashtbl.iter report_trans funs in
     if !transactional then
-      print_endline "Goblint did not find any non-transactional behavior in this program!";
-    Base.Main.finalize ()
+      print_endline "Goblint did not find any non-transactional behavior in this program!"
 
   let init () = ()
 

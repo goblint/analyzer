@@ -1259,8 +1259,7 @@ struct
     if !suppressed > 1 then
       print_endline ("However " ^ (string_of_int !suppressed) ^ " warnings have been suppressed.");
     if !filtered > 0 then
-      print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).");
-    Base.Main.finalize ()
+      print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).")
 
   let init () = (*
     let tramp = get_string "ana.osek.tramp" in

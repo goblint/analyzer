@@ -433,6 +433,7 @@ let main =
         Stats.reset Stats.SoftwareTimer;
         parse_arguments ();
         check_arguments ();
+        AfterConfig.run ();
 
         (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
           for overflows, as this will replace potential overflows with constants after wrap-around *)

@@ -2410,8 +2410,34 @@ module type MainSpec = sig
   val context_cpa: D.t -> BaseDomain.CPA.t
 end
 
-module rec Main:MainSpec = MainFunctor (PerMutexOplusPriv) (Main:BaseDomain.ExpEvaluator)
+let main_module: (module MainSpec) Lazy.t =
+  lazy (
+    let module Priv: PrivParam =
+      (val match get_string "exp.privatization" with
+        (* TODO: none? *)
+        | "old" -> (module OldPriv: PrivParam)
+        | "mutex-oplus" -> (module PerMutexOplusPriv)
+        | "mutex-meet" -> (module PerMutexMeetPriv)
+        | _ -> failwith "exp.privatization: illegal value"
+      )
+    in
+    let module Main =
+    struct
+      (* Only way to locally define a recursive module. *)
+      module rec Main:MainSpec = MainFunctor (Priv) (Main:BaseDomain.ExpEvaluator)
+      include Main
+    end
+    in
+    (module Main)
+  )
 
-let _ =
+let get_main (): (module MainSpec) =
+  Lazy.force main_module
+
+let after_config () =
+  let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
   MCP.register_analysis ~dep:["mallocWrapper"] (module Main : Spec)
+
+let _ =
+  AfterConfig.register after_config

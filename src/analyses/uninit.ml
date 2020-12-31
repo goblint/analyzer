@@ -1,7 +1,6 @@
 (** Local variable initialization analysis. *)
 
 module M = Messages
-module BS = Base.Main
 module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
 module Offs = ValueDomain.Offs
@@ -41,7 +40,7 @@ struct
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
-  let access_address ask write lv : BS.extra =
+  let access_address ask write lv =
     match ask (Queries.MayPointTo (AddrOf lv)) with
     | `LvalSet a when not (Queries.LS.is_top a) ->
       let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
@@ -49,7 +48,7 @@ struct
     | _ ->
       M.warn "Access to unknown address could be global"; []
 
-  let rec access_one_byval a rw (exp:exp): BS.extra =
+  let rec access_one_byval a rw (exp:exp) =
     match exp with
     (* Integer literals *)
     | Const _ -> []
@@ -69,8 +68,8 @@ struct
     | CastE  (t, exp) -> access_one_byval a rw exp
     | _ -> []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv_byval a (lval:lval): BS.extra =
-    let rec access_offset (ofs: offset): BS.extra =
+  and access_lv_byval a (lval:lval) =
+    let rec access_offset (ofs: offset) =
       match ofs with
       | NoOffset -> []
       | Field (fld, ofs) -> access_offset ofs
@@ -80,7 +79,7 @@ struct
     | Var x, ofs -> access_offset ofs
     | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
 
-  let access_byval a (rw: bool) (exps: exp list): BS.extra =
+  let access_byval a (rw: bool) (exps: exp list) =
     List.concat (List.map (access_one_byval a rw) exps)
 
   let access_byref ask (exps: exp list) =

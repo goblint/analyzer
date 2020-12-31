@@ -1,6 +1,5 @@
 (** Path-sensitive analysis that verifies checking the result of the malloc function. *)
 
-module BS = Base.Main
 module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
 module Offs = ValueDomain.Offs
