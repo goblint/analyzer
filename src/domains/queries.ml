@@ -42,6 +42,7 @@ type t = EqualSet of exp
        | Priority of string
        | MayBePublic of varinfo
        | MustBeProtectedBy of {mutex: varinfo; global: varinfo}
+       | MustBeAtomic
        | MustBeSingleThreaded
        | MustBeUniqueThread
        | CurrentThreadId

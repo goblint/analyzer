@@ -169,6 +169,9 @@ struct
       let lambda_global = ctx.global global in
       let addr = Addr.from_var mutex in
       `MustBool (Mutexes.mem addr lambda_global)
+    | Queries.MustBeAtomic ->
+      let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
+      `MustBool (Mutexes.mem verifier_atomic held_locks)
     | _ -> Queries.Result.top ()
 
   let may_race (ctx1,ac1) (ctx,ac2) =
