@@ -29,7 +29,7 @@ let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
 let privatization_old = ref false
-let is_private (a: Q.ask) _ (v: varinfo): bool =
+let is_private (a: Q.ask) (v: varinfo): bool =
   !privatization_old &&
   (not (ThreadFlag.is_multi a) && is_precious_glob v ||
    match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
@@ -52,6 +52,9 @@ sig
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> CPA.t
 
   val sync: ?privates:bool -> Q.ask -> CPA.t -> CPA.t * (varinfo * G.t) list
+
+  (* TODO: better name *)
+  val is_private: Q.ask -> varinfo -> bool
 end
 
 module OldPriv: PrivParam =
@@ -83,7 +86,7 @@ struct
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a cpa v)) then begin
+        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           (CPA.remove v cpa, (v,value) :: acc)
         end else
@@ -94,6 +97,8 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var cpa (cpa, [])
+
+  let is_private = is_private
 end
 
 module PerMutexPrivBase =
@@ -116,6 +121,9 @@ struct
     | _ -> failwith "PerMutexPrivBase.is_protected_by"
 
   let sync ?privates ask cpa = (cpa, [])
+
+  (* TODO: does this make sense? *)
+  let is_private ask x = true
 end
 
 module PerMutexOplusPriv: PrivParam =
@@ -1227,7 +1235,7 @@ struct
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
-        if not effect && not (is_private a (st,dep) x) then begin
+        if not effect && not (Priv.is_private a x) then begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
           nst, dep
         end else begin
@@ -1989,7 +1997,7 @@ struct
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && Priv.is_private ctx.ask k) cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
