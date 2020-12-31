@@ -49,6 +49,51 @@ sig
   val is_private: Q.ask -> varinfo -> bool
 end
 
+(* Copy of OldPriv with is_private constantly false. *)
+module NoPriv: PrivParam =
+struct
+  module G = BaseDomain.VD
+
+  let read_global ask getg cpa x =
+    let v =
+      match CPA.find x cpa with
+      | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
+      | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+    in
+    (cpa, v)
+
+  let write_global ask getg sideg cpa x v =
+    (* Here, an effect should be generated, but we add it to the local
+     * state, waiting for the sync function to publish it. *)
+    (* Copied from MainFunctor.update_variable *)
+    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
+      CPA.add x (VD.top ()) cpa
+    else
+      CPA.add x v cpa
+
+  let lock ask getg cpa m = cpa
+  let unlock ask getg sideg cpa m = cpa
+
+  let is_private (a: Q.ask) (v: varinfo): bool = false
+
+  let sync ?(privates=false) a cpa =
+    (* For each global variable, we create the diff *)
+    let add_var (v: varinfo) (value) (cpa,acc) =
+      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
+      let res =
+        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a v)) then begin
+          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
+          (CPA.remove v cpa, (v,value) :: acc)
+        end else
+          (cpa,acc)
+      in
+      if M.tracing then M.traceu "globalize" "Done!\n";
+      res
+    in
+    (* We fold over the local state, and collect the globals *)
+    CPA.fold add_var cpa (cpa, [])
+end
+
 module OldPriv: PrivParam =
 struct
   module G = BaseDomain.VD
@@ -2414,7 +2459,7 @@ let main_module: (module MainSpec) Lazy.t =
   lazy (
     let module Priv: PrivParam =
       (val match get_string "exp.privatization" with
-        (* TODO: none? *)
+        | "none" -> (module NoPriv: PrivParam)
         | "old" -> (module OldPriv: PrivParam)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
