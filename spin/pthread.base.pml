@@ -30,21 +30,30 @@ chan threads_chan[thread_count] = [thread_count] of { byte }
 // resources
 mtype = {NONE, THREAD, MUTEX, COND_VAR, TIME}
 typedef Wait {
-  mtype resource;
+  mtype resource = NONE;
   byte id;
 }
 Wait waiting[thread_count];
 
 #if mutex_count
 mtype = {UNLOCKED, LOCKED}
-mtype mutexes[mutex_count];
-chan mutexes_chan[mutex_count] = [thread_count] of { byte }
+typedef Mutex {
+  mtype status = UNLOCKED;
+  byte tid;
+  chan blockedQueue = [thread_count] of { byte };
+};
+
+Mutex mutexes[mutex_count];
 byte mutexes_created;
 #endif
 
 #if cond_var_count
+typedef CondVar {
+  byte mid;
+  chan waitQueue = [thread_count] of { byte };
+}
+
 byte cond_vars[cond_var_count];
-chan cond_vars_chan[cond_var_count] = [cond_var_count] of { byte }
 byte cond_vars_created;
 #endif
 
@@ -72,7 +81,6 @@ ltl not_suspended { ! (eventually always oneIs(SUSPENDED)) }
 ltl all_created   { eventually always noneAre(NOTCREATED) }
 
 inline preInit() {
-  waiting[0].resource = NONE;
   status[0] = RUNNING;
 }
 
@@ -128,7 +136,6 @@ inline ThreadCreate(thread_id) {
     assert(status[thread_id] == NOTCREATED);
 
     status[thread_id] = RUNNING;
-    waiting[thread_id].resource = NONE;
     threads_created++;
   }
 }
@@ -179,7 +186,6 @@ inline ThreadBroadcast() {
 inline MutexInit(mid) {
   atomic {
     printf("MutexInit: id %d\n", mid);
-    mutexes[mid] = UNLOCKED;
     mutexes_created++;
   }
 }
@@ -187,16 +193,16 @@ inline MutexInit(mid) {
 inline MutexLock(mid) {
   atomic {
     if
-    :: mutexes[mid] == LOCKED ->
+    :: mutexes[mid].status == LOCKED -> // TODO: reentrant mutex?
       printf("MutexLock will block: mutexes[%d]", mid);
 
       if
-      :: full(mutexes_chan[mid]) -> // TODO can this happen?
+      :: full(mutexes[mid].blockedQueue) -> // TODO can this happen?
         printf("FAIL: MutexLock: queue is full\n");
         assert(false);
-      :: nfull(mutexes_chan[mid]) ->
+      :: nfull(mutexes[mid].blockedQueue) ->
         printf("Thread %d put into queue for mutex %d\n", tid, mid);
-        mutexes_chan[mid]!tid; // put current process in queue
+        mutexes[mid].blockedQueue!tid; // put current process in queue
       fi;
 
       setWaiting(MUTEX, mid); // blocks this process instantly
@@ -205,9 +211,10 @@ inline MutexLock(mid) {
       // revised: atomicity is broken if a statement inside the atomic blocks, but can continue as non-atomic
       // so, atomic is broken after setWaiting, but that's ok since we're done with WaitSemaphore anyway
 
-    :: mutexes[mid] == UNLOCKED ->
+    :: mutexes[mid].status == UNLOCKED ->
       printf("MutexLock locked: mutexes[%d] = LOCKED by %d\n", mid, tid);
-      mutexes[mid] = LOCKED;
+      mutexes[mid].status = LOCKED;
+      mutexes[mid].tid = tid;
     fi
   }
 }
@@ -216,22 +223,21 @@ inline MutexUnlock(mid) {
   atomic {
     if
     // no processes waiting on this mutex -> skip
-    :: empty(mutexes_chan[mid]) -> skip
+    :: empty(mutexes[mid].blockedQueue) || mutexes[mid].tid != tid -> skip
     // otherwise it stays the same, since we will wake up a waiting process
-    :: nempty(mutexes_chan[mid]) ->
+    :: nempty(mutexes[mid].blockedQueue) && mutexes[mid].tid == tid ->
       printf("MutexUnlock: %d threads in queue for mutex %d",
-             len(mutexes_chan[mid]), mid);
+             len(mutexes[mid].blockedQueue), mid);
       byte i;
 
-      // replace this loop by using mutexes_chan[mid]?i and waking up process i? what if it's not waiting?
       for (i in status) {
         printf("MutexUnlock: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
                i, i, status[i], waiting[i].resource, waiting[i].id);
         if
-        // thread is waiting for this semaphore and is at the front of its queue TODO prio queues
-        :: isWaiting(i, MUTEX, mid) && mutexes_chan[mid]?[i] ->
+        // thread is waiting for this mutex and is at the front of its queue
+        :: isWaiting(i, MUTEX, mid) && mutexes[mid].blockedQueue?[i] ->
           printf("MutexUnlock: thread %d is waking up thread %d\n", tid, i);
-          mutexes_chan[mid]?eval(i); // consume msg from queue
+          mutexes[mid].blockedQueue?eval(i); // consume msg from queue
           setReady(i);
           break
         :: else -> skip
@@ -240,20 +246,15 @@ inline MutexUnlock(mid) {
     fi;
 
     printf("MutexUnlock unlocked: mutexes[%d] = UNLOCKED by %d\n", mid, tid);
-    mutexes[mid] = UNLOCKED;
+    mutexes[mid].status = UNLOCKED;
   }
 }
 
 #pragma mark - conditional vars
 
-// typedef struct CondVar {
-//     queue_t wq; // wait queue
-// }
-
 inline CondVarInit(cond_var_id) {
   atomic {
     printf("CondVarInit: id %d\n", cond_var_id);
-    cond_vars[cond_var_id] = 1;
     cond_vars_created++;
   }
 }
@@ -261,29 +262,25 @@ inline CondVarInit(cond_var_id) {
 // void wait(CondVar *cv, Mutex *me) {
 //     if (me->tid != tid) failure("illegal wait");
 //     enqueue(cv->wq, tid);
-
+//
 //     unlock(me);
 //     next();
 //     lock(me);
 // }
-// TODO: how to implement next call in promela?
 
 inline CondVarWait(cond_var_id, mid) {
   atomic {
     // if (me->tid != tid) failure("illegal wait");
+    assert(mutexes[mid].tid == tid)
+
+    cond_vars[cond_var_id].mid = mid
+
     // enqueue(cv->wq, tid);
-    cond_var_chan[cond_var_id]!tid
+    cond_vars[cond_var_id].waitQueue!tid
 
     // unlock(me);
     MutexUnlock(mid)
     SetWaiting(COND_VAR, cond_var_id)
-  }
-
-  // next()
-
-  atomic {
-    // lock(me);
-    MutexLock(mid)
   }
 }
 
@@ -294,22 +291,43 @@ inline CondVarWait(cond_var_id, mid) {
 
 inline CondVarSignal(cond_var_id) {
   atomic {
-    // TODO: provide implementation
-    printf("");
+    if
+    // no processes waiting on this condition var -> skip
+    :: empty(cond_vars[cond_var_id].waitQueue) -> skip
+    // otherwise it stays the same, since we will wake up a waiting process
+    :: nempty(mutexes[mid].waitQueue) ->
+      printf("CondVarSignal: %d threads in queue for condition var %d",
+             len(cond_vars[cond_var_id].waitQueue), cond_var_id);
+      byte i;
+
+      for (i in status) {
+        printf("CondVarSignal: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
+               i, i, status[i], waiting[i].resource, waiting[i].id);
+        if
+        // thread is waiting for this condition var and is at the front of its queue
+        :: isWaiting(i, COND_VAR, cond_var_id) && cond_vars[cond_var_id].waitQueue?[i] ->
+          printf("CondVarSignal: thread %d is waking up thread %d\n", tid, i);
+
+          // consume msg from queue
+          cond_vars[cond_var_id].waitQueue?eval(i);
+
+          // reacquire the mutex lock
+          assert(mutexes[cond_vars[cond_var_id].mid].status == UNLOCKED);
+          MutexLock(cond_vars[cond_var_id].mid);
+
+          setReady(i);
+          break
+        :: else -> skip
+        fi
+      };
+    fi;
   }
 }
 
-// void broadcast(CondVar *cv) {
-//     tid wait_tid = dequeue(cv->wq);
-//     while (wait_tid >= 0) {
-//         enqueue(RQ, wait_tid);
-//         wait_tid = dequeue(cv->wq);
-//     }
-// }
-
 inline CondVarBroadcast(cond_var_id) {
   atomic {
-    // TODO: provide implementation
+    // TODO: is this legit?
+    CondVarSignal(cond_var_id);
   }
 }
 
