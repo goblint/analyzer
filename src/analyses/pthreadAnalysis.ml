@@ -632,11 +632,10 @@ module Codegen = struct
           @ goto_start_node
             :: flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)
           @ [ ( end_label
-              ^ ":"
+              ^ ": "
               ^
-              if is_thread
-              then " status[res] = DONE; ThreadBroadcast()"
-              else " ret_" ^ snd res ^ "()" )
+              if is_thread then "ThreadBroadcast()" else "ret_" ^ snd res ^ "()"
+              )
             ]
         in
 
