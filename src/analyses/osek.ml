@@ -226,12 +226,13 @@ struct
   module MyParam =
   struct
     module G = LockDomain.Priorities
-    let effect_fun (ls: LockDomain.Lockset.t) =
+    let effect_fun ?write:(w=false) (ls: LockDomain.Lockset.t) =
       let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
       let prys = List.map names locks in
       let staticprys = List.filter is_task_res prys in
       let pry = resourceset_to_priority staticprys in
       if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
+    let check_fun = effect_fun
   end
 
   module M = Mutex.MakeSpec (MyParam)
@@ -565,6 +566,23 @@ struct
       List.iter dispatch accessed
 
   let query ctx (q:Queries.t) : Queries.Result.t =
+    let is_public v =
+      let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
+    if pry = min_int then
+      `MayBool false
+    else
+      let off =
+        (*         if !FlagModes.Spec.flag_list = [] then begin *)
+        match (ctx.global v: G.t) with
+        | `Bot -> min_int
+        | `Lifted i -> Int64.to_int i
+        | `Top -> max_int
+        (*           end else begin *)
+        (*             let flagstate = get_flags ctx.presub in *)
+        (*             offpry_flags flagstate v *)
+        (*           end *)
+      in `MayBool (off > pry)
+    in
     match q with
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
@@ -586,6 +604,8 @@ struct
           (*             offpry_flags flagstate v *)
           (*           end *)
         in `MayBool (off > pry)
+    | Queries.IsPublic v -> is_public v
+    | Queries.IsNotProtected v -> is_public v
     | _ -> Queries.Result.top ()
 
   let rec conv_offset x =

@@ -475,8 +475,8 @@ struct
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
-    | Queries.Access(e,b,reach,conf) ->
-      if reach || b then do_access ctx b reach conf e;
+    | Queries.Access(e,write,reach,conf) ->
+      if reach || write then do_access ctx write reach conf e;
       Access.distribute_access_exp (do_access ctx) false false conf e;
       `Bot
     | _ ->

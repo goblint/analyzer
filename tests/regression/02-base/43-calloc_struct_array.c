@@ -4,7 +4,7 @@
 #include<assert.h>
 
 struct h {
-    int a[2]; 
+    int a[2];
     int b;
 };
 

@@ -41,6 +41,8 @@ type t = EqualSet of exp
        | MayEscape of varinfo
        | Priority of string
        | MayBePublic of varinfo
+       | IsPublic of varinfo (* TODO: Combine with MayBePublic? May/Must? *)
+       | IsNotProtected of varinfo (* TODO: May/Must? *)
        | MustBeProtectedBy of {mutex: varinfo; global: varinfo}
        | MustBeAtomic
        | MustBeSingleThreaded

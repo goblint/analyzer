@@ -17,12 +17,6 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
-(** only report write races *)
-let no_read = ref false
-
-(** Only report races on these variables/types. *)
-let vips = ref ([]: string list)
-
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
 let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType))
@@ -30,7 +24,8 @@ let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlob
 module type SpecParam =
 sig
   module G: Lattice.S
-  val effect_fun: Lockset.t -> G.t
+  val effect_fun: ?write:bool -> Lockset.t -> G.t
+  val check_fun: ?write:bool -> Lockset.t -> G.t
 end
 
 (** Data race analyzer without base --- this is the new standard *)
@@ -80,7 +75,7 @@ struct
       | Some v ->
         if not (Lockset.is_bot ctx.local) then
           let ls = Lockset.filter snd ctx.local in
-          let el = P.effect_fun ls in
+          let el = P.effect_fun ~write:w ls in
           ctx.sideg v el
       | None -> M.warn "Write to unknown address: privatization is unsound."
     end;
@@ -146,16 +141,21 @@ struct
     if ThreadFlag.is_multi ctx.ask then
       ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
-  (** We just lift start state, global and dependecy functions: *)
+  (** We just lift start state, global and dependency functions: *)
   let startstate v = Lockset.empty ()
   let threadenter ctx lval f args = Lockset.empty ()
   let threadspawn ctx lval f args fctx = Lockset.empty ()
   let exitstate  v = Lockset.empty ()
 
   let query ctx (q:Queries.t) : Queries.Result.t =
+    let non_overlapping locks1 locks2 =
+      let intersect = G.join locks1 locks2 in
+      let tv = G.is_top intersect in
+      `MayBool (tv)
+    in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> `MayBool false
-    | Queries.MayBePublic v ->
+    (* | Queries.MayBePublic v ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       if Mutexes.mem verifier_atomic held_locks then
         `MayBool false
@@ -163,22 +163,25 @@ struct
         let lambda_v = ctx.global v in
         let intersect = Mutexes.inter held_locks lambda_v in
         let tv = Mutexes.is_empty intersect in
-        `MayBool tv
-    | Queries.MustBeProtectedBy {mutex; global} ->
+        `MayBool tv *)
+    | Queries.IsPublic _ when Lockset.is_bot ctx.local -> `MayBool false
+    | Queries.MayBePublic v
+    | Queries.IsPublic v ->
+      let held_locks: G.t = P.check_fun ~write:false (Lockset.filter snd ctx.local) in
+      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `MayBool false
+      else non_overlapping held_locks (ctx.global v)
+    | Queries.IsNotProtected v ->
+      let held_locks: G.t = P.check_fun ~write:true (Lockset.filter snd ctx.local) in
+      non_overlapping held_locks (ctx.global v)
+    (* | Queries.MustBeProtectedBy {mutex; global} ->
       let lambda_global = ctx.global global in
       let addr = Addr.from_var mutex in
-      `MustBool (Mutexes.mem addr lambda_global)
+      `MustBool (Mutexes.mem addr lambda_global) *)
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       `MustBool (Mutexes.mem verifier_atomic held_locks)
     | _ -> Queries.Result.top ()
 
-  let may_race (ctx1,ac1) (ctx,ac2) =
-    let write = function `Lval (_,b) | `Reach (_,b) -> b in
-    let prot_locks b ls = if b then D.filter snd ls else D.map (fun (x,_) -> (x,true)) ls in
-    let ls1 = prot_locks (write ac1) ctx1.local in
-    let ls2 = prot_locks (write ac2) ctx.local in
-    Lockset.is_empty (Lockset.ReverseAddrSet.inter ls1 ls2)
 
   (** Transfer functions: *)
 
@@ -301,11 +304,22 @@ end
 module MyParam =
 struct
   module G = LockDomain.Simple
-  let effect_fun ls =
-    Lockset.export_locks ls
+  let effect_fun ?write:(w=false) ls = Lockset.export_locks ls
+  let check_fun = effect_fun
 end
 
-module Spec = MakeSpec (MyParam)
+module WriteBased =
+struct
+  module G = Lattice.Prod (LockDomain.Simple) (LockDomain.Simple)
+  let effect_fun ?write:(w=false) ls =
+    let locks = Lockset.export_locks ls in
+    (locks, if w then locks else Mutexes.top ())
+  let check_fun ?write:(w=false) ls =
+    let locks = Lockset.export_locks ls in
+    if w then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
+end
+
+module Spec = MakeSpec (WriteBased)
 
 let _ =
   MCP.register_analysis (module Spec : Spec)

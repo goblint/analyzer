@@ -23,20 +23,20 @@ int main(void) {
     int a = d -> x;
     int b = d -> y;
 
-    assert(a != 3); 
-    assert(b != 4); 
+    assert(a != 3);
+    assert(b != 4);
 
     d -> x = 3;
     d -> y = 4;
 
     data f = {.x = 3, .y = 3};
 
-    assert(d->x == f.x); //UNKNOWN 
-    assert(d->y == f.y); //UNKNOWN 
+    assert(d->x == f.x); //UNKNOWN
+    assert(d->y == f.y); //UNKNOWN
 
     a = d -> x;
     b = d -> y;
 
-    assert(a == 3); //UNKNOWN 
-    assert(b == 4); //UNKNOWN 
+    assert(a == 3); //UNKNOWN
+    assert(b == 4); //UNKNOWN
 }
