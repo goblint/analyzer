@@ -167,6 +167,8 @@ struct
     | `Top -> false
     | _ -> failwith "PerMutexPrivBase.is_atomic"
 
+  let mutex_global x = x
+
   let sync ?privates ask cpa = (cpa, [])
 
   (* TODO: does this make sense? *)
@@ -179,7 +181,7 @@ struct
 
   let read_global ask getg cpa x =
     if is_unprotected ask x then
-      let v = CPA.find x (getg x) in
+      let v = CPA.find x (getg (mutex_global x)) in
       let cpa' = CPA.add x v cpa in
       (cpa', v)
     else
@@ -191,7 +193,7 @@ struct
   let write_global ask getg sideg cpa x v =
     let cpa' = CPA.add x v cpa in
     if not (is_atomic ask) then
-      sideg x (CPA.add x v (CPA.bot ()));
+      sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
     cpa'
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
@@ -212,7 +214,7 @@ struct
     if not (is_atomic a) then (
       let sidegs = CPA.fold (fun x v acc ->
           if is_global a x then
-            (x, CPA.add x v (CPA.bot ())) :: acc
+            (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
           else
             acc
         ) cpa []
@@ -230,7 +232,7 @@ struct
   let read_global ask getg cpa x =
     if is_unprotected ask x then (
       ignore (Pretty.printf "READ GLOBAL UNPROTECTED %a\n" d_varinfo x);
-      (cpa, VD.meet (CPA.find x cpa) (CPA.find x (getg x))) (* TODO: Vesal's additional meet, causes fixpoints not reached *)
+      (cpa, VD.meet (CPA.find x cpa) (CPA.find x (getg (mutex_global x)))) (* TODO: Vesal's additional meet, causes fixpoints not reached *)
     )
     else
       (cpa, CPA.find x cpa)
@@ -245,7 +247,7 @@ struct
       else
         CPA.add x v cpa
     in
-    sideg x (CPA.add x v (CPA.bot ()));
+    sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
     cpa'
   let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
@@ -272,7 +274,7 @@ struct
           in
           if is_unprotected a x then (
             ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
-            (cpa', (x, CPA.add x v (CPA.bot ())) :: sidegs)
+            (cpa', (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
           )
           else
             (cpa', sidegs)
