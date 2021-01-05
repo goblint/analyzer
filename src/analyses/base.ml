@@ -254,8 +254,21 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
+  let mutex_inits =
+    lazy (
+      Goblintutil.create_var @@ makeGlobalVar "MUTEX_INITS" voidType
+    )
+
   let lock ask getg cpa m =
-    CPA.meet cpa (getg m)
+    let get_m = getg m in
+    let get_mutex_inits = getg (Lazy.force mutex_inits) in
+    (* let get_mutex_inits' = CPA.filter (fun x _ -> CPA.mem x get_m) get_mutex_inits in *)
+    (* TODO: should do the filter? *)
+    let get_mutex_inits' = get_mutex_inits in
+    let join = CPA.join get_m get_mutex_inits' in
+    let meet = CPA.meet cpa join in
+    (* ignore (Pretty.printf "LOCK %a (%a):\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n  join: %a\n  meet: %a\n" d_varinfo m d_loc !Tracing.current_loc CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits' CPA.pretty join CPA.pretty meet); *)
+    meet
   let unlock ask getg sideg cpa m =
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg m (CPA.filter is_in_Gm cpa);
@@ -273,13 +286,22 @@ struct
               cpa
           in
           (* TODO: this is_top is sketchy *)
-          if not (VD.is_top v) && is_unprotected a x then (
-            (* ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa'); *)
-            (* ignore (Pretty.printf "SYNC GLOBAL %a %a (%a)\n" d_varinfo x VD.pretty v d_loc !Tracing.current_loc); *)
-            (cpa', (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
-          )
-          else
-            (cpa', sidegs)
+          let sidegs' =
+            if not (VD.is_top v) && is_unprotected a x then (
+                (* ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa'); *)
+                (* ignore (Pretty.printf "SYNC GLOBAL %a %a (%a)\n" d_varinfo x VD.pretty v d_loc !Tracing.current_loc); *)
+              (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs
+            )
+            else
+              sidegs
+          in
+          let sidegs' =
+            if reason = `Thread && not (ThreadFlag.is_multi a) then
+              (Lazy.force mutex_inits, CPA.add x v (CPA.bot ())) :: sidegs'
+            else
+              sidegs'
+          in
+          (cpa', sidegs')
         else
           acc
       ) cpa (cpa, [])
