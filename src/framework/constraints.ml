@@ -40,8 +40,8 @@ struct
              ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
     }
 
-  let sync ctx =
-    let d, diff = S.sync (conv ctx) in
+  let sync ctx reason =
+    let d, diff = S.sync (conv ctx) reason in
     D.lift d, diff
 
   let query ctx q =
@@ -119,8 +119,8 @@ struct
   let conv ctx =
     { ctx with context = (fun () -> C.unlift (ctx.context ())) }
 
-  let sync ctx =
-    let d, diff = S.sync (conv ctx) in
+  let sync ctx reason =
+    let d, diff = S.sync (conv ctx) reason in
     d, diff
 
   let query ctx q =
@@ -227,9 +227,9 @@ struct
   let lift_fun ctx f g h =
     f @@ h (g (conv ctx))
 
-  let sync ctx =
+  let sync ctx reason =
     let liftpair (x, y) = (x, snd ctx.local), y in
-    lift_fun ctx liftpair S.sync identity
+    lift_fun ctx liftpair S.sync ((|>) reason)
 
   let enter' ctx r f args =
     let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (y, snd ctx.local)) in
@@ -368,7 +368,7 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx        = let d, ds = S.sync (conv ctx) in (d, snd ctx.local), ds
+  let sync ctx reason = let d, ds = S.sync (conv ctx) reason in (d, snd ctx.local), ds
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
@@ -420,7 +420,7 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx        = let d, ds = S.sync (conv ctx) in (d, snd ctx.local), ds
+  let sync ctx reason = let d, ds = S.sync (conv ctx) reason in (d, snd ctx.local), ds
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
@@ -487,9 +487,9 @@ struct
     try f @@ h (g (conv ctx))
     with Deadcode -> b
 
-  let sync ctx =
+  let sync ctx reason =
     let liftpair (x,y) = D.lift x, y in
-    lift_fun ctx liftpair S.sync identity (`Bot, [])
+    lift_fun ctx liftpair S.sync ((|>) reason) (`Bot, [])
 
   let enter ctx r f args =
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
@@ -579,7 +579,7 @@ struct
       ignore (getl (Function f, c))
     in
     (* ... nice, right! *)
-    let pval, diff = S.sync ctx in
+    let pval, diff = S.sync ctx `Normal in
     let _ = List.iter (uncurry sideg) diff in
     { ctx with local = pval }, r
 
@@ -602,14 +602,14 @@ struct
 
   let normal_return r fd ctx sideg =
     let spawning_return = S.return ctx r fd in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } in
+    let nval, ndiff = S.sync { ctx with local = spawning_return } `Return in
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
 
   let toplevel_kernel_return r fd ctx sideg =
     let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local else S.return ctx r fd in
     let spawning_return = S.return {ctx with local = st} None MyCFG.dummy_func in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } in
+    let nval, ndiff = S.sync { ctx with local = spawning_return } `Return in
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
 
@@ -1030,8 +1030,8 @@ struct
     in
     D.fold k ctx.local a
 
-  let sync ctx =
-    fold' ctx Spec.sync identity (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
+  let sync ctx reason =
+    fold' ctx Spec.sync (fun h -> h reason) (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
 
   let query ctx q =
     (* join results so that they are sound for all paths *)

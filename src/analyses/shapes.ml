@@ -106,12 +106,12 @@ struct
 
 
 
-  let sync ctx : D.t * (varinfo*G.t) list =
+  let sync ctx reason : D.t * (varinfo*G.t) list =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     let nst, dst, rm, part = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
-    let nre, dre = Re.sync (re_context ctx re) in
+    let nre, dre = Re.sync (re_context ctx re) reason in
     let update k v m =
       let old = try RegMap.find k m with Not_found -> RS.empty () in
       if (not (RS.is_top old)) && RS.for_all (function  (`Left (v,_)) -> not (gl v) |  `Right _ -> true)  old

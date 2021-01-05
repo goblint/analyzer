@@ -206,7 +206,7 @@ struct
       (not no_mainclass) && (D.is_private_method_name f.vname) (*uncomenting the rest brakes fptr propagation*)(*&& not (D.is_public_method_name f.vname)*) (*fun may be priv andpub simultaneously*)
 
 
-  let sync ctx =
+  let sync ctx reason =
     let (x,y,z:D.t) = ctx.local in (x, y, ContainDomain.Diff.empty ()), ContainDomain.Diff.elements z
 
   let time_transfer n f =

@@ -830,7 +830,7 @@ struct
     let d = do_assigns ctx !assigns d in
     if q then raise Deadcode else d
 
-  let sync (ctx:(D.t, G.t, C.t) ctx) =
+  let sync (ctx:(D.t, G.t, C.t) ctx) reason =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -852,7 +852,7 @@ struct
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in sync context.")
         }
       in
-      let d, ds = S.sync ctx' in
+      let d, ds = S.sync ctx' reason in
       (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::(remove_assoc n @@ G.bot ())) ds) @ cs
     in
     let d,cs = fold_right f (spec_list ctx.local) ([],[]) in

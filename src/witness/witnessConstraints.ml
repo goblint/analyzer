@@ -375,8 +375,8 @@ struct
     in
     Dom.fold' k (fst ctx.local) a
 
-  let sync ctx =
-    fold'' ctx Spec.sync identity (fun ((a, async),b) x r (a',b') ->
+  let sync ctx reason =
+    fold'' ctx Spec.sync (fun h -> h reason) (fun ((a, async),b) x r (a',b') ->
         (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async), b'@b
       ) ((Dom.empty (), Sync.bot ()), [])
 

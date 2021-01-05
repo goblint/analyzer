@@ -98,8 +98,8 @@ struct
     }
   let part_access ctx = S.part_access (unlift_ctx ctx)
 
-  let sync ctx =
-    let (d, l) = S.sync (unlift_ctx ctx) in
+  let sync ctx reason =
+    let (d, l) = S.sync (unlift_ctx ctx) reason in
     (* let w = step_ctx ctx in *)
     let w = snd ctx.local in
     (d, w), l

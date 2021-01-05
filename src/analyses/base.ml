@@ -43,7 +43,7 @@ sig
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> CPA.t
 
-  val sync: ?privates:bool -> Q.ask -> CPA.t -> CPA.t * (varinfo * G.t) list
+  val sync: ?privates:bool -> [`Normal | `Return | `Init | `Thread] -> Q.ask -> CPA.t -> CPA.t * (varinfo * G.t) list
 
   (* TODO: better name *)
   val is_private: Q.ask -> varinfo -> bool
@@ -76,7 +76,7 @@ struct
 
   let is_private (a: Q.ask) (v: varinfo): bool = false
 
-  let sync ?(privates=false) a cpa =
+  let sync ?(privates=false) reason a cpa =
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
@@ -124,7 +124,7 @@ struct
      if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
      false)
 
-  let sync ?(privates=false) a cpa =
+  let sync ?(privates=false) reason a cpa =
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
@@ -169,7 +169,7 @@ struct
 
   let mutex_global x = x
 
-  let sync ?privates ask cpa = (cpa, [])
+  let sync ?privates reason ask cpa = (cpa, [])
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
@@ -209,7 +209,7 @@ struct
     sideg m (CPA.filter is_in_Gm cpa);
     cpa
 
-  let sync ?(privates=false) a cpa =
+  let sync ?(privates=false) reason a cpa =
     (* TODO: only do this for publish_all and return *)
     if not (is_atomic a) then (
       let sidegs = CPA.fold (fun x v acc ->
@@ -262,7 +262,7 @@ struct
     (* setting new unprotected to top happens in sync *)
     cpa
 
-  let sync ?(privates=false) a cpa =
+  let sync ?(privates=false) reason a cpa =
     let (cpa', sidegs) = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
         if is_global a x then
           let cpa' =
@@ -275,7 +275,7 @@ struct
           (* TODO: this is_top is sketchy *)
           if not (VD.is_top v) && is_unprotected a x then (
             (* ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa'); *)
-            ignore (Pretty.printf "SYNC GLOBAL %a %a (%a)\n" d_varinfo x VD.pretty v d_loc !Tracing.current_loc);
+            (* ignore (Pretty.printf "SYNC GLOBAL %a %a (%a)\n" d_varinfo x VD.pretty v d_loc !Tracing.current_loc); *)
             (cpa', (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
           )
           else
@@ -574,16 +574,16 @@ struct
    * State functions
    **************************************************************************)
 
-  let sync' privates multi ctx: D.t * glob_diff =
+  let sync' reason privates multi ctx: D.t * glob_diff =
     let cpa,dep = ctx.local in
     let privates = privates || (!GU.earlyglobs && not multi) in
-    let cpa, diff = if !GU.earlyglobs || multi then Priv.sync ~privates:privates ctx.ask cpa else (cpa,[]) in
+    let cpa, diff = if !GU.earlyglobs || multi then Priv.sync ~privates:privates reason ctx.ask cpa else (cpa,[]) in
     (cpa, dep), diff
 
-  let sync ctx = sync' false (ThreadFlag.is_multi ctx.ask) ctx
+  let sync ctx reason = sync' (reason :> [`Normal | `Return | `Init | `Thread]) false (ThreadFlag.is_multi ctx.ask) ctx
 
-  let publish_all ctx =
-    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true true ctx))
+  let publish_all ctx reason =
+    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason true true ctx))
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
@@ -1956,10 +1956,10 @@ struct
     let (cp,dep) = ctx.local in
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
-      publish_all ctx;
+      publish_all ctx `Init;
       cp, dep
     | "StartupHook" ->
-      publish_all ctx;
+      publish_all ctx `Init;
       cp, dep
     | _ ->
       let locals = (fundec.sformals @ fundec.slocals) in
@@ -2091,7 +2091,7 @@ struct
     (* handling thread creations *)
     | `ThreadCreate (id,start,ptc_arg) -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
-        publish_all ctx;
+        publish_all ctx `Thread;
         (* Collect the threads. *)
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
@@ -2251,7 +2251,7 @@ struct
             | `Lifted tid ->
               let rv = eval_rv ctx.ask ctx.global ctx.local exp in
               let nst = Tuple2.map1 (CPA.add tid rv) st in
-              publish_all {ctx with local=nst} (* like normal return *)
+              publish_all {ctx with local=nst} `Return (* like normal return *)
             | _ -> ()
           end;
           raise Deadcode
