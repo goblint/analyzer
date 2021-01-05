@@ -173,10 +173,10 @@ struct
     | Queries.IsNotProtected v ->
       let held_locks: G.t = P.check_fun ~write:true (Lockset.filter snd ctx.local) in
       non_overlapping held_locks (ctx.global v)
-    (* | Queries.MustBeProtectedBy {mutex; global} ->
-      let lambda_global = ctx.global global in
-      let addr = Addr.from_var mutex in
-      `MustBool (Mutexes.mem addr lambda_global) *)
+    | Queries.MustBeProtectedBy {mutex; global} ->
+      let mutex_lockset = Lockset.singleton (Addr.from_var mutex, true) in
+      let held_locks: G.t = P.check_fun ~write:false mutex_lockset in
+      `MustBool (G.leq (ctx.global global) held_locks)
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       `MustBool (Mutexes.mem verifier_atomic held_locks)
