@@ -230,7 +230,7 @@ struct
   let read_global ask getg cpa x =
     if is_unprotected ask x then (
       ignore (Pretty.printf "READ GLOBAL UNPROTECTED %a\n" d_varinfo x);
-      (cpa, CPA.find x (getg x))
+      (cpa, VD.meet (CPA.find x cpa) (CPA.find x (getg x))) (* TODO: Vesal's additional meet, causes fixpoints not reached *)
     )
     else
       (cpa, CPA.find x cpa)
