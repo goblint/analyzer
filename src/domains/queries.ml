@@ -41,7 +41,7 @@ type t = EqualSet of exp
        | MayEscape of varinfo
        | Priority of string
        | MayBePublic of {global: varinfo; write: bool} (* old behavior with write=false *)
-       | MustBeProtectedBy of {mutex: varinfo; global: varinfo} (* TODO: add write? *)
+       | MustBeProtectedBy of {mutex: varinfo; global: varinfo; write: bool}
        | MustBeAtomic
        | MustBeSingleThreaded
        | MustBeUniqueThread

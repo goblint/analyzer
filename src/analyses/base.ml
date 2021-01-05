@@ -166,7 +166,7 @@ struct
   let is_protected_by ask m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    match ask (Q.MustBeProtectedBy {mutex=m; global=x}) with
+    match ask (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
     | `MustBool x -> x
     | `Top -> false
     | _ -> failwith "PerMutexPrivBase.is_protected_by"

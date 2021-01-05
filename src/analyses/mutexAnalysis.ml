@@ -159,9 +159,9 @@ struct
       let held_locks: G.t = P.check_fun ~write (Lockset.filter snd ctx.local) in
       if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `MayBool false
       else non_overlapping held_locks (ctx.global v)
-    | Queries.MustBeProtectedBy {mutex; global} ->
+    | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (Addr.from_var mutex, true) in
-      let held_locks: G.t = P.check_fun ~write:true mutex_lockset in
+      let held_locks: G.t = P.check_fun ~write mutex_lockset in
       `MustBool (G.leq (ctx.global global) held_locks)
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
