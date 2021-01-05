@@ -127,7 +127,7 @@ struct
 
   let is_private (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-     match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
+     match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
      if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
      false)
   let is_invisible = is_private
@@ -158,7 +158,7 @@ struct
 
   let is_unprotected ask x: bool =
     ThreadFlag.is_multi ask &&
-    match ask (Q.IsNotProtected x) with
+    match ask (Q.MayBePublic {global=x; write=true}) with
     | `MayBool x -> x
     | `Top -> true
     | _ -> failwith "PerMutexPrivBase.is_unprotected"
@@ -324,19 +324,20 @@ struct
 
   let is_private (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-    match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
+    match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
     if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
     false)
 
+  (* TODO: remove duplicate now *)
   let is_invisible (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-    match a (Q.IsPublic v) with `MayBool tv -> not tv | _ ->
+    match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
     if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
     false)
 
   let is_protected (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-        match a (Q.IsNotProtected v) with `MayBool tv -> not tv | _ -> false)
+        match a (Q.MayBePublic {global=v; write=true}) with `MayBool tv -> not tv | _ -> false)
 
   let sync ?(privates=false) ctx =
     let st: BaseComponents.t = ctx.local in

@@ -155,24 +155,10 @@ struct
     in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> `MayBool false
-    (* | Queries.MayBePublic v ->
-      let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      if Mutexes.mem verifier_atomic held_locks then
-        `MayBool false
-      else
-        let lambda_v = ctx.global v in
-        let intersect = Mutexes.inter held_locks lambda_v in
-        let tv = Mutexes.is_empty intersect in
-        `MayBool tv *)
-    | Queries.IsPublic _ when Lockset.is_bot ctx.local -> `MayBool false
-    | Queries.MayBePublic v
-    | Queries.IsPublic v ->
-      let held_locks: G.t = P.check_fun ~write:false (Lockset.filter snd ctx.local) in
+    | Queries.MayBePublic {global=v; write} ->
+      let held_locks: G.t = P.check_fun ~write (Lockset.filter snd ctx.local) in
       if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `MayBool false
       else non_overlapping held_locks (ctx.global v)
-    | Queries.IsNotProtected v ->
-      let held_locks: G.t = P.check_fun ~write:true (Lockset.filter snd ctx.local) in
-      non_overlapping held_locks (ctx.global v)
     | Queries.MustBeProtectedBy {mutex; global} ->
       let mutex_lockset = Lockset.singleton (Addr.from_var mutex, true) in
       let held_locks: G.t = P.check_fun ~write:true mutex_lockset in
