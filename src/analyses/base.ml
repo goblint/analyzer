@@ -158,7 +158,7 @@ struct
 
   let is_unprotected ask x: bool =
     ThreadFlag.is_multi ask &&
-    match ask (Q.MayBePublic x) with
+    match ask (Q.IsNotProtected x) with
     | `MayBool x -> x
     | `Top -> true
     | _ -> failwith "PerMutexPrivBase.is_unprotected"
@@ -197,7 +197,7 @@ struct
       (cpa, CPA.find x cpa)
   (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
-    ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
+    ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x d_loc !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
     r *)
   let write_global ask getg sideg cpa x v =
     let cpa' = CPA.add x v cpa in
