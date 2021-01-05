@@ -231,15 +231,15 @@ struct
 
   let read_global ask getg cpa x =
     if is_unprotected ask x then (
-      ignore (Pretty.printf "READ GLOBAL UNPROTECTED %a\n" d_varinfo x);
+      (* ignore (Pretty.printf "READ GLOBAL UNPROTECTED %a\n" d_varinfo x); *)
       (cpa, VD.meet (CPA.find x cpa) (CPA.find x (getg (mutex_global x)))) (* TODO: Vesal's additional meet, causes fixpoints not reached *)
     )
     else
       (cpa, CPA.find x cpa)
-  let read_global ask getg cpa x =
+  (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
     ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
-    r
+    r *)
   let write_global ask getg sideg cpa x v =
     let cpa' =
       if is_unprotected ask x then
@@ -249,10 +249,10 @@ struct
     in
     sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
     cpa'
-  let write_global ask getg sideg cpa x v =
+  (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
-    cpa'
+    cpa' *)
 
   let lock ask getg cpa m =
     CPA.meet cpa (getg m)
@@ -267,13 +267,15 @@ struct
         if is_global a x then
           let cpa' =
             if is_unprotected a x then
-              (* CPA.add x (VD.top ()) cpa *)
-              CPA.remove x cpa
+              CPA.add x (VD.top ()) cpa
+              (* CPA.remove x cpa *)
             else
               cpa
           in
-          if is_unprotected a x then (
-            ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
+          (* TODO: this is_top is sketchy *)
+          if not (VD.is_top v) && is_unprotected a x then (
+            (* ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa'); *)
+            ignore (Pretty.printf "SYNC GLOBAL %a %a (%a)\n" d_varinfo x VD.pretty v d_loc !Tracing.current_loc);
             (cpa', (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
           )
           else
