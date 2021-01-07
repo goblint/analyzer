@@ -262,9 +262,8 @@ struct
   let lock ask getg cpa m =
     let get_m = getg m in
     let get_mutex_inits = getg (Lazy.force mutex_inits) in
-    (* let get_mutex_inits' = CPA.filter (fun x _ -> CPA.mem x get_m) get_mutex_inits in *)
-    (* TODO: should do the filter? *)
-    let get_mutex_inits' = get_mutex_inits in
+    let is_in_Gm x _ = is_protected_by ask m x in
+    let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
     let join = CPA.join get_m get_mutex_inits' in
     let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
     let meet = long_meet cpa join in
