@@ -872,7 +872,7 @@ struct
               | Some s -> `ExprSet (Queries.ES.singleton s)
               | None -> `Bot
             end;
-        | v -> `Bot;
+        | v -> `Top;
       end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
