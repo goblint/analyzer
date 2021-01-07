@@ -266,7 +266,8 @@ struct
     (* TODO: should do the filter? *)
     let get_mutex_inits' = get_mutex_inits in
     let join = CPA.join get_m get_mutex_inits' in
-    let meet = CPA.meet cpa join in
+    let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
+    let meet = long_meet cpa join in
     (* ignore (Pretty.printf "LOCK %a (%a):\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n  join: %a\n  meet: %a\n" d_varinfo m d_loc !Tracing.current_loc CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits' CPA.pretty join CPA.pretty meet); *)
     meet
   let unlock ask getg sideg cpa m =
