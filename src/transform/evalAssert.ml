@@ -39,6 +39,7 @@ module EvalAssert = struct
         | `ExprSet s ->
           let e = Queries.ES.choose s in
           [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]]
+        | `Bot -> [cInstr ("%v:assert (0);") loc [("assert", Fv !ass)]]
         | _ -> []
       in
 
