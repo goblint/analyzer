@@ -184,7 +184,7 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
     let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
     let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short () x)
   end
-  
+
   module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
     Lattice.Flat (RawBools) (struct
       let top_name = "?"

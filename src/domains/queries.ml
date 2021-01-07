@@ -40,8 +40,8 @@ type t = EqualSet of exp
        | Regions of exp
        | MayEscape of varinfo
        | Priority of string
-       | MayBePublic of varinfo
-       | MustBeProtectedBy of {mutex: varinfo; global: varinfo}
+       | MayBePublic of {global: varinfo; write: bool} (* old behavior with write=false *)
+       | MustBeProtectedBy of {mutex: varinfo; global: varinfo; write: bool}
        | MustBeAtomic
        | MustBeSingleThreaded
        | MustBeUniqueThread

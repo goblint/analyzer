@@ -32,6 +32,8 @@ let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !preciou
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
 module Dep    = BaseDomain.PartDeps
+module CVars  = BaseDomain.CachedVars
+module BaseComponents = BaseDomain.BaseComponents
 
 module type PrivParam =
 sig
@@ -43,10 +45,12 @@ sig
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> CPA.t
 
-  val sync: ?privates:bool -> [`Normal | `Return | `Init | `Thread] -> Q.ask -> CPA.t -> CPA.t * (varinfo * G.t) list
+  val sync: ?privates:bool -> [`Normal | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
 
   (* TODO: better name *)
   val is_private: Q.ask -> varinfo -> bool
+  (* TODO: remove? *)
+  val is_invisible: Q.ask -> varinfo -> bool
 end
 
 (* Copy of OldPriv with is_private constantly false. *)
@@ -75,23 +79,26 @@ struct
   let unlock ask getg sideg cpa m = cpa
 
   let is_private (a: Q.ask) (v: varinfo): bool = false
+  let is_invisible = is_private
 
-  let sync ?(privates=false) reason a cpa =
+  let sync ?(privates=false) reason ctx =
+    let a = ctx.ask in
+    let st: BaseComponents.t = ctx.local in
     (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (cpa,acc) =
+    let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          (CPA.remove v cpa, (v,value) :: acc)
+          ({st with cpa = CPA.remove v st.cpa}, (v,value) :: acc)
         end else
-          (cpa,acc)
+          (st,acc)
       in
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
     (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var cpa (cpa, [])
+    CPA.fold add_var st.cpa (st, [])
 end
 
 module OldPriv: PrivParam =
@@ -120,26 +127,29 @@ struct
 
   let is_private (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-     match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
+     match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
      if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
      false)
+  let is_invisible = is_private
 
-  let sync ?(privates=false) reason a cpa =
+  let sync ?(privates=false) reason ctx =
+    let a = ctx.ask in
+    let st: BaseComponents.t = ctx.local in
     (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (cpa,acc) =
+    let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          (CPA.remove v cpa, (v,value) :: acc)
+          ({st with cpa = CPA.remove v st.cpa}, (v,value) :: acc)
         end else
-          (cpa,acc)
+          (st,acc)
       in
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
     (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var cpa (cpa, [])
+    CPA.fold add_var st.cpa (st, [])
 end
 
 module PerMutexPrivBase =
@@ -148,7 +158,7 @@ struct
 
   let is_unprotected ask x: bool =
     ThreadFlag.is_multi ask &&
-    match ask (Q.MayBePublic x) with
+    match ask (Q.MayBePublic {global=x; write=true}) with
     | `MayBool x -> x
     | `Top -> true
     | _ -> failwith "PerMutexPrivBase.is_unprotected"
@@ -156,7 +166,7 @@ struct
   let is_protected_by ask m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    match ask (Q.MustBeProtectedBy {mutex=m; global=x}) with
+    match ask (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
     | `MustBool x -> x
     | `Top -> false
     | _ -> failwith "PerMutexPrivBase.is_protected_by"
@@ -169,10 +179,11 @@ struct
 
   let mutex_global x = x
 
-  let sync ?privates reason ask cpa = (cpa, [])
+  let sync ?privates reason ctx = (ctx.local.BaseComponents.cpa, [])
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
+  let is_invisible = is_private
 end
 
 module PerMutexOplusPriv: PrivParam =
@@ -188,7 +199,7 @@ struct
       (cpa, CPA.find x cpa)
   (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
-    ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
+    ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x d_loc !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
     r *)
   let write_global ask getg sideg cpa x v =
     let cpa' = CPA.add x v cpa in
@@ -209,7 +220,9 @@ struct
     sideg m (CPA.filter is_in_Gm cpa);
     cpa
 
-  let sync ?(privates=false) reason a cpa =
+  let sync ?(privates=false) reason ctx =
+    let a = ctx.ask in
+    let st: BaseComponents.t = ctx.local in
     (* TODO: only do this for publish_all and return *)
     if not (is_atomic a) then (
       let sidegs = CPA.fold (fun x v acc ->
@@ -217,12 +230,12 @@ struct
             (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
           else
             acc
-        ) cpa []
+        ) st.cpa []
       in
-      (cpa, sidegs)
+      (st, sidegs)
     )
     else
-      (cpa, [])
+      (st, [])
 end
 
 module PerMutexMeetPriv: PrivParam =
@@ -279,20 +292,22 @@ struct
     (* setting new unprotected to top happens in sync *)
     cpa
 
-  let sync ?(privates=false) reason a cpa =
-    let (cpa', sidegs) = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
+  let sync ?(privates=false) reason ctx =
+    let a = ctx.ask in
+    let st: BaseComponents.t = ctx.local in
+    let (st', sidegs) = CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
         if is_global a x then
-          let cpa' =
+          let st' =
             if is_unprotected a x then
-              CPA.add x (VD.top ()) cpa
-              (* CPA.remove x cpa *)
+              {st with cpa = CPA.add x (VD.top ()) st.cpa}
+              (* {st with cpa = CPA.remove x st.cpa} *)
             else
-              cpa
+              st
           in
           (* TODO: this is_top is sketchy *)
           let sidegs' =
             if not (VD.is_top v) && is_unprotected a x then (
-                (* ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa'); *)
+                (* ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty st'.cpa); *)
                 (* ignore (Pretty.printf "SYNC GLOBAL %a %a (%a)\n" d_varinfo x VD.pretty v d_loc !Tracing.current_loc); *)
               (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs
             )
@@ -305,12 +320,81 @@ struct
             else
               sidegs'
           in
-          (cpa', sidegs')
+          (st', sidegs')
         else
           acc
-      ) cpa (cpa, [])
+      ) st.cpa (st, [])
     in
-    (cpa', sidegs)
+    (st', sidegs)
+end
+
+module PerGlobalPriv: PrivParam =
+struct
+  module G = BaseDomain.VD
+
+  let read_global ask getg cpa x =
+    let v =
+      match CPA.find x cpa with
+      | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
+      | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+    in
+    (cpa, v)
+
+  let write_global ask getg sideg cpa x v =
+    (* Here, an effect should be generated, but we add it to the local
+    * state, waiting for the sync function to publish it. *)
+    (* Copied from MainFunctor.update_variable *)
+    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
+      CPA.add x (VD.top ()) cpa
+    else
+      CPA.add x v cpa
+
+  let lock ask getg cpa m = cpa
+  let unlock ask getg sideg cpa m = cpa
+
+  let is_private (a: Q.ask) (v: varinfo): bool =
+    (not (ThreadFlag.is_multi a) && is_precious_glob v ||
+    match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
+    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
+    false)
+
+  (* TODO: remove duplicate now *)
+  let is_invisible (a: Q.ask) (v: varinfo): bool =
+    (not (ThreadFlag.is_multi a) && is_precious_glob v ||
+    match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
+    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
+    false)
+
+  let is_protected (a: Q.ask) (v: varinfo): bool =
+    (not (ThreadFlag.is_multi a) && is_precious_glob v ||
+        match a (Q.MayBePublic {global=v; write=true}) with `MayBool tv -> not tv | _ -> false)
+
+  let sync ?(privates=false) reason ctx =
+    let st: BaseComponents.t = ctx.local in
+    (* For each global variable, we create the diff *)
+    let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
+      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
+      let res =
+        if is_global ctx.ask v then
+          let protected = is_protected ctx.ask v in
+          if privates && not (is_precious_glob v) || not protected then begin
+            if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
+            ({ st with cpa = CPA.remove v st.cpa; cached = CVars.remove v st.cached} , (v,value) :: acc)
+          end else (* protected == true *)
+            let (st, acc) = if not (CVars.mem v st.cached) then
+              let joined = VD.join (CPA.find v st.cpa) (ctx.global v) in
+              ( {st with cpa = CPA.add v joined st.cpa} ,acc)
+             else (st,acc)
+            in
+            let invisible = is_invisible ctx.ask v in
+            if not invisible then (st, (v,value) :: acc) else (st,acc)
+        else (st,acc)
+      in
+      if M.tracing then M.traceu "globalize" "Done!\n";
+      res
+    in
+    (* We fold over the local state, and collect the globals *)
+    CPA.fold add_var st.cpa (st, [])
 end
 
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
@@ -326,21 +410,17 @@ struct
   module C      = Dom
   module V      = Basetype.Variables
 
-
-  let name () = "base"
-  let startstate v = CPA.bot (), Dep.bot ()
-  let exitstate  v = CPA.bot (), Dep.bot ()
-
-
-  let morphstate v (cpa,dep) = cpa, dep
-
-  type cpa = CPA.t
   type extra = (varinfo * Offs.t * bool) list
   type store = D.t
   type value = VD.t
   type address = AD.t
   type glob_fun  = V.t -> G.t
   type glob_diff = (V.t * G.t) list
+
+  let name () = "base"
+  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = CVars.top ()}
+  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = CVars.top ()}
+  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = CVars.top ()}
 
   (**************************************************************************
    * Helpers
@@ -369,6 +449,9 @@ struct
       | `Varinfo (`Lifted vinfo) -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
+
+  (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
+  let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
   let init () =
     precious_globs := get_list "exp.precious_globs";
@@ -601,38 +684,39 @@ struct
    **************************************************************************)
 
   let sync' reason privates multi ctx: D.t * glob_diff =
-    let cpa,dep = ctx.local in
     let privates = privates || (!GU.earlyglobs && not multi) in
-    let cpa, diff = if !GU.earlyglobs || multi then Priv.sync ~privates:privates reason ctx.ask cpa else (cpa,[]) in
-    (cpa, dep), diff
+    if !GU.earlyglobs || multi then Priv.sync ~privates:privates reason ctx else (ctx.local,[])
 
   let sync ctx reason = sync' (reason :> [`Normal | `Return | `Init | `Thread]) false (ThreadFlag.is_multi ctx.ask) ctx
 
   let publish_all ctx reason =
     List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason true true ctx))
 
+  let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): store * value =
+    if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
+      let (cpa', v) = Priv.read_global a gs st.cpa x in
+      ({st with cpa=cpa'}, v)
+    else begin
+      if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+      (st, CPA.find x st.cpa)
+    end
+
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
-  let rec get ?(full=false) a (gs: glob_fun) (st,dep: store) (addrs:address) (exp:exp option): value =
+  let rec get ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.get_type addrs in
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
-    if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
+    if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let (st, var) = if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-            Priv.read_global a gs st x
-          else begin
-            if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-            (st, CPA.find x st)
-          end
-        in
+        let (st,var) = get_var a gs st x in
         (* TODO: do something with st *)
 
-        let v = VD.eval_offset a (fun x -> get a gs (st,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
+        let v = VD.eval_offset a (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
           | `Blob (c,s,_) -> c
@@ -776,15 +860,15 @@ struct
 
   let drop_interval32 = CPA.map (function `Int x -> `Int (ID.no_interval32 x) | x -> x)
 
-  let context (cpa,dep) =
-    let f t f (cpa,dep) = if t then f cpa, dep else cpa, dep in
-    (cpa,dep) |>
+  let context (st: store): store =
+    let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
+    st |>
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
     %> f (get_bool "exp.addr-context") drop_non_ptrs
     %> f (get_bool "exp.no-int-context") drop_ints
     %> f (get_bool "exp.no-interval32-context") drop_interval32
 
-  let context_cpa (cpa,dep) = fst @@ context (cpa,dep)
+  let context_cpa (st: store) = (context st).cpa
 
   let convertToQueryLval x =
     let rec offsNormal o =
@@ -1243,14 +1327,14 @@ struct
       end
     | _ -> Q.Result.top ()
 
-  let update_variable variable value state =
+  let update_variable variable value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top ()) state
+      CPA.add variable (VD.top ()) cpa
     else
-      CPA.add variable value state
+      CPA.add variable value cpa
 
   (** Add dependencies between a value and the expression it (or any of its contents) are partitioned by *)
-  let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st,dep:store):store =
+  let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st:store):store =
     let add_one_dep (array:varinfo) (var:varinfo) dep =
       let vMap = Dep.find_opt var dep |? Dep.VarSet.empty () in
       let vMapNew = Dep.VarSet.add array vMap in
@@ -1262,17 +1346,17 @@ struct
     | `Union _ ->
       begin
         let vars_in_paritioning = VD.affecting_vars value in
-        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_paritioning in
-        (st, dep_new)
+        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_paritioning in
+        { st with deps = dep_new }
       end
     (* `List and `Blob cannot contain arrays *)
-    | _ ->  (st, dep)
+    | _ ->  st
 
 
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
-  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st,dep: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
+  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x y z in (* refers to defintion that is outside of set *)
@@ -1280,10 +1364,11 @@ struct
       r
     in
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
-    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
+    let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
+    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
-    let update_one_addr (x, offs) (nst, dep): store =
+    let update_one_addr (x, offs) (st: store): store =
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
@@ -1302,39 +1387,41 @@ struct
               M.warn ("Cil.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset));
               lval_type
       in
-      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
+      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st.cpa;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
-        nst, dep
+        st
       end else
       if get_bool "exp.globs_are_top" then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: BAD? exp.globs_are_top is set \n";
-        CPA.add x `Top nst, dep
+        { st with cpa = CPA.add x `Top st.cpa }
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
-        if not effect && not (Priv.is_private a x) then begin
+        let protected = Priv.is_invisible a x in
+        if not effect && not protected then begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
-          nst, dep
+          st
         end else begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-          let (nst, var) = Priv.read_global a gs nst x in
-          Priv.write_global a gs (Option.get ctx).sideg nst x (VD.update_offset a var offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t), dep
+          let (nst, var) = Priv.read_global a gs st.cpa x in
+          { st with
+                cpa = Priv.write_global a gs (Option.get ctx).sideg nst x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t);
+                cached = CVars.add x st.cached}
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) t in
+        let new_value = VD.update_offset a (CPA.find x st.cpa) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
-        let effect_on_arrays a (st, dep)=
+        let effect_on_arrays a (st: store) =
           let affected_arrays =
-            let set = Dep.find_opt x dep |? Dep.VarSet.empty () in
+            let set = Dep.find_opt x st.deps |? Dep.VarSet.empty () in
             Dep.VarSet.elements set
           in
           let movement_for_expr l' r' currentE' =
@@ -1355,8 +1442,8 @@ struct
               else
                 None
           in
-          let effect_on_array actually_moved arr (st,dep):store =
-            let v = CPA.find arr st in
+          let effect_on_array actually_moved arr (st: store):store =
+            let v = CPA.find arr st.cpa in
             let nval =
               if actually_moved then
                 match lval_raw, rval_raw with
@@ -1371,7 +1458,7 @@ struct
                 let patched_ask =
                 match ctx with
                 | Some ctx ->
-                  let patched = swap_st ctx (st,dep) in
+                  let patched = swap_st ctx st in
                   query patched
                 | _ ->
                   a
@@ -1379,14 +1466,14 @@ struct
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
                 VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
             in
-            update_variable arr nval st, dep
+            { st with cpa = update_variable arr nval st.cpa }
           in
           (* change_array is false if a change to the way arrays are partitioned is not necessary *)
           (* for now, this is only the case when guards are evaluated *)
-          List.fold_left (fun x y -> effect_on_array change_array y x) (st,dep) affected_arrays
+          List.fold_left (fun x y -> effect_on_array change_array y x) st affected_arrays
         in
-        let x_updated = update_variable x new_value nst in
-        let with_dep = add_partitioning_dependencies x new_value (x_updated, dep) in
+        let x_updated = update_variable x new_value st.cpa in
+        let with_dep = add_partitioning_dependencies x new_value {st with cpa = x_updated } in
         effect_on_arrays a with_dep
       end
     in
@@ -1397,38 +1484,38 @@ struct
     in try
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
-      let nst = AD.fold update_one lval (st, dep) in
+      let nst = AD.fold update_one lval st in
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state1 %a\n" CPA.pretty nst; *)
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
-      let nst = if AD.cardinal lval > 1 then (CPA.join st (fst nst), dep) else nst in
+      let nst = if AD.cardinal lval > 1 then { nst with cpa = CPA.join st.cpa nst.cpa } else nst in
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state2 %a\n" CPA.pretty nst; *)
       nst
     with
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
-      M.warn_each "Assignment to unknown address"; (st,dep)
+      M.warn_each "Assignment to unknown address"; st
 
-  let set_many ?ctx a (gs:glob_fun) (st,dep as store: store) lval_value_list: store =
+  let set_many ?ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
       set ~ctx a gs acc lval typ value
     in
     (* And fold over the list starting from the store turned wstore: *)
-    List.fold_left f store lval_value_list
+    List.fold_left f st lval_value_list
 
-  let rem_many a (st,dep: store) (v_list: varinfo list): store =
+  let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
     let g dep v = Dep.remove v dep in
-    List.fold_left f st v_list, List.fold_left g dep v_list
+    { st with cpa = List.fold_left f st.cpa v_list; deps = List.fold_left g st.deps v_list }
 
   (* Removes all partitionings done according to this variable *)
-  let rem_many_paritioning a (s:store) (v_list: varinfo list):store =
+  let rem_many_paritioning a (st:store) (v_list: varinfo list):store =
     (* Removes the partitioning information from all affected arrays, call before removing locals *)
-    let rem_partitioning a (st,dep:store) (x:varinfo):store =
+    let rem_partitioning a (st:store) (x:varinfo):store =
       let affected_arrays =
-        let set = Dep.find_opt x dep |? Dep.VarSet.empty () in
+        let set = Dep.find_opt x st.deps |? Dep.VarSet.empty () in
         Dep.VarSet.elements set
       in
       let effect_on_array arr st =
@@ -1436,10 +1523,10 @@ struct
         let nval = VD.affect_move ~replace_with_const:(get_bool ("exp.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
         update_variable arr nval st
       in
-      let nst = List.fold_left (fun x y -> effect_on_array y x) st affected_arrays in
-      (nst, dep) in
+      { st with cpa = List.fold_left (fun x y -> effect_on_array y x) st.cpa affected_arrays }
+    in
     let f s v = rem_partitioning a s v in
-    List.fold_left f s v_list
+    List.fold_left f st v_list
 
  (**************************************************************************
    * Auxillary functions
@@ -1608,11 +1695,11 @@ struct
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
       st
 
-  let invariant ctx a gs st exp tv =
+  let invariant ctx a gs st exp tv: store =
     let open Deriving.Cil in
     let fallback reason =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
-      fst (invariant ctx a gs st exp tv)
+      (invariant ctx a gs st exp tv).cpa
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
@@ -1728,7 +1815,7 @@ struct
     in
     let eval e = eval_rv a gs st e in
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
-    let set' lval v = fst (set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
+    let set' lval v = (set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)).cpa in
     let rec inv_exp c exp =
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if ID.is_bot c then raise Deadcode;
@@ -1778,7 +1865,7 @@ struct
           if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
           set' x v
         )
-      | Const _ -> fst st (* nothing to do *)
+      | Const _ -> st.cpa (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e)
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e with
@@ -1810,7 +1897,7 @@ struct
           let ik = Cilfacade.get_ikind (typeOf exp) in
           ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
       in
-      Tuple2.map1 (fun _ -> inv_exp itv exp) st
+      { st with cpa = inv_exp itv exp }
 
   let set_savetop ?ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     match v with
@@ -1978,19 +2065,17 @@ struct
     let inits = List.map init_var f.slocals in
     set_many ~ctx ctx.ask ctx.global ctx.local inits
 
-  let return ctx exp fundec =
-    let (cp,dep) = ctx.local in
+  let return ctx exp fundec: store =
+    let st: store = ctx.local in
     match fundec.svar.vname with
-    | "__goblint_dummy_init" ->
-      publish_all ctx `Init;
-      cp, dep
+    | "__goblint_dummy_init"
     | "StartupHook" ->
       publish_all ctx `Init;
-      cp, dep
+      st
     | _ ->
       let locals = (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_paritioning ctx.ask ctx.local locals in
-      let nst = rem_many ctx.ask nst_part locals in
+      let nst: store = rem_many ctx.ask nst_part locals in
       match exp with
       | None -> nst
       | Some exp ->
@@ -2000,9 +2085,9 @@ struct
           | _ -> assert false
         in
         let rv = eval_rv ctx.ask ctx.global ctx.local exp in
-        let nst =
+        let nst: store =
           match ThreadId.get_current ctx.ask with
-          | `Lifted tid when ThreadReturn.is_current ctx.ask -> Tuple2.map1 (CPA.add tid rv) nst
+          | `Lifted tid when ThreadReturn.is_current ctx.ask -> { nst with cpa = CPA.add tid rv nst.cpa}
           | _ -> nst
         in
         set ~ctx:(Some ctx) ~t_override ctx.ask ctx.global nst (return_var ()) t_override rv
@@ -2071,21 +2156,21 @@ struct
 
 
   let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
-    let (cpa,dep) as st = ctx.local in
+    let st: store = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ctx.ask ctx.global st) args in
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && Priv.is_private ctx.ask k) cpa in
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k && Priv.is_invisible ctx.ask k) st.cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
-    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
-    new_cpa, dep
+    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    { st with cpa = new_cpa }
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -2188,7 +2273,7 @@ struct
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
-    let cpa,dep as st = ctx.local in
+    let st: store = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
     | `Unknown "F59" (* strcpy *)
@@ -2276,7 +2361,7 @@ struct
           begin match ThreadId.get_current ctx.ask with
             | `Lifted tid ->
               let rv = eval_rv ctx.ask ctx.global ctx.local exp in
-              let nst = Tuple2.map1 (CPA.add tid rv) st in
+              let nst = {st with cpa=CPA.add tid rv st.cpa} in
               publish_all {ctx with local=nst} `Return (* like normal return *)
             | _ -> ()
           end;
@@ -2299,7 +2384,7 @@ struct
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
-        | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> cpa,dep
+        | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv ctx.ask gs st id with
             | `Address a ->
@@ -2317,7 +2402,7 @@ struct
             | `Address a when not (AD.is_top a) && not (AD.mem Addr.UnknownPtr a) ->
               begin match AD.elements a with
                 | [Addr.Addr (m, `NoOffset)] ->
-                  (Priv.lock ctx.ask gs cpa m, dep)
+                  {st with cpa=Priv.lock ctx.ask gs st.cpa m}
                 | _ -> st (* TODO: what to do here? *)
               end
             | _ -> st (* TODO: what to do here? *)
@@ -2332,7 +2417,7 @@ struct
             | `Address a when not (AD.is_top a) && not (AD.mem Addr.UnknownPtr a) ->
               begin match AD.elements a with
                 | [Addr.Addr (m, `NoOffset)] ->
-                  (Priv.unlock ctx.ask gs ctx.sideg cpa m, dep)
+                  {st with cpa=Priv.unlock ctx.ask gs ctx.sideg st.cpa m}
                 | _ -> st (* TODO: what to do here? *)
               end
             | _ -> st (* TODO: what to do here? *)
@@ -2390,9 +2475,9 @@ struct
                   mkAddrOf (Var v, NoOffset) :: a
                 else a
               in
-              let addrs = CPA.fold st_expr cpa args in
+              let addrs = CPA.fold st_expr st.cpa args in
               (* invalidate arguments for unknown functions *)
-              let (cpa,dep as st) = invalidate ~ctx ctx.ask gs st addrs in
+              let st = invalidate ~ctx ctx.ask gs st addrs in
               (*
                *  TODO: invalidate vars reachable via args
                *  publish globals
@@ -2414,46 +2499,45 @@ struct
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
-    let combine_one (loc,ldep as st: D.t) ((fun_st,fun_dep) as fun_d: D.t) =
+    let combine_one (st: D.t) (fun_st: D.t) =
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
-      let add_globals (cpa_s,dep_s) (cpa_d, dep_d) =
+      let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_s = CPA.remove (return_varinfo ()) cpa_s in
-        let new_cpa = CPA.fold CPA.add cpa_s cpa_d in
-        (new_cpa, dep_s)
+        let cpa_s = CPA.remove (return_varinfo ()) st.cpa in
+        let new_cpa = CPA.fold CPA.add cpa_s fun_st.cpa in
+        { st with cpa = new_cpa }
       in
       let return_var = return_var () in
       let return_val =
-        if CPA.mem (return_varinfo ()) fun_st
-        then get ctx.ask ctx.global fun_d return_var None
+        if CPA.mem (return_varinfo ()) fun_st.cpa
+        then get ctx.ask ctx.global fun_st return_var None
         else VD.top ()
       in
-      let st = add_globals (fun_st, fun_dep) st in
+      let st = add_globals fun_st st in
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) (Cil.typeOfLval lval) return_val
     in
     combine_one ctx.local after
 
-  let call_descr f (es,dep) =
+  let call_descr f (st: store) =
     let short_fun x =
-      match x.vtype, CPA.find x es with
+      match x.vtype, CPA.find x st.cpa with
       | TPtr (t, attr), `Address a
         when (not (AD.is_top a))
           && List.length (AD.to_var_may a) = 1
           && not (VD.is_immediate_type t)
         ->
         let cv = List.hd (AD.to_var_may a) in
-        "ref " ^ VD.short 26 (CPA.find cv es)
+        "ref " ^ VD.short 26 (CPA.find cv st.cpa)
       | _, v -> VD.short 30 v
     in
     let args_short = List.map short_fun f.sformals in
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" 80 args_short
-
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t =
     try
@@ -2493,6 +2577,7 @@ let main_module: (module MainSpec) Lazy.t =
         | "old" -> (module OldPriv: PrivParam)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
+        | "global" -> (module PerGlobalPriv)
         | _ -> failwith "exp.privatization: illegal value"
       )
     in

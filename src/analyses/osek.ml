@@ -226,12 +226,13 @@ struct
   module MyParam =
   struct
     module G = LockDomain.Priorities
-    let effect_fun (ls: LockDomain.Lockset.t) =
+    let effect_fun ?write:(w=false) (ls: LockDomain.Lockset.t) =
       let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
       let prys = List.map names locks in
       let staticprys = List.filter is_task_res prys in
       let pry = resourceset_to_priority staticprys in
       if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
+    let check_fun = effect_fun
   end
 
   module M = Mutex.MakeSpec (MyParam)
@@ -570,7 +571,7 @@ struct
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       `Int (Int64.of_int pry)
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
-    | Queries.MayBePublic v ->
+    | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
         `MayBool false

@@ -9,5 +9,5 @@ int main(void) {
     assert(ro[1] == 0);
 
     ro[0] = 3;
-    assert(ro[1] != 3); //UNKNOWN 
+    assert(ro[1] != 3); //UNKNOWN
 }
