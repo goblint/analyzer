@@ -232,7 +232,11 @@ struct
   let read_global ask getg cpa x =
     if is_unprotected ask x then (
       (* ignore (Pretty.printf "READ GLOBAL UNPROTECTED %a\n" d_varinfo x); *)
-      (cpa, VD.meet (CPA.find x cpa) (CPA.find x (getg (mutex_global x)))) (* TODO: Vesal's additional meet, causes fixpoints not reached *)
+      (*(cpa, VD.meet (CPA.find x cpa) (CPA.find x (getg (mutex_global x)))) *) (* TODO: Vesal's additional meet, causes fixpoints not reached *)
+
+      (* TODO: only do long_meet for x instead of entire map *)
+      let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
+      (cpa, CPA.find x (long_meet cpa (getg (mutex_global x))))
     )
     else
       (cpa, CPA.find x cpa)
