@@ -397,6 +397,97 @@ struct
     CPA.fold add_var st.cpa (st, [])
 end
 
+module PerGlobalPriv2: PrivParam =
+struct
+  module GUnprot =
+  struct
+    include VD
+    let name () = "unprotected"
+  end
+  module GProt =
+  struct
+    include VD
+    let name () = "protected"
+  end
+  module G = Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
+
+  let is_unprotected ask x: bool =
+    ThreadFlag.is_multi ask &&
+    match ask (Q.MayBePublic {global=x; write=true}) with
+    | `MayBool x -> x
+    | `Top -> true
+    | _ -> failwith "PerGlobalPriv2.is_unprotected"
+
+  let is_protected ask x = not (is_unprotected ask x)
+
+  let is_protected_by ask m x: bool =
+    is_global ask x &&
+    not (VD.is_immediate_type x.vtype) &&
+    match ask (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
+    | `MustBool x -> x
+    | `Top -> false
+    | _ -> failwith "PerGlobalPriv2.is_protected_by"
+
+  let read_global ask getg (st: BaseComponents.t) x =
+    let (cpa', v) =
+      if CVars.mem x st.cached then
+        (st.cpa, CPA.find x st.cpa)
+      else if is_unprotected ask x then
+        let v = fst (getg x) in
+        (CPA.add x v st.cpa, v)
+      else if CPA.mem x st.cpa then
+        let v = VD.join (CPA.find x st.cpa) (snd (getg x)) in
+        (CPA.add x v st.cpa, v)
+      else
+        let v = snd (getg x) in
+        (CPA.add x v st.cpa, v)
+    in
+    (* TODO: sideg? *)
+    ({st with cpa = cpa'; cached = CVars.filter (is_protected ask) st.cached}, v)
+
+  let write_global ask getg sideg (st: BaseComponents.t) x v =
+    let cpa' = CPA.add x v st.cpa in
+    sideg x (v, VD.bot ());
+    {st with cpa = cpa'; cached = CVars.filter (is_protected ask) st.cached}
+
+  let lock ask getg cpa m = cpa
+
+  let unlock ask getg sideg cpa m =
+    (* TODO: what about G_m globals in cpa that weren't actually written? *)
+    let is_in_Gm x _ = is_protected_by ask m x in
+    let is_not_in_Gm x v = not (is_in_Gm x v) in
+    let cpa' = CPA.filter is_not_in_Gm cpa in
+    CPA.iter (fun x v ->
+        sideg x (VD.bot (), v)
+      ) (CPA.filter is_in_Gm cpa);
+    (* setting new cached happens in sync *)
+    cpa'
+
+  let sync ?(privates=false) reason ctx =
+    let ask = ctx.ask in
+    let st: BaseComponents.t = ctx.local in
+    let (st', sidegs) =
+      CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
+          if is_global ask x then (
+            if reason = `Thread && not (ThreadFlag.is_multi ask) then
+              ({st with cpa = CPA.remove x st.cpa}, (x, (v, v)) :: sidegs)
+            else if not (is_protected ask x) then
+              ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, sidegs)
+            else
+              acc
+          )
+          else
+            acc
+        ) st.cpa (st, [])
+    in
+    (* ({st' with cached = CVars.filter (is_protected ask) st'.cached}, sidegs) *)
+    (st', sidegs)
+
+  (* ??? *)
+  let is_private ask x = true
+  let is_invisible = is_private
+end
+
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
 struct
   include Analyses.DefaultSpec
@@ -2576,6 +2667,7 @@ let main_module: (module MainSpec) Lazy.t =
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "global" -> (module PerGlobalPriv)
+        | "global2" -> (module PerGlobalPriv2)
         | _ -> failwith "exp.privatization: illegal value"
       )
     in
