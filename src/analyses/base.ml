@@ -39,7 +39,7 @@ module type PrivParam =
 sig
   module G: Lattice.S
 
-  val read_global: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t * VD.t
+  val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> varinfo -> BaseComponents.t * VD.t
   val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> VD.t -> BaseComponents.t
 
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t
@@ -58,13 +58,13 @@ module NoPriv: PrivParam =
 struct
   module G = BaseDomain.VD
 
-  let read_global ask getg cpa x =
+  let read_global ask getg (st: BaseComponents.t) x =
     let v =
-      match CPA.find x cpa with
+      match CPA.find x st.cpa with
       | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
       | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
     in
-    (cpa, v)
+    (st, v)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
@@ -105,13 +105,13 @@ module OldPriv: PrivParam =
 struct
   module G = BaseDomain.VD
 
-  let read_global ask getg cpa x =
+  let read_global ask getg (st: BaseComponents.t) x =
     let v =
-      match CPA.find x cpa with
+      match CPA.find x st.cpa with
       | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
       | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
     in
-    (cpa, v)
+    (st, v)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
@@ -190,13 +190,13 @@ module PerMutexOplusPriv: PrivParam =
 struct
   include PerMutexPrivBase
 
-  let read_global ask getg cpa x =
+  let read_global ask getg (st: BaseComponents.t) x =
     if is_unprotected ask x then
       let v = CPA.find x (getg (mutex_global x)) in
-      let cpa' = CPA.add x v cpa in
-      (cpa', v)
+      let cpa' = CPA.add x v st.cpa in
+      ({st with cpa = cpa'}, v)
     else
-      (cpa, CPA.find x cpa)
+      (st, CPA.find x st.cpa)
   (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x d_loc !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
@@ -242,17 +242,17 @@ module PerMutexMeetPriv: PrivParam =
 struct
   include PerMutexPrivBase
 
-  let read_global ask getg cpa x =
+  let read_global ask getg (st: BaseComponents.t) x =
     if is_unprotected ask x then (
       (* ignore (Pretty.printf "READ GLOBAL UNPROTECTED %a\n" d_varinfo x); *)
       (*(cpa, VD.meet (CPA.find x cpa) (CPA.find x (getg (mutex_global x)))) *) (* TODO: Vesal's additional meet, causes fixpoints not reached *)
 
       (* TODO: only do long_meet for x instead of entire map *)
       let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
-      (cpa, CPA.find x (long_meet cpa (getg (mutex_global x))))
+      (st, CPA.find x (long_meet st.cpa (getg (mutex_global x))))
     )
     else
-      (cpa, CPA.find x cpa)
+      (st, CPA.find x st.cpa)
   (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
     ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
@@ -332,13 +332,13 @@ module PerGlobalPriv: PrivParam =
 struct
   module G = BaseDomain.VD
 
-  let read_global ask getg cpa x =
+  let read_global ask getg (st: BaseComponents.t) x =
     let v =
-      match CPA.find x cpa with
+      match CPA.find x st.cpa with
       | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
       | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
     in
-    (cpa, v)
+    (st, v)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
@@ -694,8 +694,8 @@ struct
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): store * value =
     if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-      let (cpa', v) = Priv.read_global a gs st.cpa x in
-      ({st with cpa=cpa'}, v)
+      let (st', v) = Priv.read_global a gs st x in
+      (st', v)
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
       (st, CPA.find x st.cpa)
@@ -1407,8 +1407,8 @@ struct
           st
         end else begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-          let (nst, var) = Priv.read_global a gs st.cpa x in
-          Priv.write_global a gs (Option.get ctx).sideg {st with cpa = nst} x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t)
+          let (nst, var) = Priv.read_global a gs st x in
+          Priv.write_global a gs (Option.get ctx).sideg nst x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t)
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
