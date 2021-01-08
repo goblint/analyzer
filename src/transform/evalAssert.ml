@@ -35,17 +35,15 @@ module EvalAssert = struct
 
     method! vstmt s =
       let make_assert loc lval =
-        match ask loc (Queries.Assert (Lval lval)) with
-        | `ExprSet s ->
-          let e = Queries.ES.choose s in
-          [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]]
-        | `Bot -> [cInstr ("%v:assert (0);") loc [("assert", Fv !ass)]]
-        | _ -> []
-      in
-
-      let assert_if_var lval loc = match lval with
-        | (Var v, _) -> make_assert loc lval
-        | (Mem e, _) -> []
+        try
+          match ask loc (Queries.Assert (Lval lval)) with
+          | `ExprSet s ->
+            let e = Queries.ES.choose s in
+            [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]]
+          | `Bot -> [cInstr ("%v:assert (0);") loc [("assert", Fv !ass)]]
+          | _ -> []
+        with
+          Not_found -> []
       in
 
       let rec instrument_instructions il s = match il with
@@ -53,16 +51,16 @@ module EvalAssert = struct
           begin
             match i1 with
             | Set (lval, _, _)
-            | Call (Some lval, _, _, _) -> [i1] @ (assert_if_var lval (get_instrLoc i2)) @ instrument_instructions (i2 :: is) s
+            | Call (Some lval, _, _, _) -> [i1] @ (make_assert (get_instrLoc i2) lval) @ instrument_instructions (i2 :: is) s
             | _ -> i1 :: instrument_instructions (i2 :: is) s
           end
         | [i] ->
           if List.length s.succs > 0 && (List.hd s.succs).preds |> List.length < 2 then begin
             (* If the successor of this has more than one predecessor, it is a join point, and we can not query for the value there *)
-            let l = get_stmtLoc (List.hd s.succs).skind in
+            let loc = get_stmtLoc (List.hd s.succs).skind in
             match i with
             | Set (lval, _, _)
-            | Call (Some lval, _, _, _) -> [i] @ (assert_if_var lval l)
+            | Call (Some lval, _, _, _) -> [i] @ (make_assert loc lval)
             | _ -> [i]
           end
           else [i]

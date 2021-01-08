@@ -855,7 +855,12 @@ struct
       end
     | Q.Assert e ->
       begin
-        match eval_rv ctx.ask ctx.global ctx.local e with
+        (* For the assert, we need to remove things that might be in the local state, but ought to removed *)
+        (* because they are not private *)
+        let cpa',_ = globalize ctx.ask ctx.local in
+        let (_, dep) = ctx.local in
+        let store' = (cpa', dep) in
+        match eval_rv ctx.ask ctx.global store' e with
         | `Int i ->
             let v = (`Int i) in
             begin
