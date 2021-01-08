@@ -870,9 +870,9 @@ struct
               in
               match (VD.invariant context v) with
               | Some s -> `ExprSet (Queries.ES.singleton s)
-              | None -> `Bot
+              | None -> `Top
             end;
-        | v -> `Top;
+        | v -> `Top
       end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
