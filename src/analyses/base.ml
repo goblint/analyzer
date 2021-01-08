@@ -40,7 +40,7 @@ sig
   module G: Lattice.S
 
   val read_global: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t * VD.t
-  val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> VD.t -> CPA.t
+  val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> VD.t -> BaseComponents.t
 
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> CPA.t
@@ -66,14 +66,14 @@ struct
     in
     (cpa, v)
 
-  let write_global ask getg sideg cpa x v =
+  let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
      * state, waiting for the sync function to publish it. *)
     (* Copied from MainFunctor.update_variable *)
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-      CPA.add x (VD.top ()) cpa
+      {st with cpa = CPA.add x (VD.top ()) st.cpa}
     else
-      CPA.add x v cpa
+      {st with cpa = CPA.add x v st.cpa}
 
   let lock ask getg cpa m = cpa
   let unlock ask getg sideg cpa m = cpa
@@ -113,14 +113,14 @@ struct
     in
     (cpa, v)
 
-  let write_global ask getg sideg cpa x v =
+  let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
      * state, waiting for the sync function to publish it. *)
     (* Copied from MainFunctor.update_variable *)
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-      CPA.add x (VD.top ()) cpa
+      {st with cpa = CPA.add x (VD.top ()) st.cpa}
     else
-      CPA.add x v cpa
+      {st with cpa = CPA.add x v st.cpa}
 
   let lock ask getg cpa m = cpa
   let unlock ask getg sideg cpa m = cpa
@@ -201,11 +201,11 @@ struct
     let (cpa', v) as r = read_global ask getg cpa x in
     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x d_loc !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
     r *)
-  let write_global ask getg sideg cpa x v =
-    let cpa' = CPA.add x v cpa in
+  let write_global ask getg sideg (st: BaseComponents.t) x v =
+    let cpa' = CPA.add x v st.cpa in
     if not (is_atomic ask) then
       sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
-    cpa'
+    {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
@@ -257,15 +257,15 @@ struct
     let (cpa', v) as r = read_global ask getg cpa x in
     ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
     r *)
-  let write_global ask getg sideg cpa x v =
+  let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' =
       if is_unprotected ask x then
-        cpa
+        st.cpa
       else
-        CPA.add x v cpa
+        CPA.add x v st.cpa
     in
     sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
-    cpa'
+    {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
@@ -340,14 +340,14 @@ struct
     in
     (cpa, v)
 
-  let write_global ask getg sideg cpa x v =
+  let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
-    * state, waiting for the sync function to publish it. *)
+     * state, waiting for the sync function to publish it. *)
     (* Copied from MainFunctor.update_variable *)
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-      CPA.add x (VD.top ()) cpa
+      {st with cpa = CPA.add x (VD.top ()) st.cpa; cached = CVars.add x st.cached}
     else
-      CPA.add x v cpa
+      {st with cpa = CPA.add x v st.cpa; cached = CVars.add x st.cached}
 
   let lock ask getg cpa m = cpa
   let unlock ask getg sideg cpa m = cpa
@@ -1408,9 +1408,7 @@ struct
         end else begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           let (nst, var) = Priv.read_global a gs st.cpa x in
-          { st with
-                cpa = Priv.write_global a gs (Option.get ctx).sideg nst x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t);
-                cached = CVars.add x st.cached}
+          Priv.write_global a gs (Option.get ctx).sideg {st with cpa = nst} x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t)
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
