@@ -429,26 +429,23 @@ struct
     | _ -> failwith "PerGlobalPriv2.is_protected_by"
 
   let read_global ask getg (st: BaseComponents.t) x =
-    let (cpa', v) =
+    let v =
       if CVars.mem x st.cached then
-        (st.cpa, CPA.find x st.cpa)
+        CPA.find x st.cpa
       else if is_unprotected ask x then
-        let v = fst (getg x) in
-        (CPA.add x v st.cpa, v)
+        fst (getg x)
       else if CPA.mem x st.cpa then
-        let v = VD.join (CPA.find x st.cpa) (snd (getg x)) in
-        (CPA.add x v st.cpa, v)
+        VD.join (CPA.find x st.cpa) (snd (getg x))
       else
-        let v = snd (getg x) in
-        (CPA.add x v st.cpa, v)
+        snd (getg x)
     in
     (* TODO: sideg? *)
-    ({st with cpa = cpa'; cached = CVars.filter (is_protected ask) st.cached}, v)
+    (st, v)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' = CPA.add x v st.cpa in
     sideg x (v, VD.bot ());
-    {st with cpa = cpa'; cached = CVars.filter (is_protected ask) st.cached}
+    {st with cpa = cpa'; cached = CVars.add x st.cached}
 
   let lock ask getg cpa m = cpa
 
