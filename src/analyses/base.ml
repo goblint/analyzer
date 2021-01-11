@@ -152,16 +152,14 @@ struct
     CPA.fold add_var st.cpa (st, [])
 end
 
-module PerMutexPrivBase =
+module PrivBase =
 struct
-  module G = CPA
-
   let is_unprotected ask x: bool =
     ThreadFlag.is_multi ask &&
     match ask (Q.MayBePublic {global=x; write=true}) with
     | `MayBool x -> x
     | `Top -> true
-    | _ -> failwith "PerMutexPrivBase.is_unprotected"
+    | _ -> failwith "PrivBase.is_unprotected"
 
   let is_protected_by ask m x: bool =
     is_global ask x &&
@@ -169,13 +167,20 @@ struct
     match ask (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
     | `MustBool x -> x
     | `Top -> false
-    | _ -> failwith "PerMutexPrivBase.is_protected_by"
+    | _ -> failwith "PrivBase.is_protected_by"
 
   let is_atomic ask: bool =
     match ask Q.MustBeAtomic with
     | `MustBool x -> x
     | `Top -> false
-    | _ -> failwith "PerMutexPrivBase.is_atomic"
+    | _ -> failwith "PrivBase.is_atomic"
+end
+
+module PerMutexPrivBase =
+struct
+  include PrivBase
+
+  module G = CPA
 
   let mutex_global x = x
 
@@ -399,6 +404,8 @@ end
 
 module PerGlobalPriv2: PrivParam =
 struct
+  include PrivBase
+
   module GUnprot =
   struct
     include VD
@@ -410,23 +417,6 @@ struct
     let name () = "protected"
   end
   module G = Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
-
-  let is_unprotected ask x: bool =
-    ThreadFlag.is_multi ask &&
-    match ask (Q.MayBePublic {global=x; write=true}) with
-    | `MayBool x -> x
-    | `Top -> true
-    | _ -> failwith "PerGlobalPriv2.is_unprotected"
-
-  let is_protected ask x = not (is_unprotected ask x)
-
-  let is_protected_by ask m x: bool =
-    is_global ask x &&
-    not (VD.is_immediate_type x.vtype) &&
-    match ask (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
-    | `MustBool x -> x
-    | `Top -> false
-    | _ -> failwith "PerGlobalPriv2.is_protected_by"
 
   let read_global ask getg (st: BaseComponents.t) x =
     let v =
@@ -468,7 +458,7 @@ struct
           if is_global ask x then (
             if reason = `Thread && not (ThreadFlag.is_multi ask) then
               ({st with cpa = CPA.remove x st.cpa}, (x, (v, v)) :: sidegs)
-            else if not (is_protected ask x) then
+            else if is_unprotected ask x then
               ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, sidegs)
             else
               acc
