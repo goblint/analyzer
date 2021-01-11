@@ -49,8 +49,6 @@ sig
 
   (* TODO: better name *)
   val is_private: Q.ask -> varinfo -> bool
-  (* TODO: remove? *)
-  val is_invisible: Q.ask -> varinfo -> bool
 end
 
 (* Copy of OldPriv with is_private constantly false. *)
@@ -79,7 +77,6 @@ struct
   let unlock ask getg sideg cpa m = cpa
 
   let is_private (a: Q.ask) (v: varinfo): bool = false
-  let is_invisible = is_private
 
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
@@ -130,7 +127,6 @@ struct
      match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
      if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
      false)
-  let is_invisible = is_private
 
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
@@ -188,7 +184,6 @@ struct
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
-  let is_invisible = is_private
 end
 
 module PerMutexOplusPriv: PrivParam =
@@ -466,7 +461,6 @@ struct
 
   (* ??? *)
   let is_private ask x = true
-  let is_invisible = is_private
 end
 
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
@@ -1473,7 +1467,7 @@ struct
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
-        let protected = Priv.is_invisible a x in
+        let protected = Priv.is_private a x in
         if not effect && not protected then begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
           st
@@ -2233,7 +2227,7 @@ struct
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k && Priv.is_invisible ctx.ask k) st.cpa in
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k && Priv.is_private ctx.ask k) st.cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
