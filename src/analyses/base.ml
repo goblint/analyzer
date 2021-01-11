@@ -357,18 +357,12 @@ struct
   let lock ask getg cpa m = cpa
   let unlock ask getg sideg cpa m = cpa
 
-  let is_private (a: Q.ask) (v: varinfo): bool =
-    (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-    match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
-    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
-    false)
-
-  (* TODO: remove duplicate now *)
   let is_invisible (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
     match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
     if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
     false)
+  let is_private = is_invisible
 
   let is_protected (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
