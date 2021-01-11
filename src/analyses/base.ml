@@ -328,7 +328,7 @@ struct
     (st', sidegs)
 end
 
-module PerGlobalPriv: PrivParam =
+module PerGlobalVesalPriv: PrivParam =
 struct
   module G = BaseDomain.VD
 
@@ -391,7 +391,7 @@ struct
     CPA.fold add_var st.cpa (st, [])
 end
 
-module PerGlobalPriv2: PrivParam =
+module PerGlobalPriv: PrivParam =
 struct
   include PrivBase
 
@@ -2642,7 +2642,7 @@ let main_module: (module MainSpec) Lazy.t =
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "global" -> (module PerGlobalPriv)
-        | "global2" -> (module PerGlobalPriv2)
+        | "global-vesal" -> (module PerGlobalVesalPriv)
         | _ -> failwith "exp.privatization: illegal value"
       )
     in
