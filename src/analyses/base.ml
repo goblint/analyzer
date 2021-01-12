@@ -39,7 +39,7 @@ module type PrivParam =
 sig
   module G: Lattice.S
 
-  val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> varinfo -> BaseComponents.t * VD.t
+  val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> varinfo -> VD.t
   val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> VD.t -> BaseComponents.t
 
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t
@@ -57,12 +57,9 @@ struct
   module G = BaseDomain.VD
 
   let read_global ask getg (st: BaseComponents.t) x =
-    let v =
-      match CPA.find x st.cpa with
-      | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
-      | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-    in
-    (st, v)
+    match CPA.find x st.cpa with
+    | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
+    | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
@@ -103,12 +100,9 @@ struct
   module G = BaseDomain.VD
 
   let read_global ask getg (st: BaseComponents.t) x =
-    let v =
-      match CPA.find x st.cpa with
-      | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
-      | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-    in
-    (st, v)
+    match CPA.find x st.cpa with
+    | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
+    | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
@@ -192,11 +186,9 @@ struct
 
   let read_global ask getg (st: BaseComponents.t) x =
     if is_unprotected ask x then
-      let v = CPA.find x (getg (mutex_global x)) in
-      let cpa' = CPA.add x v st.cpa in
-      ({st with cpa = cpa'}, v)
+      CPA.find x (getg (mutex_global x))
     else
-      (st, CPA.find x st.cpa)
+      CPA.find x st.cpa
   (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x d_loc !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
@@ -249,10 +241,10 @@ struct
 
       (* TODO: only do long_meet for x instead of entire map *)
       let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
-      (st, CPA.find x (long_meet st.cpa (getg (mutex_global x))))
+      CPA.find x (long_meet st.cpa (getg (mutex_global x)))
     )
     else
-      (st, CPA.find x st.cpa)
+      CPA.find x st.cpa
   (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
     ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
@@ -333,12 +325,9 @@ struct
   module G = BaseDomain.VD
 
   let read_global ask getg (st: BaseComponents.t) x =
-    let v =
-      match CPA.find x st.cpa with
-      | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
-      | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-    in
-    (st, v)
+    match CPA.find x st.cpa with
+    | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
+    | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
@@ -408,18 +397,15 @@ struct
   module G = Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
 
   let read_global ask getg (st: BaseComponents.t) x =
-    let v =
-      if CVars.mem x st.cached then
-        CPA.find x st.cpa
-      else if is_unprotected ask x then
-        fst (getg x)
-      else if CPA.mem x st.cpa then
-        VD.join (CPA.find x st.cpa) (snd (getg x))
-      else
-        snd (getg x)
-    in
+    if CVars.mem x st.cached then
+      CPA.find x st.cpa
+    else if is_unprotected ask x then
+      fst (getg x)
+    else if CPA.mem x st.cpa then
+      VD.join (CPA.find x st.cpa) (snd (getg x))
+    else
+      snd (getg x)
     (* TODO: sideg? *)
-    (st, v)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' = CPA.add x v st.cpa in
@@ -758,13 +744,12 @@ struct
   let publish_all ctx reason =
     List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason true true ctx))
 
-  let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): store * value =
+  let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
     if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-      let (st', v) = Priv.read_global a gs st x in
-      (st', v)
+      Priv.read_global a gs st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-      (st, CPA.find x st.cpa)
+      CPA.find x st.cpa
     end
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
@@ -779,9 +764,7 @@ struct
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let (st,var) = get_var a gs st x in
-        (* TODO: do something with st *)
-
+        let var = get_var a gs st x in
         let v = VD.eval_offset a (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
@@ -1473,8 +1456,8 @@ struct
           st
         end else begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-          let (nst, var) = Priv.read_global a gs st x in
-          Priv.write_global a gs (Option.get ctx).sideg nst x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t)
+          let var = Priv.read_global a gs st x in
+          Priv.write_global a gs (Option.get ctx).sideg st x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t)
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
