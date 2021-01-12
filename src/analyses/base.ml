@@ -215,8 +215,9 @@ struct
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
-    (* TODO: only do this for publish_all and return *)
-    if not (is_atomic a) then (
+    match reason with
+    | `Thread (* TODO: why is this required? *)
+    | `Return -> (* required for thread return *)
       let sidegs = CPA.fold (fun x v acc ->
           if is_global a x then
             (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
@@ -225,8 +226,8 @@ struct
         ) st.cpa []
       in
       (st, sidegs)
-    )
-    else
+    | `Normal
+    | `Init ->
       (st, [])
 end
 
