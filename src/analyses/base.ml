@@ -435,7 +435,7 @@ struct
             if reason = `Thread && not (ThreadFlag.is_multi ask) then
               ({st with cpa = CPA.remove x st.cpa}, (x, (v, v)) :: sidegs)
             else if is_unprotected ask x then
-              ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, sidegs)
+              ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
             else
               acc
           )
