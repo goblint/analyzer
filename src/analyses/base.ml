@@ -417,7 +417,8 @@ struct
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' = CPA.add x v st.cpa in
-    sideg x (v, VD.bot ());
+    if not (is_atomic ask) then
+      sideg x (v, VD.bot ());
     {st with cpa = cpa'; cached = CVars.add x st.cached}
 
   let lock ask getg cpa m = cpa
@@ -449,7 +450,7 @@ struct
           if is_global ask x then (
             if reason = `Thread && not (ThreadFlag.is_multi ask) then
               ({st with cpa = CPA.remove x st.cpa}, (x, (v, v)) :: sidegs)
-            else if is_unprotected ask x then
+            else if is_unprotected ask x && not (is_atomic ask) then
               ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
             else
               acc
