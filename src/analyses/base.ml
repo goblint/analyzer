@@ -244,12 +244,12 @@ struct
 
   let read_global ask getg (st: BaseComponents.t) x =
     if is_unprotected ask x then (
-      (* ignore (Pretty.printf "READ GLOBAL UNPROTECTED %a\n" d_varinfo x); *)
-      (*(cpa, VD.meet (CPA.find x cpa) (CPA.find x (getg (mutex_global x)))) *) (* TODO: Vesal's additional meet, causes fixpoints not reached *)
-
-      (* TODO: only do long_meet for x instead of entire map *)
-      let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
-      CPA.find x (long_meet st.cpa (getg (mutex_global x)))
+      (* None is VD.top () *)
+      match CPA.find_opt x st.cpa, CPA.find_opt x (getg (mutex_global x)) with
+      | Some v1, Some v2 -> VD.meet v1 v2
+      | Some v, None
+      | None, Some v -> v
+      | None, None -> VD.bot () (* Except if both None, needed for 09/07 kernel_list_rc *)
     )
     else
       CPA.find x st.cpa
