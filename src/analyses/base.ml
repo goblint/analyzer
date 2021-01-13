@@ -424,18 +424,22 @@ struct
 
   let unlock ask getg sideg (st: BaseComponents.t) m =
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
-    let is_in_Gm x _ = is_protected_by ask m x in
-    let is_not_in_Gm x v = not (is_in_Gm x v) in
-    let cpa' = CPA.filter is_not_in_Gm st.cpa in
-    CPA.iter (fun x v ->
-        (* Extra precision in implementation to pass tests:
-           If global is read-protected by multiple locks,
-           then inner unlock shouldn't yet publish. *)
-        if is_unprotected_without ask ~write:false x m then
-          sideg x (VD.bot (), v)
-      ) (CPA.filter is_in_Gm st.cpa);
-    (* setting new cached happens in sync *)
-    {st with cpa = cpa'}
+    CPA.fold (fun x v (st: BaseComponents.t) ->
+        if is_protected_by ask m x then ( (* is_in_Gm *)
+          (* Extra precision in implementation to pass tests:
+             If global is read-protected by multiple locks,
+             then inner unlock shouldn't yet publish. *)
+          if is_unprotected_without ask ~write:false x m then
+            sideg x (VD.bot (), v);
+
+          if is_unprotected_without ask x m then (* is_in_V' *)
+            {st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}
+          else
+            st
+        )
+        else
+          st
+      ) st.cpa st
 
   let sync ?(privates=false) reason ctx =
     let ask = ctx.ask in
