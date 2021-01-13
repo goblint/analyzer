@@ -289,8 +289,14 @@ struct
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg m (CPA.filter is_in_Gm st.cpa);
-    (* setting new unprotected to top happens in sync *)
-    st
+    let cpa' = CPA.fold (fun x v cpa ->
+        if is_protected_by ask m x && is_unprotected_without ask x m then
+          CPA.add x (VD.top ()) cpa
+        else
+          cpa
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
 
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
