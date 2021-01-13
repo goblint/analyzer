@@ -291,7 +291,7 @@ struct
     sideg m (CPA.filter is_in_Gm st.cpa);
     let cpa' = CPA.fold (fun x v cpa ->
         if is_protected_by ask m x && is_unprotected_without ask x m then
-          CPA.add x (VD.top ()) cpa
+          CPA.remove x cpa
         else
           cpa
       ) st.cpa st.cpa
@@ -301,37 +301,21 @@ struct
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
-    let (st', sidegs) = CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
-        if is_global a x then
-          let st' =
-            if is_unprotected a x then
-              (* {st with cpa = CPA.add x (VD.top ()) st.cpa} *)
-              {st with cpa = CPA.remove x st.cpa}
-            else
-              st
-          in
-          (* TODO: this is_top is sketchy *)
-          let sidegs' =
-            if not (VD.is_top v) && is_unprotected a x then (
-                (* ignore (Pretty.printf "SYNC GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty st'.cpa); *)
-                (* ignore (Pretty.printf "SYNC GLOBAL %a %a (%a)\n" d_varinfo x VD.pretty v d_loc !Tracing.current_loc); *)
-              (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs
-            )
-            else
-              sidegs
-          in
-          let sidegs' =
-            if reason = `Thread && not (ThreadFlag.is_multi a) then
-              (Lazy.force mutex_inits, CPA.add x v (CPA.bot ())) :: sidegs'
-            else
-              sidegs'
-          in
-          (st', sidegs')
+    let sidegs =
+      if reason = `Thread && not (ThreadFlag.is_multi a) then
+        let global_cpa = CPA.filter (fun x _ -> is_global a x) st.cpa in
+        [((Lazy.force mutex_inits, global_cpa))]
+      else
+        []
+    in
+    let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
+        if is_global a x && is_unprotected a x then
+          (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
         else
           acc
-      ) st.cpa (st, [])
+      ) st.cpa (st.cpa, sidegs)
     in
-    (st', sidegs)
+    ({st with cpa = cpa'}, sidegs')
 end
 
 module PerGlobalVesalPriv: PrivParam =
