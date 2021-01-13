@@ -43,7 +43,7 @@ sig
   val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> VD.t -> BaseComponents.t
 
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t
-  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> CPA.t -> varinfo -> CPA.t
+  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> BaseComponents.t
 
   val sync: ?privates:bool -> [`Normal | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
 
@@ -114,7 +114,7 @@ struct
       {st with cpa = CPA.add x v st.cpa}
 
   let lock ask getg cpa m = cpa
-  let unlock ask getg sideg cpa m = cpa
+  let unlock ask getg sideg st m = st
 
   let is_private (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
@@ -214,10 +214,10 @@ struct
     let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
     let cpa' = CPA.filter is_in_V (getg m) in
     CPA.fold CPA.add cpa' cpa
-  let unlock ask getg sideg cpa m =
+  let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
-    sideg m (CPA.filter is_in_Gm cpa);
-    cpa
+    sideg m (CPA.filter is_in_Gm st.cpa);
+    st
 
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
@@ -286,11 +286,11 @@ struct
     let meet = long_meet cpa join in
     (* ignore (Pretty.printf "LOCK %a (%a):\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n  join: %a\n  meet: %a\n" d_varinfo m d_loc !Tracing.current_loc CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits' CPA.pretty join CPA.pretty meet); *)
     meet
-  let unlock ask getg sideg cpa m =
+  let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
-    sideg m (CPA.filter is_in_Gm cpa);
+    sideg m (CPA.filter is_in_Gm st.cpa);
     (* setting new unprotected to top happens in sync *)
-    cpa
+    st
 
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
@@ -347,7 +347,7 @@ struct
       {st with cpa = CPA.add x v st.cpa; cached = CVars.add x st.cached}
 
   let lock ask getg cpa m = cpa
-  let unlock ask getg sideg cpa m = cpa
+  let unlock ask getg sideg st m = st
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
@@ -422,20 +422,20 @@ struct
 
   let lock ask getg cpa m = cpa
 
-  let unlock ask getg sideg cpa m =
+  let unlock ask getg sideg (st: BaseComponents.t) m =
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     let is_in_Gm x _ = is_protected_by ask m x in
     let is_not_in_Gm x v = not (is_in_Gm x v) in
-    let cpa' = CPA.filter is_not_in_Gm cpa in
+    let cpa' = CPA.filter is_not_in_Gm st.cpa in
     CPA.iter (fun x v ->
         (* Extra precision in implementation to pass tests:
            If global is read-protected by multiple locks,
            then inner unlock shouldn't yet publish. *)
         if is_unprotected_without ask ~write:false x m then
           sideg x (VD.bot (), v)
-      ) (CPA.filter is_in_Gm cpa);
+      ) (CPA.filter is_in_Gm st.cpa);
     (* setting new cached happens in sync *)
-    cpa'
+    {st with cpa = cpa'}
 
   let sync ?(privates=false) reason ctx =
     let ask = ctx.ask in
@@ -2476,7 +2476,7 @@ struct
             | `Address a when not (AD.is_top a) && not (AD.mem Addr.UnknownPtr a) ->
               begin match AD.elements a with
                 | [Addr.Addr (m, `NoOffset)] ->
-                  {st with cpa=Priv.unlock ctx.ask gs ctx.sideg st.cpa m}
+                  Priv.unlock ctx.ask gs ctx.sideg st m
                 | _ -> st (* TODO: what to do here? *)
               end
             | _ -> st (* TODO: what to do here? *)
