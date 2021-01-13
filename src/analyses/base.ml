@@ -305,8 +305,8 @@ struct
         if is_global a x then
           let st' =
             if is_unprotected a x then
-              {st with cpa = CPA.add x (VD.top ()) st.cpa}
-              (* {st with cpa = CPA.remove x st.cpa} *)
+              (* {st with cpa = CPA.add x (VD.top ()) st.cpa} *)
+              {st with cpa = CPA.remove x st.cpa}
             else
               st
           in
