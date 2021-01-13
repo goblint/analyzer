@@ -151,6 +151,13 @@ struct
     | `Top -> true
     | _ -> failwith "PrivBase.is_unprotected"
 
+  let is_unprotected_without ask ?(write=true) x m: bool =
+    ThreadFlag.is_multi ask &&
+    match ask (Q.MayBePublicWithout {global=x; write; without_mutex=m}) with
+    | `MayBool x -> x
+    | `Top -> true
+    | _ -> failwith "PrivBase.is_unprotected_without"
+
   let is_protected_by ask m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
@@ -421,7 +428,11 @@ struct
     let is_not_in_Gm x v = not (is_in_Gm x v) in
     let cpa' = CPA.filter is_not_in_Gm cpa in
     CPA.iter (fun x v ->
-        sideg x (VD.bot (), v)
+        (* Extra precision in implementation to pass tests:
+           If global is read-protected by multiple locks,
+           then inner unlock shouldn't yet publish. *)
+        if is_unprotected_without ask ~write:false x m then
+          sideg x (VD.bot (), v)
       ) (CPA.filter is_in_Gm cpa);
     (* setting new cached happens in sync *)
     cpa'
