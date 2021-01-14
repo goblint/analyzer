@@ -301,7 +301,17 @@ end
 
 module WriteBased =
 struct
-  module G = Lattice.Prod (LockDomain.Simple) (LockDomain.Simple)
+  module GReadWrite =
+  struct
+    include LockDomain.Simple
+    let name () = "readwrite"
+  end
+  module GWrite =
+  struct
+    include LockDomain.Simple
+    let name () = "write"
+  end
+  module G = Lattice.Prod (GReadWrite) (GWrite)
   let effect_fun ?write:(w=false) ls =
     let locks = Lockset.export_locks ls in
     (locks, if w then locks else Mutexes.top ())
