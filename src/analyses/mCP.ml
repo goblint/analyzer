@@ -4,7 +4,7 @@ open Prelude.Ana
 open GobConfig
 open Analyses
 
-type spec_modules = { spec : (module Spec)
+type spec_modules = { spec : (module MCPSpec)
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
                     ; cont : (module Printable.S) }
@@ -18,8 +18,8 @@ let analyses_table = ref []
 
 let register_analysis =
   let count = ref 0 in
-  fun ?(dep=[]) (module S:Spec) ->
-    let s = { spec = (module S : Spec)
+  fun ?(dep=[]) (module S:MCPSpec) ->
+    let s = { spec = (module S : MCPSpec)
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
@@ -284,9 +284,9 @@ struct
       Printf.printf "\n";
       iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
       Printf.printf "\n";*)
-    iter (fun (_,{spec=(module S:Spec); _}) -> S.init ()) !analyses_list
+    iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init ()) !analyses_list
 
-  let finalize () = iter (fun (_,{spec=(module S:Spec); _}) -> S.finalize ()) !analyses_list
+  let finalize () = iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.finalize ()) !analyses_list
 
   let spec x = (assoc x !analyses_list).spec
   let spec_list xs =
@@ -295,14 +295,14 @@ struct
 
   let map_deadcode f xs =
     let dead = ref false in
-    let one_el xs (n,(module S:Spec),d) = try f xs (n,(module S:Spec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
+    let one_el xs (n,(module S:MCPSpec),d) = try f xs (n,(module S:MCPSpec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
   let val_of = identity
   let context x =
     let x = spec_list x in
-    map (fun (n,(module S:Spec),d) ->
+    map (fun (n,(module S:MCPSpec),d) ->
         let d' = if mem n !cont_inse then S.D.top () else obj d in
         n, repr @@ S.context d'
       ) x
@@ -314,7 +314,7 @@ struct
       | _,_ , []-> []
       | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs)
     in
-    let should_join ((_,(module S:Analyses.Spec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
+    let should_join ((_,(module S:Analyses.MCPSpec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
     (* obtain all analyses specs that are path sensitive and their values both in x and y *)
     let specs = filter (fun (x,_,_) -> mem x !path_sens) (spec_list x) in
     let xs = filter (fun (x,_) -> mem x !path_sens) x in
@@ -322,13 +322,13 @@ struct
     let zipped = zip3 specs xs ys in
     List.for_all should_join zipped
 
-  let exitstate  v = map (fun (n,{spec=(module S:Spec); _}) -> n, repr @@ S.exitstate  v) !analyses_list
-  let startstate v = map (fun (n,{spec=(module S:Spec); _}) -> n, repr @@ S.startstate v) !analyses_list
-  let morphstate v x = map (fun (n,(module S:Spec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
+  let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !analyses_list
+  let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !analyses_list
+  let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
   let call_descr f xs =
     let xs = filter (fun (x,_) -> x = !base_id) xs in
-    fold_left (fun a (n,(module S:Spec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
+    fold_left (fun a (n,(module S:MCPSpec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
 
 
   let rec assoc_replace (n,c) = function
@@ -378,7 +378,7 @@ struct
 
   let do_sideg ctx (xs:(varinfo * (int * Obj.t)) list) =
     let side_one v d =
-      let join_vals (n,(module S:Spec),d) =
+      let join_vals (n,(module S:MCPSpec),d) =
         n, repr @@ fold_left (fun x y -> S.G.join x (obj y)) (S.G.bot ()) d
       in
       ctx.sideg v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ G.bot ())
@@ -390,7 +390,7 @@ struct
     else
       let spec_assign n d : Obj.t =
         (* spec of current analysis *)
-        let (module S:Spec) = spec n in
+        let (module S:MCPSpec) = spec n in
         let assign_one d (lval, exp, name, ctx) =
           match name with
           | Some x when x <> spec_name n -> obj d (* do nothing if current spec name is filtered out *)
@@ -421,7 +421,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -450,7 +450,7 @@ struct
 
   and query (ctx:(D.t, G.t, C.t) ctx) q =
     let sides  = ref [] in
-    let f a (n,(module S:Spec),d) =
+    let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -488,7 +488,7 @@ struct
     let open Access in
     let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
     let sides  = ref [] in
-    let f (po,lo) (n, (module S: Spec), d) : part =
+    let f (po,lo) (n, (module S: MCPSpec), d) : part =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -581,7 +581,7 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -612,7 +612,7 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -643,7 +643,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -675,7 +675,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -707,7 +707,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -739,7 +739,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -771,7 +771,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -803,7 +803,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -834,7 +834,7 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let f (n,(module S:Spec),d) (dl,cs) =
+    let f (n,(module S:MCPSpec),d) (dl,cs) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -864,7 +864,7 @@ struct
   let enter (ctx:(D.t, G.t, C.t) ctx) r f a =
     let spawns = ref [] in
     let sides  = ref [] in
-    let f (n,(module S:Spec),d) =
+    let f (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -893,7 +893,7 @@ struct
     let spawns = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -921,7 +921,7 @@ struct
 
   let threadenter (ctx:(D.t, G.t, C.t) ctx) lval f a =
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -947,7 +947,7 @@ struct
 
   let threadspawn (ctx:(D.t, G.t, C.t) ctx) lval f a fctx =
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node

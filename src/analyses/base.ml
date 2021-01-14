@@ -1392,6 +1392,8 @@ struct
       end
     | _ -> Q.Result.top ()
 
+  let event ctx e = ctx.local
+
   let update_variable variable value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
       CPA.add variable (VD.top ()) cpa
@@ -2624,7 +2626,7 @@ struct
 end
 
 module type MainSpec = sig
-  include Spec
+  include MCPSpec
   include BaseDomain.ExpEvaluator
   val return_lval: unit -> Cil.lval
   val return_varinfo: unit -> Cil.varinfo
@@ -2661,7 +2663,7 @@ let get_main (): (module MainSpec) =
 let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : Spec)
+  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : MCPSpec)
 
 let _ =
   AfterConfig.register after_config

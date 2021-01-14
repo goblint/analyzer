@@ -378,6 +378,7 @@ end
 *)
 type ('d,'g,'c) ctx =
   { ask      : Queries.t -> Queries.Result.t
+  (* ; emit     : Events.t -> unit *)
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
   ; control_context : Obj.t (** (Control.get_spec ()) context, represented type: unit -> (Control.get_spec ()).C.t *)
@@ -446,6 +447,12 @@ sig
 
   val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val threadspawn : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
+end
+
+module type MCPSpec =
+sig
+  include Spec
+  val event : (D.t, G.t, C.t) ctx -> Events.t -> D.t
 end
 
 module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)
@@ -580,6 +587,8 @@ struct
 
   let query _ (q:Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)
+
+  let event ctx _ = ctx.local
 
   let morphstate v d = d
   (* Only for those who track thread IDs. *)

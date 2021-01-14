@@ -249,4 +249,4 @@ let _ =
   Cilfacade.register_preprocess (Spec.name ()) (new recomputeVisitor);
   Hashtbl.clear loopBreaks; (* because the sids are now different *)
   Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

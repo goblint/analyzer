@@ -14,7 +14,7 @@ let get_fresh_spec_id =
     return_id
 
 (* TODO: relax q type *)
-module MakeSpec (Automaton: StepObserverAutomaton with type q = int) : Analyses.Spec =
+module MakeSpec (Automaton: StepObserverAutomaton with type q = int) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -84,7 +84,7 @@ sig
   val path: (node * node) list
 end
 
-module MakePathSpec (Arg: PathArg) : Analyses.Spec =
+module MakePathSpec (Arg: PathArg) : Analyses.MCPSpec =
 struct
   module KMP = ObserverAutomaton.KMP (
     struct

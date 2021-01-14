@@ -12,7 +12,7 @@ let stripCastsDeep e =
   end
   in visitCilExpr v e
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
   let name () = "octagon"
@@ -376,4 +376,4 @@ end
 
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

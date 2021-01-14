@@ -134,5 +134,5 @@ struct
   let threadspawn ctx lval f args fctx = D.bot ()
 end
 
-let _ = MCP.register_analysis (module StartLocIDs : Spec)
-let _ = MCP.register_analysis ~dep:["threadid"] (module Spec : Spec)
+let _ = MCP.register_analysis (module StartLocIDs : MCPSpec)
+let _ = MCP.register_analysis ~dep:["threadid"] (module Spec : MCPSpec)

@@ -86,6 +86,6 @@ end
 module Spec1 = Spec (StackDomain.Dom1) (struct let name = "stack_trace" end)
 module Spec2 = Spec (StackDomain.Dom2) (struct let name = "stack_trace_set" end)
 let _ =
-  MCP.register_analysis (module SpecLoc : Spec);
-  MCP.register_analysis (module Spec1 : Spec);
-  MCP.register_analysis (module Spec2 : Spec)
+  MCP.register_analysis (module SpecLoc : MCPSpec);
+  MCP.register_analysis (module Spec1 : MCPSpec);
+  MCP.register_analysis (module Spec2 : MCPSpec)

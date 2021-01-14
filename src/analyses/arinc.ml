@@ -41,7 +41,7 @@ module Functions = struct
       | _ -> None
 end
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -669,4 +669,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis ~dep:["base"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["base"] (module Spec : MCPSpec)

@@ -1282,4 +1282,4 @@ struct
     end;
 end
 
-let () = MCP.register_analysis ~dep:["base";"threadid";"threadflag";"fmode"] (module Spec : Spec)
+let () = MCP.register_analysis ~dep:["base";"threadid";"threadflag";"fmode"] (module Spec : MCPSpec)

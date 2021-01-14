@@ -174,4 +174,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis ~dep:["OSEK"; "stack_trace_set"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["OSEK"; "stack_trace_set"] (module Spec : MCPSpec)
