@@ -242,10 +242,23 @@ module PerMutexMeetPriv: PrivParam =
 struct
   include PerMutexPrivBase
 
+  let mutex_inits =
+    lazy (
+      Goblintutil.create_var @@ makeGlobalVar "MUTEX_INITS" voidType
+    )
+
   let read_global ask getg (st: BaseComponents.t) x =
-    if is_unprotected ask x then (
+    if is_unprotected ask x || (is_atomic ask && not (CPA.mem x st.cpa)) then (
+      let get_mutex_global_x = getg (mutex_global x) in
+      let get_mutex_inits = getg (Lazy.force mutex_inits) in
+      let join_x = match CPA.find_opt x get_mutex_global_x, CPA.find_opt x get_mutex_inits with
+        | Some v1, Some v2 -> Some (VD.join v1 v2)
+        | Some v, None
+        | None, Some v -> Some v
+        | None, None -> None
+      in
       (* None is VD.top () *)
-      match CPA.find_opt x st.cpa, CPA.find_opt x (getg (mutex_global x)) with
+      match CPA.find_opt x st.cpa, join_x with
       | Some v1, Some v2 -> VD.meet v1 v2
       | Some v, None
       | None, Some v -> v
@@ -253,28 +266,24 @@ struct
     )
     else
       CPA.find x st.cpa
-  (* let read_global ask getg cpa x =
-    let (cpa', v) as r = read_global ask getg cpa x in
-    ignore (Pretty.printf "READ GLOBAL %a = %a, %a\n" d_varinfo x CPA.pretty cpa' VD.pretty v);
-    r *)
+  (* let read_global ask getg st x =
+    let v = read_global ask getg st x in
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %a = %a\n" d_varinfo x CPA.pretty st.cpa VD.pretty v;
+    v *)
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' =
-      if is_unprotected ask x then
+      if is_unprotected ask x && not (is_atomic ask) then
         st.cpa
       else
         CPA.add x v st.cpa
     in
-    sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
+    if not (is_atomic ask) then
+      sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
-
-  let mutex_inits =
-    lazy (
-      Goblintutil.create_var @@ makeGlobalVar "MUTEX_INITS" voidType
-    )
 
   let lock ask getg cpa m =
     let get_m = getg m in
@@ -309,7 +318,7 @@ struct
         []
     in
     let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
-        if is_global a x && is_unprotected a x then
+        if is_global a x && (is_unprotected a x && not (is_atomic a)) then
           (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
         else
           acc
