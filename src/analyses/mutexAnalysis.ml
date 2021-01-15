@@ -117,7 +117,13 @@ struct
       else begin
         let nls = Lockset.add (e,rw) ls in
         match lv with
-        | None -> if may_fail then ls else nls
+        | None ->
+          if may_fail then
+            ls
+          else (
+            ctx.emit (Events.Lock e);
+            nls
+          )
         | Some lv ->
           ctx.split nls (Lval lv) nonzero_return_when_aquired;
           if may_fail then (

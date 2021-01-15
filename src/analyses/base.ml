@@ -1392,7 +1392,17 @@ struct
       end
     | _ -> Q.Result.top ()
 
-  let event ctx e = ctx.local
+  let event ctx e octx =
+    let st: store = ctx.local in
+    match e with
+    | Events.Lock addr ->
+      begin match addr with
+        | Addr.Addr (m, `NoOffset) ->
+          {st with cpa=Priv.lock octx.ask octx.global st.cpa m}
+        | _ -> ctx.local (* TODO: what to do here? *)
+      end
+    | _ ->
+      ctx.local
 
   let update_variable variable value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
@@ -2459,7 +2469,7 @@ struct
           end
         | _      -> invalidate ~ctx ctx.ask gs st [ret_var]
       end
-    | `Lock _ ->
+    (* | `Lock _ ->
       (* TODO: don't duplicte mutexAnalysis logic *)
       begin match args with
         | [arg] ->
@@ -2473,7 +2483,7 @@ struct
             | _ -> st (* TODO: what to do here? *)
           end
         | _ -> failwith "MainFunctor.special: weird lock"
-      end
+      end *)
     | `Unlock ->
       (* TODO: don't duplicte mutexAnalysis logic *)
       begin match args with

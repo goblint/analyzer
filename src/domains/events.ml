@@ -1,6 +1,6 @@
 open Deriving.Cil
 
 type t =
-  | Lock of varinfo
-  | Unlock of varinfo
+  | Lock of LockDomain.Addr.t
+  | Unlock of LockDomain.Addr.t
   | Escape of varinfo

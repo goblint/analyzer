@@ -202,6 +202,7 @@ struct
       let getg v = Spec.G.bot () in
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
@@ -290,6 +291,7 @@ struct
       let st = st fd.svar in
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
@@ -324,6 +326,7 @@ struct
     let otherstate st v =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
@@ -476,6 +479,7 @@ struct
           (* build a ctx for using the query system *)
           let rec ctx =
             { ask    = query
+            ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
             ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
             ; prev_node = MyCFG.dummy_node
             ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")

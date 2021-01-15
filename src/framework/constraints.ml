@@ -548,6 +548,7 @@ struct
     (* now watch this ... *)
     let rec ctx =
       { ask     = query
+      ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
       ; control_context = snd var
