@@ -213,7 +213,10 @@ struct
       ctx.local
 
   let special ctx lv f arglist : D.t =
-    let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
+    let remove_rw x st =
+      ctx.emit (Events.Unlock x);
+      Lockset.remove (x,true) (Lockset.remove (x,false) st)
+    in
     let unlock remove_fn =
       let remove_nonspecial x =
         if Lockset.is_top x then x else

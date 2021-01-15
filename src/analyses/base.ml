@@ -1401,6 +1401,12 @@ struct
           {st with cpa=Priv.lock octx.ask octx.global st.cpa m}
         | _ -> ctx.local (* TODO: what to do here? *)
       end
+    | Events.Unlock addr ->
+      begin match addr with
+        | Addr.Addr (m, `NoOffset) ->
+          Priv.unlock octx.ask octx.global octx.sideg st m
+        | _ -> ctx.local (* TODO: what to do here? *)
+      end
     | _ ->
       ctx.local
 
@@ -2468,36 +2474,6 @@ struct
             | _      -> invalidate ~ctx ctx.ask gs st [ret_var]
           end
         | _      -> invalidate ~ctx ctx.ask gs st [ret_var]
-      end
-    (* | `Lock _ ->
-      (* TODO: don't duplicte mutexAnalysis logic *)
-      begin match args with
-        | [arg] ->
-          begin match eval_rv ctx.ask gs st arg with
-            | `Address a when not (AD.is_top a) && not (AD.mem Addr.UnknownPtr a) ->
-              begin match AD.elements a with
-                | [Addr.Addr (m, `NoOffset)] ->
-                  {st with cpa=Priv.lock ctx.ask gs st.cpa m}
-                | _ -> st (* TODO: what to do here? *)
-              end
-            | _ -> st (* TODO: what to do here? *)
-          end
-        | _ -> failwith "MainFunctor.special: weird lock"
-      end *)
-    | `Unlock ->
-      (* TODO: don't duplicte mutexAnalysis logic *)
-      begin match args with
-        | [arg] ->
-          begin match eval_rv ctx.ask gs st arg with
-            | `Address a when not (AD.is_top a) && not (AD.mem Addr.UnknownPtr a) ->
-              begin match AD.elements a with
-                | [Addr.Addr (m, `NoOffset)] ->
-                  Priv.unlock ctx.ask gs ctx.sideg st m
-                | _ -> st (* TODO: what to do here? *)
-              end
-            | _ -> st (* TODO: what to do here? *)
-          end
-        | _ -> failwith "MainFunctor.special: weird lock"
       end
     | `Malloc size -> begin
         match lv with
