@@ -53,7 +53,7 @@ typedef CondVar {
   chan waitQueue = [thread_count] of { byte };
 }
 
-byte cond_vars[cond_var_count];
+CondVar cond_vars[cond_var_count];
 byte cond_vars_created;
 #endif
 
@@ -82,18 +82,6 @@ ltl all_created   { eventually always noneAre(NOTCREATED) }
 
 inline preInit() {
   status[0] = RUNNING;
-}
-
-inline postInit() {
-  // assert(threads_created == thread_count-1); // mainfun is not created
-
-  /* #if mutex_count */
-  /* assert(mutexes_created == mutex_count); */
-  /* #endif */
-
-  /* #if cond_var_count */
-  /* assert(cond_vars_created == cond_var_count); */
-  /* #endif */
 }
 
 #define canRun(thread_id)                                                      \
@@ -190,44 +178,44 @@ inline MutexInit(mid) {
   }
 }
 
-inline MutexLock(mid) {
+inline MutexLock(thread_id, x) {
   atomic {
     if
-    :: mutexes[mid].status == LOCKED -> // TODO: reentrant mutex?
-      printf("MutexLock will block: mutexes[%d]", mid);
+    :: mutexes[x].status == LOCKED -> // TODO: reentrant mutex?
+      printf("MutexLock will block: mutexes[%d]", x);
 
       if
-      :: full(mutexes[mid].blockedQueue) -> // TODO can this happen?
+      :: full(mutexes[x].blockedQueue) -> // TODO can this happen?
         printf("FAIL: MutexLock: queue is full\n");
         assert(false);
-      :: nfull(mutexes[mid].blockedQueue) ->
-        printf("Thread %d put into queue for mutex %d\n", tid, mid);
-        mutexes[mid].blockedQueue!tid; // put current process in queue
+      :: nfull(mutexes[x].blockedQueue) ->
+        printf("Thread %d put into queue for mutex %d\n", thread_id, x);
+        mutexes[x].blockedQueue!thread_id; // put current process in queue
       fi;
 
-      setWaiting(MUTEX, mid); // blocks this process instantly
+      setWaiting(MUTEX, x); // blocks this process instantly
       // doc says: if stmt in atomic blocks, the rest will still remain atomic once it becomes executable.
       // atomicity is lost if one jumps out of the sequence (which might be the case with provided (...)).
       // revised: atomicity is broken if a statement inside the atomic blocks, but can continue as non-atomic
       // so, atomic is broken after setWaiting, but that's ok since we're done with WaitSemaphore anyway
 
-    :: mutexes[mid].status == UNLOCKED ->
-      printf("MutexLock locked: mutexes[%d] = LOCKED by %d\n", mid, tid);
-      mutexes[mid].status = LOCKED;
-      mutexes[mid].tid = tid;
+    :: mutexes[x].status == UNLOCKED ->
+      printf("MutexLock locked: mutexes[%d] = LOCKED by %d\n", x, thread_id);
+      mutexes[x].status = LOCKED;
+      mutexes[x].tid = thread_id;
     fi
   }
 }
 
-inline MutexUnlock(mid) {
+inline MutexUnlock(x) {
   atomic {
     if
     // no processes waiting on this mutex -> skip
-    :: empty(mutexes[mid].blockedQueue) || mutexes[mid].tid != tid -> skip
+    :: empty(mutexes[x].blockedQueue) || mutexes[x].tid != tid -> skip
     // otherwise it stays the same, since we will wake up a waiting process
-    :: nempty(mutexes[mid].blockedQueue) && mutexes[mid].tid == tid ->
+    :: nempty(mutexes[x].blockedQueue) && mutexes[x].tid == tid ->
       printf("MutexUnlock: %d threads in queue for mutex %d",
-             len(mutexes[mid].blockedQueue), mid);
+             len(mutexes[x].blockedQueue), x);
       byte i;
 
       for (i in status) {
@@ -235,9 +223,9 @@ inline MutexUnlock(mid) {
                i, i, status[i], waiting[i].resource, waiting[i].id);
         if
         // thread is waiting for this mutex and is at the front of its queue
-        :: isWaiting(i, MUTEX, mid) && mutexes[mid].blockedQueue?[i] ->
+        :: isWaiting(i, MUTEX, x) && mutexes[x].blockedQueue?[i] ->
           printf("MutexUnlock: thread %d is waking up thread %d\n", tid, i);
-          mutexes[mid].blockedQueue?eval(i); // consume msg from queue
+          mutexes[x].blockedQueue?eval(i); // consume msg from queue
           setReady(i);
           break
         :: else -> skip
@@ -245,8 +233,8 @@ inline MutexUnlock(mid) {
       };
     fi;
 
-    printf("MutexUnlock unlocked: mutexes[%d] = UNLOCKED by %d\n", mid, tid);
-    mutexes[mid].status = UNLOCKED;
+    printf("MutexUnlock unlocked: mutexes[%d] = UNLOCKED by %d\n", x, tid);
+    mutexes[x].status = UNLOCKED;
   }
 }
 
@@ -259,35 +247,23 @@ inline CondVarInit(cond_var_id) {
   }
 }
 
-// void wait(CondVar *cv, Mutex *me) {
-//     if (me->tid != tid) failure("illegal wait");
-//     enqueue(cv->wq, tid);
-//
-//     unlock(me);
-//     next();
-//     lock(me);
-// }
-
-inline CondVarWait(cond_var_id, mid) {
+inline CondVarWait(cond_var_id, mut_id) {
   atomic {
-    // if (me->tid != tid) failure("illegal wait");
-    assert(mutexes[mid].tid == tid)
+    printf("CondVarWait: id %d\n", cond_var_id);
 
-    cond_vars[cond_var_id].mid = mid
+    // if (me->tid != tid) failure("illegal wait");
+    assert(mutexes[mut_id].tid == tid)
+
+    cond_vars[cond_var_id].mid = mut_id
 
     // enqueue(cv->wq, tid);
     cond_vars[cond_var_id].waitQueue!tid
 
     // unlock(me);
-    MutexUnlock(mid)
-    SetWaiting(COND_VAR, cond_var_id)
+    MutexUnlock(mut_id)
+    setWaiting(COND_VAR, cond_var_id)
   }
 }
-
-// void signal(CondVar *cv) {
-//     tid wait_tid = dequeue(cv->wq);
-//     if (wait_tid >= 0) enqueue(RQ, wait_tid)
-// }
 
 inline CondVarSignal(cond_var_id) {
   atomic {
@@ -295,7 +271,7 @@ inline CondVarSignal(cond_var_id) {
     // no processes waiting on this condition var -> skip
     :: empty(cond_vars[cond_var_id].waitQueue) -> skip
     // otherwise it stays the same, since we will wake up a waiting process
-    :: nempty(mutexes[mid].waitQueue) ->
+    :: nempty(cond_vars[cond_var_id].waitQueue) ->
       printf("CondVarSignal: %d threads in queue for condition var %d",
              len(cond_vars[cond_var_id].waitQueue), cond_var_id);
       byte i;
@@ -311,11 +287,10 @@ inline CondVarSignal(cond_var_id) {
           // consume msg from queue
           cond_vars[cond_var_id].waitQueue?eval(i);
 
-          // reacquire the mutex lock
-          assert(mutexes[cond_vars[cond_var_id].mid].status == UNLOCKED);
-          MutexLock(cond_vars[cond_var_id].mid);
-
           setReady(i);
+          // reacquire the mutex lock
+          MutexLock(i, cond_vars[cond_var_id].mid);
+
           break
         :: else -> skip
         fi
@@ -326,36 +301,33 @@ inline CondVarSignal(cond_var_id) {
 
 inline CondVarBroadcast(cond_var_id) {
   atomic {
-    // TODO: is this legit?
-    CondVarSignal(cond_var_id);
+    if
+    // no processes waiting on this condition var -> skip
+    :: empty(cond_vars[cond_var_id].waitQueue) -> skip
+    // otherwise it stays the same, since we will wake up a waiting process
+    :: nempty(cond_vars[cond_var_id].waitQueue) ->
+      printf("CondVarSignal: %d threads in queue for condition var %d",
+             len(cond_vars[cond_var_id].waitQueue), cond_var_id);
+      byte i;
+
+      for (i in status) {
+        printf("CondVarSignal: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
+               i, i, status[i], waiting[i].resource, waiting[i].id);
+        if
+        // thread is waiting for this condition var and is at the front of its queue
+        :: isWaiting(i, COND_VAR, cond_var_id) && cond_vars[cond_var_id].waitQueue?[i] ->
+          printf("CondVarSignal: thread %d is waking up thread %d\n", tid, i);
+
+          // consume msg from queue
+          cond_vars[cond_var_id].waitQueue?eval(i);
+
+          setReady(i);
+          // reacquire the mutex lock
+          // All waititng processes/threads are now waiting for the mutex to be released
+          MutexLock(cond_vars[cond_var_id].mut_id);
+        :: else -> skip
+        fi
+      };
+    fi;
   }
-}
-
-#pragma mark - monitoring
-
-// monitor for invariants
-proctype monitor() {
-  byte i;
-
-  // at most 1 process may be in a critical region
-  assert(ncrit == 0 || ncrit == 1);
-
-  // at every time at least one process should be READY or all should be DONE
-  // atomic {
-  //     byte nready = 0;
-  //     byte ndone = 0;
-  //     for(i in status) {
-  //         if
-  //         :: status[i] == READY -> nready++;
-  //         :: status[i] == DONE -> ndone++;
-  //         :: !(status[i] == READY || status[i] == DONE) -> skip
-  //         fi
-  //     }
-  //     if
-  //     :: nready == 0 && ndone < nproc -> printf("Deadlock detected (no
-  //     process is READY (%d) but not all are DONE (%d))!\n", nready, ndone);
-  //     assert(false);
-  //     :: !(nready == 0 && ndone < nproc) -> skip
-  //     fi
-  // }
 }
