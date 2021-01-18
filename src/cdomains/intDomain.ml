@@ -1113,7 +1113,7 @@ struct
     | `Definite x -> `Definite (BigInt.cast_to ik x)
     | `Bot -> `Bot
 
-    (* Wraps definite values and excluded values accoding to the ikind.
+    (* Wraps definite values and excluded values according to the ikind.
      * For an `Excluded s,r , assumes that r is already an overapproximation of the range of possible values.
      * r might be larger than the possible range of this type; the range of the returned `Excluded set will be within the bounds of the ikind.
      *)
