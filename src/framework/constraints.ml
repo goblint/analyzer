@@ -37,7 +37,7 @@ struct
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
-             ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
+             ; split = (fun d es -> ctx.split (D.lift d) es )
     }
 
   let sync ctx reason =
@@ -221,7 +221,7 @@ struct
 
   let conv ctx =
     { ctx with local = fst ctx.local
-             ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
+             ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
     }
 
   let lift_fun ctx f g h =
@@ -364,7 +364,7 @@ struct
   let conv ctx =
     { ctx with context = (fun () -> fst (ctx.context ()))
              ; local = fst ctx.local
-             ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
+             ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
@@ -416,7 +416,7 @@ struct
   (* copied from WidenContextLifter... *)
   let conv ctx =
     { ctx with local = fst ctx.local
-             ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
+             ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
@@ -480,7 +480,7 @@ struct
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
-             ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
+             ; split = (fun d es -> ctx.split (D.lift d) es )
     }
 
   let lift_fun ctx f g h b =
@@ -559,7 +559,7 @@ struct
       ; presub  = []
       ; postsub = []
       ; spawn   = spawn
-      ; split   = (fun (d:D.t) _ _ -> r := d::!r)
+      ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }

@@ -389,7 +389,7 @@ type ('d,'g,'c) ctx =
   ; presub   : (string * Obj.t) list
   ; postsub  : (string * Obj.t) list
   ; spawn    : lval option -> varinfo -> exp list -> unit
-  ; split    : 'd -> exp -> bool -> unit
+  ; split    : 'd -> Events.t list -> unit
   ; sideg    : varinfo -> 'g -> unit
   ; assign   : ?name:string -> lval -> exp -> unit
   }

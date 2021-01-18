@@ -184,7 +184,7 @@ struct
                 let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp var))] in (* use Fl for Lval instead? *)
                 (* TODO encode key in exp somehow *)
                 (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
-                ctx.split new_m c_exp true;
+                ctx.split new_m [Events.SplitBranch (c_exp, true)];
                 Set.add (new_m,c_exp,true) (Set.add (new_m,c_exp,false) branches)
               in
               List.fold_left do_branch branches branch_edges

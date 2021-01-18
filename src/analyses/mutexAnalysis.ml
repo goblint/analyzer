@@ -125,10 +125,10 @@ struct
             nls
           )
         | Some lv ->
-          ctx.split nls (Lval lv) nonzero_return_when_aquired;
+          ctx.split nls [Events.SplitBranch (Lval lv, nonzero_return_when_aquired); Events.Lock e];
           if may_fail then (
             let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
-            ctx.split ls fail_exp (not nonzero_return_when_aquired)
+            ctx.split ls [Events.SplitBranch (fail_exp, not nonzero_return_when_aquired)]
           );
           raise Analyses.Deadcode
       end

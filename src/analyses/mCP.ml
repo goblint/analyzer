@@ -409,10 +409,10 @@ struct
     finalize ();
     Access.print_result ()
 
-  let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
-    let split_one n (d,e,tv) =
+  let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
+    let split_one n (d,emits) =
       let nv = assoc_replace (n,d) pv in
-      ctx.split (branch {ctx with local = nv} e tv) one true
+      ctx.split (do_emits ctx emits nv) []
     in
     iter (uncurry split_one) xs
 
@@ -429,58 +429,61 @@ struct
       ctx' *)
       {ctx with local = local'}
     in
-    let do_emit ctx e =
-      let spawns = ref [] in
-      let splits = ref [] in
-      let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
-      let assigns = ref [] in
-      let emits = ref [] in
-      let f post_all (n,(module S:MCPSpec),d) =
-        let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
-          { local  = obj d
-          ; node   = ctx.node
-          ; prev_node = ctx.prev_node
-          ; control_context = ctx.control_context
-          ; context = (fun () -> ctx.context () |> assoc n |> obj)
-          ; edge   = ctx.edge
-          ; ask    = query ctx
-          ; emit   = (fun e -> emits := e :: !emits)
-          ; presub = filter_presubs n ctx.local
-          ; postsub= filter_presubs n post_all
-          ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-          ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-          ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-          ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-          ; assign = (fun ?name v e    -> assigns := (v,e,name, repr ctx')::!assigns)
-          }
+    let do_emit ctx = function
+      | Events.SplitBranch (exp, tv) ->
+        ctx_with_local ctx (branch ctx exp tv)
+      | e ->
+        let spawns = ref [] in
+        let splits = ref [] in
+        let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
+        let assigns = ref [] in
+        let emits = ref [] in
+        let f post_all (n,(module S:MCPSpec),d) =
+          let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+            { local  = obj d
+            ; node   = ctx.node
+            ; prev_node = ctx.prev_node
+            ; control_context = ctx.control_context
+            ; context = (fun () -> ctx.context () |> assoc n |> obj)
+            ; edge   = ctx.edge
+            ; ask    = query ctx
+            ; emit   = (fun e -> emits := e :: !emits)
+            ; presub = filter_presubs n ctx.local
+            ; postsub= filter_presubs n post_all
+            ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+            ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
+            ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+            ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+            ; assign = (fun ?name v e    -> assigns := (v,e,name, repr ctx')::!assigns)
+            }
+          in
+          let rec octx' : (S.D.t, S.G.t, S.C.t) ctx =
+            { local  = obj (assoc n octx.local)
+            ; node   = octx.node
+            ; prev_node = octx.prev_node
+            ; control_context = octx.control_context
+            ; context = (fun () -> octx.context () |> assoc n |> obj)
+            ; edge   = octx.edge
+            ; ask    = query octx
+            ; emit   = (fun e -> emits := e :: !emits)
+            ; presub = filter_presubs n octx.local
+            ; postsub= filter_presubs n post_all
+            ; global = (fun v      -> octx.global v |> assoc n |> obj)
+            ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
+            ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+            ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+            ; assign = (fun ?name v e    -> assigns := (v,e,name, repr octx')::!assigns)
+            }
+          in
+          n, repr @@ S.event ctx' e octx'
         in
-        let rec octx' : (S.D.t, S.G.t, S.C.t) ctx =
-          { local  = obj (assoc n octx.local)
-          ; node   = octx.node
-          ; prev_node = octx.prev_node
-          ; control_context = octx.control_context
-          ; context = (fun () -> octx.context () |> assoc n |> obj)
-          ; edge   = octx.edge
-          ; ask    = query octx
-          ; emit   = (fun e -> emits := e :: !emits)
-          ; presub = filter_presubs n octx.local
-          ; postsub= filter_presubs n post_all
-          ; global = (fun v      -> octx.global v |> assoc n |> obj)
-          ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-          ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-          ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-          ; assign = (fun ?name v e    -> assigns := (v,e,name, repr octx')::!assigns)
-          }
-        in
-        n, repr @@ S.event ctx' e octx'
-      in
-      let d, q = map_deadcode f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      do_splits ctx d !splits;
-      let d = do_assigns ctx !assigns d in
-      let d = do_emits ctx !emits d in
-      if q then raise Deadcode else ctx_with_local ctx d
+        let d, q = map_deadcode f @@ spec_list ctx.local in
+        do_sideg ctx !sides;
+        do_spawns ctx !spawns;
+        do_splits ctx d !splits;
+        let d = do_assigns ctx !assigns d in
+        let d = do_emits ctx !emits d in
+        if q then raise Deadcode else ctx_with_local ctx d
     in
     let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) emits in
     ctx'.local
@@ -505,7 +508,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e    -> assigns := (v,e,name, repr ctx')::!assigns)
         }
@@ -536,7 +539,7 @@ struct
         ; postsub= []
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
@@ -575,7 +578,7 @@ struct
         ; postsub= []
         ; global = (fun v         -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d       -> failwith "part_access::spawn")
-        ; split  = (fun d e tv    -> failwith "part_access::split")
+        ; split  = (fun d es      -> failwith "part_access::split")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> failwith "part_access::assign")
         }
@@ -670,7 +673,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
         }
@@ -704,7 +707,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
         }
@@ -738,7 +741,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
@@ -773,7 +776,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
@@ -808,7 +811,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
@@ -843,7 +846,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
@@ -878,7 +881,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
@@ -913,7 +916,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
@@ -947,7 +950,7 @@ struct
         ; postsub= []
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in sync context.")
         }
@@ -1010,7 +1013,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in combine context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in combine context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
@@ -1041,7 +1044,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadenter context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadenter context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in threadenter context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadenter context.")
         }
@@ -1070,7 +1073,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadspawn context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in threadspawn context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadspawn context.")
         }
@@ -1088,7 +1091,7 @@ struct
         ; postsub= filter_presubs n post_all
         ; global = (fun v      -> fctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadspawn context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in threadspawn context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadspawn context.")
         }

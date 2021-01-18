@@ -65,7 +65,7 @@ struct
     let ge v = let a,b = ctx.global v in b in
     let spawn f v x = f v x in
     let geffect f v d = f v (false, d) in
-    let split f d e t = f (LD.singleton (SHMap.top ()), d) e t in
+    let split f d es = f (LD.singleton (SHMap.top ()), d) es in
     set_st_gl ctx re ge spawn geffect split
 
   let threadenter ctx lval f args =
@@ -266,7 +266,7 @@ struct
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     let s1 = tryReallyHard ctx.ask gl upd (special_fn_ld ctx.ask gl upd lval f arglist) st in
     let s2 = Re.special (re_context ctx re) lval f arglist in
-    List.iter (fun (x,y,z) -> ctx.split (x,s2) y z) s1;
+    List.iter (fun (x,y,z) -> ctx.split (x,s2) [Events.SplitBranch (y, z)]) s1;
     raise Analyses.Deadcode
 
   let query ctx (q:Queries.t) : Queries.Result.t =

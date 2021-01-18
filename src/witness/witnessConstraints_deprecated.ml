@@ -94,7 +94,7 @@ struct
           in
           ctx.spawn v (d, w')
         ); *)
-      split = (fun d e tv -> ctx.split (d, w) e tv)
+      split = (fun d es -> ctx.split (d, w) es)
     }
   let part_access ctx = S.part_access (unlift_ctx ctx)
 

@@ -215,8 +215,8 @@ struct
       begin
         match get_concrete_lval ctx.ask lv with
         | Some (Var v, offs) ->
-          ctx.split ctx.local (Lval lv) true;
-          ctx.split (D.add (Addr.from_var_offset (v,offs)) ctx.local) (Lval lv) false;
+          ctx.split ctx.local [Events.SplitBranch ((Lval lv), true)];
+          ctx.split (D.add (Addr.from_var_offset (v,offs)) ctx.local) [Events.SplitBranch ((Lval lv), false)];
           raise Analyses.Deadcode
         | _ -> ctx.local
       end
