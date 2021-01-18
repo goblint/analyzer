@@ -1049,7 +1049,7 @@ struct
     | `Definite of BigInt.t
     | `Bot
   ] [@@deriving to_yojson]
-  type int_t = BI.t
+  type int_t = BigInt.t
   let name () = "def_exc"
 
 
@@ -1113,28 +1113,40 @@ struct
     | `Definite x -> `Definite (BigInt.cast_to ik x)
     | `Bot -> `Bot
 
-    let norm ik t = match t with
-    | `Excluded (s, r) ->
-      let size_ik = size ik in
-      if not (R.leq r size_ik) then (
-        top_of ik
-      ) else (
+    (* Wraps definite values and excluded values accoding to the ikind.
+     * For an `Excluded s,r , assumes that r is already an overapproximation of the range of possible values.
+     * r might be larger than the possible range of this type; the range of the returned `Excluded set will be within the bounds of the ikind.
+     *)
+    let norm ik (t :t) =
+      let should_wrap ik = not (Cil.isSigned ik) || GobConfig.get_bool "ana.int.wrap_on_signed_overflow" in
+      match t with
+      | `Excluded (s, r) ->
+        let r = if R.leq (size ik) r then size ik else r in
         let min, max = range_min_max r in
-        let all_in_range = S.for_all (fun excluded -> BigInt.compare min excluded <= 0 && BigInt.compare excluded max <= 0) s in
-        if all_in_range then t else top_of ik
-      )
-    | `Definite x ->
-      let min, max = Size.range_big_int ik in
-      if not (Cil.isSigned ik) then (
-        (* On an usigned integer type, a wrap-around should not result in top.
-           Handle wrap-around with cast_to to keep precision. *)
-        cast_to ik t
-      ) else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
-        t
-      ) else (
-        top_of ik
-      )
-    | `Bot -> `Bot
+        if should_wrap ik then (
+          (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
+          S.iter (fun v -> print_endline (BI.to_string v)) s;
+          let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
+          S.iter (fun v -> print_endline (BI.to_string v)) mapped_excl;
+          `Excluded (mapped_excl, r)
+        ) else (
+          let all_in_range = S.for_all (fun excluded -> BigInt.compare min excluded <= 0 && BigInt.compare excluded max <= 0) s in
+          if all_in_range then
+            t
+          else
+            top_of ik
+        )
+      | `Definite x ->
+        let min, max = Size.range_big_int ik in
+        (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
+        if should_wrap ik then (
+          cast_to ik t
+        ) else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
+          t
+        ) else (
+          top_of ik
+        )
+      | `Bot -> `Bot
 
   let max_of_range r =
     match R.maximal r with
@@ -1274,10 +1286,6 @@ struct
   let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
     (* If the Int64 might overflow on us during computation, we instead go to top_range *)
     match R.minimal r, R.maximal r with
-    | Some l, _ when l <= -63L ->
-      top_range
-    | Some _, Some u when u >= 63L ->
-      top_range
     | _ ->
       let rf m = BatOption.map (size % Size.min_for % f) (m r) in
       match rf min_of_range, rf max_of_range with
@@ -1293,7 +1301,7 @@ struct
     | `Definite x -> `Definite (f x)
     | `Bot -> `Bot
 
-  let lift2 f ik x y = match x,y with
+  let lift2 f ik x y = norm ik (match x,y with
     (* We don't bother with exclusion sets: *)
     | `Excluded _, `Definite _
     | `Definite _, `Excluded _
@@ -1304,9 +1312,9 @@ struct
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y))))
 
-  let lift_comp f x y = match x,y with
+  let lift_comp f ik x y = norm ik (match x,y with
     (* We don't bother with exclusion sets: *)
     | `Excluded _, `Definite _
     | `Definite _, `Excluded _
@@ -1317,25 +1325,26 @@ struct
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y))))
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
   let lift2_inj f ik x y =
     let def_exc f x s r = `Excluded (S.map (f x) s, apply_range (f x) r) in
-    match x,y with
-    (* If both are exclusion sets, there isn't anything we can do: *)
-    | `Excluded _, `Excluded _ -> top ()
-    (* A definite value should be applied to all members of the exclusion set *)
-    | `Definite x, `Excluded (s,r) -> def_exc f x s r
-    (* Same thing here, but we should flip the operator to map it properly *)
-    | `Excluded (s,r), `Definite x -> def_exc (Batteries.flip f) x s r
-    (* The good case: *)
-    | `Definite x, `Definite y -> `Definite (f x y)
-    | `Bot, `Bot -> `Bot
-    | _ ->
-      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    norm ik @@
+      match x,y with
+      (* If both are exclusion sets, there isn't anything we can do: *)
+      | `Excluded _, `Excluded _ -> top ()
+      (* A definite value should be applied to all members of the exclusion set *)
+      | `Definite x, `Excluded (s,r) -> def_exc f x s r
+      (* Same thing here, but we should flip the operator to map it properly *)
+      | `Excluded (s,r), `Definite x -> def_exc (Batteries.flip f) x s r
+      (* The good case: *)
+      | `Definite x, `Definite y -> `Definite (f x y)
+      | `Bot, `Bot -> `Bot
+      | _ ->
+        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
   (* The equality check: *)
   let eq ik x y = match x,y with
@@ -1367,7 +1376,7 @@ struct
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
 
-  let neg ik x = norm ik @@ lift1 BigInt.neg ik x
+  let neg ik (x :t) = norm ik @@ lift1 BigInt.neg ik x
   let add ik x y = norm ik @@ lift2_inj BigInt.add ik x y
 
   let sub ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
@@ -1379,8 +1388,8 @@ struct
     (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
     | `Excluded (s,r),`Definite a when BigInt.equal (BigInt.rem a (BigInt.of_int 2)) BigInt.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
     | _ -> lift2_inj BigInt.mul ik x y
-  let div ik x y = norm ik @@ lift2 BigInt.div ik x y
-  let rem ik x y = norm ik @@ lift2 BigInt.rem ik x y
+  let div ik x y = lift2 BigInt.div ik x y
+  let rem ik x y = lift2 BigInt.rem ik x y
   let lt ik = lift2 BigInt.lt ik
   let gt ik = lift2 BigInt.gt ik
   let le ik = lift2 BigInt.le ik

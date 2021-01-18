@@ -1,3 +1,4 @@
+//PARAM: --enable ana.int.wrap_on_signed_overflow
 #include<stdio.h>
 #include<assert.h>
 
