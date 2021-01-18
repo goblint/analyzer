@@ -5,7 +5,6 @@ open Pretty
 
 module GU = Goblintutil
 module ID = IntDomain.FlatPureIntegers
-module BD = IntDomain.Booleans
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
 module PS = SetDomain.ToppedSet (Exp.LockingPattern) (struct let topname = "All" end)
@@ -34,20 +33,18 @@ let iterprevvar_to_yojson _ = `Null
 type itervar = int -> unit
 let itervar_to_yojson _ = `Null
 
-type t = ExpEq of exp * exp
-       | EqualSet of exp
+type t = EqualSet of exp
        | MayPointTo of exp
        | ReachableFrom of exp
        | ReachableUkTypes of exp
        | Regions of exp
        | MayEscape of varinfo
        | Priority of string
-       | IsPublic of varinfo
-       | SingleThreaded
-       | NotSingleThreaded
-       | IsNotUnique
+       | MayBePublic of varinfo
+       | MustBeSingleThreaded
+       | MustBeUniqueThread
        | CurrentThreadId
-       | IsThreadReturn
+       | MayBeThreadReturn
        | EvalFunvar of exp
        | EvalInt of exp
        | EvalStr of exp
@@ -58,7 +55,6 @@ type t = ExpEq of exp * exp
        | Access of exp * bool * bool * int
        | IterPrevVars of iterprevvar
        | IterVars of itervar
-       | InInterval of exp * IntDomain.Interval32.t
        | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
        | MayBeEqual of exp * exp (* may two expressions be equal? *)
        | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
@@ -71,12 +67,13 @@ type result = [
   | `Top
   | `Int of ID.t
   | `Str of string
-  | `Bool of BD.t
   | `LvalSet of LS.t
   | `ExprSet of ES.t
   | `ExpTriples of PS.t
   | `TypeSet of TS.t
   | `Varinfo of VI.t
+  | `MustBool of bool  (* true \leq false *)
+  | `MayBool of bool   (* false \leq true *)
   | `Bot
 ] [@@deriving to_yojson]
 
@@ -101,58 +98,62 @@ struct
     | (`Top, `Top) -> true
     | (`Bot, `Bot) -> true
     | (`Int x, `Int y) -> ID.equal x y
-    | (`Bool x, `Bool y) -> BD.equal x y
     | (`LvalSet x, `LvalSet y) -> LS.equal x y
     | (`ExprSet x, `ExprSet y) -> ES.equal x y
     | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
     | (`TypeSet x, `TypeSet y) -> TS.equal x y
     | (`Varinfo x, `Varinfo y) -> VI.equal x y
+    | (`MustBool x, `MustBool y) -> Bool.equal x y
+    | (`MayBool x, `MayBool y) -> Bool.equal x y
     | _ -> false
 
   let hash (x:t) =
     match x with
     | `Int n -> ID.hash n
-    | `Bool n -> BD.hash n
     | `LvalSet n -> LS.hash n
     | `ExprSet n -> ES.hash n
     | `ExpTriples n -> PS.hash n
     | `TypeSet n -> TS.hash n
     | `Varinfo n -> VI.hash n
+    (* `MustBool and `MayBool should work by the following *)
     | _ -> Hashtbl.hash x
 
   let compare x y =
     let constr_to_int x = match x with
       | `Bot -> 0
       | `Int _ -> 1
-      | `Bool _ -> 2
-      | `LvalSet _ -> 3
-      | `ExprSet _ -> 4
-      | `ExpTriples _ -> 5
-      | `Str _ -> 6
-      | `IntSet _ -> 8
-      | `TypeSet _ -> 9
-      | `Varinfo _ -> 10
+      | `LvalSet _ -> 2
+      | `ExprSet _ -> 3
+      | `ExpTriples _ -> 4
+      | `Str _ -> 5
+      | `IntSet _ -> 6
+      | `TypeSet _ -> 7
+      | `Varinfo _ -> 8
+      | `MustBool _ -> 9
+      | `MayBool _ -> 10
       | `Top -> 100
     in match x,y with
     | `Int x, `Int y -> ID.compare x y
-    | `Bool x, `Bool y -> BD.compare x y
     | `LvalSet x, `LvalSet y -> LS.compare x y
     | `ExprSet x, `ExprSet y -> ES.compare x y
     | `ExpTriples x, `ExpTriples y -> PS.compare x y
     | `TypeSet x, `TypeSet y -> TS.compare x y
     | `Varinfo x, `Varinfo y -> VI.compare x y
+    | `MustBool x, `MustBool y -> Bool.compare x y
+    | `MayBool x, `MayBool y -> Bool.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
     match state with
     | `Int n ->  ID.pretty () n
     | `Str s ->  text s
-    | `Bool n ->  BD.pretty () n
     | `LvalSet n ->  LS.pretty () n
     | `ExprSet n ->  ES.pretty () n
     | `ExpTriples n ->  PS.pretty () n
     | `TypeSet n -> TS.pretty () n
     | `Varinfo n -> VI.pretty () n
+    | `MustBool n -> text (string_of_bool n)
+    | `MayBool n -> text (string_of_bool n)
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -160,24 +161,25 @@ struct
     match state with
     | `Int n ->  ID.short w n
     | `Str s ->  s
-    | `Bool n ->  BD.short w n
     | `LvalSet n ->  LS.short w n
     | `ExprSet n ->  ES.short w n
     | `ExpTriples n ->  PS.short w n
     | `TypeSet n -> TS.short w n
     | `Varinfo n -> VI.short w n
+    | `MustBool n -> string_of_bool n
+    | `MayBool n -> string_of_bool n
     | `Bot -> bot_name
     | `Top -> top_name
 
   let isSimple x =
     match x with
     | `Int n ->  ID.isSimple n
-    | `Bool n ->  BD.isSimple n
     | `LvalSet n ->  LS.isSimple n
     | `ExprSet n ->  ES.isSimple n
     | `ExpTriples n ->  PS.isSimple n
     | `TypeSet n -> TS.isSimple n
     | `Varinfo n -> VI.isSimple n
+    (* `MustBool and `MayBool should work by the following *)
     | _ -> true
 
   let pretty () x = pretty_f short () x
@@ -190,12 +192,14 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
-    | (`Bool x, `Bool y) -> BD.leq x y
     | (`LvalSet x, `LvalSet y) -> LS.leq x y
     | (`ExprSet x, `ExprSet y) -> ES.leq x y
     | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
     | (`TypeSet x, `TypeSet y) -> TS.leq x y
     | (`Varinfo x, `Varinfo y) -> VI.leq x y
+    (* TODO: should these be more like IntDomain.Booleans? *)
+    | (`MustBool x, `MustBool y) -> x == y || x
+    | (`MayBool x, `MayBool y) -> x == y || y
     | _ -> false
 
   let join x y =
@@ -205,12 +209,13 @@ struct
       | (`Bot, x)
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.join x y)
-      | (`Bool x, `Bool y) -> `Bool (BD.join x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.join x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.join x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.join x y)
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.join x y)
+      | (`MustBool x, `MustBool y) -> `MustBool (x && y)
+      | (`MayBool x, `MayBool y) -> `MayBool (x || y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -221,12 +226,13 @@ struct
       | (`Top, x)
       | (x, `Top) -> x
       | (`Int x, `Int y) -> `Int (ID.meet x y)
-      | (`Bool x, `Bool y) -> `Bool (BD.meet x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.meet x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.meet x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.meet x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.meet x y)
+      | (`MustBool x, `MustBool y) -> `MustBool (x || y)
+      | (`MayBool x, `MayBool y) -> `MayBool (x && y)
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 
@@ -237,24 +243,26 @@ struct
       | (`Bot, x)
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.widen x y)
-      | (`Bool x, `Bool y) -> `Bool (BD.widen x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.widen x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
       | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.widen x y)
+      | (`MustBool x, `MustBool y) -> `MustBool (x && y)
+      | (`MayBool x, `MayBool y) -> `MustBool (x || y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
   let narrow x y =
     match (x,y) with
     | (`Int x, `Int y) -> `Int (ID.narrow x y)
-    | (`Bool x, `Bool y) -> `Bool (BD.narrow x y)
     | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.narrow x y)
     | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)
     | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
     | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
     | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.narrow x y)
+    | (`MustBool x, `MustBool y) -> `MustBool (x || y)
+    | (`MayBool x, `MayBool y) -> `MayBool (x && y)
     | (x,_) -> x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))

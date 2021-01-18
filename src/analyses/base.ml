@@ -19,7 +19,7 @@ module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
 
 let is_global (a: Q.ask) (v: varinfo): bool =
-  v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
+  v.vglob || match a (Q.MayEscape v) with `MayBool tv -> tv | _ -> false
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
@@ -30,7 +30,7 @@ let privatization = ref false
 let is_private (a: Q.ask) (_,_) (v: varinfo): bool =
   !privatization &&
   (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-   match a (Q.IsPublic v) with `Bool tv -> not tv | _ ->
+   match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
    if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
    false)
 
@@ -143,7 +143,6 @@ struct
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
-    let result_ik = Cilfacade.get_ikind t in
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -197,7 +196,9 @@ struct
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
-    | `Int v1, `Int v2 -> `Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
+    | `Int v1, `Int v2 ->
+      let result_ik = Cilfacade.get_ikind t in
+      `Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -220,6 +221,7 @@ struct
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result in most cases, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
+        let result_ik = Cilfacade.get_ikind t in
         let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.Addr.equal (AD.choose x) (AD.choose y)) else None in
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
@@ -286,10 +288,10 @@ struct
   let eval_rv_pre (ask: Q.ask) exp pr =
     let binop op e1 e2 =
       let equality () =
-        match ask (Q.ExpEq (e1,e2)) with
-        | `Bool x ->
-          if M.tracing then M.tracel "query" "ExpEq (%a, %a) = %b\n" d_exp e1 d_exp e2 x;
-          Some x
+        match ask (Q.MustBeEqual (e1,e2)) with
+        | `MustBool true ->
+          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
+          Some true
         | _ -> None
       in
       let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
@@ -946,10 +948,10 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match ID.to_int i1, ID.to_int i2 with
-            | Some i1', Some i2' when i1' = i2' -> `Bool(true)
-            | _ -> Q.Result.top ()
+            | Some i1', Some i2' when i1' = i2' -> `MustBool true
+            | _ -> `MustBool false
             end
-        | _ -> Q.Result.top ()
+        | _ -> `MustBool false
       end
     | Q.MayBeEqual (e1, e2) -> begin
         (* Printf.printf "---------------------->  may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
@@ -964,11 +966,11 @@ struct
             if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
               begin
                 (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
-                `Bool(false)
+                `MayBool false
               end
-            else Q.Result.top ()
+            else `MayBool true
           end
-        | _ -> Q.Result.top ()
+        | _ -> `MayBool true
       end
     | Q.MayBeLess (e1, e2) -> begin
         (* Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
@@ -981,12 +983,12 @@ struct
               if i1' >= i2' then
                 begin
                   (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
-                  `Bool(false)
+                  `MayBool false
                 end
-              else Q.Result.top ()
-            | _ -> Q.Result.top ()
+              else `MayBool true
+            | _ -> `MayBool true
           end
-        | _ -> Q.Result.top ()
+        | _ -> `MayBool true
       end
     | _ -> Q.Result.top ()
 
@@ -1035,7 +1037,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          let is_heap_var = match a (Q.IsHeapVar x) with `Bool(true) -> true | _ -> false in
+          let is_heap_var = match a (Q.IsHeapVar x) with `MayBool(true) -> true | _ -> false in
           if is_heap_var then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
@@ -1093,7 +1095,7 @@ struct
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
               match a (Q.MustBeEqual (e1, e2)) with
-              | `Bool t -> Q.BD.to_bool t = Some true
+              | `MustBool true -> true
               | _ -> false
             in
             let ik = Cilfacade.get_ikind (typeOf currentE') in

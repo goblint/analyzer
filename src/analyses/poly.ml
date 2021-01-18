@@ -133,9 +133,9 @@ struct
         | _, Some s -> `Interval (IntDomain.Interval.ending s)
         | _ -> `Top
       end
-    | ExpEq (e1, e2) ->
-      if D.cil_exp_equals d e1 e2 then `Bool (Queries.BD.of_bool true)
-      else Result.top ()
+    | MustBeEqual (e1, e2) ->
+      if D.cil_exp_equals d e1 e2 then `MustBool true
+      else `MustBool false
     | _ -> Result.top ()
 end
 

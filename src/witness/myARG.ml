@@ -147,6 +147,22 @@ struct
             in
             (edge, to_n')
           )
+
+  (* Avoid infinite stack nodes for recursive programs
+     by dropping down to repeated stack node. *)
+  let drop_prefix n stack =
+    let rec drop = function
+      | [] -> n :: stack
+      | (x :: _) as stack when Arg.Node.equal x n -> stack
+      | _ :: xs -> drop xs
+    in
+    drop stack
+  let dedup = function
+    | [] -> failwith "StackArg.next: dedup empty"
+    | n :: stack -> drop_prefix n stack
+  let next node =
+    next node
+    |> List.map (BatTuple.Tuple2.map2 dedup)
 end
 
 module type IsInteresting =
@@ -251,7 +267,7 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {sid; skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
+    | Statement {sid; skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.witness.uncil" ->
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
@@ -304,7 +320,7 @@ struct
       Question(e_cond, e_true, e_false, typeOf e_false)
 
   let next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.uncilwitness" ->
+    | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.witness.uncil" ->
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
       if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with

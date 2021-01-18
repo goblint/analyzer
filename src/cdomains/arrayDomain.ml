@@ -143,19 +143,19 @@ struct
     | `Lifted e', `Lifted i' ->
       begin
         let isEqual = match ask (Q.MustBeEqual (e',i')) with
-          | `Bool true -> true
+          | `MustBool true -> true
           | _ -> false in
         if isEqual then xm
         else
           begin
             let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-            | `Bool false -> Val.bot ()
+            | `MayBool false -> Val.bot ()
             | _ -> xl in
             let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-            | `Bool false -> Val.bot ()
+            | `MayBool false -> Val.bot ()
             | _ -> xm in
             let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-            | `Bool false -> Val.bot ()
+            | `MayBool false -> Val.bot ()
             | _ -> xr in
             Val.join (Val.join contributionLess contributionEqual) contributionGreater
           end
@@ -267,7 +267,7 @@ struct
                   | Some i ->
                     begin
                       match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) with
-                      | `Bool false -> true (* !(e <_{may} length) => e >=_{must} length *)
+                      | `MayBool false -> true (* !(e <_{may} length) => e >=_{must} length *)
                       | _ -> false
                     end
                   | None -> false
@@ -276,7 +276,7 @@ struct
             in
             let e_must_less_zero =
               match ask (Q.MayBeLess (Cil.mone, exp)) with
-              | `Bool false -> true (* !(-1 <_{may} e) => e <=_{must} -1 *)
+              | `MayBool false -> true (* !(-1 <_{may} e) => e <=_{must} -1 *)
               | _ -> false
             in
             if e_must_bigger_max_index then
@@ -333,7 +333,7 @@ struct
           (i, (l, a, r))
       else
         let isEqual e' i' = match ask (Q.MustBeEqual (e',i')) with
-          | `Bool true -> true
+          | `MustBool true -> true
           | _ -> false
         in
         match e, i with
@@ -341,15 +341,15 @@ struct
             let default =
               let left =
                 match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
-                | `Bool false -> xl
+                | `MayBool false -> xl
                 | _ -> lubIfNotBot xl in
               let middle =
                 match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
-                | `Bool false -> xm
+                | `MayBool false -> xm
                 | _ -> Val.join xm a in
               let right =
                 match ask (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
-                | `Bool false -> xr
+                | `MayBool false -> xr
                 | _ -> lubIfNotBot xr in
               (e, (left, middle, right))
             in
@@ -380,33 +380,33 @@ struct
           else
             let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
               (match ask (Q.MayBeEqual (e', i')) with
-              | `Bool false -> Val.bot()
+              | `MayBool false -> Val.bot()
               | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
               (
                 let ik = Cilfacade.get_ikind (Cil.typeOf e') in
                 match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
-                | `Bool true -> xm
+                | `MustBool true -> xm
                 | _ ->
                   begin
                     match ask (Q.MayBeLess (e', i')) with
-                    | `Bool false -> Val.bot()
+                    | `MayBool false-> Val.bot()
                     | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
                   end
               )
             in
             let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
               (match ask (Q.MayBeEqual (e', i')) with
-              | `Bool false -> Val.bot()
+              | `MayBool false -> Val.bot()
               | _ -> xm)
 
               (
                 let ik = Cilfacade.get_ikind (Cil.typeOf e') in
                 match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
-                | `Bool true -> xm
+                | `MustBool true -> xm
                 | _ ->
                   begin
                     match ask (Q.MayBeLess (i', e')) with
-                    | `Bool false -> Val.bot()
+                    | `MayBool false -> Val.bot()
                     | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
                   end
               )

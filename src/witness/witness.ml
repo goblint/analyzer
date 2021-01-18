@@ -11,19 +11,26 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
   let is_invariant_node cfgnode =
-    if get_bool "exp.witness_loop_invariants" then
-      WitnessUtil.NH.mem loop_heads cfgnode
-    else
-      true
+    match get_string "exp.witness.invariant.nodes" with
+    | "all" -> true
+    | "loop_heads" -> WitnessUtil.NH.mem loop_heads cfgnode
+    | "none" -> false
+    | _ -> failwith "exp.witness.invariant.nodes: invalid value"
   in
 
-  let module TaskResult = StackTaskResult (Cfg) (TaskResult) in
+  let module TaskResult =
+    (val if get_bool "exp.witness.stack" then
+        (module StackTaskResult (Cfg) (TaskResult) : WitnessTaskResult)
+      else
+        (module TaskResult)
+    )
+  in
   let module N = TaskResult.Arg.Node in
   let module IsInteresting =
   struct
     (* type node = N.t
     type edge = TaskResult.Arg.Edge.t *)
-    let minwitness = get_bool "exp.minwitness"
+    let minwitness = get_bool "exp.witness.minimize"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
       (* startlines aren't currently interesting because broken, see below *)
@@ -55,7 +62,17 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module Arg = MyARG.InterestingArg (Arg) (IsInteresting) in
 
   let module N = Arg.Node in
-  let module GML = DeDupGraphMlWriter (N) (ArgNodeGraphMlWriter (N) (XmlGraphMlWriter)) in
+  let module GML = XmlGraphMlWriter in
+  let module GML =
+    (val match get_string "exp.witness.id" with
+      | "node" ->
+        (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
+      | "enumerate" ->
+        (module EnumerateNodeGraphMlWriter (N) (GML))
+      | _ -> failwith "exp.witness.id: illegal value"
+    )
+  in
+  let module GML = DeDupGraphMlWriter (N) (GML) in
   let module NH = Hashtbl.Make (N) in
 
   let main_entry = Arg.main_entry in
@@ -90,14 +107,14 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_key g "edge" "threadId" "string" None;
   GML.write_key g "edge" "createThread" "string" None;
 
-  GML.write_key g "node" "goblintNode" "string" None;
-  GML.write_key g "node" "sourcecode" "string" None;
+  (* GML.write_key g "node" "goblintNode" "string" None; *)
+  (* GML.write_key g "node" "sourcecode" "string" None; *)
   GML.write_key g "edge" "goblintEdge" "string" None;
   GML.write_key g "edge" "goblintLine" "string" None;
   GML.write_key g "edge" "goblintControl" "string" None;
   (* TODO: remove *)
-  GML.write_key g "edge" "enterFunction2" "string" None;
-  GML.write_key g "edge" "returnFromFunction2" "string" None;
+  (* GML.write_key g "edge" "enterFunction2" "string" None;
+  GML.write_key g "edge" "returnFromFunction2" "string" None; *)
 
   GML.start_graph g;
 
@@ -145,11 +162,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           else
             []
         end;
-        begin match cfgnode with
+        (* begin match cfgnode with
           | Statement s ->
             [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
           | _ -> []
-        end;
+        end; *)
         (* violation actually only allowed in violation witness *)
         (* maybe should appear on from_node of entry edge instead *)
         begin if TaskResult.is_violation node then
@@ -167,7 +184,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
            | Function f      -> Printf.sprintf "ret%d%s" f.vid f.vname
            | FunctionEntry f -> Printf.sprintf "fun%d%s" f.vid f.vname
           )] *)
-        [("goblintNode", N.to_string node)]
+        (* [("goblintNode", N.to_string node)] *)
       ])
   in
   let write_edge from_node edge to_node =
@@ -214,10 +231,10 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             end
           (* enter and return on other side of nodes,
              more correct loc (startline) but had some scope problem? *)
-          | MyARG.CFGEdge (Entry f) ->
+          (* | MyARG.CFGEdge (Entry f) ->
             [("enterFunction2", f.svar.vname)]
           | MyARG.CFGEdge (Ret (_, f)) ->
-            [("returnFromFunction2", f.svar.vname)]
+            [("returnFromFunction2", f.svar.vname)] *)
           | _ -> []
         end;
         [("goblintEdge", Arg.Edge.to_string edge)]
@@ -588,7 +605,7 @@ struct
     let module TaskResult = (val (Stats.time "determine" (determine_result lh gh entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
-    let witness_path = get_string "exp.witness_path" in
+    let witness_path = get_string "exp.witness.path" in
     Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
 
   let write lh gh entrystates =

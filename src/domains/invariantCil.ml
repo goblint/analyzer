@@ -7,7 +7,7 @@ let var_original_names: string VM.t Lazy.t =
   lazy (
     Hashtbl.fold (fun original_name (envdata, _) acc ->
       match envdata with
-      | Cabs2cil.EnvVar vi ->
+      | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
         VM.add vi original_name acc
       | _ -> acc
     ) Cabs2cil.environment VM.empty
@@ -69,10 +69,12 @@ let exp_is_in_scope scope e =
 let tmp_var_regexp = Str.regexp "^\\(tmp\\(___[0-9]+\\)?\\|cond\\|RETURN\\)$"
 (* let var_is_tmp {vname; _} = Str.string_match tmp_var_regexp vname 0 *)
 let var_is_tmp vi = Option.is_none (var_find_original_name vi)
+(* TODO: use visitor for this *)
 let rec exp_contains_tmp = function
   | Lval (Var vi, _) -> var_is_tmp vi
   | UnOp (_, e, _) -> exp_contains_tmp e
   | BinOp (_, e1, e2, _) -> exp_contains_tmp e1 || exp_contains_tmp e2
+  | CastE (_, e) -> exp_contains_tmp e
   | exp -> exp = MyCFG.unknown_exp
 
 (* TODO: synchronize magic constant with BaseDomain *)

@@ -570,10 +570,10 @@ struct
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       `Int (Int64.of_int pry)
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
-    | Queries.IsPublic v ->
+    | Queries.MayBePublic v ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
-        `Bool false
+        `MayBool false
       else
         let off =
           (*         if !FlagModes.Spec.flag_list = [] then begin *)
@@ -585,7 +585,7 @@ struct
           (*             let flagstate = get_flags ctx.presub in *)
           (*             offpry_flags flagstate v *)
           (*           end *)
-        in `Bool (off > pry)
+        in `MayBool (off > pry)
     | _ -> Queries.Result.top ()
 
   let rec conv_offset x =

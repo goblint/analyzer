@@ -474,9 +474,9 @@ struct
   let isSimple _  = true
   let copy x = x
   type t = fieldinfo [@@deriving to_yojson]
-  let compare x y = compare x.fname y.fname
-  let equal x y = x.fname = y.fname
-  let hash x = Hashtbl.hash x.fname
+  let compare x y = compare (x.fname, compFullName x.fcomp)  (y.fname, compFullName y.fcomp)
+  let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
+  let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
   let short _ x = x.fname
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let classify _ = 0

@@ -21,6 +21,6 @@ int main()
     return 0;
 }
 
-// ./goblint --enable ana.sv-comp --enable ana.wp --enable exp.uncilwitness --disable ana.int.def_exc --enable ana.int.interval --set ana.activated '["base"]' --set phases '[{}, {"ana": {"activated": ["base", "observer"], "path_sens": ["observer"]}}]' --html tests/sv-comp/observer/path_nofun_true-unreach-call.c
+// ./goblint --enable ana.sv-comp --enable ana.wp --enable exp.witness.uncil --disable ana.int.def_exc --enable ana.int.interval --set ana.activated '["base"]' --set phases '[{}, {"ana": {"activated": ["base", "observer"], "path_sens": ["observer"]}}]' --html tests/sv-comp/observer/path_nofun_true-unreach-call.c
 
-// ./goblint --enable ana.sv-comp --enable ana.wp --enable exp.uncilwitness --disable ana.int.def_exc --enable ana.int.interval --set ana.activated '["base"]' --html tests/sv-comp/observer/path_nofun_true-unreach-call.c
+// ./goblint --enable ana.sv-comp --enable ana.wp --enable exp.witness.uncil --disable ana.int.def_exc --enable ana.int.interval --set ana.activated '["base"]' --html tests/sv-comp/observer/path_nofun_true-unreach-call.c
