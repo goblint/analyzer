@@ -62,12 +62,18 @@ struct
 
   let threadenter ctx lval f args =
     match args with
-    | [ptc_arg] -> reachable ctx.ask ptc_arg
+    | [ptc_arg] ->
+      let escaped = reachable ctx.ask ptc_arg in
+      ctx.emit (Events.Escape escaped);
+      escaped
     | _ -> D.bot ()
 
   let threadspawn ctx lval f args fctx =
     match args with
-    | [ptc_arg] -> reachable ctx.ask ptc_arg (* TODO: just use fd? *)
+    | [ptc_arg] ->
+      let escaped = reachable ctx.ask ptc_arg in (* TODO: just use fd? *)
+      ctx.emit (Events.Escape escaped);
+      escaped
     | _ -> D.bot ()
 end
 

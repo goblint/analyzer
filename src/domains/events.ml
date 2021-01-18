@@ -3,5 +3,5 @@ open Deriving.Cil
 type t =
   | Lock of LockDomain.Addr.t
   | Unlock of LockDomain.Addr.t
-  | Escape of varinfo (* TODO: use *)
+  | Escape of EscapeDomain.EscapedVars.t
   | SplitBranch of exp * bool (** Used to simulate old branch-based split. *)

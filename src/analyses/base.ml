@@ -47,6 +47,8 @@ sig
 
   val sync: ?privates:bool -> [`Normal | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
 
+  val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> EscapeDomain.EscapedVars.t -> BaseComponents.t
+
   (* TODO: better name *)
   val is_private: Q.ask -> varinfo -> bool
 end
@@ -93,6 +95,8 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var st.cpa (st, [])
+
+  let escape ask getg sideg st escaped = st
 end
 
 module OldPriv: PrivParam =
@@ -140,6 +144,8 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var st.cpa (st, [])
+
+  let escape ask getg sideg st escaped = st
 end
 
 module PrivBase =
@@ -182,6 +188,8 @@ struct
   let mutex_global x = x
 
   let sync ?privates reason ctx = (ctx.local.BaseComponents.cpa, [])
+
+  let escape ask getg sideg st escaped = st
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
@@ -325,6 +333,11 @@ struct
       ) st.cpa (st.cpa, sidegs)
     in
     ({st with cpa = cpa'}, sidegs')
+
+  let escape ask getg sideg (st: BaseComponents.t) escaped =
+    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
+    sideg (Lazy.force mutex_inits) escaped_cpa;
+    st
 end
 
 module PerGlobalVesalPriv: PrivParam =
@@ -385,6 +398,8 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var st.cpa (st, [])
+
+  let escape ask getg sideg st escaped = st
 end
 
 module PerGlobalPriv: PrivParam =
@@ -460,6 +475,18 @@ struct
     in
     (* ({st' with cached = CVars.filter (is_protected ask) st'.cached}, sidegs) *)
     (st', sidegs)
+
+    let escape ask getg sideg (st: BaseComponents.t) escaped =
+      let cpa' = CPA.fold (fun x v acc ->
+          if EscapeDomain.EscapedVars.mem x escaped then (
+            sideg x (v, v);
+            CPA.remove x acc
+          )
+          else
+            acc
+        ) st.cpa st.cpa
+      in
+      {st with cpa = cpa'}
 
   (* ??? *)
   let is_private ask x = true
@@ -1407,6 +1434,8 @@ struct
           Priv.unlock octx.ask octx.global octx.sideg st m
         | _ -> ctx.local (* TODO: what to do here? *)
       end
+    | Events.Escape escaped ->
+      Priv.escape octx.ask octx.global octx.sideg st escaped
     | _ ->
       ctx.local
 
