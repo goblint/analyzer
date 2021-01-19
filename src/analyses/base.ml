@@ -499,17 +499,17 @@ struct
     (* ({st' with cached = CVars.filter (is_protected ask) st'.cached}, sidegs) *)
     (st', sidegs)
 
-    let escape ask getg sideg (st: BaseComponents.t) escaped =
-      let cpa' = CPA.fold (fun x v acc ->
-          if EscapeDomain.EscapedVars.mem x escaped then (
-            sideg x (v, v);
-            CPA.remove x acc
-          )
-          else
-            acc
-        ) st.cpa st.cpa
-      in
-      {st with cpa = cpa'}
+  let escape ask getg sideg (st: BaseComponents.t) escaped =
+    let cpa' = CPA.fold (fun x v acc ->
+        if EscapeDomain.EscapedVars.mem x escaped then (
+          sideg x (v, v);
+          CPA.remove x acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
 
   (* ??? *)
   let is_private ask x = true
