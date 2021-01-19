@@ -200,15 +200,19 @@ struct
       | None -> ()
     end;
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then (
+      ctx.emit (Events.Unlock verifier_atomic);
       Lockset.remove (verifier_atomic, true) ctx.local
+    )
     else
       ctx.local
 
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then (
+      ctx.emit (Events.Lock verifier_atomic);
       Lockset.add (verifier_atomic, true) ctx.local
+    )
     else
       ctx.local
 
@@ -233,10 +237,12 @@ struct
       | _ -> ctx.local
     in
     match (LF.classify f.vname arglist, f.vname) with
-    | _, "_lock_kernel"
-      -> Lockset.add (big_kernel_lock,true) ctx.local
-    | _, "_unlock_kernel"
-      -> Lockset.remove (big_kernel_lock,true) ctx.local
+    | _, "_lock_kernel" ->
+      ctx.emit (Events.Lock big_kernel_lock);
+      Lockset.add (big_kernel_lock,true) ctx.local
+    | _, "_unlock_kernel" ->
+      ctx.emit (Events.Unlock big_kernel_lock);
+      Lockset.remove (big_kernel_lock,true) ctx.local
     | `Lock (failing, rw, nonzero_return_when_aquired), _
       -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
       (*print_endline @@ "Mutex `Lock "^f.vname;*)
@@ -261,14 +267,18 @@ struct
       unlock remove_rw
     | _, "spinlock_check" -> ctx.local
     | _, "acquire_console_sem" when get_bool "kernel" ->
+      ctx.emit (Events.Lock console_sem);
       Lockset.add (console_sem,true) ctx.local
     | _, "release_console_sem" when get_bool "kernel" ->
+      ctx.emit (Events.Unlock console_sem);
       Lockset.remove (console_sem,true) ctx.local
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ctx.local
     | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
+      ctx.emit (Events.Lock verifier_atomic);
       Lockset.add (verifier_atomic, true) ctx.local
     | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
+      ctx.emit (Events.Unlock verifier_atomic);
       Lockset.remove (verifier_atomic, true) ctx.local
     | _, x ->
       let arg_acc act =
