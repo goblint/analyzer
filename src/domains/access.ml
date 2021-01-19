@@ -52,11 +52,18 @@ module LSSet = SetDomain.Make (LabeledString)
 module LSSSet =
 struct
   include SetDomain.Make (LSSet)
-  (* TODO: other ops *)
+  (* TODO: is this actually some partition domain? *)
   let join po pd =
     let mult_po s = union (map (LSSet.union s) po) in
     fold mult_po pd (empty ())
   let bot () = singleton (LSSet.empty ())
+  let is_bot x = cardinal x = 1 && LSSet.is_empty (choose x)
+  (* top & is_top come from SetDomain.Make *)
+
+  let leq _ _ = raise (Lattice.Unsupported "LSSSet.leq")
+  let meet _ _ = raise (Lattice.Unsupported "LSSSet.meet")
+  let widen _ _ = raise (Lattice.Unsupported "LSSSet.widen")
+  let narrow _ _ = raise (Lattice.Unsupported "LSSSet.narrow")
 end
 
 (* Reverse because MCP2.query [meet]s. *)
