@@ -486,36 +486,8 @@ struct
 
   and part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
     let open Access in
+    (* TODO: make this be PartAccessResult.top *)
     let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
-    (* let sides  = ref [] in
-    let f (po,lo) (n, (module S: Spec), d) : part =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; prev_node = ctx.prev_node
-        ; control_context = ctx.control_context
-        ; context = (fun () -> ctx.context () |> assoc n |> obj)
-        ; edge   = ctx.edge
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v         -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d       -> failwith "part_access::spawn")
-        ; split  = (fun d e tv    -> failwith "part_access::split")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> failwith "part_access::assign")
-        }
-      in
-      let (pd, ld) = S.part_access ctx' e vo w in
-      let ln = LSSet.union lo ld in
-      let mult_po s = LSSSet.union (LSSSet.map (LSSet.union s) po) in
-      let pn = LSSSet.fold mult_po pd (LSSSet.empty ())  in
-      do_sideg ctx !sides;
-      (* printf "e=%a po=%a pd=%a pn=%a\n" d_exp e LSSSet.pretty po LSSSet.pretty pd LSSSet.pretty pn; *)
-      (pn, ln)
-      (* (LSSSet.map (LSSet.add pn) po, LSSet.union lo ln) *)
-    in
-    List.fold_left f start (spec_list ctx.local) *)
     match query ctx (Queries.PartAccess {exp=e; var=vo; write=w}) with
     | `PartAccessResult (po, pd) -> (po, pd)
     | `Top -> start
