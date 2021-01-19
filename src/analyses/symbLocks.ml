@@ -238,8 +238,8 @@ struct
 
   let query ctx (q:Queries.t) =
     match q with
-    | Queries.PartAccess {exp; var; write} ->
-      `PartAccessResult (part_access ctx exp var write)
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
 end
 

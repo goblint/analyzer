@@ -147,7 +147,7 @@ struct
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
       let open Access in
-      match ctx.ask (PartAccess {exp=e; var=vo; write=w}) with
+      match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
       | `PartAccessResult (po, pd) -> (po, pd)
       | `Top -> PartAccessResult.top ()
       | _ -> failwith "MutexAnalysis.part_access"
@@ -236,8 +236,8 @@ struct
       let held_locks: G.t = P.check_fun (Lockset.filter snd ctx.local) in
       if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `MayBool false
       else non_overlapping held_locks (ctx.global v)
-    | Queries.PartAccess {exp; var; write} ->
-      `PartAccessResult (part_access ctx exp var write)
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
 
   let may_race (ctx1,ac1) (ctx,ac2) =

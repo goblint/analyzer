@@ -52,7 +52,7 @@ type t = EqualSet of exp
        | BlobSize of exp (* size of a dynamically allocated `Blob pointed to by exp *)
        | PrintFullState
        | CondVars of exp
-       | PartAccess of {exp: exp; var: varinfo option; write: bool}
+       | PartAccess of {exp: exp; var_opt: varinfo option; write: bool}
        | IterPrevVars of iterprevvar
        | IterVars of itervar
        | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)

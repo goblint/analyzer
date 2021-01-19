@@ -72,8 +72,8 @@ struct
     | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
-    | Queries.PartAccess {exp; var; write} ->
-      `PartAccessResult (part_access ctx exp var write)
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> `Top
 
   let threadenter ctx lval f args =

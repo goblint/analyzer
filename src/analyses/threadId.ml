@@ -81,8 +81,8 @@ struct
   let query ctx x =
     match x with
     | Queries.CurrentThreadId -> `Varinfo ctx.local
-    | Queries.PartAccess {exp; var; write} ->
-      `PartAccessResult (part_access ctx exp var write)
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> `Top
 
   let threadenter ctx lval f args =
