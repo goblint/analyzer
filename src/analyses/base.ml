@@ -181,6 +181,28 @@ struct
 
   let mutex_global x = x
 
+  let mutex_inits =
+    lazy (
+      Goblintutil.create_var @@ makeGlobalVar "MUTEX_INITS" voidType
+    )
+
+  let get_m_with_mutex_inits ask getg m =
+    let get_m = getg m in
+    let get_mutex_inits = getg (Lazy.force mutex_inits) in
+    let is_in_Gm x _ = is_protected_by ask m x in
+    let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
+    CPA.join get_m get_mutex_inits'
+
+  (** [get_m_with_mutex_inits] optimized for implementation-specialized [read_global]. *)
+  let get_mutex_global_x_with_mutex_inits getg x =
+    let get_mutex_global_x = getg (mutex_global x) in
+    let get_mutex_inits = getg (Lazy.force mutex_inits) in
+    match CPA.find_opt x get_mutex_global_x, CPA.find_opt x get_mutex_inits with
+      | Some v1, Some v2 -> Some (VD.join v1 v2)
+      | Some v, None
+      | None, Some v -> Some v
+      | None, None -> None
+
   let sync ?privates reason ctx = (ctx.local.BaseComponents.cpa, [])
 
   (* TODO: does this make sense? *)
@@ -191,16 +213,10 @@ module PerMutexOplusPriv: PrivParam =
 struct
   include PerMutexPrivBase
 
-  (* TODO: extract to PerMutexPrivBase *)
-  let mutex_inits =
-    lazy (
-      Goblintutil.create_var @@ makeGlobalVar "MUTEX_INITS" voidType
-    )
-
   let read_global ask getg (st: BaseComponents.t) x =
     if is_unprotected ask x then
-      (* TODO: also join with mutex_inits here? *)
-      CPA.find x (getg (mutex_global x))
+      let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
+      get_mutex_global_x |? VD.bot ()
     else
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
@@ -218,13 +234,9 @@ struct
     cpa' *)
 
   let lock ask getg cpa m =
-    let get_m = getg m in
-    let get_mutex_inits = getg (Lazy.force mutex_inits) in
-    let is_in_Gm x _ = is_protected_by ask m x in
-    let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
-    let join = CPA.join get_m get_mutex_inits' in
+    let get_m = get_m_with_mutex_inits ask getg m in
     let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
-    let cpa' = CPA.filter is_in_V join in
+    let cpa' = CPA.filter is_in_V get_m in
     if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" d_varinfo m CPA.pretty cpa';
     CPA.fold CPA.add cpa' cpa
   let unlock ask getg sideg (st: BaseComponents.t) m =
@@ -264,23 +276,11 @@ module PerMutexMeetPriv: PrivParam =
 struct
   include PerMutexPrivBase
 
-  let mutex_inits =
-    lazy (
-      Goblintutil.create_var @@ makeGlobalVar "MUTEX_INITS" voidType
-    )
-
   let read_global ask getg (st: BaseComponents.t) x =
     if is_unprotected ask x || (is_atomic ask && not (CPA.mem x st.cpa)) then (
-      let get_mutex_global_x = getg (mutex_global x) in
-      let get_mutex_inits = getg (Lazy.force mutex_inits) in
-      let join_x = match CPA.find_opt x get_mutex_global_x, CPA.find_opt x get_mutex_inits with
-        | Some v1, Some v2 -> Some (VD.join v1 v2)
-        | Some v, None
-        | None, Some v -> Some v
-        | None, None -> None
-      in
+      let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* None is VD.top () *)
-      match CPA.find_opt x st.cpa, join_x with
+      match CPA.find_opt x st.cpa, get_mutex_global_x with
       | Some v1, Some v2 -> VD.meet v1 v2
       | Some v, None
       | None, Some v -> v
@@ -308,13 +308,9 @@ struct
     cpa' *)
 
   let lock ask getg cpa m =
-    let get_m = getg m in
-    let get_mutex_inits = getg (Lazy.force mutex_inits) in
-    let is_in_Gm x _ = is_protected_by ask m x in
-    let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
-    let join = CPA.join get_m get_mutex_inits' in
+    let get_m = get_m_with_mutex_inits ask getg m in
     let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
-    let meet = long_meet cpa join in
+    let meet = long_meet cpa get_m in
     (* ignore (Pretty.printf "LOCK %a (%a):\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n  join: %a\n  meet: %a\n" d_varinfo m d_loc !Tracing.current_loc CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits' CPA.pretty join CPA.pretty meet); *)
     meet
   let unlock ask getg sideg (st: BaseComponents.t) m =
