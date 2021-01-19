@@ -161,10 +161,13 @@ struct
       if Mutexes.mem verifier_atomic held_locks then
         `MayBool false
       else
+        (* TODO: previous implementation required G=Mutexes, use implementation from traces branch *)
         let lambda_v = ctx.global v in
-        let intersect = Mutexes.inter held_locks lambda_v in
-        let tv = Mutexes.is_empty intersect in
+        let intersect = G.join (P.effect_fun (Lockset.filter snd ctx.local)) lambda_v in
+        let tv = G.is_top intersect in
         `MayBool tv
+    | Queries.PartAccess {exp; var; write} ->
+      `PartAccessResult (part_access ctx exp var write)
     | _ -> Queries.Result.top ()
 
   let may_race (ctx1,ac1) (ctx,ac2) =

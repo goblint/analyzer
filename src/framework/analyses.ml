@@ -426,7 +426,6 @@ sig
   val val_of  : C.t -> D.t
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
-  val part_access: (D.t, G.t, C.t) ctx -> exp -> varinfo option -> bool -> (Access.LSSSet.t * Access.LSSet.t)
 
   val sync  : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
   val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
@@ -592,8 +591,4 @@ struct
 
   let val_of x = x
   (* Assume that context is same as local domain. *)
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
-    (* No partitioning on accesses and not locks *)
 end

@@ -487,7 +487,7 @@ struct
   and part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
     let open Access in
     let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
-    let sides  = ref [] in
+    (* let sides  = ref [] in
     let f (po,lo) (n, (module S: Spec), d) : part =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
@@ -515,7 +515,11 @@ struct
       (pn, ln)
       (* (LSSSet.map (LSSet.add pn) po, LSSet.union lo ln) *)
     in
-    List.fold_left f start (spec_list ctx.local)
+    List.fold_left f start (spec_list ctx.local) *)
+    match query ctx (Queries.PartAccess {exp=e; var=vo; write=w}) with
+    | `PartAccessResult (po, pd) -> (po, pd)
+    | `Top -> start
+    | _ -> failwith "MCP2.part_access"
 
   and do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in

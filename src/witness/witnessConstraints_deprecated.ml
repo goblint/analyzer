@@ -96,7 +96,6 @@ struct
         ); *)
       split = (fun d e tv -> ctx.split (d, w) e tv)
     }
-  let part_access ctx = S.part_access (unlift_ctx ctx)
 
   let sync ctx =
     let (d, l) = S.sync (unlift_ctx ctx) in
