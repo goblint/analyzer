@@ -278,6 +278,11 @@ struct
     | `Normal
     | `Init ->
       (st, [])
+
+  let escape ask getg sideg (st: BaseComponents.t) escaped =
+    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
+    sideg (Lazy.force mutex_inits) escaped_cpa;
+    st
 end
 
 module PerMutexMeetPriv: PrivParam =
