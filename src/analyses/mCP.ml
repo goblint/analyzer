@@ -484,17 +484,17 @@ struct
       do_sideg ctx !sides;
       x
 
-  and part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
-    let open Access in
-    (* TODO: make this be PartAccessResult.top *)
-    let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
-    match query ctx (Queries.PartAccess {exp=e; var=vo; write=w}) with
-    | `PartAccessResult (po, pd) -> (po, pd)
-    | `Top -> start
-    | _ -> failwith "MCP2.part_access"
-
   and do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
+    let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
+      let open Access in
+      (* TODO: make this be PartAccessResult.top *)
+      let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
+      match query ctx (PartAccess {exp=e; var=vo; write=w}) with
+      | `PartAccessResult (po, pd) -> (po, pd)
+      | `Top -> start
+      | _ -> failwith "MCP2.part_access"
+    in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
       Access.add e w conf vo oo (po,pd)
