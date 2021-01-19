@@ -290,7 +290,7 @@ struct
   include PerMutexPrivBase
 
   let read_global ask getg (st: BaseComponents.t) x =
-    if is_unprotected ask x || (is_atomic ask && not (CPA.mem x st.cpa)) then (
+    if is_unprotected ask x then (
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* None is VD.top () *)
       match CPA.find_opt x st.cpa, get_mutex_global_x with
@@ -307,7 +307,7 @@ struct
     v *)
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' =
-      if is_unprotected ask x && not (is_atomic ask) then
+      if is_unprotected ask x then
         st.cpa
       else
         CPA.add x v st.cpa
@@ -349,7 +349,7 @@ struct
         []
     in
     let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
-        if is_global a x && (is_unprotected a x && not (is_atomic a)) then
+        if is_global a x && is_unprotected a x then
           (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
         else
           acc
@@ -487,7 +487,7 @@ struct
           if is_global ask x then (
             if reason = `Thread && not (ThreadFlag.is_multi ask) then
               ({st with cpa = CPA.remove x st.cpa}, (x, (v, v)) :: sidegs)
-            else if is_unprotected ask x && not (is_atomic ask) then
+            else if is_unprotected ask x then
               ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
             else
               acc
