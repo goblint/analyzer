@@ -191,8 +191,15 @@ module PerMutexOplusPriv: PrivParam =
 struct
   include PerMutexPrivBase
 
+  (* TODO: extract to PerMutexPrivBase *)
+  let mutex_inits =
+    lazy (
+      Goblintutil.create_var @@ makeGlobalVar "MUTEX_INITS" voidType
+    )
+
   let read_global ask getg (st: BaseComponents.t) x =
     if is_unprotected ask x then
+      (* TODO: also join with mutex_inits here? *)
       CPA.find x (getg (mutex_global x))
     else
       CPA.find x st.cpa
@@ -211,12 +218,20 @@ struct
     cpa' *)
 
   let lock ask getg cpa m =
+    let get_m = getg m in
+    let get_mutex_inits = getg (Lazy.force mutex_inits) in
+    let is_in_Gm x _ = is_protected_by ask m x in
+    let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
+    let join = CPA.join get_m get_mutex_inits' in
     let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
-    let cpa' = CPA.filter is_in_V (getg m) in
+    let cpa' = CPA.filter is_in_V join in
+    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" d_varinfo m CPA.pretty cpa';
     CPA.fold CPA.add cpa' cpa
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
-    sideg m (CPA.filter is_in_Gm st.cpa);
+    let side_m_cpa = CPA.filter is_in_Gm st.cpa in
+    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.unlock m=%a side_m_cpa=%a\n" d_varinfo m CPA.pretty side_m_cpa;
+    sideg m side_m_cpa;
     st
 
   let sync ?(privates=false) reason ctx =
@@ -225,12 +240,19 @@ struct
     match reason with
     | `Thread (* TODO: why is this required? *)
     | `Return -> (* required for thread return *)
+      let sidegs =
+        if reason = `Thread && not (ThreadFlag.is_multi a) then
+          let global_cpa = CPA.filter (fun x _ -> is_global a x) st.cpa in
+          [((Lazy.force mutex_inits, global_cpa))]
+        else
+          []
+      in
       let sidegs = CPA.fold (fun x v acc ->
           if is_global a x then
             (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
           else
             acc
-        ) st.cpa []
+        ) st.cpa sidegs
       in
       (st, sidegs)
     | `Normal
