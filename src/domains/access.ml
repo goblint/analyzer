@@ -48,23 +48,19 @@ struct
   let short _ (x,y) = x^":"^y
   let pretty () x = pretty_f short () x
 end
-module LSSet =
-struct
-  module S = SetDomain.Make (LabeledString)
-  include S
-  include Lattice.Reverse (S)
-end
+module LSSet = SetDomain.Make (LabeledString)
 module LSSSet =
 struct
-  module S = SetDomain.Make (LSSet)
-  include S
+  include SetDomain.Make (LSSet)
   (* TODO: other ops *)
-  let meet po pd =
-    let mult_po s = S.union (S.map (LSSet.union s) po) in
-    S.fold mult_po pd (S.empty ())
+  let join po pd =
+    let mult_po s = union (map (LSSet.union s) po) in
+    fold mult_po pd (empty ())
+  let bot () = singleton (LSSet.empty ())
 end
 
-module PartAccessResult = Lattice.Prod (LSSSet) (LSSet)
+(* Reverse because MCP2.query [meet]s. *)
+module PartAccessResult = Lattice.Reverse (Lattice.Prod (LSSSet) (LSSet))
 
 let typeVar  = Hashtbl.create 101
 let typeIncl = Hashtbl.create 101

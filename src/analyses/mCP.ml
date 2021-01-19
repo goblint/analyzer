@@ -488,11 +488,9 @@ struct
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
       let open Access in
-      (* TODO: make this be PartAccessResult.top *)
-      let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
       match query ctx (PartAccess {exp=e; var=vo; write=w}) with
       | `PartAccessResult (po, pd) -> (po, pd)
-      | `Top -> start
+      | `Top -> PartAccessResult.top ()
       | _ -> failwith "MCP2.part_access"
     in
     let add_access conf vo oo =
