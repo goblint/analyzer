@@ -475,81 +475,10 @@ struct
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
-    | Queries.Access(e,b,reach,conf) ->
-      if reach || b then do_access ctx b reach conf e;
-      Access.distribute_access_exp (do_access ctx) false false conf e;
-      `Bot
     | _ ->
       let x = fold_left f `Top @@ spec_list ctx.local in
       do_sideg ctx !sides;
       x
-
-  and do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
-    let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
-      let open Access in
-      match query ctx (PartAccess {exp=e; var=vo; write=w}) with
-      | `PartAccessResult (po, pd) -> (po, pd)
-      | `Top -> PartAccessResult.top ()
-      | _ -> failwith "MCP2.part_access"
-    in
-    let add_access conf vo oo =
-      let (po,pd) = part_access ctx e vo w in
-      Access.add e w conf vo oo (po,pd)
-    in
-    let add_access_struct conf ci =
-      let (po,pd) = part_access ctx e None w in
-      Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
-    in
-    let has_escaped g =
-      match ctx.ask (Queries.MayEscape g) with
-      | `MayBool false -> false
-      | _ -> true
-    in
-    (* The following function adds accesses to the lval-set ls
-       -- this is the common case if we have a sound points-to set. *)
-    let on_lvals ls includes_uk =
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      let conf = if reach then conf - 20 else conf in
-      let conf = if includes_uk then conf - 10 else conf in
-      let f (var, offs) =
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
-          add_access conf None (Some coffs)
-        else
-          add_access conf (Some var) (Some coffs)
-      in
-      LS.iter f ls
-    in
-    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
-    match ctx.ask reach_or_mpt with
-    | `Bot -> ()
-    | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-      (* the case where the points-to set is non top and does not contain unknown values *)
-      on_lvals ls false
-    | `LvalSet ls when not (LS.is_top ls) ->
-      (* the case where the points-to set is non top and contains unknown values *)
-      let includes_uk = ref false in
-      (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes e) with
-        | `Bot -> ()
-        | `TypeSet ts when Queries.TS.is_top ts ->
-          includes_uk := true
-        | `TypeSet ts ->
-          if Queries.TS.is_empty ts = false then
-            includes_uk := true;
-          let f = function
-            | TComp (ci, _) ->
-              add_access_struct (conf - 50) ci
-            | _ -> ()
-          in
-          Queries.TS.iter f ts
-        | _ ->
-          includes_uk := true
-      end;
-      on_lvals ls !includes_uk
-    | _ ->
-      add_access (conf - 60) None None
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in
