@@ -232,6 +232,7 @@ struct
       let staticprys = List.filter is_task_res prys in
       let pry = resourceset_to_priority staticprys in
       if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
+    let check_fun = effect_fun
   end
 
   module M = Mutex.MakeSpec (MyParam)

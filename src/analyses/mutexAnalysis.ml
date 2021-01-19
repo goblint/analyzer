@@ -32,6 +32,7 @@ module type SpecParam =
 sig
   module G: Lattice.S
   val effect_fun: Lockset.t -> G.t
+  val check_fun: Lockset.t -> G.t
 end
 
 (** Data race analyzer without base --- this is the new standard *)
@@ -224,18 +225,17 @@ struct
   let exitstate  v = Lockset.empty ()
 
   let query ctx (q:Queries.t) : Queries.Result.t =
+    let non_overlapping locks1 locks2 =
+      let intersect = G.join locks1 locks2 in
+      let tv = G.is_top intersect in
+      `MayBool (tv)
+    in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> `MayBool false
     | Queries.MayBePublic v ->
-      let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      if Mutexes.mem verifier_atomic held_locks then
-        `MayBool false
-      else
-        (* TODO: previous implementation required G=Mutexes, use implementation from traces branch *)
-        let lambda_v = ctx.global v in
-        let intersect = G.join (P.effect_fun (Lockset.filter snd ctx.local)) lambda_v in
-        let tv = G.is_top intersect in
-        `MayBool tv
+      let held_locks: G.t = P.check_fun (Lockset.filter snd ctx.local) in
+      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `MayBool false
+      else non_overlapping held_locks (ctx.global v)
     | Queries.PartAccess {exp; var; write} ->
       `PartAccessResult (part_access ctx exp var write)
     | _ -> Queries.Result.top ()
@@ -368,8 +368,8 @@ end
 module MyParam =
 struct
   module G = LockDomain.Simple
-  let effect_fun ls =
-    Lockset.export_locks ls
+  let effect_fun ls = Lockset.export_locks ls
+  let check_fun = effect_fun
 end
 
 module Spec = MakeSpec (MyParam)
