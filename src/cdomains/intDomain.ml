@@ -1423,8 +1423,6 @@ struct
   let logor  = lift2 BigInt.logor
   let lognot ik = eq ik (of_int ik BigInt.zero)
 
-  (* let invariant _ _ = failwith "invariant not implemented for DefExc. Use invariant_ikind intead." *)
-
   let invariant_ikind c ik (x:t) =
     let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
     match x with
