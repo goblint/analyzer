@@ -857,8 +857,9 @@ struct
       begin
         (* For the assert, we need to remove things that might be in the local state, but ought to removed *)
         (* because they are not private *)
-        let cpa',_ = globalize ctx.ask ctx.local in
-        let (_, dep) = ctx.local in
+        let multi = ThreadFlag.is_multi ctx.ask in
+        let (cpa, dep) = ctx.local in
+        let cpa' = if !GU.earlyglobs || multi then fst (globalize ctx.ask ctx.local) else cpa in
         let store' = (cpa', dep) in
         match eval_rv ctx.ask ctx.global store' e with
         | `Int i ->
