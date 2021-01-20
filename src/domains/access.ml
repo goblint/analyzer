@@ -60,7 +60,11 @@ struct
   let is_bot x = cardinal x = 1 && LSSet.is_empty (choose x)
   (* top & is_top come from SetDomain.Make *)
 
+  (* Since Queries.PartAccess and PartAccessResult are only used within MCP2,
+     these operations are never really called. *)
   let leq _ _ = raise (Lattice.Unsupported "LSSSet.leq")
+  (* meet (i.e. join in PartAccessResult) for PathSensitive query joining
+     isn't needed, because accesses are handled only within MCP2. *)
   let meet _ _ = raise (Lattice.Unsupported "LSSSet.meet")
   let widen _ _ = raise (Lattice.Unsupported "LSSSet.widen")
   let narrow _ _ = raise (Lattice.Unsupported "LSSSet.narrow")
