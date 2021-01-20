@@ -54,9 +54,20 @@ sig
   val is_private: Q.ask -> varinfo -> bool
 end
 
+module OldPrivBase =
+struct
+  let lock ask getg cpa m = cpa
+  let unlock ask getg sideg st m = st
+
+  let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg st = st
+end
+
 (* Copy of OldPriv with is_private constantly false. *)
 module NoPriv: PrivParam =
 struct
+  include OldPrivBase
+
   module G = BaseDomain.VD
 
   let read_global ask getg (st: BaseComponents.t) x =
@@ -72,9 +83,6 @@ struct
       {st with cpa = CPA.add x (VD.top ()) st.cpa}
     else
       {st with cpa = CPA.add x v st.cpa}
-
-  let lock ask getg cpa m = cpa
-  let unlock ask getg sideg cpa m = cpa
 
   let is_private (a: Q.ask) (v: varinfo): bool = false
 
@@ -96,13 +104,12 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var st.cpa (st, [])
-
-  let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg st = st
 end
 
 module OldPriv: PrivParam =
 struct
+  include OldPrivBase
+
   module G = BaseDomain.VD
 
   let read_global ask getg (st: BaseComponents.t) x =
@@ -118,9 +125,6 @@ struct
       {st with cpa = CPA.add x (VD.top ()) st.cpa}
     else
       {st with cpa = CPA.add x v st.cpa}
-
-  let lock ask getg cpa m = cpa
-  let unlock ask getg sideg st m = st
 
   let is_private (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
@@ -146,12 +150,9 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var st.cpa (st, [])
-
-  let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg st = st
 end
 
-module PrivBase =
+module NewPrivBase =
 struct
   let is_unprotected ask x: bool =
     ThreadFlag.is_multi ask &&
@@ -184,7 +185,7 @@ end
 
 module PerMutexPrivBase =
 struct
-  include PrivBase
+  include NewPrivBase
 
   module G = CPA
 
@@ -212,10 +213,15 @@ struct
       | None, Some v -> Some v
       | None, None -> None
 
-  let sync ?privates reason ctx = (ctx.local.BaseComponents.cpa, [])
+  let escape ask getg sideg (st: BaseComponents.t) escaped =
+    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
+    sideg (Lazy.force mutex_inits) escaped_cpa;
+    st
 
-  let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg st = st
+  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
+    let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
+    sideg (Lazy.force mutex_inits) global_cpa;
+    st
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
@@ -275,16 +281,6 @@ struct
     | `Init
     | `Thread ->
       (st, [])
-
-  let escape ask getg sideg (st: BaseComponents.t) escaped =
-    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
-    sideg (Lazy.force mutex_inits) escaped_cpa;
-    st
-
-  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
-    let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
-    sideg (Lazy.force mutex_inits) global_cpa;
-    st
 end
 
 module PerMutexMeetPriv: PrivParam =
@@ -351,20 +347,12 @@ struct
       ) st.cpa (st.cpa, [])
     in
     ({st with cpa = cpa'}, sidegs')
-
-  let escape ask getg sideg (st: BaseComponents.t) escaped =
-    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
-    sideg (Lazy.force mutex_inits) escaped_cpa;
-    st
-
-  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
-    let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
-    sideg (Lazy.force mutex_inits) global_cpa;
-    st
 end
 
 module PerGlobalVesalPriv: PrivParam =
 struct
+  include OldPrivBase
+
   module G = BaseDomain.VD
 
   let read_global ask getg (st: BaseComponents.t) x =
@@ -380,9 +368,6 @@ struct
       {st with cpa = CPA.add x (VD.top ()) st.cpa; cached = CVars.add x st.cached}
     else
       {st with cpa = CPA.add x v st.cpa; cached = CVars.add x st.cached}
-
-  let lock ask getg cpa m = cpa
-  let unlock ask getg sideg st m = st
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
@@ -421,14 +406,11 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var st.cpa (st, [])
-
-  let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg st = st
 end
 
 module PerGlobalPriv: PrivParam =
 struct
-  include PrivBase
+  include NewPrivBase
 
   module GUnprot =
   struct
