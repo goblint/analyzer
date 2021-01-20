@@ -75,9 +75,13 @@ struct
       (Access.LSSSet.empty (), es)
 
   let threadenter ctx lval f args =
+    if not (is_multi ctx.ask) then
+      ctx.emit Events.EnterMultiThreaded;
     create_tid f
 
   let threadspawn ctx lval f args fctx =
+    if not (is_multi ctx.ask) then
+      ctx.emit Events.EnterMultiThreaded;
     Flag.get_main ()
 end
 

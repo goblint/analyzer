@@ -48,6 +48,7 @@ sig
   val sync: ?privates:bool -> [`Normal | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
 
   val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> EscapeDomain.EscapedVars.t -> BaseComponents.t
+  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> BaseComponents.t
 
   (* TODO: better name *)
   val is_private: Q.ask -> varinfo -> bool
@@ -97,6 +98,7 @@ struct
     CPA.fold add_var st.cpa (st, [])
 
   let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg st = st
 end
 
 module OldPriv: PrivParam =
@@ -146,6 +148,7 @@ struct
     CPA.fold add_var st.cpa (st, [])
 
   let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg st = st
 end
 
 module PrivBase =
@@ -212,6 +215,7 @@ struct
   let sync ?privates reason ctx = (ctx.local.BaseComponents.cpa, [])
 
   let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg st = st
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
@@ -258,30 +262,28 @@ struct
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     match reason with
-    | `Thread (* TODO: why is this required? *)
     | `Return -> (* required for thread return *)
-      let sidegs =
-        if reason = `Thread && not (ThreadFlag.is_multi a) then
-          let global_cpa = CPA.filter (fun x _ -> is_global a x) st.cpa in
-          [((Lazy.force mutex_inits, global_cpa))]
-        else
-          []
-      in
       let sidegs = CPA.fold (fun x v acc ->
           if is_global a x then
             (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
           else
             acc
-        ) st.cpa sidegs
+        ) st.cpa []
       in
       (st, sidegs)
     | `Normal
-    | `Init ->
+    | `Init
+    | `Thread ->
       (st, [])
 
   let escape ask getg sideg (st: BaseComponents.t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
     sideg (Lazy.force mutex_inits) escaped_cpa;
+    st
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
+    let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
+    sideg (Lazy.force mutex_inits) global_cpa;
     st
 end
 
@@ -341,25 +343,23 @@ struct
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
-    let sidegs =
-      if reason = `Thread && not (ThreadFlag.is_multi a) then
-        let global_cpa = CPA.filter (fun x _ -> is_global a x) st.cpa in
-        [((Lazy.force mutex_inits, global_cpa))]
-      else
-        []
-    in
     let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
         if is_global a x && is_unprotected a x then
           (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
         else
           acc
-      ) st.cpa (st.cpa, sidegs)
+      ) st.cpa (st.cpa, [])
     in
     ({st with cpa = cpa'}, sidegs')
 
   let escape ask getg sideg (st: BaseComponents.t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
     sideg (Lazy.force mutex_inits) escaped_cpa;
+    st
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
+    let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
+    sideg (Lazy.force mutex_inits) global_cpa;
     st
 end
 
@@ -423,6 +423,7 @@ struct
     CPA.fold add_var st.cpa (st, [])
 
   let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg st = st
 end
 
 module PerGlobalPriv: PrivParam =
@@ -484,14 +485,8 @@ struct
     let st: BaseComponents.t = ctx.local in
     let (st', sidegs) =
       CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
-          if is_global ask x then (
-            if reason = `Thread && not (ThreadFlag.is_multi ask) then
-              ({st with cpa = CPA.remove x st.cpa}, (x, (v, v)) :: sidegs)
-            else if is_unprotected ask x then
-              ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
-            else
-              acc
-          )
+          if is_global ask x && is_unprotected ask x then
+            ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
           else
             acc
         ) st.cpa (st, [])
@@ -502,6 +497,18 @@ struct
   let escape ask getg sideg (st: BaseComponents.t) escaped =
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
+          sideg x (v, v);
+          CPA.remove x acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
+    let cpa' = CPA.fold (fun x v acc ->
+        if is_global ask x then (
           sideg x (v, v);
           CPA.remove x acc
         )
@@ -1459,6 +1466,8 @@ struct
       end
     | Events.Escape escaped ->
       Priv.escape octx.ask octx.global octx.sideg st escaped
+    | Events.EnterMultiThreaded when not !GU.global_initialization -> (* TODO: also during global initialization, need to allow sideg *)
+      Priv.enter_multithreaded octx.ask octx.global octx.sideg st
     | _ ->
       ctx.local
 
