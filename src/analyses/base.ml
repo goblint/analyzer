@@ -853,6 +853,33 @@ struct
         | `Bot   -> `Bot
         | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); `Top
       end
+    | Q.Assert e ->
+      begin
+        (* For the assert, we need to remove things that might be in the local state, but ought to removed *)
+        (* because they are not private *)
+        let multi = ThreadFlag.is_multi ctx.ask in
+        let (cpa, dep) = ctx.local in
+        let cpa' = if !GU.earlyglobs || multi then fst (globalize ctx.ask ctx.local) else cpa in
+        let store' = (cpa', dep) in
+        match eval_rv ctx.ask ctx.global store' e with
+        | `Int i ->
+            let v = (`Int i) in
+            begin
+              let tmp = match e with | Lval l -> Some l | _ -> None in
+              let context: Invariant.context = {
+                scope=MyCFG.dummy_func;
+                i= -1; (* Not used here *)
+                lval=tmp;
+                offset=Cil.NoOffset;
+                deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+              }
+              in
+              match (VD.invariant context v) with
+              | Some s -> `ExprSet (Queries.ES.singleton s)
+              | None -> `Top
+            end;
+        | v -> `Top
+      end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Address a ->
