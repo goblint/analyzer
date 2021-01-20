@@ -1125,9 +1125,7 @@ struct
         let min, max = range_min_max r in
         if should_wrap ik then (
           (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
-          S.iter (fun v -> print_endline (BI.to_string v)) s;
           let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
-          S.iter (fun v -> print_endline (BI.to_string v)) mapped_excl;
           `Excluded (mapped_excl, r)
         ) else (
           let all_in_range = S.for_all (fun excluded -> BigInt.compare min excluded <= 0 && BigInt.compare excluded max <= 0) s in
