@@ -189,7 +189,17 @@ struct
 
   module G = CPA
 
-  let mutex_global x = x
+  (* let mutex_global x = x *)
+  let mutex_global =
+    let module VH = Hashtbl.Make (Basetype.Variables) in
+    let mutex_globals = VH.create 13 in
+    fun x ->
+      try
+        VH.find mutex_globals x
+      with Not_found ->
+        let mutex_global_x = Goblintutil.create_var @@ makeGlobalVar ("MUTEX_GLOBAL_" ^ x.vname) voidType in
+        VH.replace mutex_globals x mutex_global_x;
+        mutex_global_x
 
   let mutex_inits =
     lazy (
