@@ -227,6 +227,7 @@ struct
     | `Varinfo x -> "`Varinfo"
     | `MustBool x -> "`MustBool"
     | `MayBool x -> "`MayBool"
+    | `PartAccessResult x -> "`PartAccessResult"
     | `Bot -> "`Bot"
 
 

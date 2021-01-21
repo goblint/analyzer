@@ -32,6 +32,7 @@ module type SpecParam =
 sig
   module G: Lattice.S
   val effect_fun: Lockset.t -> G.t
+  val check_fun: Lockset.t -> G.t
 end
 
 (** Data race analyzer without base --- this is the new standard *)
@@ -142,10 +143,80 @@ struct
 
   let arinc_analysis_activated = ref false
 
+  let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
+    let open Queries in
+    let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
+      let open Access in
+      match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
+      | `PartAccessResult (po, pd) -> (po, pd)
+      | `Top -> PartAccessResult.top ()
+      | _ -> failwith "MutexAnalysis.part_access"
+    in
+    let add_access conf vo oo =
+      let (po,pd) = part_access ctx e vo w in
+      Access.add e w conf vo oo (po,pd)
+    in
+    let add_access_struct conf ci =
+      let (po,pd) = part_access ctx e None w in
+      Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
+    in
+    let has_escaped g =
+      match ctx.ask (Queries.MayEscape g) with
+      | `MayBool false -> false
+      | _ -> true
+    in
+    (* The following function adds accesses to the lval-set ls
+       -- this is the common case if we have a sound points-to set. *)
+    let on_lvals ls includes_uk =
+      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+      let conf = if reach then conf - 20 else conf in
+      let conf = if includes_uk then conf - 10 else conf in
+      let f (var, offs) =
+        let coffs = Lval.CilLval.to_ciloffs offs in
+        if var.vid = dummyFunDec.svar.vid then
+          add_access conf None (Some coffs)
+        else
+          add_access conf (Some var) (Some coffs)
+      in
+      LS.iter f ls
+    in
+    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
+    match ctx.ask reach_or_mpt with
+    | `Bot -> ()
+    | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+      (* the case where the points-to set is non top and does not contain unknown values *)
+      on_lvals ls false
+    | `LvalSet ls when not (LS.is_top ls) ->
+      (* the case where the points-to set is non top and contains unknown values *)
+      let includes_uk = ref false in
+      (* now we need to access all fields that might be pointed to: is this correct? *)
+      begin match ctx.ask (ReachableUkTypes e) with
+        | `Bot -> ()
+        | `TypeSet ts when Queries.TS.is_top ts ->
+          includes_uk := true
+        | `TypeSet ts ->
+          if Queries.TS.is_empty ts = false then
+            includes_uk := true;
+          let f = function
+            | TComp (ci, _) ->
+              add_access_struct (conf - 50) ci
+            | _ -> ()
+          in
+          Queries.TS.iter f ts
+        | _ ->
+          includes_uk := true
+      end;
+      on_lvals ls !includes_uk
+    | _ ->
+      add_access (conf - 60) None None
+
   let access_one_top ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    if ThreadFlag.is_multi ctx.ask then
-      ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
+    if ThreadFlag.is_multi ctx.ask then (
+      let conf = 110 in
+      if reach || write then do_access ctx write reach conf exp;
+      Access.distribute_access_exp (do_access ctx) false false conf exp;
+    )
 
   (** We just lift start state, global and dependecy functions: *)
   let startstate v = Lockset.empty ()
@@ -154,17 +225,19 @@ struct
   let exitstate  v = Lockset.empty ()
 
   let query ctx (q:Queries.t) : Queries.Result.t =
+    let non_overlapping locks1 locks2 =
+      let intersect = G.join locks1 locks2 in
+      let tv = G.is_top intersect in
+      `MayBool (tv)
+    in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> `MayBool false
     | Queries.MayBePublic v ->
-      let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      if Mutexes.mem verifier_atomic held_locks then
-        `MayBool false
-      else
-        let lambda_v = ctx.global v in
-        let intersect = Mutexes.inter held_locks lambda_v in
-        let tv = Mutexes.is_empty intersect in
-        `MayBool tv
+      let held_locks: G.t = P.check_fun (Lockset.filter snd ctx.local) in
+      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `MayBool false
+      else non_overlapping held_locks (ctx.global v)
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
 
   let may_race (ctx1,ac1) (ctx,ac2) =
@@ -295,8 +368,8 @@ end
 module MyParam =
 struct
   module G = LockDomain.Simple
-  let effect_fun ls =
-    Lockset.export_locks ls
+  let effect_fun ls = Lockset.export_locks ls
+  let check_fun = effect_fun
 end
 
 module Spec = MakeSpec (MyParam)

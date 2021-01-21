@@ -447,7 +447,4 @@ struct
     in
     let d = Dom.fold k (fst d) (Dom.bot ()) in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
