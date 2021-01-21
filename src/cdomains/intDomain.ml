@@ -1117,30 +1117,32 @@ struct
      * For an `Excluded s,r , assumes that r is already an overapproximation of the range of possible values.
      * r might be larger than the possible range of this type; the range of the returned `Excluded set will be within the bounds of the ikind.
      *)
-    let norm ik (t :t) =
+    let norm ik v =
       let should_wrap ik = not (Cil.isSigned ik) || GobConfig.get_bool "ana.int.wrap_on_signed_overflow" in
-      match t with
+      match v with
       | `Excluded (s, r) ->
-        let r = if R.leq (size ik) r then size ik else r in
-        let min, max = range_min_max r in
-        if should_wrap ik then (
+        let possibly_overflowed = not (R.leq r (size ik)) in
+        (* If no overflow occured, just return x *)
+        if not possibly_overflowed then (
+          v
+        )
+        (* Else, if an overflow occured that we should not treat with wrap-around, go to top *)
+        else if not (should_wrap ik) then(
+          top_of ik
+        ) else (
+          (* Else an overflow occured that we should treat with wrap-around *)
+          let r = size ik in
           (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
           let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
           `Excluded (mapped_excl, r)
-        ) else (
-          let all_in_range = S.for_all (fun excluded -> BigInt.compare min excluded <= 0 && BigInt.compare excluded max <= 0) s in
-          if all_in_range then
-            t
-          else
-            top_of ik
         )
       | `Definite x ->
         let min, max = Size.range_big_int ik in
         (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
         if should_wrap ik then (
-          cast_to ik t
+          cast_to ik v
         ) else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
-          t
+          v
         ) else (
           top_of ik
         )
