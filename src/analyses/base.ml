@@ -201,6 +201,7 @@ struct
     let get_mutex_inits = getg (Lazy.force mutex_inits) in
     let is_in_Gm x _ = is_protected_by ask m x in
     let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
+    if M.tracing then M.tracel "priv" "get_m_with_mutex_inits %a:\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n" d_varinfo m CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits';
     CPA.join get_m get_mutex_inits'
 
   (** [get_m_with_mutex_inits] optimized for implementation-specialized [read_global]. *)
@@ -216,12 +217,33 @@ struct
   let escape ask getg sideg (st: BaseComponents.t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
     sideg (Lazy.force mutex_inits) escaped_cpa;
-    st
+
+    let cpa' = CPA.fold (fun x v acc ->
+        if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
+          sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
+          CPA.remove x acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
 
   let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
     let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
     sideg (Lazy.force mutex_inits) global_cpa;
-    st
+
+    let cpa' = CPA.fold (fun x v acc ->
+        if is_global ask x (* && is_unprotected ask x *) then (
+          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" d_varinfo x;
+          sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
+          CPA.remove x acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
@@ -291,18 +313,19 @@ struct
     if is_unprotected ask x then (
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* None is VD.top () *)
-      match CPA.find_opt x st.cpa, get_mutex_global_x with
+      (* match CPA.find_opt x st.cpa, get_mutex_global_x with
       | Some v1, Some v2 -> VD.meet v1 v2
       | Some v, None
       | None, Some v -> v
-      | None, None -> VD.bot () (* Except if both None, needed for 09/07 kernel_list_rc *)
+      | None, None -> VD.bot () (* Except if both None, needed for 09/07 kernel_list_rc *) *)
+      get_mutex_global_x |? VD.bot ()
     )
     else
       CPA.find x st.cpa
-  (* let read_global ask getg st x =
+  let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %a = %a\n" d_varinfo x CPA.pretty st.cpa VD.pretty v;
-    v *)
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" d_varinfo x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
+    v
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' =
       if is_unprotected ask x then
@@ -320,16 +343,19 @@ struct
 
   let lock ask getg cpa m =
     let get_m = get_m_with_mutex_inits ask getg m in
+    (* Additionally filter get_m in case it contains variables it no longer protects. *)
+    let is_in_Gm x _ = is_protected_by ask m x in
+    let get_m = CPA.filter is_in_Gm get_m in
     let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
     let meet = long_meet cpa get_m in
-    (* ignore (Pretty.printf "LOCK %a (%a):\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n  join: %a\n  meet: %a\n" d_varinfo m d_loc !Tracing.current_loc CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits' CPA.pretty join CPA.pretty meet); *)
+    if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" d_varinfo m CPA.pretty get_m CPA.pretty meet;
     meet
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg m (CPA.filter is_in_Gm st.cpa);
     let cpa' = CPA.fold (fun x v cpa ->
         if is_protected_by ask m x && is_unprotected_without ask x m then
-          CPA.remove x cpa
+          CPA.add x (VD.top ()) cpa
         else
           cpa
       ) st.cpa st.cpa
@@ -340,13 +366,45 @@ struct
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
-        if is_global a x && is_unprotected a x then
+        (* Sync needed for thread return *)
+        if reason = `Return && is_global a x && is_unprotected a x && not (VD.is_top v) then
           (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
         else
           acc
       ) st.cpa (st.cpa, [])
     in
     ({st with cpa = cpa'}, sidegs')
+
+  let escape ask getg sideg (st: BaseComponents.t) escaped =
+    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
+    sideg (Lazy.force mutex_inits) escaped_cpa;
+
+    let cpa' = CPA.fold (fun x v acc ->
+        if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
+          sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
+          CPA.add x (VD.top ()) acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
+    let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
+    sideg (Lazy.force mutex_inits) global_cpa;
+
+    let cpa' = CPA.fold (fun x v acc ->
+        if is_global ask x (* && is_unprotected ask x *) then (
+          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" d_varinfo x;
+          sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
+          CPA.add x (VD.top ()) acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
 end
 
 module PerGlobalVesalPriv: PrivParam =
@@ -1435,6 +1493,7 @@ struct
     let st: store = ctx.local in
     match e with
     | Events.Lock addr ->
+      if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       begin match addr with
         | Addr.Addr (m, `NoOffset) ->
           {st with cpa=Priv.lock octx.ask octx.global st.cpa m}

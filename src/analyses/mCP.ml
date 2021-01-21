@@ -478,6 +478,7 @@ struct
           n, repr @@ S.event ctx' e octx'
         in
         let d, q = map_deadcode f @@ spec_list ctx.local in
+        if M.tracing then M.tracel "event" "%a\n  before: %a\n  after:%a\n" Events.pretty e D.pretty ctx.local D.pretty d;
         do_sideg ctx !sides;
         do_spawns ctx !spawns;
         do_splits ctx d !splits;
