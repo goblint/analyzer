@@ -42,8 +42,8 @@ sig
   val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> varinfo -> VD.t
   val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> VD.t -> BaseComponents.t
 
-  val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> varinfo -> CPA.t
-  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> BaseComponents.t
+  val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> LockDomain.Addr.t -> CPA.t
+  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> LockDomain.Addr.t -> BaseComponents.t
 
   val sync: ?privates:bool -> [`Normal | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
 
@@ -181,6 +181,13 @@ struct
     | `MustBool x -> x
     | `Top -> false
     | _ -> failwith "PrivBase.is_atomic"
+
+  let mutex_addr_to_varinfo = function
+    | LockDomain.Addr.Addr (v, `NoOffset) -> v
+    | LockDomain.Addr.Addr (v, offs) ->
+      M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "NewPrivBase: ignoring offset %a%a\n" d_varinfo v LockDomain.Addr.Offs.pretty offs);
+      v
+    | _ -> failwith "NewPrivBase.mutex_addr_to_varinfo"
 end
 
 module PerMutexPrivBase =
@@ -200,6 +207,10 @@ struct
         let mutex_global_x = Goblintutil.create_var @@ makeGlobalVar ("MUTEX_GLOBAL_" ^ x.vname) voidType in
         VH.replace mutex_globals x mutex_global_x;
         mutex_global_x
+  let mutex_global x =
+    let r = mutex_global x in
+    if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x d_varinfo r;
+    r
 
   let mutex_inits =
     lazy (
@@ -207,11 +218,11 @@ struct
     )
 
   let get_m_with_mutex_inits ask getg m =
-    let get_m = getg m in
+    let get_m = getg (mutex_addr_to_varinfo m) in
     let get_mutex_inits = getg (Lazy.force mutex_inits) in
     let is_in_Gm x _ = is_protected_by ask m x in
     let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
-    if M.tracing then M.tracel "priv" "get_m_with_mutex_inits %a:\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n" d_varinfo m CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits';
+    if M.tracing then M.tracel "priv" "get_m_with_mutex_inits %a:\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits';
     CPA.join get_m get_mutex_inits'
 
   (** [get_m_with_mutex_inits] optimized for implementation-specialized [read_global]. *)
@@ -287,13 +298,13 @@ struct
     let get_m = get_m_with_mutex_inits ask getg m in
     let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
     let cpa' = CPA.filter is_in_V get_m in
-    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" d_varinfo m CPA.pretty cpa';
+    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
     CPA.fold CPA.add cpa' cpa
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     let side_m_cpa = CPA.filter is_in_Gm st.cpa in
-    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.unlock m=%a side_m_cpa=%a\n" d_varinfo m CPA.pretty side_m_cpa;
-    sideg m side_m_cpa;
+    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.unlock m=%a side_m_cpa=%a\n" LockDomain.Addr.pretty m CPA.pretty side_m_cpa;
+    sideg (mutex_addr_to_varinfo m) side_m_cpa;
     st
 
   let sync ?(privates=false) reason ctx =
@@ -343,8 +354,10 @@ struct
       else
         CPA.add x v st.cpa
     in
-    if not (is_atomic ask) then
-      sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
+    if not (is_atomic ask) then (
+      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
+      sideg (mutex_global x) (CPA.add x v (CPA.bot ()))
+    );
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
@@ -358,11 +371,11 @@ struct
     let get_m = CPA.filter is_in_Gm get_m in
     let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
     let meet = long_meet cpa get_m in
-    if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" d_varinfo m CPA.pretty get_m CPA.pretty meet;
+    if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
     meet
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
-    sideg m (CPA.filter is_in_Gm st.cpa);
+    sideg (mutex_addr_to_varinfo m) (CPA.filter is_in_Gm st.cpa);
     let cpa' = CPA.fold (fun x v cpa ->
         if is_protected_by ask m x && is_unprotected_without ask x m then
           CPA.add x (VD.top ()) cpa
@@ -377,8 +390,10 @@ struct
     let st: BaseComponents.t = ctx.local in
     let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
         (* Sync needed for thread return *)
-        if reason = `Return && is_global a x && is_unprotected a x && not (VD.is_top v) then
+        if reason = `Return && is_global a x && is_unprotected a x && not (VD.is_top v) then (
+          if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
           (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
+        )
         else
           acc
       ) st.cpa (st.cpa, [])
@@ -391,6 +406,7 @@ struct
 
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" d_varinfo x VD.pretty v;
           sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
           CPA.add x (VD.top ()) acc
         )
@@ -407,6 +423,7 @@ struct
     let cpa' = CPA.fold (fun x v acc ->
         if is_global ask x (* && is_unprotected ask x *) then (
           if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" d_varinfo x;
+          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a\n" d_varinfo x VD.pretty v;
           sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
           CPA.add x (VD.top ()) acc
         )
@@ -1504,17 +1521,9 @@ struct
     match e with
     | Events.Lock addr ->
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
-      begin match addr with
-        | Addr.Addr (m, `NoOffset) ->
-          {st with cpa=Priv.lock octx.ask octx.global st.cpa m}
-        | _ -> ctx.local (* TODO: what to do here? *)
-      end
+      {st with cpa=Priv.lock octx.ask octx.global st.cpa addr}
     | Events.Unlock addr ->
-      begin match addr with
-        | Addr.Addr (m, `NoOffset) ->
-          Priv.unlock octx.ask octx.global octx.sideg st m
-        | _ -> ctx.local (* TODO: what to do here? *)
-      end
+      Priv.unlock octx.ask octx.global octx.sideg st addr
     | Events.Escape escaped ->
       Priv.escape octx.ask octx.global octx.sideg st escaped
     | Events.EnterMultiThreaded when not !GU.global_initialization -> (* TODO: also during global initialization, need to allow sideg *)
