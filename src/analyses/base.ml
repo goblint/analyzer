@@ -524,7 +524,13 @@ struct
     let cpa' = CPA.add x v st.cpa in
     if not (is_atomic ask) then
       sideg x (v, VD.bot ());
-    {st with cpa = cpa'; cached = CVars.add x st.cached}
+    let cached' =
+      if is_unprotected ask x then
+        st.cached
+      else
+        CVars.add x st.cached
+    in
+    {st with cpa = cpa'; cached = cached'}
 
   let lock ask getg cpa m = cpa
 
@@ -552,7 +558,8 @@ struct
     let st: BaseComponents.t = ctx.local in
     let (st', sidegs) =
       CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
-          if is_global ask x && is_unprotected ask x then
+          (* Sync needed for thread return *)
+          if reason = `Return && is_global ask x && is_unprotected ask x then
             ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
           else
             acc
@@ -574,16 +581,14 @@ struct
     {st with cpa = cpa'}
 
   let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
-    let cpa' = CPA.fold (fun x v acc ->
+    CPA.fold (fun x v (st: BaseComponents.t) ->
         if is_global ask x then (
           sideg x (v, v);
-          CPA.remove x acc
+          {st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}
         )
         else
-          acc
-      ) st.cpa st.cpa
-    in
-    {st with cpa = cpa'}
+          st
+      ) st.cpa st
 
   (* ??? *)
   let is_private ask x = true
