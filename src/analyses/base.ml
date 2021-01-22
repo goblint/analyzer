@@ -389,18 +389,23 @@ struct
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
-    (* TODO: handle branched thread creation on `Join *)
-    let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
-        (* Sync needed for thread return *)
-        if reason = `Return && is_global a x && is_unprotected a x && not (VD.is_top v) then (
-          if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
-          (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
-        )
-        else
-          acc
-      ) st.cpa (st.cpa, [])
-    in
-    ({st with cpa = cpa'}, sidegs')
+    match reason with
+    | `Join
+    | `Return -> (* required for thread return *)
+      let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
+          if is_global a x && is_unprotected a x && not (VD.is_top v) then (
+            if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
+            (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
+          )
+          else
+            acc
+        ) st.cpa (st.cpa, [])
+      in
+      ({st with cpa = cpa'}, sidegs')
+    | `Normal
+    | `Init
+    | `Thread ->
+      (st, [])
 
   let escape ask getg sideg (st: BaseComponents.t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
