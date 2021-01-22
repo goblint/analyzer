@@ -45,7 +45,7 @@ sig
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> LockDomain.Addr.t -> CPA.t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> LockDomain.Addr.t -> BaseComponents.t
 
-  val sync: ?privates:bool -> [`Normal | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
+  val sync: ?privates:bool -> [`Normal | `Join | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
 
   val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> EscapeDomain.EscapedVars.t -> BaseComponents.t
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> BaseComponents.t
@@ -321,6 +321,7 @@ struct
       in
       (st, sidegs)
     | `Normal
+    | `Join (* TODO: how is branched thread creation handled? *)
     | `Init
     | `Thread ->
       (st, [])
@@ -388,6 +389,7 @@ struct
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
+    (* TODO: handle branched thread creation on `Join *)
     let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
         (* Sync needed for thread return *)
         if reason = `Return && is_global a x && is_unprotected a x && not (VD.is_top v) then (
@@ -556,6 +558,7 @@ struct
   let sync ?(privates=false) reason ctx =
     let ask = ctx.ask in
     let st: BaseComponents.t = ctx.local in
+    (* TODO: how is branched thread creation handled? *)
     let (st', sidegs) =
       CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
           (* Sync needed for thread return *)
@@ -884,7 +887,7 @@ struct
     let privates = privates || (!GU.earlyglobs && not multi) in
     if !GU.earlyglobs || multi then Priv.sync ~privates:privates reason ctx else (ctx.local,[])
 
-  let sync ctx reason = sync' (reason :> [`Normal | `Return | `Init | `Thread]) false (ThreadFlag.is_multi ctx.ask) ctx
+  let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) false (ThreadFlag.is_multi ctx.ask) ctx
 
   let publish_all ctx reason =
     List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason true true ctx))

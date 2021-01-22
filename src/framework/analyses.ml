@@ -429,7 +429,7 @@ sig
   val call_descr : fundec -> C.t -> string
   val part_access: (D.t, G.t, C.t) ctx -> exp -> varinfo option -> bool -> (Access.LSSSet.t * Access.LSSet.t)
 
-  val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Return] -> D.t * (varinfo * G.t) list
+  val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t * (varinfo * G.t) list
   val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
   val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
   val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t

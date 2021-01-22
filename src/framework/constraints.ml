@@ -581,10 +581,9 @@ struct
     in
     (* ... nice, right! *)
     let pval, diff =
-      (* match Cfg.prev prev_node with
-      | _ :: _ :: _ -> S.sync ctx `Normal
-      | _ -> (ctx.local, []) *)
-      S.sync ctx `Normal
+      match Cfg.prev prev_node with
+      | _ :: _ :: _ -> S.sync ctx `Join
+      | _ -> S.sync ctx `Normal
     in
     let _ = List.iter (uncurry sideg) diff in
     { ctx with local = pval }, r
