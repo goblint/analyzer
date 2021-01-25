@@ -241,6 +241,7 @@ struct
 
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" d_varinfo x VD.pretty v;
           sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
           CPA.remove x acc
         )
@@ -257,6 +258,7 @@ struct
     let cpa' = CPA.fold (fun x v acc ->
         if is_global ask x (* && is_unprotected ask x *) then (
           if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" d_varinfo x;
+          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a\n" d_varinfo x VD.pretty v;
           sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
           CPA.remove x acc
         )
@@ -409,41 +411,6 @@ struct
     | `Init
     | `Thread ->
       (st, [])
-
-  let escape ask getg sideg (st: BaseComponents.t) escaped =
-    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
-    sideg (Lazy.force mutex_inits) escaped_cpa;
-
-    let cpa' = CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" d_varinfo x VD.pretty v;
-          sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
-          CPA.remove x acc
-          (* CPA.add x (VD.top ()) acc *)
-        )
-        else
-          acc
-      ) st.cpa st.cpa
-    in
-    {st with cpa = cpa'}
-
-  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
-    let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
-    sideg (Lazy.force mutex_inits) global_cpa;
-
-    let cpa' = CPA.fold (fun x v acc ->
-        if is_global ask x (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" d_varinfo x;
-          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a\n" d_varinfo x VD.pretty v;
-          sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
-          CPA.remove x acc
-          (* CPA.add x (VD.top ()) acc *)
-        )
-        else
-          acc
-      ) st.cpa st.cpa
-    in
-    {st with cpa = cpa'}
 end
 
 module PerGlobalVesalPriv: PrivParam =
