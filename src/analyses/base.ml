@@ -536,18 +536,23 @@ struct
   let sync ?(privates=false) reason ctx =
     let ask = ctx.ask in
     let st: BaseComponents.t = ctx.local in
-    (* TODO: how is branched thread creation handled? *)
-    let (st', sidegs) =
-      CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
-          (* Sync needed for thread return *)
-          if reason = `Return && is_global ask x && is_unprotected ask x then
-            ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
-          else
-            acc
-        ) st.cpa (st, [])
-    in
-    (* ({st' with cached = CVars.filter (is_protected ask) st'.cached}, sidegs) *)
-    (st', sidegs)
+    match reason with
+    | `Join
+    | `Return -> (* required for thread return *)
+      let (st', sidegs) =
+        CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
+            if is_global ask x && is_unprotected ask x then
+              ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
+            else
+              acc
+          ) st.cpa (st, [])
+      in
+      (* ({st' with cached = CVars.filter (is_protected ask) st'.cached}, sidegs) *)
+      (st', sidegs)
+    | `Normal
+    | `Init
+    | `Thread ->
+      (st, [])
 
   let escape ask getg sideg (st: BaseComponents.t) escaped =
     let cpa' = CPA.fold (fun x v acc ->
