@@ -313,8 +313,10 @@ struct
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     match reason with
+    | `Join
     | `Return -> (* required for thread return *)
       let sidegs = CPA.fold (fun x v acc ->
+          (* TODO: is_unprotected - why breaks 02/11 init_mainfun? *)
           if is_global a x then
             (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
           else
@@ -323,7 +325,6 @@ struct
       in
       (st, sidegs)
     | `Normal
-    | `Join (* TODO: how is branched thread creation handled? *)
     | `Init
     | `Thread ->
       (st, [])
