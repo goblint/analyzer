@@ -866,14 +866,22 @@ struct
    * State functions
    **************************************************************************)
 
-  let sync' reason privates multi ctx: D.t * glob_diff =
+  let sync' reason privates ctx: D.t * glob_diff =
+    let multi =
+      match reason with
+      | `Init
+      | `Thread ->
+        true
+      | _ ->
+        ThreadFlag.is_multi ctx.ask
+    in
     let privates = privates || (!GU.earlyglobs && not multi) in
     if !GU.earlyglobs || multi then Priv.sync ~privates:privates reason ctx else (ctx.local,[])
 
-  let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) false (ThreadFlag.is_multi ctx.ask) ctx
+  let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) false ctx
 
   let publish_all ctx reason =
-    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason true true ctx))
+    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason true ctx))
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
     if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
