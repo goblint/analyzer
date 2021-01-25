@@ -317,7 +317,7 @@ struct
     | `Return -> (* required for thread return *)
       let sidegs = CPA.fold (fun x v acc ->
           (* TODO: is_unprotected - why breaks 02/11 init_mainfun? *)
-          if is_global a x then
+          if is_global a x && is_unprotected a x then
             (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
           else
             acc
