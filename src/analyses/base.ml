@@ -335,12 +335,12 @@ struct
     if is_unprotected ask x then (
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* None is VD.top () *)
-      (* match CPA.find_opt x st.cpa, get_mutex_global_x with
+      match CPA.find_opt x st.cpa, get_mutex_global_x with
       | Some v1, Some v2 -> VD.meet v1 v2
       | Some v, None
       | None, Some v -> v
-      | None, None -> VD.bot () (* Except if both None, needed for 09/07 kernel_list_rc *) *)
-      get_mutex_global_x |? VD.bot ()
+      | None, None -> VD.bot () (* Except if both None, needed for 09/07 kernel_list_rc *)
+      (* get_mutex_global_x |? VD.bot () *)
     )
     else
       CPA.find x st.cpa
@@ -379,7 +379,8 @@ struct
     sideg (mutex_addr_to_varinfo m) (CPA.filter is_in_Gm st.cpa);
     let cpa' = CPA.fold (fun x v cpa ->
         if is_protected_by ask m x && is_unprotected_without ask x m then
-          CPA.add x (VD.top ()) cpa
+          CPA.remove x cpa
+          (* CPA.add x (VD.top ()) cpa *)
         else
           cpa
       ) st.cpa st.cpa
@@ -393,7 +394,7 @@ struct
     | `Join
     | `Return -> (* required for thread return *)
       let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
-          if is_global a x && is_unprotected a x && not (VD.is_top v) then (
+          if is_global a x && is_unprotected a x (* && not (VD.is_top v) *) then (
             if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
             (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
           )
@@ -415,7 +416,8 @@ struct
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
           if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" d_varinfo x VD.pretty v;
           sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
-          CPA.add x (VD.top ()) acc
+          CPA.remove x acc
+          (* CPA.add x (VD.top ()) acc *)
         )
         else
           acc
@@ -432,7 +434,8 @@ struct
           if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" d_varinfo x;
           if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a\n" d_varinfo x VD.pretty v;
           sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
-          CPA.add x (VD.top ()) acc
+          CPA.remove x acc
+          (* CPA.add x (VD.top ()) acc *)
         )
         else
           acc
