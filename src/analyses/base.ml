@@ -398,8 +398,10 @@ struct
             if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
             (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
           )
-          else
+          else (
+            if M.tracing then M.tracel "priv" "SYNC NOSIDE %a = %a\n" d_varinfo x VD.pretty v;
             acc
+          )
         ) st.cpa (st.cpa, [])
       in
       ({st with cpa = cpa'}, sidegs')

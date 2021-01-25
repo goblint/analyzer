@@ -638,7 +638,25 @@ struct
     bigsqcup ((S.branch ctx e tv)::!r)
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
-    let combine (cd, fc, fd) = S.combine {ctx with local = cd} lv e f args fc fd in
+    let combine (cd, fc, fd) =
+      (* Extra sync in case function has multiple returns.
+         Each `Return sync is done before joining, so joined value may be unsound.
+         Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
+      (* TODO: don't do this extra sync here *)
+      let fd =
+        (* TODO: more accurate ctx? *)
+        let rec sync_ctx = { ctx with
+            ask = query;
+            local = fd
+          }
+        and query x = S.query sync_ctx x
+        in
+        let (fd, diff) = S.sync sync_ctx `Return in
+        List.iter (uncurry ctx.sideg) diff;
+        fd
+      in
+      S.combine {ctx with local = cd} lv e f args fc fd
+    in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
     let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
