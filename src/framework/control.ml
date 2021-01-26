@@ -190,16 +190,20 @@ struct
       foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
     in
 
+    (* Simulate globals before analysis. *)
+    (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
+    let gh = GHT.create 13 in
+    let getg v = GHT.find_default gh v (Spec.G.bot ()) in
+    let sideg v d =
+      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Prelude.Ana.d_varinfo v Spec.G.pretty d;
+      GHT.replace gh v (Spec.G.join (getg v) d)
+    in
+    (* Old-style global function for context.
+     * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
+    let getg v = Spec.G.bot () in
+
     (* analyze cil's global-inits function to get a starting state *)
-    let do_global_inits (file: file) : Spec.D.t * fundec list * (varinfo * Spec.G.t) list =
-      (* Simulate globals before analysis. *)
-      (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
-      let gh = GHT.create 13 in
-      let getg v = GHT.find_default gh v (Spec.G.bot ()) in
-      let sideg v d = GHT.replace gh v (Spec.G.join (getg v) d) in
-      (* Old-style global function for context.
-       * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
-      let getg v = Spec.G.bot () in
+    let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
@@ -245,7 +249,8 @@ struct
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      result, !funs, GHT.to_list gh
+      if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pretty result;
+      result, !funs
     in
 
     let print_globals glob =
@@ -261,7 +266,8 @@ struct
       WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
-    GU.earlyglobs := false;
+    (* GU.earlyglobs := false; *)
+    GU.earlyglobs := get_bool "exp.earlyglobs";
     Spec.init ();
     Access.init file;
 
@@ -280,7 +286,7 @@ struct
       )
     in
 
-    let startstate, more_funs, entrystates_global =
+    let startstate, more_funs =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
       Stats.time "global_inits" do_global_inits file
     in
@@ -298,12 +304,12 @@ struct
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
-        ; global  = (fun _ -> Spec.G.bot ())
+        ; global  = getg
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = sideg
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
@@ -333,12 +339,12 @@ struct
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
-        ; global  = (fun _ -> Spec.G.bot ())
+        ; global  = getg
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = sideg
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
@@ -362,6 +368,7 @@ struct
     in
 
     let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
+    let entrystates_global = GHT.to_list gh in
 
     let solve_and_postprocess () =
       (* handle save_run/load_run *)
