@@ -337,7 +337,8 @@ struct
   include PerMutexPrivBase
 
   let read_global ask getg (st: BaseComponents.t) x =
-    if is_unprotected ask x then (
+    (* TODO: move earlyglobs condition into is_unprotected? *)
+    if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then (
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* None is VD.top () *)
       match CPA.find_opt x st.cpa, get_mutex_global_x with
@@ -355,7 +356,8 @@ struct
     v
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' =
-      if is_unprotected ask x then
+      (* TODO: move earlyglobs condition into is_unprotected? *)
+      if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then
         st.cpa
       else
         CPA.add x v st.cpa
