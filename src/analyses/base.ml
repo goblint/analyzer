@@ -157,7 +157,7 @@ module NewPrivBase =
 struct
   let is_unprotected ask x: bool =
     let multi = ThreadFlag.is_multi ask in
-    (!GU.earlyglobs && not multi) ||
+    (!GU.earlyglobs && not multi && not (is_precious_glob x)) ||
     (
       multi &&
       match ask (Q.MayBePublic {global=x; write=true}) with
