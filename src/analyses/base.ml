@@ -496,7 +496,8 @@ struct
   let read_global ask getg (st: BaseComponents.t) x =
     if CVars.mem x st.cached then
       CPA.find x st.cpa
-    else if is_unprotected ask x then
+    (* TODO: move earlyglobs condition into is_unprotected? *)
+    else if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then
       fst (getg x)
     else if CPA.mem x st.cpa then
       VD.join (CPA.find x st.cpa) (snd (getg x))
@@ -509,7 +510,8 @@ struct
     if not (is_atomic ask) then
       sideg x (v, VD.bot ());
     let cached' =
-      if is_unprotected ask x then
+      (* TODO: move earlyglobs condition into is_unprotected? *)
+      if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then
         st.cached
       else
         CVars.add x st.cached
