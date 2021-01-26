@@ -96,13 +96,12 @@ struct
 
   let sync reason ctx =
     let privates = sync_privates reason ctx.ask in
-    let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a v)) then begin
+        if is_global ctx.ask v && ((privates && not (is_precious_glob v)) || not (is_private ctx.ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           ({st with cpa = CPA.remove v st.cpa}, (v,value) :: acc)
         end else
@@ -143,14 +142,13 @@ struct
 
   let sync reason ctx =
     let privates = sync_privates reason ctx.ask in
-    let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a v)) then begin
+        if is_global ctx.ask v && ((privates && not (is_precious_glob v)) || not (is_private ctx.ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           ({st with cpa = CPA.remove v st.cpa}, (v,value) :: acc)
         end else
@@ -325,14 +323,13 @@ struct
     st
 
   let sync reason ctx =
-    let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     match reason with
     | `Join
     | `Return -> (* required for thread return *)
       let sidegs = CPA.fold (fun x v acc ->
           (* TODO: is_unprotected - why breaks 02/11 init_mainfun? *)
-          if is_global a x && is_unprotected a x then
+          if is_global ctx.ask x && is_unprotected ctx.ask x then
             (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
           else
             acc
@@ -406,13 +403,12 @@ struct
     {st with cpa = cpa'}
 
   let sync reason ctx =
-    let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     match reason with
     | `Join
     | `Return -> (* required for thread return *)
       let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
-          if is_global a x && is_unprotected a x (* && not (VD.is_top v) *) then (
+          if is_global ctx.ask x && is_unprotected ctx.ask x (* && not (VD.is_top v) *) then (
             if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
             (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
           )
@@ -550,14 +546,13 @@ struct
       ) st.cpa st
 
   let sync reason ctx =
-    let ask = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     match reason with
     | `Join
     | `Return -> (* required for thread return *)
       let (st', sidegs) =
         CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
-            if is_global ask x && is_unprotected ask x then
+            if is_global ctx.ask x && is_unprotected ctx.ask x then
               ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
             else
               acc
