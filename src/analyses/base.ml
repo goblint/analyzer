@@ -156,11 +156,15 @@ end
 module NewPrivBase =
 struct
   let is_unprotected ask x: bool =
-    ThreadFlag.is_multi ask &&
-    match ask (Q.MayBePublic {global=x; write=true}) with
-    | `MayBool x -> x
-    | `Top -> true
-    | _ -> failwith "PrivBase.is_unprotected"
+    let multi = ThreadFlag.is_multi ask in
+    (!GU.earlyglobs && not multi) ||
+    (
+      multi &&
+      match ask (Q.MayBePublic {global=x; write=true}) with
+      | `MayBool x -> x
+      | `Top -> true
+      | _ -> failwith "PrivBase.is_unprotected"
+    )
 
   let is_unprotected_without ask ?(write=true) x m: bool =
     ThreadFlag.is_multi ask &&
@@ -278,8 +282,7 @@ struct
   include PerMutexPrivBase
 
   let read_global ask getg (st: BaseComponents.t) x =
-    (* TODO: move earlyglobs condition into is_unprotected? *)
-    if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then
+    if is_unprotected ask x then
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       get_mutex_global_x |? VD.bot ()
     else
@@ -337,8 +340,7 @@ struct
   include PerMutexPrivBase
 
   let read_global ask getg (st: BaseComponents.t) x =
-    (* TODO: move earlyglobs condition into is_unprotected? *)
-    if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then (
+    if is_unprotected ask x then (
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* None is VD.top () *)
       match CPA.find_opt x st.cpa, get_mutex_global_x with
@@ -356,8 +358,7 @@ struct
     v
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' =
-      (* TODO: move earlyglobs condition into is_unprotected? *)
-      if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then
+      if is_unprotected ask x then
         st.cpa
       else
         CPA.add x v st.cpa
@@ -496,8 +497,7 @@ struct
   let read_global ask getg (st: BaseComponents.t) x =
     if CVars.mem x st.cached then
       CPA.find x st.cpa
-    (* TODO: move earlyglobs condition into is_unprotected? *)
-    else if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then
+    else if is_unprotected ask x then
       fst (getg x)
     else if CPA.mem x st.cpa then
       VD.join (CPA.find x st.cpa) (snd (getg x))
@@ -510,8 +510,7 @@ struct
     if not (is_atomic ask) then
       sideg x (v, VD.bot ());
     let cached' =
-      (* TODO: move earlyglobs condition into is_unprotected? *)
-      if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then
+      if is_unprotected ask x then
         st.cached
       else
         CVars.add x st.cached
