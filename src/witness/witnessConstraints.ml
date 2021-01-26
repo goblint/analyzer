@@ -376,9 +376,9 @@ struct
     Dom.fold' k (fst ctx.local) a
 
   let sync ctx reason =
-    fold'' ctx Spec.sync (fun h -> h reason) (fun ((a, async),b) x r (a',b') ->
-        (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async), b'@b
-      ) ((Dom.empty (), Sync.bot ()), [])
+    fold'' ctx Spec.sync (fun h -> h reason) (fun (a, async) x r a' ->
+        (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async)
+      ) (Dom.empty (), Sync.bot ())
 
   let query ctx q =
     match q with

@@ -41,8 +41,7 @@ struct
     }
 
   let sync ctx reason =
-    let d, diff = S.sync (conv ctx) reason in
-    D.lift d, diff
+    D.lift @@ S.sync (conv ctx) reason
 
   let query ctx q =
     S.query (conv ctx) q
@@ -120,8 +119,7 @@ struct
     { ctx with context = (fun () -> C.unlift (ctx.context ())) }
 
   let sync ctx reason =
-    let d, diff = S.sync (conv ctx) reason in
-    d, diff
+    S.sync (conv ctx) reason
 
   let query ctx q =
     match q with
@@ -227,10 +225,6 @@ struct
   let lift_fun ctx f g h =
     f @@ h (g (conv ctx))
 
-  let sync ctx reason =
-    let liftpair (x, y) = (x, snd ctx.local), y in
-    lift_fun ctx liftpair S.sync ((|>) reason)
-
   let enter' ctx r f args =
     let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (y, snd ctx.local)) in
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
@@ -238,6 +232,7 @@ struct
   let lift ctx d = (d, snd ctx.local)
   let lift_start_level d = (d, !start_level)
 
+  let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
   let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
@@ -368,7 +363,7 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx reason = let d, ds = S.sync (conv ctx) reason in (d, snd ctx.local), ds
+  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
@@ -420,7 +415,7 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx reason = let d, ds = S.sync (conv ctx) reason in (d, snd ctx.local), ds
+  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
@@ -487,9 +482,7 @@ struct
     try f @@ h (g (conv ctx))
     with Deadcode -> b
 
-  let sync ctx reason =
-    let liftpair (x,y) = D.lift x, y in
-    lift_fun ctx liftpair S.sync ((|>) reason) (`Bot, [])
+  let sync ctx reason = lift_fun ctx D.lift   S.sync   ((|>) reason)      `Bot
 
   let enter ctx r f args =
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
@@ -580,12 +573,11 @@ struct
       ignore (getl (Function f, c))
     in
     (* ... nice, right! *)
-    let pval, diff =
+    let pval =
       match Cfg.prev prev_node with
       | _ :: _ :: _ -> S.sync ctx `Join
       | _ -> S.sync ctx `Normal
     in
-    let _ = List.iter (uncurry sideg) diff in
     { ctx with local = pval }, r
 
   let rec bigsqcup = function
@@ -607,15 +599,13 @@ struct
 
   let normal_return r fd ctx sideg =
     let spawning_return = S.return ctx r fd in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } `Return in
-    List.iter (fun (x,y) -> sideg x y) ndiff;
+    let nval = S.sync { ctx with local = spawning_return } `Return in
     nval
 
   let toplevel_kernel_return r fd ctx sideg =
     let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local else S.return ctx r fd in
     let spawning_return = S.return {ctx with local = st} None MyCFG.dummy_func in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } `Return in
-    List.iter (fun (x,y) -> sideg x y) ndiff;
+    let nval = S.sync { ctx with local = spawning_return } `Return in
     nval
 
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
@@ -651,9 +641,7 @@ struct
           }
         and query x = S.query sync_ctx x
         in
-        let (fd, diff) = S.sync sync_ctx `Return in
-        List.iter (uncurry ctx.sideg) diff;
-        fd
+        S.sync sync_ctx `Return
       in
       S.combine {ctx with local = cd} lv e f args fc fd
     in
@@ -1053,8 +1041,7 @@ struct
     in
     D.fold k ctx.local a
 
-  let sync ctx reason =
-    fold' ctx Spec.sync (fun h -> h reason) (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
+  let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx q =
     (* join results so that they are sound for all paths *)

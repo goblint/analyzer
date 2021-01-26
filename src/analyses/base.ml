@@ -889,7 +889,11 @@ struct
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
     if !GU.earlyglobs || multi then Priv.sync reason ctx else (ctx.local,[])
 
-  let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
+  let sync ctx reason =
+    (* TODO: do sideg in PrivParam.sync *)
+    let ret, diff = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx in
+    List.iter (uncurry ctx.sideg) diff;
+    ret
 
   let publish_all ctx reason =
     List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason ctx))
