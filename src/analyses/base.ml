@@ -45,7 +45,7 @@ sig
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> LockDomain.Addr.t -> CPA.t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> LockDomain.Addr.t -> BaseComponents.t
 
-  val sync: [`Normal | `Join | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
+  val sync: [`Normal | `Join | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t
 
   val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> EscapeDomain.EscapedVars.t -> BaseComponents.t
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> BaseComponents.t
@@ -98,20 +98,21 @@ struct
     let privates = sync_privates reason ctx.ask in
     let st: BaseComponents.t = ctx.local in
     (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
+    let add_var (v: varinfo) (value) (st: BaseComponents.t) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ctx.ask v && ((privates && not (is_precious_glob v)) || not (is_private ctx.ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          ({st with cpa = CPA.remove v st.cpa}, (v,value) :: acc)
+          ctx.sideg v value;
+          {st with cpa = CPA.remove v st.cpa}
         end else
-          (st,acc)
+          st
       in
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
     (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var st.cpa (st, [])
+    CPA.fold add_var st.cpa st
 end
 
 module OldPriv: PrivParam =
@@ -145,20 +146,21 @@ struct
     let st: BaseComponents.t = ctx.local in
     if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
     (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
+    let add_var (v: varinfo) (value) (st: BaseComponents.t) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ctx.ask v && ((privates && not (is_precious_glob v)) || not (is_private ctx.ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          ({st with cpa = CPA.remove v st.cpa}, (v,value) :: acc)
+          ctx.sideg v value;
+          {st with cpa = CPA.remove v st.cpa}
         end else
-          (st,acc)
+          st
       in
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
     (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var st.cpa (st, [])
+    CPA.fold add_var st.cpa st
 end
 
 module NewPrivBase =
@@ -327,19 +329,17 @@ struct
     match reason with
     | `Join
     | `Return -> (* required for thread return *)
-      let sidegs = CPA.fold (fun x v acc ->
+      CPA.iter (fun x v ->
           (* TODO: is_unprotected - why breaks 02/11 init_mainfun? *)
           if is_global ctx.ask x && is_unprotected ctx.ask x then
-            (mutex_global x, CPA.add x v (CPA.bot ())) :: acc
-          else
-            acc
-        ) st.cpa []
-      in
-      (st, sidegs)
+            ctx.sideg (mutex_global x) (CPA.add x v (CPA.bot ()))
+            (* TODO: should remove from CPA? *)
+        ) st.cpa;
+      st
     | `Normal
     | `Init
     | `Thread ->
-      (st, [])
+      st
 end
 
 module PerMutexMeetPriv: PrivParam =
@@ -407,22 +407,23 @@ struct
     match reason with
     | `Join
     | `Return -> (* required for thread return *)
-      let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
+      let cpa' = CPA.fold (fun x v cpa ->
           if is_global ctx.ask x && is_unprotected ctx.ask x (* && not (VD.is_top v) *) then (
             if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
-            (CPA.remove x cpa, (mutex_global x, CPA.add x v (CPA.bot ())) :: sidegs)
+            ctx.sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
+            CPA.remove x cpa
           )
           else (
             if M.tracing then M.tracel "priv" "SYNC NOSIDE %a = %a\n" d_varinfo x VD.pretty v;
-            acc
+            cpa
           )
-        ) st.cpa (st.cpa, [])
+        ) st.cpa st.cpa
       in
-      ({st with cpa = cpa'}, sidegs')
+      {st with cpa = cpa'}
     | `Normal
     | `Init
     | `Thread ->
-      (st, [])
+      st
 end
 
 module PerGlobalVesalPriv: PrivParam =
@@ -460,29 +461,30 @@ struct
     let privates = sync_privates reason ctx.ask in
     let st: BaseComponents.t = ctx.local in
     (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
+    let add_var (v: varinfo) (value) (st: BaseComponents.t) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ctx.ask v then
           let protected = is_protected ctx.ask v in
           if privates && not (is_precious_glob v) || not protected then begin
             if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-            ({ st with cpa = CPA.remove v st.cpa; cached = CVars.remove v st.cached} , (v,value) :: acc)
+            ctx.sideg v value;
+            { st with cpa = CPA.remove v st.cpa; cached = CVars.remove v st.cached}
           end else (* protected == true *)
-            let (st, acc) = if not (CVars.mem v st.cached) then
-              let joined = VD.join (CPA.find v st.cpa) (ctx.global v) in
-              ( {st with cpa = CPA.add v joined st.cpa} ,acc)
-             else (st,acc)
-            in
             let invisible = is_invisible ctx.ask v in
-            if not invisible then (st, (v,value) :: acc) else (st,acc)
-        else (st,acc)
+            if not invisible then
+              ctx.sideg v value;
+            if not (CVars.mem v st.cached) then
+              let joined = VD.join (CPA.find v st.cpa) (ctx.global v) in
+              {st with cpa = CPA.add v joined st.cpa}
+            else st
+        else st
       in
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
     (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var st.cpa (st, [])
+    CPA.fold add_var st.cpa st
 end
 
 module PerGlobalPriv: PrivParam =
@@ -550,20 +552,22 @@ struct
     match reason with
     | `Join
     | `Return -> (* required for thread return *)
-      let (st', sidegs) =
-        CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
-            if is_global ctx.ask x && is_unprotected ctx.ask x then
-              ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
+      let st' =
+        CPA.fold (fun x v (st: BaseComponents.t) ->
+            if is_global ctx.ask x && is_unprotected ctx.ask x then (
+              ctx.sideg x (v, VD.bot ());
+              {st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}
+            )
             else
-              acc
-          ) st.cpa (st, [])
+              st
+          ) st.cpa st
       in
       (* ({st' with cached = CVars.filter (is_protected ask) st'.cached}, sidegs) *)
-      (st', sidegs)
+      st'
     | `Normal
     | `Init
     | `Thread ->
-      (st, [])
+      st
 
   let escape ask getg sideg (st: BaseComponents.t) escaped =
     let cpa' = CPA.fold (fun x v acc ->
@@ -877,7 +881,7 @@ struct
    * State functions
    **************************************************************************)
 
-  let sync' reason ctx: D.t * glob_diff =
+  let sync' reason ctx: D.t =
     let multi =
       match reason with
       | `Init
@@ -887,16 +891,12 @@ struct
         ThreadFlag.is_multi ctx.ask
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
-    if !GU.earlyglobs || multi then Priv.sync reason ctx else (ctx.local,[])
+    if !GU.earlyglobs || multi then Priv.sync reason ctx else ctx.local
 
-  let sync ctx reason =
-    (* TODO: do sideg in PrivParam.sync *)
-    let ret, diff = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx in
-    List.iter (uncurry ctx.sideg) diff;
-    ret
+  let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
 
   let publish_all ctx reason =
-    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason ctx))
+    ignore (sync' reason ctx)
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
     if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
