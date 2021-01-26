@@ -64,7 +64,8 @@ struct
     match args with
     | [ptc_arg] ->
       let escaped = reachable ctx.ask ptc_arg in
-      ctx.emit (Events.Escape escaped);
+      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+        ctx.emit (Events.Escape escaped);
       escaped
     | _ -> D.bot ()
 
@@ -72,7 +73,8 @@ struct
     match args with
     | [ptc_arg] ->
       let escaped = reachable ctx.ask ptc_arg in (* TODO: just use fd? *)
-      ctx.emit (Events.Escape escaped);
+      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+        ctx.emit (Events.Escape escaped);
       escaped
     | _ -> D.bot ()
 end
