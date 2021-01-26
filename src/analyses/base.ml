@@ -135,6 +135,7 @@ struct
   let sync ?(privates=false) reason ctx =
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
+    if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
@@ -883,6 +884,7 @@ struct
       | _ ->
         !GU.earlyglobs && not multi
     in
+    if M.tracing then M.tracel "sync" "sync privates=%B multi=%B earlyglobs=%B\n" privates multi !GU.earlyglobs;
     if !GU.earlyglobs || multi then Priv.sync ~privates:privates reason ctx else (ctx.local,[])
 
   let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
@@ -2371,7 +2373,7 @@ struct
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k && Priv.is_private ctx.ask k) st.cpa in
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k) st.cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
