@@ -1536,7 +1536,7 @@ struct
       Priv.unlock octx.ask octx.global octx.sideg st addr
     | Events.Escape escaped ->
       Priv.escape octx.ask octx.global octx.sideg st escaped
-    | Events.EnterMultiThreaded when not !GU.global_initialization -> (* TODO: also during global initialization, need to allow sideg *)
+    | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded octx.ask octx.global octx.sideg st
     | _ ->
       ctx.local
