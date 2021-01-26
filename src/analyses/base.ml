@@ -278,7 +278,8 @@ struct
   include PerMutexPrivBase
 
   let read_global ask getg (st: BaseComponents.t) x =
-    if is_unprotected ask x then
+    (* TODO: move earlyglobs condition into is_unprotected? *)
+    if is_unprotected ask x || (!GU.earlyglobs && not (ThreadFlag.is_multi ask)) then
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       get_mutex_global_x |? VD.bot ()
     else
