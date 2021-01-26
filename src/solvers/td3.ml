@@ -363,7 +363,8 @@ module WP =
         (* Another problem are the tags for the context part of a S.Var.t.
          * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
          * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
-         * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
+         * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
+         *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           HM.iter (fun k v ->
