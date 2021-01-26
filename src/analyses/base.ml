@@ -45,7 +45,7 @@ sig
   val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> LockDomain.Addr.t -> CPA.t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> LockDomain.Addr.t -> BaseComponents.t
 
-  val sync: ?privates:bool -> [`Normal | `Join | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
+  val sync: [`Normal | `Join | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
 
   val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> EscapeDomain.EscapedVars.t -> BaseComponents.t
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> BaseComponents.t
@@ -61,6 +61,14 @@ struct
 
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg st = st
+
+  let sync_privates reason ask =
+    match reason with
+    | `Init
+    | `Thread ->
+      true
+    | _ ->
+      !GU.earlyglobs && not (ThreadFlag.is_multi ask)
 end
 
 (* Copy of OldPriv with is_private constantly false. *)
@@ -86,7 +94,8 @@ struct
 
   let is_private (a: Q.ask) (v: varinfo): bool = false
 
-  let sync ?(privates=false) reason ctx =
+  let sync reason ctx =
+    let privates = sync_privates reason ctx.ask in
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     (* For each global variable, we create the diff *)
@@ -132,7 +141,8 @@ struct
      if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
      false)
 
-  let sync ?(privates=false) reason ctx =
+  let sync reason ctx =
+    let privates = sync_privates reason ctx.ask in
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
@@ -314,7 +324,7 @@ struct
     sideg (mutex_addr_to_varinfo m) side_m_cpa;
     st
 
-  let sync ?(privates=false) reason ctx =
+  let sync reason ctx =
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     match reason with
@@ -395,7 +405,7 @@ struct
     in
     {st with cpa = cpa'}
 
-  let sync ?(privates=false) reason ctx =
+  let sync reason ctx =
     let a = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     match reason with
@@ -450,7 +460,8 @@ struct
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
         match a (Q.MayBePublic {global=v; write=true}) with `MayBool tv -> not tv | _ -> false)
 
-  let sync ?(privates=false) reason ctx =
+  let sync reason ctx =
+    let privates = sync_privates reason ctx.ask in
     let st: BaseComponents.t = ctx.local in
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
@@ -538,7 +549,7 @@ struct
           st
       ) st.cpa st
 
-  let sync ?(privates=false) reason ctx =
+  let sync reason ctx =
     let ask = ctx.ask in
     let st: BaseComponents.t = ctx.local in
     match reason with
@@ -880,16 +891,8 @@ struct
       | _ ->
         ThreadFlag.is_multi ctx.ask
     in
-    let privates =
-      match reason with
-      | `Init
-      | `Thread ->
-        true
-      | _ ->
-        !GU.earlyglobs && not multi
-    in
-    if M.tracing then M.tracel "sync" "sync privates=%B multi=%B earlyglobs=%B\n" privates multi !GU.earlyglobs;
-    if !GU.earlyglobs || multi then Priv.sync ~privates:privates reason ctx else (ctx.local,[])
+    if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
+    if !GU.earlyglobs || multi then Priv.sync reason ctx else (ctx.local,[])
 
   let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
 
