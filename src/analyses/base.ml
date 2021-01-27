@@ -607,9 +607,10 @@ struct
     let name () = "weak"
   end
   (* TODO: optimize this for lookup by lock *)
+  module SyncMap = MapDomain.MapBot (Lock) (VD)
   module GSync =
   struct
-    include MapDomain.MapBot (ThreadLockset) (MapDomain.MapBot (Lock) (VD))
+    include MapDomain.MapBot (ThreadLockset) (SyncMap)
     let name () = "sync"
   end
   module G = Lattice.Prod (GWeak) (GSync)
@@ -646,8 +647,38 @@ struct
     sideg x (GWeak.add (t, s) v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
-  let lock ask getg cpa m = cpa
-  let unlock ask getg sideg st m = st
+  let lock ask getg cpa m =
+    let t = ThreadId.get_current_unlift ask in
+    (* let s = current_lockset ask in *)
+    let s = Lockset.add m (current_lockset ask) in
+    CPA.fold (fun x v acc ->
+        if is_global ask x then
+          let v' =
+            GSync.fold (fun (t', s') sm acc ->
+                (* TODO: add back with uniqueness check *)
+                if (* not (Thread.equal t t') && *) Lockset.disjoint s s' then
+                  VD.join (SyncMap.find m sm) acc
+                else
+                  acc
+              ) (snd (getg x)) v
+          in
+          CPA.add x v' acc
+        else
+          acc
+      ) cpa cpa
+  let unlock ask getg sideg (st: BaseComponents.t) m =
+    let t = ThreadId.get_current_unlift ask in
+    let s = Lockset.remove m (current_lockset ask) in
+    CPA.iter (fun x v ->
+        let in_V = GWeak.fold (fun (t', s') v' acc ->
+            (* TODO: separate outer map for lookup by thread *)
+            (Thread.equal t t' && Lockset.mem m s' && not (VD.is_bot v')) || acc
+          ) (fst (getg x)) false
+        in
+        if in_V then
+          sideg x (GWeak.bot (), GSync.add (t, s) (SyncMap.add m v (SyncMap.bot ())) (GSync.bot ()))
+      ) st.cpa;
+    st
 
   let sync reason ctx =
     (ctx.local, [])
@@ -656,10 +687,10 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
     let t = ThreadId.get_current_unlift ask in
     let s = current_lockset ask in
-    CPA.iter (fun x v ->
+    (* CPA.iter (fun x v ->
         if is_global ask x then
           sideg x (GWeak.add (t, s) v (GWeak.bot ()), GSync.bot ());
-      ) st.cpa;
+      ) st.cpa; *)
     st
 
   (* ??? *)
