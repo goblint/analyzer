@@ -649,8 +649,9 @@ struct
 
   let lock ask getg cpa m =
     let t = ThreadId.get_current_unlift ask in
-    (* let s = current_lockset ask in *)
-    let s = Lockset.add m (current_lockset ask) in
+    (* TODO: should be excluding M in traces paper constraint? *)
+    let s = current_lockset ask in
+    (* let s = Lockset.add m (current_lockset ask) in *)
     CPA.fold (fun x v acc ->
         if is_global ask x then
           let v' =
