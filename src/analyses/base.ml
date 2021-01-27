@@ -593,7 +593,22 @@ end
 
 module MinePriv: PrivParam =
 struct
-  module G = Lattice.Unit (* TODO *)
+  module Thread = ConcDomain.Thread
+  module Lock = LockDomain.Addr
+  module Lockset = SetDomain.Make (Lock)
+  module ThreadLockset = Printable.Prod (Thread) (Lockset)
+  module GWeak =
+  struct
+    include MapDomain.MapBot (ThreadLockset) (VD)
+    let name () = "weak"
+  end
+  (* TODO: optimize this for lookup by lock *)
+  module GSync =
+  struct
+    include MapDomain.MapBot (ThreadLockset) (MapDomain.MapBot (Lock) (VD))
+    let name () = "sync"
+  end
+  module G = Lattice.Prod (GWeak) (GSync)
 
   let read_global ask getg (st: BaseComponents.t) x =
     VD.bot ()
