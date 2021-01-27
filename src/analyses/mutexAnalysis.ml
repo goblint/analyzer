@@ -54,6 +54,12 @@ struct
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
+  let rec conv_offset_inv = function
+    | `NoOffset -> `NoOffset
+    | `Field (f, o) -> `Field (f, conv_offset_inv o)
+    (* TODO: better indices handling *)
+    | `Index (_, o) -> `Index (MyCFG.unknown_exp, conv_offset_inv o)
+
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
@@ -174,6 +180,15 @@ struct
       let mutex_lockset = Lockset.singleton (mutex, true) in
       let held_locks: G.t = P.check_fun ~write mutex_lockset in
       `MustBool (G.leq (ctx.global global) held_locks)
+    | Queries.CurrentLockset ->
+      let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
+      let ls = Mutexes.fold (fun addr ls ->
+          match Addr.to_var_offset addr with
+          | [(var, offs)] -> Queries.LS.add (var, conv_offset_inv offs) ls
+          | _ -> ls
+        ) held_locks (Queries.LS.empty ())
+      in
+      `LvalSet ls
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       `MustBool (Mutexes.mem verifier_atomic held_locks)

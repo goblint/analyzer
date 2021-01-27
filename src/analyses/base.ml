@@ -595,7 +595,11 @@ module MinePriv: PrivParam =
 struct
   module Thread = ConcDomain.Thread
   module Lock = LockDomain.Addr
-  module Lockset = SetDomain.Make (Lock)
+  module Lockset =
+  struct
+    include SetDomain.Make (Lock)
+    let disjoint s t = is_empty (inter s t)
+  end
   module ThreadLockset = Printable.Prod (Thread) (Lockset)
   module GWeak =
   struct
@@ -610,11 +614,37 @@ struct
   end
   module G = Lattice.Prod (GWeak) (GSync)
 
+  let rec conv_offset = function
+    | `NoOffset -> `NoOffset
+    | `Field (f, o) -> `Field (f, conv_offset o)
+    (* TODO: better indices handling *)
+    | `Index (_, o) -> `Index (IdxDom.top (), conv_offset o)
+
+  let current_lockset (ask: Q.ask): Lockset.t =
+    match ask Queries.CurrentLockset with
+    | `LvalSet ls ->
+      Q.LS.fold (fun (var, offs) acc ->
+          Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
+        ) ls (Lockset.empty ())
+    | _ -> failwith "MinePriv.current_lockset"
+
   let read_global ask getg (st: BaseComponents.t) x =
-    VD.bot ()
+    let t = ThreadId.get_current_unlift ask in
+    let s = current_lockset ask in
+    GWeak.fold (fun (t', s') v acc ->
+        (* TODO: add back with uniqueness check *)
+        if (* not (Thread.equal t t') && *) Lockset.disjoint s s' then
+          VD.join v acc
+        else
+          acc
+      ) (fst (getg x)) (CPA.find x st.cpa)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
-    st
+    let t = ThreadId.get_current_unlift ask in
+    let s = current_lockset ask in
+    let cpa' = CPA.add x v st.cpa in
+    sideg x (GWeak.add (t, s) v (GWeak.bot ()), GSync.bot ());
+    {st with cpa = cpa'}
 
   let lock ask getg cpa m = cpa
   let unlock ask getg sideg st m = st
@@ -623,7 +653,14 @@ struct
     (ctx.local, [])
 
   let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg st = st
+  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
+    let t = ThreadId.get_current_unlift ask in
+    let s = current_lockset ask in
+    CPA.iter (fun x v ->
+        if is_global ask x then
+          sideg x (GWeak.add (t, s) v (GWeak.bot ()), GSync.bot ());
+      ) st.cpa;
+    st
 
   (* ??? *)
   let is_private ask x = true

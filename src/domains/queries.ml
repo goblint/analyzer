@@ -43,6 +43,7 @@ type t = EqualSet of exp
        | MayBePublic of {global: varinfo; write: bool} (* old behavior with write=false *)
        | MayBePublicWithout of {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t}
        | MustBeProtectedBy of {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool}
+       | CurrentLockset
        | MustBeAtomic
        | MustBeSingleThreaded
        | MustBeUniqueThread
