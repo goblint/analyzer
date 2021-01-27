@@ -24,7 +24,7 @@ int main() {
   glob1 = 5;
   assert(glob1 == 5);
   glob2 = 5;
-  assert(glob2 == 5); // UNKNOWN
+  assert(glob2 == 5); // TODO
 
   return 0;
 }
