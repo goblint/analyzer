@@ -591,6 +591,29 @@ struct
   let is_private ask x = true
 end
 
+module MinePriv: PrivParam =
+struct
+  module G = Lattice.Unit (* TODO *)
+
+  let read_global ask getg (st: BaseComponents.t) x =
+    VD.bot ()
+
+  let write_global ask getg sideg (st: BaseComponents.t) x v =
+    st
+
+  let lock ask getg cpa m = cpa
+  let unlock ask getg sideg st m = st
+
+  let sync reason ctx =
+    (ctx.local, [])
+
+  let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg st = st
+
+  (* ??? *)
+  let is_private ask x = true
+end
+
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
 struct
   include Analyses.DefaultSpec
@@ -2763,6 +2786,7 @@ let main_module: (module MainSpec) Lazy.t =
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "global" -> (module PerGlobalPriv)
         | "global-vesal" -> (module PerGlobalVesalPriv)
+        | "mine" -> (module MinePriv)
         | _ -> failwith "exp.privatization: illegal value"
       )
     in
