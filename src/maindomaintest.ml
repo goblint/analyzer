@@ -76,7 +76,7 @@ let intDomains: (module IntDomain.IkindUnawareS) list = [
 ]
 
 let nonAssocIntDomains: (module IntDomain.IkindUnawareS) list = [
-  (module IntDomain.DefExc)
+  (* (module IntDomain.DefExc) *)
 ]
 
 let testsuite =
