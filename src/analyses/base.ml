@@ -622,12 +622,16 @@ struct
     | `Index (_, o) -> `Index (IdxDom.top (), conv_offset o)
 
   let current_lockset (ask: Q.ask): Lockset.t =
-    match ask Queries.CurrentLockset with
-    | `LvalSet ls ->
-      Q.LS.fold (fun (var, offs) acc ->
-          Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
-        ) ls (Lockset.empty ())
-    | _ -> failwith "MinePriv.current_lockset"
+    (* TODO: remove this global_init workaround *)
+    if !GU.global_initialization then
+      Lockset.empty ()
+    else
+      match ask Queries.CurrentLockset with
+      | `LvalSet ls ->
+        Q.LS.fold (fun (var, offs) acc ->
+            Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
+          ) ls (Lockset.empty ())
+      | _ -> failwith "MinePriv.current_lockset"
 
   let read_global ask getg (st: BaseComponents.t) x =
     let t = ThreadId.get_current_unlift ask in
