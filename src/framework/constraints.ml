@@ -651,7 +651,11 @@ struct
           }
         and query x = S.query sync_ctx x
         in
-        let (fd, diff) = S.sync sync_ctx `Return in
+        let (fd, diff) =
+          match Cfg.prev (Function f) with
+          | _ :: _ :: _ -> S.sync sync_ctx `Join
+          | _ -> S.sync sync_ctx `Normal
+        in
         List.iter (uncurry ctx.sideg) diff;
         fd
       in
