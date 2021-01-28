@@ -14,15 +14,11 @@ let global_init_thread = lazy (
 )
 
 let get_current (ask: Queries.ask): ThreadLifted.t =
-  (* TODO: remove this global_init workaround *)
-  if !GU.global_initialization then
-    `Lifted (Lazy.force global_init_thread)
-  else
-    match ask Queries.CurrentThreadId with
-    | `Varinfo v -> v
-    | `Top -> `Top
-    | `Bot -> `Bot
-    | _ -> failwith "ThreadId.get_current"
+  match ask Queries.CurrentThreadId with
+  | `Varinfo v -> v
+  | `Top -> `Top
+  | `Bot -> `Bot
+  | _ -> failwith "ThreadId.get_current"
 
 let get_current_unlift ask: Thread.t =
   match get_current ask with

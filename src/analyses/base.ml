@@ -593,24 +593,22 @@ end
 
 module MinePriv: PrivParam =
 struct
-  module Thread = ConcDomain.Thread
   module Lock = LockDomain.Addr
   module Lockset =
   struct
     include SetDomain.Make (Lock)
     let disjoint s t = is_empty (inter s t)
   end
-  module ThreadLockset = Printable.Prod (Thread) (Lockset)
   module GWeak =
   struct
-    include MapDomain.MapBot (ThreadLockset) (VD)
+    include MapDomain.MapBot (Lockset) (VD)
     let name () = "weak"
   end
   (* TODO: optimize this for lookup by lock *)
   module SyncMap = MapDomain.MapBot (Lock) (VD)
   module GSync =
   struct
-    include MapDomain.MapBot (ThreadLockset) (SyncMap)
+    include MapDomain.MapBot (Lockset) (SyncMap)
     let name () = "sync"
   end
   module G = Lattice.Prod (GWeak) (GSync)
@@ -634,34 +632,29 @@ struct
       | _ -> failwith "MinePriv.current_lockset"
 
   let read_global ask getg (st: BaseComponents.t) x =
-    let t = ThreadId.get_current_unlift ask in
     let s = current_lockset ask in
-    GWeak.fold (fun (t', s') v acc ->
-        (* TODO: add back with uniqueness check *)
-        if (* not (Thread.equal t t') && *) Lockset.disjoint s s' then
+    GWeak.fold (fun s' v acc ->
+        if Lockset.disjoint s s' then
           VD.join v acc
         else
           acc
       ) (fst (getg x)) (CPA.find x st.cpa)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
-    let t = ThreadId.get_current_unlift ask in
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    sideg x (GWeak.add (t, s) v (GWeak.bot ()), GSync.bot ());
+    sideg x (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
   let lock ask getg cpa m =
-    let t = ThreadId.get_current_unlift ask in
     (* TODO: should be excluding M in traces paper constraint? *)
     let s = current_lockset ask in
     (* let s = Lockset.add m (current_lockset ask) in *)
     CPA.fold (fun x v acc ->
         if is_global ask x then
           let v' =
-            GSync.fold (fun (t', s') sm acc ->
-                (* TODO: add back with uniqueness check *)
-                if (* not (Thread.equal t t') && *) Lockset.disjoint s s' then
+            GSync.fold (fun s' sm acc ->
+                if Lockset.disjoint s s' then
                   VD.join (SyncMap.find m sm) acc
                 else
                   acc
@@ -672,16 +665,14 @@ struct
           acc
       ) cpa cpa
   let unlock ask getg sideg (st: BaseComponents.t) m =
-    let t = ThreadId.get_current_unlift ask in
     let s = Lockset.remove m (current_lockset ask) in
     CPA.iter (fun x v ->
-        let in_V = GWeak.fold (fun (t', s') v' acc ->
-            (* TODO: separate outer map for lookup by thread *)
-            (Thread.equal t t' && Lockset.mem m s' && not (VD.is_bot v')) || acc
+        let in_V = GWeak.fold (fun s' v' acc ->
+            (Lockset.mem m s' && not (VD.is_bot v')) || acc
           ) (fst (getg x)) false
         in
         if in_V then
-          sideg x (GWeak.bot (), GSync.add (t, s) (SyncMap.add m v (SyncMap.bot ())) (GSync.bot ()))
+          sideg x (GWeak.bot (), GSync.add s (SyncMap.add m v (SyncMap.bot ())) (GSync.bot ()))
       ) st.cpa;
     st
 
@@ -690,11 +681,10 @@ struct
 
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
-    let t = ThreadId.get_current_unlift ask in
     let s = current_lockset ask in
     (* CPA.iter (fun x v ->
         if is_global ask x then
-          sideg x (GWeak.add (t, s) v (GWeak.bot ()), GSync.bot ());
+          sideg x (GWeak.add s v (GWeak.bot ()), GSync.bot ());
       ) st.cpa; *)
     st
 
