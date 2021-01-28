@@ -677,13 +677,7 @@ struct
     (ctx.local, [])
 
   let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
-    let s = current_lockset ask in
-    (* CPA.iter (fun x v ->
-        if is_global ask x then
-          sideg x (GWeak.add s v (GWeak.bot ()), GSync.bot ());
-      ) st.cpa; *)
-    st
+  let enter_multithreaded ask getg sideg (st: BaseComponents.t) = st
 
   (* ??? *)
   let is_private ask x = true
