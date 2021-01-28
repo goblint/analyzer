@@ -674,7 +674,21 @@ struct
     st
 
   let sync reason ctx =
-    (ctx.local, [])
+    let st: BaseComponents.t = ctx.local in
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: optimize other PrivParam thread returns similarly *)
+      begin match ThreadId.get_current ctx.ask with
+        | `Lifted tid ->
+          (st, [(mutex_global tid, (GWeak.add (Lockset.empty ()) (CPA.find tid st.cpa) (GWeak.bot ()), GSync.bot ()))])
+        | _ ->
+          (st, [])
+      end
+    | `Normal
+    | `Join (* no problem with branched thread creation here? *)
+    | `Init
+    | `Thread ->
+      (st, [])
 
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg (st: BaseComponents.t) = st
