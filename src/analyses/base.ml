@@ -654,9 +654,7 @@ struct
     {st with cpa = cpa'}
 
   let lock ask getg cpa m =
-    (* TODO: should be excluding M in traces paper constraint? *)
     let s = current_lockset ask in
-    (* let s = Lockset.add m (current_lockset ask) in *)
     GSync.fold (fun s' cpa' acc ->
         if Lockset.disjoint s s' then
           CPA.join cpa' acc
