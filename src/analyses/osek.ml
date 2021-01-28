@@ -587,6 +587,9 @@ struct
           (*             offpry_flags flagstate v *)
           (*           end *)
         in `MayBool (off > pry)
+    | Queries.CurrentLockset -> (* delegate for MinePriv *)
+      (* TODO: delegate other queries? *)
+      M.query ctx q
     | _ -> Queries.Result.top ()
 
   let rec conv_offset x =
