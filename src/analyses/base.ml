@@ -329,8 +329,7 @@ struct
   let sync reason ctx =
     let st: BaseComponents.t = ctx.local in
     match reason with
-    | `Join
-    | `Return -> (* required for thread return *)
+    | `Join -> (* required for branched thread creation *)
       let sidegs = CPA.fold (fun x v acc ->
           (* TODO: is_unprotected - why breaks 02/11 init_mainfun? *)
           if is_global ctx.ask x && is_unprotected ctx.ask x then
@@ -340,6 +339,14 @@ struct
         ) st.cpa []
       in
       (st, sidegs)
+    | `Return -> (* required for thread return *)
+      begin match ThreadId.get_current ctx.ask with
+        | `Lifted x when CPA.mem x st.cpa ->
+          let v = CPA.find x st.cpa in
+          (st, [(mutex_global x, CPA.add x v (CPA.bot ()))])
+        | _ ->
+          (st, [])
+      end
     | `Normal
     | `Init
     | `Thread ->
@@ -409,8 +416,7 @@ struct
   let sync reason ctx =
     let st: BaseComponents.t = ctx.local in
     match reason with
-    | `Join
-    | `Return -> (* required for thread return *)
+    | `Join -> (* required for branched thread creation *)
       let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
           if is_global ctx.ask x && is_unprotected ctx.ask x (* && not (VD.is_top v) *) then (
             if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
@@ -423,6 +429,14 @@ struct
         ) st.cpa (st.cpa, [])
       in
       ({st with cpa = cpa'}, sidegs')
+    | `Return -> (* required for thread return *)
+      begin match ThreadId.get_current ctx.ask with
+        | `Lifted x when CPA.mem x st.cpa ->
+          let v = CPA.find x st.cpa in
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, CPA.add x v (CPA.bot ()))])
+        | _ ->
+          (st, [])
+      end
     | `Normal
     | `Init
     | `Thread ->
@@ -552,8 +566,7 @@ struct
   let sync reason ctx =
     let st: BaseComponents.t = ctx.local in
     match reason with
-    | `Join
-    | `Return -> (* required for thread return *)
+    | `Join -> (* required for branched thread creation *)
       let (st', sidegs) =
         CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
             if is_global ctx.ask x && is_unprotected ctx.ask x then
@@ -562,8 +575,15 @@ struct
               acc
           ) st.cpa (st, [])
       in
-      (* ({st' with cached = CVars.filter (is_protected ask) st'.cached}, sidegs) *)
       (st', sidegs)
+    | `Return -> (* required for thread return *)
+      begin match ThreadId.get_current ctx.ask with
+        | `Lifted x when CPA.mem x st.cpa ->
+          let v = CPA.find x st.cpa in
+          ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, [(x, (v, VD.bot ()))])
+        | _ ->
+          (st, [])
+      end
     | `Normal
     | `Init
     | `Thread ->
@@ -677,15 +697,15 @@ struct
     let st: BaseComponents.t = ctx.local in
     match reason with
     | `Return -> (* required for thread return *)
-      (* TODO: optimize other PrivParam thread returns similarly *)
       begin match ThreadId.get_current ctx.ask with
-        | `Lifted tid ->
-          (st, [(mutex_global tid, (GWeak.add (Lockset.empty ()) (CPA.find tid st.cpa) (GWeak.bot ()), GSync.bot ()))])
+      | `Lifted x when CPA.mem x st.cpa ->
+          let v = CPA.find x st.cpa in
+          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
         | _ ->
           (st, [])
       end
     | `Normal
-    | `Join (* no problem with branched thread creation here? *)
+    | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
     | `Thread ->
       (st, [])
