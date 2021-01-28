@@ -597,6 +597,9 @@ end
 
 module MinePriv: PrivParam =
 struct
+  include MutexGlobals
+  let mutex_global x = x (* MutexGlobals.mutex_global not needed here because G is Prod anyway? *)
+
   module Lock = LockDomain.Addr
   module Lockset =
   struct
@@ -608,13 +611,13 @@ struct
     include MapDomain.MapBot (Lockset) (VD)
     let name () = "weak"
   end
-  (* TODO: optimize this for lookup by lock *)
-  module SyncMap = MapDomain.MapBot (Lock) (VD)
   module GSync =
   struct
-    include MapDomain.MapBot (Lockset) (SyncMap)
+    include MapDomain.MapBot (Lockset) (CPA)
     let name () = "sync"
   end
+  (* weak: G -> (2^M -> D) *)
+  (* sync: M -> (2^M -> (G -> D)) *)
   module G = Lattice.Prod (GWeak) (GSync)
 
   let rec conv_offset = function
@@ -642,42 +645,34 @@ struct
           VD.join v acc
         else
           acc
-      ) (fst (getg x)) (CPA.find x st.cpa)
+      ) (fst (getg (mutex_global x))) (CPA.find x st.cpa)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    sideg x (GWeak.add s v (GWeak.bot ()), GSync.bot ());
+    sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
   let lock ask getg cpa m =
     (* TODO: should be excluding M in traces paper constraint? *)
     let s = current_lockset ask in
     (* let s = Lockset.add m (current_lockset ask) in *)
-    CPA.fold (fun x v acc ->
-        if is_global ask x then
-          let v' =
-            GSync.fold (fun s' sm acc ->
-                if Lockset.disjoint s s' then
-                  VD.join (SyncMap.find m sm) acc
-                else
-                  acc
-              ) (snd (getg x)) v
-          in
-          CPA.add x v' acc
+    GSync.fold (fun s' cpa' acc ->
+        if Lockset.disjoint s s' then
+          CPA.join cpa' acc
         else
           acc
-      ) cpa cpa
+      ) (snd (getg (mutex_addr_to_varinfo m))) cpa
+
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let s = Lockset.remove m (current_lockset ask) in
-    CPA.iter (fun x v ->
-        let in_V = GWeak.fold (fun s' v' acc ->
-            (Lockset.mem m s' && not (VD.is_bot v')) || acc
-          ) (fst (getg x)) false
-        in
-        if in_V then
-          sideg x (GWeak.bot (), GSync.add s (SyncMap.add m v (SyncMap.bot ())) (GSync.bot ()))
-      ) st.cpa;
+    let side_cpa = CPA.filter (fun x _ ->
+        GWeak.fold (fun s' v acc ->
+            (Lockset.mem m s' && not (VD.is_bot v)) || acc
+          ) (fst (getg (mutex_global x))) false
+      ) st.cpa
+    in
+    sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
     st
 
   let sync reason ctx =
