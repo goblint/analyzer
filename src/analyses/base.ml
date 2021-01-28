@@ -194,20 +194,16 @@ struct
     | `MustBool x -> x
     | `Top -> false
     | _ -> failwith "PrivBase.is_atomic"
+end
 
+module MutexGlobals =
+struct
   let mutex_addr_to_varinfo = function
     | LockDomain.Addr.Addr (v, `NoOffset) -> v
     | LockDomain.Addr.Addr (v, offs) ->
       M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "NewPrivBase: ignoring offset %a%a\n" d_varinfo v LockDomain.Addr.Offs.pretty offs);
       v
     | _ -> failwith "NewPrivBase.mutex_addr_to_varinfo"
-end
-
-module PerMutexPrivBase =
-struct
-  include NewPrivBase
-
-  module G = CPA
 
   (* let mutex_global x = x *)
   let mutex_global =
@@ -224,6 +220,14 @@ struct
     let r = mutex_global x in
     if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x d_varinfo r;
     r
+end
+
+module PerMutexPrivBase =
+struct
+  include NewPrivBase
+  include MutexGlobals
+
+  module G = CPA
 
   let mutex_inits =
     lazy (
