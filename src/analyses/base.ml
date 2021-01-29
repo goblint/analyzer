@@ -79,9 +79,7 @@ struct
   module G = BaseDomain.VD
 
   let read_global ask getg (st: BaseComponents.t) x =
-    match CPA.find x st.cpa with
-    | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
-    | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+    getg x
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     (* Here, an effect should be generated, but we add it to the local
@@ -95,13 +93,12 @@ struct
   let is_private (a: Q.ask) (v: varinfo): bool = false
 
   let sync reason ctx =
-    let privates = sync_privates reason ctx.ask in
     let st: BaseComponents.t = ctx.local in
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global ctx.ask v && ((privates && not (is_precious_glob v)) || not (is_private ctx.ask v)) then begin
+        if is_global ctx.ask v then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           ({st with cpa = CPA.remove v st.cpa}, (v,value) :: acc)
         end else
