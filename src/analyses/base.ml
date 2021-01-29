@@ -673,7 +673,8 @@ struct
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
+    if not (!GU.earlyglobs && is_precious_glob x) then
+      sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
   let lock ask getg cpa m =
