@@ -27,13 +27,13 @@ int main(void) {
   // This must be before the other to get Mine to fail for the other even with thread ID partitioning.
   pthread_mutex_lock(&B);
   pthread_mutex_lock(&C);
-  assert(g == 0);
+  assert(g == 0); // mine and mutex-oplus fail, mutex-meet succeeds
   pthread_mutex_unlock(&C);
   pthread_mutex_unlock(&B);
 
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
-  assert(g == 0);
+  assert(g == 0); // mine fails, mutex-oplus and mutex-meet succeed
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
 
