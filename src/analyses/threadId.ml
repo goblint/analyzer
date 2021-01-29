@@ -9,10 +9,6 @@ open Analyses
 module Thread = ConcDomain.Thread
 module ThreadLifted = ConcDomain.ThreadLifted
 
-let global_init_thread = lazy (
-  Goblintutil.create_var @@ makeGlobalVar "global_init" voidType
-)
-
 let get_current (ask: Queries.ask): ThreadLifted.t =
   match ask Queries.CurrentThreadId with
   | `Varinfo v -> v
