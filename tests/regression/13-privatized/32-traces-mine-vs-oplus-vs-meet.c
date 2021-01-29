@@ -24,9 +24,6 @@ int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
 
-  pthread_mutex_lock(&B);
-  pthread_mutex_unlock(&B);
-
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
   assert(g == 0);
