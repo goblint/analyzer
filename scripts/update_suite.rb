@@ -230,7 +230,7 @@ doproject = lambda do |p|
     pgid = Process.getpgid(pid)
     puts "\t #{id} reached timeout of #{timeout}s!".red + " Killing pgid #{pgid}..."
     timedout.push id
-    Process.kill('INT', -1*pgid)
+    Process.kill('KILL', -1*pgid)
     p.ok = false
     return p
   end
