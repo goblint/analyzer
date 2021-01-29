@@ -1,5 +1,7 @@
 #!/usr/bin/ruby
 
+# gobopt environment variable can be used to override goblint defaults and PARAMs
+
 require 'find'
 require 'fileutils'
 require 'timeout'
