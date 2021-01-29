@@ -500,7 +500,13 @@ struct
     CPA.fold add_var st.cpa (st, [])
 end
 
-module PerGlobalPriv: PrivParam =
+module type PerGlobalPrivParam =
+sig
+  (** Whether to also check unprotectedness by reads for extra precision. *)
+  val check_read_unprotected: bool
+end
+
+module PerGlobalPriv (Param: PerGlobalPrivParam): PrivParam =
 struct
   include NewPrivBase
 
@@ -548,7 +554,7 @@ struct
           (* Extra precision in implementation to pass tests:
              If global is read-protected by multiple locks,
              then inner unlock shouldn't yet publish. *)
-          if is_unprotected_without ask ~write:false x m then
+          if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
             sideg x (VD.bot (), v);
 
           if is_unprotected_without ask x m then (* is_in_V' *)
@@ -2884,7 +2890,8 @@ let main_module: (module MainSpec) Lazy.t =
         | "old" -> (module OldPriv: PrivParam)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
-        | "global" -> (module PerGlobalPriv)
+        | "global" -> (module PerGlobalPriv (struct let check_read_unprotected = false end))
+        | "global-read" -> (module PerGlobalPriv (struct let check_read_unprotected = true end))
         | "global-vesal" -> (module PerGlobalVesalPriv)
         | "mine" -> (module MinePriv)
         | _ -> failwith "exp.privatization: illegal value"
