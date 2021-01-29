@@ -542,6 +542,16 @@ struct
   let full_context = get_bool "exp.full-context"
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
+
+  let sync ctx =
+    let (d', diff) =
+      match Cfg.prev ctx.prev_node with
+      | _ :: _ :: _ -> S.sync ctx `Join
+      | _ -> S.sync ctx `Normal
+    in
+    List.iter (uncurry ctx.sideg) diff;
+    d'
+
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
@@ -580,12 +590,7 @@ struct
       ignore (getl (Function f, c))
     in
     (* ... nice, right! *)
-    let pval, diff =
-      match Cfg.prev prev_node with
-      | _ :: _ :: _ -> S.sync ctx `Join
-      | _ -> S.sync ctx `Normal
-    in
-    let _ = List.iter (uncurry sideg) diff in
+    let pval = sync ctx in
     { ctx with local = pval }, r
 
   let rec bigsqcup = function
@@ -647,17 +652,12 @@ struct
         (* TODO: more accurate ctx? *)
         let rec sync_ctx = { ctx with
             ask = query;
-            local = fd
+            local = fd;
+            prev_node = Function f
           }
         and query x = S.query sync_ctx x
         in
-        let (fd, diff) =
-          match Cfg.prev (Function f) with
-          | _ :: _ :: _ -> S.sync sync_ctx `Join
-          | _ -> S.sync sync_ctx `Normal
-        in
-        List.iter (uncurry ctx.sideg) diff;
-        fd
+        sync sync_ctx
       in
       S.combine {ctx with local = cd} lv e f args fc fd
     in
