@@ -24,17 +24,18 @@ int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
 
-  pthread_mutex_lock(&A);
-  pthread_mutex_lock(&B);
-  assert(g == 0);
-  pthread_mutex_unlock(&B);
-  pthread_mutex_unlock(&A);
-
+  // This must be before the other to get Mine to fail for the other even with thread ID partitioning.
   pthread_mutex_lock(&B);
   pthread_mutex_lock(&C);
   assert(g == 0);
   pthread_mutex_unlock(&C);
   pthread_mutex_unlock(&B);
+
+  pthread_mutex_lock(&A);
+  pthread_mutex_lock(&B);
+  assert(g == 0);
+  pthread_mutex_unlock(&B);
+  pthread_mutex_unlock(&A);
 
   pthread_join(id, NULL);
   return 0;
