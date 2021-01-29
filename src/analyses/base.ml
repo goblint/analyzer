@@ -629,6 +629,126 @@ struct
     include SetDomain.Make (Lock)
     let disjoint s t = is_empty (inter s t)
   end
+  module Thread = ConcDomain.Thread
+  module ThreadMap = MapDomain.MapBot (Thread) (VD)
+  module GWeak =
+  struct
+    include MapDomain.MapBot (Lockset) (ThreadMap)
+    let name () = "weak"
+  end
+  module GSync =
+  struct
+    include MapDomain.MapBot (Lockset) (CPA)
+    let name () = "sync"
+  end
+  (* weak: G -> (2^M -> (T -> D)) *)
+  (* sync: M -> (2^M -> (G -> D)) *)
+  module G = Lattice.Prod (GWeak) (GSync)
+
+  let rec conv_offset = function
+    | `NoOffset -> `NoOffset
+    | `Field (f, o) -> `Field (f, conv_offset o)
+    (* TODO: better indices handling *)
+    | `Index (_, o) -> `Index (IdxDom.top (), conv_offset o)
+
+  let global_init_thread = lazy (
+    Goblintutil.create_var @@ makeGlobalVar "global_init" voidType
+  )
+  let current_thread (ask: Q.ask): Thread.t =
+    if !GU.global_initialization then
+      Lazy.force global_init_thread
+    else
+      ThreadId.get_current_unlift ask
+
+  let current_lockset (ask: Q.ask): Lockset.t =
+    (* TODO: remove this global_init workaround *)
+    if !GU.global_initialization then
+      Lockset.empty ()
+    else
+      match ask Queries.CurrentLockset with
+      | `LvalSet ls ->
+        Q.LS.fold (fun (var, offs) acc ->
+            Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
+          ) ls (Lockset.empty ())
+      | _ -> failwith "MinePriv.current_lockset"
+
+  let read_global ask getg (st: BaseComponents.t) x =
+    let s = current_lockset ask in
+    GWeak.fold (fun s' tm acc ->
+        if Lockset.disjoint s s' then
+          ThreadMap.fold (fun t' v acc ->
+              VD.join v acc
+            ) tm acc
+        else
+          acc
+      ) (fst (getg (mutex_global x))) (CPA.find x st.cpa)
+
+  let write_global ask getg sideg (st: BaseComponents.t) x v =
+    let s = current_lockset ask in
+    let t = current_thread ask in
+    let cpa' = CPA.add x v st.cpa in
+    if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
+      sideg (mutex_global x) (GWeak.add s (ThreadMap.add t v (ThreadMap.bot ())) (GWeak.bot ()), GSync.bot ());
+    {st with cpa = cpa'}
+
+  let lock ask getg cpa m =
+    let s = current_lockset ask in
+    GSync.fold (fun s' cpa' acc ->
+        if Lockset.disjoint s s' then
+          CPA.join cpa' acc
+        else
+          acc
+      ) (snd (getg (mutex_addr_to_varinfo m))) cpa
+
+  let unlock ask getg sideg (st: BaseComponents.t) m =
+    let s = Lockset.remove m (current_lockset ask) in
+    let t = current_thread ask in
+    let side_cpa = CPA.filter (fun x _ ->
+        GWeak.fold (fun s' tm acc ->
+            (* TODO: swap 2^M and T partitioning for lookup by t here first? *)
+            let v = ThreadMap.find t tm in
+            (Lockset.mem m s' && not (VD.is_bot v)) || acc
+          ) (fst (getg (mutex_global x))) false
+      ) st.cpa
+    in
+    sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
+    st
+
+  let sync reason ctx =
+    let st: BaseComponents.t = ctx.local in
+    match reason with
+    | `Return -> (* required for thread return *)
+      begin match ThreadId.get_current ctx.ask with
+      | `Lifted x when CPA.mem x st.cpa ->
+          let v = CPA.find x st.cpa in
+          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) (ThreadMap.add x v (ThreadMap.bot ())) (GWeak.bot ()), GSync.bot ()))])
+        | _ ->
+          (st, [])
+      end
+    | `Normal
+    | `Join (* TODO: no problem with branched thread creation here? *)
+    | `Init
+    | `Thread ->
+      (st, [])
+
+  let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg (st: BaseComponents.t) = st
+
+  (* ??? *)
+  let is_private ask x = true
+end
+
+module MineNoThreadPriv: PrivParam =
+struct
+  include MutexGlobals
+  let mutex_global x = x (* MutexGlobals.mutex_global not needed here because G is Prod anyway? *)
+
+  module Lock = LockDomain.Addr
+  module Lockset =
+  struct
+    include SetDomain.Make (Lock)
+    let disjoint s t = is_empty (inter s t)
+  end
   module GWeak =
   struct
     include MapDomain.MapBot (Lockset) (VD)
@@ -2895,6 +3015,7 @@ let main_module: (module MainSpec) Lazy.t =
         | "global-read" -> (module PerGlobalPriv (struct let check_read_unprotected = true end))
         | "global-vesal" -> (module PerGlobalVesalPriv)
         | "mine" -> (module MinePriv)
+        | "mine-nothread" -> (module MineNoThreadPriv)
         | _ -> failwith "exp.privatization: illegal value"
       )
     in
