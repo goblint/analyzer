@@ -841,6 +841,23 @@ struct
   let is_private ask x = true
 end
 
+module StatsPriv (Priv: PrivParam): PrivParam =
+struct
+  module G = Priv.G
+
+  let time str f arg = Stats.time "priv" (Stats.time str f) arg
+
+  let read_global ask getg st x = time "read_global" (Priv.read_global ask getg st) x
+  let write_global ask getg sideg st x v = time "write_global" (Priv.write_global ask getg sideg st x) v
+  let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
+  let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m
+  let sync reason ctx = time "sync" (Priv.sync reason) ctx
+  let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
+  let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
+
+  let is_private = Priv.is_private
+end
+
 module MainFunctor (Priv:PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
 struct
   include Analyses.DefaultSpec
@@ -3022,7 +3039,7 @@ let main_module: (module MainSpec) Lazy.t =
     let module Main =
     struct
       (* Only way to locally define a recursive module. *)
-      module rec Main:MainSpec = MainFunctor (Priv) (Main:BaseDomain.ExpEvaluator)
+      module rec Main:MainSpec = MainFunctor (StatsPriv (Priv)) (Main:BaseDomain.ExpEvaluator)
       include Main
     end
     in
