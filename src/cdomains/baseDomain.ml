@@ -6,7 +6,7 @@ module BI = IntOps.BigIntOps
 
 module CPA =
 struct
-  include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
+  include MapDomain.LiftTop (VD) (MapDomain.OptHash (MapDomain.MapBot (Basetype.Variables) (VD)))
 
   (* TODO: remove CPA timing *)
   let time str f arg = Stats.time "cpa" (Stats.time str f) arg
@@ -208,13 +208,11 @@ end
 
 (* The domain with an ExpEval that only returns constant values for top-level vars that are definite ints *)
 module DomWithTrivialExpEval = DomFunctor(struct
-  module M = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
-
   let eval_exp (r:BaseComponents.t) e =
     match e with
     | Lval (Var v, NoOffset) ->
       begin
-        match M.find v r.cpa with
+        match CPA.find v r.cpa with
         | `Int i -> ValueDomain.ID.to_int i
         | _ -> None
       end
