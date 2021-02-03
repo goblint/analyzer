@@ -4,9 +4,9 @@ open Pretty
 module ME = Messages
 module GU = Goblintutil
 
-module type S =
+module type PS =
 sig
-  include Lattice.S
+  include Printable.S
   type key
   (** The type of the map keys. *)
 
@@ -21,7 +21,7 @@ sig
   val iter: (key -> value -> unit) -> t -> unit
   val map: (value -> value) -> t -> t
   val filter: (key -> value -> bool) -> t -> t
-  (*  val mapi: (key -> value -> value) -> t -> t*)
+  val mapi: (key -> value -> value) -> t -> t
   val fold: (key -> value -> 'a -> 'a) -> t -> 'a -> 'a
 
   val add_list: (key * value) list -> t -> t
@@ -34,6 +34,20 @@ sig
   val long_map2: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
   (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
+
+  val cardinal: t -> int
+  val choose: t -> key * value
+  val singleton: key -> value -> t
+  val empty: unit -> t
+  val is_empty: t -> bool
+  val exists: (key -> value -> bool) -> t -> bool
+  val bindings: t -> (key * value) list
+end
+
+module type S =
+sig
+  include PS
+  include Lattice.S with type t := t
 
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   (* Widen using a custom widening function for value rather than the default one for value *)
@@ -59,7 +73,9 @@ end
 
 (* Just a global hack for tracing individual variables. *)
 
-module PMap (Domain: Groupable) (Range: Lattice.S) =
+module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
+  type key = Domain.t and
+  type value = Range.t =
 struct
   module M = Deriving.Map.Make (Domain)
 
@@ -105,6 +121,14 @@ struct
   let find_first f = lift_f (M.find_first f)
   (* let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0 *)
   let hash x = Lazy.force x.lazy_hash
+
+  let cardinal = lift_f M.cardinal
+  let choose = lift_f M.choose
+  let singleton k v = lift @@ M.singleton k v
+  let empty () = lift M.empty
+  let is_empty = lift_f M.is_empty
+  let exists p = lift_f (M.exists p)
+  let bindings = lift_f M.bindings
 
 
   let add_list keyvalues m =
@@ -186,10 +210,9 @@ struct
 end
 
 
-module MapBot (Domain: Groupable) (Range: Lattice.S) (*: S with
+module MapBot (Domain: Groupable) (Range: Lattice.S) : S with
   type key = Domain.t and
-type value = Range.t and
-type t = Range.t Map.Make(Domain).t *) =
+  type value = Range.t =
 struct
   include PMap (Domain) (Range)
 
@@ -204,9 +227,9 @@ struct
 
   let find x m = try find x m with | Not_found -> Range.bot ()
   let top () = Lattice.unsupported "partial map top"
-  let bot () = lift M.empty
+  let bot () = empty ()
   let is_top _ = false
-  let is_bot = lift_f M.is_empty
+  let is_bot = is_empty
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
     let p key value =
@@ -238,10 +261,9 @@ struct
   let narrow = map2 Range.narrow
 end
 
-module MapTop (Domain: Groupable) (Range: Lattice.S) (*: S with
+module MapTop (Domain: Groupable) (Range: Lattice.S) : S with
   type key = Domain.t and
-type value = Range.t and
-type t = Range.t Map.Make(Domain).t *) =
+  type value = Range.t =
 struct
   include PMap (Domain) (Range)
 
@@ -255,9 +277,9 @@ struct
   let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.top ()
-  let top () = lift M.empty
+  let top () = empty ()
   let bot () = Lattice.unsupported "partial map bot"
-  let is_top = lift_f M.is_empty
+  let is_top = is_empty
   let is_bot _ = false
 
   (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)
@@ -293,9 +315,9 @@ end
 
 exception Fn_over_All of string
 
-module MapBot_LiftTop (Domain: Groupable) (Range: Lattice.S) (* : S with
+module MapBot_LiftTop (Domain: Groupable) (Range: Lattice.S) : S with
   type key = Domain.t and
-type value = Range.t *) =
+  type value = Range.t =
 struct
   module M = MapBot (Domain) (Range)
   include Lattice.LiftTop (M)
@@ -393,11 +415,33 @@ struct
     | (`Lifted x, `Lifted y) -> `Lifted (M.widen_with_fct f x y)
     | _ -> y
 
+  let cardinal = function
+    | `Top -> raise (Fn_over_All "cardinal")
+    | `Lifted x -> M.cardinal x
+
+  let choose = function
+    | `Top -> raise (Fn_over_All "choose")
+    | `Lifted x -> M.choose x
+
+  let singleton k v = `Lifted (M.singleton k v)
+  let empty () = `Lifted (M.empty ())
+  let is_empty = function
+    | `Top -> false
+    | `Lifted x -> M.is_empty x
+  let exists f = function
+    | `Top -> raise (Fn_over_All "exists")
+    | `Lifted x -> M.exists f x
+  let bindings = function
+    | `Top -> raise (Fn_over_All "bindings")
+    | `Lifted x -> M.bindings x
+  let mapi f = function
+    | `Top -> `Top
+    | `Lifted x -> `Lifted (M.mapi f x)
 end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and
-type value = Range.t =
+  type value = Range.t =
 struct
   module M = MapTop (Domain) (Range)
   include Lattice.LiftBot (M)
@@ -494,4 +538,27 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Lifted x, `Lifted y) -> M.leq_with_fct f x y
+
+  let cardinal = function
+    | `Bot -> raise (Fn_over_All "cardinal")
+    | `Lifted x -> M.cardinal x
+
+  let choose = function
+    | `Bot -> raise (Fn_over_All "choose")
+    | `Lifted x -> M.choose x
+
+  let singleton k v = `Lifted (M.singleton k v)
+  let empty () = `Lifted (M.empty ())
+  let is_empty = function
+  | `Bot -> false
+  | `Lifted x -> M.is_empty x
+  let exists f = function
+    | `Bot -> raise (Fn_over_All "exists")
+    | `Lifted x -> M.exists f x
+  let bindings = function
+    | `Bot -> raise (Fn_over_All "bindings")
+    | `Lifted x -> M.bindings x
+  let mapi f = function
+    | `Bot -> `Bot
+    | `Lifted x -> `Lifted (M.mapi f x)
 end
