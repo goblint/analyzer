@@ -83,7 +83,7 @@ struct
   let filter = M.filter
   (* And one less brainy definition *)
   let for_all2 = M.equal
-  let equal = for_all2 Range.equal
+  let equal x y = x == y || for_all2 Range.equal x y
   let compare x y = if equal x y then 0 else M.compare Range.compare x y
   let merge = M.merge
   let for_all = M.for_all
