@@ -64,10 +64,10 @@ struct
   (* TODO: get rid of these value-ignoring set-mimicing hacks *)
   let cardinal (s: t): int = match s with
     | `Top -> failwith "cardinal"
-    | `Lifted s -> M.M.cardinal s
+    | `Lifted s -> M.lift_f M.M.cardinal s
   let choose' (s: t) = match s with
     | `Top -> failwith "choose"
-    | `Lifted s -> M.M.choose s
+    | `Lifted s -> M.lift_f M.M.choose s
   let choose (s: t): SpecD.t = fst (choose' s)
   let filter' = filter
   let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
@@ -77,23 +77,23 @@ struct
   let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
   let fold' = fold
   let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
-  let singleton (x: key) (r: R.t): t = `Lifted (M.M.singleton x r)
-  let empty (): t = `Lifted M.M.empty
+  let singleton (x: key) (r: R.t): t = `Lifted (M.lift @@ M.M.singleton x r)
+  let empty (): t = `Lifted (M.lift @@ M.M.empty)
   let add (x: key) (r: R.t) (s: t): t = match s with
     | `Top -> `Top
-    | `Lifted s -> `Lifted (M.M.add x (R.join r (M.find x s)) s)
+    | `Lifted s -> `Lifted (M.lift_f' (M.M.add x (R.join r (M.find x s))) s)
   let map (f: key -> key) (s: t): t = match s with
     | `Top -> `Top
-    | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
+    | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.lift_f' (M.M.add (f x) (R.join v (M.find (f x) acc))) acc) s (M.lift @@ M.M.empty))
   let map' = map (* HACK: for PathSensitive morphstate *)
   (* TODO: reducing map, like HoareSet *)
 
   module S =
   struct
-    let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
-    let filter (p: key -> bool) (s: M.t): M.t = M.M.filter (fun x _ -> p x) s
-    let elements (s: M.t): (key * R.t) list = M.M.bindings s
-    let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.M.add x (R.join r (M.find x acc)) acc) M.M.empty l
+    let exists (p: key -> bool) (s: M.t): bool = M.lift_f (M.M.exists (fun x _ -> p x)) s
+    let filter (p: key -> bool) (s: M.t): M.t = M.lift_f' (M.M.filter (fun x _ -> p x)) s
+    let elements (s: M.t): (key * R.t) list = M.lift_f M.M.bindings s
+    let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.lift_f' (M.M.add x (R.join r (M.find x acc))) acc) (M.lift @@ M.M.empty) l
     let union = M.long_map2 R.union
   end
 
@@ -106,7 +106,7 @@ struct
     (* seems to be necessary for correct ARG but why? *)
     (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr *)
     (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.exists (fun vie' -> VIE.leq vie vie') yr) s) xr *)
-    | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
+    | `Lifted s -> R.for_all (fun vie -> M.lift_f (M.M.exists (fun y yr -> SpecD.leq x y && R.mem vie yr)) s) xr
   let leq a b =
     match a with
     | `Top -> b = `Top

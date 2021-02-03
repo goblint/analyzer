@@ -66,29 +66,45 @@ struct
   include Printable.Std
   type key = Domain.t
   type value = Range.t
-  type t = Range.t M.t [@@deriving to_yojson] (* key -> value  mapping *)
+  type t =
+    {
+      m: Range.t M.t; (* key -> value  mapping *)
+      lazy_hash: int Lazy.t [@to_yojson fun l -> `Null];
+    } [@@deriving to_yojson]
+
+  let slow_hash xs = M.fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
+
+  let lift m = {m; lazy_hash = lazy (slow_hash m)}
+  let unlift {m; _} = m
+
+  let lift_f f x = f (unlift x)
+  let lift_f' f x = lift @@ lift_f f x
+  let lift_f2 f x y = f (unlift x) (unlift y)
+  let lift_f2' f x y = lift @@ lift_f2 f x y
+
   let trace_enabled = Domain.trace_enabled
 
   (* And some braindead definitions, because I would want to do
    * include Map.Make (Domain) with type t = Range.t t *)
-  let add = M.add
-  let remove = M.remove
-  let find = M.find
-  let find_opt = M.find_opt
-  let mem = M.mem
-  let iter = M.iter
-  let map = M.map
-  let mapi = M.mapi
-  let fold = M.fold
-  let filter = M.filter
+  let add k v = lift_f' (M.add k v)
+  let remove k = lift_f' (M.remove k)
+  let find k = lift_f (M.find k)
+  let find_opt k = lift_f (M.find_opt k)
+  let mem k = lift_f (M.mem k)
+  let iter f = lift_f (M.iter f)
+  let map f = lift_f' (M.map f)
+  let mapi f = lift_f' (M.mapi f)
+  let fold f x a = M.fold f (unlift x) a
+  let filter f = lift_f' (M.filter f)
   (* And one less brainy definition *)
-  let for_all2 = M.equal
-  let equal x y = x == y || for_all2 Range.equal x y
-  let compare x y = if equal x y then 0 else M.compare Range.compare x y
-  let merge = M.merge
-  let for_all = M.for_all
-  let find_first = M.find_first
-  let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
+  let for_all2 f = lift_f2 (M.equal f)
+  let equal x y = x == y || for_all2 Range.equal x y (* TODO: compare hash *)
+  let compare x y = if equal x y then 0 else lift_f2 (M.compare Range.compare) x y
+  let merge f = lift_f2' (M.merge f)
+  let for_all f = lift_f (M.for_all f)
+  let find_first f = lift_f (M.find_first f)
+  (* let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0 *)
+  let hash x = Lazy.force x.lazy_hash
 
 
   let add_list keyvalues m =
@@ -108,7 +124,7 @@ struct
       | _, Some _ -> v2
       | _ -> None
     in
-    M.merge f
+    merge f
 
   let map2 op =
     (* Similar to the previous, except we ignore elements that only occur in one
@@ -118,19 +134,21 @@ struct
       | Some v1, Some v2 -> Some (op v1 v2)
       | _ -> None
     in
-    M.merge f
+    merge f
 
   let short _ x = "mapping"
   let isSimple _ = false
 
   let pretty_f short () mapping =
+    let mapping = unlift mapping in
+    let short w x = short w (lift x) in
     let groups =
       let group_fold key itm gps =
         let cl = Domain.classify key in
         match gps with
         | (a,n) when cl <>  n -> ((cl,(M.add key itm M.empty))::a, cl)
         | (a,_) -> ((fst (List.hd a),(M.add key itm (snd (List.hd a))))::(List.tl a),cl) in
-      List.rev (fst (fold group_fold mapping ([],min_int)))
+      List.rev (fst (M.fold group_fold mapping ([],min_int)))
     in
     let f key st dok =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
@@ -141,7 +159,7 @@ struct
                   dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
     in
     let group_name a () = text (Domain.class_name a) in
-    let pretty_group  map () = fold f map nil in
+    let pretty_group  map () = M.fold f map nil in
     let pretty_groups rest map =
       match (fst map) with
       | 0 ->  rest ++ pretty_group (snd map) ()
@@ -152,7 +170,7 @@ struct
   let pretty () x = pretty_f short () x
 
   let filter_class g m =
-    fold (fun key value acc -> if Domain.classify key = g then add key value acc else acc) m M.empty
+    fold (fun key value acc -> if Domain.classify key = g then add key value acc else acc) m (lift M.empty)
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
@@ -164,7 +182,7 @@ struct
     iter print_one xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
 
-  let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
+  let arbitrary () = QCheck.always (lift M.empty) (* S TODO: non-empty map *)
 end
 
 
@@ -186,9 +204,9 @@ struct
 
   let find x m = try find x m with | Not_found -> Range.bot ()
   let top () = Lattice.unsupported "partial map top"
-  let bot () = M.empty
+  let bot () = lift M.empty
   let is_top _ = false
-  let is_bot = M.is_empty
+  let is_bot = lift_f M.is_empty
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
     let p key value =
@@ -220,10 +238,10 @@ struct
   let narrow = map2 Range.narrow
 end
 
-module MapTop (Domain: Groupable) (Range: Lattice.S): S with
+module MapTop (Domain: Groupable) (Range: Lattice.S) (*: S with
   type key = Domain.t and
 type value = Range.t and
-type t = Range.t Map.Make(Domain).t =
+type t = Range.t Map.Make(Domain).t *) =
 struct
   include PMap (Domain) (Range)
 
@@ -237,9 +255,9 @@ struct
   let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.top ()
-  let top () = M.empty
+  let top () = lift M.empty
   let bot () = Lattice.unsupported "partial map bot"
-  let is_top = M.is_empty
+  let is_top = lift_f M.is_empty
   let is_bot _ = false
 
   (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)

@@ -168,7 +168,7 @@ struct
   let get_aliased k m = (* sources: get list of keys that link to k *)
     (* iter (fun k' (x,y) -> if V.is_alias (x,y) then print_endline ("alias "^V.string_of_key k'^" -> "^V.string_of_key (Set.choose y).key)) m; *)
     (* TODO V.get_alias v=k somehow leads to Out_of_memory... *)
-    filter (fun k' v -> V.is_alias v && V.string_of_key (V.get_alias v)=V.string_of_key k) m |> MDMap.bindings |> List.map fst
+    filter (fun k' v -> V.is_alias v && V.string_of_key (V.get_alias v)=V.string_of_key k) m |> lift_f MDMap.bindings |> List.map fst
   let get_aliases k m = (* get list of all other keys that have the same pointee *)
     match get_alias k m with
     | Some k' -> [k] (* k links to k' *)
@@ -213,7 +213,7 @@ struct
   (* only keep globals, aliases to them and special variables *)
   let only_globals m = filter (fun k v ->  (fst k).vglob || V.is_alias v && (fst (V.get_alias v)).vglob || is_special_var k) m
   (* adds all the bindings from m2 to m1 (overwrites!) *)
-  let add_all m1 m2 = add_list (MDMap.bindings m2) m1
+  let add_all m1 m2 = add_list (lift_f MDMap.bindings m2) m1
 
   (* callstack for locations *)
   let callstack_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
@@ -231,7 +231,7 @@ struct
     let flatten_sets = List.fold_left Set.union Set.empty in
     without_special_vars m
     |> filter (fun k v -> V.may p v && not (V.is_alias v))
-    |> MDMap.bindings |> List.map (fun (k,v) -> V.filter' p v)
+    |> lift_f MDMap.bindings |> List.map (fun (k,v) -> V.filter' p v)
     |> List.split |> (fun (x,y) -> flatten_sets x, flatten_sets y)
   let filter_records k p m = (* filters both sets of k *)
     if mem k m then V.filter' p (find' k m) else Set.empty, Set.empty
@@ -244,7 +244,7 @@ struct
   let string_of_key k = V.string_of_key k
   let string_of_keys rs = Set.map (V.string_of_key % V.key) rs |> Set.elements |> String.concat ", "
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
-  let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (MDMap.bindings m)
+  let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (lift_f MDMap.bindings m)
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
     Messages.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
