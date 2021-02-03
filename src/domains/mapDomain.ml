@@ -192,6 +192,7 @@ struct
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
 end
 
+(* TODO: why is OptHash.hash significantly slower as a functor compared to being inlined into PMap? *)
 module OptHash (M: S) : S with
   type key = M.key and
   type value = M.value =
