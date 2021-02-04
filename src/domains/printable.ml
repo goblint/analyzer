@@ -186,11 +186,7 @@ struct
   let short w = lift_f (M.short w)
   let isSimple = lift_f M.isSimple
 
-  let pretty_f short () mapping =
-    (* TODO: shorten like HConsed *)
-    let mapping = unlift mapping in
-    let short w x = short w (lift x) in
-    M.pretty_f short () mapping
+  let pretty_f short () = lift_f (M.pretty_f (fun w x -> short w (lift x)) ())
 
   let pretty () x = pretty_f short () x
 
