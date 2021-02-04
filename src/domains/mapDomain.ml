@@ -241,33 +241,18 @@ struct
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
 end
 
-(* TODO: don't duplicate Printable.HConsed and Lattice.HConsed *)
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)
-module Hashcons (M: S) : S with
+module HConsed (M: S) : S with
   type key = M.key and
   type value = M.value =
 struct
-  let name = M.name
+  include Lattice.HConsed (M)
 
   type key = M.key
   type value = M.value
 
-  module H = BatHashcons
-  module HT = H.MakeTable (M)
-
-  type t = M.t H.hobj
-
-  let ht = HT.create 1007
-
-  let lift m = HT.hashcons ht m
-  let unlift {H.obj=m; _} = m
-
-  let lift_f f x = f (unlift x)
   let lift_f' f x = lift @@ lift_f f x
-  let lift_f2 f x y = f (unlift x) (unlift y)
   let lift_f2' f x y = lift @@ lift_f2 f x y
-
-  let to_yojson = lift_f M.to_yojson
 
   let add k v = lift_f' (M.add k v)
   let remove k = lift_f' (M.remove k)
@@ -279,11 +264,8 @@ struct
   let mapi f = lift_f' (M.mapi f)
   let fold f x a = M.fold f (unlift x) a
   let filter f = lift_f' (M.filter f)
-  let equal x y = x.H.tag = y.H.tag
-  let compare x y = compare x.H.tag y.H.tag
   let merge f = lift_f2' (M.merge f)
   let for_all f = lift_f (M.for_all f)
-  let hash x = x.H.hcode
 
   let cardinal = lift_f M.cardinal
   let choose = lift_f M.choose
@@ -304,35 +286,7 @@ struct
 
   let map2 op = lift_f2' (M.map2 op)
 
-  let short w = lift_f (M.short w)
-  let isSimple = lift_f M.isSimple
-
-  let pretty_f short () mapping =
-    let mapping = unlift mapping in
-    let short w x = short w (lift x) in
-    M.pretty_f short () mapping
-
-  let pretty () x = pretty_f short () x
-
   let filter_class g = lift_f' (M.filter_class g)
-
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
-  let printXml f = lift_f (M.printXml f)
-
-  let arbitrary () = QCheck.map ~rev:unlift lift (M.arbitrary ())
-
-  let tag x = x.H.tag
-  let invariant c = lift_f (M.invariant c)
-
-  let leq = lift_f2 M.leq
-  let join = lift_f2' M.join
-  let meet = lift_f2' M.meet
-  let widen = lift_f2' M.widen
-  let narrow = lift_f2' M.narrow
-  let bot () = lift @@ M.bot ()
-  let is_bot = lift_f M.is_bot
-  let top () = lift @@ M.top ()
-  let is_top = lift_f M.is_top
 
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
