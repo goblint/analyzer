@@ -86,7 +86,7 @@ module D = struct
     Tid.leq x.tid y.tid && Pred.leq x.pred y.pred && Ctx.leq x.ctx y.ctx
 
 
-  let join x y = op_scheme Tid.join Pred.join Ctx.join x y
+  let join = op_scheme Tid.join Pred.join Ctx.join
 
   let widen = join
 

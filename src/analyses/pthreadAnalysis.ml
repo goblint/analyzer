@@ -37,20 +37,33 @@ module Function = struct
   let from_string s = Option.map snd @@ List.find (( = ) s % fst) funs
 end
 
+(* Typealiases for better readability *)
+
+type thread_id = int
+
+type thread_name = string
+
+type mutex_id = int
+
+type mutex_name = string
+
+type cond_var_id = int
+
+type cond_var_name = string
+
+type fun_name = string
+
+(* TODO: rename this. Only interested in Threads and Functions *)
+
 (** [Resource] module represts different resources extracted for the analysis *)
 module Resource = struct
-  (** Enumeration of all resources relevant for the analysis *)
   type resource_type =
     | Thread
     | Function
-    | Mutex
-    | CondVar
   [@@deriving show]
 
-  (** name of the resource in code *)
   type resource_name = string
 
-  (** type [t] represents the resource *)
   type t = resource_type * resource_name
 
   let make t n : t = (t, n)
@@ -69,16 +82,16 @@ module Action = struct
   type thread =
     { t : varinfo  (** a global var from Tbls.ResourceTbl *)
     ; f : varinfo  (** a function being called *)
-    ; tid : int
+    ; tid : thread_id
     }
 
-  type mutex = { mid : int }
+  type mutex = { mid : mutex_id }
 
-  type cond_var = { id : int }
+  type cond_var = { id : cond_var_id }
 
   type cond_wait =
-    { cond_var_id : int
-    ; mid : int
+    { cond_var_id : cond_var_id
+    ; mid : mutex_id
     }
 
   (** uniquely identifies the function call
@@ -87,33 +100,51 @@ module Action = struct
 
   (** ADT of all possible edge types actions *)
   type t =
-    (* TODO: is this needed? | Assign of string * string (\* var_callee = var_caller *\) *)
     | Call of fun_call_id
+    | Assign of string (* a = b *)
+    | Cond of string (* pred *)
     | ThreadCreate of thread
-    | ThreadJoin of int (* tid *)
+    | ThreadJoin of thread_id
     | MutexInit of mutex
-    | MutexLock of int (* mid *)
-    | MutexUnlock of int (* mid *)
+    | MutexLock of mutex_id
+    | MutexUnlock of mutex_id
     | CondVarInit of cond_var
-    | CondVarBroadcast of int (* cond var id *)
-    | CondVarSignal of int (* cond var id *)
+    | CondVarBroadcast of cond_var_id
+    | CondVarSignal of cond_var_id
     | CondVarWait of cond_wait
     | Nop
 end
 
-type thread_name = string
+module Variable = struct
+  let make_from_lhost = function
+    | Var v ->
+      (match v.vtype with TInt _ -> Some v | _ -> None)
+    | _ ->
+        None
 
-type mutex_name = string
 
-type cond_var_name = string
+  let make_from_lval (lhost, _) = make_from_lhost lhost
 
-type fun_name = string
+  let show = sprint d_varinfo
+
+  let is_global var = var.vglob
+end
+
+module Globals = struct
+  let set : varinfo Set.t ref = ref Set.empty
+
+  let add_var x = set := Set.add x !set
+
+  let get_definitions () =
+    let show_var_with_type v = "int " ^ Variable.show v ^ " = 0;" in
+    List.map show_var_with_type @@ Set.elements !set
+end
 
 (** type of a node in CFG *)
 type node = PthreadDomain.Pred.Base.t
 
 (** type of a single edge in CFG *)
-type edge = node * Action.t * string option * node
+type edge = node * Action.t * node
 
 module Tbls = struct
   module type SymTblGen = sig
@@ -178,7 +209,7 @@ module Tbls = struct
   module ThreadTidTbl = SymTbl (struct
     type k = thread_name
 
-    type v = int
+    type v = thread_id
 
     let make_new_val table k = all_keys_count table
   end)
@@ -186,7 +217,7 @@ module Tbls = struct
   module MutexMidTbl = SymTbl (struct
     type k = mutex_name
 
-    type v = int
+    type v = mutex_id
 
     let make_new_val table k = all_keys_count table
   end)
@@ -194,7 +225,7 @@ module Tbls = struct
   module CondVarIdTbl = SymTbl (struct
     type k = cond_var_name
 
-    type v = int
+    type v = cond_var_id
 
     let make_new_val table k = all_keys_count table
   end)
@@ -214,6 +245,23 @@ module Tbls = struct
     type v = int
 
     let make_new_val table k = all_keys_count table
+  end)
+
+  module NodeTbl = SymTbl (struct
+    (* table from sum type to negative line number for new intermediate node (-1 to -4 have special meanings) *)
+    type k = int (* stmt sid *)
+
+    type v = MyCFG.node
+
+    (* function for creating a new intermediate node (will generate a new sid every time!) *)
+    let make_new_val table k =
+      (* TODO: all same key occurences instead *)
+      let line = -5 - all_keys_count table in
+      let loc = { !Tracing.current_loc with line } in
+      MyCFG.Statement
+        { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc)) with
+          sid = new_sid ()
+        }
   end)
 end
 
@@ -243,6 +291,7 @@ module rec Env : sig
 
   val node : t -> MyCFG.node
 
+  (*TODO: rename. why is it called ID? *)
   val id : t -> Resource.t
 end = struct
   type t =
@@ -294,13 +343,7 @@ end
 and Edges : sig
   val table : (Resource.t, edge Set.t) Hashtbl.t
 
-  val add :
-       ?r:string
-    -> ?dst:Node.node
-    -> ?d:PthreadDomain.D.t
-    -> Env.t
-    -> Action.t
-    -> unit
+  val add : ?dst:Node.node -> ?d:PthreadDomain.D.t -> Env.t -> Action.t -> unit
 
   val get : Resource.t -> edge Set.t
 
@@ -311,12 +354,11 @@ end = struct
   let table = Hashtbl.create 199
 
   (** [add] adds an edge for the current environment resource id (Thread or Function)
-   ** [r] is return status code
    ** [dst] destination node
    ** [d] domain
    ** [env] environment
    ** [action] edge action of type `Action.t` *)
-  let add ?r ?dst ?d env action =
+  let add ?dst ?d env action =
     let open PthreadDomain in
     let preds =
       let env_d = Env.d env in
@@ -325,7 +367,7 @@ end = struct
     let add_edge_for_node node =
       let env_node = Env.node env in
       let env_id = Env.id env in
-      let action_edge = (node, action, r, MyCFG.getLoc (dst |? env_node)) in
+      let action_edge = (node, action, MyCFG.getLoc (dst |? env_node)) in
       Hashtbl.modify_def Set.empty env_id (Set.add action_edge) table
     in
     Pred.iter add_edge_for_node preds
@@ -334,7 +376,7 @@ end = struct
   let get res_id = Hashtbl.find_default table res_id Set.empty
 
   let filter_map_actions f =
-    let action_of_edge (_, action, _, _) = action in
+    let action_of_edge (_, action, _) = action in
     let all_edges =
       table
       |> Hashtbl.values
@@ -361,28 +403,12 @@ end
 type promela_src = string
 
 module Codegen = struct
-  module Resource = struct
-    include Resource
-
-    let to_pml = function
-      | Thread, "mainfun" ->
-          promela_main
-          ^ "/["
-          ^ String.concat
-              ", "
-              (List.map Json.string (GobConfig.get_list promela_main))
-          ^ "]"
-      | Thread, name ->
-          name (* name ^ "/" ^ str_funs @@ funs_for_process id *)
-      | _, name ->
-          name
-  end
-
   module PmlResTbl = struct
     let table = Hashtbl.create 13
 
     let init () = Hashtbl.add table (Resource.Thread, promela_main) 0L
 
+    (* TODO: why id *)
     let get_id res : int64 =
       let ((resource, name) as k) = res in
       let next_id_gen () =
@@ -410,6 +436,36 @@ module Codegen = struct
       prefix ^ show_id_for_res res
   end
 
+  module AdjacencyMatrix = struct
+    module HashtblN = Hashtbl.Make (PthreadDomain.Pred.Base)
+
+    let make () = HashtblN.create 97
+
+    (** build adjacency matrix for all nodes of this process *)
+    let populate a2bs edges =
+      Set.iter
+        (fun ((a, _, _) as edge) ->
+          HashtblN.modify_def Set.empty a (Set.add edge) a2bs)
+        edges ;
+      a2bs
+
+
+    let nodes a2bs = HashtblN.keys a2bs |> List.of_enum
+
+    let items a2bs = HashtblN.enum a2bs |> List.of_enum
+
+    let in_edges a2bs node =
+      let get_b (_, _, b) = b in
+      HashtblN.filter (Set.mem node % Set.map get_b) a2bs
+      |> HashtblN.values
+      |> List.of_enum
+      |> flat_map Set.elements
+
+
+    let out_edges a2bs node =
+      try HashtblN.find a2bs node |> Set.elements with Not_found -> []
+  end
+
   module Action = struct
     include Action
 
@@ -419,9 +475,13 @@ module Codegen = struct
 
     let extract_condvar_init = function CondVarInit x -> Some x | _ -> None
 
-    let to_pml res = function
+    let to_pml = function
       | Call fname ->
           "goto Fun_" ^ fname ^ "; "
+      | Assign assignment ->
+          assignment ^ "; "
+      | Cond cond ->
+          cond ^ " -> "
       | ThreadCreate t ->
           (* TODO: pass args to the function? like prio *)
           "ThreadCreate(" ^ string_of_int t.tid ^ "); "
@@ -449,58 +509,19 @@ module Codegen = struct
           ""
   end
 
-  (* TODO: currently is not used *)
-  module ReturnVarsTbl = struct
-    (* this is just used to make sure that every var that is read has been written before *)
-    let return_vars =
-      ( Hashtbl.create 100
-        : (Resource.t * [ `Read | `Write ], string Set.t) Hashtbl.t )
-
-
-    let add_return_var pid kind var =
-      Hashtbl.modify_def Set.empty (pid, kind) (Set.add var) return_vars
-
-
-    let get_return_vars pid kind =
-      if fst pid <> Resource.Thread
-      then
-        failwith
-          "get_return_vars: tried to get var for Function, but vars are saved \
-           per Thread!"
-      else Hashtbl.find_default return_vars (pid, kind) Set.empty
-
-
-    let decl_return_vars xs =
-      Set.elements xs |> List.map (fun vname -> "mtype " ^ vname ^ ";")
-
-
-    let is_global = startsWith "G"
-
-    let get_locals pid =
-      Set.union (get_return_vars pid `Read) (get_return_vars pid `Write)
-      |> Set.filter (neg is_global)
-      |> decl_return_vars
-
-
-    let get_globals () =
-      let flatten_set xs = Set.fold Set.union xs Set.empty in
-      return_vars
-      |> Hashtbl.values
-      |> Set.of_enum
-      |> flatten_set
-      |> Set.filter is_global
-      |> decl_return_vars
-  end
-
   module Writer = struct
-    let write_result desc content =
+    let write desc ext content =
       let dir = Goblintutil.create_dir "result" in
-      let path = dir ^ "/pthread.pml" in
+      let path = dir ^ "/pthread." ^ ext in
       output_file path content ;
       print_endline @@ "saved " ^ desc ^ " as " ^ path
   end
 
   let tabulate = ( ^ ) "\t"
+
+  let define = ( ^ ) "#define "
+
+  let goto_str = ( ^ ) "goto "
 
   let escape xs =
     let last = Option.get @@ List.last xs in
@@ -513,6 +534,8 @@ module Codegen = struct
 
 
   let run ?arg f = "run " ^ f ^ "(" ^ Option.default "" arg ^ ");"
+
+  let string_of_node = PthreadDomain.Pred.string_of_elt
 
   let save_promela_model () =
     let _ = PmlResTbl.init () in
@@ -528,11 +551,11 @@ module Codegen = struct
     let thread_count = List.length threads + 1 in
     let mutex_count = List.length mutexes in
     let cond_var_count = List.length cond_vars in
+
     let current_thread_name = ref "" in
     let called_funs_done = ref Set.empty in
     let rec process_def res =
       print_endline @@ Resource.show res ;
-      let string_of_node = PthreadDomain.Pred.string_of_elt in
       let res_type = Resource.res_type res in
       let res_name = Resource.res_name res in
       let is_thread = res_type = Resource.Thread in
@@ -551,31 +574,19 @@ module Codegen = struct
           called_funs_done := Set.empty )
         else called_funs_done := Set.add res_name !called_funs_done ;
         (* build adjacency matrix for all nodes of this process *)
-        let module HashtblN = Hashtbl.Make (PthreadDomain.Pred.Base) in
-        let a2bs = HashtblN.create 97 in
-        let get_a (a, _, _, _) = a in
-        let get_b (_, _, _, b) = b in
-        let edges = Edges.get res in
-        Set.iter
-          (fun ((a, _, _, b) as edge) ->
-            HashtblN.modify_def Set.empty a (Set.add edge) a2bs)
-          edges ;
-        let nodes = HashtblN.keys a2bs |> List.of_enum in
-        let out_edges node =
-          try HashtblN.find a2bs node |> Set.elements with Not_found -> []
+        let a2bs =
+          let edges = Edges.get res in
+          AdjacencyMatrix.populate (AdjacencyMatrix.make ()) edges
         in
-        let in_edges node =
-          HashtblN.filter (Set.mem node % Set.map get_b) a2bs
-          |> HashtblN.values
-          |> List.of_enum
-          |> flat_map Set.elements
-        in
+        let nodes = AdjacencyMatrix.nodes a2bs in
+        let out_edges = AdjacencyMatrix.out_edges a2bs in
+        let in_edges = AdjacencyMatrix.in_edges a2bs in
+
         let is_end_node = List.is_empty % out_edges in
         let is_start_node = List.is_empty % in_edges in
         let label n = pref_res_id ^ "_" ^ string_of_node n in
         let end_label = pref_res_id ^ "_end" in
-        let goto node = "goto " ^ label node in
-        (* NOTE: workaround *)
+        let goto = goto_str % label in
         let goto_start_node =
           match List.find is_start_node nodes with
           | Some node ->
@@ -584,12 +595,11 @@ module Codegen = struct
               ""
         in
         let called_funs = ref [] in
-        let str_edge (a, action, r, b) =
+        let str_edge (a, action, b) =
           let target_label = if is_end_node b then end_label else label b in
           let mark =
-            let open Action in
             match action with
-            | Call fun_name ->
+            | Action.Call fun_name ->
                 called_funs := fun_name :: !called_funs ;
                 let pc =
                   string_of_int @@ Tbls.FunTbl.get (fun_name, target_label)
@@ -598,28 +608,22 @@ module Codegen = struct
             | _ ->
                 ""
           in
-          (* for function calls the goto will never be reached since the function's return will already jump to that label; however it's nice to see where the program will continue at the site of the call. *)
-          mark
-          ^ Action.to_pml (Resource.Thread, !current_thread_name) action
-          ^ "goto "
-          ^ target_label
+          mark ^ Action.to_pml action ^ goto_str target_label
         in
-        let walk_edges (a, out_edges) =
+        let walk_edges (node, out_edges) =
           let edges = Set.elements out_edges |> List.map str_edge in
           let body = if List.length edges > 1 then if_clause edges else edges in
-          (label a ^ ":") :: body
+          (label node ^ ":") :: body
         in
-        let locals = if is_thread then ReturnVarsTbl.get_locals res else [] in
         let body =
-          locals
-          @ goto_start_node
-            :: flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)
-          @ [ ( end_label
-              ^ ": "
-              ^
-              if is_thread then "ThreadBroadcast()" else "ret_" ^ snd res ^ "()"
-              )
-            ]
+          let return =
+            end_label
+            ^ ": "
+            ^ if is_thread then "ThreadBroadcast()" else "ret_" ^ snd res ^ "()"
+          in
+          goto_start_node
+          :: (flat_map walk_edges @@ AdjacencyMatrix.items a2bs)
+          @ [ return ]
         in
         let head =
           match res with
@@ -632,10 +636,6 @@ module Codegen = struct
               ^ ")) {\n\tint stack[20]; int sp = -1;"
           | Function, name ->
               "Fun_" ^ name ^ ":"
-          | _ ->
-              failwith
-                "Only Thread and Function are allowed as keys for collecting \
-                 Pthread actions"
         in
         let called_fun_ids =
           List.map (fun fname -> (Resource.Function, fname)) !called_funs
@@ -663,26 +663,10 @@ module Codegen = struct
     in
     (* sort definitions so that inline functions come before the threads *)
     let process_defs =
-      (* NOTE: workaround. Threads that do not invoke pthread functions won't be generated.
-       *       This is an intent to fix it *)
-      let threads_resources_from_thread_create =
-        let extract_action (_, action, _, _) = action in
-        Edges.table
-        |> Hashtbl.values
-        |> List.of_enum
-        |> List.map Set.to_list
-        |> List.flatten
-        |> List.filter_map (Action.extract_thread_create % extract_action)
-        |> List.filter_map (fun t ->
-               let open Action in
-               Tbls.ThreadTidTbl.get_key t.tid)
-        |> List.map @@ Resource.make Resource.Thread
-      in
       Edges.table
       |> Hashtbl.keys
       |> List.of_enum
       |> List.filter (fun res -> Resource.res_type res = Resource.Thread)
-      |> List.append threads_resources_from_thread_create
       |> List.unique
       |> List.sort (compareBy PmlResTbl.show_prefixed_id_for_res)
       |> flat_map process_def
@@ -694,30 +678,30 @@ module Codegen = struct
             []
         | Some ((name, _), _) ->
             let dec_sp ((_, k), v) =
-              "(stack[sp] == " ^ string_of_int v ^ ") -> sp--; goto " ^ k
+              "(stack[sp] == " ^ string_of_int v ^ ") -> sp--; " ^ goto_str k
             in
             let if_branches = List.map dec_sp fun_calls in
-            let body =
-              ("#define ret_" ^ name ^ "()") :: if_clause if_branches
-            in
+            let body = (define "ret_" ^ name ^ "()") :: if_clause if_branches in
             escape body
       in
       Tbls.FunTbl.to_list ()
       |> List.group (compareBy (fst % fst))
       |> flat_map fun_map
     in
+    let globals = Globals.get_definitions () in
     let promela =
+      let empty_line = "" in
       let defs =
-        [ "#define thread_count " ^ string_of_int thread_count
-        ; "#define mutex_count " ^ string_of_int mutex_count
-        ; "#define cond_var_count " ^ string_of_int cond_var_count
-        ; ""
-        ; "#define checkStatus(op1, v, op2) " ^ checkStatus
-        ; ""
-        ; "#define allTasks(prop) " ^ allTasks
-        ; ""
+        [ define "thread_count " ^ string_of_int thread_count
+        ; define "mutex_count " ^ string_of_int mutex_count
+        ; define "cond_var_count " ^ string_of_int cond_var_count
+        ; empty_line
+        ; define "checkStatus(op1, v, op2) " ^ checkStatus
+        ; empty_line
+        ; define "allTasks(prop) " ^ allTasks
+        ; empty_line
         ; "#include \"../spin/pthread.base.pml\""
-        ; ""
+        ; empty_line
         ]
       in
       let init =
@@ -732,16 +716,52 @@ module Codegen = struct
         [ "init {" ] @ List.map tabulate init_body @ [ "}" ]
       in
       let body =
-        defs
-        @ init
-        @ [ "" ]
-        @ fun_mappings
-        @ ("" :: ReturnVarsTbl.get_globals ())
-        @ process_defs
+        let separator = [ empty_line ] in
+        List.flatten
+          [ defs
+          ; init
+          ; separator
+          ; fun_mappings
+          ; separator
+          ; globals
+          ; process_defs
+          ]
       in
       String.concat "\n" body
     in
-    Writer.write_result "promela model" promela ;
+    let dot_graph =
+      let dot_thread tid =
+        let show_edge (a, action, b) =
+          let show_node x =
+            "\"" ^ Resource.res_name tid ^ "_" ^ string_of_node x ^ "\""
+          in
+          show_node a
+          ^ "\t->\t"
+          ^ show_node b
+          ^ "\t[label=\""
+          ^ Action.to_pml action
+          ^ "\"]"
+        in
+        let subgraph_head =
+          "subgraph \"cluster_" ^ Resource.res_name tid ^ "\" {"
+        in
+        let subgraph_tail =
+          "label = \"" ^ Resource.res_name tid ^ "\";\n  }\n"
+        in
+        let edges_decls = Set.elements @@ Set.map show_edge @@ Edges.get tid in
+        (subgraph_head :: edges_decls) @ [ subgraph_tail ]
+      in
+      let lines =
+        Hashtbl.keys Edges.table
+        |> List.of_enum
+        |> List.map dot_thread
+        |> List.concat
+      in
+      String.concat "\n  " ("digraph file {" :: lines) ^ "}"
+    in
+
+    Writer.write "promela model" "pml" promela ;
+    Writer.write "graph" "dot" dot_graph ;
     print_endline
       "Copy spin/pthread_base.pml to same folder and then do: spin -a \
        pthread.pml && cc -o pan pan.c && ./pan"
@@ -770,24 +790,157 @@ module Spec : Analyses.Spec = struct
     Goblintutil.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
 
 
+  let mayPointTo ctx exp =
+    match ctx.ask (Queries.MayPointTo exp) with
+    | `LvalSet a when (not (Queries.LS.is_top a)) && Queries.LS.cardinal a > 0
+      ->
+        let top_elt = (dummyFunDec.svar, `NoOffset) in
+        let a' =
+          if Queries.LS.mem top_elt a
+          then (
+            M.debug_each
+            @@ "mayPointTo: query result for "
+            ^ sprint d_exp exp
+            ^ " contains TOP!" ;
+            (* UNSOUND *)
+            Queries.LS.remove top_elt a )
+          else a
+        in
+        Queries.LS.elements a'
+    | `Bot ->
+        []
+    | v ->
+        M.debug_each
+        @@ "mayPointTo: query result for "
+        ^ sprint d_exp exp
+        ^ " is "
+        ^ sprint Queries.Result.pretty v ;
+        []
+
+
+  module ExprEval = struct
+    let eval_id ctx exp =
+      List.filter_map (Tbls.ResourceTbl.get_key % fst) @@ mayPointTo ctx exp
+  end
+
+  module Assign = struct
+    let id ctx exp id =
+      match exp with
+      | AddrOf lval ->
+          ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+      | _ ->
+          failwith
+          @@ "Could not assign id. Expected &id. Found "
+          ^ sprint d_exp exp
+  end
+
   let name () = "pthread_to_promela"
 
   let init () = LibraryFunctions.add_lib_funs Function.supported
 
-  (*TODO: implement non "assume_success" scenario *)
-  let assign ctx (lval : lval) (rval : exp) : D.t = ctx.local
+  let assign ctx (lval : lval) (rval : exp) : D.t =
+    let var_opt = Variable.make_from_lval lval in
+    let is_global =
+      Option.default false @@ Option.map Variable.is_global var_opt
+    in
+    if not @@ Option.is_some !MyCFG.current_node
+    then (
+      M.debug_each "assign: MyCFG.current_node not set :(" ;
+      ctx.local )
+    else if PthreadDomain.D.is_bot ctx.local || not is_global
+    then ctx.local
+    else
+      let env = Env.get ctx in
+      let d = Env.d env in
+      let var = Option.get var_opt in
 
-  (*TODO: implement non "assume_success" scenario *)
-  let branch ctx (exp : exp) (tv : bool) : D.t = ctx.local
+      let lhs_str = Variable.show var in
+      (* TODO: which exprs to allow -> no local vars, since they will be needed to be analyzed too *)
+      let rhs_str = sprint d_exp rval in
+      Edges.add env @@ Action.Assign (lhs_str ^ " = " ^ rhs_str) ;
+      Globals.add_var var ;
+
+      { d with pred = Pred.of_node @@ Env.node env }
+
+
+  let branch ctx (exp : exp) (tv : bool) : D.t =
+    if PthreadDomain.D.is_bot ctx.local
+    then ctx.local
+    else
+      let env = Env.get ctx in
+
+      let add_action pred_str =
+        match Env.node env with
+        | MyCFG.Statement ({ skind = If (e, bt, bf, loc); _ } as stmt) ->
+            (* when not (List.is_empty bt.bstmts) -> *)
+            let intermediate_node =
+              let then_node =
+                List.hd bt.bstmts
+                (* List.hd
+                 * @@ if List.is_empty bt.bstmts then bf.bstmts else bt.bstmts *)
+              in
+              let else_node =
+                List.hd
+                @@ if List.is_empty bf.bstmts then stmt.succs else bf.bstmts
+              in
+              Tbls.NodeTbl.get (if tv then then_node else else_node).sid
+            in
+            Edges.add ~dst:intermediate_node env (Action.Cond pred_str) ;
+            { ctx.local with pred = Pred.of_node intermediate_node }
+        | _ ->
+            failwith "branch: current_node is not an If"
+      in
+
+      let is_global =
+        Option.default false
+        % Option.map Variable.is_global
+        % Variable.make_from_lhost
+      in
+      let var_str = Variable.show % Option.get % Variable.make_from_lhost in
+      let pred_str lhs rhs tv =
+        let cond_str = lhs ^ " == " ^ rhs in
+        if tv then cond_str else "!(" ^ cond_str ^ ")"
+      in
+
+      let handle_binop lhs rhs tv =
+        match (lhs, rhs) with
+        | Lval (lhost, _), Const (CInt64 (i, _, _))
+        | Const (CInt64 (i, _, _)), Lval (lhost, _)
+          when is_global lhost ->
+            add_action @@ pred_str (var_str lhost) (Int64.to_string i) tv
+        | Lval (lhostA, _), Lval (lhostB, _)
+          when is_global lhostA && is_global lhostB ->
+            add_action @@ pred_str (var_str lhostA) (var_str lhostB) tv
+        | _ ->
+            ctx.local
+      in
+
+      let handle_unop x tv =
+        match x with
+        | Lval (lhost, _) when is_global lhost ->
+            let pred = (if tv then "" else "!") ^ var_str lhost in
+            add_action pred
+        | Const (CInt64 (i, _, _)) when (not tv) && i == 0L ->
+            add_action "true"
+        | Const (CInt64 (i, _, _)) when tv && i != 0L ->
+            add_action "true"
+        | _ ->
+            ctx.local
+      in
+      match exp with
+      | BinOp (Eq, a, b, _) ->
+          handle_binop (stripCasts a) (stripCasts b) tv
+      | BinOp (Ne, a, b, _) ->
+          handle_binop (stripCasts a) (stripCasts b) (not tv)
+      | UnOp (LNot, a, _) ->
+          handle_unop a (not tv)
+      | Const (CInt64 (i, _, _)) ->
+          handle_unop exp tv
+      | _ ->
+          ctx.local
+
 
   let body ctx (f : fundec) : D.t =
-    print_endline
-    @@ "Body of "
-    ^ f.svar.vname
-    ^ " with tid: "
-    ^ Int64.to_string
-    @@ Option.default (-1L)
-    @@ Tid.to_int ctx.local.tid ;
     (* enter is not called for spawned threads -> initialize them here *)
     let context_hash =
       let base_context =
@@ -860,49 +1013,6 @@ module Spec : Analyses.Spec = struct
         }
 
 
-  module ExprEval = struct
-    let eval_id ctx exp =
-      let mayPointTo ctx exp =
-        match ctx.ask (Queries.MayPointTo exp) with
-        | `LvalSet a
-          when (not (Queries.LS.is_top a)) && Queries.LS.cardinal a > 0 ->
-            let top_elt = (dummyFunDec.svar, `NoOffset) in
-            let a' =
-              if Queries.LS.mem top_elt a
-              then (
-                M.debug_each
-                @@ "mayPointTo: query result for "
-                ^ sprint d_exp exp
-                ^ " contains TOP!" ;
-                (* UNSOUND *)
-                Queries.LS.remove top_elt a )
-              else a
-            in
-            Queries.LS.elements a'
-        | `Bot ->
-            []
-        | v ->
-            M.debug_each
-            @@ "mayPointTo: query result for "
-            ^ sprint d_exp exp
-            ^ " is "
-            ^ sprint Queries.Result.pretty v ;
-            []
-      in
-      List.filter_map (Tbls.ResourceTbl.get_key % fst) @@ mayPointTo ctx exp
-  end
-
-  module Assign = struct
-    let id ctx exp id =
-      match exp with
-      | AddrOf lval ->
-          ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
-      | _ ->
-          failwith
-          @@ "Could not assign id. Expected &id. Found "
-          ^ sprint d_exp exp
-  end
-
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) : D.t
       =
     let fun_name = f.vname in
@@ -928,14 +1038,6 @@ module Spec : Analyses.Spec = struct
         | _ ->
             failwith "can not get the name of the var"
       in
-      let cur_tid =
-        Int64.to_int @@ Option.get @@ PthreadDomain.Tid.to_int ctx.local.tid
-      in
-      print_endline
-      @@ "Function: "
-      ^ fun_name
-      ^ " current tid: "
-      ^ string_of_int cur_tid ;
       let open Function in
       match (Option.get pthread_fun, arglist) with
       (* NOTE: thread_attr or fun_args can be nil/0 *)
