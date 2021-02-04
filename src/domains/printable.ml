@@ -162,6 +162,47 @@ struct
   let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 end
 
+module HashCached (M: S) =
+struct
+  let name () = "HashCached " ^ M.name ()
+
+  type t =
+    {
+      m: M.t;
+      lazy_hash: int Lazy.t [@to_yojson fun l -> `Null];
+    } [@@deriving to_yojson]
+
+  let lift m = {m; lazy_hash = lazy (M.hash m)}
+  let unlift {m; _} = m
+
+  let lift_f f x = f (unlift x)
+  let lift_f' f x = lift @@ lift_f f x
+  let lift_f2 f x y = f (unlift x) (unlift y)
+  let lift_f2' f x y = lift @@ lift_f2 f x y
+
+  let equal = lift_f2 M.equal
+  let compare = lift_f2 M.compare
+  let hash x = Lazy.force x.lazy_hash
+  let short w = lift_f (M.short w)
+  let isSimple = lift_f M.isSimple
+
+  let pretty_f short () mapping =
+    (* TODO: shorten like HConsed *)
+    let mapping = unlift mapping in
+    let short w x = short w (lift x) in
+    M.pretty_f short () mapping
+
+  let pretty () x = pretty_f short () x
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
+  let printXml f = lift_f (M.printXml f)
+
+  let arbitrary () = QCheck.map ~rev:unlift lift (M.arbitrary ())
+
+  let tag = lift_f M.tag
+  let invariant c = lift_f (M.invariant c)
+end
+
 module Lift (Base: S) (N: LiftingNames) =
 struct
   type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving to_yojson]

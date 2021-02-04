@@ -127,6 +127,21 @@ struct
   let bot () = lift (Base.bot ())
 end
 
+module HashCached (M: S) =
+struct
+  include Printable.HashCached (M)
+
+  let leq = lift_f2 M.leq
+  let join = lift_f2' M.join
+  let meet = lift_f2' M.meet
+  let widen = lift_f2' M.widen
+  let narrow = lift_f2' M.narrow
+  let bot () = lift @@ M.bot ()
+  let is_bot = lift_f M.is_bot
+  let top () = lift @@ M.top ()
+  let is_top = lift_f M.is_top
+end
+
 module Flat (Base: Printable.S) (N: Printable.LiftingNames) =
 struct
   include Printable.Lift (Base) (N)

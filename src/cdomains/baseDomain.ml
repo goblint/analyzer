@@ -6,7 +6,7 @@ module BI = IntOps.BigIntOps
 
 module CPA =
 struct
-  include MapDomain.LiftTop (VD) (MapDomain.OptHash (MapDomain.MapBot (Basetype.Variables) (VD)))
+  include MapDomain.LiftTop (VD) (MapDomain.HashCached (MapDomain.MapBot (Basetype.Variables) (VD)))
 
   (* TODO: remove CPA timing *)
   let time str f arg = Stats.time "cpa" (Stats.time str f) arg
