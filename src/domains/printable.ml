@@ -169,8 +169,8 @@ struct
   type t =
     {
       m: M.t;
-      lazy_hash: int Lazy.t [@to_yojson fun l -> `Null];
-    } [@@deriving to_yojson]
+      lazy_hash: int Lazy.t;
+    }
 
   let lift m = {m; lazy_hash = lazy (M.hash m)}
   let unlift {m; _} = m
@@ -196,6 +196,8 @@ struct
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
   let printXml f = lift_f (M.printXml f)
+
+  let to_yojson = lift_f (M.to_yojson)
 
   let arbitrary () = QCheck.map ~rev:unlift lift (M.arbitrary ())
 
