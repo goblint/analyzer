@@ -123,7 +123,10 @@ let compare (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
           | [] -> (stdSet, diffSet)
           | (locEdgeList2, toNode2) :: ls2' ->
               let edgeList2 = to_edge_list locEdgeList2 in
-              let (stdSet', (diffSet' : DiffS.t)) = findEquiv (edgeList2, toNode2) outList1 stdSet diffSet in
+              let isActualEdge = match List.hd edgeList2 with
+                | Test (p,b) -> not (p = Cil.one && b = false)
+                | _ -> true in
+              let (stdSet', diffSet') = if isActualEdge then findEquiv (edgeList2, toNode2) outList1 stdSet diffSet else (stdSet, diffSet) in
             iterOuts ls2' stdSet' diffSet' in
       compareNext (iterOuts outList2 stdSet diffSet) in
 
