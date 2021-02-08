@@ -536,6 +536,7 @@ struct
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let cpa' = CPA.add x v st.cpa in
     if not (is_atomic ask) then
+      (* TODO: update to match paper changes: conditional W' and side effect *)
       sideg x (v, VD.bot ());
     let cached' =
       if is_unprotected ask x then
@@ -790,6 +791,7 @@ struct
           acc
       ) (fst (getg (mutex_global x))) (CPA.find x st.cpa)
 
+  (* TODO: update to match paper changes: W set in Mine *)
   let write_global ask getg sideg (st: BaseComponents.t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
