@@ -2191,26 +2191,11 @@ end
 
 let main_module: (module MainSpec) Lazy.t =
   lazy (
-    let open BasePriv in
-    (* TODO: move Priv selection to BasePriv *)
-    let module Priv: PrivParam =
-      (val match get_string "exp.privatization" with
-        | "none" -> (module NoPriv: PrivParam)
-        | "old" -> (module OldPriv: PrivParam)
-        | "mutex-oplus" -> (module PerMutexOplusPriv)
-        | "mutex-meet" -> (module PerMutexMeetPriv)
-        | "global" -> (module PerGlobalPriv (struct let check_read_unprotected = false end))
-        | "global-read" -> (module PerGlobalPriv (struct let check_read_unprotected = true end))
-        | "global-vesal" -> (module PerGlobalVesalPriv)
-        | "mine" -> (module MinePriv)
-        | "mine-nothread" -> (module MineNoThreadPriv)
-        | _ -> failwith "exp.privatization: illegal value"
-      )
-    in
+    let module Priv = (val BasePriv.get_priv ()) in
     let module Main =
     struct
       (* Only way to locally define a recursive module. *)
-      module rec Main:MainSpec = MainFunctor (StatsPriv (Priv)) (Main:BaseDomain.ExpEvaluator)
+      module rec Main:MainSpec = MainFunctor (Priv) (Main:BaseDomain.ExpEvaluator)
       include Main
     end
     in

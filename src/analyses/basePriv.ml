@@ -807,3 +807,27 @@ struct
 
   let is_private = Priv.is_private
 end
+
+
+let priv_module: (module PrivParam) Lazy.t =
+  lazy (
+    let module Priv: PrivParam =
+      (val match get_string "exp.privatization" with
+        | "none" -> (module NoPriv: PrivParam)
+        | "old" -> (module OldPriv: PrivParam)
+        | "mutex-oplus" -> (module PerMutexOplusPriv)
+        | "mutex-meet" -> (module PerMutexMeetPriv)
+        | "global" -> (module PerGlobalPriv (struct let check_read_unprotected = false end))
+        | "global-read" -> (module PerGlobalPriv (struct let check_read_unprotected = true end))
+        | "global-vesal" -> (module PerGlobalVesalPriv)
+        | "mine" -> (module MinePriv)
+        | "mine-nothread" -> (module MineNoThreadPriv)
+        | _ -> failwith "exp.privatization: illegal value"
+      )
+    in
+    let module Priv = StatsPriv (Priv) in
+    (module Priv)
+  )
+
+let get_priv (): (module PrivParam) =
+  Lazy.force priv_module
