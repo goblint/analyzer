@@ -27,7 +27,7 @@ module BaseComponents = BaseDomain.BaseComponents
 
 
 
-module MainFunctor (Priv:BasePriv.PrivParam) (RVEval:BaseDomain.ExpEvaluator) =
+module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator) =
 struct
   include Analyses.DefaultSpec
 

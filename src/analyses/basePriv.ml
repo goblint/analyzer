@@ -11,8 +11,8 @@ module CPA    = BaseDomain.CPA
 module CVars  = BaseDomain.CachedVars
 module BaseComponents = BaseDomain.BaseComponents
 
-(* TODO: rename to S *)
-module type PrivParam =
+
+module type S =
 sig
   module G: Lattice.S
 
@@ -49,7 +49,7 @@ struct
 end
 
 (* Copy of OldPriv with is_private constantly false. *)
-module NoPriv: PrivParam =
+module NoPriv: S =
 struct
   include OldPrivBase
 
@@ -87,7 +87,7 @@ struct
     CPA.fold add_var st.cpa (st, [])
 end
 
-module OldPriv: PrivParam =
+module OldPriv: S =
 struct
   include OldPrivBase
 
@@ -261,7 +261,7 @@ struct
   let is_private ask x = true
 end
 
-module PerMutexOplusPriv: PrivParam =
+module PerMutexOplusPriv: S =
 struct
   include PerMutexPrivBase
 
@@ -324,7 +324,7 @@ struct
       (st, [])
 end
 
-module PerMutexMeetPriv: PrivParam =
+module PerMutexMeetPriv: S =
 struct
   include PerMutexPrivBase
 
@@ -413,7 +413,7 @@ struct
       (st, [])
 end
 
-module PerGlobalVesalPriv: PrivParam =
+module PerGlobalVesalPriv: S =
 struct
   include OldPrivBase
 
@@ -478,7 +478,7 @@ sig
   val check_read_unprotected: bool
 end
 
-module PerGlobalPriv (Param: PerGlobalPrivParam): PrivParam =
+module PerGlobalPriv (Param: PerGlobalPrivParam): S =
 struct
   include NewPrivBase
 
@@ -628,7 +628,7 @@ struct
   let is_private ask x = true
 end
 
-module MinePriv: PrivParam =
+module MinePriv: S =
 struct
   include MinePrivBase
 
@@ -718,7 +718,7 @@ struct
       (st, [])
 end
 
-module MineNoThreadPriv: PrivParam =
+module MineNoThreadPriv: S =
 struct
   include MinePrivBase
 
@@ -792,7 +792,7 @@ struct
       (st, [])
 end
 
-module StatsPriv (Priv: PrivParam): PrivParam =
+module StatsPriv (Priv: S): S =
 struct
   module G = Priv.G
 
@@ -810,12 +810,12 @@ struct
 end
 
 
-let priv_module: (module PrivParam) Lazy.t =
+let priv_module: (module S) Lazy.t =
   lazy (
-    let module Priv: PrivParam =
+    let module Priv: S =
       (val match get_string "exp.privatization" with
-        | "none" -> (module NoPriv: PrivParam)
-        | "old" -> (module OldPriv: PrivParam)
+        | "none" -> (module NoPriv: S)
+        | "old" -> (module OldPriv)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "global" -> (module PerGlobalPriv (struct let check_read_unprotected = false end))
@@ -830,5 +830,5 @@ let priv_module: (module PrivParam) Lazy.t =
     (module Priv)
   )
 
-let get_priv (): (module PrivParam) =
+let get_priv (): (module S) =
   Lazy.force priv_module
