@@ -503,20 +503,14 @@ struct
       VD.join (CPA.find x st.cpa) (snd (getg x))
     else
       snd (getg x)
-    (* TODO: sideg? *)
 
   let write_global ask getg sideg (st: BaseComponents.t) x v =
-    let cpa' = CPA.add x v st.cpa in
     if not (is_atomic ask) then
-      (* TODO: update to match paper changes: conditional W' and side effect *)
       sideg x (v, VD.bot ());
-    let cached' =
-      if is_unprotected ask x then
-        st.cached
-      else
-        CVars.add x st.cached
-    in
-    {st with cpa = cpa'; cached = cached'}
+    if is_unprotected ask x then
+      st
+    else
+      {st with cpa = CPA.add x v st.cpa; cached = CVars.add x st.cached}
 
   let lock ask getg cpa m = cpa
 
