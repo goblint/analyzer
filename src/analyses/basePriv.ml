@@ -2,6 +2,7 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 open BaseUtil
+module Q = Queries
 
 module IdxDom = ValueDomain.IndexDomain
 

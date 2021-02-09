@@ -1775,9 +1775,8 @@ struct
     in
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
-    let my_favorite_things = List.map Json.string !precious_globs in
     let is_fav_addr x =
-      List.exists (fun x -> List.mem x.vname my_favorite_things) (AD.to_var_may x)
+      List.exists BaseUtil.is_precious_glob (AD.to_var_may x)
     in
     let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
