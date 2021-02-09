@@ -42,7 +42,7 @@ sig
   val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> varinfo -> VD.t
   val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> VD.t -> BaseComponents.t
 
-  val lock: Q.ask -> (varinfo -> G.t) -> CPA.t -> LockDomain.Addr.t -> CPA.t
+  val lock: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> LockDomain.Addr.t -> BaseComponents.t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> LockDomain.Addr.t -> BaseComponents.t
 
   val sync: [`Normal | `Join | `Return | `Init | `Thread] -> (BaseComponents.t, G.t, 'c) ctx -> BaseComponents.t * (varinfo * G.t) list
@@ -310,12 +310,12 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg cpa m =
+  let lock ask getg (st: BaseComponents.t) m =
     let get_m = get_m_with_mutex_inits ask getg m in
     let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
     let cpa' = CPA.filter is_in_V get_m in
     if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
-    CPA.fold CPA.add cpa' cpa
+    {st with cpa = CPA.fold CPA.add cpa' st.cpa}
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     let side_m_cpa = CPA.filter is_in_Gm st.cpa in
@@ -388,15 +388,15 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg cpa m =
+  let lock ask getg (st: BaseComponents.t) m =
     let get_m = get_m_with_mutex_inits ask getg m in
     (* Additionally filter get_m in case it contains variables it no longer protects. *)
     let is_in_Gm x _ = is_protected_by ask m x in
     let get_m = CPA.filter is_in_Gm get_m in
     let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
-    let meet = long_meet cpa get_m in
+    let meet = long_meet st.cpa get_m in
     if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
-    meet
+    {st with cpa = meet}
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg (mutex_addr_to_varinfo m) (CPA.filter is_in_Gm st.cpa);
@@ -705,14 +705,16 @@ struct
       sideg (mutex_global x) (GWeak.add s (ThreadMap.add t v (ThreadMap.bot ())) (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
-  let lock ask getg cpa m =
+  let lock ask getg (st: BaseComponents.t) m =
     let s = current_lockset ask in
-    GSync.fold (fun s' cpa' acc ->
+    let cpa' = GSync.fold (fun s' cpa' acc ->
         if Lockset.disjoint s s' then
           CPA.join cpa' acc
         else
           acc
-      ) (snd (getg (mutex_addr_to_varinfo m))) cpa
+      ) (snd (getg (mutex_addr_to_varinfo m))) st.cpa
+    in
+    {st with cpa = cpa'}
 
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let s = Lockset.remove m (current_lockset ask) in
@@ -781,14 +783,16 @@ struct
       sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
-  let lock ask getg cpa m =
+  let lock ask getg (st: BaseComponents.t) m =
     let s = current_lockset ask in
-    GSync.fold (fun s' cpa' acc ->
+    let cpa' = GSync.fold (fun s' cpa' acc ->
         if Lockset.disjoint s s' then
           CPA.join cpa' acc
         else
           acc
-      ) (snd (getg (mutex_addr_to_varinfo m))) cpa
+      ) (snd (getg (mutex_addr_to_varinfo m))) st.cpa
+    in
+    {st with cpa = cpa'}
 
   let unlock ask getg sideg (st: BaseComponents.t) m =
     let s = Lockset.remove m (current_lockset ask) in
@@ -1776,7 +1780,7 @@ struct
     match e with
     | Events.Lock addr ->
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
-      {st with cpa=Priv.lock octx.ask octx.global st.cpa addr}
+      Priv.lock octx.ask octx.global st addr
     | Events.Unlock addr ->
       Priv.unlock octx.ask octx.global octx.sideg st addr
     | Events.Escape escaped ->
