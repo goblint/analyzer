@@ -133,3 +133,20 @@ let compare (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
     let initSets = (StdS.empty, DiffS.empty) in
     let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
   Queue.push (entryNode1,entryNode2) waitingList; (compareNext initSets)
+
+let reexamine f stdSet diffSet (module Cfg2 : CfgForward) =
+  let module NodeSet = Set.Make(Node) in
+  let diffNodes = DiffS.fold (fun (_, _, n) acc -> NodeSet.add n acc) diffSet NodeSet.empty in
+  let sameNodes = let fromStdSet = StdS.fold (fun (_, _, (_, n)) acc -> NodeSet.add n acc) stdSet NodeSet.empty in
+    let notInDiff = NodeSet.diff fromStdSet diffNodes in
+    NodeSet.add (FunctionEntry f) notInDiff in
+  let rec dfs node (vis, sameNodes, diffNodes) =
+    let classify k (vis, same, diff) = if NodeSet.mem k vis then (vis, same, diff)
+      else let ext_vis = NodeSet.add k vis in if NodeSet.mem k diff then (ext_vis, same, diff)
+      else if NodeSet.mem k same then (ext_vis, NodeSet.remove k same, NodeSet.add k diff)
+      else dfs k (ext_vis, same, diff) in
+    let succ = List.map (fun (_, n) -> n) (Cfg2.next node) in
+    List.fold_right classify succ (vis, sameNodes, diffNodes) in
+
+  let (_, rectSame, rectDiff) = NodeSet.fold dfs diffNodes (NodeSet.empty, sameNodes, diffNodes) in
+  rectSame, rectDiff
