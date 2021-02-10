@@ -10,7 +10,7 @@
   (modules :standard \ goblint maingoblint mainarinc maindomaintest mainspec
     apronDomain poly violationZ3)
   (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js
-    qcheck)
+    qcheck-core.runner)
   (preprocess
     (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson
       ppx_distr_guards ocaml-monadic))
