@@ -393,13 +393,15 @@ struct
           if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
+            let analyses = append_opt "save_run" "analyses.marshalled" in
             let config = append_opt "save_run" "config.json" in
             let meta = append_opt "save_run" "meta.json" in
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ save_run ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
+              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
             );
             ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
             Serialize.marshal (lh, gh) save_run;
+            Serialize.marshal !MCP.analyses_table analyses;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
