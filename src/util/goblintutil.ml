@@ -373,12 +373,15 @@ exception Timeout
 let handle_sigalrm signo = raise Timeout
 
 let timeout f arg tsecs timeout_fn =
-  let oldsig = Sys.signal Sys.sigalrm (Sys.Signal_handle (fun _ -> timeout_fn ())) in
-  set_timer tsecs;
-  let res = f arg in
-  set_timer 0.0;
-  Sys.set_signal Sys.sigalrm oldsig;
-  res
+  if Float.compare tsecs 0.0 <= 0 then
+    f arg
+  else
+    let oldsig = Sys.signal Sys.sigalrm (Sys.Signal_handle (fun _ -> timeout_fn ())) in
+    set_timer tsecs;
+    let res = f arg in
+    set_timer 0.0;
+    Sys.set_signal Sys.sigalrm oldsig;
+    res
 
 
 let vars = ref 0
