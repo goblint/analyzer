@@ -293,6 +293,82 @@ struct
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
 end
 
+module Timed (M: S) : S with
+  type key = M.key and
+  type value = M.value =
+struct
+  let time str f arg = Stats.time (M.name ()) (Stats.time str f) arg
+
+  (* Printable.S *)
+  type t = M.t
+
+  let equal x y = time "equal" (M.equal x) y
+  let compare x y = time "compare" (M.compare x) y
+  let hash x = time "hash" M.hash x
+  let tag x = time "tag" M.tag x
+  (* TODO: time these also? *)
+  let name = M.name
+  let to_yojson = M.to_yojson
+  let isSimple = M.isSimple
+  let short = M.short
+  let pretty_f = M.pretty_f
+  let pretty = M.pretty
+  let pretty_diff = M.pretty_diff
+  let printXml = M.printXml
+  let arbitrary = M.arbitrary
+  let invariant = M.invariant
+
+  (* Lattice.S *)
+  let top () = time "top" M.top ()
+  let is_top x = time "is_top" M.is_top x
+  let bot () = time "bot" M.bot ()
+  let is_bot x = time "is_bot" M.is_bot x
+  let leq x y = time "leq" (M.leq x) y
+  let join x y = time "join" (M.join x) y
+  let meet x y = time "meet" (M.meet x) y
+  let widen x y = time "widen" (M.widen x) y
+  let narrow x y = time "narrow" (M.narrow x) y
+
+  (* MapDomain.S *)
+  type key = M.key
+  type value = M.value
+
+  let add k v x = time "add" (M.add k v) x
+  let remove k x = time "remove" (M.remove k) x
+  let find k x = time "find" (M.find k) x
+  let find_opt k x = time "find_opt" (M.find_opt k) x
+  let mem k x = time "mem" (M.mem k) x
+  let iter f x = time "iter" (M.iter f) x
+  let map f x = time "map" (M.map f) x
+  let mapi f x = time "mapi" (M.mapi f) x
+  let fold f x a = time "fold" (M.fold f x) a
+  let filter f x = time "filter" (M.filter f) x
+  let merge f x y = time "merge" (M.merge f x) y
+  let for_all f x = time "for_all" (M.for_all f) x
+
+  let cardinal x = time "cardinal" M.cardinal x
+  let choose x = time "choose" M.choose x
+  let singleton k v = time "singleton" (M.singleton k) v
+  let empty () = time "empty" M.empty ()
+  let is_empty x = time "is_empty" M.is_empty x
+  let exists p x = time "exists" (M.exists p) x
+  let bindings x = time "bindings" M.bindings x
+
+
+  let add_list xs x = time "add_list" (M.add_list xs) x
+  let add_list_set ks v x = time "add_list_set" (M.add_list_set ks v) x
+  let add_list_fun ks f x = time "add_list_fun" (M.add_list_fun ks f) x
+
+  let long_map2 f x y = time "long_map2" (M.long_map2 f x) y
+
+  let map2 f x y = time "map2" (M.map2 f x) y
+
+  let filter_class g x = time "filter_class" (M.filter_class g) x
+
+  let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
+  let join_with_fct f x y = time "join_with_fct" (M.join_with_fct f x) y
+  let widen_with_fct f x y = time "widen_with_fct" (M.widen_with_fct f x) y
+end
 
 module MapBot (Domain: Groupable) (Range: Lattice.S) : S with
   type key = Domain.t and
