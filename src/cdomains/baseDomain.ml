@@ -12,7 +12,7 @@ struct
     let name () = "value domain"
   end
 
-  include MapDomain.Timed (M)
+  include M
 
   let invariant (c:Invariant.context) (m:t) =
     (* VS is used to detect and break cycles in deref_invariant calls *)
