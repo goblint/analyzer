@@ -841,7 +841,7 @@ struct
   let is_private ask x = true
 end
 
-module StatsPriv (Priv: PrivParam): PrivParam =
+module TimedPriv (Priv: PrivParam): PrivParam =
 struct
   module G = Priv.G
 
@@ -3039,7 +3039,7 @@ let main_module: (module MainSpec) Lazy.t =
     let module Main =
     struct
       (* Only way to locally define a recursive module. *)
-      module rec Main:MainSpec = MainFunctor (StatsPriv (Priv)) (Main:BaseDomain.ExpEvaluator)
+      module rec Main:MainSpec = MainFunctor (TimedPriv (Priv)) (Main:BaseDomain.ExpEvaluator)
       include Main
     end
     in
