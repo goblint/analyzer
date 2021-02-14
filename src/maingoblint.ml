@@ -457,5 +457,6 @@ let main =
       with Exit -> exit 1
     )
 
-let _ =
-  at_exit main
+(* Moving this to the automatically generated goblint.ml. This is for compatibility with Gobview. *)
+(* let _ = *)
+(*   at_exit main *)
