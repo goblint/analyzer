@@ -14,18 +14,19 @@ module BaseComponents = BaseDomain.BaseComponents
 
 module type S =
 sig
+  module D: Lattice.S
   module G: Lattice.S
 
-  val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> varinfo -> VD.t
-  val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> varinfo -> VD.t -> BaseComponents.t
+  val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents (D).t -> varinfo -> VD.t
+  val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> varinfo -> VD.t -> BaseComponents (D).t
 
-  val lock: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> LockDomain.Addr.t -> BaseComponents.t
-  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> LockDomain.Addr.t -> BaseComponents.t
+  val lock: Q.ask -> (varinfo -> G.t) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
+  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
 
-  val sync: Q.ask -> (varinfo -> G.t) -> BaseComponents.t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents.t * (varinfo * G.t) list
+  val sync: Q.ask -> (varinfo -> G.t) -> BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t * (varinfo * G.t) list
 
-  val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> EscapeDomain.EscapedVars.t -> BaseComponents.t
-  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents.t -> BaseComponents.t
+  val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
+  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
 
   (* TODO: better name *)
   val is_private: Q.ask -> varinfo -> bool
@@ -33,6 +34,8 @@ end
 
 module OldPrivBase =
 struct
+  module D = Lattice.Unit
+
   let lock ask getg cpa m = cpa
   let unlock ask getg sideg st m = st
 
@@ -55,10 +58,10 @@ struct
 
   module G = BaseDomain.VD
 
-  let read_global ask getg (st: BaseComponents.t) x =
+  let read_global ask getg (st: BaseComponents (D).t) x =
     getg x
 
-  let write_global ask getg sideg (st: BaseComponents.t) x v =
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     (* Here, an effect should be generated, but we add it to the local
      * state, waiting for the sync function to publish it. *)
     (* Copied from MainFunctor.update_variable *)
@@ -69,9 +72,9 @@ struct
 
   let is_private (a: Q.ask) (v: varinfo): bool = false
 
-  let sync ask getg (st: BaseComponents.t) reason =
+  let sync ask getg (st: BaseComponents (D).t) reason =
     (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
+    let add_var (v: varinfo) (value) ((st: BaseComponents (D).t),acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ask v then begin
@@ -93,12 +96,12 @@ struct
 
   module G = BaseDomain.VD
 
-  let read_global ask getg (st: BaseComponents.t) x =
+  let read_global ask getg (st: BaseComponents (D).t) x =
     match CPA.find x st.cpa with
     | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
     | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
-  let write_global ask getg sideg (st: BaseComponents.t) x v =
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     (* Here, an effect should be generated, but we add it to the local
      * state, waiting for the sync function to publish it. *)
     (* Copied from MainFunctor.update_variable *)
@@ -113,8 +116,9 @@ struct
      if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
      false)
 
-  let sync ask getg (st: BaseComponents.t) reason =
+  let sync ask getg (st: BaseComponents (D).t) reason =
     let privates = sync_privates reason ask in
+    let module BaseComponents = BaseComponents (D) in
     if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
@@ -199,6 +203,7 @@ struct
   include NewPrivBase
   include MutexGlobals
 
+  module D = Lattice.Unit
   module G = CPA
 
   let mutex_inits =
@@ -224,7 +229,7 @@ struct
       | None, Some v -> Some v
       | None, None -> None
 
-  let escape ask getg sideg (st: BaseComponents.t) escaped =
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
     sideg (Lazy.force mutex_inits) escaped_cpa;
 
@@ -240,7 +245,7 @@ struct
     in
     {st with cpa = cpa'}
 
-  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
     sideg (Lazy.force mutex_inits) global_cpa;
 
@@ -265,7 +270,7 @@ module PerMutexOplusPriv: S =
 struct
   include PerMutexPrivBase
 
-  let read_global ask getg (st: BaseComponents.t) x =
+  let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       get_mutex_global_x |? VD.bot ()
@@ -275,7 +280,7 @@ struct
     let (cpa', v) as r = read_global ask getg cpa x in
     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x d_loc !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
     r *)
-  let write_global ask getg sideg (st: BaseComponents.t) x v =
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
     if not (is_atomic ask) then
       sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
@@ -285,20 +290,20 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg (st: BaseComponents.t) m =
+  let lock ask getg (st: BaseComponents (D).t) m =
     let get_m = get_m_with_mutex_inits ask getg m in
     let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
     let cpa' = CPA.filter is_in_V get_m in
     if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
     {st with cpa = CPA.fold CPA.add cpa' st.cpa}
-  let unlock ask getg sideg (st: BaseComponents.t) m =
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     let side_m_cpa = CPA.filter is_in_Gm st.cpa in
     if M.tracing then M.tracel "priv" "PerMutexOplusPriv.unlock m=%a side_m_cpa=%a\n" LockDomain.Addr.pretty m CPA.pretty side_m_cpa;
     sideg (mutex_addr_to_varinfo m) side_m_cpa;
     st
 
-  let sync ask getg (st: BaseComponents.t) reason =
+  let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
       let sidegs = CPA.fold (fun x v acc ->
@@ -328,7 +333,7 @@ module PerMutexMeetPriv: S =
 struct
   include PerMutexPrivBase
 
-  let read_global ask getg (st: BaseComponents.t) x =
+  let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then (
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* None is VD.top () *)
@@ -345,7 +350,7 @@ struct
     let v = read_global ask getg st x in
     if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" d_varinfo x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
     v
-  let write_global ask getg sideg (st: BaseComponents.t) x v =
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' =
       if is_unprotected ask x then
         st.cpa
@@ -362,7 +367,7 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg (st: BaseComponents.t) m =
+  let lock ask getg (st: BaseComponents (D).t) m =
     let get_m = get_m_with_mutex_inits ask getg m in
     (* Additionally filter get_m in case it contains variables it no longer protects. *)
     let is_in_Gm x _ = is_protected_by ask m x in
@@ -371,7 +376,7 @@ struct
     let meet = long_meet st.cpa get_m in
     if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
     {st with cpa = meet}
-  let unlock ask getg sideg (st: BaseComponents.t) m =
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg (mutex_addr_to_varinfo m) (CPA.filter is_in_Gm st.cpa);
     let cpa' = CPA.fold (fun x v cpa ->
@@ -384,7 +389,7 @@ struct
     in
     {st with cpa = cpa'}
 
-  let sync ask getg (st: BaseComponents.t) reason =
+  let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
       let (cpa', sidegs') = CPA.fold (fun x v ((cpa, sidegs) as acc) ->
@@ -417,14 +422,15 @@ module PerGlobalVesalPriv: S =
 struct
   include OldPrivBase
 
+  module D = CVars
   module G = BaseDomain.VD
 
-  let read_global ask getg (st: BaseComponents.t) x =
+  let read_global ask getg (st: BaseComponents (D).t) x =
     match CPA.find x st.cpa with
     | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
     | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
-  let write_global ask getg sideg (st: BaseComponents.t) x v =
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     (* Here, an effect should be generated, but we add it to the local
      * state, waiting for the sync function to publish it. *)
     (* Copied from MainFunctor.update_variable *)
@@ -444,10 +450,10 @@ struct
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
         match a (Q.MayBePublic {global=v; write=true}) with `MayBool tv -> not tv | _ -> false)
 
-  let sync ask getg (st: BaseComponents.t) reason =
+  let sync ask getg (st: BaseComponents (D).t) reason =
     let privates = sync_privates reason ask in
     (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) ((st: BaseComponents.t),acc) =
+    let add_var (v: varinfo) (value) ((st: BaseComponents (D).t),acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ask v then
@@ -482,6 +488,8 @@ module PerGlobalPriv (Param: PerGlobalPrivParam): S =
 struct
   include NewPrivBase
 
+  module D = CVars
+
   module GUnprot =
   struct
     include VD
@@ -494,7 +502,7 @@ struct
   end
   module G = Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
 
-  let read_global ask getg (st: BaseComponents.t) x =
+  let read_global ask getg (st: BaseComponents (D).t) x =
     if CVars.mem x st.cached then
       CPA.find x st.cpa
     else if is_unprotected ask x then
@@ -504,7 +512,7 @@ struct
     else
       snd (getg x)
 
-  let write_global ask getg sideg (st: BaseComponents.t) x v =
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     if not (is_atomic ask) then
       sideg x (v, VD.bot ());
     if is_unprotected ask x then
@@ -514,9 +522,9 @@ struct
 
   let lock ask getg cpa m = cpa
 
-  let unlock ask getg sideg (st: BaseComponents.t) m =
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
-    CPA.fold (fun x v (st: BaseComponents.t) ->
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_protected_by ask m x then ( (* is_in_Gm *)
           (* Extra precision in implementation to pass tests:
              If global is read-protected by multiple locks,
@@ -533,11 +541,11 @@ struct
           st
       ) st.cpa st
 
-  let sync ask getg (st: BaseComponents.t) reason =
+  let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
       let (st', sidegs) =
-        CPA.fold (fun x v (((st: BaseComponents.t), sidegs) as acc) ->
+        CPA.fold (fun x v (((st: BaseComponents (D).t), sidegs) as acc) ->
             if is_global ask x && is_unprotected ask x then
               ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
             else
@@ -558,7 +566,7 @@ struct
     | `Thread ->
       (st, [])
 
-  let escape ask getg sideg (st: BaseComponents.t) escaped =
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
           sideg x (v, v);
@@ -570,8 +578,8 @@ struct
     in
     {st with cpa = cpa'}
 
-  let enter_multithreaded ask getg sideg (st: BaseComponents.t) =
-    CPA.fold (fun x v (st: BaseComponents.t) ->
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
           sideg x (v, v);
           {st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}
@@ -588,6 +596,8 @@ module MinePrivBase =
 struct
   include MutexGlobals
   let mutex_global x = x (* MutexGlobals.mutex_global not needed here because G is Prod anyway? *)
+
+  module D = Lattice.Unit
 
   module Lock = LockDomain.Addr
   module Lockset =
@@ -616,7 +626,7 @@ struct
 
 
   let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg (st: BaseComponents.t) = st
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
 
   (* ??? *)
   let is_private ask x = true
@@ -651,7 +661,7 @@ struct
     else
       ThreadId.get_current_unlift ask
 
-  let read_global ask getg (st: BaseComponents.t) x =
+  let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     GWeak.fold (fun s' tm acc ->
         if Lockset.disjoint s s' then
@@ -662,7 +672,7 @@ struct
           acc
       ) (fst (getg (mutex_global x))) (CPA.find x st.cpa)
 
-  let write_global ask getg sideg (st: BaseComponents.t) x v =
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let t = current_thread ask in
     let cpa' = CPA.add x v st.cpa in
@@ -670,7 +680,7 @@ struct
       sideg (mutex_global x) (GWeak.add s (ThreadMap.add t v (ThreadMap.bot ())) (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
-  let lock ask getg (st: BaseComponents.t) m =
+  let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
     let cpa' = GSync.fold (fun s' cpa' acc ->
         if Lockset.disjoint s s' then
@@ -681,7 +691,7 @@ struct
     in
     {st with cpa = cpa'}
 
-  let unlock ask getg sideg (st: BaseComponents.t) m =
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = Lockset.remove m (current_lockset ask) in
     let t = current_thread ask in
     let side_cpa = CPA.filter (fun x _ ->
@@ -695,7 +705,7 @@ struct
     sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
     st
 
-  let sync ask getg (st: BaseComponents.t) reason =
+  let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
@@ -730,7 +740,7 @@ struct
   (* sync: M -> (2^M -> (G -> D)) *)
   module G = Lattice.Prod (GWeak) (GSync)
 
-  let read_global ask getg (st: BaseComponents.t) x =
+  let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     GWeak.fold (fun s' v acc ->
         if Lockset.disjoint s s' then
@@ -740,14 +750,14 @@ struct
       ) (fst (getg (mutex_global x))) (CPA.find x st.cpa)
 
   (* TODO: update to match paper changes: W set in Mine *)
-  let write_global ask getg sideg (st: BaseComponents.t) x v =
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
     if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
       sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
-  let lock ask getg (st: BaseComponents.t) m =
+  let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
     let cpa' = GSync.fold (fun s' cpa' acc ->
         if Lockset.disjoint s s' then
@@ -758,7 +768,7 @@ struct
     in
     {st with cpa = cpa'}
 
-  let unlock ask getg sideg (st: BaseComponents.t) m =
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = Lockset.remove m (current_lockset ask) in
     let side_cpa = CPA.filter (fun x _ ->
         GWeak.fold (fun s' v acc ->
@@ -769,7 +779,7 @@ struct
     sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
     st
 
-  let sync ask getg (st: BaseComponents.t) reason =
+  let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
@@ -786,13 +796,14 @@ struct
       (st, [])
 end
 
-module StatsPriv (Priv: S): S =
+module StatsPriv (Priv: S): S with module D = Priv.D =
 struct
+  module D = Priv.D
   module G = Priv.G
 
   let time str f arg = Stats.time "priv" (Stats.time str f) arg
 
-  let read_global ask getg st x = time "read_global" (Priv.read_global ask getg st) x
+  let read_global ask getg (st: BaseComponents (D).t) x = time "read_global" (Priv.read_global ask getg (st :> BaseComponents (Priv.D).t)) x
   let write_global ask getg sideg st x v = time "write_global" (Priv.write_global ask getg sideg st x) v
   let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
   let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m

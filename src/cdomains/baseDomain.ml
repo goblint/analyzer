@@ -100,19 +100,25 @@ struct
   let name () = "definitely cached variables"
 end
 
-module BaseComponents =
+type 'a basecomponents_t = {
+  cpa: CPA.t;
+  deps: PartDeps.t;
+  cached: 'a; (* TODO: rename *)
+} [@@deriving to_yojson]
+
+module BaseComponents (PrivD: Lattice.S):
+sig
+  include Lattice.S with type t = PrivD.t basecomponents_t
+  val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+end =
 struct
-  type t = {
-    cpa: CPA.t;
-    deps: PartDeps.t;
-    cached: CachedVars.t;
-  } [@@deriving to_yojson]
+  type t = PrivD.t basecomponents_t [@@deriving to_yojson]
 
   include Printable.Std
   open Pretty
-  let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + CachedVars.hash r.cached * 33
+  let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + PrivD.hash r.cached * 33
   let equal r1 r2 =
-    CPA.equal r1.cpa r2.cpa && PartDeps.equal r1.deps r2.deps && CachedVars.equal r1.cached r2.cached
+    CPA.equal r1.cpa r2.cpa && PartDeps.equal r1.deps r2.deps && PrivD.equal r1.cached r2.cached
   let compare r1 r2 =
     let comp1 = CPA.compare r1.cpa r2.cpa in
     if comp1 <> 0
@@ -120,13 +126,13 @@ struct
       else let comp2 = PartDeps.compare r1.deps r2.deps in
       if comp2 <> 0
       then comp2
-      else CachedVars.compare r1.cached r2.cached
+      else PrivD.compare r1.cached r2.cached
 
 
   let short w r =
     let first  = CPA.short (w-18) r.cpa in
     let second  = PartDeps.short (w-12- String.length first) r.deps in
-    let third  = CachedVars.short (w-6- String.length first - String.length second) r.cached in
+    let third  = PrivD.short (w-6- String.length first - String.length second) r.cached in
     "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ")"
 
   let pretty_f _ () r =
@@ -135,34 +141,34 @@ struct
     ++ text ", " ++
     PartDeps.pretty () r.deps
     ++ text ", " ++
-    CachedVars.pretty () r.cached
+    PrivD.pretty () r.cached
     ++ text ")"
 
-  let isSimple r  = CPA.isSimple r.cpa && PartDeps.isSimple r.deps && CachedVars.isSimple r.cached
+  let isSimple r  = CPA.isSimple r.cpa && PartDeps.isSimple r.deps && PrivD.isSimple r.cached
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (CPA.name ())) CPA.printXml r.cpa (Goblintutil.escape (PartDeps.name ())) PartDeps.printXml r.deps (Goblintutil.escape (CachedVars.name ())) CachedVars.printXml r.cached
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (CPA.name ())) CPA.printXml r.cpa (Goblintutil.escape (PartDeps.name ())) PartDeps.printXml r.deps (Goblintutil.escape (CachedVars.name ())) PrivD.printXml r.cached
 
   let pretty () x = pretty_f short () x
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ CachedVars.name ()
 
   let invariant c {cpa; deps; cached} =
-    Invariant.(CPA.invariant c cpa && PartDeps.invariant c deps && CachedVars.invariant c cached)
+    Invariant.(CPA.invariant c cpa && PartDeps.invariant c deps && PrivD.invariant c cached)
 
   let of_tuple(cpa, deps, cached):t = {cpa; deps; cached}
   let to_tuple r = (r.cpa, r.deps, r.cached)
 
   let arbitrary () =
-    let tr = QCheck.triple (CPA.arbitrary ()) (PartDeps.arbitrary ()) (CachedVars.arbitrary ()) in
+    let tr = QCheck.triple (CPA.arbitrary ()) (PartDeps.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); cached = CachedVars.bot ()}
-  let is_bot {cpa; deps; cached} = CPA.is_bot cpa && PartDeps.is_bot deps && CachedVars.is_bot cached
-  let top () = {cpa = CPA.top (); deps = PartDeps.top (); cached = CachedVars.bot ()}
-  let is_top {cpa; deps; cached} = CPA.is_top cpa && PartDeps.is_top deps && CachedVars.is_top cached
+  let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); cached = PrivD.bot ()}
+  let is_bot {cpa; deps; cached} = CPA.is_bot cpa && PartDeps.is_bot deps && PrivD.is_bot cached
+  let top () = {cpa = CPA.top (); deps = PartDeps.top (); cached = PrivD.bot ()}
+  let is_top {cpa; deps; cached} = CPA.is_top cpa && PartDeps.is_top deps && PrivD.is_top cached
 
   let leq {cpa=x1; deps=x2; cached=x3 } {cpa=y1; deps=y2; cached=y3} =
-    CPA.leq x1 y1 && PartDeps.leq x2 y2 && CachedVars.leq x3 y3
+    CPA.leq x1 y1 && PartDeps.leq x2 y2 && PrivD.leq x3 y3
 
   let pretty_diff () (({cpa=x1; deps=x2; cached=x3}:t),({cpa=y1; deps=y2; cached=y3}:t)): Pretty.doc =
     if not (CPA.leq x1 y1) then
@@ -170,47 +176,49 @@ struct
     else if not (PartDeps.leq x2 y2) then
       PartDeps.pretty_diff () (x2,y2)
     else
-      CachedVars.pretty_diff () (x3,y3)
+      PrivD.pretty_diff () (x3,y3)
 
   let op_scheme op1 op2 op3 {cpa=x1; deps=x2; cached=x3} {cpa=y1; deps=y2; cached=y3}: t =
     {cpa = op1 x1 y1; deps = op2 x2 y2; cached = op3 x3 y3 }
-  let join = op_scheme CPA.join PartDeps.join CachedVars.join
-  let meet = op_scheme CPA.meet PartDeps.meet CachedVars.meet
-  let widen = op_scheme CPA.widen PartDeps.widen CachedVars.widen
-  let narrow = op_scheme CPA.narrow PartDeps.narrow CachedVars.narrow
+  let join = op_scheme CPA.join PartDeps.join PrivD.join
+  let meet = op_scheme CPA.meet PartDeps.meet PrivD.meet
+  let widen = op_scheme CPA.widen PartDeps.widen PrivD.widen
+  let narrow = op_scheme CPA.narrow PartDeps.narrow PrivD.narrow
 end
 
 module type ExpEvaluator =
 sig
-  val eval_exp: BaseComponents.t  ->  Cil.exp -> IntOps.BigIntOps.t option
+  type t
+  val eval_exp: t  ->  Cil.exp -> IntOps.BigIntOps.t option
 end
 
 (* Takes a module specifying how expressions can be evaluated inside the domain and returns the domain *)
-module DomFunctor(ExpEval:ExpEvaluator) =
+module DomFunctor (PrivD: Lattice.S) (ExpEval: ExpEvaluator with type t = BaseComponents (PrivD).t) =
 struct
-  include BaseComponents
+  include BaseComponents (PrivD)
 
   let (%) = Batteries.(%)
   let eval_exp x = Option.map BI.to_int64 % (ExpEval.eval_exp x)
   let join (one:t) (two:t): t =
     let cpa_join = CPA.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) in
-    op_scheme cpa_join PartDeps.join CachedVars.join one two
+    op_scheme cpa_join PartDeps.join PrivD.join one two
 
   let leq one two =
     let cpa_leq = CPA.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) in
-    cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && CachedVars.leq one.cached two.cached
+    cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && PrivD.leq one.cached two.cached
 
   let widen one two: t =
     let cpa_widen = CPA.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) in
-    op_scheme cpa_widen PartDeps.widen CachedVars.widen one two
+    op_scheme cpa_widen PartDeps.widen PrivD.widen one two
 end
 
 
 (* The domain with an ExpEval that only returns constant values for top-level vars that are definite ints *)
-module DomWithTrivialExpEval = DomFunctor(struct
+module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
   module M = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
 
-  let eval_exp (r:BaseComponents.t) e =
+  type t = BaseComponents (PrivD).t
+  let eval_exp (r: t) e =
     match e with
     | Lval (Var v, NoOffset) ->
       begin

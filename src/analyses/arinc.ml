@@ -32,11 +32,11 @@ module Functions = struct
     else
       match List.last args with
       | AddrOf lv ->
-        Some (fun set ->
+        Some (
             let ret = if GobConfig.get_bool "ana.arinc.assume_success" then ret_success else if List.mem fname with_timeout then ret_any else ret_no_timeout in
             let v = vd ret in
             debug_doc @@ Pretty.dprintf "effect of %s: set %a to %a" fname d_lval lv ValueDomain.Compound.pretty v;
-            set lv v
+            [(lv, v)]
           )
       | _ -> None
 end

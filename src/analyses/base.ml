@@ -27,13 +27,14 @@ module BaseComponents = BaseDomain.BaseComponents
 
 
 
-module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator) =
+module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
 struct
   include Analyses.DefaultSpec
 
   exception Top
 
-  module Dom    = BaseDomain.DomFunctor(RVEval)
+  module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
+  type t = Dom.t
 
   module G      = Priv.G
   module D      = Dom
@@ -48,9 +49,9 @@ struct
   type glob_diff = (V.t * G.t) list
 
   let name () = "base"
-  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = CVars.top ()}
-  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = CVars.top ()}
-  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = CVars.top ()}
+  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = Priv.D.top ()}
+  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = Priv.D.top ()}
+  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); cached = Priv.D.top ()}
 
   (**************************************************************************
    * Helpers
@@ -2113,7 +2114,15 @@ struct
             invalidate ~ctx ctx.ask gs st [mkAddrOrStartOf x]
         in
         (* apply all registered abstract effects from other analysis on the base value domain *)
-        List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
+        LF.effects_for f.vname args
+        |> List.map (fun sets ->
+            List.fold_left (fun acc (lv, x) ->
+                set ~ctx:(Some ctx) ctx.ask ctx.global acc (eval_lv ctx.ask ctx.global acc lv) (Cil.typeOfLval lv) x
+              ) st sets
+          )
+        |> BatList.fold_left D.meet st
+
+        (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
@@ -2193,7 +2202,7 @@ let main_module: (module MainSpec) Lazy.t =
     let module Main =
     struct
       (* Only way to locally define a recursive module. *)
-      module rec Main:MainSpec = MainFunctor (Priv) (Main:BaseDomain.ExpEvaluator)
+      module rec Main:MainSpec with type t = BaseComponents (Priv.D).t = MainFunctor (Priv) (Main)
       include Main
     end
     in
