@@ -435,9 +435,9 @@ struct
      * state, waiting for the sync function to publish it. *)
     (* Copied from MainFunctor.update_variable *)
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-      {st with cpa = CPA.add x (VD.top ()) st.cpa; cached = CVars.add x st.cached}
+      {st with cpa = CPA.add x (VD.top ()) st.cpa; priv = CVars.add x st.priv}
     else
-      {st with cpa = CPA.add x v st.cpa; cached = CVars.add x st.cached}
+      {st with cpa = CPA.add x v st.cpa; priv = CVars.add x st.priv}
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
@@ -460,9 +460,9 @@ struct
           let protected = is_protected ask v in
           if privates && not (is_precious_glob v) || not protected then begin
             if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-            ({ st with cpa = CPA.remove v st.cpa; cached = CVars.remove v st.cached} , (v,value) :: acc)
+            ({ st with cpa = CPA.remove v st.cpa; priv = CVars.remove v st.priv} , (v,value) :: acc)
           end else (* protected == true *)
-            let (st, acc) = if not (CVars.mem v st.cached) then
+            let (st, acc) = if not (CVars.mem v st.priv) then
               let joined = VD.join (CPA.find v st.cpa) (getg v) in
               ( {st with cpa = CPA.add v joined st.cpa} ,acc)
              else (st,acc)
@@ -503,7 +503,7 @@ struct
   module G = Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
 
   let read_global ask getg (st: BaseComponents (D).t) x =
-    if CVars.mem x st.cached then
+    if CVars.mem x st.priv then
       CPA.find x st.cpa
     else if is_unprotected ask x then
       fst (getg x)
@@ -518,7 +518,7 @@ struct
     if is_unprotected ask x then
       st
     else
-      {st with cpa = CPA.add x v st.cpa; cached = CVars.add x st.cached}
+      {st with cpa = CPA.add x v st.cpa; priv = CVars.add x st.priv}
 
   let lock ask getg cpa m = cpa
 
@@ -533,7 +533,7 @@ struct
             sideg x (VD.bot (), v);
 
           if is_unprotected_without ask x m then (* is_in_V' *)
-            {st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}
+            {st with cpa = CPA.remove x st.cpa; priv = CVars.remove x st.priv}
           else
             st
         )
@@ -547,7 +547,7 @@ struct
       let (st', sidegs) =
         CPA.fold (fun x v (((st: BaseComponents (D).t), sidegs) as acc) ->
             if is_global ask x && is_unprotected ask x then
-              ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, (x, (v, VD.bot ())) :: sidegs)
+              ({st with cpa = CPA.remove x st.cpa; priv = CVars.remove x st.priv}, (x, (v, VD.bot ())) :: sidegs)
             else
               acc
           ) st.cpa (st, [])
@@ -557,7 +557,7 @@ struct
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          ({st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}, [(x, (v, VD.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa; priv = CVars.remove x st.priv}, [(x, (v, VD.bot ()))])
         | _ ->
           (st, [])
       end
@@ -582,7 +582,7 @@ struct
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
           sideg x (v, v);
-          {st with cpa = CPA.remove x st.cpa; cached = CVars.remove x st.cached}
+          {st with cpa = CPA.remove x st.cpa; priv = CVars.remove x st.priv}
         )
         else
           st
