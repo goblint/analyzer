@@ -189,16 +189,7 @@ struct
     | _ -> failwith "NewPrivBase.mutex_addr_to_varinfo"
 
   (* let mutex_global x = x *)
-  let mutex_global =
-    let module VH = Hashtbl.Make (Basetype.Variables) in
-    let mutex_globals = VH.create 13 in
-    fun x ->
-      try
-        VH.find mutex_globals x
-      with Not_found ->
-        let mutex_global_x = Goblintutil.create_var @@ makeGlobalVar ("MUTEX_GLOBAL_" ^ x.vname) voidType in
-        VH.replace mutex_globals x mutex_global_x;
-        mutex_global_x
+  let mutex_global = RichVarinfo.Variables.map ~name:(fun x -> "MUTEX_GLOBAL_" ^ x.vname)
   let mutex_global x =
     let r = mutex_global x in
     if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x d_varinfo r;
@@ -213,14 +204,11 @@ struct
   module D = Lattice.Unit
   module G = CPA
 
-  let mutex_inits =
-    lazy (
-      Goblintutil.create_var @@ makeGlobalVar "MUTEX_INITS" voidType
-    )
+  let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
 
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in
-    let get_mutex_inits = getg (Lazy.force mutex_inits) in
+    let get_mutex_inits = getg (mutex_inits ()) in
     let is_in_Gm x _ = is_protected_by ask m x in
     let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
     if M.tracing then M.tracel "priv" "get_m_with_mutex_inits %a:\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits';
@@ -229,7 +217,7 @@ struct
   (** [get_m_with_mutex_inits] optimized for implementation-specialized [read_global]. *)
   let get_mutex_global_x_with_mutex_inits getg x =
     let get_mutex_global_x = getg (mutex_global x) in
-    let get_mutex_inits = getg (Lazy.force mutex_inits) in
+    let get_mutex_inits = getg (mutex_inits ()) in
     match CPA.find_opt x get_mutex_global_x, CPA.find_opt x get_mutex_inits with
       | Some v1, Some v2 -> Some (VD.join v1 v2)
       | Some v, None
@@ -238,7 +226,7 @@ struct
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
-    sideg (Lazy.force mutex_inits) escaped_cpa;
+    sideg (mutex_inits ()) escaped_cpa;
 
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
@@ -254,7 +242,7 @@ struct
 
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
-    sideg (Lazy.force mutex_inits) global_cpa;
+    sideg (mutex_inits ()) global_cpa;
 
     let cpa' = CPA.fold (fun x v acc ->
         if is_global ask x (* && is_unprotected ask x *) then (
@@ -659,12 +647,10 @@ struct
   (* sync: M -> (2^M -> (G -> D)) *)
   module G = Lattice.Prod (GWeak) (GSync)
 
-  let global_init_thread = lazy (
-    Goblintutil.create_var @@ makeGlobalVar "global_init" voidType
-  )
+  let global_init_thread = RichVarinfo.single ~name:"global_init"
   let current_thread (ask: Q.ask): Thread.t =
     if !GU.global_initialization then
-      Lazy.force global_init_thread
+      global_init_thread ()
     else
       ThreadId.get_current_unlift ask
 
