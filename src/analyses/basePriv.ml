@@ -810,7 +810,7 @@ struct
 
   let time str f arg = Stats.time "priv" (Stats.time str f) arg
 
-  let read_global ask getg (st: BaseComponents (D).t) x = time "read_global" (Priv.read_global ask getg (st :> BaseComponents (Priv.D).t)) x
+  let read_global ask getg st x = time "read_global" (Priv.read_global ask getg st) x
   let write_global ask getg sideg st x v = time "write_global" (Priv.write_global ask getg sideg st x) v
   let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
   let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m
