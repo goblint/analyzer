@@ -22,7 +22,6 @@ module BI = IntOps.BigIntOps
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
 module Dep    = BaseDomain.PartDeps
-module CVars  = BaseDomain.CachedVars
 module BaseComponents = BaseDomain.BaseComponents
 
 

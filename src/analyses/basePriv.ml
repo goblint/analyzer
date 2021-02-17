@@ -8,8 +8,15 @@ module IdxDom = ValueDomain.IndexDomain
 
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
-module CVars  = BaseDomain.CachedVars
 module BaseComponents = BaseDomain.BaseComponents
+
+module CachedVars =
+struct
+  module VarSet = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All Variables" end)
+  include VarSet
+  include Lattice.Reverse (VarSet)
+  let name () = "definitely cached variables"
+end
 
 
 module type S =
