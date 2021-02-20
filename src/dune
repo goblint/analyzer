@@ -23,6 +23,7 @@
   (modules goblint mainarinc maindomaintest mainspec)
   (libraries goblint.lib goblint-cil.all-features batteries zarith_stubs_js) ; z3
   (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (flags :standard -linkall)
 )
 
 (rule
