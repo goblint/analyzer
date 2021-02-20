@@ -108,4 +108,4 @@ let nonAssocIntTestsuite =
     nonAssocIntDomains
   |> List.flatten
 let () =
-  QCheck_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
+  QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
