@@ -3,6 +3,20 @@ open Batteries
 let transformation_identifier = "expeval"
 let transformation_query_file_name_identifier = "trans." ^ transformation_identifier ^ ".query_file_name"
 
+type query =
+{
+
+  kind : CodeQuery.kind;
+  target : CodeQuery.target;
+  find : CodeQuery.find;
+  structure : (CodeQuery.structure [@default None_s]);
+  limitation : (CodeQuery.constr [@default None_c]);
+
+  expression : string;
+  mode : [ `Must | `May ];
+
+} [@@deriving yojson]
+
 module ExpEval : Transform.S =
   struct
 
@@ -122,20 +136,6 @@ module ExpEval : Transform.S =
           | Some _ -> raise Exit
 
       end
-
-    type query =
-      {
-
-        kind : CodeQuery.kind;
-        target : CodeQuery.target;
-        find : CodeQuery.find;
-        structure : (CodeQuery.structure [@default None_s]);
-        limitation : (CodeQuery.constr [@default None_c]);
-
-        expression : string;
-        mode : [ `Must | `May ];
-
-      } [@@deriving yojson]
 
     let string_of_location (location : Cil.location) =
       location.file ^ ":" ^ (location.line |> string_of_int) ^ " [" ^ (location.byte |> string_of_int) ^ "]"
