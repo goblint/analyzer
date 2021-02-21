@@ -2,6 +2,7 @@ open Batteries
 
 let transformation_identifier = "expeval"
 let transformation_query_file_name_identifier = "trans." ^ transformation_identifier ^ ".query_file_name"
+let transformation_marshalled_results_file_name_identifier = "trans." ^ transformation_identifier ^ ".marshalled_results_file_name"
 
 type query =
 {
@@ -179,20 +180,24 @@ module ExpEval : Transform.S =
                   |> List.map (fun ls -> List.sort_uniq location_byte_compare ls)
                   (* Ungroup *)
                   |> List.flatten
+                  (* Semantic queries *)
+                  |> List.map (fun l -> (l, evaluator#evaluate l query.expression))
               in
-              (* Semantic queries *)
-              let evaluate location =
-                match evaluator#evaluate location query.expression with
+              let print (loc, res) =
+                match res with
                 | Some value ->
                     if value then
-                      print_endline (location |> string_of_location)
+                      print_endline (loc |> string_of_location)
                     else if is_debug () then
-                      print_endline ((location |> string_of_location) ^ " x")
+                      print_endline ((loc |> string_of_location) ^ " x")
                 | None ->
                     if query.mode = `May || is_debug () then
-                      print_endline ((location |> string_of_location) ^ " ?")
+                      print_endline ((loc |> string_of_location) ^ " ?")
               in
-              List.iter evaluate locations
+              List.iter print locations;
+              let marshalled_results_file_name = GobConfig.get_string transformation_marshalled_results_file_name_identifier in
+              if not (String.is_empty marshalled_results_file_name) then 
+                Serialize.marshal locations marshalled_results_file_name
 
   end
 
