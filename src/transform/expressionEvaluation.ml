@@ -141,8 +141,8 @@ module ExpEval : Transform.S =
     let string_of_location (location : Cil.location) =
       location.file ^ ":" ^ (location.line |> string_of_int) ^ " [" ^ (location.byte |> string_of_int) ^ "]"
 
-    let location_file_compare (location_1 : Cil.location) (location_2 : Cil.location) = compare location_1.file location_2.file
-    let location_byte_compare (location_1 : Cil.location) (location_2 : Cil.location) = compare location_1.byte location_2.byte
+    let file_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.file l'.file
+    let byte_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.byte l'.byte
 
     let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
       (* Parse query file *)
@@ -170,20 +170,18 @@ module ExpEval : Transform.S =
                   lim = query.limitation;
                 }
               in
-              let locations =
+              let results =
                 QueryMapping.map_query query_syntactic file
-                  (* Use only locations *)
-                  |> List.map (fun (_, l, _, _) -> l)
                   (* Group by source files *)
-                  |> List.group location_file_compare
+                  |> List.group file_compare
                   (* Sort and remove duplicates *)
-                  |> List.map (fun ls -> List.sort_uniq location_byte_compare ls)
+                  |> List.map (fun ls -> List.sort_uniq byte_compare ls)
                   (* Ungroup *)
                   |> List.flatten
                   (* Semantic queries *)
-                  |> List.map (fun l -> (l, evaluator#evaluate l query.expression))
+                  |> List.map (fun (n, l, s, i) -> ((n, l, s, i), evaluator#evaluate l query.expression))
               in
-              let print (loc, res) =
+              let print ((_, loc, _, _), res) =
                 match res with
                 | Some value ->
                     if value then
@@ -194,10 +192,10 @@ module ExpEval : Transform.S =
                     if query.mode = `May || is_debug () then
                       print_endline ((loc |> string_of_location) ^ " ?")
               in
-              List.iter print locations;
+              List.iter print results;
               let marshalled_results_file_name = GobConfig.get_string transformation_marshalled_results_file_name_identifier in
               if not (String.is_empty marshalled_results_file_name) then 
-                Serialize.marshal locations marshalled_results_file_name
+                Serialize.marshal results marshalled_results_file_name
 
   end
 
