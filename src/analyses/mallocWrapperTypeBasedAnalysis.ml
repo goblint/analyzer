@@ -8,10 +8,7 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  module F = Lattice.Flat (Basetype.CilType) (struct
-    let top_name = "Unknown Type"
-    let bot_name = "No Type"
-  end)
+  module F = Lattice.Unit
 
   let name () = "mallocWrapperTypeBased"
   module D = F
@@ -21,27 +18,21 @@ struct
   module Q = Queries
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    `Lifted (typeOfLval lval)
+  let assign ctx (lval:lval) (rval:exp) : D.t = ()
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    `Top
+  let branch ctx (exp:exp) (tv:bool) : D.t = ()
 
-  let body ctx (f:fundec) : D.t =
-    `Top
+  let body ctx (f:fundec) : D.t = ()
 
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    `Top
+  let return ctx (exp:exp option) (f:fundec) : D.t = ()
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let calleectx = `Top in
+    let calleectx = () in
     [(ctx.local, calleectx)]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    `Top
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = ()
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    `Top
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ()
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = D.top ()
@@ -94,8 +85,8 @@ struct
         | Some r -> (match ctx.ask (Q.IsMallocAssignment r) with `MustBool true -> true | _ -> false)
       in *)
       if is_malloc_assignment then
-        let ts = (match ctx.local with
-          | `Lifted t -> typeSig t
+        let ts = (match rval with
+          | Some e -> typeSig (typeOf e)
           | _ -> typeSig (TVoid []))
         in
         `Varinfo (`Lifted (get_heap_var ts fn))
