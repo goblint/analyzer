@@ -1,4 +1,4 @@
-//Param: --enable allfuns --enable ana.library  --set ana.activated "['expRelation','base','threadid','threadflag','escape','mutex','mallocWrapperTypeBased']"
+//PARAM: --enable allfuns --enable ana.library  --set ana.activated "['base','mallocWrapperTypeBased']"
 #include <stdlib.h>
 
 int f(int *x){

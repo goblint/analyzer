@@ -1683,7 +1683,7 @@ struct
                                    (eval_lv ctx.ask ctx.global ctx.local lval, Cil.typeOfLval lval,`Address heap_var) ]
       in
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, _) when is_malloc_assignment rval -> handle_malloc_assignment ()
+      | (Var v, _) when GobConfig.get_bool "ana.library" && is_malloc_assignment rval -> handle_malloc_assignment ()
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
         let current_val = eval_rv_keep_bot ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
         (match current_val with
@@ -1861,7 +1861,7 @@ struct
     in
     List.concat (List.map do_exp exps)
 
-  let is_main_call fn args =
+  let is_startfun_call fn args =
     (get_bool "allfuns" || Set.mem fn.vname (mainfuns ())) &&
       List.for_all (fun arg -> MyCFG.unknown_exp = arg) args
 
@@ -1873,10 +1873,7 @@ struct
       List.map (fun (_,snd,_) -> snd) args
     | _ -> failwith "Not a function type"
 
-  (* let arg_value  (heap_var : typ -> ValueDomain.AddrSetDomain.elt list BatMap.Int.t) (t: typ) : VD.t * (address * typ * VD.t) list  =  failwith "replace with VD.arg_value" *)
-
-
-  let heap_v ctx (t:  typ) : Addr.t list BatMap.Int.t =
+  let arg_value ctx (t:  typ) : Addr.t list BatMap.Int.t =
     match ctx.ask (Q.ArgVarTyp t) with
     | `Varinfo (`Lifted v) -> (AD.from_var v)
     | _ -> failwith "Ran without heap analysis"
@@ -1887,7 +1884,7 @@ struct
         let compare (x1,_,y1) (x2,_,y2) = let r = AD.compare x1 x2 in if r <> 0 then r else VD.compare y1 y2 (* TODO: Can we really ignore typ here? *)
       end)
     in
-    let create_val t = VD.arg_value (heap_v ctx) t  in
+    let create_val t = VD.arg_value (arg_value ctx) t  in
     let arg_types = get_arg_types fn in
     let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
     let heap_mem = values |> List.map snd |> List.flatten |> AVSet.of_list |> AVSet.to_list in
@@ -1901,7 +1898,7 @@ struct
     let cpa, dep as st = ctx.local in
     let vals, pa, heap_mem =
       (* if this is a start call, we have to handle the pointer arguments sepcially *)
-      if is_main_call fn args then
+      if GobConfig.get_bool "ana.library" && is_startfun_call fn args then
         heapify_pointers ctx fn ctx.global ctx.local args
       else
         let vals = List.map (eval_rv ctx.ask ctx.global st) args in
@@ -2294,4 +2291,4 @@ module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
 
 let _ =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis (module Main : Spec)
+  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : Spec)
