@@ -61,6 +61,7 @@ type t = EqualSet of exp
        | TheAnswerToLifeUniverseAndEverything
        | IsMallocAssignment of exp
        | HeapVar
+       | ArgVarTyp of typ
        | IsHeapVar of varinfo
 (* [@@deriving to_yojson] *)
 

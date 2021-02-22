@@ -50,6 +50,7 @@ struct
 
   let heap_hash = Hashtbl.create 113
   let heap_vars = Hashtbl.create 113
+  let arg_hash = Hashtbl.create 113
 
   let get_heap_var (ts : typsig) (fn : varinfo) =
     try Hashtbl.find heap_hash (ts, fn)
@@ -61,8 +62,21 @@ struct
       Hashtbl.add heap_vars newvar.vid ();
       newvar
 
+  let get_arg_var (ts : typsig) =
+    try Hashtbl.find arg_hash ts
+    with Not_found ->
+      let tsname = Pretty.sprint ~width:80 (d_typsig () ts) in
+      let name = "(alloc:" ^ tsname ^ ")" in
+      let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
+      Hashtbl.add arg_hash ts newvar;
+      Hashtbl.add heap_vars newvar.vid ();
+      newvar
+
   let query ctx (q:Q.t) : Q.Result.t =
     match q with
+    | Q.ArgVarTyp t ->
+      let ts = typeSig t in
+      `Varinfo (`Lifted (get_arg_var ts))
     | Q.HeapVar ->
       let fn = (MyCFG.getFun ctx.node).svar in
       let rval =

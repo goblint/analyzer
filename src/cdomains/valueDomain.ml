@@ -164,26 +164,23 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
-
-
-
-    let arg_value (heap_var : typ -> AddrSetDomain.elt list BatMap.Int.t) (t: typ) : t * (address * typ * t) list = failwith "unimplemented"
-        (* let rec arg_comp compinfo l r : Structs.t * (address * t) list =
+    let arg_value (heap_var : typ -> AddrSetDomain.elt list BatMap.Int.t) (t: typ) : t * (address * typ * t) list =
+        let rec arg_comp compinfo l r : Structs.t * (address * typ * t) list =
           let nstruct = Structs.top () in
           let arg_field (nstruct, adrs) fd = let (v, adrs) = arg_val  fd.ftype adrs r in
             (Structs.replace nstruct fd v, adrs)
           in
           List.fold_left (arg_field) (nstruct, l) compinfo.cfields
         (* r: whether to recursively create heap values when encountering pointers, needed to terminate on cyclic data structures *)
-        and arg_val t (l: (address * t) list) r = (match t with
-          | TInt _ -> `Int (ID.top ()), l
+        and arg_val t (l: (address * typ * t) list) r = (match t with
+          | TInt _ -> `Int (ID.top_of (Cilfacade.ptrdiff_ikind ())), l
           | TPtr (pointed_to_t, attr) ->
                       let heap_var = heap_var pointed_to_t  in
                       let (tval, l2) = if r then arg_val pointed_to_t l false else top_value pointed_to_t, l in
                       (* TODO: Make the value of the abstract heap object contain the representation of the struct *)
-                      `Address (if (get_bool "exp.malloc-fail")
+                      `Address (if (get_bool "exp.malloc.fail")
                                 then AD.join (heap_var) AD.null_ptr
-                                else heap_var), (heap_var,  `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::l2
+                                else heap_var), (heap_var, pointed_to_t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::l2
           | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l r in `Struct (v), adrs
           | TComp ({cstruct=false; _},_) -> `Union (Unions.top ()), l
           | TArray (ai, None, _) -> let v, adrs = arg_val ai l r in
@@ -194,7 +191,7 @@ struct
             (`Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) v)), adrs
           | TNamed ({ttype=t; _}, _) -> arg_val t l r
           | _ -> `Top, l)
-        in arg_val t [] true *)
+        in arg_val t [] true
 
     let rec zero_init_value (t:typ): t =
       let zero_init_comp compinfo: Structs.t =
