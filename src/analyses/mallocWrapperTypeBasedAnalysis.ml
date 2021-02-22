@@ -79,19 +79,11 @@ struct
             | _ -> None)
           | _ -> None
       in
-      let is_malloc_assignment = true in
-        (* match rval with
-        | None -> false
-        | Some r -> (match ctx.ask (Q.IsMallocAssignment r) with `MustBool true -> true | _ -> false)
-      in *)
-      if is_malloc_assignment then
-        let ts = (match rval with
-          | Some e -> typeSig (typeOf e)
-          | _ -> typeSig (TVoid []))
-        in
-        `Varinfo (`Lifted (get_heap_var ts fn))
-      else
-        `Top
+      let ts = (match rval with
+        | Some e -> typeSig (typeOf e)
+        | _ -> typeSig (TVoid []))
+      in
+      `Varinfo (`Lifted (get_heap_var ts fn))
     | Q.IsHeapVar v ->
       `MayBool (Hashtbl.mem heap_vars v.vid)
     | _ -> `Top
