@@ -5,40 +5,7 @@ open GobConfig
 
 open Json
 
-(* This code was only used by solvers/interactive.ml which is currently broken and commented out anyway. This code causes
-   an issue when using it with Js_of_OCaml, because Unix is not available there. If solvers/interactive.ml is fixed,
-   we need to uncomment this and specify a way to exclude it when compiling with Js_of_OCaml *
-(** command port for eclipse debugger support *)
-let command_port = ref (-1)
-
-(** event port for eclipse debugger support *)
-let event_port = ref (-1)
-
-let command_socket = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
-let event_socket   = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
-let command_in  = ref stdin
-let command_out = ref stdout
-let event_out   = ref stdout
-
-let open_sockets i =
-  event_port := i;
-  ignore (Printf.printf "connecting...");
-  Unix.setsockopt command_socket Unix.SO_REUSEADDR true;
-  Unix.bind command_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, !command_port));
-  Unix.listen command_socket 1;
-  let (client,_) = Unix.accept command_socket in
-  command_in  := Unix.in_channel_of_descr client;
-  command_out := Unix.out_channel_of_descr client;
-  set_binary_mode_in !command_in false;
-  set_binary_mode_out !command_out false;
-  Unix.setsockopt event_socket Unix.SO_REUSEADDR true;
-  Unix.bind event_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, i));
-  Unix.listen event_socket 1;
-  let (client,_) = Unix.accept event_socket in
-  event_out  := Unix.out_channel_of_descr client;
-  set_binary_mode_out !event_out false;
-  ignore (Printf.printf "done.\n")
-*)
+let arg = "top_value"
 
 
 (** Outputs information about what the goblin is doing *)
@@ -56,6 +23,8 @@ let has_otherfuns = ref false
 (** If this is true we output messages and collect accesses.
     This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
 let should_warn = ref false
+
+let did_overflow = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
@@ -108,15 +77,20 @@ let earlyglobs = ref false
 (** true if in verifying stage *)
 let in_verifying_stage = ref false
 
-(* None if verification is disabled, Some true if verification succeeded, Some false if verfication failed *)
+(* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
 
 let escape (x:string):string =
   String.escaped x |>
+  (* Safe to escape all these everywhere in XML: https://stackoverflow.com/a/1091953/854540 *)
   Str.global_replace (Str.regexp "&") "&amp;" |>
   Str.global_replace (Str.regexp "<") "&lt;" |>
   Str.global_replace (Str.regexp ">") "&gt;" |>
-  Str.global_replace (Str.regexp "\"") "&quot;"
+  Str.global_replace (Str.regexp "\"") "&quot;" |>
+  Str.global_replace (Str.regexp "'") "&apos;" |>
+  Str.global_replace (Str.regexp "\x0b") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "\001") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "\x0c") "" (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
 
 
 let trim (x:string): string =
@@ -433,3 +407,7 @@ let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
 let exe_dir = Filename.dirname Sys.executable_name
 let command = String.concat " " (Array.to_list Sys.argv)
+
+let opt_predicate (f : 'a -> bool) = function
+  | Some x -> f x
+  | None -> false

@@ -15,10 +15,8 @@ struct
 
   let pretty = d_exp
   let short w s = sprint w (d_exp () s)
-  let toXML x = Xml.Element ("Leaf", [("text", Goblintutil.escape (short 80 x))], [])
   let isSimple _ = true
   let pretty_f _ = pretty
-  let toXML_f _ = toXML
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let rec interesting x =
@@ -99,24 +97,6 @@ struct
       | _ -> failwith "Unmatched pattern."
     in
     cv e
-
-  let rec is_global_var x =
-    match x with
-    | SizeOf _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | AlignOfE _
-    | UnOp _
-    | BinOp _ -> None
-    | Const _ -> Some false
-    | Lval (Var v,_) -> Some v.vglob
-    | Lval (Mem e,_) -> is_global_var e
-    | CastE (t,e) -> is_global_var e
-    | AddrOf lval -> Some false
-    | StartOf lval -> Some false
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
 
   let rec conv_offs (offs:(fieldinfo,exp) Lval.offs) : offset =
     match offs with
@@ -280,10 +260,8 @@ struct
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
   let short w (x,y,z) = sprint w (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
-  let toXML x = Xml.Element ("Leaf", [("text", Goblintutil.escape (short 80 x))], [])
   let isSimple _ = true
   let pretty_f _ = pretty
-  let toXML_f _ = toXML
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   type ee = EVar of varinfo
@@ -320,7 +298,7 @@ struct
     *)	| EAddr :: EDeref :: x -> ees_to_offs x
     | EDeref :: EAddr :: x -> ees_to_offs x
     | EField f :: x -> `Field (f,ees_to_offs x)
-    | EIndex (Const (CInt64 (i,_,_))) :: x -> `Index (IntDomain.IntDomTuple.of_int i,ees_to_offs x)
+    | EIndex (Const (CInt64 (i, ik, str))) :: x -> `Index (IntDomain.of_const (i, ik, str),ees_to_offs x)
     | EIndex i :: x -> `NoOffset              (* Ideally this would be ValueDomain.IntDomain but that leads to issues *)
     | x  -> raise NotSimpleEnough             (* with a cyclic build *)
 

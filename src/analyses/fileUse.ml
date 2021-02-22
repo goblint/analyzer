@@ -176,7 +176,7 @@ struct
       D.extend_value unclosed_var (mustOpen, mayOpen) m
     ) else m
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^string_of_callstack au; *)
     let m = ctx.local in
     (* pop the last location off the stack *)
@@ -199,7 +199,7 @@ struct
           (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
           D.alias k vvar m
         else (* returned variable was a local *)
-          let v = D.V.set_key k v in (* ajust var-field to lval *)
+          let v = D.V.set_key k v in (* adjust var-field to lval *)
           (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
           D.add' k v m
     | _ -> m
@@ -237,7 +237,7 @@ struct
         let k' = D.key_from_lval lval in
         (* add joined value for that key *)
         let m' = Option.map_default (fun v -> D.add' k' v m) m v in
-        (* check for warnigns *)
+        (* check for warnings *)
         ignore(f k' m' true);
         (* and join the old domain without issuing warnings *)
         List.fold_left (fun m k -> D.join m (f k m false)) m xs
@@ -296,7 +296,8 @@ struct
     | _ -> m
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 end
 

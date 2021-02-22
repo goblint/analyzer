@@ -68,7 +68,7 @@ let option_spec_list =
   in
   let oil file =
     set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "['base','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']";
+    set_auto "ana.activated" "['base','threadid','threadflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag','mallocWrapperTypeBased']";
     set_auto "mainfun" "[]"
   in
   let configure_html () =
@@ -229,7 +229,7 @@ let preprocess_files () =
   if get_bool "custom_libc" then
     cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
 
-  if get_bool "ana.sv-comp" then
+  if get_bool "ana.sv-comp.functions" then
     cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)
@@ -298,7 +298,6 @@ let do_analyze change_info merged_AST =
                                              L.pretty stf L.pretty exf L.pretty otf);
     Goblintutil.has_otherfuns := otf <> [];
     (* and here we run the analysis! *)
-    if get_string "result" = "html" then Report.prepare_html_report ();
 
     let do_all_phases ast funs =
       let do_one_phase ast p =
@@ -418,6 +417,12 @@ let diff_and_rename file =
       | None -> failwith "Failure! Working directory is not clean")
   in change_info
 
+let do_stats () =
+  if get_bool "printstats" then
+    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
+    print_newline ();
+    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
+    flush_all ()
 
 (** the main function *)
 let main =
@@ -426,9 +431,15 @@ let main =
       main_running := true;
       try
         Stats.reset Stats.SoftwareTimer;
-        Cilfacade.init ();
         parse_arguments ();
         check_arguments ();
+
+        (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
+          for overflows, as this will replace potential overflows with constants after wrap-around *)
+        (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
+          set_bool "exp.lower-constants" false);
+        Cilfacade.init ();
+
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
@@ -439,7 +450,7 @@ let main =
         let file = preprocess_files () |> merge_preprocessed in
         let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
         file|> do_analyze changeInfo;
-        Report.do_stats !cFileNames;
+        do_stats ();
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
         if !Messages.worldStopped then exit 124 (* timeout! *)

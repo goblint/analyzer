@@ -2,7 +2,7 @@ module Q     = Queries
 module GU    = Goblintutil
 module Var   = Basetype.Variables
 module Bool  = IntDomain.Booleans
-module Offs  = Lval.Offset (IntDomain.Integers)
+module Offs  = Lval.Offset (IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.OldDomainFacade (IntDomain.Integers))) (IntDomain.PtrDiffIkind))
 module CLval = Lval.CilLval
 
 open Cil
@@ -18,7 +18,6 @@ struct
       | (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
 
     let pretty = pretty_f short
-    let toXML = toXML_f short
   end
 
   include Printable.Either (Var) (AdrPair)
@@ -30,7 +29,6 @@ struct
   let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
 
   let pretty = pretty_f short
-  let toXML  = toXML_f short
 
   let classify = function
     | `Left  v -> 1
@@ -60,7 +58,6 @@ struct
     | x -> short w x
 
   let pretty = pretty_f short
-  let toXML  = toXML_f short
 end
 
 module Rhs =
@@ -69,18 +66,16 @@ struct
     (*  module TR = Printable.Prod3 (Edges) (Edges) (ListPtrSetR)
 
         let short w ((p,n),(e,_)) = TR.short w (p,n,e)
-        let pretty = pretty_f short
-        let toXML_f _ ((p,n),(e,_)) = TR.toXML_f TR.short (p,n,e)
-        let toXML  = toXML_f short*)
+        let pretty = pretty_f short*)
 end
 
 let is_private ask (lp:ListPtr.t) =
   let check v =
-    match ask Queries.SingleThreaded with
-    | `Bot | `Bool true -> true
+    match ask Queries.MustBeSingleThreaded with
+    | `Bot | `MustBool true -> true
     | _ ->
-      match ask (Queries.IsPublic v)  with
-      | `Bot | `Bool false -> true
+      match ask (Queries.MayBePublic v)  with
+      | `Bot | `MayBool false -> true
       | _ -> false
   in
   match lp with

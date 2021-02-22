@@ -70,7 +70,7 @@ let _ = ()
       ; reg Std "cppflags"        "''"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
-      ; reg Std "result"          "'none'"       "Result style: none, indented, compact, fast_xml, json, mongo, or pretty."
+      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, or pretty."
       ; reg Std "warnstyle"       "'pretty'"     "Result style: legacy, pretty, or xml."
       ; reg Std "solver"          "'td3'"         "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
@@ -89,7 +89,7 @@ let _ = ()
 
 (* {4 category [Analyses]} *)
 let _ = ()
-      ; reg Analyses "ana.activated"  "['expRelation','base','escape','mutex']"  "Lists of activated analyses in this phase."
+      ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','escape','mutex', 'mallocWrapperTypeBased']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
@@ -111,6 +111,7 @@ let _ = ()
       ; reg Analyses "ana.osek.safe_isr"   "[]"    "Ignore accesses in these isr"
       ; reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags."
       ; reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure"
+      ; reg Analyses "ana.int.wrap_on_signed_overflow" "false" "Whether to assume wrap-around behavior on signed overflow. If set to true, assumes two's complement representation of signed integers. If set to false, goes to top on signed overflow."
       ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: int64 * int64) option."
       ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
@@ -131,15 +132,20 @@ let _ = ()
       ; reg Analyses "ana.opt.equal"       "true"  "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags)."
       ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
       ; reg Analyses "ana.mutex.disjoint_types" "true" "Do not propagate basic type writes to all struct fields"
-      ; reg Analyses "ana.sv-comp"         "false" "SV-COMP mode"
       ; reg Analyses "ana.library"         "false" "Crude library analysis."
+      ; reg Analyses "ana.sv-comp.enabled" "false" "SV-COMP mode"
+      ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
+      ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
+      ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
 
 (* {4 category [Transformations]} *)
 let _ = ()
       ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
+      ; reg Transformations "trans.expeval.query_file_name" "''" "Path to the JSON file containing an expression evaluation query."
 
 (* {4 category [Experimental]} *)
 let _ = ()
+      ; reg Experimental "exp.lower-constants"   "true"  "Use Cil.lowerConstants to simplify some constant? (assumes wrap-around for signed int)"
       ; reg Experimental "exp.privatization"     "true"  "Use privatization?"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
@@ -152,7 +158,8 @@ let _ = ()
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
       ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
       ; reg Experimental "exp.no-interval32-context" "false" "Ignore integer values of the Interval32 domain in function contexts."
-      ; reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails."
+      ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc or calloc fails."
+      ; reg Experimental "exp.malloc.wrappers"   "['kmalloc','__kmalloc','usb_alloc_urb','__builtin_alloca','kzalloc']"  "Loads a list of known malloc wrapper functions." (* When something new that maps to malloc or calloc is added to libraryFunctions.ml, it should also be added here.*)
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
       ; reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
       ; reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
@@ -161,7 +168,6 @@ let _ = ()
       ; reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
       ; reg Experimental "exp.g2html_path"       "'.'"   "Location of the g2html.jar file."
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
-      ; reg Experimental "exp.ignored_threads"   "[]"    "Eliminate accesses in these threads"
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Method depends on exp.full-context - costly if true."
@@ -170,11 +176,16 @@ let _ = ()
       ; reg Experimental "exp.solver.td3.space" "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Needed for inspecting output!"
-      ; reg Experimental "exp.fast_global_inits" "false" "Only generate 'a[0] = 0' for a zero-initialized array a[n]. This is only sound for our flat array domain! TODO change this once we use others!"
+      ; reg Experimental "exp.fast_global_inits" "true" "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n]."
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null."
       ; reg Experimental "exp.ptr-arith-safe"    "false" "Assume that pointer arithmetic only yields safe addresses."
-      ; reg Experimental "exp.minwitness"        "false" "Try to minimize the witness"
-      ; reg Experimental "exp.uncilwitness"      "false" "Try to undo CIL control flow transformations in witness"
+      ; reg Experimental "exp.witness.path" "'witness.graphml'" "Witness output path"
+      ; reg Experimental "exp.witness.id" "'node'" "Which witness node IDs to use? node/enumerate"
+      ; reg Experimental "exp.witness.invariant.nodes" "'all'" "Which witness nodes to add invariants to? all/loop_heads/none"
+      ; reg Experimental "exp.witness.minimize"        "false" "Try to minimize the witness"
+      ; reg Experimental "exp.witness.uncil"      "false" "Try to undo CIL control flow transformations in witness"
+      ; reg Experimental "exp.witness.stack"      "true" "Construct stacktrace-based witness nodes"
+      ; reg Experimental "exp.architecture"      "'64bit'" "Architecture for analysis, currently for witness"
       ; reg Experimental "exp.partition-arrays.enabled"  "false" "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well."
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
@@ -203,6 +214,7 @@ let _ = ()
       ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
+      ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
 
 let default_schema = "\
 { 'id'              : 'root'

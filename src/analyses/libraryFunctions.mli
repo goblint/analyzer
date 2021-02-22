@@ -4,12 +4,12 @@ open Prelude.Ana
 
 type categories = [
   | `Malloc       of exp
-  | `Calloc       of exp
+  | `Calloc       of exp * exp
   | `Realloc      of exp * exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool (* try? * write? *)
   | `Unlock
-  | `ThreadCreate of exp * exp
+  | `ThreadCreate of exp * exp * exp
   | `ThreadJoin   of exp * exp
   | `Unknown      of string ]
 
@@ -36,8 +36,8 @@ val get_threadsafe_inv_ac : string -> (action -> exp list -> exp list) option
 
 val add_lib_funs : string list -> unit
 (* can't use Base.Main.store b/c of circular build - this is painful... *)
-val add_effects : (string -> Cil.exp list -> ((Cil.lval -> ValueDomain.Compound.t -> BaseDomain.CPA.t * BaseDomain.Flag.t * BaseDomain.PartDeps.t) -> BaseDomain.CPA.t * BaseDomain.Flag.t * BaseDomain.PartDeps.t) option) -> unit
-val effects_for : string -> Cil.exp list -> ((Cil.lval -> ValueDomain.Compound.t -> BaseDomain.CPA.t * BaseDomain.Flag.t * BaseDomain.PartDeps.t) -> BaseDomain.CPA.t * BaseDomain.Flag.t * BaseDomain.PartDeps.t) list
+val add_effects : (string -> Cil.exp list -> ((Cil.lval -> ValueDomain.Compound.t -> BaseDomain.CPA.t * BaseDomain.PartDeps.t) -> BaseDomain.CPA.t * BaseDomain.PartDeps.t) option) -> unit
+val effects_for : string -> Cil.exp list -> ((Cil.lval -> ValueDomain.Compound.t -> BaseDomain.CPA.t * BaseDomain.PartDeps.t) -> BaseDomain.CPA.t * BaseDomain.PartDeps.t) list
 
 val use_special : string -> bool
 (** This is for when we need to use special transfer function on functions calls that have definitions.

@@ -123,14 +123,15 @@ struct
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
 
   let startstate v = D.top ()
-  let otherstate v = D.top ()
+  let threadenter ctx lval f args = D.top ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 end
 

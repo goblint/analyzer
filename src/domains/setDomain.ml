@@ -112,15 +112,6 @@ struct
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    if cardinal x<2 && for_all Base.isSimple x then
-      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-    else
-      let elems = List.map Base.toXML (elements x) in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let equal x y =
@@ -144,6 +135,8 @@ struct
     BatPrintf.fprintf f "<value>\n<set>\n";
     iter (Base.printXml f) xs;
     BatPrintf.fprintf f "</set>\n</value>\n"
+
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (Base.arbitrary ())
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base
@@ -320,13 +313,7 @@ struct
     | All -> true
     | Set t -> S.isSimple t
 
-  let toXML_f _ x =
-    match x with
-    | All -> Xml.Element ("Leaf", [("text", N.topname)], [])
-    | Set t -> S.toXML t
-
   let pretty () x = pretty_f short () x
-  let toXML x = toXML_f short x
 
 
   (* Lattice implementation *)
@@ -355,34 +342,19 @@ struct
   let invariant c = function
     | All -> Invariant.none
     | Set s -> S.invariant c s
-end
 
-(* superseded by Hoare *)
-(*
-module MacroSet (B: Lattice.S) (N: ToppedSetNames)=
-struct
-  include ToppedSet (B) (N)
-
-  let leq x y =
-    match x, y with
-    | Set x, Set y -> S.for_all (fun x -> S.exists (B.leq x) y) x
-    | _, All -> true
-    | All, _ -> false
-
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    match x,y with
-    | Set x, Set y -> S.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let meet x y =
-    let f y r =
-      (* assume that only one  *)
-      let yay, nay = partition (fun x -> B.leq x y) x in
-      if is_empty yay then r else add (fold B.join yay (B.bot ())) r
+  let arbitrary () =
+    let set x = Set x in
+    let open QCheck.Iter in
+    let shrink = function
+      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
+      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
-    if is_top y then y else if is_top x then x else fold f y (empty ())
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map set (S.arbitrary ());
+      1, QCheck.always All
+    ] (* S TODO: decide frequencies *)
 end
-*)
 
 (* This one just removes the extra "{" notation and also by always returning
  * false for the isSimple, the answer looks better, but this is essentially a
@@ -546,12 +518,6 @@ struct
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    let elems = List.map E.toXML (elements x) in
-    Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-
-  let toXML s  = toXML_f short s
   let pretty_f _ () x =
     let content = List.map (E.pretty ()) (elements x) in
     let rec separate x =
@@ -621,6 +587,7 @@ struct
   let inter = product_bot B.meet
   let meet = inter
   let subset = leq
+  let map' = map (* HACK: for PathSensitive morphstate *)
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
   let split x a = failwith "Hoare: unsupported split"
@@ -630,4 +597,17 @@ struct
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce
   let is_element e s = cardinal s = 1 && choose s = e
+
+  (* Copied from ToppedSet *)
+  let arbitrary () =
+    let set x = reduce (Set x) in (* added reduce here to satisfy implicit invariant *)
+    let open QCheck.Iter in
+    let shrink = function
+      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
+      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map set (S.arbitrary ());
+      1, QCheck.always All
+    ] (* S TODO: decide frequencies *)
 end

@@ -101,7 +101,7 @@ struct
          Multiple forwarding wildcards are not allowed, i.e. new_a must be None, otherwise we end up in a loop. *)
       if SC.is_wildcard c && fwd && new_a=None then Some (m,fwd,Some (b,a),old_key) (* replace b with a in the following checks *)
       else
-        (* save origninal start state of the constraint (needed to detect reflexive edges) *)
+        (* save original start state of the constraint (needed to detect reflexive edges) *)
         let old_a = a in
         (* Assume new_a  *)
         let a = match new_a with
@@ -220,11 +220,14 @@ struct
     | `Interval x -> "`Interval"
     | `IntSet x -> "`IntSet"
     | `Str x -> "`Str"
-    | `Bool x -> "`Bool"
     | `LvalSet x -> "`LvalSet"
     | `ExprSet x -> "`ExprSet"
     | `ExpTriples x -> "`ExpTriples"
     | `TypeSet x -> "`TypeSet"
+    | `Varinfo x -> "`Varinfo"
+    | `MustBool x -> "`MustBool"
+    | `MayBool x -> "`MayBool"
+    | `PartAccessResult x -> "`PartAccessResult"
     | `Bot -> "`Bot"
 
 
@@ -307,7 +310,6 @@ struct
        (match Queries.ID.to_bool i with
         | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
         | _ -> M.debug_each "EvalInt: `Int no bool")
-     | `Bool b -> M.debug_each "EvalInt: `Bool"
      | x -> M.debug_each @@ "OTHER RESULT: "^dump_query_result x
     );
     let check a b tv =
@@ -443,7 +445,7 @@ struct
         D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
       else ctx.local in [m, m]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^D.string_of_callstack au; *)
     let au = D.edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
@@ -509,7 +511,8 @@ struct
 
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 end
 

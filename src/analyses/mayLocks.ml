@@ -18,13 +18,13 @@ struct
   let body ctx (f:fundec) : D.t = ctx.local
   let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = au
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+    | `Index (Const (CInt64 (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -69,7 +69,8 @@ struct
     | _ -> ctx.local
 
   let startstate v = D.empty ()
-  let otherstate v = D.empty ()
+  let threadenter ctx lval f args = D.empty ()
+  let threadspawn ctx lval f args fctx = D.empty ()
   let exitstate  v = D.top ()
 end
 

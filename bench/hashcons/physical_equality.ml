@@ -2,7 +2,7 @@
 
 open Batteries;;
 
-(* Q: When do we lose pyhsical equality? *)
+(* Q: When do we lose physical equality? *)
 Set.empty =  Set.empty;;
 (* - : bool = true *)
 Set.empty == Set.empty;;

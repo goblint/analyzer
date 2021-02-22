@@ -133,7 +133,7 @@ struct
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     (* combine caller's state with globals from callee *)
     (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
     (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)
@@ -143,7 +143,8 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let otherstate v = D.bot ()
+  let threadenter ctx lval f args = D.bot ()
+  let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.bot ()
 end
 

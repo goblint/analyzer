@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'region'" 
+// PARAM: --set ana.activated[+] "'region'"
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -13,21 +13,21 @@ void init (struct s *p, int x) {
  // p -> next = NULL;
 }
 
-// pthread_mutex_t A_mutex = PTHREAD_MUTEX_INITIALIZER;
-// pthread_mutex_t B_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t A_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t B_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// void *t_fun(void *arg) {
-//   struct s *p = malloc(sizeof(struct s));
-//   struct s *t;
-//   init(p,7);
-  
-//   pthread_mutex_lock(&B_mutex);
-//   t = A->next;
-//   A->next = p; // RACE!
-//   p->next = t;
-//   pthread_mutex_unlock(&B_mutex);
-//   return NULL;
-// }
+void *t_fun(void *arg) {
+  struct s *p = malloc(sizeof(struct s));
+  struct s *t;
+  init(p,7);
+
+  pthread_mutex_lock(&B_mutex);
+  t = A->next;
+  A->next = p; // RACE!
+  p->next = t;
+  pthread_mutex_unlock(&B_mutex);
+  return NULL;
+}
 
 int main () {
   pthread_t t1;
@@ -38,11 +38,10 @@ int main () {
   // init(A,3);
   // A->next = p;
 
-  // pthread_create(&t1, NULL, t_fun, NULL);
-  
-  // pthread_mutex_lock(&A_mutex);
-  // p = A->next; // RACE
-  // printf("%d\n", p->datum);
-  // pthread_mutex_unlock(&A_mutex);
-  return 0;
+  pthread_create(&t1, NULL, t_fun, NULL);
+
+  pthread_mutex_lock(&A_mutex);
+  p = A->next; // RACE!
+  printf("%d\n", p->datum);
+  pthread_mutex_unlock(&A_mutex);
 }

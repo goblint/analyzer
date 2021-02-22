@@ -22,12 +22,11 @@ int main() {
   y = malloc(sizeof(int));
 
   pthread_create(&id, NULL, t_fun, NULL);
-  
+
   pthread_mutex_lock(&m);
   printf("%d\n",*x); // RACE
   pthread_mutex_unlock(&m);
   printf("%d\n",*x); // RACE
-  
+
   return 0;
 }
-

@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'" 
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"
 #include <stdio.h>
 
 extern short * anShortPlease();
@@ -38,7 +38,7 @@ extern void f(int *);
 extern struct s ** get_s();
 
 int t17(){
-	int i = i % 6;
+	int i = i % 6; // WTF?
 	struct s ss[6], *ps;
 
 	ps = &ss[i];
@@ -54,9 +54,9 @@ int t16(){
 	int i;
 	struct t tt, *pt, tt2;
 	struct s ss,ss2;
-
+	// UB: deref uninit ptr pt
 	pt->ss->i = i;
-	assert(pt->ss->i == i);
+	assert(pt->ss->i == i); // UNKNOWN?
 
 	tt = tt2;
 	assert(pt->ss->i == i); // UNKNOWN
@@ -71,9 +71,9 @@ int t15(){
 
 //	pt = &tt;
 	tt.ss = &ss;
-
+	// UB: deref uninit ptr pt
 	pt->ss->i = i;
-	assert(pt->ss->i == i);
+	assert(pt->ss->i == i); // UNKNOWN?
 
 	ss = ss2;
 	assert(pt->ss->i == i); // UNKNOWN
@@ -88,9 +88,9 @@ int t14(){
 
 //	pt = &tt;
 //	tt.ss = &ss;
-
+	// UB: deref uninit ptr pt
 	pt->ss->i = i;
-	assert(pt->ss->i == i);
+	assert(pt->ss->i == i); // UNKNOWN?
 	ss.i = 1;
 	assert(pt->ss->i == i); // UNKNOWN
 

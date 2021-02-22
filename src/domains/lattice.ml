@@ -107,6 +107,8 @@ struct
   let pretty_diff () (x,y) =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml = Base.printXml
+
+  let arbitrary = Base.arbitrary
 end
 
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)

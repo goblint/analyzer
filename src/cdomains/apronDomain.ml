@@ -75,8 +75,6 @@ struct
     A.print Legacy.Format.str_formatter x;
     Legacy.Format.flush_str_formatter ()
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
-  let toXML_f s (x:t) = Xml.Element ("Leaf",["text", "APRON:"^Goblintutil.escape (s 90 x)],[])
-  let toXML = toXML_f short
   let pretty_f s () (x:t) = text (s 10 x)
   let pretty = pretty_f short
   let pretty_diff () (x,y) = text "pretty_diff"

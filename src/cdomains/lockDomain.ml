@@ -42,8 +42,6 @@ struct
       else
         "read lock " ^ addr_str
 
-    let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
-    let toXML m = toXML_f short m
     let pretty_f sf () x = text (sf max_int x)
     let pretty = pretty_f short
   end
@@ -54,15 +52,6 @@ struct
   module AddrSet = Lattice.Reverse (ReverseAddrSet)
 
   include AddrSet
-
-  let toXML_f sf x =
-    match toXML x with
-    | Xml.Element (node, [text, _], elems) ->
-      let summary = "Lock Set: " ^ sf Goblintutil.summary_length x in
-      Xml.Element (node, [text, summary], elems)
-    | x -> x
-
-  let toXML s  = toXML_f short s
 
   let rec may_be_same_offset of1 of2 =
     match of1, of2 with
@@ -111,15 +100,6 @@ struct
   let meet = Lockset.join
   let top = Lockset.bot
   let bot = Lockset.top
-
-  let toXML_f sf x =
-    match toXML x with
-    | Xml.Element (node, [text, _], elems) ->
-      let summary = "May-Lock Set: " ^ sf Goblintutil.summary_length x in
-      Xml.Element (node, [text, summary], elems)
-    | x -> x
-
-  let toXML s  = toXML_f short s
 end
 
 module Symbolic =
@@ -127,12 +107,6 @@ struct
   module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
 
-  let toXML_f sf x =
-    match toXML x with
-    | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Symbolic Locks"], elems)
-    | x -> x
-
-  let toXML s  = toXML_f short s
   let empty = S.empty
   let is_empty = S.is_empty
 

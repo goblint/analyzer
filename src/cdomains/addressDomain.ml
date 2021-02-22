@@ -1,6 +1,7 @@
 open Cil
 open Pretty
-
+open Goblintutil
+open IntOps
 let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
@@ -19,7 +20,7 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Idx: IntDomain.S) =
+module AddressSet (Idx: IntDomain.Z) =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
 
@@ -42,12 +43,12 @@ struct
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
   let has_unknown x  = mem Addr.UnknownPtr x
 
-  let of_int (type a) (module ID : IntDomain.S with type t = a) i =
+  let of_int (type a) (module ID : IntDomain.Z with type t = a) i =
     match ID.to_int i with
-    | Some 0L -> null_ptr
-    | Some 1L -> not_null
+    | x when opt_predicate BigIntOps.(equal (zero)) x -> null_ptr
+    | x when opt_predicate BigIntOps.(equal (one)) x -> not_null
     | _ -> match ID.to_excl_list i with
-      | Some xs when List.mem 0L xs -> not_null
+      | Some xs when List.exists BigIntOps.(equal (zero)) xs -> not_null
       | _ -> top_ptr
 
   let get_type xs =
@@ -95,14 +96,6 @@ struct
       Printable.get_short_list "{" "}" usable_length all_elems
     with SetDomain.Unsupported _ -> short w x
 
-  let toXML_f sf x =
-    try
-      let esc = Goblintutil.escape in
-      let elems = List.map Addr.toXML (elements x) in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-    with SetDomain.Unsupported _ -> toXML_f sf x
-
-  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   (*
@@ -136,4 +129,52 @@ struct
 
   let meet x y   = merge join meet x y
   let narrow x y = merge widen narrow x y
+
+  let invariant c x =
+    let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+    let i_opt = fold (fun addr acc_opt ->
+        BatOption.bind acc_opt (fun acc ->
+            match addr with
+            | Addr.UnknownPtr
+            | Addr.SafePtr ->
+              None
+            | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+              let rec offs_to_offset = function
+                | `NoOffset -> NoOffset
+                | `Field (f, offs) -> Field (f, offs_to_offset offs)
+                | `Index (i, offs) ->
+                  (* Addr.Offs.is_definite implies Idx.is_int *)
+                  let i_definite = BatOption.get (Idx.to_int i) in
+                  let i_exp = Cil.(kinteger64 ILongLong (BigIntOps.to_int64 i_definite)) in
+                  Index (i_exp, offs_to_offset offs)
+              in
+              let offset = offs_to_offset offs in
+
+              let i =
+                if not (InvariantCil.var_is_heap vi) then
+                  let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                else
+                  Invariant.none
+              in
+              let i_deref =
+                c.Invariant.deref_invariant vi offset (Mem c_exp, NoOffset)
+              in
+
+              Some (Invariant.(acc || (i && i_deref)))
+            | Addr.NullPtr ->
+              let i =
+                let addr_exp = integer 0 in
+                Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+              in
+              Some (Invariant.(acc || i))
+            (* TODO: handle Addr.StrPtr? *)
+            | _ ->
+              None
+          )
+      ) x (Some Invariant.none)
+    in
+    match i_opt with
+    | Some i -> i
+    | None -> Invariant.none
 end

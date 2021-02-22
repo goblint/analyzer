@@ -24,11 +24,11 @@ int main() {
   z = y;
 
   pthread_create(&id, NULL, t_fun, NULL);
-  
+
   pthread_mutex_lock(&m);
   printf("%d\n",*x); // RACE
   pthread_mutex_unlock(&m);
-  printf("%d\n",*z); // RACE
-  
+  printf("%d\n",*z); // RACE!
+
   return 0;
 }
