@@ -1897,8 +1897,8 @@ struct
   let make_entry ctx fn args: D.t =
     let cpa, dep as st = ctx.local in
     let vals, pa, heap_mem =
-      (* if this is a start call, we have to handle the pointer arguments sepcially *)
-      if GobConfig.get_bool "ana.library" && is_startfun_call fn args then
+      (* if we perform a (modular) library analysis, we create special arguments values *)
+      if GobConfig.get_bool "ana.library" then
         heapify_pointers ctx fn ctx.global ctx.local args
       else
         let vals = List.map (eval_rv ctx.ask ctx.global st) args in
@@ -1919,10 +1919,8 @@ struct
     new_cpa, dep
 
   let enter ctx lval fn args : (D.t * D.t) list =
-    (* make_entry has special treatment args that are equal to MyCFG.unknown_exp *)
+    (* make_entry has special treatment for args that are equal to MyCFG.unknown_exp *)
     [ctx.local, make_entry ctx fn args]
-
-
 
   let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
     let create_thread lval arg v =
@@ -2215,6 +2213,12 @@ struct
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
+    let map_back return_val args =
+      (* find args that return_val might refer to *)
+
+      (* create abstract value that replaces return value, with the set of values that the "actual" arguments might have *)
+      args (* dummy body *)
+    in
     let combine_one (loc,ldep as st: D.t) ((fun_st,fun_dep) as fun_d: D.t) =
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
@@ -2228,11 +2232,17 @@ struct
         (new_cpa, dep_s)
       in
       let return_var = return_var () in
-      let return_val =
+      let return_val = if GobConfig.get_bool "ana.library" then (
+        (* TODO: Check whether argument memory block has been returned. *)
+        (* TODO: only take those values that are indicated by the "type" of the argument memory block *)
+        let vals = List.map (fun a -> match a with `Address a -> a | _ -> failwith "huh?") (List.filter (fun a -> match a with `Address _ -> true | _ -> false) (List.map (eval_rv ctx.ask ctx.global ctx.local) args)) in
+        `Address (List.fold_left AD.join (AD.bot ()) vals);
+      ) else (
         if CPA.mem (return_varinfo ()) fun_st
         then get ctx.ask ctx.global fun_d return_var None
-        else VD.top ()
+        else VD.top ())
       in
+
       let st = add_globals (fun_st, fun_dep) st in
       match lval with
       | None      -> st
