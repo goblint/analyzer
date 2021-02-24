@@ -1006,7 +1006,7 @@ struct
         | CastE (t, e) -> is_malloc_pointer e
         | e -> is_malloc_pointer e
       in
-      `MustBool (is_malloc_pointer rval)
+      `MustBool (is_malloc_assignment rval)
     | _ -> Q.Result.top ()
 
   let update_variable variable value state =
