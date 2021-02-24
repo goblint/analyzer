@@ -388,7 +388,7 @@ let diff_and_rename current_file =
         (changes, Some old_file, version_map, max_ids)
       end else begin
         let (version_map, max_ids) = VersionLookup.create_map current_file in
-        (CompareAST.empty_change_info (), None, version_map, max_ids)
+        (CompareCFG.empty_change_info (), None, version_map, max_ids)
       end
     in
     let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")

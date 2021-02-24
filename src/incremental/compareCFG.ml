@@ -1,7 +1,29 @@
 open MyCFG
 open Queue
 open Cil
-open CompareAST
+include CompareAST
+
+type nodes_diff = {
+  unchangedNodes: (node * node) list;
+  primChangedNodes: node list;
+  changedNodes: node list;
+}
+
+type changed_global = {
+  old: global;
+  current: global;
+  unchangedHeader: bool;
+  diff: nodes_diff option
+}
+
+type change_info = {
+  mutable changed: changed_global list;
+  mutable unchanged: global list;
+  mutable removed: global list;
+  mutable added: global list
+}
+
+let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
 module StdS = Set.Make (
   struct
@@ -17,7 +39,19 @@ module DiffS = Set.Make (
   end
 )
 
-let waitingList : (node * node) t = Queue.create ()
+module NodeSet = Set.Make (
+    struct
+      let compare = compare
+      type t = node
+    end
+)
+
+module NodeNodeSet = Set.Make (
+    struct
+      let compare = compare
+      type t = node * node
+    end
+)
 
 (* in contrast to the original eq_varinfo in CompareAST, this method also ignores location, vid, vreferenced, vdescr, vdescrpure, vinline, vaddrof *)
 let eq_varinfo' (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b.vtype && eq_list eq_attribute a.vattr b.vattr &&
@@ -61,7 +95,7 @@ let eq_stmtkind' ((a, af): stmtkind * fundec) ((b, bf): stmtkind * fundec) =
 
 let eq_stmt' ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
   (* catch Invalid Argument exception which is thrown by List.combine if the label lists are of different length *)
-  try List.for_all (fun (x,y) -> CompareAST.eq_label x y) (List.combine a.labels b.labels)
+  try List.for_all (fun (x,y) -> eq_label x y) (List.combine a.labels b.labels)
     && eq_stmtkind' (a.skind, af) (b.skind, bf)
   with Invalid_argument _ -> false
 
@@ -73,14 +107,14 @@ let eq_node (x, fun1) (y, fun2) =
   | _ -> false
 
 let eq_edge x y = match x, y with
-  | Assign (lv1, rv1), Assign (lv2, rv2) -> CompareAST.eq_lval lv1 lv2 && CompareAST.eq_exp rv1 rv2
-  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> CompareAST.eq_exp f1 f2 && CompareAST.eq_list CompareAST.eq_exp ars1 ars2
+  | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 && eq_exp rv1 rv2
+  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 && eq_list eq_exp ars1 ars2
   | Proc (Some r1,f1,ars1), Proc (Some r2,f2,ars2) ->
-      CompareAST.eq_lval r1 r2 && CompareAST.eq_exp f1 f2 && CompareAST.eq_list CompareAST.eq_exp ars1 ars2
+      eq_lval r1 r2 && eq_exp f1 f2 && eq_list eq_exp ars1 ars2
   | Entry f1, Entry f2 -> eq_varinfo' f1.svar f2.svar
   | Ret (None,fd1), Ret (None,fd2) -> eq_varinfo' fd1.svar fd2.svar
-  | Ret (Some r1,fd1), Ret (Some r2,fd2) -> CompareAST.eq_exp r1 r2 && eq_varinfo' fd1.svar fd2.svar
-  | Test (p1,b1), Test (p2,b2) -> CompareAST.eq_exp p1 p2 && b1 = b2
+  | Ret (Some r1,fd1), Ret (Some r2,fd2) -> eq_exp r1 r2 && eq_varinfo' fd1.svar fd2.svar
+  | Test (p1,b1), Test (p2,b2) -> eq_exp p1 p2 && b1 = b2
   | ASM _, ASM _ -> false
   | Skip, Skip -> true
   | VDecl v1, VDecl v2 -> eq_varinfo' v1 v2
@@ -93,7 +127,9 @@ let eq_edge_list xs ys = eq_list eq_edge xs ys
 
 let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
 
-let compare (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
+let waitingList : (node * node) t = Queue.create ()
+
+let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
     let rec compareNext (stdSet, diffSet) =
       if Queue.is_empty waitingList then (stdSet, diffSet)
       else
@@ -134,19 +170,90 @@ let compare (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
     let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
   Queue.push (entryNode1,entryNode2) waitingList; (compareNext initSets)
 
-let reexamine f stdSet diffSet (module Cfg2 : CfgForward) =
-  let module NodeSet = Set.Make(Node) in
+let reexamine f1 f2 stdSet diffSet (module Cfg2 : CfgForward) =
   let diffNodes = DiffS.fold (fun (_, _, n) acc -> NodeSet.add n acc) diffSet NodeSet.empty in
-  let sameNodes = let fromStdSet = StdS.fold (fun (_, _, (_, n)) acc -> NodeSet.add n acc) stdSet NodeSet.empty in
-    let notInDiff = NodeSet.diff fromStdSet diffNodes in
-    NodeSet.add (FunctionEntry f) notInDiff in
-  let rec dfs node (vis, sameNodes, diffNodes) =
-    let classify k (vis, same, diff) = if NodeSet.mem k vis then (vis, same, diff)
-      else let ext_vis = NodeSet.add k vis in if NodeSet.mem k diff then (ext_vis, same, diff)
-      else if NodeSet.mem k same then (ext_vis, NodeSet.remove k same, NodeSet.add k diff)
-      else dfs k (ext_vis, same, diff) in
+  let sameNodes = let fromStdSet = StdS.fold (fun (_, _, (n1, n2)) acc -> NodeNodeSet.add (n1,n2) acc) stdSet NodeNodeSet.empty in
+    let notInDiff = NodeNodeSet.filter (fun (n1,n2) -> not (NodeSet.mem n2 diffNodes)) fromStdSet in
+    NodeNodeSet.add (FunctionEntry f1, FunctionEntry f2) notInDiff in
+  let rec dfs node (sameNodes, primDiffNodes, diffNodes) =
+    let classify k (same, primDiff, diff) = match k with
+      | Function d -> (same, primDiff, diff) (* leave out regular back-edge from return statement to function node  *)
+      | _ -> if NodeSet.mem k primDiff || NodeSet.mem k diff then (same, primDiff, diff)
+        else if NodeNodeSet.exists (fun (_,n) -> Node.equal n k) same then (NodeNodeSet.filter (fun (_,n) -> not (Node.equal n k)) same, NodeSet.add k primDiff, NodeSet.add k diff)
+        else dfs k (same, primDiff, NodeSet.add k diff) in
     let succ = List.map (fun (_, n) -> n) (Cfg2.next node) in
-    List.fold_right classify succ (vis, sameNodes, diffNodes) in
+    List.fold_right classify succ (sameNodes, primDiffNodes, diffNodes) in
+  NodeSet.fold dfs diffNodes (sameNodes, diffNodes, diffNodes)
 
-  let (_, rectSame, rectDiff) = NodeSet.fold dfs diffNodes (NodeSet.empty, sameNodes, diffNodes) in
-  rectSame, rectDiff
+let compareFun (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
+  let stdSet, diffSet = compareCfgs (module Cfg1) (module Cfg2) fun1 fun2 in
+  let matches, primDiff, diff = reexamine fun1 fun2 stdSet diffSet (module Cfg2) in
+  let unchanged, primChanged, changed = NodeNodeSet.elements matches, NodeSet.elements primDiff, NodeSet.elements diff in
+  unchanged, primChanged, changed
+
+let eqF' (a: Cil.fundec) (module Cfg1 : MyCFG.CfgForward) (b: Cil.fundec) (module Cfg2 : MyCFG.CfgForward) =
+  let unchangedHeader =
+    try
+      eq_varinfo a.svar b.svar &&
+      List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals)
+    with Invalid_argument _ -> false in
+  let identical, diffOpt =
+    try
+      let sameDef = unchangedHeader && List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) in
+      let matches, primDiff, diff = compareFun (module Cfg1) (module Cfg2) a b in
+      if not sameDef then (false, None)
+      else if List.length diff = 0 then (true, None)
+      else (false, Some {unchangedNodes = matches; primChangedNodes = primDiff; changedNodes = diff})
+    with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
+      false, None in
+  identical, unchangedHeader, diffOpt
+
+let eq_glob' (a: global) (module Cfg1 : MyCFG.CfgForward) (b: global) (module Cfg2 : MyCFG.CfgForward) = match a, b with
+| GFun (f,_), GFun (g,_) -> eqF' f (module Cfg1) g (module Cfg2)
+| GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+| GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y, false, None
+| _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false, false, None
+
+(* Returns a list of changed functions *)
+let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
+  let oldCfgF, _ = CfgTools.getCFG oldAST
+  and newCfgF, _ = CfgTools.getCFG newAST in
+  let module OldCfg: MyCFG.CfgForward = struct let next = oldCfgF end in
+  let module NewCfg: MyCFG.CfgForward = struct let next = newCfgF end in
+
+  let addGlobal map global  =
+    try
+      GlobalMap.add (identifier_of_global global) global map
+    with
+      e -> map
+  in
+  let changes = empty_change_info () in
+  let checkUnchanged map global =
+    try
+      let ident = identifier_of_global global in
+      (try
+         let old_global = GlobalMap.find ident map in
+         (* Do a (recursive) equal comparision ignoring location information *)
+         let identical, unchangedHeader, diff = eq_glob' old_global (module OldCfg) global (module NewCfg) in
+         if identical
+         then changes.unchanged <- global :: changes.unchanged
+         else changes.changed <- {current = global; old = old_global; unchangedHeader = unchangedHeader; diff = diff} :: changes.changed
+       with Not_found -> ())
+    with e -> () (* Global was no variable or function, it does not belong into the map *)
+  in
+  let checkExists map global =
+    let name = identifier_of_global global in
+    GlobalMap.mem name map
+  in
+  (* Store a map from functionNames in the old file to the function definition*)
+  let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
+  let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
+  (*  For each function in the new file, check whether a function with the same name
+      already existed in the old version, and whether it is the same function. *)
+  Cil.iterGlobals newAST
+    (fun glob -> checkUnchanged oldMap glob);
+
+  (* We check whether functions have been added or removed *)
+  Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with e -> ());
+  Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with e -> ());
+  changes

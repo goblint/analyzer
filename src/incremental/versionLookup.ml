@@ -1,4 +1,4 @@
-open CompareAST
+open CompareCFG
 open Cil
 
 type max_ids = {

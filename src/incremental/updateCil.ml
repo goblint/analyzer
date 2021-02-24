@@ -1,6 +1,7 @@
 open Cil
-open CompareAST
+open CompareCFG
 open VersionLookup
+open MyCFG
 
 module NodeMap = Hashtbl.Make(Node)
 
@@ -68,7 +69,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   in
   let reset_globals (glob: global) =
     try
-      let old_glob = Hashtbl.find map (CompareAST.identifier_of_global glob) in
+      let old_glob = Hashtbl.find map (CompareCFG.identifier_of_global glob) in
       match glob, old_glob with
       | GFun (nw, _), GFun (old, _) -> reset_fun nw old
       | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
@@ -76,18 +77,44 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
       | _ -> ()
     with Failure m -> ()
   in
-  let reset_changed_fun (f: fundec) (old_f: fundec) unchangedHeader =
+
+  let reset_unchanged_nodes (matches: (node * node) list) =
+    let assign_same_id (old_n, n) = match old_n, n with
+      | Statement old_s, Statement s -> s.sid <- old_s.sid; update_sid_max s.sid
+      | FunctionEntry old_f, FunctionEntry f -> f.svar.vid <- old_f.svar.vid; update_vid_max f.svar.vid
+      | Function old_f, Function f -> f.svar.vid <- old_f.svar.vid; update_vid_max f.svar.vid
+      | _ -> raise (Failure "Node tuple falsely classified as unchanged nodes") in
+    List.iter (fun (old_n, n) -> assign_same_id (old_n, n)) matches;
+  in
+  let reset_changed_stmts (changed: node list) =
+    let assign_new_id n = match n with
+      | Statement s -> s.sid <- make_sid ()
+      (* function id is explicitly assigned in reset_changed_fun. Other than that there should be no other id generation
+         through the Function node in the change set to avoid incorrect re-generation *)
+      | FunctionEntry f -> ()
+      | Function f -> () in
+    List.iter (fun n -> assign_new_id n) changed;
+  in
+  let reset_changed_fun (f: fundec) (old_f: fundec) unchangedHeader (diff: nodes_diff option) =
     f.svar.vid <- old_f.svar.vid;
     update_vid_max f.svar.vid;
-    List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
     if unchangedHeader then
       List.iter (fun (f,old_f) -> f.vid <- old_f.vid; update_vid_max f.vid) (List.combine f.sformals old_f.sformals)
     else List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
-    List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
+    (* diff is None if the function header changed or locals and the cfg was not compared. In this case, preceed as before
+       and renew all ids of the function. Otherwise the function header and locals are unchanged and the cfg was compared.
+       Then we can reset all ids of f's varinfo, its locals, formals and unchanged nodes and renew all ids of the remaining nodes*)
+    match diff with
+    | None -> List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
+      List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
+    | Some d -> List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
+      List.iter (fun l -> update_vid_max l.vid) f.slocals;
+      reset_unchanged_nodes d.unchangedNodes;
+      reset_changed_stmts d.changedNodes
   in
   let reset_changed_globals (changed: changed_global) =
     match (changed.current, changed.old) with
-    | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old changed.unchangedHeader
+    | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old changed.unchangedHeader changed.diff
     | _ -> ()
   in
   let update_fun (f: fundec) =
@@ -101,7 +128,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   in
   let update_globals (glob: global) =
     try
-      let old_glob = Hashtbl.find map (CompareAST.identifier_of_global glob) in
+      let old_glob = Hashtbl.find map (CompareCFG.identifier_of_global glob) in
       match glob, old_glob with
       | GFun (nw, _), GFun (old, _) -> update_fun nw
       | GVar (nw, _, _), GVar (old, _, _) -> update_var nw
