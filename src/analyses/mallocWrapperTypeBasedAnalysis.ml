@@ -2,7 +2,7 @@
 
 open Prelude.Ana
 open Analyses
-open GobConfig
+let prefix_non_definite_mem = Lval.prefix_non_definite_mem
 
 module Spec : Analyses.Spec =
 struct
@@ -43,11 +43,13 @@ struct
   let heap_vars = Hashtbl.create 113
   let arg_hash = Hashtbl.create 113
 
+
   let get_heap_var (ts : typsig) (fn : varinfo) =
     try Hashtbl.find heap_hash (ts, fn)
     with Not_found ->
       let tsname = Pretty.sprint ~width:80 (d_typsig () ts) in
-      let name = "(alloc@" ^ fn.vname ^ ":" ^ tsname ^ ")" in
+      (* "nd" for "not definite" - this does not refer to one particular memory block *)
+      let name = prefix_non_definite_mem ^ "@" ^ fn.vname ^ ":" ^ tsname ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       Hashtbl.add heap_hash (ts, fn) newvar;
       Hashtbl.add heap_vars newvar.vid ();
@@ -57,7 +59,8 @@ struct
     try Hashtbl.find arg_hash ts
     with Not_found ->
       let tsname = Pretty.sprint ~width:80 (d_typsig () ts) in
-      let name = "(alloc:" ^ tsname ^ ")" in
+      (* "nd" for "not definite" *)
+      let name = prefix_non_definite_mem ^ ":" ^ tsname ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       Hashtbl.add arg_hash ts newvar;
       Hashtbl.add heap_vars newvar.vid ();

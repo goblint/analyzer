@@ -345,13 +345,20 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
+let prefix_non_definite_mem = "(nd-alloc"
+
 module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
 
-  let is_definite = function
+  let is_definite =
+    let not_definite_mem v =
+      BatString.starts_with v.vname prefix_non_definite_mem
+    in
+    function
     | NullPtr | StrPtr _ -> true
-    (* | Addr (v,o) when Offs.is_definite o -> true (* This does not hold for typebasedheaps *)*)
+    | Addr (v,_) when not_definite_mem v -> false (* Some memory representations are inherently not definite *)
+    | Addr (v,o) when Offs.is_definite o -> true (* This does not hold for typebasedheaps *)
     | _ -> false
 
   let leq x y = match x, y with
