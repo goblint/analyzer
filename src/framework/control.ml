@@ -371,7 +371,14 @@ struct
       let lh, gh = if load_run <> "" then (
           if get_bool "dbg.verbose" then
             print_endline ("Loading the solver result of a saved run from " ^ load_run);
-          Serialize.unmarshal load_run
+            let lh,gh = Serialize.unmarshal load_run in
+            if get_bool "ana.opt.hashcons" then (
+              let lh' = LHT.create (LHT.length lh) in
+              let gh' = GHT.create (GHT.length gh) in
+              LHT.iter (fun k v -> let k' = EQSys.LVar.relift k in let v' = EQSys.D.join (EQSys.D.bot ()) v in LHT.replace lh' k' v') lh;
+              GHT.iter (fun k v -> let k' = EQSys.GVar.relift k in let v' = EQSys.G.join (EQSys.G.bot ()) v in GHT.replace gh' k' v') gh;
+              lh', gh'
+            ) else lh,gh
         ) else if compare_runs <> [] then (
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
