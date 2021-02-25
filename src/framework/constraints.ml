@@ -11,14 +11,14 @@ module M = Messages
 
 (** Lifts a [Spec] so that the domain and the context are [Hashcons]d and that C offers a relift function for incremental to re-hashcons loaded values. *)
 module HashconsLifter (S:Spec)
-  : SpecHC with module D = Lattice.HConsed (S.D)
+  : Spec with module D = Lattice.HConsed (S.D)
           and module G = S.G
-          and module C = Printable.HC (S.C)
+          and module C = Printable.HConsed (S.C)
 =
 struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
-  module C = Printable.HC (S.C)
+  module C = Printable.HConsed (S.C)
 
   let name () = S.name () ^" hashconsed"
 
@@ -31,12 +31,13 @@ struct
   let exitstate  v = D.lift (S.exitstate  v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
-  let val_of = D.lift % S.val_of
-  let context = S.context % D.unlift
-  let call_descr = S.call_descr
+  let val_of = D.lift % S.val_of % C.unlift
+  let context = C.lift % S.context % D.unlift
+  let call_descr f = S.call_descr f % D.unlift
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
+             ; context = (fun () -> C.unlift (ctx.context ()))
              ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
     }
 
@@ -78,7 +79,7 @@ struct
     D.lift @@ S.special (conv ctx) r f args
 
   let combine ctx r fe f args fc es =
-    D.lift @@ S.combine (conv ctx) r fe f args fc (D.unlift es)
+    D.lift @@ S.combine (conv ctx) r fe f args (C.unlift fc) (D.unlift es)
 
   let threadenter ctx lval f args =
     D.lift @@ S.threadenter (conv ctx) lval f args

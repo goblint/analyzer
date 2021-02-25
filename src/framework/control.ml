@@ -18,8 +18,6 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
             |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
-            |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
             |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
             |> lift true (module DeadCodeLifter)
