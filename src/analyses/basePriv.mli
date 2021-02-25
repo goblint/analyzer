@@ -6,6 +6,8 @@ sig
   module D: Lattice.S
   module G: Lattice.S
 
+  val startstate: unit -> D.t
+
   val read_global: Queries.ask -> (varinfo -> G.t) -> BaseDomain.BaseComponents (D).t -> varinfo -> BaseDomain.VD.t
   val write_global: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> varinfo -> BaseDomain.VD.t -> BaseDomain.BaseComponents (D).t
 

@@ -48,9 +48,9 @@ struct
   type glob_diff = (V.t * G.t) list
 
   let name () = "base"
-  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.D.top ()}
-  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.D.top ()}
-  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.D.top ()}
+  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
+  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
+  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
 
   (**************************************************************************
    * Helpers

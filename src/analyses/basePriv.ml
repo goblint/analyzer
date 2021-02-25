@@ -24,6 +24,8 @@ sig
   module D: Lattice.S
   module G: Lattice.S
 
+  val startstate: unit -> D.t
+
   val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents (D).t -> varinfo -> VD.t
   val write_global: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> varinfo -> VD.t -> BaseComponents (D).t
 
@@ -42,6 +44,8 @@ end
 module OldPrivBase =
 struct
   module D = Lattice.Unit
+
+  let startstate () = ()
 
   let lock ask getg cpa m = cpa
   let unlock ask getg sideg st m = st
@@ -203,6 +207,8 @@ struct
 
   module D = Lattice.Unit
   module G = CPA
+
+  let startstate () = ()
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
 
@@ -420,6 +426,8 @@ struct
   module D = CachedVars
   module G = BaseDomain.VD
 
+  let startstate () = D.top ()
+
   let read_global ask getg (st: BaseComponents (D).t) x =
     match CPA.find x st.cpa with
     | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
@@ -496,6 +504,8 @@ struct
     let name () = "protected"
   end
   module G = Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
+
+  let startstate () = D.top ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     if CachedVars.mem x st.priv then
@@ -593,6 +603,8 @@ struct
   let mutex_global x = x (* MutexGlobals.mutex_global not needed here because G is Prod anyway? *)
 
   module D = Lattice.Unit
+
+  let startstate () = ()
 
   module Lock = LockDomain.Addr
   module Lockset =
@@ -742,7 +754,6 @@ struct
           acc
       ) (fst (getg (mutex_global x))) (CPA.find x st.cpa)
 
-  (* TODO: update to match paper changes: W set in Mine *)
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
@@ -789,6 +800,82 @@ struct
       (st, [])
 end
 
+module MineWPriv: S =
+struct
+  include MinePrivBase
+
+  module D = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+
+  module GWeak =
+  struct
+    include MapDomain.MapBot (Lockset) (VD)
+    let name () = "weak"
+  end
+  module GSync =
+  struct
+    include MapDomain.MapBot (Lockset) (CPA)
+    let name () = "sync"
+  end
+  (* weak: G -> (2^M -> D) *)
+  (* sync: M -> (2^M -> (G -> D)) *)
+  module G = Lattice.Prod (GWeak) (GSync)
+
+  let startstate () = D.empty ()
+
+  let read_global ask getg (st: BaseComponents (D).t) x =
+    let s = current_lockset ask in
+    GWeak.fold (fun s' v acc ->
+        if Lockset.disjoint s s' then
+          VD.join v acc
+        else
+          acc
+      ) (fst (getg (mutex_global x))) (CPA.find x st.cpa)
+
+  let write_global ask getg sideg (st: BaseComponents (D).t) x v =
+    let s = current_lockset ask in
+    let cpa' = CPA.add x v st.cpa in
+    if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
+      sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
+    {st with cpa = cpa'; priv = D.add x st.priv}
+
+  let lock ask getg (st: BaseComponents (D).t) m =
+    let s = current_lockset ask in
+    let cpa' = GSync.fold (fun s' cpa' acc ->
+        if Lockset.disjoint s s' then
+          CPA.join cpa' acc
+        else
+          acc
+      ) (snd (getg (mutex_addr_to_varinfo m))) st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
+    let s = Lockset.remove m (current_lockset ask) in
+    let is_in_W x _ = D.mem x st.priv in
+    let side_cpa = CPA.filter is_in_W st.cpa in
+    sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
+    st
+
+  let sync ask getg (st: BaseComponents (D).t) reason =
+    match reason with
+    | `Return -> (* required for thread return *)
+      begin match ThreadId.get_current ask with
+      | `Lifted x when CPA.mem x st.cpa ->
+          let v = CPA.find x st.cpa in
+          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
+        | _ ->
+          (st, [])
+      end
+    | `Normal
+    | `Join (* TODO: no problem with branched thread creation here? *)
+    | `Init
+    | `Thread ->
+      (st, [])
+
+  let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
+end
+
 module StatsPriv (Priv: S): S with module D = Priv.D =
 struct
   module D = Priv.D
@@ -796,6 +883,7 @@ struct
 
   let time str f arg = Stats.time "priv" (Stats.time str f) arg
 
+  let startstate = Priv.startstate
   let read_global ask getg st x = time "read_global" (Priv.read_global ask getg st) x
   let write_global ask getg sideg st x v = time "write_global" (Priv.write_global ask getg sideg st x) v
   let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
@@ -821,6 +909,7 @@ let priv_module: (module S) Lazy.t =
         | "global-vesal" -> (module PerGlobalVesalPriv)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
+        | "mine-W" -> (module MineWPriv)
         | _ -> failwith "exp.privatization: illegal value"
       )
     in
