@@ -7,32 +7,19 @@
 #define cond_var_count 0
 #endif
 
-// return codes
-mtype = {SUCCESS, ERROR}
-
-// partition
-mtype = {IDLE, COLD_START, WARM_START, NORMAL} // partition modes
-
 // threads
-mtype = {NOTCREATED, STOPPED, SUSPENDED, WAITING,
-         READY,      RUNNING, DONE} // possible thread states
+mtype = {NOTCREATED, READY, WAITING, DONE} // possible thread states
 
-// of all READY the scheduler will choose one and set it to RUNNING
-// (with prios there will only be one choice, without it will choose
-// non-determ.)
 mtype status[thread_count] = NOTCREATED; // initialize all processes as not created
 
-byte ncrit; // number of processes in critical section
-byte threads_created;
-//TODO: [0] or [thread_count]
 chan threads_chan[thread_count] = [thread_count] of { byte }
 
 // resources
-mtype = {NONE, THREAD, MUTEX, COND_VAR, TIME}
+mtype = {NONE, THREAD, MUTEX, COND_VAR}
 typedef Wait {
   mtype resource = NONE;
   byte id;
-}
+};
 Wait waiting[thread_count];
 
 #if mutex_count
@@ -42,19 +29,15 @@ typedef Mutex {
   byte tid;
   chan blockedQueue = [thread_count] of { byte };
 };
-
 Mutex mutexes[mutex_count];
-byte mutexes_created;
 #endif
 
 #if cond_var_count
 typedef CondVar {
   byte mid;
   chan waitQueue = [thread_count] of { byte };
-}
-
+};
 CondVar cond_vars[cond_var_count];
-byte cond_vars_created;
 #endif
 
 // manage function calls at runtime to avoid inlining
@@ -65,28 +48,21 @@ inline mark(pc) {
 }
 
 // helpers for scheduling etc.
-#define oneIs(v) checkStatus(==, v, ||)
-#define oneIsNot(v) checkStatus(!=, v, ||)
-#define allAre(v) checkStatus(==, v, &&)
-#define noneAre(v) checkStatus(!=, v, &&)
-#define notStarving(i)                                                         \
-  (always(status[i] == READY implies always eventually(status[i] == READY ||   \
-                                                       status[i] == STOPPED || \
+#define notStarving(i)                                                       \
+  (always(status[i] == READY implies always eventually(status[i] == READY || \
                                                        status[i] == DONE)))
 
 // LTL formulas
-ltl not_waiting   { ! (eventually always oneIs(WAITING)) }
 ltl not_starving  { allTasks(notStarving) }
-ltl not_suspended { ! (eventually always oneIs(SUSPENDED)) }
-ltl all_created   { eventually always noneAre(NOTCREATED) }
 
 inline preInit() {
-  status[0] = RUNNING;
+  atomic {
+    setReady(0); 
+  }
 }
 
 #define canRun(thread_id)                                                      \
-   (status[thread_id] == READY || status[thread_id] == RUNNING)
-#define isRunning(thread_id) (status[thread_id] == RUNNING)
+   (status[thread_id] == READY)
 #define isWaiting(thread_id, resource_type, resource_id)                       \
   (status[thread_id] == WAITING &&                                             \
    waiting[thread_id].resource == resource_type &&                             \
@@ -123,8 +99,7 @@ inline ThreadCreate(thread_id) {
     printf("ThreadCreate: id %d\n", thread_id);
     assert(status[thread_id] == NOTCREATED);
 
-    status[thread_id] = RUNNING;
-    threads_created++;
+    setReady(thread_id);
   }
 }
 
@@ -174,7 +149,6 @@ inline ThreadBroadcast() {
 inline MutexInit(mid) {
   atomic {
     printf("MutexInit: id %d\n", mid);
-    mutexes_created++;
   }
 }
 
@@ -210,31 +184,38 @@ inline MutexLock(thread_id, x) {
 inline MutexUnlock(x) {
   atomic {
     if
-    // no processes waiting on this mutex -> skip
-    :: empty(mutexes[x].blockedQueue) || mutexes[x].tid != tid -> skip
-    // otherwise it stays the same, since we will wake up a waiting process
-    :: nempty(mutexes[x].blockedQueue) && mutexes[x].tid == tid ->
-      printf("MutexUnlock: %d threads in queue for mutex %d",
-             len(mutexes[x].blockedQueue), x);
-      byte i;
+    ::mutexes[x].tid != tid -> skip
+    :: mutexes[x].tid == tid ->
+      printf("MutexUnlock unlocked: mutexes[%d] = UNLOCKED by %d\n", x, tid);
+      mutexes[x].status = UNLOCKED;
 
-      for (i in status) {
-        printf("MutexUnlock: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
-               i, i, status[i], waiting[i].resource, waiting[i].id);
-        if
-        // thread is waiting for this mutex and is at the front of its queue
-        :: isWaiting(i, MUTEX, x) && mutexes[x].blockedQueue?[i] ->
-          printf("MutexUnlock: thread %d is waking up thread %d\n", tid, i);
-          mutexes[x].blockedQueue?eval(i); // consume msg from queue
-          setReady(i);
-          break
-        :: else -> skip
-        fi
-      };
+      if
+      // no processes waiting on this mutex -> skip
+      :: empty(mutexes[x].blockedQueue) -> skip
+      // wake up waiting process and reacquire the mutex
+      :: nempty(mutexes[x].blockedQueue) -> 
+        printf("MutexUnlock: %d threads in queue for mutex %d",
+              len(mutexes[x].blockedQueue), x);
+        byte i;
+
+        for (i in status) {
+          printf("MutexUnlock: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
+                i, i, status[i], waiting[i].resource, waiting[i].id);
+          if
+          // thread is waiting for this mutex and is at the front of its queue
+          :: isWaiting(i, MUTEX, x) && mutexes[x].blockedQueue?[i] ->
+            printf("MutexUnlock: thread %d is waking up thread %d\n", tid, i);
+            mutexes[x].blockedQueue?eval(i); // consume msg from queue
+
+            MutexLock(i, x);
+
+            setReady(i);
+            break
+          :: else -> skip
+          fi
+        };
+      fi;
     fi;
-
-    printf("MutexUnlock unlocked: mutexes[%d] = UNLOCKED by %d\n", x, tid);
-    mutexes[x].status = UNLOCKED;
   }
 }
 
@@ -243,7 +224,6 @@ inline MutexUnlock(x) {
 inline CondVarInit(cond_var_id) {
   atomic {
     printf("CondVarInit: id %d\n", cond_var_id);
-    cond_vars_created++;
   }
 }
 
