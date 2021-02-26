@@ -144,7 +144,7 @@ let _ = ()
 (* {4 category [Experimental]} *)
 let _ = ()
       ; reg Experimental "exp.lower-constants"   "true"  "Use Cil.lowerConstants to simplify some constant? (assumes wrap-around for signed int)"
-      ; reg Experimental "exp.privatization"     "'mine-W'" "Which privatization to use? none/old/mutex-oplus/mutex-meet/global/global-read/global-vesal/mine/mine-nothread/mine-W"
+      ; reg Experimental "exp.privatization"     "'mine-lazy'" "Which privatization to use? none/old/mutex-oplus/mutex-meet/global/global-read/global-vesal/mine/mine-nothread/mine-W/mine-lazy"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
