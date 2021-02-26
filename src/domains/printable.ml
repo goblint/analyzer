@@ -27,11 +27,7 @@ sig
   val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
 
   val arbitrary: unit -> t QCheck.arbitrary
-end
 
-module type HC = (* HashCons *)
-sig
-  include S
   (* For hashconsing together with incremental we need to re-hashcons old values.
    * For HashconsLifter.D this is done on any lattice operation, so we can replace x with `join bot x` to hashcons it again and get a new tag for it.
    * For HashconsLifter.C we call hashcons only in `context` which is in Analyses.Spec but not in Analyses.GlobConstrSys, i.e. not visible to the solver. *)
@@ -39,10 +35,6 @@ sig
   val relift: t -> t
 end
 
-module HC (X: S) = struct
-  include X
-  let relift x = x
-end
 
 module Std =
 struct
@@ -57,6 +49,7 @@ struct
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
+  let relift x = x
 end
 
 module Blank =
@@ -103,6 +96,7 @@ struct
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.name)
 
   let arbitrary () = QCheck.unit
+  let relift x = x
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -419,6 +413,8 @@ struct
 
   let invariant c (x, y) = Invariant.(Base1.invariant c x && Base2.invariant c y)
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
+
+  let relift (x,y) = (Base1.relift x, Base2.relift y)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -523,6 +519,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
 
   let arbitrary () = QCheck.int_range 0 (P.n - 1)
+  let relift x = x
 end
 
 module LiftBot (Base : S) =

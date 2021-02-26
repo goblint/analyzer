@@ -746,4 +746,6 @@ struct
       (Some (P.make i v), None)
     else
       (None, Some (T.make i v))
+
+  let relift = unop_to_t P.relift T.relift
 end

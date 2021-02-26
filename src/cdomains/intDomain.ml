@@ -331,6 +331,7 @@ struct
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
+  let relift x = { v = I.relift x.v; ikind = x.ikind }
 end
 
 module type Ikind =
@@ -773,6 +774,8 @@ struct
       | None -> empty
     in
     QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik pair_arb)) *)
+
+  let relift x = x
 end
 
 
