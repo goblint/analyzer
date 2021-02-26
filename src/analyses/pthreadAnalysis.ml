@@ -112,9 +112,17 @@ module Action = struct
 end
 
 module Variable = struct
+  type t = varinfo
+
+  let is_integral v = match v.vtype with TInt _ -> true | _ -> false
+
+  let is_global v = v.vglob
+
+  let is_mem v = v.vaddrof
+
   let make_from_lhost = function
-    | Var v ->
-      (match v.vtype with TInt _ -> Some v | _ -> None)
+    | Var v when is_integral v && not (is_mem v) ->
+        Some v
     | _ ->
         None
 
@@ -123,17 +131,30 @@ module Variable = struct
 
   let show = sprint d_varinfo
 
-  let is_global var = var.vglob
+  let show_def v = "int " ^ show v ^ ";"
 end
 
-module Globals = struct
-  let set : varinfo Set.t ref = ref Set.empty
+module Variables = struct
+  let table = ref (Hashtbl.create 123 : (thread_id, Variable.t Set.t) Hashtbl.t)
 
-  let add_var x = set := Set.add x !set
+  let add tid var = Hashtbl.modify_def Set.empty tid (Set.add var) !table
 
-  let get_definitions () =
-    let show_var_with_type v = "int " ^ Variable.show v ^ " = 0;" in
-    List.map show_var_with_type @@ Set.elements !set
+  let get_globals () =
+    Hashtbl.values !table
+    |> List.of_enum
+    |> List.map Set.elements
+    |> List.flatten
+    |> List.filter Variable.is_global
+
+
+  let get_locals tid =
+    let no_globals vars = Set.diff vars (Set.of_list @@ get_globals ()) in
+
+    Hashtbl.find !table tid
+    |> Option.default Set.empty
+    |> no_globals
+    |> Set.enum
+    |> List.of_enum
 end
 
 (** type of a node in CFG *)
@@ -526,24 +547,6 @@ module Codegen = struct
     let current_thread_name = ref "" in
     let called_funs_done = ref Set.empty in
 
-    let edges_keys =
-      Hashtbl.keys Edges.table |> List.of_enum |> List.map Resource.show
-    in
-
-    print_endline "Edges keys:" ;
-    List.iter print_endline edges_keys ;
-
-    let threads_str =
-      Hashtbl.enum Tbls.ThreadTidTbl.table
-      |> List.of_enum
-      |> List.map (fun (t, tid) -> t ^ ": " ^ string_of_int tid)
-    in
-    print_endline "---" ;
-
-    print_endline "Threads" ;
-    List.iter print_endline threads_str ;
-    print_endline "---" ;
-
     let rec process_def res =
       print_endline @@ Resource.show res ;
       let res_type = Resource.res_type res in
@@ -613,12 +616,26 @@ module Codegen = struct
         let head =
           match res with
           | Thread, name ->
+              let tid = Tbls.ThreadTidTbl.get name in
+              let defs =
+                let local_defs =
+                  List.map Variable.show_def @@ Variables.get_locals tid
+                in
+                let stack_def = [ "int stack[20];"; "int sp = -1;" ] in
+
+                [ stack_def; local_defs ]
+                |> List.flatten
+                |> List.map tabulate
+                |> String.concat "\n"
+              in
               "proctype "
               ^ name
               ^ "(byte tid)"
               ^ " provided (canRun("
-              ^ string_of_int (Tbls.ThreadTidTbl.get name)
-              ^ ")) {\n\tint stack[20]; int sp = -1;"
+              ^ string_of_int tid
+              ^ ")) {\n"
+              ^ defs
+              ^ "\n"
           | Function, name ->
               "Fun_" ^ name ^ ":"
         in
@@ -677,7 +694,7 @@ module Codegen = struct
       |> List.group (compareBy (fst % fst))
       |> flat_map fun_map
     in
-    let globals = Globals.get_definitions () in
+    let globals = List.map Variable.show_def @@ Variables.get_globals () in
     let promela =
       let empty_line = "" in
       let defs =
@@ -821,14 +838,11 @@ module Spec : Analyses.Spec = struct
 
   let assign ctx (lval : lval) (rval : exp) : D.t =
     let var_opt = Variable.make_from_lval lval in
-    let is_global =
-      Option.default false @@ Option.map Variable.is_global var_opt
-    in
     if not @@ Option.is_some !MyCFG.current_node
     then (
       M.debug_each "assign: MyCFG.current_node not set :(" ;
       ctx.local )
-    else if PthreadDomain.D.is_bot ctx.local || not is_global
+    else if PthreadDomain.D.is_bot ctx.local || Option.is_none var_opt
     then ctx.local
     else
       let env = Env.get ctx in
@@ -838,7 +852,9 @@ module Spec : Analyses.Spec = struct
       let lhs_str = Variable.show var in
       let rhs_str = sprint d_exp rval in
       Edges.add env @@ Action.Assign (lhs_str ^ " = " ^ rhs_str) ;
-      Globals.add_var var ;
+
+      let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
+      Variables.add tid var ;
 
       { d with pred = Pred.of_node @@ Env.node env }
 
@@ -879,11 +895,7 @@ module Spec : Analyses.Spec = struct
             failwith "branch: current_node is not an If"
       in
 
-      let is_global =
-        Option.default false
-        % Option.map Variable.is_global
-        % Variable.make_from_lhost
-      in
+      let is_valid_var = Option.is_some % Variable.make_from_lhost in
       let var_str = Variable.show % Option.get % Variable.make_from_lhost in
       let pred_str lhs rhs tv =
         let cond_str = lhs ^ " == " ^ rhs in
@@ -894,10 +906,10 @@ module Spec : Analyses.Spec = struct
         match (lhs, rhs) with
         | Lval (lhost, _), Const (CInt64 (i, _, _))
         | Const (CInt64 (i, _, _)), Lval (lhost, _)
-          when is_global lhost ->
+          when is_valid_var lhost ->
             add_action @@ pred_str (var_str lhost) (Int64.to_string i) tv
         | Lval (lhostA, _), Lval (lhostB, _)
-          when is_global lhostA && is_global lhostB ->
+          when is_valid_var lhostA && is_valid_var lhostB ->
             add_action @@ pred_str (var_str lhostA) (var_str lhostB) tv
         | _ ->
             ctx.local
@@ -905,13 +917,9 @@ module Spec : Analyses.Spec = struct
 
       let handle_unop x tv =
         match x with
-        | Lval (lhost, _) when is_global lhost ->
+        | Lval (lhost, _) when is_valid_var lhost ->
             let pred = (if tv then "" else "!") ^ var_str lhost in
             add_action pred
-        | Const (CInt64 (i, _, _)) when (not tv) && i == 0L ->
-            add_action "true"
-        | Const (CInt64 (i, _, _)) when tv && i != 0L ->
-            add_action "true"
         | _ ->
             ctx.local
       in
@@ -1054,18 +1062,10 @@ module Spec : Analyses.Spec = struct
             Action.ThreadCreate { f = thread_fun; tid }
           in
 
-          print_endline "THREAD_CREATE" ;
-          List.iter (fun x -> print_endline @@ Variable.show x)
-          @@ ExprEval.eval ctx thread ;
-
           add_actions
           @@ List.map thread_create
           @@ ExprEval.eval_id ctx thread Tbls.ThreadTidTbl.get
       | ThreadJoin, [ thread; thread_ret ] ->
-          print_endline "THREAD_JOIN" ;
-          List.iter (fun x -> print_endline @@ Variable.show x)
-          @@ ExprEval.eval ctx thread ;
-
           add_actions
           @@ List.map (fun tid -> Action.ThreadJoin tid)
           @@ ExprEval.eval_id ctx thread Tbls.ThreadTidTbl.get
