@@ -124,7 +124,7 @@ struct
   let unlift x = x.BatHashcons.obj
   let lift = HC.hashcons htable
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
-  let relift x = HC.hashcons htable x.BatHashcons.obj
+  let relift x = let _ = Base.relift x.BatHashcons.obj in HC.hashcons htable x.BatHashcons.obj
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
   let tag x = x.BatHashcons.tag
