@@ -2,7 +2,6 @@ open Batteries
 
 let transformation_identifier = "expeval"
 let transformation_query_file_name_identifier = "trans." ^ transformation_identifier ^ ".query_file_name"
-let transformation_marshalled_results_file_name_identifier = "trans." ^ transformation_identifier ^ ".marshalled_results_file_name"
 
 type query =
 {

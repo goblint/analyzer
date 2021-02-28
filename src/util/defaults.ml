@@ -141,7 +141,6 @@ let _ = ()
 let _ = ()
       ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
       ; reg Transformations "trans.expeval.query_file_name" "''" "Path to the JSON file containing an expression evaluation query."
-      ; reg Transformations "trans.expeval.marshalled_results_file_name" "''" "If not empty, marshal and save the results of the expression evaluation in this file."
 
 (* {4 category [Experimental]} *)
 let _ = ()
