@@ -18,8 +18,7 @@ depends: [
   "zarith_stubs_js"
   "goblint-cil"
   "batteries"
-  "qcheck"
-  # "z3"
+  "qcheck-core"
   "ppx_distr_guards" {>= "0.2"}
   "ppx_import"
   "ppx_deriving"
