@@ -14,6 +14,7 @@ end
 class loopCounterVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
   method! vstmt s =
+  let () = print_endline "Visiting loop" in 
     let action s = match s.skind with
       | Loop (b, loc, _, _) ->
         (* insert loop counter variable *)
