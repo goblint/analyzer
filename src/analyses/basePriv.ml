@@ -609,7 +609,7 @@ struct
   module Lock = LockDomain.Addr
   module Lockset =
   struct
-    include SetDomain.Make (Lock)
+    include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
     let disjoint s t = is_empty (inter s t)
   end
 
@@ -908,6 +908,8 @@ struct
 
   let startstate () = (V.bot (), L.bot ())
 
+  let lockset_init () = Lockset.All
+
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     let (vv, l) = st.priv in
@@ -925,13 +927,22 @@ struct
           acc
       ) l (VD.bot ())
     in
+    let weaks = fst (getg (mutex_global x)) in
     let d_weak = GWeak.fold (fun s' v acc ->
         if Lockset.disjoint s s' then
           VD.join v acc
         else
           acc
-      ) (fst (getg (mutex_global x))) (VD.bot ())
+      ) weaks (VD.bot ())
     in
+    let d_init =
+      (* TODO: V.exists *)
+      if not (V.for_all (fun m cached -> not (CachedVars.mem x cached)) (fst st.priv)) then
+        VD.bot ()
+      else
+        GWeak.find (lockset_init ()) weaks
+    in
+    let d_weak = VD.join d_weak d_init in
     let d_sync_meet = Lockset.fold (fun m acc ->
         if not (CachedVars.mem x (V.find m vv)) then
           GSync.fold (fun s' cpa' acc ->
@@ -1001,7 +1012,7 @@ struct
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
-          sideg (mutex_global x) (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ());
+          sideg (mutex_global x) (GWeak.add (lockset_init ()) v (GWeak.bot ()), GSync.bot ());
           CPA.remove x acc
         )
         else
@@ -1013,7 +1024,7 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (mutex_global x) (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ());
+          sideg (mutex_global x) (GWeak.add (lockset_init ()) v (GWeak.bot ()), GSync.bot ());
           {st with cpa = CPA.remove x st.cpa}
         )
         else
