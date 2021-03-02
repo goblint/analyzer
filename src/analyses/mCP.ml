@@ -26,7 +26,7 @@ let register_analysis =
             }
     in
     let n = S.name () in
-    (*let () = print_endline n in*)
+    let () = print_endline n in
     analyses_table := (!count,n) :: !analyses_table;
     analyses_list' := (!count,s) :: !analyses_list';
     dep_list'      := (!count,dep) :: !dep_list';
