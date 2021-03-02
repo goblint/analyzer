@@ -26,6 +26,7 @@ let register_analysis =
             }
     in
     let n = S.name () in
+    (*let () = print_endline n in*)
     analyses_table := (!count,n) :: !analyses_table;
     analyses_list' := (!count,s) :: !analyses_list';
     dep_list'      := (!count,dep) :: !dep_list';
@@ -266,10 +267,10 @@ struct
   let init () =
     let map' f =
       let f x =
-        try Some (f x)
+        try f x
         with Not_found -> raise @@ ConfigError ("Analysis '"^x^"' not found. Abort!")
       in
-      List.filter_map f
+      List.map f
     in
     let xs = map Json.string @@ get_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in
