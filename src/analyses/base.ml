@@ -1892,6 +1892,12 @@ struct
     let check_assert e st =
       match eval_rv ctx.ask ctx.global st e with
       | `Int v when ID.is_bool v ->
+        let num = ID.to_int v in
+        let broj = match num with
+        | Some x when BI.equal x BI.zero -> x
+        | Some x -> x
+        | _ -> 0 in
+        Printf.printf "%d\n" broj;
         begin match ID.to_bool v with
           | Some false ->  `False
           | Some true  ->  `True

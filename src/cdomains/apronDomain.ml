@@ -2,6 +2,7 @@ open Prelude
 open Cil
 open Pretty
 open Analyses
+open Yojson
 
 open Apron
 
@@ -31,6 +32,11 @@ struct
   let bot () = botE Man.eenv
   let is_top = A.is_top    Man.mgr
   let is_bot = A.is_bottom Man.mgr
+
+  let to_yojson x = failwith "TODO implement to_yojson"
+  let invariant _ _ = Invariant.none
+  let tag _ = failwith "Std: no tag"
+  let arbitrary () = failwith "no arbitrary"
 
   let join x y =
     if is_bot x then

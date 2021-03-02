@@ -12,6 +12,7 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.github.io/analyzer"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
+  "apron" {= "base"}
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
