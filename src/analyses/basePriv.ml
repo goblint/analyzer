@@ -1197,10 +1197,8 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          let (vv, w, p) = st.priv in
-          let p' = P.add x (MinLocksets.singleton (Lockset.empty ())) p in
           sideg (mutex_global x) (GWeak.add (lockset_init ()) (GWeakW.add (lockset_init ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
-          {st with cpa = CPA.remove x st.cpa; priv = (vv, w, p')}
+          {st with cpa = CPA.remove x st.cpa}
         )
         else
           st
