@@ -411,6 +411,7 @@ struct
     compare (typeSig a) (typeSig b) (* call to typeSig here is necessary, otherwise compare might not terminate *)
 
   let compare = compareExp
+  let equal a b = compare a b = 0
 end
 
 module CilStmt: Printable.S with type t = stmt =
