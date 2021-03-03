@@ -885,9 +885,10 @@ struct
     include MapDomain.MapBot_LiftTop (Lock) (CachedVars)
     let name () = "V"
   end
+  module MinLocksets = SetDomain.Make (Lockset) (* TODO: hoare *)
   module L =
   struct
-    include MapDomain.MapBot_LiftTop (Lock) (Lockset)
+    include MapDomain.MapBot_LiftTop (Lock) (MinLocksets)
     let name () = "L"
   end
   module D = Lattice.Prod (V) (L)
@@ -914,15 +915,18 @@ struct
     let s = current_lockset ask in
     let (vv, l) = st.priv in
     let d_cpa = CPA.find x st.cpa in
-    let d_sync = L.fold (fun m b acc ->
+    let d_sync = L.fold (fun m bs acc ->
         if not (CachedVars.mem x (V.find m vv)) then
-          GSync.fold (fun s' cpa' acc ->
-              if Lockset.disjoint b s' then
-                let v = CPA.find x cpa' in
-                VD.join v acc
-              else
-                acc
-            ) (snd (getg (mutex_addr_to_varinfo m))) acc
+          let syncs = snd (getg (mutex_addr_to_varinfo m)) in
+          MinLocksets.fold (fun b acc ->
+              GSync.fold (fun s' cpa' acc ->
+                  if Lockset.disjoint b s' then
+                    let v = CPA.find x cpa' in
+                    VD.join v acc
+                  else
+                    acc
+                ) syncs acc
+            ) bs acc
         else
           acc
       ) l (VD.bot ())
@@ -978,7 +982,7 @@ struct
     let s = current_lockset ask in
     let (v, l) = st.priv in
     let v' = V.add m (CachedVars.empty ()) v in
-    let l' = L.add m s l in
+    let l' = L.add m (MinLocksets.singleton s) l in
     {st with priv = (v', l')}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
@@ -987,6 +991,7 @@ struct
     let is_in_G x _ = is_global ask x in
     let side_cpa = CPA.filter is_in_G st.cpa in
     sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
+    (* TODO: don't remove? *)
     let v' = V.remove m v in
     let l' = L.remove m l in
     {st with priv = (v', l')}
