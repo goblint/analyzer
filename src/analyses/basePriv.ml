@@ -1054,7 +1054,7 @@ struct
   module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
   module P =
   struct
-    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
+    include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
     let name () = "P"
   end
   module D = Lattice.Prod3 (V) (W) (P)
@@ -1075,7 +1075,7 @@ struct
   (* sync: M -> (S:2^M -> (W:2^M -> (G -> D))) *)
   module G = Lattice.Prod (GWeak) (GSync)
 
-  let startstate () = (V.bot (), W.bot (), P.bot ())
+  let startstate () = (V.bot (), W.bot (), P.top ())
 
   let lockset_init () = Lockset.All
 
@@ -1115,14 +1115,6 @@ struct
           acc
       ) weaks (VD.bot ())
     in
-    let d_init =
-      (* TODO: V.exists *)
-      if not (V.for_all (fun m cached -> not (CachedVars.mem x cached)) vv) then
-        VD.bot ()
-      else
-        GWeakW.find (lockset_init ()) (GWeak.find (lockset_init ()) weaks)
-    in
-    let d_weak = VD.join d_weak d_init in
     let d = VD.join d_cpa (VD.join d_sync d_weak) in
     d
 
@@ -1187,7 +1179,7 @@ struct
         if EscapeDomain.EscapedVars.mem x escaped then (
           let (vv, w, p) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
-          sideg (mutex_global x) (GWeak.add (lockset_init ()) (GWeakW.add (lockset_init ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
+          sideg (mutex_global x) (GWeak.add (Lockset.empty ()) (GWeakW.add (lockset_init ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
           {st with cpa = CPA.remove x st.cpa; priv = (vv, w, p')}
         )
         else
@@ -1197,7 +1189,7 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (mutex_global x) (GWeak.add (lockset_init ()) (GWeakW.add (lockset_init ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
+          sideg (mutex_global x) (GWeak.add (Lockset.empty ()) (GWeakW.add (lockset_init ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
           {st with cpa = CPA.remove x st.cpa}
         )
         else
