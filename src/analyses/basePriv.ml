@@ -1082,13 +1082,14 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     let (vv, w, p) = st.priv in
+    let p_x = P.find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
     let d_cpa = CPA.find x st.cpa in
     let d_sync = Lockset.fold (fun m acc ->
         if not (CachedVars.mem x (V.find m vv)) then
           GSync.fold (fun s' gsyncw' acc ->
               if Lockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->
-                    if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') (P.find x p) then
+                    if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
                       let v = CPA.find x cpa' in
                       VD.join v acc
                     else
@@ -1105,7 +1106,7 @@ struct
     let d_weak = GWeak.fold (fun s' gweakw' acc ->
         if Lockset.disjoint s s' then
           GWeakW.fold (fun w' v acc ->
-              if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') (P.find x p) then
+              if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
                 VD.join v acc
               else
                 acc
@@ -1165,7 +1166,6 @@ struct
   let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
     | `Return -> (* required for thread return *)
-      (* TODO: fix thread return *)
       begin match ThreadId.get_current ask with
       | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
