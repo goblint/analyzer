@@ -253,7 +253,17 @@ struct
   include Printable.Std
   type t = Exp.t * Exp.t * Exp.t [@@deriving to_yojson]
 
-  let equal = Util.equals
+  let compare (x,y,z) (a,b,c) =
+    let x = Exp.compare x a in
+    if x <> 0 then
+      x
+    else
+      let x = Exp.compare y b in
+      if x <> 0 then
+        x
+      else
+        Exp.compare z c
+  let equal a b = compare a b =0
   let hash = Hashtbl.hash
   let classify _ = 0
   let class_name _ = "None"
