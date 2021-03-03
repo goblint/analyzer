@@ -8,6 +8,7 @@ struct
   include Printable.Std
 
   let equal a b = Basetype.CilExp.compareExp a b = 0
+  let compare = Basetype.CilExp.compareExp
   let hash = Hashtbl.hash
   let classify _ = 0
   let class_name _ = "None"
