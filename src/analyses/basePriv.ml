@@ -885,7 +885,7 @@ struct
     include MapDomain.MapBot_LiftTop (Lock) (CachedVars)
     let name () = "V"
   end
-  module MinLocksets = SetDomain.Make (Lockset) (* TODO: hoare *)
+  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
   module L =
   struct
     include MapDomain.MapBot_LiftTop (Lock) (MinLocksets)
