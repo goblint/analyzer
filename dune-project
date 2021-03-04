@@ -19,6 +19,9 @@
   (name goblint)
   (synopsis "Static analysis framework for concurrent C")
   (depends
+    apron
+    apron.polkaMPQ
+    apron.octD
     (ocaml (>= 4.04.1)) ; TODO check with travis env matrix as for goblint-cil
     dune
     zarith_stubs_js ; only needed for js_of_ocaml

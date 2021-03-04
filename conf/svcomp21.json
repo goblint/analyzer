@@ -20,7 +20,8 @@
       "var_eq",
       "symb_locks",
       "region",
-      "thread"
+      "thread", 
+      "poly"
     ]
   },
   "exp": {
