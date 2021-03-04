@@ -1,8 +1,6 @@
 open Prelude
 open Cil
 open Pretty
-open Analyses
-open Yojson
 
 open Apron
 
@@ -86,7 +84,6 @@ struct
   let pretty_diff () (x,y) = text "pretty_diff"
 
   open Texpr1
-  open Lincons0
   open Lincons1
 
   let typesort =
