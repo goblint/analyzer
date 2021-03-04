@@ -1,8 +1,6 @@
 open Prelude
 open Cil
 open Pretty
-open Analyses
-open Yojson
 
 (* This is to be able to use their implementation of octagons *)
 open Apron
@@ -133,8 +131,6 @@ struct
 
   (* Apron expressions of level 1 *)
   open Texpr1
-  (* Apron linear constraints of level 0 *)
-  open Lincons0
   (* Apron linear constraints of level 1 *)
   open Lincons1
 
