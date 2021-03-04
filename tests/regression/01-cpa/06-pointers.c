@@ -1,5 +1,3 @@
-// PARAM: --set ana.activated "['base' ,'mallocWrapper']"
-
 #include<stdio.h>
 #include<assert.h>
 
