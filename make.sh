@@ -80,10 +80,7 @@ rule() {
     ;; poly)
       echo "open ApronDomain" >> $TARGET.ml
       echo "open Poly" >> $TARGET.ml
-    ;;octy)
-      echo "open OctyDomain" >> $TARGET.ml
-      echo "open Octy" >> $TARGET.ml
-      ocb -no-plugin -package apron -package apron.polkaMPQ -package apron.octD $TARGET.native &&
+      ocb -no-plugin -package apron -package apron.polkaMPQ $TARGET.native &&
       cp _build/$TARGET.native goblint
     ;; arinc)
       ocb src/mainarinc.native &&
