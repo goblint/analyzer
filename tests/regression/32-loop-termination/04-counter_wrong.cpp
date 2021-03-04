@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','term','mallocWrapper', 'poly', 'octy']" --enable dbg.debug --enable ana.int.interval --sets solver slr3
+// PARAM: --set ana.activated[+] "'octApron'" --enable dbg.debug --enable ana.int.interval
 
 int main() {
     int i = 0;

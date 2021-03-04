@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'poly'" --enable dbg.debug --enable ana.int.interval
+// PARAM: --set ana.activated[+] "'octApron'" --enable dbg.debug --enable ana.int.interval
 
 int main(void) {
     int x, y, r;

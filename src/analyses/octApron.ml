@@ -4,7 +4,7 @@ open Prelude.Ana
 open Analyses
 open Apron
 
-open OctyDomain
+open OctApronDomain
 
 
 
@@ -12,7 +12,7 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "octy"
+  let name () = "octApron"
 
   module D = D
   module G = Lattice.Unit
