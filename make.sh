@@ -36,7 +36,6 @@ rule() {
     ;; gen) gen
     ;; nat*)
       eval $(opam config env)
-      echo "bla"
       dune build $TARGET.exe &&
       cp _build/default/$TARGET.exe goblint
     ;; release)

@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','octagon','mallocWrapper']"
+// PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','octy']"
 // Example from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/signextension-1.c
 #include "stdio.h"
 int main() {

@@ -4,20 +4,27 @@ open Pretty
 open Analyses
 open Yojson
 
+(* This is to be able to use their implementation of octagons *)
 open Apron
 
+(* Module definition *)
 module Man =
 struct
+  (* Manager type, parameter for the command below *)
   type mt = Oct.t
-  (*type mt = Polka.strict Polka.t*)
+  (* A type of manager allocated by the underlying octagon domain *)
   type t = mt Manager.t
 
+  (* Allocate a new manager to manipulate octagons *)
   let mgr = Oct.manager_alloc ()
-  (*let mgr = Polka.manager_alloc_strict ()*)
+  (* Making an environment from a set of integer and real variables. 
+  Raise Failure in case of name conflict. 
+  In this case the environment is empty to begin with. *)
   let eenv = Environment.make [||] [||]
 end
 
-module A = Abstract1
+(* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
+module A = Abstract1 
 
 module D =
 struct
@@ -38,55 +45,97 @@ struct
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
 
+  let short n (x:t) =
+    A.print Legacy.Format.str_formatter x;
+    Legacy.Format.flush_str_formatter ()
+
+  (* This function joins two octagons.
+  If one of them is equal to bottom, the other one is the result of the join. 
+  Otherwise, we use the manager form Apron to join the octagons. *)
   let join x y =
-    if is_bot x then
+    let () = print_endline "Joining octagons:" in
+    let () = print_endline (short 30 x) in
+    let () = print_endline (short 30 y) in
+    let ret = if is_bot x then
       y
     else if is_bot y then
       x
     else
-      A.join (Man.mgr) x y
+      A.join (Man.mgr) x y in
+    let () = print_endline (short 30 ret) in
+    ret
 
+  (* This function performs a meet two octagons.
+  If one of them is equal to top, the other one is the result of the meet. 
+  If either of them is equal to bottom, bottom is the result of the meet.
+  Otherwise, we use the manager form Apron to join the octagons. *)
   let meet x y =
-    if is_top x then y else
+    let () = print_endline "Meeting octagons:" in
+    let () = print_endline (short 30 x) in
+    let () = print_endline (short 30 y) in
+    let ret = if is_top x then y else
     if is_top y then x else
     if is_bot x || is_bot y then bot () else
-      A.meet Man.mgr x y
+      A.meet Man.mgr x y in
+    
+    let () = print_endline (short 30 ret) in
+    ret
 
+  (* This function performs a widening of two octagons.
+  If one of them is equal to bottom, the other one is the result of the widening. 
+  Otherwise, we use the manager from Apron to do the widening. *)
   let widen x y =
-    if is_bot x then
+    let () = print_endline "Widening octagons:" in
+    let () = print_endline (short 30 x) in
+    let () = print_endline (short 30 y) in
+    let ret = if is_bot x then
       y
     else if is_bot y then
       x
     else
-      A.widening (Man.mgr) x y
+      A.widening (Man.mgr) x y in
+    let () = print_endline (short 30 ret) in
+    ret
 
   let narrow = meet
 
+  (* This function is used to compare two octagons for equality. *)
   let equal x y =
-    if is_bot x then is_bot y
+    (* If both octagons are equal to bottom then they are equal. *)
+    (* If only the first octagon is equal to bottom, then they are different. *)
+    if is_bot x then is_bot y 
+    (* If only the second octagon is equal to bottom, then they are different. *)
     else if is_bot y then false
-    else if is_top x then is_top y
-    else if is_top y then false
-    else A.is_eq Man.mgr x y
+    (* If both octagons are equal to top then they are equal. *)
+    (* If only the first octagon is equal to top, then they are different. *)
+    else if is_top x then is_top y 
+    (* If only the second octagon is equal to top, then they are different. *)
+    else if is_top y then false 
+    (* Otherwise, we use Apron to check for equality. *)
+    else A.is_eq Man.mgr x y 
 
+  (* Compares octagons for <= *)
   let leq x y =
+    (* There is nothing less than bottom or greater than top,
+    the following two ifs logically follow from that. *)
     if is_bot x || is_top y then true else
     if is_bot y || is_top x then false else
+    (* Otherwise, Apron does the comparison. *)
       A.is_leq (Man.mgr) x y
 
   let hash (x:t) = Hashtbl.hash x
   let compare (x:t) y = Stdlib.compare x y
   let isSimple x = true
-  let short n x =
-    A.print Legacy.Format.str_formatter x;
-    Legacy.Format.flush_str_formatter ()
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
   let pretty_f s () (x:t) = text (s 10 x)
   let pretty = pretty_f short
   let pretty_diff () (x,y) = text "pretty_diff"
 
+  (* Apron expressions of level 1 *)
   open Texpr1
+  (* Apron linear constraints of level 0 *)
   open Lincons0
+  (* Apron linear constraints of level 1 *)
   open Lincons1
 
   let typesort =
@@ -226,34 +275,50 @@ struct
       end
 
   let cil_exp_to_apron_linecons environment cil_exp should_negate =
-    (* ignore (Pretty.printf "exptolinecons '%a'\n" d_plainexp x); *)
+    (* ignore (Pretty.printf "exptolinecons '%a'\n" d_plainexp cil_exp); *)
     let linexpr1, comparator = cil_exp_to_apron_linexpr1 environment cil_exp should_negate in
     match linexpr1, comparator with
-    | Some linexpr1, Some comparator -> Some (Lincons1.make linexpr1 comparator)
+    | Some linexpr1, Some comparator -> 
+      Some (Lincons1.make linexpr1 comparator)
     | _ -> None
 
+  (* Assert an invariant *)
+  (* Gives the result of the meet operation of the given octagon 
+  with the linear constraints coming from the given expression *)
   let assert_inv d x b =
+    let () = print_endline "Asserting" in 
+    let () = print_endline (Pretty.sprint 20 (Cil.d_exp () x))  in 
     try
       (* if assert(x) then convert it to assert(x != 0) *)
       let x = match x with
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
           UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
         | _ -> x in
-      let linecons = cil_exp_to_apron_linecons (A.env d) x b in
+      (* Linear constraints from an expression x in an environment of octagon d *)
+      let linecons = cil_exp_to_apron_linecons (A.env d) x b in 
+      (* Linear constraints are optional, so we check if there are any. *)
       match linecons with
       | Some linecons ->
+        (* Get the underlying linear constraint of level 0. 
+        Modifying the constraint of level 0 (not advisable) 
+        modifies correspondingly the linear constraint and conversely, 
+        except for changes of environments *)
         let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
                  ; array_env = A.env d
                  }
         in
+        (* We perform a meet of the current octagon with the linear constraints 
+        that come from the expression we wish to assert. *)
         A.meet_lincons_array Man.mgr d ea
       | None -> d
     with Invalid_argument "cil_exp_to_lexp" -> d
 
+  (* Converts CIL expressions to Apron expressions of level 1 *)
   let cil_exp_to_apron_texpr1 env exp =
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
     Texpr1.of_expr env (cil_exp_to_cil_lhost exp)
 
+  
   let assign_var_eq_with d v v' =
     A.assign_texpr_with Man.mgr d (Var.of_string v)
       (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
@@ -384,11 +449,17 @@ struct
       end
     | _ -> None
 
+  (* This function is used by the query function to compare expressions for equality. *)
+  (* The arguments are the octagon and the two expressions to be compared. *)
   let cil_exp_equals d exp1 exp2 =
+    (* If the octagon is equal to bottom, we return false. *)
     if (is_bot d) then false
     else
       begin
+        (* let () = print_endline (String.concat " compare_expression " [(Pretty.sprint 20 (Cil.d_exp () exp1)); (Pretty.sprint 20 (Cil.d_exp () exp2))])  in *)
+        (* Create a compare expression from two expressions *)
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
+        (* We compare the octagon with the octagon we get by performing meet of it with the linear constraints coming from the expression *)
         equal d (assert_inv d compare_expression false)
       end
 

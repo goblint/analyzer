@@ -4,7 +4,9 @@ open Prelude.Ana
 open Analyses
 open Apron
 
-open ApronDomain
+open OctyDomain
+
+
 
 module Spec : Analyses.Spec =
 struct
@@ -106,6 +108,8 @@ struct
   let query ctx (q:Queries.t) : Queries.Result.t =
     let open Queries in
     let d = ctx.local in
+    (*let () = Node.print (Node.pretty_short_node () ctx.node) in
+    let () = print_endline "" in*)
     match q with
     | EvalInt e ->
       begin
@@ -134,6 +138,7 @@ struct
         | _ -> `Top
       end *)
     | MustBeEqual (e1, e2) ->
+      (* let () = print_endline (String.concat " must be equal " [(Pretty.sprint 20 (Cil.d_exp () e1)); (Pretty.sprint 20 (Cil.d_exp () e2))])  in *)
       if D.cil_exp_equals d e1 e2 then `MustBool true
       else `MustBool false
     | _ -> Result.top ()
