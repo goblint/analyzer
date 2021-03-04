@@ -8,10 +8,10 @@ module Man =
 struct
   (* type mt = Oct.t *)
   type mt = Polka.strict Polka.t
-  (* A type of manager for the Polka domain *)
+  (* A type of manager for the polyhedra domain *)
   type t = mt Manager.t
 
-  (* Allocate a new manager to manipulate Polkas *)
+  (* Allocate a new manager to manipulate polyhedra *)
   (* let mgr = Oct.manager_alloc () *)
   let mgr = Polka.manager_alloc_strict ()
   (* Making an environment from a set of integer and real variables. 
@@ -237,7 +237,7 @@ struct
     | Some linexpr1, Some comparator -> Some (Lincons1.make linexpr1 comparator)
     | _ -> None
 
-  (* Gives the result of the meet operation of the given octagon 
+  (* Gives the result of the meet operation of the given polyhedron 
   with the linear constraints coming from the given expression *)
   let assert_inv d x b =
     try
@@ -246,7 +246,7 @@ struct
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
           UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
         | _ -> x in
-      (* Linear constraints from an expression x in an environment of octagon d *)
+      (* Linear constraints from an expression x in an environment of polyhedron d *)
       let linecons = cil_exp_to_apron_linecons (A.env d) x b in
       (* Linear constraints are optional, so we check if there are any. *)
       match linecons with
@@ -259,7 +259,7 @@ struct
                  ; array_env = A.env d
                  }
         in
-        (* We perform a meet of the current octagon with the linear constraints 
+        (* We perform a meet of the current polyhedron with the linear constraints 
         that come from the expression we wish to assert. *)
         A.meet_lincons_array Man.mgr d ea
       | None -> d
@@ -405,7 +405,7 @@ struct
     else
       begin
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
-        (* We compare the octagon with the octagon we get by performing meet of it with the linear constraints coming from the expression *)
+        (* We compare the polyhedron with the polyhedron we get by performing meet of it with the linear constraints coming from the expression *)
         equal d (assert_inv d compare_expression false)
       end
 

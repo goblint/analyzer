@@ -1,20 +1,18 @@
-// PARAM: --set ana.activated[+] "'octy'" --enable dbg.debug --enable ana.int.interval
+// PARAM: --set ana.activated[+] "'poly'" --enable dbg.debug --enable ana.int.interval
 
 int main(void) {
     int x, y, r;
     x = 5;
     y = 3;
-    r = x + y; // r is 8
-    int c = 10;
+    r = x + y;
     while (x != y) {
         assert(r > 0); 
         if (y > x) 
-            y = y - x; //2nd iter: y = 1
+            y = y - x;
         else 
-            x = x - y; // 1st iter goes here, x = 2
-        assert(r > x + y); // 8 > 3+2,  5 > 1+3,  4 > 1+2, 3 > 1+1, 2 > 1 + 0, 1 > 0
+            x = x - y;
+        assert(r > x + y);
         r = x + y; 
-        c++;
     }
     return 0;
 }
