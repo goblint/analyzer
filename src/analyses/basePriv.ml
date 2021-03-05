@@ -941,30 +941,13 @@ struct
     in
     let d_init =
       (* TODO: V.exists *)
-      if not (V.for_all (fun m cached -> not (CachedVars.mem x cached)) (fst st.priv)) then
+      if not (V.for_all (fun m cached -> not (CachedVars.mem x cached)) vv) then
         VD.bot ()
       else
         GWeak.find (lockset_init ()) weaks
     in
     let d_weak = VD.join d_weak d_init in
-    (* TODO: move just to combined analysis *)
-    (* let d_sync_meet = Lockset.fold (fun m acc ->
-        if not (CachedVars.mem x (V.find m vv)) then
-          GSync.fold (fun s' cpa' acc ->
-              if Lockset.disjoint s s' then
-                let v = CPA.find x cpa' in
-                VD.join v acc
-              else
-                acc
-            ) (snd (getg (mutex_addr_to_varinfo m))) acc
-        else
-          acc
-      ) s (VD.bot ())
-    in
-    let d_weak_meet = d_weak in *)
-    let d_meet = VD.top () in
-    (* let d_meet = VD.join d_sync_meet d_weak_meet in *)
-    let d = VD.join d_cpa (VD.meet (VD.join d_sync d_weak) d_meet) in
+    let d = VD.join d_cpa (VD.join d_sync d_weak) in
     d
 
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
