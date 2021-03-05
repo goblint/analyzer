@@ -947,7 +947,8 @@ struct
         GWeak.find (lockset_init ()) weaks
     in
     let d_weak = VD.join d_weak d_init in
-    let d_sync_meet = Lockset.fold (fun m acc ->
+    (* TODO: move just to combined analysis *)
+    (* let d_sync_meet = Lockset.fold (fun m acc ->
         if not (CachedVars.mem x (V.find m vv)) then
           GSync.fold (fun s' cpa' acc ->
               if Lockset.disjoint s s' then
@@ -960,7 +961,7 @@ struct
           acc
       ) s (VD.bot ())
     in
-    let d_weak_meet = d_weak in
+    let d_weak_meet = d_weak in *)
     let d_meet = VD.top () in
     (* let d_meet = VD.join d_sync_meet d_weak_meet in *)
     let d = VD.join d_cpa (VD.meet (VD.join d_sync d_weak) d_meet) in
@@ -1012,8 +1013,6 @@ struct
     | `Thread ->
       (st, [])
 
-  (* let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st *)
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
