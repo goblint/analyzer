@@ -1040,12 +1040,12 @@ module PerGlobalHistoryPriv: S =
 struct
   include MinePrivBase
 
+  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
   module W =
   struct
-    include MapDomain.MapBot_LiftTop (Basetype.Variables) (Lattice.Reverse (Lockset))
+    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
     let name () = "W"
   end
-  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
   module P =
   struct
     include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
@@ -1112,7 +1112,7 @@ struct
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let (w, p) = st.priv in
-    let w' = W.add x s w in
+    let w' = W.add x (MinLocksets.singleton s) w in
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
@@ -1130,7 +1130,9 @@ struct
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
     let side_gsyncw = CPA.fold (fun x v acc ->
         if is_global ask x then
-          GSyncW.add (W.find x w) (CPA.add x v (CPA.bot ())) acc
+          MinLocksets.fold (fun w acc ->
+              GSyncW.add w (CPA.add x v (CPA.bot ())) acc
+            ) (W.find x w) acc
         else
           acc
       ) st.cpa (GSyncW.bot ())
