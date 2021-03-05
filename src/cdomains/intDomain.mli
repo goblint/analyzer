@@ -336,13 +336,11 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
+module BigInt : Printable.S
+
 module Interval : S with type int_t = IntOps.BigIntOps.t
 module DefExc
-  : IkindUnawareS with type t = [
-      | `Excluded of SetDomain.Make(Integers).t * Interval32.t
-      | `Definite of Integers.t
-      | `Bot
-    ]
+  : S with type int_t = BigInt.t
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
 

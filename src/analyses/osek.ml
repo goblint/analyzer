@@ -232,6 +232,7 @@ struct
       let staticprys = List.filter is_task_res prys in
       let pry = resourceset_to_priority staticprys in
       if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
+    let check_fun = effect_fun
   end
 
   module M = Mutex.MakeSpec (MyParam)
@@ -457,7 +458,7 @@ struct
       Hashtbl.add type_inv_tbl c.ckey i;
       [i, `NoOffset]
 
-  (* Try to find a suitable type invarinat --- and by that we mean a struct. *)
+  (* Try to find a suitable type invariant --- and by that we mean a struct. *)
   let best_type_inv exs : (varinfo * Offs.t) option =
     let add_el es e : LockingPattern.ee list list =
       try LockingPattern.toEl e :: es

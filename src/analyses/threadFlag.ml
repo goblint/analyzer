@@ -58,14 +58,6 @@ struct
   let special ctx lval f args =
     ctx.local
 
-  let query ctx x =
-    match x with
-    | Queries.MustBeSingleThreaded -> `MustBool (not (Flag.is_multi ctx.local))
-    | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
-    (* This used to be in base but also commented out. *)
-    (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
-    | _ -> `Top
-
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
     if is_multi ctx.ask then
@@ -73,6 +65,16 @@ struct
     else
       (* kill access when single threaded *)
       (Access.LSSSet.empty (), es)
+
+  let query ctx x =
+    match x with
+    | Queries.MustBeSingleThreaded -> `MustBool (not (Flag.is_multi ctx.local))
+    | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
+    (* This used to be in base but also commented out. *)
+    (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
+    | _ -> `Top
 
   let threadenter ctx lval f args =
     create_tid f
