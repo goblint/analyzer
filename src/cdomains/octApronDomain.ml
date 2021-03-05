@@ -1,6 +1,7 @@
 open Prelude
 open Cil
 open Pretty
+open Format
 
 (* This is to be able to use their implementation of octagons *)
 open Apron
@@ -60,6 +61,7 @@ struct
       x
     else
       A.join (Man.mgr) x y in
+    let () = print_endline "Result of join:" in
     let () = print_endline (short 30 ret) in
     ret
 
@@ -249,6 +251,8 @@ struct
     | _ ->
       raise (Invalid_argument "cil_exp_to_lexp")
 
+  let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
+
   let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
     let inverse_comparator comparator =
       match comparator with
@@ -271,7 +275,7 @@ struct
       end
 
   let cil_exp_to_apron_linecons environment cil_exp should_negate =
-    (* ignore (Pretty.printf "exptolinecons '%a'\n" d_plainexp cil_exp); *)
+    ignore (Pretty.printf "cil_exp_to_apron_linecons exptolinecons '%a'\n" d_plainexp cil_exp);
     let linexpr1, comparator = cil_exp_to_apron_linexpr1 environment cil_exp should_negate in
     match linexpr1, comparator with
     | Some linexpr1, Some comparator -> 
@@ -295,6 +299,12 @@ struct
       (* Linear constraints are optional, so we check if there are any. *)
       match linecons with
       | Some linecons ->
+        let () = print_endline "Linecons + oct" in
+        let () = Lincons1.print Format.std_formatter linecons in
+        let () = print_endline "" in
+        let l0 = linecons.lincons0 in
+        let () = print_lincons l0 in
+        let () = print_endline "" in
         (* Get the underlying linear constraint of level 0. 
         Modifying the constraint of level 0 (not advisable) 
         modifies correspondingly the linear constraint and conversely, 
@@ -305,7 +315,10 @@ struct
         in
         (* We perform a meet of the current octagon with the linear constraints 
         that come from the expression we wish to assert. *)
-        A.meet_lincons_array Man.mgr d ea
+        let () = print_endline (short 30 d) in
+        let meet_res = A.meet_lincons_array Man.mgr d ea in
+        let () = print_endline (short 30 meet_res) in
+        meet_res
       | None -> d
     with Invalid_argument "cil_exp_to_lexp" -> d
 
@@ -456,7 +469,16 @@ struct
         (* Create a compare expression from two expressions *)
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
         (* We compare the octagon with the octagon we get by performing meet of it with the linear constraints coming from the expression *)
-        equal d (assert_inv d compare_expression false)
+        let () = print_endline "cil_exp_equals will compare exps" in
+        let () = print_endline (Pretty.sprint 20 (Cil.d_exp () exp1))  in 
+        let () = print_endline (Pretty.sprint 20 (Cil.d_exp () exp2))  in 
+        let resulting_oct = (assert_inv d compare_expression false) in
+        let comp_result = equal d resulting_oct in
+        let () = print_endline "comparing..." in
+        let () = print_endline (short 30 d) in
+        let () = print_endline "...and..." in
+        let () = print_endline (short 30 resulting_oct) in
+        comp_result
       end
 
 end
