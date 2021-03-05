@@ -1036,7 +1036,7 @@ struct
       ) st.cpa st
 end
 
-module MineHistoryPriv: S =
+module PerGlobalHistoryPriv: S =
 struct
   include MinePrivBase
 
@@ -1213,7 +1213,7 @@ let priv_module: (module S) Lazy.t =
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv)
         | "mine-lazy" -> (module MineLazyPriv)
-        | "mine-history" -> (module MineHistoryPriv)
+        | "global-history" -> (module PerGlobalHistoryPriv)
         | _ -> failwith "exp.privatization: illegal value"
       )
     in
