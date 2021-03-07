@@ -3,11 +3,15 @@ void change(int *p) {
     (*p)++;
 }
 
-int a;
+int g;
 int main() {
-    a = 5;
-    int *p = &a;
+    int c = rand();
+    g = 3; // Globals are not tracked by octApron for now
+    assert(g != 3); 
+    assert(g == 3); // UNKNOWN 
+    int a = 5;
+    int *p = &a; // after this octApron should put a to top because pointers are not tracked
     change(p);
-    assert(a - 6 == 0);
+    assert(a - 6 == 0); // UNKNOWN
     return 0;
 }

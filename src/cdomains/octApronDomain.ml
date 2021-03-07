@@ -282,7 +282,6 @@ struct
       Some (Lincons1.make linexpr1 comparator)
     | _ -> None
 
-
   (* Assert an invariant *)
   (* Gives the result of the meet operation of the given octagon 
   with the linear constraints coming from the given expression *)
@@ -323,12 +322,27 @@ struct
       | None -> d
     with Invalid_argument "cil_exp_to_lexp" -> d
 
-  let assert_fn ctrlctx octa e warn =  
+  (* Creates the opposite invariant and assters it *)
+  let assert_op_inv d x b =
+    try
+      (* if assert(x) then convert it to assert(x != 0) *)
+      (* let x = match x with
+        | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
+          UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
+        | _ -> x in *)
+      assert_inv d x b
+    with Invalid_argument "cil_exp_to_lexp" -> d
+
+  let assert_fn ctrlctx octa e warn change =  
     let check_assert e state =
-      if equal state (assert_inv state e false) then
-        `True
-      else
+      let result_state = (assert_inv state e false) in
+      let result_state_op = (assert_op_inv state e false) in
+      if is_bot result_state then
         `False
+      else if is_bot result_state_op then
+        `True
+      else 
+          `Top
     in
     let expr = sprint 30 (Cil.d_exp () e) in
     let warn ?annot msg = if warn then
@@ -353,6 +367,19 @@ struct
       octa
     | `True ->
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
+      octa
+    (* | `Bot ->
+      Messages.warn_each ~ctx:ctrlctx ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      octa *)
+    | `Top ->
+      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
+      (* make the state meet the assertion in the rest of the code *) (* <----- OK but why? Do I want this?*)
+      (* if not change then octa else begin
+        let newst = invariant ctx ctx.ask ctx.global ctx.local e true in
+        (* if check_assert e newst <> `True then
+            M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
+        newst 
+      end *) (* I think I don't want this *)
       octa
 
   (* Converts CIL expressions to Apron expressions of level 1 *)

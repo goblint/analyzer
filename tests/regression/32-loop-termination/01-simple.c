@@ -3,6 +3,8 @@
 int main(void) {
     int x, y, r;
     x = 5;
+    assert(x == 3); // FAIL
+    assert(x == 5); 
     y = 3;
     r = x + y;
     while (x != y) {
