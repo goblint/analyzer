@@ -226,6 +226,7 @@ let eq_glob' (a: global) (module Cfg1 : MyCFG.CfgForward) (b: global) (module Cf
 let compareCilFiles (oldAST: file) (newAST: file) =
   let oldCfg, _ = CfgTools.getCFG oldAST in
   let newCfg, _ = CfgTools.getCFG newAST in
+
   let module OldCfg: MyCFG.CfgForward = struct let next = oldCfg end in
   let module NewCfg: MyCFG.CfgForward = struct let next = newCfg end in
 
