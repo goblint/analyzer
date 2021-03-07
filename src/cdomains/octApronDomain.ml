@@ -252,6 +252,8 @@ struct
       raise (Invalid_argument "cil_exp_to_lexp")
 
   let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
+  let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
+  let print_octagon o = print_endline (short 30 o)
 
   let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
     let inverse_comparator comparator =
@@ -287,7 +289,7 @@ struct
   with the linear constraints coming from the given expression *)
   let assert_inv d x b =
     let () = print_endline "Asserting" in 
-    let () = print_endline (Pretty.sprint 20 (Cil.d_exp () x))  in 
+    let () = print_expression x in 
     try
       (* if assert(x) then convert it to assert(x != 0) *)
       let x = match x with
@@ -315,9 +317,9 @@ struct
         in
         (* We perform a meet of the current octagon with the linear constraints 
         that come from the expression we wish to assert. *)
-        let () = print_endline (short 30 d) in
+        let () = print_octagon d in
         let meet_res = A.meet_lincons_array Man.mgr d ea in
-        let () = print_endline (short 30 meet_res) in
+        let () = print_octagon meet_res in
         meet_res
       | None -> d
     with Invalid_argument "cil_exp_to_lexp" -> d
@@ -325,11 +327,14 @@ struct
   (* Creates the opposite invariant and assters it *)
   let assert_op_inv d x b =
     try
-      (* if assert(x) then convert it to assert(x != 0) *)
-      (* let x = match x with
-        | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
-          UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
-        | _ -> x in *)
+      let x = match x with
+        | BinOp (Eq, lhd, rhs, intType) -> BinOp (Ne, lhd, rhs, intType)
+        | BinOp (Ne, lhd, rhs, intType) -> BinOp (Eq, lhd, rhs, intType)
+        | BinOp (Lt, lhd, rhs, intType) -> BinOp (Ge, lhd, rhs, intType)
+        | BinOp (Gt, lhd, rhs, intType) -> BinOp (Le, lhd, rhs, intType)
+        | BinOp (Le, lhd, rhs, intType) -> BinOp (Lt, lhd, rhs, intType)
+        | BinOp (Ge, lhd, rhs, intType) -> BinOp (Gt, lhd, rhs, intType)
+        | _ -> x in
       assert_inv d x b
     with Invalid_argument "cil_exp_to_lexp" -> d
 
@@ -361,26 +366,15 @@ struct
         ) else
         Messages.warn_each ~ctx:ctrlctx msg
     in
-    match check_assert e octa with
+    let () = match check_assert e octa with
     | `False ->
-      warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
-      octa
+      warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
     | `True ->
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
-      octa
-    (* | `Bot ->
-      Messages.warn_each ~ctx:ctrlctx ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
-      octa *)
     | `Top ->
-      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
-      (* make the state meet the assertion in the rest of the code *) (* <----- OK but why? Do I want this?*)
-      (* if not change then octa else begin
-        let newst = invariant ctx ctx.ask ctx.global ctx.local e true in
-        (* if check_assert e newst <> `True then
-            M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
-        newst 
-      end *) (* I think I don't want this *)
-      octa
+      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.")
+    in
+    octa
 
   (* Converts CIL expressions to Apron expressions of level 1 *)
   let cil_exp_to_apron_texpr1 env exp =
