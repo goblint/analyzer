@@ -14,7 +14,7 @@ struct
 
   let name () = "octApron"
 
-  module D = D
+  module D = OctApronDomain.D
   module G = Lattice.Unit
   module C = D
 
@@ -63,14 +63,26 @@ struct
         A.unify Man.mgr nd nd'
       | _ -> D.topE (A.env ctx.local)
 
+  let invalidate ask (exps: exp list) =
+    if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
+    ()
+
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
       begin
         match LibraryFunctions.classify f.vname args with
         | `Assert expression -> (* D.assert_inv ctx.local expression false *)
-          D.assert_fn ctx ctx.local expression true
+          D.assert_fn ctx ctx.local expression true false
         | `Unknown "printf" -> ctx.local
-        | _ -> D.topE (A.env ctx.local)
+        | _ -> (* D.topE (A.env ctx.local) *)
+          begin
+            let st =
+              match LibraryFunctions.get_invalidate_action f.vname with
+              | Some fnc -> let () = print_endline "invalidate" in let () = invalidate ctx.ask (fnc `Write  args) in ctx.local
+              | None -> D.topE (A.env ctx.local)
+            in
+              st      
+          end
       end
 
   let branch ctx e b =
