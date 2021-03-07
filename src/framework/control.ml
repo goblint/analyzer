@@ -544,15 +544,18 @@ struct
       analyze_loop file fs change_info
 end
 
-(** The main function to perform the selected analyses. *)
-let analyze change_info (file: file) fs =
-  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+let compute_cfg file =
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
     | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
-  let module CFG = struct let prev = cfgB let next = cfgF end in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir)
+
+(** The main function to perform the selected analyses. *)
+let analyze change_info (file: file) fs =
+  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+  let (module CFG) = compute_cfg file in
   let module A = AnalyzeCFG (CFG) in
   A.analyze_loop file fs change_info
