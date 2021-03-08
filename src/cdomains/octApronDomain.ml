@@ -52,17 +52,12 @@ struct
   If one of them is equal to bottom, the other one is the result of the join. 
   Otherwise, we use the manager form Apron to join the octagons. *)
   let join x y =
-    let () = print_endline "Joining octagons:" in
-    let () = print_endline (short 30 x) in
-    let () = print_endline (short 30 y) in
     let ret = if is_bot x then
       y
     else if is_bot y then
       x
     else
       A.join (Man.mgr) x y in
-    let () = print_endline "Result of join:" in
-    let () = print_endline (short 30 ret) in
     ret
 
   (* This function performs a meet two octagons.
@@ -70,31 +65,22 @@ struct
   If either of them is equal to bottom, bottom is the result of the meet.
   Otherwise, we use the manager form Apron to join the octagons. *)
   let meet x y =
-    let () = print_endline "Meeting octagons:" in
-    let () = print_endline (short 30 x) in
-    let () = print_endline (short 30 y) in
     let ret = if is_top x then y else
     if is_top y then x else
     if is_bot x || is_bot y then bot () else
       A.meet Man.mgr x y in
-    
-    let () = print_endline (short 30 ret) in
     ret
 
   (* This function performs a widening of two octagons.
   If one of them is equal to bottom, the other one is the result of the widening. 
   Otherwise, we use the manager from Apron to do the widening. *)
   let widen x y =
-    let () = print_endline "Widening octagons:" in
-    let () = print_endline (short 30 x) in
-    let () = print_endline (short 30 y) in
     let ret = if is_bot x then
       y
     else if is_bot y then
       x
     else
       A.widening (Man.mgr) x y in
-    let () = print_endline (short 30 ret) in
     ret
 
   let narrow = meet
@@ -277,7 +263,7 @@ struct
       end
 
   let cil_exp_to_apron_linecons environment cil_exp should_negate =
-    ignore (Pretty.printf "cil_exp_to_apron_linecons exptolinecons '%a'\n" d_plainexp cil_exp);
+    (* ignore (Pretty.printf "cil_exp_to_apron_linecons exptolinecons '%a'\n" d_plainexp cil_exp); *)
     let linexpr1, comparator = cil_exp_to_apron_linexpr1 environment cil_exp should_negate in
     match linexpr1, comparator with
     | Some linexpr1, Some comparator -> 
@@ -287,91 +273,131 @@ struct
   (* Assert an invariant *)
   (* Gives the result of the meet operation of the given octagon 
   with the linear constraints coming from the given expression *)
-  let assert_inv d x b =
-    let () = print_endline "Asserting" in 
-    let () = print_expression x in 
+  let rec assert_inv d x b =
     try
       (* if assert(x) then convert it to assert(x != 0) *)
       let x = match x with
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
           UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
         | _ -> x in
-      (* Linear constraints from an expression x in an environment of octagon d *)
-      let linecons = cil_exp_to_apron_linecons (A.env d) x b in 
-      (* Linear constraints are optional, so we check if there are any. *)
-      match linecons with
-      | Some linecons ->
-        let () = print_endline "Linecons + oct" in
-        let () = Lincons1.print Format.std_formatter linecons in
-        let () = print_endline "" in
-        let l0 = linecons.lincons0 in
-        let () = print_lincons l0 in
-        let () = print_endline "" in
-        (* Get the underlying linear constraint of level 0. 
-        Modifying the constraint of level 0 (not advisable) 
-        modifies correspondingly the linear constraint and conversely, 
-        except for changes of environments *)
-        let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
-                 ; array_env = A.env d
-                 }
-        in
-        (* We perform a meet of the current octagon with the linear constraints 
-        that come from the expression we wish to assert. *)
-        let () = print_octagon d in
-        let meet_res = A.meet_lincons_array Man.mgr d ea in
-        let () = print_octagon meet_res in
-        meet_res
-      | None -> d
+      match x with 
+      | BinOp (Ne, lhd, rhs, intType) -> 
+        let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
+        let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
+        let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
+        let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
+        if not (is_bot assert_gt) then
+          assert_gt
+        else
+          assert_lt
+      | _ ->       
+        (* Linear constraints from an expression x in an environment of octagon d *)
+        let linecons = cil_exp_to_apron_linecons (A.env d) x b in 
+        (* Linear constraints are optional, so we check if there are any. *)
+        match linecons with
+        | Some linecons ->
+          (* Get the underlying linear constraint of level 0. 
+          Modifying the constraint of level 0 (not advisable) 
+          modifies correspondingly the linear constraint and conversely, 
+          except for changes of environments *)
+          let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
+                  ; array_env = A.env d
+                  }
+          in
+          (* We perform a meet of the current octagon with the linear constraints 
+          that come from the expression we wish to assert. *)
+          A.meet_lincons_array Man.mgr d ea
+        | None -> d
     with Invalid_argument "cil_exp_to_lexp" -> d
 
   (* Creates the opposite invariant and assters it *)
   let assert_op_inv d x b =
+    let () = print_endline "Opposite is" in
     try
-      let x = match x with
-        | BinOp (Eq, lhd, rhs, intType) -> BinOp (Ne, lhd, rhs, intType)
-        | BinOp (Ne, lhd, rhs, intType) -> BinOp (Eq, lhd, rhs, intType)
-        | BinOp (Lt, lhd, rhs, intType) -> BinOp (Ge, lhd, rhs, intType)
-        | BinOp (Gt, lhd, rhs, intType) -> BinOp (Le, lhd, rhs, intType)
-        | BinOp (Le, lhd, rhs, intType) -> BinOp (Lt, lhd, rhs, intType)
-        | BinOp (Ge, lhd, rhs, intType) -> BinOp (Gt, lhd, rhs, intType)
-        | _ -> x in
-      assert_inv d x b
+      match x with
+        | BinOp (Ne, lhd, rhs, intType) -> 
+          let () = print_expression (BinOp (Eq, lhd, rhs, intType)) in
+          assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
+
+        | BinOp (Eq, lhd, rhs, intType) -> 
+          let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
+          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
+          let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
+          let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
+          if not (is_bot assert_gt) then
+            assert_gt
+          else
+            assert_lt
+
+        | BinOp (Lt, lhd, rhs, intType) -> 
+          let () = print_expression (BinOp (Ge, lhd, rhs, intType)) in
+          assert_inv d (BinOp (Ge, lhd, rhs, intType)) b
+
+        | BinOp (Gt, lhd, rhs, intType) -> 
+          let () = print_expression (BinOp (Le, lhd, rhs, intType)) in
+          assert_inv d (BinOp (Le, lhd, rhs, intType)) b
+
+        | BinOp (Le, lhd, rhs, intType) -> 
+          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
+          assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
+
+        | BinOp (Ge, lhd, rhs, intType) -> 
+          let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
+          assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
+
+        | _ ->  assert_inv d x b
     with Invalid_argument "cil_exp_to_lexp" -> d
 
   let assert_fn ctrlctx octa e warn change =  
+    let () = print_endline "----------\nThe octagon is" in
+    let () = print_octagon octa in
+    let () = print_endline "Asserting" in
+    let () = print_expression e in
     let check_assert e state =
       let result_state = (assert_inv state e false) in
+      let () = print_endline "Result" in
+      let () = print_octagon result_state in
       let result_state_op = (assert_op_inv state e false) in
+      let () = print_endline "Result of the opposite" in
+      let () = print_octagon result_state_op in
       if is_bot result_state then
         `False
       else if is_bot result_state_op then
         `True
       else 
-          `Top
+        `Top
     in
     let expr = sprint 30 (Cil.d_exp () e) in
     let warn ?annot msg = if warn then
+        let () = print_endline "I'm here" in
         if GobConfig.get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !Messages.current_loc in
           let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
           let open Str in
           let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
+          
+          let () = print_endline "DBG" in
           if expected <> annot then (
+            let () = print_endline "It's not correct" in
             let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
             (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
             Messages.warn_each ~ctx:ctrlctx (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
+          ) else (
+            Messages.warn_each ~ctx:ctrlctx (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> octApron says good")
           )
         ) else
         Messages.warn_each ~ctx:ctrlctx msg
     in
     let () = match check_assert e octa with
     | `False ->
+    let () = print_endline "FFFFFFFFF!!!!!" in
       warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
     | `True ->
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
     | `Top ->
+      let () = print_endline "Top!!!!!" in
       warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.")
     in
     octa
@@ -523,15 +549,15 @@ struct
         (* Create a compare expression from two expressions *)
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
         (* We compare the octagon with the octagon we get by performing meet of it with the linear constraints coming from the expression *)
-        let () = print_endline "cil_exp_equals will compare exps" in
+        (*let () = print_endline "cil_exp_equals will compare exps" in
         let () = print_endline (Pretty.sprint 20 (Cil.d_exp () exp1))  in 
-        let () = print_endline (Pretty.sprint 20 (Cil.d_exp () exp2))  in 
+        let () = print_endline (Pretty.sprint 20 (Cil.d_exp () exp2))  in *)
         let resulting_oct = (assert_inv d compare_expression false) in
         let comp_result = equal d resulting_oct in
-        let () = print_endline "comparing..." in
+        (*let () = print_endline "comparing..." in
         let () = print_endline (short 30 d) in
         let () = print_endline "...and..." in
-        let () = print_endline (short 30 resulting_oct) in
+        let () = print_endline (short 30 resulting_oct) in*)
         comp_result
       end
 
