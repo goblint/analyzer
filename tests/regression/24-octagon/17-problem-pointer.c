@@ -7,7 +7,7 @@ int g;
 int main() {
     int c = rand();
     g = 3; // Globals are not tracked by octApron for now
-    assert(g != 3); 
+    assert(g != 3); // UNKNOWN 
     assert(g == 3); // UNKNOWN 
     int a = 5;
     int *p = &a; // after this octApron should put a to top because pointers are not tracked

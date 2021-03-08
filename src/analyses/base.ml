@@ -1919,6 +1919,7 @@ struct
     in
     match check_assert e ctx.local with
     | `False ->
+      let () = print_endline "Failing miserably" in
       warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `True ->
