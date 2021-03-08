@@ -17,7 +17,7 @@ depends: [
   "dune"
   "zarith_stubs_js"
   "goblint-cil"
-  "batteries"
+  "batteries" {>= "3.2.0"}
   "qcheck-core"
   "ppx_distr_guards" {>= "0.2"}
   "ppx_import"
