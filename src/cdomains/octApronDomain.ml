@@ -390,17 +390,29 @@ struct
         ) else
         Messages.warn_each ~ctx:ctrlctx msg
     in
-    let () = match check_assert e octa with
-    | `False ->
-    let () = print_endline "FFFFFFFFF!!!!!" in
-      warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
-    | `True ->
-      warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
-    | `Top ->
-      let () = print_endline "Top!!!!!" in
-      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.")
-    in
-    octa
+    match e with
+    | Const v -> 
+      let () = match v with
+        | CInt64 (num, ikind, tag) ->
+          begin match num with
+            | 0L ->  warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
+            | _  ->  warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
+          end
+        | _ -> warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
+      in 
+      octa
+    | _ -> 
+      let () = match check_assert e octa with
+        | `False ->
+        let () = print_endline "FFFFFFFFF!!!!!" in
+          warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
+        | `True ->
+          warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
+        | `Top ->
+          let () = print_endline "Top!!!!!" in
+          warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.")
+      in
+      octa
 
   (* Converts CIL expressions to Apron expressions of level 1 *)
   let cil_exp_to_apron_texpr1 env exp =
