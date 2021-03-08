@@ -220,6 +220,22 @@ module Tbls = struct
     let make_new_val table k = all_keys_count table
   end)
 
+  module FunNameToTids = struct
+    include Tbl (struct
+      type k = fun_name
+
+      type v = thread_id Set.t
+    end)
+
+    let extend k v = Hashtbl.modify_def Set.empty k (Set.add v) table
+
+    let get_fun_for_tid v =
+      Hashtbl.keys table
+      |> List.of_enum
+      |> List.find (fun k ->
+             Option.get @@ Hashtbl.find table k |> Set.exists (( = ) v))
+  end
+
   module MutexMidTbl = SymTbl (struct
     type k = mutex_name
 
@@ -462,6 +478,8 @@ module Codegen = struct
   module Action = struct
     include Action
 
+    let extract_thread_create = function ThreadCreate x -> Some x | _ -> None
+
     let to_pml = function
       | Call fname ->
           "goto Fun_" ^ fname ^ "; "
@@ -470,15 +488,7 @@ module Codegen = struct
       | Cond cond ->
           cond ^ " -> "
       | ThreadCreate t ->
-          (* if new thread has no edges, then do not create it *)
-          let nop_thread =
-            let thread_name = Option.get @@ Tbls.ThreadTidTbl.get_key t.tid in
-            Set.is_empty
-            @@ Edges.get (Resource.make Resource.Thread thread_name)
-          in
-          if nop_thread
-          then ""
-          else "ThreadCreate(" ^ string_of_int t.tid ^ "); "
+          "ThreadCreate(" ^ string_of_int t.tid ^ "); "
       | ThreadJoin tid ->
           "ThreadWait(" ^ string_of_int tid ^ "); "
       | MutexInit m ->
@@ -533,16 +543,40 @@ module Codegen = struct
 
   let save_promela_model () =
     let threads =
-      Edges.table
-      |> Hashtbl.keys
-      |> List.of_enum
-      |> List.filter (fun res -> Resource.res_type res = Resource.Thread)
-      |> List.unique
+      List.unique @@ Edges.filter_map_actions Action.extract_thread_create
     in
 
-    let thread_count = List.length @@ Tbls.ThreadTidTbl.to_list () in
+    let thread_count = List.length threads + 1 in
     let mutex_count = List.length @@ Tbls.MutexMidTbl.to_list () in
     let cond_var_count = List.length @@ Tbls.CondVarIdTbl.to_list () in
+
+    (* add missing edges for threads that rerun the function *)
+    let add_missing_edges tid =
+      let f_opt = Tbls.FunNameToTids.get_fun_for_tid tid in
+      if Option.is_some f_opt
+      then
+        let resource_from_tid tid =
+          Resource.make Resource.Thread
+          @@ Option.get
+          @@ Tbls.ThreadTidTbl.get_key tid
+        in
+        let edges_for_tid = Edges.get % resource_from_tid in
+        if Set.is_empty @@ edges_for_tid tid
+        then
+          let f = Option.get f_opt in
+          let tids_for_f =
+            Set.elements @@ Option.get @@ Tbls.FunNameToTids.get f
+          in
+          let edges =
+            let not_empty = not % Set.is_empty in
+            tids_for_f
+            |> List.map edges_for_tid
+            |> List.find not_empty
+            |> Option.get
+          in
+          Hashtbl.add Edges.table (resource_from_tid tid) edges
+    in
+    threads |> List.map (fun t -> Action.(t.tid)) |> List.iter add_missing_edges ;
 
     let current_thread_name = ref "" in
     let called_funs_done = ref Set.empty in
@@ -714,14 +748,15 @@ module Codegen = struct
         let run_threads =
           (* NOTE: assumes no args are passed to the thread func *)
           List.map
-            (fun (_, thread_name) ->
-              let tid_str =
-                string_of_int @@ Tbls.ThreadTidTbl.get thread_name
-              in
+            (fun t ->
+              let tid = Action.(t.tid) in
+              let thread_name = Option.get @@ Tbls.ThreadTidTbl.get_key tid in
+              let tid_str = string_of_int tid in
               run thread_name ~arg:tid_str)
             threads
         in
-        let init_body = "preInit();" :: run_threads in
+        let run_main = run promela_main ~arg:"0" in
+        let init_body = "preInit();" :: run_main :: run_threads in
         [ "init {" ] @ List.map tabulate init_body @ [ "}" ]
       in
       let body =
@@ -826,7 +861,14 @@ module Spec : Analyses.Spec = struct
             ^ sprint Queries.Result.pretty v ;
             []
       in
-      List.map fst @@ mayPointTo ctx exp
+
+      match exp with
+      | Lval (Var v, offset) ->
+          [ v ]
+      | Lval (Mem _, _) | AddrOf _ ->
+          List.map fst @@ mayPointTo ctx exp
+      | _ ->
+          []
 
 
     let eval_id ctx exp get = List.map (get % Variable.show) @@ eval ctx exp
@@ -1059,6 +1101,7 @@ module Spec : Analyses.Spec = struct
           in
           let thread_create tid =
             add_task tid ;
+            Tbls.FunNameToTids.extend (Variable.show thread_fun) tid ;
             Action.ThreadCreate { f = thread_fun; tid }
           in
 
