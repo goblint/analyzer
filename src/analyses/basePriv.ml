@@ -1062,18 +1062,21 @@ struct
     let p_x = P.find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
     let d_cpa = CPA.find x st.cpa in
     let d_sync = Lockset.fold (fun m acc ->
-        GSync.fold (fun s' gsyncw' acc ->
-            if Lockset.disjoint s s' then
-              GSyncW.fold (fun w' cpa' acc ->
-                  if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
-                    let v = CPA.find x cpa' in
-                    VD.join v acc
-                  else
-                    acc
-                ) gsyncw' acc
-            else
-              acc
-          ) (snd (getg (mutex_addr_to_varinfo m))) acc
+        if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
+          GSync.fold (fun s' gsyncw' acc ->
+              if Lockset.disjoint s s' then
+                GSyncW.fold (fun w' cpa' acc ->
+                    if MinLocksets.exists (fun s'' -> Lockset.disjoint s'' w') p_x then
+                      let v = CPA.find x cpa' in
+                      VD.join v acc
+                    else
+                      acc
+                  ) gsyncw' acc
+              else
+                acc
+            ) (snd (getg (mutex_addr_to_varinfo m))) acc
+        else
+          acc
       ) s (VD.bot ())
     in
     let weaks = fst (getg (mutex_global x)) in
