@@ -899,6 +899,11 @@ struct
     (* Note different Map order! *)
     include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
     let name () = "P"
+
+    let mem_V x m p =
+      let p_x = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
+      MinLocksets.for_all (fun s -> Lockset.mem m s) p_x
+      (* MinLocksets.leq p_x (MinLocksets.singleton (Lockset.singleton m)) *)
   end
 end
 
@@ -1073,7 +1078,7 @@ struct
     let p_x = P.find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
     let d_cpa = CPA.find x st.cpa in
     let d_sync = Lockset.fold (fun m acc ->
-        if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
+        if not (P.mem_V x m p) then
           GSync.fold (fun s' gsyncw' acc ->
               if Lockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->
@@ -1210,7 +1215,7 @@ struct
     let p_x = P.find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
     let d_cpa = CPA.find x st.cpa in
     let d_m_sync = L.fold (fun m bs acc ->
-        if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
+        if not (P.mem_V x m p) then
           let syncs = snd (getg (mutex_addr_to_varinfo m)) in
           MinLocksets.fold (fun b acc ->
               GSync.fold (fun s' gsyncw' acc ->
@@ -1245,7 +1250,7 @@ struct
     in
     let d_m = VD.join d_m_sync d_m_weak in
     let d_g_sync = Lockset.fold (fun m acc ->
-        if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
+        if not (P.mem_V x m p) then
           GSync.fold (fun s' gsyncw' acc ->
               if Lockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->
