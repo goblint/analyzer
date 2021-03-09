@@ -1171,11 +1171,6 @@ struct
   include MinePrivBase
 
   (* TODO: share domain definitions *)
-  module V =
-  struct
-    include MapDomain.MapBot_LiftTop (Lock) (CachedVars)
-    let name () = "V"
-  end
   module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
   module L =
   struct
@@ -1192,7 +1187,7 @@ struct
     include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
     let name () = "P"
   end
-  module D = Lattice.Prod (Lattice.Prod (V) (L)) (Lattice.Prod (W) (P))
+  module D = Lattice.Prod3 (L) (W) (P)
 
   module GWeakW = MapDomain.MapBot (Lockset) (VD)
   module GWeak =
@@ -1210,17 +1205,17 @@ struct
   (* sync: M -> (S:2^M -> (W:2^M -> (G -> D))) *)
   module G = Lattice.Prod (GWeak) (GSync)
 
-  let startstate () = ((V.bot (), L.bot ()), (W.bot (), P.top ()))
+  let startstate () = (L.bot (), W.bot (), P.top ())
 
   let lockset_init () = Lockset.All
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
-    let ((vv, l), (w, p)) = st.priv in
+    let (l, w, p) = st.priv in
     let p_x = P.find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
     let d_cpa = CPA.find x st.cpa in
     let d_m_sync = L.fold (fun m bs acc ->
-        if not (CachedVars.mem x (V.find m vv)) then
+        if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
           let syncs = snd (getg (mutex_addr_to_varinfo m)) in
           MinLocksets.fold (fun b acc ->
               GSync.fold (fun s' gsyncw' acc ->
@@ -1255,7 +1250,7 @@ struct
     in
     let d_m = VD.join d_m_sync d_m_weak in
     let d_g_sync = Lockset.fold (fun m acc ->
-        if not (CachedVars.mem x (V.find m vv)) then
+        if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
           GSync.fold (fun s' gsyncw' acc ->
               if Lockset.disjoint s s' then
                 GSyncW.fold (fun w' cpa' acc ->
@@ -1279,11 +1274,7 @@ struct
 
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
-    let ((vv, l), (w, p)) = st.priv in
-    let v' = Lockset.fold (fun m acc ->
-        V.add m (CachedVars.add x (V.find m acc)) acc
-      ) s vv
-    in
+    let (l, w, p) = st.priv in
     let w' = W.add x (MinLocksets.singleton s) w in
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
@@ -1291,18 +1282,17 @@ struct
     if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
       sideg (mutex_global x) (GWeak.add s (GWeakW.add s v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
     (* TODO: publish all g under M_g? *)
-    {st with cpa = cpa'; priv = ((v', l), (w', p'))}
+    {st with cpa = cpa'; priv = (l, w', p')}
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
-    let ((v, l), wp) = st.priv in
-    let v' = V.add m (CachedVars.empty ()) v in
+    let (l, w, p) = st.priv in
     let l' = L.add m (MinLocksets.singleton s) l in
-    {st with priv = ((v', l'), wp)}
+    {st with priv = (l', w, p)}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = Lockset.remove m (current_lockset ask) in
-    let ((v, l), (w, p)) = st.priv in
+    let (l, w, p) = st.priv in
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
     let side_gsyncw = CPA.fold (fun x v acc ->
         if is_global ask x then
@@ -1315,9 +1305,8 @@ struct
     in
     sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_gsyncw (GSync.bot ()));
     (* TODO: don't remove? *)
-    let v' = V.remove m v in
     let l' = L.remove m l in
-    {st with priv = ((v', l'), (w, p'))}
+    {st with priv = (l', w, p')}
 
   let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
@@ -1339,10 +1328,10 @@ struct
     let s = current_lockset ask in
     CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
-          let (vl, (w, p)) = st.priv in
+          let (l, w, p) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
           sideg (mutex_global x) (GWeak.add (Lockset.empty ()) (GWeakW.add (lockset_init ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
-          {st with cpa = CPA.remove x st.cpa; priv = (vl, (w, p'))}
+          {st with cpa = CPA.remove x st.cpa; priv = (l, w, p')}
         )
         else
           st
