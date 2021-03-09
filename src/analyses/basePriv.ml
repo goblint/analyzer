@@ -876,20 +876,41 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
 end
 
+module PreciseDomains =
+struct
+  open MinePrivBase
+
+  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
+
+  module L =
+  struct
+    include MapDomain.MapBot_LiftTop (Lock) (MinLocksets)
+    let name () = "L"
+  end
+
+  module W =
+  struct
+    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
+    let name () = "W"
+  end
+
+  module P =
+  struct
+    (* Note different Map order! *)
+    include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
+    let name () = "P"
+  end
+end
+
 module MineLazyPriv: S =
 struct
   include MinePrivBase
+  include PreciseDomains
 
   module V =
   struct
     include MapDomain.MapBot_LiftTop (Lock) (CachedVars)
     let name () = "V"
-  end
-  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
-  module L =
-  struct
-    include MapDomain.MapBot_LiftTop (Lock) (MinLocksets)
-    let name () = "L"
   end
   module D = Lattice.Prod (V) (L)
 
@@ -1022,18 +1043,8 @@ end
 module PerGlobalHistoryPriv: S =
 struct
   include MinePrivBase
+  include PreciseDomains
 
-  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
-  module W =
-  struct
-    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
-    let name () = "W"
-  end
-  module P =
-  struct
-    include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
-    let name () = "P"
-  end
   module D = Lattice.Prod (W) (P)
 
   module GWeakW = MapDomain.MapBot (Lockset) (VD)
@@ -1169,24 +1180,8 @@ end
 module MinePerGlobalPriv: S =
 struct
   include MinePrivBase
+  include PreciseDomains
 
-  (* TODO: share domain definitions *)
-  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
-  module L =
-  struct
-    include MapDomain.MapBot_LiftTop (Lock) (MinLocksets)
-    let name () = "L"
-  end
-  module W =
-  struct
-    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
-    let name () = "W"
-  end
-  module P =
-  struct
-    include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
-    let name () = "P"
-  end
   module D = Lattice.Prod3 (L) (W) (P)
 
   module GWeakW = MapDomain.MapBot (Lockset) (VD)
