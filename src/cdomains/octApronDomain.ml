@@ -1,7 +1,6 @@
 open Prelude
 open Cil
 open Pretty
-open Format
 
 (* This is to be able to use their implementation of octagons *)
 open Apron
