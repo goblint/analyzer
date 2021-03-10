@@ -1941,6 +1941,8 @@ struct
     in
     let base_result = check_assert e ctx.local in
     let () = print_endline "MEETING" in
+    let () = print_endline (Pretty.sprint 20 (Cil.d_exp () e)) in
+    let () = print_result base_result in
     let result = 
       if should_warn then
         let other_analsyis_result = 
