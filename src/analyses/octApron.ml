@@ -62,10 +62,17 @@ struct
         D.remove_all_with nd' ["#ret"];
         A.unify Man.mgr nd nd'
       | _ -> D.topE (A.env ctx.local)
-
-  let invalidate ask (exps: exp list) =
+  let rec print_list_exp myList = match myList with
+    | [] -> print_endline "End!"
+    | head::body -> 
+    begin
+      D.print_expression head;
+      print_list_exp body
+    end
+  let invalidate oct (exps: exp list) = () (*
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    ()
+    let () = print_list_exp exps in
+    D.forget_all_with oct ["xxxx"]*)
 
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
@@ -79,7 +86,7 @@ struct
           begin
             let st =
               match LibraryFunctions.get_invalidate_action f.vname with
-              | Some fnc -> let () = print_endline "invalidate" in let () = invalidate ctx.ask (fnc `Write  args) in ctx.local
+              | Some fnc -> let () = print_endline "invalidate" in let () = invalidate ctx.local (fnc `Write  args) in ctx.local
               | None -> D.topE (A.env ctx.local)
             in
               st      
@@ -139,10 +146,10 @@ struct
         | Some i -> `Int i
         | _ -> `Top
       end
-    | MustBeEqual (e1, e2) ->
+    (*| MustBeEqual (e1, e2) ->
       (* let () = print_endline (String.concat " must be equal " [(Pretty.sprint 20 (Cil.d_exp () e1)); (Pretty.sprint 20 (Cil.d_exp () e2))])  in *)
       if D.cil_exp_equals d e1 e2 then `MustBool true
-      else `MustBool false
+      else `MustBool false*)
     | _ -> Result.top ()
 end
 

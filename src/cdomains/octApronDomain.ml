@@ -345,11 +345,11 @@ struct
 
         | BinOp (Le, lhd, rhs, intType) -> 
           (*let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in*)
-          assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
+          assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
 
         | BinOp (Ge, lhd, rhs, intType) -> 
           (*let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in*)
-          assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
+          assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
         
         | UnOp(LNot, e, t) -> 
           (*let () = print_expression e in*)
@@ -363,16 +363,17 @@ struct
     | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
     | _ -> 
       let result_state = (assert_inv state e false) in
-      (*let () = print_endline "Result" in
-      let () = print_octagon result_state in*)
+      let () = print_endline "Result" in
+      let () = print_octagon result_state in
       let result_state_op = (assert_op_inv state e false) in
-      (*let () = print_endline "Result of the opposite" in
-      let () = print_octagon result_state_op in*)
+      let () = print_endline "Result of the opposite" in
+      let () = print_octagon result_state_op in
       if is_bot result_state then
         `False
       else if is_bot result_state_op then
         `True
       else 
+      let () = print_endline "We do not know!!!!!" in
         `Top
 
   let assert_fn ctrlctx octa e warn change =  
@@ -500,18 +501,35 @@ struct
     add_vars_with newd vars;
     newd
 
+  let rec print_list_string l = match l with
+    | [] -> print_endline "This is the end of the string list!"
+    | head::body -> 
+    begin
+    print_endline head;
+    print_list_string body
+    end
+
+  let rec list_length l = match l with
+    | [] -> 0
+    | head::body -> (list_length body) + 1
+
   let remove_all_but_with d xs =
-    let is', fs' = get_vars d in
-    let vs = List.append (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is')
-        (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) fs') in
-    let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
-    A.change_environment_with Man.mgr d env false
+      let () = print_list_string xs in
+      let is', fs' = get_vars d in
+      let vs = List.append (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is')
+          (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) fs') in
+      let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
+      A.change_environment_with Man.mgr d env false
 
   let remove_all_with d xs =
-    (* let vars = List.filter (fun v -> isArithmeticType v.vtype) xs in *)
-    let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
-    let env = Environment.remove (A.env d) vars in
-    A.change_environment_with Man.mgr d env false
+    if list_length xs > 0 then
+      let () = print_list_string xs in
+      (* let vars = List.filter (fun v -> isArithmeticType v.vtype) xs in *)
+      let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
+      let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
+      let vars_filtered = List.filter (fun elem -> (List.mem elem (Array.to_list existing_vars_int)) || (List.mem elem (Array.to_list existing_vars_int))) (Array.to_list vars) in 
+      let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
+      A.change_environment_with Man.mgr d env false
 
   let remove_all d vars =
     let newd = A.copy Man.mgr d in
