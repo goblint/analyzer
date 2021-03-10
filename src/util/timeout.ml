@@ -2,7 +2,7 @@ module Unix = struct
   let set_timer tsecs =
     ignore (Unix.setitimer Unix.ITIMER_REAL
               { Unix.it_interval = 0.0; Unix.it_value = tsecs })
-  
+
   let timeout f arg tsecs timeout_fn =
     let oldsig = Sys.signal Sys.sigalrm (Sys.Signal_handle (fun _ -> timeout_fn ())) in
     set_timer tsecs;
@@ -18,5 +18,5 @@ module Js = struct
 end
 
 let timeout = match Sys.backend_type with
-| Other "js_of_ocaml" -> Js.timeout
-| _ -> Unix.timeout
+  | Other "js_of_ocaml" -> Js.timeout
+  | _ -> Unix.timeout
