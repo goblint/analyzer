@@ -457,5 +457,5 @@ let main =
       with Exit -> exit 1
     )
 
-let _ =
-  at_exit main
+(* The actual entry point is in the auto-generated goblint.ml module, and it is defined as: *)
+(* let _ = at_exit main *)
