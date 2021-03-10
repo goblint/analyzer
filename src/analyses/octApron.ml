@@ -124,32 +124,20 @@ struct
     (*let () = Node.print (Node.pretty_short_node () ctx.node) in
     let () = print_endline "" in*)
     match q with
+    | Assert e ->  (* F, T, bot*)
+      let x = match D.check_assert e ctx.local with
+        | `Top -> `Top
+        | `True -> `Lifted true 
+        | `False -> `Lifted false 
+        | _ -> `Bot
+      in
+      `AssertionResult x
     | EvalInt e ->
       begin
         match D.get_int_val_for_cil_exp d e with
         | Some i -> `Int i
         | _ -> `Top
       end
-   (* | EvalIntSet e ->
-      begin
-        match D.get_int_interval_for_cil_exp d e with
-        | Some i, Some s ->
-          if (Int64.compare i s) <= 0 then
-            `IntSet (IntDomain.Enums.of_interval (i,s))
-          else Result.bot ()
-        | _ -> Result.top ()
-      end 
-    | EvalInterval e ->
-      begin
-        match D.get_int_interval_for_cil_exp d e with
-        | Some i, Some s ->
-          if (Int64.compare i s) <= 0 then
-            `Interval (IntDomain.Interval.of_interval (i,s))
-          else Result.bot ()
-        | Some i, _ ->  `Interval (IntDomain.Interval.starting i)
-        | _, Some s -> `Interval (IntDomain.Interval.ending s)
-        | _ -> `Top
-      end *)
     | MustBeEqual (e1, e2) ->
       (* let () = print_endline (String.concat " must be equal " [(Pretty.sprint 20 (Cil.d_exp () e1)); (Pretty.sprint 20 (Cil.d_exp () e2))])  in *)
       if D.cil_exp_equals d e1 e2 then `MustBool true

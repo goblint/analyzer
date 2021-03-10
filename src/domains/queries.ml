@@ -28,6 +28,11 @@ module VI = Lattice.Flat (Basetype.Variables) (struct
   let bot_name = "Unreachable line"
 end)
 
+module AR = Lattice.Flat (Basetype.RawBools) (struct
+  let top_name = "Unknown"
+  let bot_name = "Impossible"
+end)
+
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 let iterprevvar_to_yojson _ = `Null
 type itervar = int -> unit
@@ -60,6 +65,7 @@ type t = EqualSet of exp
        | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
        | TheAnswerToLifeUniverseAndEverything
        | HeapVar
+       | Assert of exp
        | IsHeapVar of varinfo
 [@@deriving to_yojson]
 
@@ -77,6 +83,7 @@ type result = [
   | `MustBool of bool  (* true \leq false *)
   | `MayBool of bool   (* false \leq true *)
   | `PartAccessResult of PartAccessResult.t
+  | `AssertionResult of AR.t
   | `Bot
 ] [@@deriving to_yojson]
 
@@ -109,6 +116,7 @@ struct
     | (`MustBool x, `MustBool y) -> Bool.equal x y
     | (`MayBool x, `MayBool y) -> Bool.equal x y
     | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.equal x y
+    | (`AssertionResult x, `AssertionResult y) -> AR.equal x y
     | _ -> false
 
   let hash (x:t) =
@@ -120,6 +128,7 @@ struct
     | `TypeSet n -> TS.hash n
     | `Varinfo n -> VI.hash n
     | `PartAccessResult n -> PartAccessResult.hash n
+    | `AssertionResult n -> AR.hash n
     (* `MustBool and `MayBool should work by the following *)
     | _ -> Hashtbl.hash x
 
@@ -137,6 +146,7 @@ struct
       | `MustBool _ -> 9
       | `MayBool _ -> 10
       | `PartAccessResult _ -> 11
+      | `AssertionResult _ -> 12
       | `Top -> 100
     in match x,y with
     | `Int x, `Int y -> ID.compare x y
@@ -148,6 +158,7 @@ struct
     | `MustBool x, `MustBool y -> Bool.compare x y
     | `MayBool x, `MayBool y -> Bool.compare x y
     | `PartAccessResult x, `PartAccessResult y -> PartAccessResult.compare x y
+    | (`AssertionResult x, `AssertionResult y) -> AR.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
@@ -162,6 +173,7 @@ struct
     | `MustBool n -> text (string_of_bool n)
     | `MayBool n -> text (string_of_bool n)
     | `PartAccessResult n -> PartAccessResult.pretty () n
+    | `AssertionResult n -> AR.pretty () n
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -177,6 +189,7 @@ struct
     | `MustBool n -> string_of_bool n
     | `MayBool n -> string_of_bool n
     | `PartAccessResult n -> PartAccessResult.short w n
+    | `AssertionResult n -> AR.short w n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -189,6 +202,7 @@ struct
     | `TypeSet n -> TS.isSimple n
     | `Varinfo n -> VI.isSimple n
     | `PartAccessResult n -> PartAccessResult.isSimple n
+    | `AssertionResult n -> AR.isSimple n
     (* `MustBool and `MayBool should work by the following *)
     | _ -> true
 
@@ -211,6 +225,7 @@ struct
     | (`MustBool x, `MustBool y) -> x == y || x
     | (`MayBool x, `MayBool y) -> x == y || y
     | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.leq x y
+    | (`AssertionResult x, `AssertionResult y) -> AR.leq x y
     | _ -> false
 
   let join x y =
@@ -228,6 +243,15 @@ struct
       | (`MustBool x, `MustBool y) -> `MustBool (x && y)
       | (`MayBool x, `MayBool y) -> `MayBool (x || y)
       | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.join x y)
+      | (`AssertionResult x, `AssertionResult y) -> 
+        if AR.equal x y then
+          `AssertionResult x
+        else if AR.leq x y then
+          `AssertionResult y
+        else if AR.leq x y then
+          `AssertionResult x
+        else
+          `Bot
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -246,6 +270,15 @@ struct
       | (`MustBool x, `MustBool y) -> `MustBool (x || y)
       | (`MayBool x, `MayBool y) -> `MayBool (x && y)
       | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.meet x y)
+      | (`AssertionResult x, `AssertionResult y) -> 
+        if AR.equal x y then
+          `AssertionResult x
+        else if AR.leq x y then
+          `AssertionResult x
+        else if AR.leq x y then
+          `AssertionResult y
+        else
+          `Bot
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 

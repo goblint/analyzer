@@ -278,7 +278,7 @@ struct
       (* if assert(x) then convert it to assert(x != 0) *)
       let x = match x with
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
-          UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
+        BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
         | _ -> x in
       match x with 
       | BinOp (Ne, lhd, rhs, intType) -> 
@@ -313,6 +313,13 @@ struct
   (* Creates the opposite invariant and assters it *)
   let assert_op_inv d x b =
     let () = print_endline "Opposite is" in
+    let () = print_expression x in
+    (* if assert(x) then convert it to assert(x != 0) *)
+    let x = match x with
+    | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
+      BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
+    | _ -> x in
+    let () = print_expression x in
     try
       match x with
         | BinOp (Ne, lhd, rhs, intType) -> 
@@ -344,29 +351,33 @@ struct
         | BinOp (Ge, lhd, rhs, intType) -> 
           let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
           assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
+        
+        | UnOp(LNot, e, t) -> 
+          let () = print_expression e in
+          assert_inv d e b
 
         | _ ->  assert_inv d x b
     with Invalid_argument "cil_exp_to_lexp" -> d
+
+  let check_assert e state =
+    let result_state = (assert_inv state e false) in
+    let () = print_endline "Result" in
+    let () = print_octagon result_state in
+    let result_state_op = (assert_op_inv state e false) in
+    let () = print_endline "Result of the opposite" in
+    let () = print_octagon result_state_op in
+    if is_bot result_state then
+      `False
+    else if is_bot result_state_op then
+      `True
+    else 
+      `Top
 
   let assert_fn ctrlctx octa e warn change =  
     let () = print_endline "----------\nThe octagon is" in
     let () = print_octagon octa in
     let () = print_endline "Asserting" in
     let () = print_expression e in
-    let check_assert e state =
-      let result_state = (assert_inv state e false) in
-      let () = print_endline "Result" in
-      let () = print_octagon result_state in
-      let result_state_op = (assert_op_inv state e false) in
-      let () = print_endline "Result of the opposite" in
-      let () = print_octagon result_state_op in
-      if is_bot result_state then
-        `False
-      else if is_bot result_state_op then
-        `True
-      else 
-        `Top
-    in
     let expr = sprint 30 (Cil.d_exp () e) in
     let warn ?annot msg = if warn then
         let () = print_endline "I'm here" in
@@ -383,7 +394,7 @@ struct
             (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
-            Messages.warn_each ~ctx:ctrlctx (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
+            Messages.warn_each ~ctx:ctrlctx (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> octApron says " ^ result)
           ) else (
             Messages.warn_each ~ctx:ctrlctx (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> octApron says good")
           )
