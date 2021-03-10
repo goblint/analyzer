@@ -997,14 +997,12 @@ struct
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = Lockset.remove m (current_lockset ask) in
-    let (v, l) = st.priv in
     let is_in_G x _ = is_global ask x in
     let side_cpa = CPA.filter is_in_G st.cpa in
     sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
-    (* TODO: don't remove? *)
-    let v' = V.remove m v in
-    let l' = L.remove m l in
-    {st with priv = (v', l')}
+    (* m stays in v, l *)
+    (* TODO: why is it so imprecise now? *)
+    st
 
   let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
@@ -1304,9 +1302,8 @@ struct
       ) st.cpa (GSyncW.bot ())
     in
     sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_gsyncw (GSync.bot ()));
-    (* TODO: don't remove? *)
-    let l' = L.remove m l in
-    {st with priv = (l', w, p')}
+    (* m stays in l *)
+    {st with priv = (l, w, p')}
 
   let sync ask getg (st: BaseComponents (D).t) reason =
     match reason with
