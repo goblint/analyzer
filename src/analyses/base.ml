@@ -1918,22 +1918,26 @@ struct
         ) else
           M.warn_each ~ctx:ctx.control_context msg
     in
+    let print_result a =
+      let res = match a with            
+        | `True -> "True" 
+        | `False -> "False"
+        | `Top -> "Top"
+        | `Bot -> "Bot" 
+      in
+      print_endline ("Result: "^res)
+    in
     let meet_results a b = 
-        match (a, b) with
-        | (a, `Bot) -> 
-        let () = print_endline "a = ? b = Bot" in `Bot
-        | (`Bot, b) -> 
-        let () = print_endline "a = Bot b = ?" in`Bot
-        | (a, `Top) -> 
-        let () = print_endline "a = ? b = Top" in a
-        | (`Top, b) -> 
-        let () = print_endline "a = Top b = ?" in b
-        | (`True, `False) -> 
-        let () = print_endline "a = True b = False" in `Bot
-        | (`False, `True) -> 
-        let () = print_endline "a = False b = True" in `Bot
-        | (a, b) -> 
-        let () = print_endline "a = ? b = ?" in a 
+        let res = match (a, b) with
+        | (a, `Bot) -> `Bot
+        | (`Bot, b) -> `Bot
+        | (a, `Top) -> a
+        | (`Top, b) -> b
+        | (`True, `False) -> `Bot
+        | (`False, `True) -> `Bot
+        | (a, b) ->  a in
+        let () = print_result res in
+        res
     in
     let base_result = check_assert e ctx.local in
     let () = print_endline "MEETING" in
@@ -1943,13 +1947,19 @@ struct
           match ctx.ask (Q.Assert e) with
           | `AssertionResult ar -> 
             let simplified = match ar with            
-            | `Lifted r -> if r then `True else `False
+            | `Lifted b -> 
+              if b then 
+                `True 
+              else 
+                `False
             | `Top -> `Top
             | `Bot -> `Bot in
             simplified
           | _ -> `Top
         in
-          meet_results base_result other_analsyis_result 
+        let () = print_result base_result in
+        let () = print_result other_analsyis_result in
+        meet_results base_result other_analsyis_result 
       else
         base_result
     in 

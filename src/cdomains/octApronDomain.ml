@@ -312,23 +312,23 @@ struct
 
   (* Creates the opposite invariant and assters it *)
   let assert_op_inv d x b =
-    let () = print_endline "Opposite is" in
-    let () = print_expression x in
+    (*let () = print_endline "Opposite is" in
+    let () = print_expression x in*)
     (* if assert(x) then convert it to assert(x != 0) *)
     let x = match x with
     | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
       BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
     | _ -> x in
-    let () = print_expression x in
+    (*let () = print_expression x in*)
     try
       match x with
         | BinOp (Ne, lhd, rhs, intType) -> 
-          let () = print_expression (BinOp (Eq, lhd, rhs, intType)) in
+          (*let () = print_expression (BinOp (Eq, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
 
         | BinOp (Eq, lhd, rhs, intType) -> 
-          let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
-          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
+          (*let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
+          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in*)
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
           if not (is_bot assert_gt) then
@@ -337,23 +337,23 @@ struct
             assert_lt
 
         | BinOp (Lt, lhd, rhs, intType) -> 
-          let () = print_expression (BinOp (Ge, lhd, rhs, intType)) in
+          (*let () = print_expression (BinOp (Ge, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Ge, lhd, rhs, intType)) b
 
         | BinOp (Gt, lhd, rhs, intType) -> 
-          let () = print_expression (BinOp (Le, lhd, rhs, intType)) in
+          (*let () = print_expression (BinOp (Le, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Le, lhd, rhs, intType)) b
 
         | BinOp (Le, lhd, rhs, intType) -> 
-          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
+          (*let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
 
         | BinOp (Ge, lhd, rhs, intType) -> 
-          let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
+          (*let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
         
         | UnOp(LNot, e, t) -> 
-          let () = print_expression e in
+          (*let () = print_expression e in*)
           assert_inv d e b
 
         | _ ->  assert_inv d x b
@@ -361,11 +361,11 @@ struct
 
   let check_assert e state =
     let result_state = (assert_inv state e false) in
-    let () = print_endline "Result" in
-    let () = print_octagon result_state in
+    (*let () = print_endline "Result" in
+    let () = print_octagon result_state in*)
     let result_state_op = (assert_op_inv state e false) in
-    let () = print_endline "Result of the opposite" in
-    let () = print_octagon result_state_op in
+    (*let () = print_endline "Result of the opposite" in
+    let () = print_octagon result_state_op in*)
     if is_bot result_state then
       `False
     else if is_bot result_state_op then
@@ -378,18 +378,14 @@ struct
     let () = print_octagon octa in
     let () = print_endline "Asserting" in
     let () = print_expression e in
-    let expr = sprint 30 (Cil.d_exp () e) in
+    let expr = sprint 30 (Cil.d_exp () e) in 
     let warn ?annot msg = if warn then
-        let () = print_endline "I'm here" in
         if GobConfig.get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !Messages.current_loc in
           let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
           let open Str in
           let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
-          
-          let () = print_endline "DBG" in
           if expected <> annot then (
-            let () = print_endline "It's not correct" in
             let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
             (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
@@ -400,7 +396,7 @@ struct
           )
         ) else
         Messages.warn_each ~ctx:ctrlctx msg
-    in
+    in 
     match e with
     | Const v -> 
       let () = match v with
@@ -415,12 +411,10 @@ struct
     | _ -> 
       let () = match check_assert e octa with
         | `False ->
-        let () = print_endline "FFFFFFFFF!!!!!" in
           warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
         | `True ->
           warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
         | `Top ->
-          let () = print_endline "Top!!!!!" in
           warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.")
       in
       octa

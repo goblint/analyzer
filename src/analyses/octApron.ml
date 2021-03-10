@@ -72,7 +72,8 @@ struct
       begin
         match LibraryFunctions.classify f.vname args with
         | `Assert expression -> (* D.assert_inv ctx.local expression false *)
-          D.assert_fn ctx ctx.local expression true false
+          (*D.assert_fn ctx ctx.local expression true false*)
+          ctx.local
         | `Unknown "printf" -> ctx.local
         | _ -> (* D.topE (A.env ctx.local) *)
           begin
