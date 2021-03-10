@@ -1971,6 +1971,7 @@ struct
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
+      let () = print_endline (Pretty.sprint 20 (Cil.d_exp () e)) in
       M.warn_each ~ctx:ctx.control_context ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->

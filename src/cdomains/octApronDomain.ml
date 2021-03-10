@@ -358,19 +358,22 @@ struct
         | _ ->  assert_inv d x b
     with Invalid_argument "cil_exp_to_lexp" -> d
 
-  let check_assert e state =
-    let result_state = (assert_inv state e false) in
-    (*let () = print_endline "Result" in
-    let () = print_octagon result_state in*)
-    let result_state_op = (assert_op_inv state e false) in
-    (*let () = print_endline "Result of the opposite" in
-    let () = print_octagon result_state_op in*)
-    if is_bot result_state then
-      `False
-    else if is_bot result_state_op then
-      `True
-    else 
-      `Top
+  let check_assert (e:exp) state =
+    match e with
+    | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
+    | _ -> 
+      let result_state = (assert_inv state e false) in
+      (*let () = print_endline "Result" in
+      let () = print_octagon result_state in*)
+      let result_state_op = (assert_op_inv state e false) in
+      (*let () = print_endline "Result of the opposite" in
+      let () = print_octagon result_state_op in*)
+      if is_bot result_state then
+        `False
+      else if is_bot result_state_op then
+        `True
+      else 
+        `Top
 
   let assert_fn ctrlctx octa e warn change =  
     let () = print_endline "----------\nThe octagon is" in
