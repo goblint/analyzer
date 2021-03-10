@@ -457,6 +457,5 @@ let main =
       with Exit -> exit 1
     )
 
-(* Moving this to the automatically generated goblint.ml. This is for compatibility with Gobview. *)
-(* let _ = *)
-(*   at_exit main *)
+(* The actual entry point is in the auto-generated goblint.ml module, and it is defined as: *)
+(* let _ = at_exit main *)
