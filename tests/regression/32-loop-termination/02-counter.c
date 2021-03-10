@@ -6,9 +6,11 @@ int main() {
     int y = 5;
     int r = x + y;
     while (i < 5) {
+        assert(r > 0); // UNKNOWN // base analysis doens't know this but octApron does
         i++;
         if (x > y) x -= y;
-        r = r - 1;
+        assert(r > x + y - i); // UNKNOWN // base analysis doens't know this but octApron does
+        r = x + y - i;
     }
     return 0;
 }

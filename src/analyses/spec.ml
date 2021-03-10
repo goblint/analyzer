@@ -228,6 +228,7 @@ struct
     | `MustBool x -> "`MustBool"
     | `MayBool x -> "`MayBool"
     | `PartAccessResult x -> "`PartAccessResult"
+    | `AssertionResult x -> "`AssertionResult"
     | `Bot -> "`Bot"
 
 

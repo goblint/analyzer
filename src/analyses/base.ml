@@ -1888,7 +1888,8 @@ struct
       end
     | _ ->  []
 
-  let assert_fn ctx e warn change =
+  let assert_fn ctx e should_warn change =
+    
     let check_assert e st =
       match eval_rv ctx.ask ctx.global st e with
       | `Int v when ID.is_bool v ->
@@ -1901,7 +1902,7 @@ struct
       | _ -> `Top
     in
     let expr = sprint d_exp e in
-    let warn ?annot msg = if warn then
+    let warn ?annot msg = if should_warn then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
           let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
@@ -1917,9 +1918,43 @@ struct
         ) else
           M.warn_each ~ctx:ctx.control_context msg
     in
-    match check_assert e ctx.local with
+    let meet_results a b = 
+        match (a, b) with
+        | (a, `Bot) -> 
+        let () = print_endline "a = ? b = Bot" in `Bot
+        | (`Bot, b) -> 
+        let () = print_endline "a = Bot b = ?" in`Bot
+        | (a, `Top) -> 
+        let () = print_endline "a = ? b = Top" in a
+        | (`Top, b) -> 
+        let () = print_endline "a = Top b = ?" in b
+        | (`True, `False) -> 
+        let () = print_endline "a = True b = False" in `Bot
+        | (`False, `True) -> 
+        let () = print_endline "a = False b = True" in `Bot
+        | (a, b) -> 
+        let () = print_endline "a = ? b = ?" in a 
+    in
+    let base_result = check_assert e ctx.local in
+    let () = print_endline "MEETING" in
+    let result = 
+      if should_warn then
+        let other_analsyis_result = 
+          match ctx.ask (Q.Assert e) with
+          | `AssertionResult ar -> 
+            let simplified = match ar with            
+            | `Lifted r -> if r then `True else `False
+            | `Top -> `Top
+            | `Bot -> `Bot in
+            simplified
+          | _ -> `Top
+        in
+          meet_results base_result other_analsyis_result 
+      else
+        base_result
+    in 
+    match result with
     | `False ->
-      let () = print_endline "Failing miserably" in
       warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `True ->
