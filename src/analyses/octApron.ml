@@ -26,6 +26,11 @@ struct
   let exitstate  _ = D.top ()
   let startstate _ = D.top ()
 
+  (* Zip could be moved to utils *)
+  let rec zip x y = match x,y with
+    | (x::xs), (y::ys) -> (x,y) :: zip xs ys
+    | _ -> []
+
   let enter ctx r f args =
     if D.is_bot ctx.local then [ctx.local, D.bot ()] else
       let f = Cilfacade.getdec f in
@@ -33,7 +38,9 @@ struct
       let is = is @ List.map (fun x -> x^"'") is in
       let fs = fs @ List.map (fun x -> x^"'") fs in
       let newd = D.add_vars ctx.local (is,fs) in
-      let formargs = List.map2 (fun x y -> x,y) f.sformals args in
+      let () = print_endline ("List 1: "^string_of_int(List.length f.sformals)) in
+      let () = print_endline ("List 2: "^string_of_int(List.length args)) in
+      let formargs = zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
       List.iter (fun (v, e) -> D.assign_var_with newd (v.vname^"'") e) arith_formals;
       D.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
@@ -52,7 +59,7 @@ struct
         let fis = List.map Var.to_string fis in
         let ffs = List.map Var.to_string ffs in
         let nd' = D.add_vars d (fis,ffs) in
-        let formargs = List.map2 (fun x y -> x,y) f.sformals args in
+        let formargs = zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
         List.iter (fun (v, e) -> D.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> x.vname^"'") arith_formals in
@@ -101,26 +108,35 @@ struct
     if D.is_bot ctx.local then D.bot () else
       match e with
       | Some e when isArithmeticType (typeOf e) ->
-        let nd =
-          if isIntegralType (typeOf e) then
-            D.add_vars ctx.local (["#ret"],[])
-          else
-            D.add_vars ctx.local (["#ret"],[])
+        let nd = D.add_vars ctx.local (["#ret"],[])
         in
         D.assign_var_with nd "#ret" e;
         let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
         let vars = List.map (fun x -> x.vname) vars in
         D.remove_all_with nd vars;
         nd
-      | Some e -> ctx.local
+      | Some e -> 
+      let nd = D.add_vars ctx.local (["#ret"],[])
+        in
+        let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
+        let vars = List.map (fun x -> x.vname) vars in
+        D.remove_all_with nd vars;
+        nd
       | None -> 
+        (* todo unduplicate and try to make an empty octagon*)
+         let nd = D.add_vars ctx.local (["#ret"],[])
+        in
+        let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
+        let vars = List.map (fun x -> x.vname) vars in
+        D.remove_all_with nd vars;
+        nd
         (*let () = print_endline "Return" in
         if f.svar.vname = "main" then
           let () = print_endline "This is main" in
           ctx.local
         else 
-          let () = print_endline "None" in *)
-          D.topE (A.env ctx.local)
+          let () = print_endline "None" in 
+          D.topE (A.env ctx.local)*)
 
   let body ctx f =
     if D.is_bot ctx.local then D.bot () else
