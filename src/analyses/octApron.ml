@@ -113,7 +113,14 @@ struct
         D.remove_all_with nd vars;
         nd
       | Some e -> ctx.local
-      | None -> D.topE (A.env ctx.local)
+      | None -> 
+        (*let () = print_endline "Return" in
+        if f.svar.vname = "main" then
+          let () = print_endline "This is main" in
+          ctx.local
+        else 
+          let () = print_endline "None" in *)
+          D.topE (A.env ctx.local)
 
   let body ctx f =
     if D.is_bot ctx.local then D.bot () else
