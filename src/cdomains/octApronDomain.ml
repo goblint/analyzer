@@ -128,7 +128,12 @@ struct
   let typesort =
     let f (is,fs) v =
       if isIntegralType v.vtype then
-        (v.vname::is,fs)
+        if GobConfig.get_bool "ana.oct_no_uints" then 
+          match v.vtype with
+          | TInt(IUInt, i) -> (is, fs)
+          | _ -> (v.vname::is,fs)
+        else 
+          (v.vname::is,fs)
       else if isArithmeticType v.vtype then
         (is,v.vname::fs)
       else
@@ -430,28 +435,37 @@ struct
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
     Texpr1.of_expr env (cil_exp_to_cil_lhost exp)
 
-  
+  let var_in_env (v:string) d =
+    let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
+    let existing_var_names_int = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_int) in
+    let existing_var_names_real = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_real) in
+    (List.mem v existing_var_names_int) || (List.mem v existing_var_names_real)
+    
   let assign_var_eq_with d v v' =
-    A.assign_texpr_with Man.mgr d (Var.of_string v)
-      (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
+    if var_in_env v d then 
+      A.assign_texpr_with Man.mgr d (Var.of_string v)
+        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
   let substitute_var_eq_with d v v' =
-    A.substitute_texpr_with Man.mgr d (Var.of_string v)
-      (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
+    if var_in_env v d then 
+      A.substitute_texpr_with Man.mgr d (Var.of_string v)
+        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
-
-  let assign_var_with d v e =
+  let assign_var_with d v e = 
     (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    begin try
-        A.assign_texpr_with Man.mgr d (Var.of_string v)
-          (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
-      with Invalid_argument "cil_exp_to_apron_texpr1" ->
-        A.forget_array_with Man.mgr d [|Var.of_string v|] false
-        (* | Manager.Error q -> *)
-        (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
-        (* ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e); *)
-        (* raise (Manager.Error q) *)
-    end
+    if var_in_env v d then 
+      begin try
+          A.assign_texpr_with Man.mgr d (Var.of_string v)
+            (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
+        with Invalid_argument "cil_exp_to_apron_texpr1" ->
+          A.forget_array_with Man.mgr d [|Var.of_string v|] false
+          (* | Manager.Error q -> *)
+          (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
+          (* ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e); *)
+          (* raise (Manager.Error q) *)
+      end
+    else
+       ()
 
   let assign_var d v e =
     let newd = A.copy Man.mgr d in
@@ -459,6 +473,7 @@ struct
     newd
 
   let forget_all_with d xs =
+    let xs = List.filter (fun elem -> var_in_env elem d) xs in
     A.forget_array_with Man.mgr d (Array.of_enum (List.enum (List.map Var.of_string xs))) false
 
   let forget_all d xs =
