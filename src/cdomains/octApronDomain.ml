@@ -47,6 +47,10 @@ struct
     A.print Legacy.Format.str_formatter x;
     Legacy.Format.flush_str_formatter ()
 
+  let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
+  let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
+  let print_octagon o = print_endline (short 30 o)
+
   (* This function joins two octagons.
   If one of them is equal to bottom, the other one is the result of the join. 
   Otherwise, we use the manager form Apron to join the octagons. *)
@@ -235,10 +239,6 @@ struct
     | CastE (_,e) -> cil_exp_to_lexp e
     | _ ->
       raise (Invalid_argument "cil_exp_to_lexp")
-
-  let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
-  let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
-  let print_octagon o = print_endline (short 30 o)
 
   let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
     let inverse_comparator comparator =
