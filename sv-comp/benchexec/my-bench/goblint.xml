@@ -9,6 +9,7 @@
   <option name="--disable">ana.int.def_exc</option>
   <option name="--enable">ana.int.enums</option>
   <option name="--enable">ana.int.interval</option>
+  <option name="--disable">ana.oct_no_uints</option>
   <!-- <option name="-sets solver td3"/> -->
   <option name="--enable">exp.widen-context</option>
   <option name="--enable">exp.partition-arrays.enabled</option>
