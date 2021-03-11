@@ -359,8 +359,10 @@ struct
     with Invalid_argument "cil_exp_to_lexp" -> d
 
   let check_assert (e:exp) state =
+    let () = print_expression e in
     match e with
     | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
+    | CastE(t, e) -> `Top (* Octagon doesn't handle casts as assertions *)
     | _ -> 
       let result_state = (assert_inv state e false) in
       let () = print_endline "Result" in
