@@ -7,20 +7,22 @@
 #define cond_var_count 0
 #endif
 
+// resources
+mtype = {NONE, THREAD, MUTEX, COND_VAR}
+typedef Resource {
+  mtype type = NONE;
+  byte id;
+};
+
 // threads
 mtype = {NOTCREATED, READY, WAITING, DONE} // possible thread states
 
-mtype status[thread_count] = NOTCREATED; // initialize all processes as not created
-
-chan threads_chan[thread_count] = [thread_count] of { byte }
-
-// resources
-mtype = {NONE, THREAD, MUTEX, COND_VAR}
-typedef Wait {
-  mtype resource = NONE;
-  byte id;
+typedef Thread {
+  mtype status = NOTCREATED;
+  chan waitQueue = [thread_count] of { byte } // threads waiting on thread_join
+  Resource waitingOnResource;
 };
-Wait waiting[thread_count];
+Thread threads[thread_count];
 
 #if mutex_count
 mtype = {UNLOCKED, LOCKED}
@@ -48,9 +50,9 @@ inline mark(pc) {
 }
 
 // helpers for scheduling etc.
-#define notStarving(i)                                                       \
-  (always(status[i] == READY implies always eventually(status[i] == READY || \
-                                                       status[i] == DONE)))
+#define notStarving(i)                                                                       \
+  (always(threads[i].status == READY implies always eventually(threads[i].status == READY || \
+                                                               threads[i].status == DONE)))
 
 // LTL formulas
 ltl not_starving  { allTasks(notStarving) }
@@ -62,11 +64,12 @@ inline preInit() {
 }
 
 #define canRun(thread_id)                                                      \
-   (status[thread_id] == READY)
+   (threads[thread_id].status == READY)
+
 #define isWaiting(thread_id, resource_type, resource_id)                       \
-  (status[thread_id] == WAITING &&                                             \
-   waiting[thread_id].resource == resource_type &&                             \
-   waiting[thread_id].id == resource_id)
+  (threads[thread_id].status == WAITING &&                                     \
+   threads[thread_id].waitingOnResource.type == resource_type &&               \
+   threads[thread_id].waitingOnResource.id == resource_id)
 
 #pragma mark - waiting/signaling
 
@@ -75,21 +78,21 @@ inline setWaiting(resource_type, resource_id) {
          resource_id);
 
   // thread should not be waiting for anything at this point
-  assert(waiting[tid].resource == NONE);
+  assert(threads[tid].waitingOnResource.type == NONE);
 
-  waiting[tid].resource = resource_type;
-  waiting[tid].id = resource_id;
+  threads[tid].waitingOnResource.type = resource_type;
+  threads[tid].waitingOnResource.id = resource_id;
 
-  // update process status (provided clause will block immediately)
-  status[tid] = WAITING;
+  // update process threads[tid].status (provided clause will block immediately)
+  threads[tid].status = WAITING;
 }
 
 inline setReady(thread_id) {
   printf("setReady: thread %d will be ready (was waiting for %e %d)\n",
-         thread_id, waiting[thread_id].resource, waiting[thread_id].id);
+         thread_id, threads[thread_id].waitingOnResource.type, threads[thread_id].waitingOnResource.id);
 
-  waiting[thread_id].resource = NONE;
-  status[thread_id] = READY;
+  threads[thread_id].waitingOnResource.type = NONE;
+  threads[thread_id].status = READY;
 }
 
 #pragma mark - Thread logic
@@ -97,7 +100,7 @@ inline setReady(thread_id) {
 inline ThreadCreate(thread_id) {
   atomic {
     printf("ThreadCreate: id %d\n", thread_id);
-    assert(status[thread_id] == NOTCREATED);
+    assert(threads[thread_id].status == NOTCREATED);
 
     setReady(thread_id);
   }
@@ -107,13 +110,13 @@ inline ThreadCreate(thread_id) {
 inline ThreadWait(thread_id) {
   atomic {
     printf("ThreadWait: id %d\n", thread_id);
-    assert(status[thread_id] != NOTCREATED);
+    assert(threads[thread_id].status != NOTCREATED);
 
     if
-    ::  status[thread_id] != DONE ->
-          threads_chan[thread_id]!tid; // should block here
-          setWaiting(THREAD, thread_id);
-    ::  status[thread_id] == DONE -> skip
+    :: threads[thread_id].status != DONE ->
+      threads[thread_id].waitQueue!tid; // should block here
+      setWaiting(THREAD, thread_id);
+    :: threads[thread_id].status == DONE -> skip
     fi
   }
 }
@@ -124,23 +127,23 @@ inline ThreadWait(thread_id) {
 inline ThreadBroadcast() {
   atomic {
     printf("ThreadBroadcast: id %d\n", tid);
-    assert(waiting[tid].resource == NONE); // thread should not be waiting for anything at this point
+    assert(threads[tid].waitingOnResource.type == NONE); // thread should not be waiting for anything at this point
 
     byte i;
-    for (i in status) {
+    for (i in threads) {
       printf("ThreadBroadcast: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
-              i, i, status[i], waiting[i].resource, waiting[i].id);
+              i, i, threads[i].status, threads[i].waitingOnResource.type, threads[i].waitingOnResource.id);
       if
       // thread is waiting for this thread
       :: isWaiting(i, THREAD, tid) ->
         printf("ThreadBroadcast: thread %d is waking up thread %d\n", tid, i);
-        threads_chan[tid]?eval(i); // consume msg from queue
+        threads[tid].waitQueue?eval(i); // consume msg from queue
         setReady(i);
       :: else -> skip
       fi
     };
 
-	  status[tid] = DONE;
+    threads[tid].status = DONE;
   }
 }
 
@@ -184,7 +187,7 @@ inline MutexLock(thread_id, x) {
 inline MutexUnlock(x) {
   atomic {
     if
-    ::mutexes[x].tid != tid -> skip
+    :: mutexes[x].tid != tid -> skip
     :: mutexes[x].tid == tid ->
       printf("MutexUnlock unlocked: mutexes[%d] = UNLOCKED by %d\n", x, tid);
       mutexes[x].status = UNLOCKED;
@@ -198,9 +201,9 @@ inline MutexUnlock(x) {
               len(mutexes[x].blockedQueue), x);
         byte i;
 
-        for (i in status) {
+        for (i in threads) {
           printf("MutexUnlock: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
-                i, i, status[i], waiting[i].resource, waiting[i].id);
+                i, i, threads[i].status, threads[i].waitingOnResource.type, threads[i].waitingOnResource.id);
           if
           // thread is waiting for this mutex and is at the front of its queue
           :: isWaiting(i, MUTEX, x) && mutexes[x].blockedQueue?[i] ->
@@ -258,7 +261,7 @@ inline CondVarSignal(cond_var_id) {
 
       for (i in status) {
         printf("CondVarSignal: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
-               i, i, status[i], waiting[i].resource, waiting[i].id);
+               i, i, threads[i].status, threads[i].waitingOnResource.type, threads[i].waitingOnResource.id);
         if
         // thread is waiting for this condition var and is at the front of its queue
         :: isWaiting(i, COND_VAR, cond_var_id) && cond_vars[cond_var_id].waitQueue?[i] ->
@@ -292,7 +295,7 @@ inline CondVarBroadcast(cond_var_id) {
 
       for (i in status) {
         printf("CondVarSignal: check if thread %d is waiting. status[%d] = %e. waiting for %e %d\n",
-               i, i, status[i], waiting[i].resource, waiting[i].id);
+               i, i, threads[i].status, threads[i].waitingOnResource.type, threads[i].waitingOnResource.id);
         if
         // thread is waiting for this condition var and is at the front of its queue
         :: isWaiting(i, COND_VAR, cond_var_id) && cond_vars[cond_var_id].waitQueue?[i] ->

@@ -81,10 +81,6 @@ module Action = struct
     ; f : varinfo  (** a function being called *)
     }
 
-  type mutex = { mid : mutex_id }
-
-  type cond_var = { id : cond_var_id }
-
   type cond_wait =
     { cond_var_id : cond_var_id
     ; mid : mutex_id
@@ -94,17 +90,17 @@ module Action = struct
    ** created/defined by `fun_ctx` function *)
   type fun_call_id = string
 
-  (** ADT of all possible edge types actions *)
+  (** ADT of all possible edge actions types *)
   type t =
     | Call of fun_call_id
     | Assign of string (* a = b *)
     | Cond of string (* pred *)
     | ThreadCreate of thread
     | ThreadJoin of thread_id
-    | MutexInit of mutex
+    | MutexInit of mutex_id
     | MutexLock of mutex_id
     | MutexUnlock of mutex_id
-    | CondVarInit of cond_var
+    | CondVarInit of cond_var_id
     | CondVarBroadcast of cond_var_id
     | CondVarSignal of cond_var_id
     | CondVarWait of cond_wait
@@ -491,14 +487,14 @@ module Codegen = struct
           "ThreadCreate(" ^ string_of_int t.tid ^ "); "
       | ThreadJoin tid ->
           "ThreadWait(" ^ string_of_int tid ^ "); "
-      | MutexInit m ->
-          "MutexInit(" ^ string_of_int m.mid ^ "); "
+      | MutexInit mid ->
+          "MutexInit(" ^ string_of_int mid ^ "); "
       | MutexLock mid ->
           "MutexLock(tid, " ^ string_of_int mid ^ "); "
       | MutexUnlock mid ->
           "MutexUnlock(" ^ string_of_int mid ^ "); "
-      | CondVarInit c_var ->
-          "CondVarInit(" ^ string_of_int c_var.id ^ "); "
+      | CondVarInit id ->
+          "CondVarInit(" ^ string_of_int id ^ "); "
       | CondVarBroadcast id ->
           "CondVarBroadcast(" ^ string_of_int id ^ "); "
       | CondVarSignal id ->
@@ -549,34 +545,6 @@ module Codegen = struct
     let thread_count = List.length threads + 1 in
     let mutex_count = List.length @@ Tbls.MutexMidTbl.to_list () in
     let cond_var_count = List.length @@ Tbls.CondVarIdTbl.to_list () in
-
-    (* add missing edges for threads that rerun the function *)
-    let add_missing_edges tid =
-      let f_opt = Tbls.FunNameToTids.get_fun_for_tid tid in
-      if Option.is_some f_opt
-      then
-        let resource_from_tid tid =
-          Resource.make Resource.Thread
-          @@ Option.get
-          @@ Tbls.ThreadTidTbl.get_key tid
-        in
-        let edges_for_tid = Edges.get % resource_from_tid in
-        if Set.is_empty @@ edges_for_tid tid
-        then
-          let f = Option.get f_opt in
-          let tids_for_f =
-            Set.elements @@ Option.get @@ Tbls.FunNameToTids.get f
-          in
-          let edges =
-            let not_empty = not % Set.is_empty in
-            tids_for_f
-            |> List.map edges_for_tid
-            |> List.find not_empty
-            |> Option.get
-          in
-          Hashtbl.add Edges.table (resource_from_tid tid) edges
-    in
-    threads |> List.map (fun t -> Action.(t.tid)) |> List.iter add_missing_edges ;
 
     let current_thread_name = ref "" in
     let called_funs_done = ref Set.empty in
@@ -880,7 +848,7 @@ module Spec : Analyses.Spec = struct
 
   let assign ctx (lval : lval) (rval : exp) : D.t =
     let var_opt = Variable.make_from_lval lval in
-    if not @@ Option.is_some !MyCFG.current_node
+    if Option.is_none !MyCFG.current_node
     then (
       M.debug_each "assign: MyCFG.current_node not set :(" ;
       ctx.local )
@@ -1100,8 +1068,31 @@ module Spec : Analyses.Spec = struct
               tasks
           in
           let thread_create tid =
+            let fun_name = Variable.show thread_fun in
+            let is_function_already_visited =
+              Option.is_some @@ Tbls.FunNameToTids.get fun_name
+            in
+            let add_function_edges () =
+              let existing_tid =
+                Tbls.FunNameToTids.get fun_name
+                |> Option.get
+                |> Set.elements
+                |> List.hd
+              in
+              let resource_from_tid tid =
+                Resource.make Resource.Thread
+                @@ Option.get
+                @@ Tbls.ThreadTidTbl.get_key tid
+              in
+              let edges = Edges.get @@ resource_from_tid existing_tid in
+              Hashtbl.add Edges.table (resource_from_tid tid) edges
+            in
+
             add_task tid ;
-            Tbls.FunNameToTids.extend (Variable.show thread_fun) tid ;
+
+            if is_function_already_visited then add_function_edges () ;
+
+            Tbls.FunNameToTids.extend fun_name tid ;
             Action.ThreadCreate { f = thread_fun; tid }
           in
 
@@ -1115,7 +1106,7 @@ module Spec : Analyses.Spec = struct
       | MutexInit, [ mutex; mutex_attr ] ->
           (* TODO: reentrant mutex handling *)
           add_actions
-          @@ List.map (fun mid -> Action.MutexInit { mid })
+          @@ List.map (fun mid -> Action.MutexInit mid)
           @@ ExprEval.eval_id ctx mutex Tbls.MutexMidTbl.get
       | MutexLock, [ mutex ] ->
           add_actions
@@ -1127,7 +1118,7 @@ module Spec : Analyses.Spec = struct
           @@ ExprEval.eval_id ctx mutex Tbls.MutexMidTbl.get
       | CondVarInit, [ cond_var; cond_var_attr ] ->
           add_actions
-          @@ List.map (fun id -> Action.CondVarInit { id })
+          @@ List.map (fun id -> Action.CondVarInit id)
           @@ ExprEval.eval_id ctx cond_var Tbls.CondVarIdTbl.get
       | CondVarBroadcast, [ cond_var ] ->
           add_actions
