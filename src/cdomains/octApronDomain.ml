@@ -363,6 +363,7 @@ struct
     match e with
     | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
     | CastE(t, e) -> `Top (* Octagon doesn't handle casts as assertions *)
+    | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
     | _ -> 
       let result_state = (assert_inv state e false) in
       let () = print_endline "Result" in
