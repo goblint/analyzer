@@ -77,7 +77,6 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
       | _ -> ()
     with Failure m -> ()
   in
-
   let reset_unchanged_nodes (matches: (node * node) list) =
     let assign_same_id (old_n, n) = match old_n, n with
       | Statement old_s, Statement s -> s.sid <- old_s.sid; update_sid_max s.sid
@@ -89,8 +88,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   let reset_changed_stmts (changed: node list) =
     let assign_new_id n = match n with
       | Statement s -> s.sid <- make_sid ()
-      (* function id is explicitly assigned in reset_changed_fun. Other than that there should be no other id generation
-         through the Function node in the change set to avoid incorrect re-generation *)
+      (* function id is explicitly assigned in reset_changed_fun *)
       | FunctionEntry f -> ()
       | Function f -> () in
     List.iter (fun n -> assign_new_id n) changed;
@@ -110,7 +108,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     | Some d -> List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
       List.iter (fun l -> update_vid_max l.vid) f.slocals;
       reset_unchanged_nodes d.unchangedNodes;
-      reset_changed_stmts d.changedNodes
+      reset_changed_stmts d.newNodes
   in
   let reset_changed_globals (changed: changed_global) =
     match (changed.current, changed.old) with

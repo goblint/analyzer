@@ -5,8 +5,9 @@ include CompareAST
 
 type nodes_diff = {
   unchangedNodes: (node * node) list;
-  primChangedNodes: node list;
-  changedNodes: node list;
+  primObsoleteNodes: node list;
+  obsoleteNodes: node list;
+  newNodes: node list;
 }
 
 type changed_global = {
@@ -137,28 +138,28 @@ let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 
         let outList1 = Cfg1.next fromNode1 in
         let outList2 = Cfg2.next fromNode2 in
 
-        let findEquiv (edgeList2, toNode2) ls1 stdSet diffSet =
-          let rec aux ls1 stdSet diffSet =
-            match ls1 with
-            | [] -> let diffSet' = DiffS.add ((fromNode1, fromNode2), edgeList2, toNode2) diffSet in stdSet, diffSet'
-            | (locEdgeList1, toNode1) :: ls1' ->
-              let edgeList1 = to_edge_list locEdgeList1 in
+        let findEquiv (edgeList1, toNode1) ls2 stdSet diffSet =
+          let rec aux ls2 stdSet diffSet =
+            match ls2 with
+            | [] -> let diffSet' = DiffS.add ((fromNode1, fromNode2), edgeList1, toNode1) diffSet in (stdSet, diffSet')
+            | (locEdgeList2, toNode2) :: ls2' ->
+              let edgeList2 = to_edge_list locEdgeList2 in
               if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
                 begin
                   let notIn = StdS.for_all
                       (fun (fromNodes', edges, (toNode1', toNode2')) -> not (Node.equal toNode1 toNode1' && Node.equal toNode2 toNode2')) stdSet in
                   if notIn then Queue.add (toNode1, toNode2) waitingList;
                   let stdSet' = StdS.add ((fromNode1, fromNode2), (edgeList1, edgeList2), (toNode1, toNode2)) stdSet
-                  in stdSet', diffSet
+                  in (stdSet', diffSet)
                 end
-              else aux ls1' stdSet diffSet in
-          aux ls1 stdSet diffSet in
+              else aux ls2' stdSet diffSet in
+          aux ls2 stdSet diffSet in
 
-        let rec iterOuts ls2 stdSet diffSet =
-          match ls2 with
+        let rec iterOuts ls1 stdSet diffSet =
+          match ls1 with
           | [] -> (stdSet, diffSet)
-          | (locEdgeList2, toNode2) :: ls2' ->
-              let edgeList2 = to_edge_list locEdgeList2 in
+          | (locEdgeList1, toNode1) :: ls1' ->
+              let edgeList1 = to_edge_list locEdgeList1 in
               (* Differentiate between a possibly duplicate Test(1,false) edge and a single occurence. In the first
               case the edge is directly added to the diff set to avoid undetected ambiguities during the recursive
               call. *)
@@ -167,37 +168,48 @@ let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 
                 | _ -> false in
               let posAmbigEdge edgeList = let findTestFalseEdge (ll,_) = testFalseEdge (snd (List.hd ll)) in
                 let numDuplicates l = List.length (List.find_all findTestFalseEdge l) in
-                testFalseEdge (List.hd edgeList) && (numDuplicates outList2 > 1 || numDuplicates outList1 > 1) in
-              let (stdSet', diffSet') = if posAmbigEdge edgeList2
-                then (stdSet, DiffS.add ((fromNode1, fromNode2), edgeList2, toNode2) diffSet)
-                else findEquiv (edgeList2, toNode2) outList1 stdSet diffSet in
-            iterOuts ls2' stdSet' diffSet' in
-      compareNext (iterOuts outList2 stdSet diffSet) in
+                testFalseEdge (List.hd edgeList) && (numDuplicates outList1 > 1 || numDuplicates outList2 > 1) in
+              let (stdSet', diffSet') = if posAmbigEdge edgeList1
+                then (stdSet, DiffS.add ((fromNode1, fromNode2), edgeList1, toNode1) diffSet)
+                else findEquiv (edgeList1, toNode1) outList2 stdSet diffSet in
+            iterOuts ls1' stdSet' diffSet' in
+      compareNext (iterOuts outList1 stdSet diffSet) in
 
     let initSets = (StdS.empty, DiffS.empty) in
     let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
   Queue.push (entryNode1,entryNode2) waitingList; (compareNext initSets)
 
-let reexamine f1 f2 stdSet diffSet (module Cfg2 : CfgForward) =
-  let diffNodes = DiffS.fold (fun (_, _, n) acc -> NodeSet.add n acc) diffSet NodeSet.empty in
+let reexamine f1 f2 stdSet diffSet (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) =
+  let diffNodes1 = DiffS.fold (fun (_, _, n) acc -> NodeSet.add n acc) diffSet NodeSet.empty in
   let sameNodes = let fromStdSet = StdS.fold (fun (_, _, (n1, n2)) acc -> NodeNodeSet.add (n1,n2) acc) stdSet NodeNodeSet.empty in
-    let notInDiff = NodeNodeSet.filter (fun (n1,n2) -> not (NodeSet.mem n2 diffNodes)) fromStdSet in
+    let notInDiff = NodeNodeSet.filter (fun (n1,n2) -> not (NodeSet.mem n1 diffNodes1)) fromStdSet in
     NodeNodeSet.add (FunctionEntry f1, FunctionEntry f2) notInDiff in
-  let rec dfs node (sameNodes, primDiffNodes, diffNodes) =
-    let classify k (same, primDiff, diff) = match k with
-      | Function d -> (same, primDiff, diff) (* leave out regular back-edge from return statement to function node  *)
-      | _ -> if NodeSet.mem k primDiff || NodeSet.mem k diff then (same, primDiff, diff)
-        else if NodeNodeSet.exists (fun (_,n) -> Node.equal n k) same then (NodeNodeSet.filter (fun (_,n) -> not (Node.equal n k)) same, NodeSet.add k primDiff, NodeSet.add k diff)
-        else dfs k (same, primDiff, NodeSet.add k diff) in
-    let succ = List.map (fun (_, n) -> n) (Cfg2.next node) in
-    List.fold_right classify succ (sameNodes, primDiffNodes, diffNodes) in
-  NodeSet.fold dfs diffNodes (sameNodes, diffNodes, diffNodes)
+  let _, addedNodes =
+    let rec dfs2 node (vis, addedNodes) =
+      let classify n (vis, addedNodes) =
+        if NodeSet.mem n vis then (vis, addedNodes)
+        else let ext_vis = NodeSet.add n vis in
+        if NodeNodeSet.exists (fun (n1,n2) -> Node.equal n2 n) sameNodes then dfs2 n (ext_vis, addedNodes)
+        else dfs2 n (ext_vis, NodeSet.add n addedNodes) in
+      let succ = List.map snd (Cfg2.next node) in
+      List.fold_right classify succ (vis, addedNodes) in
+    dfs2 (FunctionEntry f2) (NodeSet.empty, NodeSet.empty) in
+  let (sameNodes, primRemovedNodes, removedNodes) =
+    let rec dfs1 node (sameNodes, primRemovedNodes, removedNodes) =
+      let classify k (same, primRemoved, removed) = match k with
+        | Function d -> (same, primRemoved, removed) (* leave out regular back-edge from return statement to function node  *)
+        | _ -> if NodeSet.mem k primRemoved || NodeSet.mem k removed then (same, primRemoved, removed)
+          else if NodeNodeSet.exists (fun (n1,_) -> Node.equal n1 k) same then (NodeNodeSet.filter (fun (n1,_) -> not (Node.equal n1 k)) same, NodeSet.add k primRemoved, NodeSet.add k removed)
+          else dfs1 k (same, primRemoved, NodeSet.add k removed) in
+      let succ = List.map snd (Cfg1.next node) in
+      List.fold_right classify succ (sameNodes, primRemovedNodes, removedNodes) in
+    NodeSet.fold dfs1 diffNodes1 (sameNodes, diffNodes1, diffNodes1) in
+  (NodeNodeSet.elements sameNodes, NodeSet.elements primRemovedNodes, NodeSet.elements removedNodes, NodeSet.elements addedNodes)
 
 let compareFun (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
   let stdSet, diffSet = compareCfgs (module Cfg1) (module Cfg2) fun1 fun2 in
-  let matches, primDiff, diff = reexamine fun1 fun2 stdSet diffSet (module Cfg2) in
-  let unchanged, primChanged, changed = NodeNodeSet.elements matches, NodeSet.elements primDiff, NodeSet.elements diff in
-  unchanged, primChanged, changed
+  let unchanged, primRemoved, removed, added = reexamine fun1 fun2 stdSet diffSet (module Cfg1) (module Cfg2) in
+  unchanged, primRemoved, removed, added
 
 let eqF' (a: Cil.fundec) (module Cfg1 : MyCFG.CfgForward) (b: Cil.fundec) (module Cfg2 : MyCFG.CfgForward) =
   let unchangedHeader =
@@ -208,10 +220,10 @@ let eqF' (a: Cil.fundec) (module Cfg1 : MyCFG.CfgForward) (b: Cil.fundec) (modul
   let identical, diffOpt =
     try
       let sameDef = unchangedHeader && List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) in
-      let matches, primDiff, diff = compareFun (module Cfg1) (module Cfg2) a b in
+      let matches, primRemoved, removed, added = compareFun (module Cfg1) (module Cfg2) a b in
       if not sameDef then (false, None)
-      else if List.length diff = 0 then (true, None)
-      else (false, Some {unchangedNodes = matches; primChangedNodes = primDiff; changedNodes = diff})
+      else if List.length added = 0 && List.length removed = 0 then (true, None)
+      else (false, Some {unchangedNodes = matches; primObsoleteNodes = primRemoved; obsoleteNodes = removed; newNodes = added})
     with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
       false, None in
   identical, unchangedHeader, diffOpt
@@ -222,7 +234,6 @@ let eq_glob' (a: global) (module Cfg1 : MyCFG.CfgForward) (b: global) (module Cf
 | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y, false, None
 | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false, false, None
 
-(* Returns a list of changed functions *)
 let compareCilFiles (oldAST: file) (newAST: file) =
   let oldCfg, _ = CfgTools.getCFG oldAST in
   let newCfg, _ = CfgTools.getCFG newAST in
