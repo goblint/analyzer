@@ -59,6 +59,8 @@ struct
       y
     else if is_bot y then
       x
+    (*else if is_top x || is_top y then
+      top ()*)
     else
       A.join (Man.mgr) x y in
     ret

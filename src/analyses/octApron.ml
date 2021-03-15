@@ -106,10 +106,18 @@ struct
 
   let return ctx e f =
     if D.is_bot ctx.local then D.bot () else
-      let nd = D.add_vars ctx.local (["#ret"],[]) in
-      let () = match e with
-        | Some e when isArithmeticType (typeOf e) -> D.assign_var_with nd "#ret" e
-        | _ -> ()
+      
+      let nd = match e with
+        | Some e when isArithmeticType (typeOf e) -> let () = print_endline "some" in
+          let () = (match e with
+          | CastE(t, e) -> D.print_octagon ctx.local
+          | _ -> print_endline "Other" )
+          in
+          let nd = D.add_vars ctx.local (["#ret"],[]) in 
+          let () = D.assign_var_with nd "#ret" e in
+          nd
+        | None ->let () = print_endline "none" in D.topE (A.env ctx.local)
+        | _ -> let () = print_endline "last option" in D.add_vars ctx.local (["#ret"],[])
       in
       let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
       let vars = List.map (fun x -> x.vname) vars in
