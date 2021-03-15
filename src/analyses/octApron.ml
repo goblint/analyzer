@@ -106,37 +106,15 @@ struct
 
   let return ctx e f =
     if D.is_bot ctx.local then D.bot () else
-      match e with
-      | Some e when isArithmeticType (typeOf e) ->
-        let nd = D.add_vars ctx.local (["#ret"],[])
-        in
-        D.assign_var_with nd "#ret" e;
-        let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
-        let vars = List.map (fun x -> x.vname) vars in
-        D.remove_all_with nd vars;
-        nd
-      | Some e -> 
-      let nd = D.add_vars ctx.local (["#ret"],[])
-        in
-        let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
-        let vars = List.map (fun x -> x.vname) vars in
-        D.remove_all_with nd vars;
-        nd
-      | None -> 
-        (* todo unduplicate and try to make an empty octagon*)
-         let nd = D.add_vars ctx.local (["#ret"],[])
-        in
-        let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
-        let vars = List.map (fun x -> x.vname) vars in
-        D.remove_all_with nd vars;
-        nd
-        (*let () = print_endline "Return" in
-        if f.svar.vname = "main" then
-          let () = print_endline "This is main" in
-          ctx.local
-        else 
-          let () = print_endline "None" in 
-          D.topE (A.env ctx.local)*)
+      let nd = D.add_vars ctx.local (["#ret"],[]) in
+      let () = match e with
+        | Some e when isArithmeticType (typeOf e) -> D.assign_var_with nd "#ret" e
+        | _ -> ()
+      in
+      let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
+      let vars = List.map (fun x -> x.vname) vars in
+      D.remove_all_with nd vars;
+      nd
 
   let body ctx f =
     if D.is_bot ctx.local then D.bot () else
@@ -146,7 +124,8 @@ struct
   let assign ctx (lv:lval) e =
     if D.is_bot ctx.local then D.bot () else
       match lv with
-      | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> D.assign_var ctx.local v.vname e
+      | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> 
+        D.assign_var ctx.local v.vname e
       | _ -> D.topE (A.env ctx.local)
 
   let query ctx (q:Queries.t) : Queries.Result.t =
