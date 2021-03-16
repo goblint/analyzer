@@ -3,10 +3,8 @@
 open Prelude.Ana
 open Analyses
 open Apron
-
 open OctApronDomain
-
-
+open Utilities
 
 module Spec : Analyses.Spec =
 struct
@@ -26,11 +24,6 @@ struct
   let exitstate  _ = D.top ()
   let startstate _ = D.top ()
 
-  (* Zip could be moved to utils *)
-  let rec zip x y = match x,y with
-    | (x::xs), (y::ys) -> (x,y) :: zip xs ys
-    | _ -> []
-
   let enter ctx r f args =
     if D.is_bot ctx.local then [ctx.local, D.bot ()] else
       let f = Cilfacade.getdec f in
@@ -40,7 +33,7 @@ struct
       let newd = D.add_vars ctx.local (is,fs) in
       let () = print_endline ("List 1: "^string_of_int(List.length f.sformals)) in
       let () = print_endline ("List 2: "^string_of_int(List.length args)) in
-      let formargs = zip f.sformals args in
+      let formargs = Utilities.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
       List.iter (fun (v, e) -> D.assign_var_with newd (v.vname^"'") e) arith_formals;
       D.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
@@ -59,7 +52,7 @@ struct
         let fis = List.map Var.to_string fis in
         let ffs = List.map Var.to_string ffs in
         let nd' = D.add_vars d (fis,ffs) in
-        let formargs = zip f.sformals args in
+        let formargs = Utilities.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
         List.iter (fun (v, e) -> D.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> x.vname^"'") arith_formals in

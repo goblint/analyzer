@@ -3,6 +3,7 @@
 open Prelude.Ana
 open Analyses
 open GobConfig
+open Utilities
 module A = Analyses
 module H = Hashtbl
 module Q = Queries
@@ -409,11 +410,6 @@ struct
   (**************************************************************************
    * Auxiliary functions for function calls
    **************************************************************************)
-
-  (* The normal haskell zip that throws no exception *)
-  let rec zip x y = match x,y with
-    | (x::xs), (y::ys) -> (x,y) :: zip xs ys
-    | _ -> []
 
   (* From a list of values, presumably arguments to a function, simply extract
    * the pointer arguments. *)
@@ -1834,7 +1830,7 @@ struct
     (* If we need the globals, add them *)
     let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
-    let pa = zip fundec.sformals vals in
+    let pa = Utilities.zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
