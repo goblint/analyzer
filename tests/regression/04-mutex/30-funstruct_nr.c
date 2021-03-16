@@ -1,3 +1,6 @@
+//PARAM: --set ana.activated[-] "'octApron'"
+// octApron needs to be included again and fixed
+
 #include<pthread.h>
 
 int x;
