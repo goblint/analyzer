@@ -1,4 +1,4 @@
-//PARAM: --disable ana.int.interval
+//PARAM: --disable ana.int.interval --set ana.activated[-] "'octApron'"
 #include <assert.h>
 
 int main(){
