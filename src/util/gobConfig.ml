@@ -6,6 +6,7 @@
            | . <field-name> path'  (* field access *)
            | [ <index-nr> ] path'  (* array index access *)
            | [ + ] path'           (* cons to array *)
+           | [ - ] path'           (* cons away from array *)
            | [ * ] path'           (* reset array *)
 
   path ::==              path'     (*  *)
@@ -100,6 +101,7 @@ struct
   (** Type of the index *)
   type index = Int of int  (** and integer *)
              | App        (** prepend to the list *)
+             | Rem        (** remove from the list *)
              | New         (** create a new list *)
 
   (** Type of the path *)
@@ -113,6 +115,7 @@ struct
     | Select (s,p)    -> fprintf ch ".%s%a"  s print_path' p
     | Index (Int i,p) -> fprintf ch "[%d]%a" i print_path' p
     | Index (App ,p) -> fprintf ch "[+]%a"    print_path' p
+    | Index (Rem ,p) -> fprintf ch "[-]%a"    print_path' p
     | Index (New  ,p) -> fprintf ch "[*]%a"    print_path' p
 
   (** Path printing where you can ignore the first dot. *)
@@ -138,6 +141,7 @@ struct
   let parse_index s =
     try if s = "+" then App
       else if s = "*" then New
+      else if s = "-" then Rem
       else Int (int_of_string s)
     with Failure _ -> raise PathParseError
 
@@ -233,6 +237,21 @@ struct
         set_value v (List.at !a i) pth
       | Array a, Index (App, pth) ->
         o := Array (ref (!a @ [ref (create_new v pth)]))
+      | Array a, Index (Rem, pth) ->
+        let excluded_elem = ref (create_new v pth) in
+        let list = !a in 
+        let filtered_list = 
+          List.filter (fun elem ->
+            let deref_elem = !elem in
+            let deref_excluded_elem = !excluded_elem in
+            match deref_elem with
+            | String s1 -> 
+              (match deref_excluded_elem with
+              | String s2 -> not (String.equal s1 s2)
+              | _ -> false )
+            | _ -> false 
+            ) list in
+        o := Array (ref filtered_list)
       | Array _, Index (New, pth) ->
         o := Array (ref [ref (create_new v pth)])
       | Null, _ ->
