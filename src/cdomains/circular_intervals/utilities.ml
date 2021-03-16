@@ -24,4 +24,9 @@ struct
       if n <= 0 then (0::l) else f (n-1) (n::l)
     in
     f (k-1) []
+
+  (* The normal haskell zip that throws no exception *)
+  let rec zip x y = match x,y with
+  | (x::xs), (y::ys) -> (x,y) :: zip xs ys
+  | _ -> []
 end
