@@ -238,19 +238,15 @@ struct
       | Array a, Index (App, pth) ->
         o := Array (ref (!a @ [ref (create_new v pth)]))
       | Array a, Index (Rem, pth) ->
-        let excluded_elem = ref (create_new v pth) in
-        let list = !a in 
+        let original_list = !a in 
         let filtered_list = 
-          List.filter (fun elem ->
-            let deref_elem = !elem in
-            let deref_excluded_elem = !excluded_elem in
-            match deref_elem with
-            | String s1 -> 
-              (match deref_excluded_elem with
-              | String s2 -> not (String.equal s1 s2)
-              | _ -> false )
-            | _ -> false 
-            ) list in
+          List.filter (fun ref_elem ->
+            let elem = !ref_elem in
+            let excluded_elem = create_new v pth in
+            match (elem, excluded_elem) with
+            | (String s1, String s2) -> not (String.equal s1 s2)
+            | (_, _) -> false 
+            ) original_list in
         o := Array (ref filtered_list)
       | Array _, Index (New, pth) ->
         o := Array (ref [ref (create_new v pth)])
