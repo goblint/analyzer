@@ -21,9 +21,10 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  // __VERIFIER_atomic_begin();
+  assert(myglobal == 5); // TODO
+  __VERIFIER_atomic_begin();
   assert(myglobal == 5);
-  // __VERIFIER_atomic_end();
+  __VERIFIER_atomic_end();
   pthread_join (id, NULL);
   return 0;
 }
