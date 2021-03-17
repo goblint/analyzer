@@ -801,7 +801,7 @@ module Spec : Analyses.Spec = struct
 
 
   module ExprEval = struct
-    let eval ctx exp =
+    let eval_ptr ctx exp =
       let mayPointTo ctx exp =
         match ctx.ask (Queries.MayPointTo exp) with
         | `LvalSet a
@@ -809,37 +809,35 @@ module Spec : Analyses.Spec = struct
             let top_elt = (dummyFunDec.svar, `NoOffset) in
             let a' =
               if Queries.LS.mem top_elt a
-              then (
-                M.debug_each
-                @@ "mayPointTo: query result for "
-                ^ sprint d_exp exp
-                ^ " contains TOP!" ;
-                (* UNSOUND *)
-                Queries.LS.remove top_elt a )
+              then (* UNSOUND *)
+                Queries.LS.remove top_elt a
               else a
             in
             Queries.LS.elements a'
         | `Bot ->
             []
         | v ->
-            M.debug_each
-            @@ "mayPointTo: query result for "
-            ^ sprint d_exp exp
-            ^ " is "
-            ^ sprint Queries.Result.pretty v ;
             []
       in
+      List.map fst @@ mayPointTo ctx exp
 
+
+    let eval_var ctx exp =
       match exp with
-      | Lval (Var v, offset) ->
+      | Lval (Mem e, _) ->
+          eval_ptr ctx e
+      | Lval (Var v, _) ->
           [ v ]
-      | Lval (Mem _, _) | AddrOf _ ->
-          List.map fst @@ mayPointTo ctx exp
       | _ ->
-          []
+          eval_ptr ctx exp
 
 
-    let eval_id ctx exp get = List.map (get % Variable.show) @@ eval ctx exp
+    let eval_ptr_id ctx exp get =
+      List.map (get % Variable.show) @@ eval_ptr ctx exp
+
+
+    let eval_var_id ctx exp get =
+      List.map (get % Variable.show) @@ eval_var ctx exp
   end
 
   let name () = "pthread_to_promela"
@@ -1098,39 +1096,39 @@ module Spec : Analyses.Spec = struct
 
           add_actions
           @@ List.map thread_create
-          @@ ExprEval.eval_id ctx thread Tbls.ThreadTidTbl.get
+          @@ ExprEval.eval_ptr_id ctx thread Tbls.ThreadTidTbl.get
       | ThreadJoin, [ thread; thread_ret ] ->
           add_actions
           @@ List.map (fun tid -> Action.ThreadJoin tid)
-          @@ ExprEval.eval_id ctx thread Tbls.ThreadTidTbl.get
+          @@ ExprEval.eval_var_id ctx thread Tbls.ThreadTidTbl.get
       | MutexInit, [ mutex; mutex_attr ] ->
           (* TODO: reentrant mutex handling *)
           add_actions
           @@ List.map (fun mid -> Action.MutexInit mid)
-          @@ ExprEval.eval_id ctx mutex Tbls.MutexMidTbl.get
+          @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
       | MutexLock, [ mutex ] ->
           add_actions
           @@ List.map (fun mid -> Action.MutexLock mid)
-          @@ ExprEval.eval_id ctx mutex Tbls.MutexMidTbl.get
+          @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
       | MutexUnlock, [ mutex ] ->
           add_actions
           @@ List.map (fun mid -> Action.MutexUnlock mid)
-          @@ ExprEval.eval_id ctx mutex Tbls.MutexMidTbl.get
+          @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
       | CondVarInit, [ cond_var; cond_var_attr ] ->
           add_actions
           @@ List.map (fun id -> Action.CondVarInit id)
-          @@ ExprEval.eval_id ctx cond_var Tbls.CondVarIdTbl.get
+          @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
       | CondVarBroadcast, [ cond_var ] ->
           add_actions
           @@ List.map (fun id -> Action.CondVarBroadcast id)
-          @@ ExprEval.eval_id ctx cond_var Tbls.CondVarIdTbl.get
+          @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
       | CondVarSignal, [ cond_var ] ->
           add_actions
           @@ List.map (fun id -> Action.CondVarSignal id)
-          @@ ExprEval.eval_id ctx cond_var Tbls.CondVarIdTbl.get
+          @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
       | CondVarWait, [ cond_var; mutex ] ->
-          let cond_vars = ExprEval.eval ctx cond_var in
-          let mutex_vars = ExprEval.eval ctx mutex in
+          let cond_vars = ExprEval.eval_ptr ctx cond_var in
+          let mutex_vars = ExprEval.eval_ptr ctx mutex in
           let cond_var_action (v, m) =
             let open Action in
             CondVarWait
