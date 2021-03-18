@@ -40,7 +40,6 @@ module Std =
 struct
   (*  let equal = Util.equals
       let hash = Hashtbl.hash*)
-  let compare = compare (* Beware that this does not terminate on cyclic data! *)
   let classify _ = 0
   let class_name _ = "None"
   let name () = "std"
@@ -50,6 +49,13 @@ struct
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
+end
+
+(* Only include where data is guaranteed to be non-cyclic *)
+module StdPolyCompare =
+struct
+  include Std
+  let compare = compare (* Careful, does not terminate on cyclic data *)
 end
 
 module Blank =
@@ -62,6 +68,13 @@ struct
   let name () = "blank"
   let pretty_diff () (x,y) = dprintf "Unsupported"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
+end
+
+(* Only include where data is guaranteed to be non-cyclic *)
+module BlankPolyCompare =
+struct
+  include Blank
+  let compare = compare (* Careful, does not terminate on cyclic data *)
 end
 
 module PrintSimple (P: sig
@@ -84,6 +97,7 @@ module UnitConf (N: Name) =
 struct
   type t = unit [@@deriving yojson]
   include Std
+  let compare _ _ = 0
   let hash () = 7134679
   let equal _ _ = true
   let pretty () _ = text N.name
@@ -372,10 +386,10 @@ struct
 
   let compare (x1,x2) (y1,y2) =
     match Base1.compare x1 y1, Base2.compare x2 y2 with
-    | (-1, _) -> -1
-    | ( 1, _) ->  1
-    | ( 0,-1) -> -1
-    | ( 0, 1) ->  1
+    | (x, _) when x < 0 -> -1
+    | (x, _) when x > 0->  1
+    | ( 0, x) when x < 0 -> -1
+    | ( 0, x) when x > 0 ->  1
     | ( 0, 0) ->  0
     | _       -> failwith "is this possible?"
 
@@ -507,6 +521,7 @@ module Chain (P: ChainParams): S with type t = int =
 struct
   type t = int [@@deriving yojson]
   include Std
+  let compare x y = x-y
 
   let short _ x = P.names x
   let pretty_f f () x = text (f max_int x)
@@ -628,7 +643,7 @@ end
 module Strings =
 struct
   type t = string [@@deriving to_yojson]
-  include Std
+  include StdPolyCompare
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let pretty () n = text n

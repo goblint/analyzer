@@ -149,7 +149,7 @@ end
 
 module RawStrings: Printable.S with type t = string =
 struct
-  include Printable.Std
+  include Printable.StdPolyCompare
   open Pretty
   type t = string [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x
@@ -171,7 +171,7 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 
   module RawBools: Printable.S with type t = bool =
   struct
-    include Printable.Std
+    include Printable.StdPolyCompare
     open Pretty
     type t = bool [@@deriving to_yojson]
     let hash (x:t) = Hashtbl.hash x
@@ -558,7 +558,8 @@ struct
   include Printable.Std
   let isSimple _  = true
   type t = typ [@@deriving to_yojson]
-  let equal x y = Util.equals x y
+  let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
+  let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
   let hash (x:typ) = Hashtbl.hash x
   let short w x = sprint ~width:w (d_type () x)
   let pretty_f sf () x = d_type () x

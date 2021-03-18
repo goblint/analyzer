@@ -441,7 +441,7 @@ module Std (B: sig
     val short: int -> t -> string
     val equal: t -> t -> bool
   end) = struct
-  include Printable.Std
+  include Printable.StdPolyCompare
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
   let isSimple _ = true
@@ -1486,7 +1486,7 @@ end
 
 module CircInterval : IkindUnawareS with type t = CBigInt.t interval and type int_t = int64 =
 struct
-  include Printable.Std
+  include Printable.StdPolyCompare
   module I = CBigInt
   module C = CircularBigInt
   type t = I.t interval

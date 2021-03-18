@@ -439,6 +439,13 @@ module LiftBot (Base : S) =
 struct
   include Printable.LiftBot (Base)
 
+  let compare x y =
+    match x,y with
+    | `Bot,`Bot -> 0
+    | (`Bot, _) -> -1
+    | (_, `Bot) -> 1
+    | (`Lifted x, `Lifted y) -> Base.compare x y
+
   let bot () = `Bot
   let is_bot x = x = `Bot
   let top () = `Lifted (Base.top ())
