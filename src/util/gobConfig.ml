@@ -239,13 +239,13 @@ struct
         o := Array (ref (!a @ [ref (create_new v pth)]))      
       | Array a, Index (Rem, pth) ->
         let original_list = !a in 
+        let excluded_elem = create_new v pth in
         let filtered_list = 
           List.filter (fun ref_elem ->
             let elem = !ref_elem in
-            let excluded_elem = create_new v pth in
             match (elem, excluded_elem) with
             | (String s1, String s2) -> not (String.equal s1 s2)
-            | (_, _) -> false 
+            | (_, _) -> failwith "At the moment it's only possible to remove a string from an array."
             ) original_list in
         o := Array (ref filtered_list)
       | Array _, Index (New, pth) ->
