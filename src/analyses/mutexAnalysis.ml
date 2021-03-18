@@ -174,12 +174,13 @@ struct
     | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> `MayBool false
     | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
-      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `MayBool false
+      if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then `MayBool false
       else non_overlapping held_locks (ctx.global v)
     | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
       let held_locks: G.t = P.check_fun ~write mutex_lockset in
-      `MustBool (G.leq (ctx.global global) held_locks)
+      if LockDomain.Addr.equal mutex verifier_atomic then `MustBool true
+      else `MustBool (G.leq (ctx.global global) held_locks)
     | Queries.CurrentLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
