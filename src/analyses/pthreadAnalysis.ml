@@ -5,6 +5,7 @@ open Analyses
 open Cil
 open Deriving.Cil
 open BatteriesExceptionless
+open Option.Infix
 
 (** [Function] module represents the supported pthread functions for the analysis *)
 module Function = struct
@@ -1017,16 +1018,30 @@ module Spec : Analyses.Spec = struct
     if D.any_is_bot ctx.local || Option.is_none pthread_fun
     then ctx.local
     else
-      let arglist = List.map (stripCasts % constFold false) arglist in
+      let env = Env.get ctx in
+      let d = Env.d env in
+      let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
+
       let add_actions (actions : Action.t list) =
-        let env = Env.get ctx in
-        let d = Env.d env in
+        let failed_action =
+          lval
+          >>= Variable.make_from_lval
+          >>= fun var ->
+          Variables.add tid var ;
+
+          Option.some @@ Action.Assign (Variable.show var ^ " = -1")
+        in
+
         List.iter (Edges.add env) actions ;
+        Option.may (Edges.add env) failed_action ;
+
         if List.is_empty actions
         then d
         else { d with pred = Pred.of_node @@ Env.node env }
       in
       let add_action action = add_actions [ action ] in
+
+      let arglist = List.map (stripCasts % constFold false) arglist in
       let open Function in
       match (Option.get pthread_fun, arglist) with
       | ThreadCreate, [ thread; thread_attr; func; fun_arg ] ->
