@@ -518,8 +518,7 @@ struct
       snd (getg x)
 
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
-    if not (is_atomic ask) then
-      sideg x (v, VD.bot ());
+    sideg x (v, VD.bot ());
     if is_unprotected ask x then
       st
     else
@@ -681,7 +680,7 @@ struct
     let s = current_lockset ask in
     let t = current_thread ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
+    if not (!GU.earlyglobs && is_precious_glob x) then
       sideg (mutex_global x) (GWeak.add s (ThreadMap.add t v (ThreadMap.bot ())) (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
@@ -757,7 +756,7 @@ struct
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
+    if not (!GU.earlyglobs && is_precious_glob x) then
       sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
@@ -834,7 +833,7 @@ struct
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
+    if not (!GU.earlyglobs && is_precious_glob x) then
       sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'; priv = D.add x st.priv}
 
@@ -984,7 +983,7 @@ struct
       ) s vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
+    if not (!GU.earlyglobs && is_precious_glob x) then
       sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'; priv = (v', l)}
 
@@ -1116,7 +1115,7 @@ struct
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
+    if not (!GU.earlyglobs && is_precious_glob x) then
       sideg (mutex_global x) (GWeak.add s (GWeakW.add s v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
     (* TODO: publish all g under M_g? *)
     {st with cpa = cpa'; priv = (w', p')}
@@ -1277,7 +1276,7 @@ struct
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x || NewPrivBase.is_atomic ask) then
+    if not (!GU.earlyglobs && is_precious_glob x) then
       sideg (mutex_global x) (GWeak.add s (GWeakW.add s v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
     (* TODO: publish all g under M_g? *)
     {st with cpa = cpa'; priv = (l, w', p')}
