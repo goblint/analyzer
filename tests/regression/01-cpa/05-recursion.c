@@ -1,4 +1,3 @@
-// SKIP!
 #include<stdio.h>
 #include<assert.h>
 
@@ -40,7 +39,7 @@ int main () {
 
   rec2(&a, 0);
   printf("a = %d\n", a);
-  // assert(a == 9); // a = 0 is wrong, should be 9 or top!
+  assert(a == 0);
 
   a = fact(6);
   assert(a == 720);
