@@ -479,27 +479,27 @@ module Codegen = struct
 
     let to_pml = function
       | Call fname ->
-          "goto Fun_" ^ fname ^ "; "
+          "goto Fun_" ^ fname ^ ";"
       | Assign assignment ->
-          assignment ^ "; "
+          assignment ^ ";"
       | Cond cond ->
           cond ^ " -> "
       | ThreadCreate t ->
-          "ThreadCreate(" ^ string_of_int t.tid ^ "); "
+          "ThreadCreate(" ^ string_of_int t.tid ^ ");"
       | ThreadJoin tid ->
-          "ThreadWait(" ^ string_of_int tid ^ "); "
+          "ThreadWait(" ^ string_of_int tid ^ ");"
       | MutexInit mid ->
-          "MutexInit(" ^ string_of_int mid ^ "); "
+          "MutexInit(" ^ string_of_int mid ^ ");"
       | MutexLock mid ->
-          "MutexLock(tid, " ^ string_of_int mid ^ "); "
+          "MutexLock(tid, " ^ string_of_int mid ^ ");"
       | MutexUnlock mid ->
-          "MutexUnlock(" ^ string_of_int mid ^ "); "
+          "MutexUnlock(" ^ string_of_int mid ^ ");"
       | CondVarInit id ->
-          "CondVarInit(" ^ string_of_int id ^ "); "
+          "CondVarInit(" ^ string_of_int id ^ ");"
       | CondVarBroadcast id ->
-          "CondVarBroadcast(" ^ string_of_int id ^ "); "
+          "CondVarBroadcast(" ^ string_of_int id ^ ");"
       | CondVarSignal id ->
-          "CondVarSignal(" ^ string_of_int id ^ "); "
+          "CondVarSignal(" ^ string_of_int id ^ ");"
       | CondVarWait cond_var_wait ->
           "CondVarWait("
           ^ string_of_int cond_var_wait.cond_var_id
@@ -599,7 +599,7 @@ module Codegen = struct
               in
               "mark(" ^ pc ^ "); " ^ Action.to_pml action
           | _ ->
-              Action.to_pml action ^ goto_str target_label
+              Action.to_pml action ^ " " ^ goto_str target_label
         in
         let walk_edges (node, out_edges) =
           let edges = Set.elements out_edges |> List.map str_edge in
@@ -1082,16 +1082,8 @@ module Spec : Analyses.Spec = struct
           in
           let thread_create tid =
             let fun_name = Variable.show thread_fun in
-            let is_function_already_visited =
-              Option.is_some @@ Tbls.FunNameToTids.get fun_name
-            in
-            let add_function_edges () =
-              let existing_tid =
-                Tbls.FunNameToTids.get fun_name
-                |> Option.get
-                |> Set.elements
-                |> List.hd
-              in
+            let add_visited_edges fun_tids =
+              let existing_tid = List.hd @@ Set.elements fun_tids in
               let resource_from_tid tid =
                 Resource.make Resource.Thread
                 @@ Option.get
@@ -1103,9 +1095,13 @@ module Spec : Analyses.Spec = struct
 
             add_task tid ;
 
-            if is_function_already_visited then add_function_edges () ;
-
+            (* multiple threads may be launched with the same function entrypoint
+             * but functions are visited only once
+             * Want to have add the visited edges to the new thread that visits
+             * the same function *)
+            Option.may add_visited_edges @@ Tbls.FunNameToTids.get fun_name ;
             Tbls.FunNameToTids.extend fun_name tid ;
+
             Action.ThreadCreate { f = thread_fun; tid }
           in
 
