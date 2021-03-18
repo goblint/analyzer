@@ -283,8 +283,7 @@ struct
     r *)
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
-    if not (is_atomic ask) then
-      sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
+    sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
@@ -358,10 +357,8 @@ struct
       else
         CPA.add x v st.cpa
     in
-    if not (is_atomic ask) then (
-      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
-      sideg (mutex_global x) (CPA.add x v (CPA.bot ()))
-    );
+    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
+    sideg (mutex_global x) (CPA.add x v (CPA.bot ()));
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
