@@ -6,6 +6,7 @@ open MyCFG
 open Analyses
 open GobConfig
 open Constraints
+open Preanalysis
 
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
@@ -546,6 +547,8 @@ end
 let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let cfgF, cfgB = MyCFG.getCFG file in
+  let () = Preanalysis.print_filename file.fileName in
+  (* let () = Preanalysis.do_preanalysis file cfgF in *)
   let cfgB' = function
     | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n

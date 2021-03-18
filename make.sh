@@ -88,6 +88,8 @@ rule() {
     ;; arinc)
       ocb src/mainarinc.native &&
       cp _build/src/mainarinc.native arinc
+    ;; preanalysis)
+      echo "open Preanalysis" >> $TARGET.ml
 
     # setup, dependencies
     ;; deps)
