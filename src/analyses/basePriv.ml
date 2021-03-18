@@ -1124,15 +1124,19 @@ struct
     let s = Lockset.remove m (current_lockset ask) in
     let (w, p) = st.priv in
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
+    if M.tracing then M.traceli "priv" "unlock %a %a\n" Lock.pretty m CPA.pretty st.cpa;
     let side_gsyncw = CPA.fold (fun x v acc ->
-        if is_global ask x then
+        if is_global ask x then (
+          let w_x = W.find x w in
+          if M.tracing then M.trace "priv" "gsyncw %a %a %a\n" d_varinfo x VD.pretty v MinLocksets.pretty w_x;
           MinLocksets.fold (fun w acc ->
-              GSyncW.add w (CPA.add x v (CPA.bot ())) acc
-            ) (W.find x w) acc
-        else
+              GSyncW.add w (CPA.add x v (GSyncW.find w acc)) acc
+            ) w_x acc
+        ) else
           acc
       ) st.cpa (GSyncW.bot ())
     in
+    if M.tracing then M.traceu "priv" "unlock %a %a\n" Lock.pretty m GSyncW.pretty side_gsyncw;
     sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_gsyncw (GSync.bot ()));
     {st with priv = (w, p')}
 
@@ -1291,7 +1295,7 @@ struct
     let side_gsyncw = CPA.fold (fun x v acc ->
         if is_global ask x then
           MinLocksets.fold (fun w acc ->
-              GSyncW.add w (CPA.add x v (CPA.bot ())) acc
+              GSyncW.add w (CPA.add x v (GSyncW.find w acc)) acc
             ) (W.find x w) acc
         else
           acc
