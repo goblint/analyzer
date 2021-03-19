@@ -7,6 +7,21 @@ open Deriving.Cil
 open BatteriesExceptionless
 open Option.Infix
 
+module Flags = struct
+  type t = AssumeSuccess
+
+  let default_value = function AssumeSuccess -> true
+
+  let description = function
+    | AssumeSuccess ->
+        "Assume that all POSIX pthread functions succeed."
+
+
+  let show = function AssumeSuccess -> "ana.pthread.assume_success"
+
+  let eval = GobConfig.get_bool % show
+end
+
 (** [Function] module represents the supported pthread functions for the analysis *)
 module Function = struct
   type t =
@@ -32,6 +47,8 @@ module Function = struct
     ; ("pthread_cond_wait", CondVarWait)
     ]
 
+
+  let error_code = -1
 
   let supported = List.map fst funs
 
@@ -94,7 +111,7 @@ module Action = struct
   (** ADT of all possible edge actions types *)
   type t =
     | Call of fun_call_id
-    | Assign of string (* a = b *)
+    | Assign of string * string
     | Cond of string (* pred *)
     | ThreadCreate of thread
     | ThreadJoin of thread_id
@@ -480,8 +497,8 @@ module Codegen = struct
     let to_pml = function
       | Call fname ->
           "goto Fun_" ^ fname ^ ";"
-      | Assign assignment ->
-          assignment ^ ";"
+      | Assign (a, b) ->
+          a ^ " = " ^ b ^ ";"
       | Cond cond ->
           cond ^ " -> "
       | ThreadCreate t ->
@@ -860,7 +877,7 @@ module Spec : Analyses.Spec = struct
 
       let lhs_str = Variable.show var in
       let rhs_str = sprint d_exp rval in
-      Edges.add env @@ Action.Assign (lhs_str ^ " = " ^ rhs_str) ;
+      Edges.add env @@ Action.Assign (lhs_str, rhs_str) ;
 
       let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
       Variables.add tid var ;
@@ -1029,11 +1046,14 @@ module Spec : Analyses.Spec = struct
           >>= fun var ->
           Variables.add tid var ;
 
-          Option.some @@ Action.Assign (Variable.show var ^ " = -1")
+          Option.some
+          @@ Action.Assign (Variable.show var, string_of_int Function.error_code)
         in
 
         List.iter (Edges.add env) actions ;
-        Option.may (Edges.add env) failed_action ;
+
+        if not @@ Flags.eval Flags.AssumeSuccess
+        then Option.may (Edges.add env) failed_action ;
 
         if List.is_empty actions
         then d
