@@ -25,6 +25,7 @@ end
 (** [Function] module represents the supported pthread functions for the analysis *)
 module Function = struct
   type t =
+    | Exit
     | ThreadCreate
     | ThreadJoin
     | MutexInit
@@ -36,7 +37,8 @@ module Function = struct
     | CondVarWait
 
   let funs =
-    [ ("pthread_create", ThreadCreate)
+    [ ("exit", Exit)
+    ; ("pthread_create", ThreadCreate)
     ; ("pthread_join", ThreadJoin)
     ; ("pthread_mutex_init", MutexInit)
     ; ("pthread_mutex_lock", MutexLock)
@@ -609,6 +611,8 @@ module Codegen = struct
         let str_edge (a, action, b) =
           let target_label = if is_end_node b then end_label else label b in
           match action with
+          | Action.Call fun_name when fun_name = "exit" ->
+              "exit();"
           | Action.Call fun_name ->
               called_funs := fun_name :: !called_funs ;
               let pc =
@@ -742,7 +746,7 @@ module Codegen = struct
             threads
         in
         let run_main = run promela_main ~arg:"0" in
-        let init_body = "preInit();" :: run_main :: run_threads in
+        let init_body = (run_main :: run_threads) @ [ "setReady(0);" ] in
         [ "init {" ] @ List.map tabulate init_body @ [ "}" ]
       in
       let body =
@@ -1064,6 +1068,8 @@ module Spec : Analyses.Spec = struct
       let arglist = List.map (stripCasts % constFold false) arglist in
       let open Function in
       match (Option.get pthread_fun, arglist) with
+      | Exit, _ ->
+          add_action (Action.Call "exit")
       | ThreadCreate, [ thread; thread_attr; func; fun_arg ] ->
           let funs_ls =
             let ls =

@@ -49,6 +49,16 @@ inline mark(pc) {
   stack[sp] = pc;
 }
 
+inline exit() {
+  atomic {
+    byte i;
+
+    for (i in threads) {
+      threads[i].status = DONE;
+    }
+  }
+}
+
 // helpers for scheduling etc.
 #define notStarving(i)                                                                       \
   (always(threads[i].status == READY implies always eventually(threads[i].status == READY || \
@@ -57,14 +67,7 @@ inline mark(pc) {
 // LTL formulas
 ltl not_starving  { allTasks(notStarving) }
 
-inline preInit() {
-  atomic {
-    setReady(0); 
-  }
-}
-
-#define canRun(thread_id)                                                      \
-   (threads[thread_id].status == READY)
+#define canRun(thread_id) (threads[thread_id].status == READY)
 
 #define isWaiting(thread_id, resource_type, resource_id)                       \
   (threads[thread_id].status == WAITING &&                                     \
