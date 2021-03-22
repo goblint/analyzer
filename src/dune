@@ -3,13 +3,27 @@
 
 (include_subdirs unqualified)
 
+(library
+  (name goblint_lib)
+  (public_name goblint.lib)
+  (wrapped false)
+  (modules :standard \ goblint mainarinc maindomaintest mainspec
+    apronDomain poly violationZ3)
+  (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js
+    qcheck-core.runner)
+  (preprocess
+    (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson
+      ppx_distr_guards ocaml-monadic))
+)
+
 (executables
   (names goblint maindomaintest) ; TODO: separate domaintest executable?
   (public_names goblint -)
   (modes native js) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
-  (modules :standard \ apronDomain poly violationZ3)
-  (libraries goblint-cil.all-features batteries zarith_stubs_js qcheck) ; z3
+  (modules goblint mainarinc maindomaintest mainspec)
+  (libraries goblint.lib)
   (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (flags :standard -linkall)
 )
 
 (rule

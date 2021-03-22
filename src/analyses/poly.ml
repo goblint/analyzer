@@ -10,7 +10,7 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "poly"
+  let name () = "poly"
 
   module D = D
   module G = Lattice.Unit
@@ -111,26 +111,6 @@ struct
       begin
         match D.get_int_val_for_cil_exp d e with
         | Some i -> `Int i
-        | _ -> `Top
-      end
-    | EvalIntSet e ->
-      begin
-        match D.get_int_interval_for_cil_exp d e with
-        | Some i, Some s ->
-          if (Int64.compare i s) <= 0 then
-            `IntSet (IntDomain.Enums.of_interval (i,s))
-          else Result.bot ()
-        | _ -> Result.top ()
-      end
-    | EvalInterval e ->
-      begin
-        match D.get_int_interval_for_cil_exp d e with
-        | Some i, Some s ->
-          if (Int64.compare i s) <= 0 then
-            `Interval (IntDomain.Interval.of_interval (i,s))
-          else Result.bot ()
-        | Some i, _ ->  `Interval (IntDomain.Interval.starting i)
-        | _, Some s -> `Interval (IntDomain.Interval.ending s)
         | _ -> `Top
       end
     | MustBeEqual (e1, e2) ->

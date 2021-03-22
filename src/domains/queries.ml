@@ -56,7 +56,7 @@ type t = EqualSet of exp
        | BlobSize of exp (* size of a dynamically allocated `Blob pointed to by exp *)
        | PrintFullState
        | CondVars of exp
-       | Access of exp * bool * bool * int
+       | PartAccess of {exp: exp; var_opt: varinfo option; write: bool}
        | IterPrevVars of iterprevvar
        | IterVars of itervar
        | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
@@ -66,6 +66,8 @@ type t = EqualSet of exp
        | HeapVar
        | IsHeapVar of varinfo
 [@@deriving to_yojson]
+
+module PartAccessResult = Access.PartAccessResult
 
 type result = [
   | `Top
@@ -78,6 +80,7 @@ type result = [
   | `Varinfo of VI.t
   | `MustBool of bool  (* true \leq false *)
   | `MayBool of bool   (* false \leq true *)
+  | `PartAccessResult of PartAccessResult.t
   | `Bot
 ] [@@deriving to_yojson]
 
@@ -109,6 +112,7 @@ struct
     | (`Varinfo x, `Varinfo y) -> VI.equal x y
     | (`MustBool x, `MustBool y) -> Bool.equal x y
     | (`MayBool x, `MayBool y) -> Bool.equal x y
+    | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.equal x y
     | _ -> false
 
   let hash (x:t) =
@@ -119,6 +123,7 @@ struct
     | `ExpTriples n -> PS.hash n
     | `TypeSet n -> TS.hash n
     | `Varinfo n -> VI.hash n
+    | `PartAccessResult n -> PartAccessResult.hash n
     (* `MustBool and `MayBool should work by the following *)
     | _ -> Hashtbl.hash x
 
@@ -135,6 +140,7 @@ struct
       | `Varinfo _ -> 8
       | `MustBool _ -> 9
       | `MayBool _ -> 10
+      | `PartAccessResult _ -> 11
       | `Top -> 100
     in match x,y with
     | `Int x, `Int y -> ID.compare x y
@@ -145,6 +151,7 @@ struct
     | `Varinfo x, `Varinfo y -> VI.compare x y
     | `MustBool x, `MustBool y -> Bool.compare x y
     | `MayBool x, `MayBool y -> Bool.compare x y
+    | `PartAccessResult x, `PartAccessResult y -> PartAccessResult.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
@@ -158,6 +165,7 @@ struct
     | `Varinfo n -> VI.pretty () n
     | `MustBool n -> text (string_of_bool n)
     | `MayBool n -> text (string_of_bool n)
+    | `PartAccessResult n -> PartAccessResult.pretty () n
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -172,6 +180,7 @@ struct
     | `Varinfo n -> VI.short w n
     | `MustBool n -> string_of_bool n
     | `MayBool n -> string_of_bool n
+    | `PartAccessResult n -> PartAccessResult.short w n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -183,6 +192,7 @@ struct
     | `ExpTriples n ->  PS.isSimple n
     | `TypeSet n -> TS.isSimple n
     | `Varinfo n -> VI.isSimple n
+    | `PartAccessResult n -> PartAccessResult.isSimple n
     (* `MustBool and `MayBool should work by the following *)
     | _ -> true
 
@@ -204,6 +214,7 @@ struct
     (* TODO: should these be more like IntDomain.Booleans? *)
     | (`MustBool x, `MustBool y) -> x == y || x
     | (`MayBool x, `MayBool y) -> x == y || y
+    | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.leq x y
     | _ -> false
 
   let join x y =
@@ -220,6 +231,7 @@ struct
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.join x y)
       | (`MustBool x, `MustBool y) -> `MustBool (x && y)
       | (`MayBool x, `MayBool y) -> `MayBool (x || y)
+      | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.join x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -237,6 +249,7 @@ struct
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.meet x y)
       | (`MustBool x, `MustBool y) -> `MustBool (x || y)
       | (`MayBool x, `MayBool y) -> `MayBool (x && y)
+      | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.meet x y)
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 
@@ -254,6 +267,7 @@ struct
       | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.widen x y)
       | (`MustBool x, `MustBool y) -> `MustBool (x && y)
       | (`MayBool x, `MayBool y) -> `MustBool (x || y)
+      | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.widen x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -267,6 +281,7 @@ struct
     | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.narrow x y)
     | (`MustBool x, `MustBool y) -> `MustBool (x || y)
     | (`MayBool x, `MayBool y) -> `MayBool (x && y)
+    | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.narrow x y)
     | (x,_) -> x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))

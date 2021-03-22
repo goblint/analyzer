@@ -1,4 +1,4 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
 
 # gobopt environment variable can be used to override goblint defaults and PARAMs
 

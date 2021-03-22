@@ -307,6 +307,7 @@ struct
       if tracing then traceu "sol_max" "%a\n\n" Dom.pretty_diff (n, o)
     end
 
+  (* solvers can assign this to print solver specific statistics: *)
   let print_stats = ref (fun () -> ())
   let () =
     let open Sys in
@@ -320,7 +321,8 @@ struct
       (* print_endline "# Solver specific stats"; *)
       !print_stats ();
       (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
-      (* Gc.print_stat stdout;       *)
+      (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
+      Goblintutil.print_gc_quick_stat Legacy.stdout;
       (* print_string "Do you want to continue? [Y/n]"; *)
       flush stdout;
       (* if read_line () = "n" then raise Break *)

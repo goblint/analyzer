@@ -1,7 +1,6 @@
 open Prelude
 open Cil
 open Pretty
-open Analyses
 
 open Apron
 
@@ -9,13 +8,19 @@ module Man =
 struct
   (* type mt = Oct.t *)
   type mt = Polka.strict Polka.t
+  (* A type of manager for the polyhedra domain *)
   type t = mt Manager.t
 
+  (* Allocate a new manager to manipulate polyhedra *)
   (* let mgr = Oct.manager_alloc () *)
   let mgr = Polka.manager_alloc_strict ()
+  (* Making an environment from a set of integer and real variables. 
+  Raise Failure in case of name conflict. 
+  In this case the environment is empty to begin with. *)
   let eenv = Environment.make [||] [||]
 end
 
+(* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
 module D =
@@ -31,6 +36,11 @@ struct
   let bot () = botE Man.eenv
   let is_top = A.is_top    Man.mgr
   let is_bot = A.is_bottom Man.mgr
+
+  let to_yojson x = failwith "TODO implement to_yojson"
+  let invariant _ _ = Invariant.none
+  let tag _ = failwith "Std: no tag"
+  let arbitrary () = failwith "no arbitrary"
 
   let join x y =
     if is_bot x then
@@ -79,8 +89,9 @@ struct
   let pretty = pretty_f short
   let pretty_diff () (x,y) = text "pretty_diff"
 
+  (* Apron expressions of level 1 *)
   open Texpr1
-  open Lincons0
+  (* Apron linear constraints of level 1 *)
   open Lincons1
 
   let typesort =
@@ -226,6 +237,8 @@ struct
     | Some linexpr1, Some comparator -> Some (Lincons1.make linexpr1 comparator)
     | _ -> None
 
+  (* Gives the result of the meet operation of the given polyhedron 
+  with the linear constraints coming from the given expression *)
   let assert_inv d x b =
     try
       (* if assert(x) then convert it to assert(x != 0) *)
@@ -233,17 +246,26 @@ struct
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
           UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
         | _ -> x in
+      (* Linear constraints from an expression x in an environment of polyhedron d *)
       let linecons = cil_exp_to_apron_linecons (A.env d) x b in
+      (* Linear constraints are optional, so we check if there are any. *)
       match linecons with
       | Some linecons ->
+        (* Get the underlying linear constraint of level 0. 
+        Modifying the constraint of level 0 (not advisable) 
+        modifies correspondingly the linear constraint and conversely, 
+        except for changes of environments *)
         let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
                  ; array_env = A.env d
                  }
         in
+        (* We perform a meet of the current polyhedron with the linear constraints 
+        that come from the expression we wish to assert. *)
         A.meet_lincons_array Man.mgr d ea
       | None -> d
     with Invalid_argument "cil_exp_to_lexp" -> d
 
+  (* Converts CIL expressions to Apron expressions of level 1 *)
   let cil_exp_to_apron_texpr1 env exp =
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
     Texpr1.of_expr env (cil_exp_to_cil_lhost exp)
@@ -383,6 +405,7 @@ struct
     else
       begin
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
+        (* We compare the polyhedron with the polyhedron we get by performing meet of it with the linear constraints coming from the expression *)
         equal d (assert_inv d compare_expression false)
       end
 

@@ -80,9 +80,6 @@ struct
   let combine ctx r fe f args fc es =
     D.lift @@ S.combine (conv ctx) r fe f args fc (D.unlift es)
 
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
-
   let threadenter ctx lval f args =
     D.lift @@ S.threadenter (conv ctx) lval f args
 
@@ -162,9 +159,6 @@ struct
 
   let combine ctx r fe f args fc es =
     S.combine (conv ctx) r fe f args (C.unlift fc) es
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
@@ -290,9 +284,6 @@ struct
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 
@@ -394,9 +385,6 @@ struct
     S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
 
   let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args (fst fc) (fst es))
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 
@@ -509,9 +497,6 @@ struct
 
   let threadenter ctx lval f args = lift_fun ctx D.lift S.threadenter ((|>) args % (|>) f % (|>) lval) `Bot
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 module type Increment =
@@ -554,7 +539,6 @@ struct
 
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
     let r = ref [] in
-    if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
     let rec ctx =
       { ask     = query
@@ -731,8 +715,7 @@ struct
     let old_node = !current_node in
     let _       = current_node := Some u in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg
-      with M.StopTheWorld -> D.bot ()
-         | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
+      with M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = current_node := old_node in
     d
 
@@ -1077,9 +1060,6 @@ struct
     in
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 module Compare

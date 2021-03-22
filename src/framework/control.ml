@@ -274,7 +274,7 @@ struct
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
       ignore (Pretty.printf "domain testing...: %s\n" (D.name ()));
-      let errcode = QCheck_runner.run_tests DP.tests in
+      let errcode = QCheck_base_runner.run_tests DP.tests in
       if (errcode <> 0) then
         failwith "domain tests failed"
     in
@@ -381,7 +381,14 @@ struct
       let lh, gh = if load_run <> "" then (
           if get_bool "dbg.verbose" then
             print_endline ("Loading the solver result of a saved run from " ^ load_run);
-          Serialize.unmarshal load_run
+            let lh,gh = Serialize.unmarshal load_run in
+            if get_bool "ana.opt.hashcons" then (
+              let lh' = LHT.create (LHT.length lh) in
+              let gh' = GHT.create (GHT.length gh) in
+              LHT.iter (fun k v -> let k' = EQSys.LVar.relift k in let v' = EQSys.D.join (EQSys.D.bot ()) v in LHT.replace lh' k' v') lh;
+              GHT.iter (fun k v -> let k' = EQSys.GVar.relift k in let v' = EQSys.G.join (EQSys.G.bot ()) v in GHT.replace gh' k' v') gh;
+              lh', gh'
+            ) else lh,gh
         ) else if compare_runs <> [] then (
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
@@ -396,13 +403,15 @@ struct
           if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
+            let analyses = append_opt "save_run" "analyses.marshalled" in
             let config = append_opt "save_run" "config.json" in
             let meta = append_opt "save_run" "meta.json" in
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ save_run ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
+              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
             );
             ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
             Serialize.marshal (lh, gh) save_run;
+            Serialize.marshal !MCP.analyses_table analyses;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
@@ -514,7 +523,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> Messages.waitWhat "Timeout reached!") in
+      (fun () -> M.print_msg "Timeout reached!" (!Tracing.current_loc); raise GU.Timeout) in
     let local_xml = solver2source_result lh in
 
     let liveness =
@@ -546,15 +555,18 @@ struct
       analyze_loop file fs change_info
 end
 
-(** The main function to perform the selected analyses. *)
-let analyze change_info (file: file) fs =
-  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+let compute_cfg file =
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
     | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
-  let module CFG = struct let prev = cfgB let next = cfgF end in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir)
+
+(** The main function to perform the selected analyses. *)
+let analyze change_info (file: file) fs =
+  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+  let (module CFG) = compute_cfg file in
   let module A = AnalyzeCFG (CFG) in
   A.analyze_loop file fs change_info

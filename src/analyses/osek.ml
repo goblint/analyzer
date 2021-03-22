@@ -458,7 +458,7 @@ struct
       Hashtbl.add type_inv_tbl c.ckey i;
       [i, `NoOffset]
 
-  (* Try to find a suitable type invarinat --- and by that we mean a struct. *)
+  (* Try to find a suitable type invariant --- and by that we mean a struct. *)
   let best_type_inv exs : (varinfo * Offs.t) option =
     let add_el es e : LockingPattern.ee list list =
       try LockingPattern.toEl e :: es

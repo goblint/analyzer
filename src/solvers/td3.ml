@@ -68,6 +68,15 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let () = print_stats := fun () ->
+        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+        let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
+        HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k, S.Var.line_nr k) ((+)1) histo) rho;
+        let (vid,vln),n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
+        ignore @@ Pretty.printf "max #contexts: %d for var_id %s on line %d\n" n vid vln
+      in
+
       if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in
@@ -363,7 +372,8 @@ module WP =
         (* Another problem are the tags for the context part of a S.Var.t.
          * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
          * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
-         * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
+         * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
+         *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           HM.iter (fun k v ->

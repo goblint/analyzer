@@ -21,7 +21,6 @@ sig
   val iter: (key -> value -> unit) -> t -> unit
   val map: (value -> value) -> t -> t
   val filter: (key -> value -> bool) -> t -> t
-  (*  val mapi: (key -> value -> value) -> t -> t*)
   val fold: (key -> value -> 'a -> 'a) -> t -> 'a -> 'a
 
   val add_list: (key * value) list -> t -> t
@@ -33,7 +32,6 @@ sig
   val map2: (value -> value -> value) -> t -> t -> t
   val long_map2: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
-  (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
 
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   (* Widen using a custom widening function for value rather than the default one for value *)
