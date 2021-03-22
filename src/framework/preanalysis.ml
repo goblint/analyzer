@@ -40,10 +40,27 @@ let makeVar fd loc name =
     let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
     Goblintutil.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
 
+let rec list_instr_to_string l = match l with
+  | [] -> ""
+  | head::body -> 
+  begin
+    (Pretty.sprint 20 (Cil.d_instr () head))^(list_instr_to_string body)
+end
+
+class expressionVisitor (fd : fundec) = object(self)
+inherit nopCilVisitor
+method! vstmt s =
+  let action s = match s.skind with
+    | Instr inst -> 
+      let () = print_endline (list_instr_to_string inst) in
+      s
+    | _ -> s
+  in ChangeDoChildrenPost (s, action)
+end
+
 class loopCounterVisitor (fd : fundec) = object(self)
 inherit nopCilVisitor
 method! vstmt s =
-let () = print_endline "Visiting loop :P" in 
   let action s = match s.skind with
     | Loop (b, loc, _, _) -> 
       (* insert loop counter variable *)
@@ -98,4 +115,5 @@ let do_preanalysis file =
 let add_visitors = 
   let () =print_endline "Adding the visitor is called!!!" in 
   Cilfacade.register_preprocess "octApron" (new loopCounterVisitor);
-  Cilfacade.register_preprocess "octApron" (new recomputeVisitor)
+  Cilfacade.register_preprocess "octApron" (new recomputeVisitor);
+  Cilfacade.register_preprocess "octApron" (new expressionVisitor)
