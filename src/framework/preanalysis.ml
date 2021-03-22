@@ -45,14 +45,27 @@ let rec list_instr_to_string l = match l with
   | head::body -> 
   begin
     (Pretty.sprint 20 (Cil.d_instr () head))^(list_instr_to_string body)
-end
+  end
+
+let pairs_from_instr instr = match instr with
+  | Set (lval, exp, location) ->  " "^(Pretty.sprint 20 (Cil.d_lval () lval))^" is "^(Pretty.sprint 20 (Cil.d_exp () exp))^" | "
+  | VarDecl (varinfo, location) -> " "^varinfo.vname^" is declared | "
+  | _ -> ""
+
+let rec get_related_pairs l = match l with
+  | [] -> ""
+  | head::body -> 
+  begin
+    (pairs_from_instr head)^(get_related_pairs body)
+  end
 
 class expressionVisitor (fd : fundec) = object(self)
 inherit nopCilVisitor
 method! vstmt s =
   let action s = match s.skind with
     | Instr inst -> 
-      let () = print_endline (list_instr_to_string inst) in
+      (*let () = print_endline (list_instr_to_string inst) in*)
+      let () = print_endline (get_related_pairs inst) in
       s
     | _ -> s
   in ChangeDoChildrenPost (s, action)
