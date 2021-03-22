@@ -1874,14 +1874,13 @@ module Enums : S with type int_t = BigInt.t = struct
   type int_t = BI.t
   let name () = "enums"
   let top_range = R.of_interval range_ikind (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
-  let bot () = Inc []
-  let top_of ik = Exc ([], size ik)
-  let top () = Exc ([], top_range)
-  let top_of ik = top ()
-  let bot_of ik = bot ()
-  let is_top x = x = top ()
 
-  let equal a b = a = b (* Be careful: this works only as long as the Range/Interval implementation used does not use big integers *)
+  let bot () = failwith "bot () not implemented for Enums"
+  let top_of ik = Exc ([], size ik)
+  let top () = failwith "top () not implemented for Enums"
+  let bot_of ik = Inc []
+
+  let equal a b = a = b
   let short _ = function
     | Inc[] -> "bot" | Exc([],r) -> "top"
     | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
@@ -1975,18 +1974,18 @@ module Enums : S with type int_t = BigInt.t = struct
   let lift1 f ikind = function
     | Inc[x] -> Inc[f x]
     | Inc xs when List.length xs <= max_elems () -> Inc (List.sort_unique compare @@ List.map f xs)
-    | _ -> top ()
+    | _ -> top_of ikind
 
   let lift2 f (ikind: Cil.ikind) = curry @@ function
     | Inc[],_| _,Inc[] -> Inc[]
     | Inc[x],Inc[y] -> Inc[f x y]
     | Inc xs,Inc ys ->
       let r = List.cartesian_product xs ys |> List.map (uncurry f) |> List.sort_unique compare in
-      if List.length r <= max_elems () then Inc r else top ()
-    | _,_ -> top ()
+      if List.length r <= max_elems () then Inc r else top_of ikind
+    | _,_ -> top_of ikind
 
   let lift2 f ikind a b =
-    try lift2 f ikind a b with Division_by_zero -> top ()
+    try lift2 f ikind a b with Division_by_zero -> top_of ikind
 
   let neg = lift1 I.neg
   let add ikind = curry @@ function
@@ -2004,7 +2003,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc[one],x when one = BI.one -> x
     | x,Inc[one] when one = BI.one -> x
     | Inc[zero],_ when zero = BI.zero -> Inc[BI.zero]
-    | _,Inc[zero] when zero = BI.zero -> top ()
+    | _,Inc[zero] when zero = BI.zero -> top_of ikind
     | x,y -> lift2 I.div ikind x y
   let rem  = lift2 I.rem
   let lt = lift2 I.lt
