@@ -180,14 +180,6 @@ struct
   let rem = Big_int_Z.mod_big_int
 
   let pred x = Big_int_Z.sub_big_int x Big_int_Z.unit_big_int
-  let shift_left = Big_int_Z.shift_left_big_int
-  let shift_right = Big_int_Z.shift_right_big_int
-  let logand = Big_int_Z.and_big_int
-  let logor = Big_int_Z.or_big_int
-  let logxor = Big_int_Z.xor_big_int
-
-  let lognot x = sub (neg x) one
-
   let compare = Big_int_Z.compare_big_int
   let equal = Big_int_Z.eq_big_int
 
@@ -210,4 +202,11 @@ struct
   let gt x y = of_bool (compare x y > 0)
   let le x y = of_bool (compare x y <= 0)
   let ge x y = of_bool (compare x y >= 0)
+  let shift_left = Big_int_Z.shift_left_big_int
+  let shift_right = Big_int_Z.shift_right_big_int
+  let logand = Big_int_Z.and_big_int
+  let logor = Big_int_Z.or_big_int
+  let logxor = Big_int_Z.xor_big_int
+
+  let lognot x = of_bool (x = Big_int_Z.zero_big_int)
 end
