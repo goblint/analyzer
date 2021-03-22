@@ -1862,16 +1862,16 @@ module Booleans = MakeBooleans (
   end)
 
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
-module Enums : IkindUnawareS = struct
+module Enums : S with type int_t = BigInt.t = struct
   open Batteries
-  module I = Integers
+  module I = BigInt
   module R = Interval32 (* range for exclusion *)
 
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
   type e = I.t (* element *)
-  and t = Inc of e list | Exc of e list * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
-  type int_t = int64
+  and t = Inc of I.t list | Exc of I.t list * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
+  type int_t = BI.t
   let name () = "enums"
   let top_range = R.of_interval range_ikind (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let bot () = Inc []
@@ -1897,7 +1897,6 @@ module Enums : IkindUnawareS = struct
     | Exc (x, r) ->
       if List.mem i x then `Neq
       else `Top
-  let of_int x = Inc [x]
 
   let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
   let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
@@ -1910,12 +1909,14 @@ module Enums : IkindUnawareS = struct
         Exc (s', r')
       else (* downcast: may overflow *)
         Exc ([], r')
-    |  Inc x -> Inc (List.map (Integers.cast_to ik) x)
+    |  Inc x -> Inc (List.map (BigInt.cast_to ik) x)
+
+  let of_int ikind x = cast_to ikind (Inc [x])
 
   let of_interval ik (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =
       if start_num > end_num then set
-      else (build_set (set @ [start_num]) (Int64.add start_num (Int64.of_int 1)) end_num) in
+      else (build_set (set @ [start_num]) (BI.add start_num (BI.of_int 1)) end_num) in
     Inc (build_set [] x y)
 
   let rec merge_cup a b = match a,b with
@@ -1941,12 +1942,22 @@ module Enums : IkindUnawareS = struct
         | _ -> x :: merge_sub xs b
       )
   (* let merge_sub x y = Set.(diff (of_list x) (of_list y) |> to_list) *)
-  let join = curry @@ function
-    | Inc x, Inc y -> Inc (merge_cup x y)
-    | Exc (x,r1), Exc (y,r2) -> Exc (merge_cap x y, R.join r1 r2)
-    | Exc (x,r), Inc y
-    | Inc y, Exc (x,r) -> Exc (merge_sub x y, if y = [] then r else R.join r (R.of_interval range_ikind (List.hd y, List.last y)))
-  let meet = curry @@ function
+  let join_ignore_ikind = curry @@ function
+  | Inc x, Inc y -> Inc (merge_cup x y)
+  | Exc (x,r1), Exc (y,r2) -> Exc (merge_cap x y, R.join r1 r2)
+  | Exc (x,r), Inc y
+  | Inc y, Exc (x,r) ->
+    let r = if y = []
+      then r
+      else
+        let y_range = Size.min_range_sign_agnostic (List.hd y) (*, Size.min_range_sign_agnostic (List.last y) *) in
+        R.join r (R.of_interval range_ikind y_range)
+    in
+    Exc (merge_sub x y, r)
+
+  let join ikind = join_ignore_ikind
+
+  let meet ikind = curry @@ function
     | Inc x, Inc y -> Inc (merge_cap x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (merge_cup x y, R.meet r1 r2)
     | Inc x, Exc (y,r)
@@ -1954,66 +1965,91 @@ module Enums : IkindUnawareS = struct
   (* let join x y = let r = join x y in print_endline @@ "join " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
   (* let meet x y = let r = meet x y in print_endline @@ "meet " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
 
-  let widen x y = join x y
-  let narrow x y = meet x y
+  let widen = join
+  let narrow = meet
 
-  let leq x y = join x y = y
+  let leq x y = (join_ignore_ikind x y) = y
 
   let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
-  let lift1 f = function
+
+  let lift1 f ikind = function
     | Inc[x] -> Inc[f x]
     | Inc xs when List.length xs <= max_elems () -> Inc (List.sort_unique compare @@ List.map f xs)
     | _ -> top ()
-  let lift2 f = curry @@ function
+
+  let lift2 f (ikind: Cil.ikind) = curry @@ function
     | Inc[],_| _,Inc[] -> Inc[]
     | Inc[x],Inc[y] -> Inc[f x y]
     | Inc xs,Inc ys ->
       let r = List.cartesian_product xs ys |> List.map (uncurry f) |> List.sort_unique compare in
       if List.length r <= max_elems () then Inc r else top ()
     | _,_ -> top ()
-  let lift2 f a b =
-    try lift2 f a b with Division_by_zero -> top ()
 
-  let neg  = lift1 I.neg
-  let add  = curry @@ function
-    | Inc[0L],x | x,Inc[0L] -> x
-    | x,y -> lift2 I.add x y
-  let sub  = lift2 I.sub
-  let mul  = curry @@ function
-    | Inc[1L],x | x,Inc[1L] -> x
-    | Inc[0L],_ | _,Inc[0L] -> Inc[0L]
-    | x,y -> lift2 I.mul x y
-  let div  = curry @@ function
-    | Inc[1L],x | x,Inc[1L] -> x
-    | Inc[0L],_ -> Inc[0L]
-    | _,Inc[0L] -> top ()
-    | x,y -> lift2 I.div x y
+  let lift2 f ikind a b =
+    try lift2 f ikind a b with Division_by_zero -> top ()
+
+  let neg = lift1 I.neg
+  let add ikind = curry @@ function
+    | Inc[z],x when z = BI.zero -> x
+    | x,Inc[z] when z = BI.zero -> x
+    | x,y -> lift2 I.add ikind x y
+  let sub = lift2 I.sub
+  let mul ikind = curry @@ function
+    | Inc[one],x when one = BI.one -> x
+    | x,Inc[one] when one = BI.one  -> x
+    | Inc[zero],_ when zero = BI.zero -> Inc[BI.zero]
+    | _,Inc[zero] when zero = BI.zero -> Inc[BI.zero]
+    | x,y -> lift2 I.mul ikind x y
+  let div ikind = curry @@ function
+    | Inc[one],x when one = BI.one -> x
+    | x,Inc[one] when one = BI.one -> x
+    | Inc[zero],_ when zero = BI.zero -> Inc[BI.zero]
+    | _,Inc[zero] when zero = BI.zero -> top ()
+    | x,y -> lift2 I.div ikind x y
   let rem  = lift2 I.rem
   let lt = lift2 I.lt
   let gt = lift2 I.gt
   let le = lift2 I.le
   let ge = lift2 I.ge
-  let eq = lift2 I.eq (* TODO: add more precise cases for Exc, like in DefExc? *)
-  let ne = lift2 I.ne (* TODO: add more precise cases for Exc, like in DefExc? *)
-  let bitnot = lift1 I.bitnot
-  let bitand = lift2 I.bitand
-  let bitor  = lift2 I.bitor
-  let bitxor = lift2 I.bitxor
-  let shift_left  = lift2 I.shift_left
-  let shift_right = lift2 I.shift_right
+  let eq = lift2 (fun a b -> I.of_bool @@ I.equal a b) (* TODO: add more precise cases for Exc, like in DefExc? *)
+  let ne = lift2 (fun a b -> I.of_bool @@ not (I.equal a b)) (* TODO: add more precise cases for Exc, like in DefExc? *)
+  let bitnot = lift1 BigInt.lognot
+  let bitand = lift2 BigInt.logand
+  let bitor  = lift2 BigInt.logor
+  let bitxor = lift2 BigInt.logxor
+
+  let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
+    (* BigInt only accepts int as second argument for shifts; perform conversion here *)
+    let shift_op_big_int a (b: int_t) =
+      let (b : int) = BI.to_int b in
+      shift_op a b
+    in
+    (* If one of the parameters of the shift is negative, the result is undedined *)
+    let x_min = minimal x in
+    let y_min = minimal y in
+    if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then
+      top_of ik
+    else
+      lift2 shift_op_big_int ik x y
+
+  let shift_left =
+    shift BigInt.shift_left
+
+  let shift_right =
+    shift BigInt.shift_right
+
   let lognot = lift1 I.lognot
   let logand = lift2 I.logand
   let logor  = lift2 I.logor
 
-  let of_bool x = Inc [if x then Int64.one else Int64.zero]
-  let to_bool = function
+  let of_bool ikind x = Inc [if x then BI.one else BI.zero]
+  let to_bool  = function
     | Inc [] | Exc ([],_) -> None
-    | Inc [0L] -> Some false
-    | Inc xs when List.for_all ((<>) 0L) xs -> Some true
-    | Exc (xs,_) when List.exists ((=) 0L) xs -> Some true
+    | Inc [zero] when zero = BI.zero -> Some false
+    | Inc xs when List.for_all ((<>) BI.zero) xs -> Some true
+    | Exc (xs,_) when List.exists ((=) BI.zero) xs -> Some true
     | _ -> None
   let is_bool = BatOption.is_some % to_bool
-  let of_int  x = Inc [x]
   let to_int = function Inc [x] -> Some x | _ -> None
   let is_int = BatOption.is_some % to_int
 
@@ -2026,23 +2062,23 @@ module Enums : IkindUnawareS = struct
   let minimal = function Inc (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
 
-  let invariant c x =
+  let invariant_ikind c ik x =
     let c = Cil.(Lval (Option.get c.Invariant.lval)) in
     match x with
     | Inc ps ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x, intType)) in
+          let i = Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik (Big x), intType)) in
           Invariant.(a || i)
         ) Invariant.none ps
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kinteger64 IInt x, intType)) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik (Big x), intType)) in
           Invariant.(a && i)
         ) Invariant.none ns
 
   let arbitrary () =
     let open QCheck.Iter in
-    let i_list_arb = QCheck.small_list (Integers.arbitrary ()) in
+    let i_list_arb = QCheck.small_list (MyCheck.Arbitrary.big_int) in
     let neg is = Exc (is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
     let pos is = Inc is in
     let shrink = function
@@ -2065,7 +2101,7 @@ module IntDomTupleImpl = struct
   module I1 (*: S with type int_t  = int_t *) = DefExc
   module I2 (*: S with type int_t  = int_t *) = Interval
   module I3 (*: S with type int_t  = int_t *) = OldDomainFacade(CircInterval)
-  module I4 (*: S with type int_t  = int_t *) = OldDomainFacade(Enums)
+  module I4 (*: S with type int_t  = int_t *) = Enums
   type t = I1.t option * I2.t option * I3.t option * I4.t option [@@deriving to_yojson]
 
   (* The Interval32 domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
