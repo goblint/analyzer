@@ -623,9 +623,9 @@ struct
       | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
       | _              -> (set_overflow_flag ik;  top_of ik)
 
-  let bitxor = bit (fun _ik -> Ints_t.logxor)
-  let bitand = bit (fun _ik -> Ints_t.logand)
-  let bitor  = bit (fun _ik -> Ints_t.logor)
+  let bitxor = bit (fun _ik -> Ints_t.bitxor)
+  let bitand = bit (fun _ik -> Ints_t.bitand)
+  let bitor  = bit (fun _ik -> Ints_t.bitor)
 
   let bit1 f ik i1 =
     if is_bot i1 then
@@ -635,7 +635,7 @@ struct
       | Some x -> of_int ik (f ik x)
       | _      -> top_of ik
 
-  let bitnot = bit1 (fun _ik -> Ints_t.lognot)
+  let bitnot = bit1 (fun _ik -> Ints_t.bitnot)
   let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
   let shift_left  = bitcomp (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
 
@@ -1394,10 +1394,10 @@ struct
   let gt ik = lift2 BigInt.gt ik
   let le ik = lift2 BigInt.le ik
   let ge ik = lift2 BigInt.ge ik
-  let bitnot = lift1 BigInt.lognot
-  let bitand = lift2 BigInt.logand
-  let bitor  = lift2 BigInt.logor
-  let bitxor = lift2 BigInt.logxor
+  let bitnot = lift1 BigInt.bitnot
+  let bitand = lift2 BigInt.bitand
+  let bitor  = lift2 BigInt.bitor
+  let bitxor = lift2 BigInt.bitxor
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     (* BigInt only accepts int as second argument for shifts; perform conversion here *)
@@ -2012,10 +2012,10 @@ module Enums : S with type int_t = BigInt.t = struct
   let ge = lift2 I.ge
   let eq = lift2 (fun a b -> I.of_bool @@ I.equal a b) (* TODO: add more precise cases for Exc, like in DefExc? *)
   let ne = lift2 (fun a b -> I.of_bool @@ not (I.equal a b)) (* TODO: add more precise cases for Exc, like in DefExc? *)
-  let bitnot = lift1 BigInt.lognot
-  let bitand = lift2 BigInt.logand
-  let bitor  = lift2 BigInt.logor
-  let bitxor = lift2 BigInt.logxor
+  let bitnot = lift1 BigInt.bitnot
+  let bitand = lift2 BigInt.bitand
+  let bitor  = lift2 BigInt.bitor
+  let bitxor = lift2 BigInt.bitxor
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     (* BigInt only accepts int as second argument for shifts; perform conversion here *)
