@@ -512,7 +512,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> Messages.waitWhat "Timeout reached!") in
+      (fun () -> M.print_msg "Timeout reached!" (!Tracing.current_loc); raise GU.Timeout) in
     let local_xml = solver2source_result lh in
 
     let liveness =
