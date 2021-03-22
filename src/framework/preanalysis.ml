@@ -33,6 +33,12 @@ let find_backwards_reachable (module Cfg:MyCFG.CfgBidir) (node:node): unit NH.t 
   iter_node node;
   reachable
 
+let makeVar fd loc name =
+  let id = name ^ "__" ^ string_of_int loc.line in
+  try List.find (fun v -> v.vname = id) fd.slocals
+  with Not_found ->
+    let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
+    Goblintutil.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
 
 class loopCounterVisitor (fd : fundec) = object(self)
 inherit nopCilVisitor
@@ -41,16 +47,18 @@ let () = print_endline "Visiting loop :P" in
   let action s = match s.skind with
     | Loop (b, loc, _, _) -> 
       (* insert loop counter variable *)
-      let name = "termIvana"^string_of_int loc.line in
-      let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-      let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
-      (* make an init stmt since the init above is apparently ignored *)
-      let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc) in
-      (* increment it every iteration *)
-      (*let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc) in
-      b.bstmts <- inc_stmt :: b.bstmts;*)
-      let nb = mkBlock [init_stmt; mkStmt s.skind] in
-      s.skind <- Block nb;
+      let t = var @@ makeVar fd loc "t" in
+      (* initialise the loop counter to 0 *)
+      let t_init = mkStmtOneInstr @@ Set (t, zero, loc) in
+      (* increment the loop counter by 1 in every iteration *)
+      let t_inc = mkStmtOneInstr @@ Set (t, increm (Lval t) 1, loc) in
+      (match b.bstmts with
+       | cont :: cond :: ss ->
+         (* changing succs/preds directly doesn't work -> need to replace whole stmts  *)
+         b.bstmts <- cont :: cond :: t_inc :: ss;
+         let nb = mkBlock [t_init; mkStmt s.skind] in
+         s.skind <- Block nb;
+       | _ -> ());
       s
     | _ -> s
   in ChangeDoChildrenPost (s, action)
@@ -87,7 +95,7 @@ let do_preanalysis file =
   ) *)
   ()
 
-let add_visitor = 
+let add_visitors = 
   let () =print_endline "Adding the visitor is called!!!" in 
   Cilfacade.register_preprocess "octApron" (new loopCounterVisitor);
   Cilfacade.register_preprocess "octApron" (new recomputeVisitor)

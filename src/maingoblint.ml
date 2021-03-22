@@ -444,7 +444,7 @@ let main =
         (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
           set_bool "exp.lower-constants" false);
         Cilfacade.init ();
-        Preanalysis.add_visitor;
+        Preanalysis.add_visitors;
 
         handle_extraspecials ();
         create_temp_dir ();
