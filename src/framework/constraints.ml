@@ -529,7 +529,6 @@ struct
   let increment = I.increment
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
     let r = ref [] in
-    if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
     let rec ctx =
       { ask     = query
@@ -689,8 +688,7 @@ struct
     let old_node = !current_node in
     let _       = current_node := Some u in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg
-      with M.StopTheWorld -> D.bot ()
-         | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
+      with M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = current_node := old_node in
     d
 
