@@ -127,52 +127,6 @@ module Action = struct
     | Nop
 end
 
-module Variable = struct
-  type t = varinfo
-
-  let is_integral v = match v.vtype with TInt _ -> true | _ -> false
-
-  let is_global v = v.vglob
-
-  let is_mem v = v.vaddrof
-
-  let make_from_lhost = function
-    | Var v when is_integral v && not (is_mem v) ->
-        Some v
-    | _ ->
-        None
-
-
-  let make_from_lval (lhost, _) = make_from_lhost lhost
-
-  let show = sprint d_varinfo
-
-  let show_def v = "int " ^ show v ^ ";"
-end
-
-module Variables = struct
-  let table = ref (Hashtbl.create 123 : (thread_id, Variable.t Set.t) Hashtbl.t)
-
-  let add tid var = Hashtbl.modify_def Set.empty tid (Set.add var) !table
-
-  let get_globals () =
-    Hashtbl.values !table
-    |> List.of_enum
-    |> List.map Set.elements
-    |> List.flatten
-    |> List.filter Variable.is_global
-
-
-  let get_locals tid =
-    let no_globals vars = Set.diff vars (Set.of_list @@ get_globals ()) in
-
-    Hashtbl.find !table tid
-    |> Option.default Set.empty
-    |> no_globals
-    |> Set.enum
-    |> List.of_enum
-end
-
 (** type of a node in CFG *)
 type node = PthreadDomain.Pred.Base.t
 
@@ -431,6 +385,85 @@ end = struct
           None
     in
     List.hd @@ filter_map_actions get_funs
+end
+
+module Variable = struct
+  type t = varinfo
+
+  let is_integral v = match v.vtype with TInt _ -> true | _ -> false
+
+  let is_global v = v.vglob
+
+  let is_mem v = v.vaddrof
+
+  let make_from_lhost = function
+    | Var v when is_integral v && not (is_mem v) ->
+        Some v
+    | _ ->
+        None
+
+
+  let make_from_lval (lhost, _) = make_from_lhost lhost
+
+  let show = sprint d_varinfo
+
+  let show_def v = "int " ^ show v ^ ";"
+end
+
+module Variables = struct
+  let table = ref (Hashtbl.create 123 : (thread_id, Variable.t Set.t) Hashtbl.t)
+
+  let top = ref (Hashtbl.create 123 : (thread_id, Variable.t Set.t) Hashtbl.t)
+
+  let add tid var = Hashtbl.modify_def Set.empty tid (Set.add var) !table
+
+  let add_top tid var = Hashtbl.modify_def Set.empty tid (Set.add var) !top
+
+  let exists tid var =
+    let contains t =
+      Set.exists (( = ) var) @@ Hashtbl.find_default !t tid Set.empty
+    in
+    contains table && not (contains top)
+
+
+  let get_globals () =
+    Hashtbl.values !table
+    |> List.of_enum
+    |> List.map Set.elements
+    |> List.flatten
+    |> List.filter Variable.is_global
+    |> List.unique
+
+
+  let get_locals tid =
+    let no_globals vars = Set.diff vars (Set.of_list @@ get_globals ()) in
+
+    Hashtbl.find !table tid
+    |> Option.default Set.empty
+    |> no_globals
+    |> Set.enum
+    |> List.of_enum
+
+
+  (* all vars on rhs should be already registered, otherwise -> do not add this var *)
+  let rec all_vars_are_registered ctx = function
+    | Const _ ->
+        true
+    | Lval l ->
+        let open PthreadDomain in
+        let d = Env.d @@ Env.get ctx in
+        let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
+
+        l
+        |> Variable.make_from_lval
+        |> Option.map @@ exists tid
+        |> Option.is_some
+    | UnOp (_, e, _) ->
+        all_vars_are_registered ctx e
+    | BinOp (_, a, b, _) ->
+        all_vars_are_registered ctx a && all_vars_are_registered ctx b
+    | _ ->
+        false
 end
 
 (** promela source code *)
@@ -788,6 +821,7 @@ module Codegen = struct
       let lines =
         Hashtbl.keys Edges.table
         |> List.of_enum
+        |> List.unique
         |> List.map dot_thread
         |> List.concat
       in
@@ -867,26 +901,34 @@ module Spec : Analyses.Spec = struct
   let init () = LibraryFunctions.add_lib_funs Function.supported
 
   let assign ctx (lval : lval) (rval : exp) : D.t =
-    let var_opt = Variable.make_from_lval lval in
     if Option.is_none !MyCFG.current_node
     then (
       M.debug_each "assign: MyCFG.current_node not set :(" ;
       ctx.local )
-    else if PthreadDomain.D.is_bot ctx.local || Option.is_none var_opt
-    then ctx.local
     else
       let env = Env.get ctx in
       let d = Env.d env in
-      let var = Option.get var_opt in
-
-      let lhs_str = Variable.show var in
-      let rhs_str = sprint d_exp rval in
-      Edges.add env @@ Action.Assign (lhs_str, rhs_str) ;
-
       let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
-      Variables.add tid var ;
 
-      { d with pred = Pred.of_node @@ Env.node env }
+      let var_opt = Variable.make_from_lval lval in
+
+      if PthreadDomain.D.is_bot ctx.local
+         || Option.is_none var_opt
+         || (not @@ Variables.all_vars_are_registered ctx rval)
+      then (
+        (* set lhs var to TOP *)
+        Option.may (Variables.add_top tid) var_opt ;
+        ctx.local )
+      else
+        let var = Option.get var_opt in
+
+        let lhs_str = Variable.show var in
+        let rhs_str = sprint d_exp rval in
+        Edges.add env @@ Action.Assign (lhs_str, rhs_str) ;
+
+        Variables.add tid var ;
+
+        { d with pred = Pred.of_node @@ Env.node env }
 
 
   let branch ctx (exp : exp) (tv : bool) : D.t =
@@ -894,6 +936,18 @@ module Spec : Analyses.Spec = struct
     then ctx.local
     else
       let env = Env.get ctx in
+      let d = Env.d env in
+      let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
+      let is_valid_var =
+        Option.default false
+        % Option.map (Variables.exists tid)
+        % Variable.make_from_lhost
+      in
+      let var_str = Variable.show % Option.get % Variable.make_from_lhost in
+      let pred_str op lhs rhs =
+        let cond_str = lhs ^ " " ^ sprint d_binop op ^ " " ^ rhs in
+        if tv then cond_str else "!(" ^ cond_str ^ ")"
+      in
 
       let add_action pred_str =
         match Env.node env with
@@ -925,26 +979,18 @@ module Spec : Analyses.Spec = struct
             failwith "branch: current_node is not an If"
       in
 
-      let is_valid_var = Option.is_some % Variable.make_from_lhost in
-      let var_str = Variable.show % Option.get % Variable.make_from_lhost in
-      let pred_str lhs rhs tv =
-        let cond_str = lhs ^ " == " ^ rhs in
-        if tv then cond_str else "!(" ^ cond_str ^ ")"
-      in
-
-      let handle_binop lhs rhs tv =
+      let handle_binop op lhs rhs =
         match (lhs, rhs) with
         | Lval (lhost, _), Const (CInt64 (i, _, _))
         | Const (CInt64 (i, _, _)), Lval (lhost, _)
           when is_valid_var lhost ->
-            add_action @@ pred_str (var_str lhost) (Int64.to_string i) tv
+            add_action @@ pred_str op (var_str lhost) (Int64.to_string i)
         | Lval (lhostA, _), Lval (lhostB, _)
           when is_valid_var lhostA && is_valid_var lhostB ->
-            add_action @@ pred_str (var_str lhostA) (var_str lhostB) tv
+            add_action @@ pred_str op (var_str lhostA) (var_str lhostB)
         | _ ->
             ctx.local
       in
-
       let handle_unop x tv =
         match x with
         | Lval (lhost, _) when is_valid_var lhost ->
@@ -954,10 +1000,8 @@ module Spec : Analyses.Spec = struct
             ctx.local
       in
       match exp with
-      | BinOp (Eq, a, b, _) ->
-          handle_binop (stripCasts a) (stripCasts b) tv
-      | BinOp (Ne, a, b, _) ->
-          handle_binop (stripCasts a) (stripCasts b) (not tv)
+      | BinOp (op, a, b, _) ->
+          handle_binop op (stripCasts a) (stripCasts b)
       | UnOp (LNot, a, _) ->
           handle_unop a (not tv)
       | Const (CInt64 (i, _, _)) ->
