@@ -1,6 +1,8 @@
 open Cfg 
 open Cil
 
+let relatedVars = Hashtbl.create 123
+
 let makeVar fd loc name =
   let id = name ^ "__" ^ string_of_int loc.line in
   try List.find (fun v -> v.vname = id) fd.slocals
@@ -24,6 +26,16 @@ let rec get_vnames exp = match exp with
   | UnOp (unop, e, typ) -> get_vnames e
   | BinOp (binop, e1, e2, typ) -> (get_vnames e1)^" "^(get_vnames e2)
   | _ -> ""
+  
+let rec pair_variables v exp = match exp with
+| Lval lval -> 
+  let lhost, offset = lval in 
+  (match lhost with
+    | Var vinfo -> Hashtbl.add relatedVars vinfo.vname ()
+    | _ -> ())
+| UnOp (unop, e, typ) -> pair_variables v e
+| BinOp (binop, e1, e2, typ) -> let () = (pair_variables v e1) in (pair_variables v e2)
+| _ -> ()
 
 let pairs_from_instr instr = match instr with
   | Set (lval, exp, location) ->  
