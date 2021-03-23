@@ -20,6 +20,9 @@ sig
   val enter_multithreaded: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
 
   val is_private: Queries.ask -> varinfo -> bool
+
+  val init: unit -> unit
+  val finalize: unit -> unit
 end
 
 val get_priv : unit -> (module S)

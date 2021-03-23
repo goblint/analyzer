@@ -39,10 +39,20 @@ sig
 
   (* TODO: better name *)
   val is_private: Q.ask -> varinfo -> bool
+
+  val init: unit -> unit
+  val finalize: unit -> unit
+end
+
+module NoInitFinalize =
+struct
+  let init () = ()
+  let finalize () = ()
 end
 
 module OldPrivBase =
 struct
+  include NoInitFinalize
   module D = Lattice.Unit
 
   let startstate () = ()
@@ -150,6 +160,8 @@ end
 
 module NewPrivBase =
 struct
+  include NoInitFinalize
+
   let is_unprotected ask x: bool =
     let multi = ThreadFlag.is_multi ask in
     (!GU.earlyglobs && not multi && not (is_precious_glob x)) ||
@@ -595,6 +607,7 @@ end
 
 module MinePrivBase =
 struct
+  include NoInitFinalize
   include MutexGlobals
   let mutex_global x = x (* MutexGlobals.mutex_global not needed here because G is Prod anyway? *)
 
@@ -1362,8 +1375,43 @@ struct
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
 
   let is_private = Priv.is_private
+
+  let init () = time "init" (Priv.init) ()
+  let finalize () = time "finalize" (Priv.finalize) ()
 end
 
+module PrecisionDumpPriv (Priv: S): S with module D = Priv.D =
+struct
+  include Priv
+
+  module LVH = Hashtbl.Make (Printable.Prod (Basetype.ProgLines) (Basetype.Variables))
+
+  let is_dumping = ref false
+  let lvh = LVH.create 113
+
+  let init () =
+    Priv.init ();
+    is_dumping := get_string "exp.priv-prec-dump" <> "";
+    LVH.clear lvh
+
+  let read_global ask getg st x =
+    let v = Priv.read_global ask getg st x in
+    if !GU.in_verifying_stage && !is_dumping then
+      LVH.modify_def (VD.bot ()) (!Tracing.current_loc, x) (VD.join v) lvh;
+    v
+
+  let dump () =
+    let f = Stdlib.open_out (get_string "exp.priv-prec-dump") in
+    LVH.iter (fun (l, x) v ->
+        ignore (Pretty.fprintf f "%a %a = %a\n" d_loc l d_varinfo x VD.pretty v)
+      ) lvh;
+    Stdlib.close_out_noerr f
+
+  let finalize () =
+    if !is_dumping then
+      dump ();
+    Priv.finalize ()
+end
 
 let priv_module: (module S) Lazy.t =
   lazy (
@@ -1385,7 +1433,8 @@ let priv_module: (module S) Lazy.t =
         | _ -> failwith "exp.privatization: illegal value"
       )
     in
-    let module Priv = StatsPriv (Priv) in
+    let module Priv = PrecisionDumpPriv (Priv) in
+    (* let module Priv = StatsPriv (Priv) in *)
     (module Priv)
   )
 

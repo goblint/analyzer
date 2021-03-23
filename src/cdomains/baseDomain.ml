@@ -9,7 +9,7 @@ struct
   include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
 
   (* TODO: remove CPA timing *)
-  let time str f arg = Stats.time "cpa" (Stats.time str f) arg
+  (* let time str f arg = Stats.time "cpa" (Stats.time str f) arg
 
   let equal x y = time "equal" (equal x) y
   let compare x y = time "compare" (compare x) y
@@ -40,7 +40,7 @@ struct
   let merge f x y = time "merge" (merge f x) y
   let leq_with_fct f x y = time "leq_with_fct" (leq_with_fct f x) y
   let join_with_fct f x y = time "join_with_fct" (join_with_fct f x) y
-  let widen_with_fct f x y = time "widen_with_fct" (widen_with_fct f x) y
+  let widen_with_fct f x y = time "widen_with_fct" (widen_with_fct f x) y *)
 
   let name () = "value domain"
 

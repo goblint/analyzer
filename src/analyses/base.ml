@@ -84,7 +84,11 @@ struct
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
   let init () =
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
+    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
+    Priv.init ()
+
+  let finalize () =
+    Priv.finalize ()
 
   (**************************************************************************
    * Abstract evaluation functions
