@@ -318,8 +318,7 @@ struct
 
   (* Creates the opposite invariant and assters it *)
   let assert_op_inv d x b =
-    (*let () = print_endline "Opposite is" in
-    let () = print_expression x in*)
+    let () = print_endline "Opposite is" in
     (* if assert(x) then convert it to assert(x != 0) *)
     let x = match x with
     | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
@@ -333,8 +332,8 @@ struct
           assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
 
         | BinOp (Eq, lhd, rhs, intType) -> 
-          (*let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
-          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in*)
+          let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
+          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
           if not (is_bot assert_gt) then
@@ -366,14 +365,13 @@ struct
     with Invalid_argument "cil_exp_to_lexp" -> d
 
   let check_assert (e:exp) state =
-    let () = print_expression e in
     match e with
     | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
     | CastE(t, e) -> `Top (* Octagon doesn't handle casts as assertions *)
     | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
     | _ -> 
       let result_state = (assert_inv state e false) in
-      let () = print_endline "Result" in
+      let () = print_endline "Check result OctApron" in
       let () = print_octagon result_state in
       let result_state_op = (assert_op_inv state e false) in
       let () = print_endline "Result of the opposite" in

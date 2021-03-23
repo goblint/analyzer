@@ -1914,14 +1914,14 @@ struct
         ) else
           M.warn_each ~ctx:ctx.control_context msg
     in
-    let print_result a =
+    let print_result name a =
       let res = match a with            
         | `True -> "True" 
         | `False -> "False"
         | `Top -> "Top"
         | `Bot -> "Bot" 
       in
-      print_endline ("Result: "^res)
+      print_endline ("Result "^name^": "^res)
     in
     let meet_results a b = 
         let res = match (a, b) with
@@ -1932,13 +1932,13 @@ struct
         | (`True, `False) -> `Bot
         | (`False, `True) -> `Bot
         | (a, b) ->  a in
-        let () = print_result res in
+        let () = print_result "meet" res in
         res
     in
     let base_result = check_assert e ctx.local in
     let () = print_endline "MEETING" in
     let () = print_endline (Pretty.sprint 20 (Cil.d_exp () e)) in
-    let () = print_result base_result in
+    let () = print_result "base" base_result in
     let result = 
       if should_warn then
         let other_analsyis_result = 
@@ -1955,8 +1955,8 @@ struct
             simplified
           | _ -> `Top
         in
-        let () = print_result base_result in
-        let () = print_result other_analsyis_result in
+        let () = print_result "base" base_result in
+        let () = print_result "other" other_analsyis_result in
         meet_results base_result other_analsyis_result 
       else
         base_result
