@@ -1984,12 +1984,12 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
 
-  let lift1 f ikind = function
+  let lift1 f ikind v = norm ikind @@ match v with
     | Inc[x] -> Inc[f x]
     | Inc xs when List.length xs <= max_elems () -> Inc (List.sort_unique compare @@ List.map f xs)
     | _ -> top_of ikind
 
-  let lift2 f (ikind: Cil.ikind) = curry @@ function
+  let lift2 f (ikind: Cil.ikind) u v = norm ikind @@ match u, v with
     | Inc[],_| _,Inc[] -> Inc[]
     | Inc[x],Inc[y] -> Inc[f x y]
     | Inc xs,Inc ys ->
