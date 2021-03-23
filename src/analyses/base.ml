@@ -2099,6 +2099,7 @@ struct
                   mkAddrOf (Var v, NoOffset) :: a
                 else a
               in
+              (* TODO: global-history etc will invalidate more globals than global/old *)
               let addrs = CPA.fold st_expr st.cpa args in
               (* invalidate arguments for unknown functions *)
               let st = invalidate ~ctx ctx.ask gs st addrs in
