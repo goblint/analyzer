@@ -7,6 +7,7 @@ let print_table h =
   let () = print_endline "Printing Hashtable" in
    Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" x y) h
 
+let f_check  = Lval (var (emptyFunction "__goblint_check").svar)
 
 let makeVar fd loc name =
   let id = name ^ "__" ^ string_of_int loc.line in
@@ -75,6 +76,18 @@ method! vstmt s =
   in ChangeDoChildrenPost (s, action)
 end
 
+let loopBreaks : (int, location) Hashtbl.t = Hashtbl.create 13 (* break stmt sid -> corresponding loop *)
+class loopBreaksVisitor (fd : fundec) = object(self)
+  inherit nopCilVisitor
+  method! vstmt s =
+    (match s.skind with
+     | Loop (b, loc, Some continue, Some break) -> Hashtbl.add loopBreaks break.sid loc
+     | Loop _ -> failwith "Termination.preprocess: every loop should have a break and continue stmt after prepareCFG"
+     | _ -> ());
+    DoChildren
+end
+
+
 class loopCounterVisitor (fd : fundec) = object(self)
 inherit nopCilVisitor
 method! vstmt s =
@@ -94,6 +107,14 @@ method! vstmt s =
          s.skind <- Block nb;
        | _ -> ());
       s
+    | _ when Hashtbl.mem loopBreaks s.sid -> (* after a loop, we check that t is bounded/positive (no overflow happened) *)
+      let loc = Hashtbl.find loopBreaks s.sid in
+      let t = var @@ makeVar fd loc "t" in
+      let e3 = BinOp (Ge, Lval t, zero, intType) in
+      let inv3 = mkStmtOneInstr @@ Call (None, f_check, [e3], loc) in
+      let nb = mkBlock [mkStmt s.skind; inv3] in
+      s.skind <- Block nb;
+      s
     | _ -> s
   in ChangeDoChildrenPost (s, action)
 end
@@ -107,6 +128,9 @@ end
 
 let add_visitors = 
   let () =print_endline "Adding the visitor is called!!!" in 
+  Cilfacade.register_preprocess "octApron" (new loopBreaksVisitor);
   Cilfacade.register_preprocess "octApron" (new loopCounterVisitor);
   Cilfacade.register_preprocess "octApron" (new recomputeVisitor);
+  Hashtbl.clear loopBreaks; (* because the sids are now different *)
+  Cilfacade.register_preprocess "octApron" (new loopBreaksVisitor);
   Cilfacade.register_preprocess "octApron" (new expressionVisitor)
