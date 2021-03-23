@@ -3,6 +3,11 @@ open Cil
 
 let relatedVars = Hashtbl.create 123
 
+let print_table h =
+  let () = print_endline "Printing Hashtable" in
+   Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" x y) h
+
+
 let makeVar fd loc name =
   let id = name ^ "__" ^ string_of_int loc.line in
   try List.find (fun v -> v.vname = id) fd.slocals
@@ -31,7 +36,9 @@ let rec pair_variables v exp = match exp with
 | Lval lval -> 
   let lhost, offset = lval in 
   (match lhost with
-    | Var vinfo -> Hashtbl.add relatedVars vinfo.vname ()
+    | Var vinfo -> 
+      let () = print_endline ("Adding to table!!! "^v^" "^vinfo.vname) in 
+      Hashtbl.add relatedVars v vinfo.vname
     | _ -> ())
 | UnOp (unop, e, typ) -> pair_variables v e
 | BinOp (binop, e1, e2, typ) -> let () = (pair_variables v e1) in (pair_variables v e2)
@@ -41,7 +48,9 @@ let pairs_from_instr instr = match instr with
   | Set (lval, exp, location) ->  
     let lhost, offset = lval in
     (match lhost with
-      | Var vinfo -> vinfo.vname^" <-> ["^(get_vnames exp)^"]"
+      | Var vinfo -> let () = pair_variables vinfo.vname exp in 
+      let () = print_table relatedVars in
+      vinfo.vname^" <-> ["^(get_vnames exp)^"]"
       | _ -> "")
     (*" "^(Pretty.sprint 20 (Cil.d_lval () lval))^" is "^(Pretty.sprint 20 (Cil.d_exp () exp))^" | "*)
   | VarDecl (varinfo, location) -> " "^varinfo.vname^" is declared | "
