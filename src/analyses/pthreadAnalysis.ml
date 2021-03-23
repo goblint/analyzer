@@ -411,42 +411,65 @@ module Variable = struct
 end
 
 module Variables = struct
-  let table = ref (Hashtbl.create 123 : (thread_id, Variable.t Set.t) Hashtbl.t)
+  type var_state =
+    | Top of Variable.t
+    | Var of Variable.t
 
-  let top = ref (Hashtbl.create 123 : (thread_id, Variable.t Set.t) Hashtbl.t)
-
-  let add tid var = Hashtbl.modify_def Set.empty tid (Set.add var) !table
-
-  let add_top tid var = Hashtbl.modify_def Set.empty tid (Set.add var) !top
-
-  let exists tid var =
-    let contains t =
-      Set.exists (( = ) var) @@ Hashtbl.find_default !t tid Set.empty
-    in
-    contains table && not (contains top)
-
+  let table = ref (Hashtbl.create 123 : (thread_id, var_state Set.t) Hashtbl.t)
 
   let get_globals () =
     Hashtbl.values !table
     |> List.of_enum
     |> List.map Set.elements
     |> List.flatten
-    |> List.filter Variable.is_global
+    |> List.filter_map (function
+           | Var v when Variable.is_global v ->
+               Some v
+           | _ ->
+               None)
     |> List.unique
 
 
   let get_locals tid =
-    let no_globals vars = Set.diff vars (Set.of_list @@ get_globals ()) in
-
     Hashtbl.find !table tid
     |> Option.default Set.empty
-    |> no_globals
+    |> Set.filter_map (function
+           (* no globals *)
+           | Var v when not (Variable.is_global v) ->
+               Some v
+           | _ ->
+               None)
     |> Set.enum
     |> List.of_enum
 
 
+  let is_top tid var =
+    if Variable.is_global var
+    then
+      !table
+      |> Hashtbl.values
+      |> List.of_enum
+      |> List.exists (Set.exists (( = ) (Top var)))
+    else
+      Set.exists (( = ) (Top var)) @@ Hashtbl.find_default !table tid Set.empty
+
+
+  let add tid var =
+    if not (is_top tid var)
+    then Hashtbl.modify_def Set.empty tid (Set.add (Var var)) !table
+
+
+  let add_top tid var =
+    Hashtbl.modify_def Set.empty tid (Set.remove (Var var)) !table ;
+    Hashtbl.modify_def Set.empty tid (Set.add (Top var)) !table
+
+
+  (* is a local var for thread tid or a global
+   * var must not be set to top *)
+  let valid_var tid var = not (is_top tid var)
+
   (* all vars on rhs should be already registered, otherwise -> do not add this var *)
-  let rec all_vars_are_registered ctx = function
+  let rec all_vars_are_valid ctx = function
     | Const _ ->
         true
     | Lval l ->
@@ -456,12 +479,12 @@ module Variables = struct
 
         l
         |> Variable.make_from_lval
-        |> Option.map @@ exists tid
-        |> Option.is_some
+        |> Option.map @@ valid_var tid
+        |> Option.default false
     | UnOp (_, e, _) ->
-        all_vars_are_registered ctx e
+        all_vars_are_valid ctx e
     | BinOp (_, a, b, _) ->
-        all_vars_are_registered ctx a && all_vars_are_registered ctx b
+        all_vars_are_valid ctx a && all_vars_are_valid ctx b
     | _ ->
         false
 end
@@ -914,7 +937,7 @@ module Spec : Analyses.Spec = struct
 
       if PthreadDomain.D.is_bot ctx.local
          || Option.is_none var_opt
-         || (not @@ Variables.all_vars_are_registered ctx rval)
+         || (not @@ Variables.all_vars_are_valid ctx rval)
       then (
         (* set lhs var to TOP *)
         Option.may (Variables.add_top tid) var_opt ;
@@ -940,7 +963,7 @@ module Spec : Analyses.Spec = struct
       let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
       let is_valid_var =
         Option.default false
-        % Option.map (Variables.exists tid)
+        % Option.map (Variables.valid_var tid)
         % Variable.make_from_lhost
       in
       let var_str = Variable.show % Option.get % Variable.make_from_lhost in
