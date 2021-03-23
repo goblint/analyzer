@@ -1401,11 +1401,12 @@ struct
     v
 
   let dump () =
-    let f = Stdlib.open_out (get_string "exp.priv-prec-dump") in
+    let f = open_out_bin (get_string "exp.priv-prec-dump") in
     LVH.iter (fun (l, x) v ->
-        ignore (Pretty.fprintf f "%a %a = %a\n" d_loc l d_varinfo x VD.pretty v)
+        ignore (Pretty.printf "%a %a = %a\n" d_loc l d_varinfo x VD.pretty v)
       ) lvh;
-    Stdlib.close_out_noerr f
+    Marshal.output f lvh;
+    close_out_noerr f
 
   let finalize () =
     if !is_dumping then
