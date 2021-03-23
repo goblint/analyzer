@@ -47,8 +47,23 @@ let rec list_instr_to_string l = match l with
     (Pretty.sprint 20 (Cil.d_instr () head))^(list_instr_to_string body)
   end
 
+let rec get_vnames exp = match exp with
+  | Lval lval -> 
+    let lhost, offset = lval in 
+    (match lhost with
+      | Var vinfo -> vinfo.vname
+      | _ -> "")
+  | UnOp (unop, e, typ) -> get_vnames e
+  | BinOp (binop, e1, e2, typ) -> (get_vnames e1)^" "^(get_vnames e2)
+  | _ -> ""
+
 let pairs_from_instr instr = match instr with
-  | Set (lval, exp, location) ->  " "^(Pretty.sprint 20 (Cil.d_lval () lval))^" is "^(Pretty.sprint 20 (Cil.d_exp () exp))^" | "
+  | Set (lval, exp, location) ->  
+    let lhost, offset = lval in
+    (match lhost with
+      | Var vinfo -> vinfo.vname^" <-> ["^(get_vnames exp)^"]"
+      | _ -> "")
+    (*" "^(Pretty.sprint 20 (Cil.d_lval () lval))^" is "^(Pretty.sprint 20 (Cil.d_exp () exp))^" | "*)
   | VarDecl (varinfo, location) -> " "^varinfo.vname^" is declared | "
   | _ -> ""
 
@@ -65,7 +80,7 @@ method! vstmt s =
   let action s = match s.skind with
     | Instr inst -> 
       (*let () = print_endline (list_instr_to_string inst) in*)
-      let () = print_endline (get_related_pairs inst) in
+      let () = print_endline ("Related pairs "^(get_related_pairs inst)) in
       s
     | _ -> s
   in ChangeDoChildrenPost (s, action)
