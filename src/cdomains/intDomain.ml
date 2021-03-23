@@ -1880,12 +1880,25 @@ module Enums : S with type int_t = BigInt.t = struct
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc []
 
+  let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
+  let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
+
   let equal a b = a = b
   let short _ = function
     | Inc[] -> "bot" | Exc([],r) -> "top"
     | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "} " ^ "("^R.short 2 r^")"
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+
+  let norm ikind v =
+    let min, max = min_int ikind, max_int ikind in
+    let in_range v =
+       I.compare min v <= 0 && I.compare v max <= 0
+    in
+    match v with
+    | Inc xs when List.for_all in_range xs -> v
+    | Exc (xs, r) when List.for_all in_range xs -> v
+    | _ -> top_of ikind
 
   let equal_to i = function
     | Inc x ->
