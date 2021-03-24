@@ -57,7 +57,7 @@ let compare_dumps filename1 filename2 =
         | false, true -> Comparison.LessPrecise
         | false, false -> Comparison.Incomparable
       in
-      let msg = Pretty.dprintf "%s %s %s (%a %s %a)" filename1 (Comparison.to_string_infix c) filename2 VD.pretty v1 (Comparison.to_string_infix c) VD.pretty v2 in
+      let msg = Pretty.dprintf "%s %s %s\n  %s: %a\n  %s\n  %s: %a\n  diff: %a\n" filename1 (Comparison.to_string_infix c) filename2 filename1 VD.pretty v1 (Comparison.to_string_infix c) filename2 VD.pretty v2 VD.pretty_diff (v1, v2) in
       (c, msg)
     ) lvh
   in
