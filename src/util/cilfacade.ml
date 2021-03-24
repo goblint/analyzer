@@ -17,7 +17,7 @@ let init () =
   print_CIL_Input := true
 
 let currentStatement = ref dummyStmt
-let ugglyImperativeHack = ref dummyFile
+let current_file = ref dummyFile
 let showtemps = ref false
 
 let parse fileName =
@@ -154,7 +154,7 @@ let callConstructors ast =
 exception Found of fundec
 let getFun fun_name =
   try
-    iterGlobals !ugglyImperativeHack (fun glob ->
+    iterGlobals !current_file (fun glob ->
         match glob with
         | GFun({svar={vname=vn; _}; _} as def,_) when vn = fun_name -> raise (Found def)
         | _ -> ()
@@ -221,7 +221,7 @@ let dec_table = Hashtbl.create 111
 let dec_make () : unit =
   dec_table_ok := true ;
   Hashtbl.clear dec_table;
-  iterGlobals !ugglyImperativeHack (fun glob ->
+  iterGlobals !current_file (fun glob ->
       match glob with
       | GFun({svar={vid=vid; _}; _} as def,_) -> Hashtbl.add dec_table vid def
       | _ -> ()

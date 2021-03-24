@@ -2094,7 +2094,7 @@ struct
           | Some fnc -> invalidate ~ctx ctx.ask gs st (fnc `Write  args)
           | None -> (
               (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
-              let addrs = foldGlobals !Cilfacade.ugglyImperativeHack (fun acc global ->
+              let addrs = foldGlobals !Cilfacade.current_file (fun acc global ->
                   match global with
                   | GVar (vi, _, _) when not (is_static vi) ->
                     mkAddrOf (Var vi, NoOffset) :: acc

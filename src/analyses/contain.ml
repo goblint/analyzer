@@ -113,7 +113,7 @@ struct
   let init () =
     init_inh_rel ();
     Printexc.record_backtrace true;
-    iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
+    iterGlobals (!Cilfacade.current_file) (function GFun (f,_) -> incr funcount| _ -> ());
     ignore (if (get_bool "allfuns") then ignore (printf "CUR VER_ALL FUNS\n"));
     let ctrl = Gc.get () in
     ctrl.Gc.verbose <- 0;

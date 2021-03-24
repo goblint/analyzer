@@ -280,7 +280,7 @@ let merge_preprocessed cpp_file_names =
 
   (* create the Control Flow Graph from CIL's AST *)
   Cilfacade.createCFG merged_AST;
-  Cilfacade.ugglyImperativeHack := merged_AST;
+  Cilfacade.current_file := merged_AST;
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
@@ -313,7 +313,7 @@ let do_analyze change_info merged_AST =
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
           raise x
-          (* Cilfacade.ugglyImperativeHack := ast'; *)
+          (* Cilfacade.current_file := ast'; *)
       in
       (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
          new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
