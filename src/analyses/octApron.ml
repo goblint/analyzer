@@ -3,6 +3,7 @@
 open Prelude.Ana
 open Analyses
 open Apron
+open GobConfig
 open OctApronDomain
 open Utilities
 
@@ -82,6 +83,21 @@ struct
           (*D.assert_fn ctx ctx.local expression true false*)
           ctx.local
         | `Unknown "printf" -> ctx.local
+        | `Unknown "__goblint_check" -> ctx.local
+        | `Unknown "__goblint_commit" -> ctx.local
+        | `Unknown "__goblint_assert" -> ctx.local
+        | `Malloc size -> 
+          (match r with
+            | Some lv ->
+              D.remove_all ctx.local [f.vname]
+            | _ -> ctx.local)
+        | `Calloc (n, size) -> 
+          (match r with
+            | Some lv ->
+              D.remove_all ctx.local [f.vname]
+            | _ -> ctx.local)
+        | `ThreadJoin (id,ret_var) -> ctx.local
+        | `ThreadCreate _ -> ctx.local
         | _ -> (* D.topE (A.env ctx.local) *)
           begin
             let st =
