@@ -6,6 +6,7 @@ open Apron
 open GobConfig
 open OctApronDomain
 open Utilities
+open Big_int
 
 module Spec : Analyses.Spec =
 struct
@@ -142,11 +143,47 @@ struct
       let vars = D.typesort f.slocals in
       D.add_vars ctx.local vars
 
+  let check_boundaries oct v e ikind n signed = 
+    let upper_limit = sub_big_int (shift_left_big_int unit_big_int n) unit_big_int in
+    let lower_limit = if signed then 
+      minus_big_int (shift_left_big_int unit_big_int n) 
+    else 
+      zero_big_int 
+    in
+    let oct_with_max = D.assert_inv oct (BinOp (Ge, e, (Const (CInt64 (int64_of_big_int upper_limit, IInt, None))), intType)) true in
+    let oct_with_min = D.assert_inv oct (BinOp (Le, e, (Const (CInt64 (int64_of_big_int lower_limit, IInt, None))), intType)) true in
+    (not (D.is_bot oct_with_max && D.is_bot oct_with_min), (D.assign_var oct v.vname e))
+  
+  let handle_underflow_and_overflow oct v e =
+    let out_of_bounds, new_oct = match v.vtype with
+      | TInt (ikind, _)-> (
+        match ikind with
+        (* Signed *)
+        | IInt -> (false, oct) 
+        | IShort  -> (false, oct) 
+        | ILong -> (false, oct) 
+        | ILongLong -> (false, oct) 
+        (* Unsigned *)
+        | IUInt -> check_boundaries oct v e ikind 32 false
+        | IUShort -> check_boundaries oct v e ikind 16 false
+        | IULong -> check_boundaries oct v e ikind 64 false
+        | IULongLong -> check_boundaries oct v e ikind 64 false
+        | _ -> (false, oct) 
+      )
+      | _ -> (false, oct) 
+    in
+    let () = if out_of_bounds then
+      print_endline (v.vname^" is under/overflowing")
+    else 
+      print_endline (v.vname^" is not under/overflowing "^(Pretty.sprint 20 (Cil.d_type () v.vtype)))
+    in
+    new_oct
+
   let assign ctx (lv:lval) e =
     if D.is_bot ctx.local then D.bot () else
       match lv with
       | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> 
-        D.assign_var ctx.local v.vname e
+        handle_underflow_and_overflow ctx.local v e
       | _ -> D.topE (A.env ctx.local)
 
   let query ctx (q:Queries.t) : Queries.Result.t =
