@@ -110,8 +110,12 @@ struct
       end
 
   let branch ctx e b =
-    if D.is_bot ctx.local then D.bot () else
-      D.assert_inv ctx.local e (not b)
+    if D.is_bot ctx.local then 
+      D.bot () 
+    else
+      let res = D.assert_inv ctx.local e (not b) in 
+      if D.is_bot res then raise Deadcode;
+      res
 
   let return ctx e f =
     if D.is_bot ctx.local then D.bot () else
