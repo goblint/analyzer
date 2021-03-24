@@ -1962,8 +1962,9 @@ module Enums : S with type int_t = BigInt.t = struct
     let r = if y = []
       then r
       else
-        let y_range = Size.min_range_sign_agnostic (List.hd y) (*, Size.min_range_sign_agnostic (List.last y) *) in
-        R.join r (R.of_interval range_ikind y_range)
+        let (min_el_range, max_el_range) = Tuple2.mapn  (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (List.hd y,  List.last y) in
+        let range = R.join min_el_range max_el_range in
+        R.join r range
     in
     Exc (merge_sub x y, r)
 
