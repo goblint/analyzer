@@ -2094,14 +2094,16 @@ struct
           | Some fnc -> invalidate ~ctx ctx.ask gs st (fnc `Write  args)
           | None -> (
               (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
-              let st_expr (v:varinfo) (value) a =
-                if is_global ctx.ask v && not (is_static v) then
-                  mkAddrOf (Var v, NoOffset) :: a
-                else a
+              let addrs = foldGlobals !Cilfacade.ugglyImperativeHack (fun acc global ->
+                  match global with
+                  | GVar (vi, _, _) when not (is_static vi) ->
+                    mkAddrOf (Var vi, NoOffset) :: acc
+                    (* TODO: what about GVarDecl? *)
+                  | _ -> acc
+                ) args
               in
-              (* TODO: global-history etc will invalidate more globals than global/old *)
-              let addrs = CPA.fold st_expr st.cpa args in
-              (* invalidate arguments for unknown functions *)
+              (* TODO: what about escaped local variables? *)
+              (* invalidate arguments and non-static globals for unknown functions *)
               let st = invalidate ~ctx ctx.ask gs st addrs in
               (*
                *  TODO: invalidate vars reachable via args
