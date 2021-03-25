@@ -1892,12 +1892,17 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let norm ikind v =
     let min, max = min_int ikind, max_int ikind in
-    let in_range v =
-       I.compare min v <= 0 && I.compare v max <= 0
+    (* Whether the value v lies within the values of the specied ikind. *)
+    let value_in_ikind v =
+      I.compare min v <= 0 && I.compare v max <= 0
+    in
+    (* Whether the range r lies witihin the range of the ikind. *)
+    let range_in_ikind r =
+      R.leq r (size ikind)
     in
     match v with
-    | Inc xs when List.for_all in_range xs -> v
-    | Exc (xs, r) when List.for_all in_range xs -> v
+    | Inc xs when List.for_all value_in_ikind xs -> v
+    | Exc (xs, r) when List.for_all value_in_ikind xs && range_in_ikind r -> v
     | _ -> top_of ikind
 
   let equal_to i = function
