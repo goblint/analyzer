@@ -929,11 +929,11 @@ struct
         try
           let p t = not (mem t s2) in
           let evil = choose (filter p s1) in
-          let other = choose s2 in
-          (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
-             Spec.D.pretty evil Spec.D.pretty other
-             Spec.D.pretty_diff (evil,other) *)
-          Spec.D.pretty_diff () (evil,other)
+          dprintf "%a:\n" Spec.D.pretty evil
+          ++
+          fold (fun other acc ->
+              (dprintf "not leq %a because %a\n" Spec.D.pretty other Spec.D.pretty_diff (evil, other)) ++ acc
+            ) s2 nil
         with _ ->
           dprintf "choose failed b/c of empty set s1: %d s2: %d"
           (cardinal s1)
