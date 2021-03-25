@@ -1915,8 +1915,7 @@ module Enums : S with type int_t = BigInt.t = struct
       if List.mem i x then `Neq
       else `Top
 
-  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
-  let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
+  let cast_to ?torg ik v = norm ik @@ match v with
     | Exc (s,r) ->
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
