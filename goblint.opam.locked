@@ -16,7 +16,7 @@ depends: [
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
-  "batteries" {= "3.1.0"}
+  "batteries" {= "3.2.0"}
   "biniou" {= "1.2.1"}
   "conf-gmp" {= "2"}
   "conf-m4" {= "1"}
@@ -32,8 +32,6 @@ depends: [
   "ocaml-monadic" {= "0.4.1"}
   "ocamlbuild" {= "0.14.0"}
   "ocamlfind" {= "1.8.1"}
-  "ounit" {= "2.2.2"}
-  "ounit2" {= "2.2.2"}
   "ppx_derivers" {= "1.2.1"}
   "ppx_deriving" {= "4.5"}
   "ppx_deriving_yojson" {= "3.5.3"}
@@ -43,9 +41,7 @@ depends: [
   "ppx_tools_versioned" {= "5.4.0"}
   "ppxfind" {= "1.4"}
   "ppxlib" {= "0.15.0"}
-  "qcheck" {= "0.15"}
   "qcheck-core" {= "0.15"}
-  "qcheck-ounit" {= "0.15"}
   "result" {= "1.5"}
   "sexplib0" {= "v0.14.0"}
   "stdlib-shims" {= "0.1.0"}

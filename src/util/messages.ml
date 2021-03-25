@@ -95,10 +95,8 @@ let warn_all msg =
     soundness := false
   end
 
-let worldStopped = ref false
 exception StopTheWorld
 let waitWhat s =
-  worldStopped := true;
   print_msg s (!Tracing.current_loc);
   raise StopTheWorld
 
