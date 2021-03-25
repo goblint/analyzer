@@ -1998,9 +1998,6 @@ module Enums : S with type int_t = BigInt.t = struct
   let lift2 f (ikind: Cil.ikind) u v = norm ikind @@ match u, v with
     | Inc[],_| _,Inc[] -> Inc[]
     | Inc[x],Inc[y] -> Inc[f x y]
-    | Inc xs,Inc ys ->
-      let r = List.cartesian_product xs ys |> List.map (uncurry f) |> List.sort_unique compare in
-      if List.length r <= max_elems () then Inc r else top_of ikind
     | _,_ -> top_of ikind
 
   let lift2 f ikind a b =
