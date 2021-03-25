@@ -628,6 +628,7 @@ struct
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
     let combine (cd, fc, fd) =
+      if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
       (* Extra sync in case function has multiple returns.
          Each `Return sync is done before joining, so joined value may be unsound.
          Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
@@ -643,15 +644,20 @@ struct
         in
         sync sync_ctx
       in
-      S.combine {ctx with local = cd} lv e f args fc fd
+      let r = S.combine {ctx with local = cd} lv e f args fc fd in
+      if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
+      r
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
     let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
+    if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
-    List.fold_left D.join (D.bot ()) paths
+    let r = List.fold_left D.join (D.bot ()) paths in
+    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
+    r
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
@@ -1055,8 +1061,14 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
-      try D.add (Spec.combine (conv ctx cd) l fe f a fc x) y
-      with Deadcode -> y
+      if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
+      try
+        let r = Spec.combine (conv ctx cd) l fe f a fc x in
+        if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
+        D.add r y
+      with Deadcode ->
+        if M.tracing then M.traceu "combine" "combined function: dead\n";
+        y
     in
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
