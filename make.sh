@@ -8,7 +8,7 @@ gen() { # generate configuration files and goblint.ml which opens all modules in
   scripts/set_version.sh # generate the version file
   echo '[@@@ocaml.warning "-33"]' > $TARGET.ml # disable warning 'Unused open statement.'
   ls -1 src/**/*.ml | egrep -v "goblint.ml|violationZ3" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
-  echo "open Maingoblint" >> $TARGET.ml
+  echo "let _ = at_exit Maingoblint.main" >> $TARGET.ml
 }
 
 opam_setup() {
