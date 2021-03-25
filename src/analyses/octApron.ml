@@ -143,26 +143,49 @@ struct
       let vars = D.typesort f.slocals in
       D.add_vars ctx.local vars
 
-  let check_boundaries oct v e ikind n signed = 
-    let upper_limit = sub_big_int (shift_left_big_int unit_big_int n) unit_big_int in
-    let lower_limit = if signed then 
-      minus_big_int (shift_left_big_int unit_big_int n) 
-    else 
-      zero_big_int 
+  let check_boundaries oct v e ikind (n:int) signed = 
+    let upper_limit = 
+      let bound = if signed then
+        sub_big_int (shift_left_big_int unit_big_int (Int.sub n 1)) unit_big_int (* 2^(n-1)-1 *)
+      else
+        sub_big_int (shift_left_big_int unit_big_int n) unit_big_int (* 2^n-1 *)
+      in
+      match int64_of_big_int_opt bound with
+      | Some b -> b
+      | None -> Int64.max_int
     in
-    let oct_with_max = D.assert_inv oct (BinOp (Ge, e, (Const (CInt64 (int64_of_big_int upper_limit, IInt, None))), intType)) true in
-    let oct_with_min = D.assert_inv oct (BinOp (Le, e, (Const (CInt64 (int64_of_big_int lower_limit, IInt, None))), intType)) true in
-    (not (D.is_bot oct_with_max && D.is_bot oct_with_min), (D.assign_var oct v.vname e))
+    let lower_limit = 
+      let bound = if signed then 
+        minus_big_int (shift_left_big_int unit_big_int n) (* 2^(n-1) *)
+      else 
+        zero_big_int (* 0 *)
+      in
+      match int64_of_big_int_opt bound with
+      | Some b -> b
+      | None -> Int64.min_int
+    in
+    let oct_with_max = D.assert_inv oct (BinOp (Ge, e, (Const (CInt64 (upper_limit, ikind, None))), intType)) true in
+    let oct_with_min = D.assert_inv oct (BinOp (Le, e, (Const (CInt64 (lower_limit, ikind, None))), intType)) true in
+    let outside = not (D.is_bot oct_with_max && D.is_bot oct_with_min) in 
+    let outside = false in
+    let new_oct = if outside && signed then 
+      (* Signed overflows are undefined behavior, so octagon goes to top. *)
+      D.topE (A.env oct)
+    else
+      D.assign_var oct v.vname e
+    in
+    (outside, new_oct)
+    
   
   let handle_underflow_and_overflow oct v e =
     let out_of_bounds, new_oct = match v.vtype with
       | TInt (ikind, _)-> (
         match ikind with
         (* Signed *)
-        | IInt -> (false, oct) 
-        | IShort  -> (false, oct) 
-        | ILong -> (false, oct) 
-        | ILongLong -> (false, oct) 
+        | IInt -> check_boundaries oct v e ikind 32 true
+        | IShort -> check_boundaries oct v e ikind 16 true
+        | ILong -> check_boundaries oct v e ikind 64 true
+        | ILongLong -> check_boundaries oct v e ikind 64 true
         (* Unsigned *)
         | IUInt -> check_boundaries oct v e ikind 32 false
         | IUShort -> check_boundaries oct v e ikind 16 false
