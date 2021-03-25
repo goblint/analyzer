@@ -2144,7 +2144,8 @@ struct
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
         let cpa_s = CPA.remove (return_varinfo ()) st.cpa in
-        let new_cpa = CPA.fold CPA.add cpa_s fun_st.cpa in
+        let cpa' = CPA.filter (fun x _ -> not (is_global ctx.ask x)) fun_st.cpa in
+        let new_cpa = CPA.fold CPA.add cpa_s cpa' in
         { st with cpa = new_cpa }
       in
       let return_var = return_var () in
