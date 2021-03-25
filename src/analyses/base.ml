@@ -2141,12 +2141,12 @@ struct
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
-      let add_globals (st: store) (fun_st: store) =
+      let add_globals (fun_st: store) (st: store) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_s = CPA.remove (return_varinfo ()) st.cpa in
-        let cpa' = CPA.filter (fun x _ -> not (is_global ctx.ask x)) fun_st.cpa in
+        let cpa_s = CPA.remove (return_varinfo ()) fun_st.cpa in
+        let cpa' = CPA.filter (fun x _ -> not (is_global ctx.ask x)) st.cpa in
         let new_cpa = CPA.fold CPA.add cpa_s cpa' in
-        { st with cpa = new_cpa }
+        { fun_st with cpa = new_cpa }
       in
       let return_var = return_var () in
       let return_val =
