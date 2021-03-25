@@ -2141,12 +2141,12 @@ struct
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
-      let add_globals (fun_st: store) (st: store) =
+      let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_s = CPA.remove (return_varinfo ()) fun_st.cpa in
-        let cpa' = CPA.filter (fun x _ -> not (is_global ctx.ask x)) st.cpa in
-        let new_cpa = CPA.fold CPA.add cpa_s cpa' in
-        { fun_st with cpa = new_cpa }
+        let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
+        let cpa_local = CPA.filter (fun x _ -> not (is_global ctx.ask x)) st.cpa in
+        let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+        { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
       let return_val =
@@ -2154,7 +2154,7 @@ struct
         then get ctx.ask ctx.global fun_st return_var None
         else VD.top ()
       in
-      let st = add_globals fun_st st in
+      let st = add_globals st fun_st in
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) (Cil.typeOfLval lval) return_val
