@@ -1,4 +1,4 @@
-//PARAM: --disable ana.int.interval --enable ana.int.def_exc --disable ana.int.enums
+//PARAM: --enable ana.int.interval --disable ana.int.def_exc --disable ana.int.enums
 #include <assert.h>
 
 int main(){
@@ -9,11 +9,12 @@ int main(){
     if(x > 18446744073709551612ull){
         a = 1;
     }
-    assert(a);
+    // The following line should succeed, but is unknown for now
+    assert(a); // UNKNOWN
 
     unsigned long long y = x + 4;
     // Unsigned overflow -- The following assertion should succeed
-    assert(y == 3);
+    assert(y == 3); // UNKNOWN
 
     // maximum value for long long
     signed long long s = 9223372036854775807;
