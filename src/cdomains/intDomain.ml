@@ -2019,12 +2019,11 @@ module Enums : S with type int_t = BigInt.t = struct
     | _,Inc[zero] when zero = BI.zero -> Inc[BI.zero]
     | x,y -> lift2 I.mul ikind x y
   let div ikind = curry @@ function
-    | Inc[one],x when one = BI.one -> x
     | x,Inc[one] when one = BI.one -> x
     | Inc[zero],_ when zero = BI.zero -> Inc[BI.zero]
     | _,Inc[zero] when zero = BI.zero -> top_of ikind
     | x,y -> lift2 I.div ikind x y
-  let rem  = lift2 I.rem
+  let rem = lift2 I.rem
   let lt = lift2 I.lt
   let gt = lift2 I.gt
   let le = lift2 I.le

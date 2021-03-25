@@ -42,5 +42,9 @@ int main(){
     z = m >> x; // shift right
     assert(z == 6); //UNKNOWN
 
+    int one = 1;
+    z = one / 10;
+    assert(z == 0);
+
     return 0;
 }
