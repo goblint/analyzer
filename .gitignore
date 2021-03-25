@@ -52,3 +52,5 @@ goblint.bc.js
 *.orig
 
 sv-comp/goblint.zip
+
+privPrecCompare/
