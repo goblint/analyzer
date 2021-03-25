@@ -150,16 +150,18 @@ struct
       else
         sub_big_int (shift_left_big_int unit_big_int n) unit_big_int (* 2^n-1 *)
       in
+      (* Ocaml int64 uses in expressions can not store the biggest integer in C *)
       match int64_of_big_int_opt bound with
       | Some b -> b
       | None -> Int64.max_int
     in
     let lower_limit = 
       let bound = if signed then 
-        minus_big_int (shift_left_big_int unit_big_int n) (* 2^(n-1) *)
+        minus_big_int (shift_left_big_int unit_big_int n) (* -2^(n-1) *)
       else 
         zero_big_int (* 0 *)
       in
+      (* Ocaml int64 uses in expressions can not store the smallest integer in C *)
       match int64_of_big_int_opt bound with
       | Some b -> b
       | None -> Int64.min_int
@@ -171,6 +173,11 @@ struct
     let new_oct = if outside && signed then 
       (* Signed overflows are undefined behavior, so octagon goes to top. *)
       D.topE (A.env oct)
+    else if outside && not signed then
+      (* Unsigned overflows are defined, but for now the variable in question goes to top. *)
+      let l = [] @ [v.vname] in
+      D.forget_all_with oct [v.vname];
+      oct
     else
       D.assign_var oct v.vname e
     in
