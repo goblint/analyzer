@@ -1818,6 +1818,7 @@ struct
   let equal = Bool.equal
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
   let hash = function true -> 51534333 | _ -> 561123444
+  let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
   let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
