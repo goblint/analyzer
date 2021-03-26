@@ -80,15 +80,16 @@ let nonAssocIntDomains: (module IntDomainProperties.S) list = [
   (module IntDomain.DefExc);
 ]
 
+(* TODO: make arbitrary ikind part of domain test for better efficiency *)
 let ikinds: Cil.ikind list = [
-  (* TODO: enable more, takes very long and much memory... *)
-  (* IChar; *)
-  (* ISChar; *)
+  (* TODO: enable more, some seem to break things *)
+  IChar;
+  ISChar;
   (* IUChar; *)
   (* IBool; *)
   IInt;
   (* IUInt; *)
-  (* IShort; *)
+  IShort;
   (* IUShort; *)
   (* ILong; *)
   (* IULong; *)
