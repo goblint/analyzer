@@ -1352,7 +1352,7 @@ struct
     let open Deriving.Cil in
     let fallback reason =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
-      (invariant ctx a gs st exp tv).cpa
+      invariant ctx a gs st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
@@ -1468,8 +1468,8 @@ struct
     in
     let eval e = eval_rv a gs st e in
     let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
-    let set' lval v = (set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)).cpa in
-    let rec inv_exp c exp =
+    let set' lval v = set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx) in
+    let rec inv_exp c exp: store =
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if ID.is_bot c then raise Deadcode;
       match exp with
@@ -1498,7 +1498,7 @@ struct
           let m1 = try Some (inv_exp a' e1) with Deadcode -> None in
           let m2 = try Some (inv_exp b' e2) with Deadcode -> None in
           (match m1, m2 with
-          | Some m1, Some m2 -> CPA.meet m1 m2
+          | Some m1, Some m2 -> D.meet m1 m2
           | Some m, None | None, Some m -> m
           | None, None -> raise Deadcode)
         (* | `Address a, `Address b -> ... *)
@@ -1518,7 +1518,7 @@ struct
           if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
           set' x v
         )
-      | Const _ -> st.cpa (* nothing to do *)
+      | Const _ -> st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e)
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e with
@@ -1550,7 +1550,7 @@ struct
           let ik = Cilfacade.get_ikind (typeOf exp) in
           ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
       in
-      { st with cpa = inv_exp itv exp }
+      inv_exp itv exp
 
   let set_savetop ?ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     match v with
