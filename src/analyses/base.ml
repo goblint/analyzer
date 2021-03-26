@@ -1042,7 +1042,7 @@ struct
               M.warn ("Cil.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset));
               lval_type
       in
-      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st.cpa;
+      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype D.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
         st
@@ -1063,7 +1063,9 @@ struct
         end else begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           let var = Priv.read_global a gs st x in
-          Priv.write_global a gs (Option.get ctx).sideg st x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t)
+          let r = Priv.write_global a gs (Option.get ctx).sideg st x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t) in
+          if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
+          r
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
@@ -1497,8 +1499,14 @@ struct
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
           let m1 = try Some (inv_exp a' e1) with Deadcode -> None in
           let m2 = try Some (inv_exp b' e2) with Deadcode -> None in
+          if M.tracing then M.tracel "inv" "binop: %a, m1: %a, m2: %a\n" d_exp e (docOpt (D.pretty ())) m1 (docOpt (D.pretty ())) m2;
           (match m1, m2 with
-          | Some m1, Some m2 -> D.meet m1 m2
+          | Some m1, Some m2 ->
+            (* With some privatizations, "A > 0" has global A in only m1.cpa, thus normal meet would forget refinement.
+               The rest (priv) must be properly meet-ed to get correct (parallel) cache set etc behavior. *)
+            let cpa_long_meet = CPA.long_map2 VD.meet in
+            let d_long_meet x y = {(D.meet x y) with cpa = cpa_long_meet x.cpa y.cpa} in
+            d_long_meet m1 m2
           | Some m, None | None, Some m -> m
           | None, None -> raise Deadcode)
         (* | `Address a, `Address b -> ... *)
