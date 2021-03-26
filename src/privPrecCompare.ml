@@ -57,7 +57,12 @@ let compare_dumps filename1 filename2 =
         | false, true -> Comparison.LessPrecise
         | false, false -> Comparison.Incomparable
       in
-      let msg = Pretty.dprintf "%s %s %s\n  %s: %a\n  %s\n  %s: %a\n  diff: %a\n" filename1 (Comparison.to_string_infix c) filename2 filename1 VD.pretty v1 (Comparison.to_string_infix c) filename2 VD.pretty v2 VD.pretty_diff (v1, v2) in
+      let diff () =
+        (if VD.leq v1 v2 then nil else dprintf "diff: %a\n" VD.pretty_diff (v1, v2))
+        ++
+        (if VD.leq v2 v1 then nil else dprintf "reverse diff: %a\n" VD.pretty_diff (v2, v1))
+      in
+      let msg = Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" filename1 (Comparison.to_string_infix c) filename2 filename1 VD.pretty v1 (Comparison.to_string_infix c) filename2 VD.pretty v2 diff in
       (c, msg)
     ) lvh
   in
