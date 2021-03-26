@@ -13,7 +13,7 @@ int main(){
     assert(a); // UNKNOWN
 
     unsigned long long y = x + 4;
-    // Unsigned overflow -- The following assertion should succeed
+    // Unsigned overflow -- The following assertion should succeed, but is unknown for now
     assert(y == 3); // UNKNOWN
 
     // maximum value for long long
