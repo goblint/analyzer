@@ -14,8 +14,6 @@ doc: "https://goblint.github.io/analyzer"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "apron"
-  "apron.polkaMPQ"
-  "apron.octD"
   "ocaml" {>= "4.04.1"}
   "dune"
   "zarith_stubs_js"
