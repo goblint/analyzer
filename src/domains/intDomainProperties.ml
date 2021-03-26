@@ -8,6 +8,41 @@ sig
   val of_int: BI.t -> t
 end
 
+module type S = IntDomain.S with type int_t = BI.t
+
+(* TODO: deduplicate with IntDomain, extension of IntDomWithDefaultIkind, inverse of OldDomainFacade? *)
+module WithIkind (I: S) (Ik: IntDomain.Ikind): OldS =
+struct
+  include I
+  let join = join (Ik.ikind ())
+  let meet = meet (Ik.ikind ())
+  let widen = widen (Ik.ikind ())
+  let narrow = narrow (Ik.ikind ())
+  let neg = neg (Ik.ikind ())
+  let add = add (Ik.ikind ())
+  let sub = sub (Ik.ikind ())
+  let mul = mul (Ik.ikind ())
+  let div = div (Ik.ikind ())
+  let rem = rem (Ik.ikind ())
+  let lt = lt (Ik.ikind ())
+  let gt = gt (Ik.ikind ())
+  let le = le (Ik.ikind ())
+  let ge = ge (Ik.ikind ())
+  let eq = eq (Ik.ikind ())
+  let ne = ne (Ik.ikind ())
+  let bitnot = bitnot (Ik.ikind ())
+  let bitand = bitand (Ik.ikind ())
+  let bitor = bitor (Ik.ikind ())
+  let bitxor = bitxor (Ik.ikind ())
+  let shift_left = shift_left (Ik.ikind ())
+  let shift_right = shift_right (Ik.ikind ())
+  let lognot = lognot (Ik.ikind ())
+  let logand = logand (Ik.ikind ())
+  let logor = logor (Ik.ikind ())
+
+  let of_int = of_int (Ik.ikind ())
+end
+
 module IntegerSet =
 struct
   (* TODO: base this on BI instead *)
