@@ -66,8 +66,8 @@ let domains: (module Lattice.S) list = [
 
 let nonAssocDomains: (module Lattice.S) list = []
 
-let intDomains: (module IntDomain.IkindUnawareS) list = [
-  (module IntDomain.Flattened);
+let intDomains: (module IntDomainProperties.OldS) list = [
+  (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
   (* (module IntDomain.CircInterval); *)
@@ -75,7 +75,7 @@ let intDomains: (module IntDomain.IkindUnawareS) list = [
   (* (module IntDomain.IntDomTuple); *)
 ]
 
-let nonAssocIntDomains: (module IntDomain.IkindUnawareS) list = [
+let nonAssocIntDomains: (module IntDomainProperties.OldS) list = [
   (* (module IntDomain.DefExc) *)
 ]
 
@@ -95,14 +95,14 @@ let nonAssocTestsuite =
   |> List.flatten
 let intTestsuite =
   List.map (fun d ->
-      let module D = (val d: IntDomain.IkindUnawareS) in
+      let module D = (val d: IntDomainProperties.OldS) in
       let module DP = IntDomainProperties.All (D) in
       DP.tests)
     intDomains
   |> List.flatten
 let nonAssocIntTestsuite =
   List.map (fun d ->
-      let module D = (val d: IntDomain.IkindUnawareS) in
+      let module D = (val d: IntDomainProperties.OldS) in
       let module DP = IntDomainProperties.AllNonAssoc (D) in
       DP.tests)
     nonAssocIntDomains
