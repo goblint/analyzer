@@ -762,17 +762,19 @@ struct
       with e -> None)
     | None -> None
 
-  let arbitrary () = failwith "arbitrary unimplemented for Interval"
-    (* let open QCheck.Iter in
-    let pair_arb = QCheck.pair ( MyCheck.Arbitrary.int64) ( MyCheck.Arbitrary.int64) in
-    (* TODO: use arbitrary ikind *)
+  let arbitrary () =
+    (* TODO: use arbitrary ikind? *)
     let ik = Cil.ILongLong in
-    let pair_arb = QCheck.
+    let open QCheck.Iter in
+    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
+    (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let pair_arb = QCheck.pair int_arb int_arb in
     let shrink = function
       | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval ik)
       | None -> empty
     in
-    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik pair_arb)) *)
+    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
 end
 
 
