@@ -200,7 +200,7 @@ struct
   let mutex_addr_to_varinfo = function
     | LockDomain.Addr.Addr (v, `NoOffset) -> v
     | LockDomain.Addr.Addr (v, offs) ->
-      M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "NewPrivBase: ignoring offset %a%a\n" d_varinfo v LockDomain.Addr.Offs.pretty offs);
+      M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "NewPrivBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs);
       v
     | _ -> failwith "NewPrivBase.mutex_addr_to_varinfo"
 
