@@ -3,10 +3,8 @@
 open Prelude.Ana
 open Analyses
 open Apron
-open GobConfig
 open OctApronDomain
 open Utilities
-open Big_int
 
 module Spec : Analyses.Spec =
 struct
@@ -147,8 +145,7 @@ struct
     let lower_limit, upper_limit = D.get_boundaries n signed in 
     let oct_with_max = D.assert_inv oct (BinOp (Ge, e, (Const (CInt64 (upper_limit, ikind, None))), intType)) true in
     let oct_with_min = D.assert_inv oct (BinOp (Le, e, (Const (CInt64 (lower_limit, ikind, None))), intType)) true in
-    let outside = not (D.is_bot oct_with_max && D.is_bot oct_with_min) in 
-    let outside = false in
+    let outside = D.is_bot oct_with_max && D.is_bot oct_with_min in 
     let new_oct = if outside && signed then 
       (* Signed overflows are undefined behavior, so octagon goes to top. *)
       D.topE (A.env oct)
