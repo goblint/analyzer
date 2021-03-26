@@ -80,7 +80,7 @@ rule() {
     ;; poly)
       echo "open ApronDomain" >> $TARGET.ml
       echo "open Poly" >> $TARGET.ml
-    ;;octApron)
+    ;; octApron)
       echo "open OctApronDomain" >> $TARGET.ml
       echo "open OctApron" >> $TARGET.ml
       ocb -no-plugin -package apron -package apron.polkaMPQ -package apron.octD $TARGET.native &&

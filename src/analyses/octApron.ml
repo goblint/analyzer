@@ -69,10 +69,22 @@ struct
       D.print_expression head;
       print_list_exp body
     end
-  let invalidate oct (exps: exp list) = () (*
+
+  let rec get_vnames_list exp = match exp with
+    | Lval lval -> 
+      let lhost, offset = lval in 
+      (match lhost with
+        | Var vinfo -> [vinfo.vname]
+        | _ -> [])
+    | UnOp (unop, e, typ) -> get_vnames_list e
+    | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
+    | _ -> []
+
+  let invalidate oct (exps: exp list) =
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    let () = print_list_exp exps in
-    D.forget_all_with oct ["xxxx"]*)
+    let () = print_list_exp exps in 
+    let l = List.flatten (List.map get_vnames_list exps) in
+    D.forget_all_with oct l
 
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
