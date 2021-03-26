@@ -68,6 +68,15 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let () = print_stats := fun () ->
+        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+        let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
+        HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k, S.Var.line_nr k) ((+)1) histo) rho;
+        let (vid,vln),n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
+        ignore @@ Pretty.printf "max #contexts: %d for var_id %s on line %d\n" n vid vln
+      in
+
       if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in

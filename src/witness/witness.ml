@@ -278,8 +278,6 @@ let print_task_result (module TaskResult:TaskResult): unit =
   print_svcomp_result (Result.to_string TaskResult.result)
 
 
-exception RestartAnalysis
-
 open Analyses
 module Result (Cfg : CfgBidir)
               (Spec : SpecHC)
@@ -530,7 +528,7 @@ struct
             GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [Json.Build.string (Spec.name ())]);
             GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [Json.Build.string (Spec.name ())]);
 
-            raise RestartAnalysis
+            raise Refinement.RestartAnalysis
           | Unknown ->
             result_unknown ()
         )

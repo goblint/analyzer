@@ -453,9 +453,13 @@ let main =
         do_stats ();
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
-        if !Messages.worldStopped then exit 124 (* timeout! *)
-      with Exit -> exit 1
+      with
+        | Exit ->
+          exit 1
+        | Timeout ->
+          Printexc.print_backtrace BatInnerIO.stderr;
+          exit 124
     )
 
-let _ =
-  at_exit main
+(* The actual entry point is in the auto-generated goblint.ml module, and it is defined as: *)
+(* let _ = at_exit main *)
