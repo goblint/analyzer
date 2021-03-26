@@ -1022,6 +1022,8 @@ module BigInt = struct
   let pretty _ x = Pretty.text (BI.to_string x)
   let to_yojson x = failwith "to_yojson not implemented for BigIntPrinable"
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+
+  let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
 
 module DefExc : S with type int_t = BigInt.t = (* definite or set of excluded values *)

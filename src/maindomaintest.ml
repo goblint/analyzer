@@ -75,8 +75,13 @@ let intDomains: (module IntDomainProperties.OldS) list = [
   (* (module IntDomain.IntDomTuple); *)
 ]
 
+module IntIkind =
+struct
+  let ikind () = Cil.IInt
+end
+
 let nonAssocIntDomains: (module IntDomainProperties.OldS) list = [
-  (* (module IntDomain.DefExc) *)
+  (module IntDomainProperties.WithIkind (IntDomain.DefExc) (IntIkind))
 ]
 
 let testsuite =
