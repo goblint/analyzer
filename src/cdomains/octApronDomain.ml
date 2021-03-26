@@ -278,8 +278,6 @@ struct
       let new_exp = (match e with
       (* Do a cast of int constants *)
       | Const (CInt64 (value, old_ikind, _)) -> 
-        let () = print_endline ("Old value "^(Int64.to_string value)) in
-        let () = print_endline ("Old value "^(Int64.to_string (cast_of_int value new_ikind old_ikind))) in
         Const (CInt64 (cast_of_int value new_ikind old_ikind, new_ikind, None))
       (* Ignore other casts *)
       | Lval (Var varinfo, _) -> e (* TODO: handle variable casts *)
@@ -330,8 +328,6 @@ struct
         | _ -> x in
       match x with 
       | BinOp (Ne, lhd, rhs, intType) -> 
-        let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
-        let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
         if not (is_bot assert_gt) then
@@ -371,8 +367,6 @@ struct
           assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
 
         | BinOp (Eq, lhd, rhs, intType) -> 
-          let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
-          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
           if not (is_bot assert_gt) then
@@ -557,7 +551,6 @@ struct
     | head::body -> (list_length body) + 1
 
   let remove_all_but_with d xs =
-      let () = print_list_string xs in
       let is', fs' = get_vars d in
       let vs = List.append (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is')
           (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) fs') in

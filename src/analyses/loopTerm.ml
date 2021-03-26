@@ -103,7 +103,7 @@ let pairs_from_instr instr = match instr with
     let lhost, offset = lval in
     (match lhost with
       | Var vinfo -> let () = pair_variables vinfo.vname exp in 
-      let () = print_table relatedVars in
+      (* let () = print_table relatedVars in *)
       vinfo.vname^" <-> ["^(get_vnames exp)^"]" 
       | _ -> "")
     (*" "^(Pretty.sprint 20 (Cil.d_lval () lval))^" is "^(Pretty.sprint 20 (Cil.d_exp () exp))^" | "*)
@@ -123,7 +123,7 @@ method! vstmt s =
   let action s = match s.skind with
     | Instr inst -> 
       (*let () = print_endline (list_instr_to_string inst) in*)
-      let () = print_endline ("Related pairs "^(get_related_pairs inst)) in
+      (* let () = print_endline ("Related pairs "^(get_related_pairs inst)) in *)
       s
     | _ -> s
   in ChangeDoChildrenPost (s, action)
@@ -181,7 +181,6 @@ end
 
 (* Registering visitors and the analysis *)
 let _ =
-  let () =print_endline "Adding the visitor is called!!!" in 
   Cilfacade.register_preprocess "octApron" (new loopBreaksVisitor);
   Cilfacade.register_preprocess "octApron" (new loopCounterVisitor);
   Cilfacade.register_preprocess "octApron" (new recomputeVisitor);
