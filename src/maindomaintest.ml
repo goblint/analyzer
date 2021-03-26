@@ -66,7 +66,7 @@ let domains: (module Lattice.S) list = [
 
 let nonAssocDomains: (module Lattice.S) list = []
 
-let intDomains: (module IntDomainProperties.OldS) list = [
+let intDomains: (module IntDomainProperties.S) list = [
   (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
@@ -75,13 +75,24 @@ let intDomains: (module IntDomainProperties.OldS) list = [
   (* (module IntDomain.IntDomTuple); *)
 ]
 
-module IntIkind =
-struct
-  let ikind () = Cil.IInt
-end
+let nonAssocIntDomains: (module IntDomainProperties.S) list = [
+  (module IntDomain.DefExc);
+]
 
-let nonAssocIntDomains: (module IntDomainProperties.OldS) list = [
-  (module IntDomainProperties.WithIkind (IntDomain.DefExc) (IntIkind))
+let ikinds: Cil.ikind list = [
+  (* TODO: enable more, takes very long and much memory... *)
+  (* IChar; *)
+  (* ISChar; *)
+  (* IUChar; *)
+  (* IBool; *)
+  IInt;
+  (* IUInt; *)
+  (* IShort; *)
+  (* IUShort; *)
+  (* ILong; *)
+  (* IULong; *)
+  ILongLong;
+  (* IULongLong; *)
 ]
 
 let testsuite =
@@ -98,19 +109,27 @@ let nonAssocTestsuite =
       DP.tests)
     nonAssocDomains
   |> List.flatten
+
+let old_intdomains intDomains =
+  BatList.cartesian_product intDomains ikinds
+  |> List.map (fun (d, ik) ->
+      let module D = (val d: IntDomainProperties.S) in
+      let module Ikind = struct let ikind () = ik end in
+      (module IntDomainProperties.WithIkind (D) (Ikind): IntDomainProperties.OldS)
+    )
 let intTestsuite =
-  List.map (fun d ->
+  old_intdomains intDomains
+  |> List.map (fun d ->
       let module D = (val d: IntDomainProperties.OldS) in
       let module DP = IntDomainProperties.All (D) in
       DP.tests)
-    intDomains
   |> List.flatten
 let nonAssocIntTestsuite =
-  List.map (fun d ->
+  old_intdomains nonAssocIntDomains
+  |> List.map (fun d ->
       let module D = (val d: IntDomainProperties.OldS) in
       let module DP = IntDomainProperties.AllNonAssoc (D) in
       DP.tests)
-    nonAssocIntDomains
   |> List.flatten
 let () =
   QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
