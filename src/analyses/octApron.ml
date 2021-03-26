@@ -97,9 +97,9 @@ struct
             | Some lv ->
               D.remove_all ctx.local [f.vname]
             | _ -> ctx.local)
-        | `ThreadJoin (id,ret_var) -> ctx.local
-        | `ThreadCreate _ -> ctx.local
-        | _ -> (* D.topE (A.env ctx.local) *)
+        | `ThreadJoin (id,ret_var) -> D.topE (A.env ctx.local)
+        | `ThreadCreate _ -> D.topE (A.env ctx.local)
+        | _ ->
           begin
             let st =
               match LibraryFunctions.get_invalidate_action f.vname with
