@@ -144,28 +144,7 @@ struct
       D.add_vars ctx.local vars
 
   let check_boundaries oct v e ikind (n:int) signed = 
-    let upper_limit = 
-      let bound = if signed then
-        sub_big_int (shift_left_big_int unit_big_int (Int.sub n 1)) unit_big_int (* 2^(n-1)-1 *)
-      else
-        sub_big_int (shift_left_big_int unit_big_int n) unit_big_int (* 2^n-1 *)
-      in
-      (* Ocaml int64 uses in expressions can not store the biggest integer in C *)
-      match int64_of_big_int_opt bound with
-      | Some b -> b
-      | None -> Int64.max_int
-    in
-    let lower_limit = 
-      let bound = if signed then 
-        minus_big_int (shift_left_big_int unit_big_int n) (* -2^(n-1) *)
-      else 
-        zero_big_int (* 0 *)
-      in
-      (* Ocaml int64 uses in expressions can not store the smallest integer in C *)
-      match int64_of_big_int_opt bound with
-      | Some b -> b
-      | None -> Int64.min_int
-    in
+    let lower_limit, upper_limit = D.get_boundaries n signed in 
     let oct_with_max = D.assert_inv oct (BinOp (Ge, e, (Const (CInt64 (upper_limit, ikind, None))), intType)) true in
     let oct_with_min = D.assert_inv oct (BinOp (Le, e, (Const (CInt64 (lower_limit, ikind, None))), intType)) true in
     let outside = not (D.is_bot oct_with_max && D.is_bot oct_with_min) in 

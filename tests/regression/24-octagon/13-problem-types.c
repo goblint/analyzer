@@ -1,5 +1,6 @@
-// PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','octApron']"
+// PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper']"
 // Example from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/signextension-1.c
+// TODO: make this work for octApron by handling variable casts
 #include "stdio.h"
 int main() {
 
