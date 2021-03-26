@@ -1914,31 +1914,17 @@ struct
         ) else
           M.warn_each ~ctx:ctx.control_context msg
     in
-    let print_result name a =
-      let res = match a with            
-        | `True -> "True" 
-        | `False -> "False"
-        | `Top -> "Top"
-        | `Bot -> "Bot" 
-      in
-      print_endline ("Result "^name^": "^res)
-    in
     let meet_results a b = 
-        let res = match (a, b) with
+        match (a, b) with
         | (a, `Bot) -> `Bot
         | (`Bot, b) -> `Bot
         | (a, `Top) -> a
         | (`Top, b) -> b
         | (`True, `False) -> `Bot
         | (`False, `True) -> `Bot
-        | (a, b) ->  a in
-        let () = print_result "meet" res in
-        res
+        | (a, b) ->  a
     in
     let base_result = check_assert e ctx.local in
-    let () = print_endline "MEETING" in
-    let () = print_endline (Pretty.sprint 20 (Cil.d_exp () e)) in
-    let () = print_result "base" base_result in
     let result = 
       if should_warn then
         let other_analsyis_result = 
@@ -1955,8 +1941,6 @@ struct
             simplified
           | _ -> `Top
         in
-        let () = print_result "base" base_result in
-        let () = print_result "other" other_analsyis_result in
         meet_results base_result other_analsyis_result 
       else
         base_result
@@ -1969,7 +1953,6 @@ struct
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      let () = print_endline (Pretty.sprint 20 (Cil.d_exp () e)) in
       M.warn_each ~ctx:ctx.control_context ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->

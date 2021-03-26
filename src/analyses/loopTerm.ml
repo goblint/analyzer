@@ -59,7 +59,7 @@ let relatedVars = Hashtbl.create 123
 
 let print_table h =
   let () = print_endline "Printing Hashtable" in
-   Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" x y) h
+  Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" x y) h
 
 let f_check  = Lval (var (emptyFunction "__goblint_check").svar)
 
@@ -92,7 +92,6 @@ let rec pair_variables v exp = match exp with
   let lhost, offset = lval in 
   (match lhost with
     | Var vinfo -> 
-      let () = print_endline ("Adding to table!!! "^v^" "^vinfo.vname) in 
       Hashtbl.add relatedVars v vinfo.vname
     | _ -> ())
 | UnOp (unop, e, typ) -> pair_variables v e
@@ -105,7 +104,7 @@ let pairs_from_instr instr = match instr with
     (match lhost with
       | Var vinfo -> let () = pair_variables vinfo.vname exp in 
       let () = print_table relatedVars in
-      vinfo.vname^" <-> ["^(get_vnames exp)^"]"
+      vinfo.vname^" <-> ["^(get_vnames exp)^"]" 
       | _ -> "")
     (*" "^(Pretty.sprint 20 (Cil.d_lval () lval))^" is "^(Pretty.sprint 20 (Cil.d_exp () exp))^" | "*)
   | VarDecl (varinfo, location) -> " "^varinfo.vname^" is declared | "

@@ -31,8 +31,6 @@ struct
       let is = is @ List.map (fun x -> x^"'") is in
       let fs = fs @ List.map (fun x -> x^"'") fs in
       let newd = D.add_vars ctx.local (is,fs) in
-      let () = print_endline ("List 1: "^string_of_int(List.length f.sformals)) in
-      let () = print_endline ("List 2: "^string_of_int(List.length args)) in
       let formargs = Utilities.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
       List.iter (fun (v, e) -> D.assign_var_with newd (v.vname^"'") e) arith_formals;
@@ -69,10 +67,10 @@ struct
       D.print_expression head;
       print_list_exp body
     end
-  let invalidate oct (exps: exp list) = () (*
+  let invalidate oct (exps: exp list) =
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    let () = print_list_exp exps in
-    D.forget_all_with oct ["xxxx"]*)
+    let () = print_list_exp exps in ()
+    (*D.forget_all_with oct exps*)
 
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
@@ -101,7 +99,7 @@ struct
           begin
             let st =
               match LibraryFunctions.get_invalidate_action f.vname with
-              | Some fnc -> let () = print_endline "invalidate" in let () = invalidate ctx.local (fnc `Write  args) in ctx.local
+              | Some fnc -> let () = invalidate ctx.local (fnc `Write  args) in ctx.local
               | None -> D.topE (A.env ctx.local)
             in
               st      
@@ -120,7 +118,7 @@ struct
     if D.is_bot ctx.local then D.bot () else
       
       let nd = match e with
-        | Some e when isArithmeticType (typeOf e) -> let () = print_endline "some" in
+        | Some e when isArithmeticType (typeOf e) -> 
           let () = (match e with
           | CastE(t, e) -> D.print_octagon ctx.local
           | _ -> print_endline "Other" )
@@ -128,8 +126,8 @@ struct
           let nd = D.add_vars ctx.local (["#ret"],[]) in 
           let () = D.assign_var_with nd "#ret" e in
           nd
-        | None ->let () = print_endline "none" in D.topE (A.env ctx.local)
-        | _ -> let () = print_endline "last option" in D.add_vars ctx.local (["#ret"],[])
+        | None -> D.topE (A.env ctx.local)
+        | _ -> D.add_vars ctx.local (["#ret"],[])
       in
       let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
       let vars = List.map (fun x -> x.vname) vars in
@@ -151,8 +149,7 @@ struct
       D.topE (A.env oct)
     else if outside && not signed then
       (* Unsigned overflows are defined, but for now the variable in question goes to top. *)
-      let l = [] @ [v.vname] in
-      D.forget_all_with oct [v.vname];
+      let () = D.forget_all_with oct [v.vname] in
       oct
     else
       D.assign_var oct v.vname e
@@ -178,11 +175,11 @@ struct
       )
       | _ -> (false, oct) 
     in
-    let () = if out_of_bounds then
+    (* let () = if out_of_bounds then
       print_endline (v.vname^" is under/overflowing")
     else 
       print_endline (v.vname^" is not under/overflowing "^(Pretty.sprint 20 (Cil.d_type () v.vtype)))
-    in
+    in *)
     new_oct
 
   let assign ctx (lv:lval) e =
@@ -195,10 +192,8 @@ struct
   let query ctx (q:Queries.t) : Queries.Result.t =
     let open Queries in
     let d = ctx.local in
-    (*let () = Node.print (Node.pretty_short_node () ctx.node) in
-    let () = print_endline "" in*)
     match q with
-    | Assert e ->  (* F, T, bot*)
+    | Assert e ->
       let x = match D.check_assert e ctx.local with
         | `Top -> `Top
         | `True -> `Lifted true 
@@ -212,10 +207,6 @@ struct
         | Some i -> `Int i
         | _ -> `Top
       end
-    (*| MustBeEqual (e1, e2) ->
-      (* let () = print_endline (String.concat " must be equal " [(Pretty.sprint 20 (Cil.d_exp () e1)); (Pretty.sprint 20 (Cil.d_exp () e2))])  in *)
-      if D.cil_exp_equals d e1 e2 then `MustBool true
-      else `MustBool false*)
     | _ -> Result.top ()
 end
 
