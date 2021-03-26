@@ -41,6 +41,8 @@ struct
   let logor = logor (Ik.ikind ())
 
   let of_int = of_int (Ik.ikind ())
+
+  let name () = Pretty.(sprint ~width:80 (dprintf "%s (%a)" (name ()) Cil.d_ikind (Ik.ikind ())))
 end
 
 module IntegerSet =
