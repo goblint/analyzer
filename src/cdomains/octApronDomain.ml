@@ -192,6 +192,71 @@ struct
 
   type lexpr = (string * [`int of int | `float of float]) list
 
+  let get_boundaries (n:int) signed =
+    let upper_limit = 
+      let bound = if signed then
+        Big_int.sub_big_int (Big_int.shift_left_big_int Big_int.unit_big_int (Int.sub n 1)) Big_int.unit_big_int (* 2^(n-1)-1 *)
+      else
+      Big_int.sub_big_int (Big_int.shift_left_big_int Big_int.unit_big_int n) Big_int.unit_big_int (* 2^n-1 *)
+      in
+      (* Ocaml int64 uses in expressions can not store the biggest integer in C *)
+      match Big_int.int64_of_big_int_opt bound with
+      | Some b -> b
+      | None -> Int64.max_int
+    in
+    let lower_limit = 
+      let bound = if signed then 
+        Big_int.minus_big_int (Big_int.shift_left_big_int Big_int.unit_big_int n) (* -2^(n-1) *)
+      else 
+        Big_int.zero_big_int (* 0 *)
+      in
+      (* Ocaml int64 uses in expressions can not store the smallest integer in C *)
+      match Big_int.int64_of_big_int_opt bound with
+      | Some b -> b
+      | None -> Int64.min_int
+    in
+    lower_limit, upper_limit
+  
+  let cast_of_int (v:int64) new_ikind old_ikind =
+    let ((old_lower, old_upper), old_signed) = 
+      match old_ikind with
+      (* Signed *)
+      | IInt -> (get_boundaries 32 true, true)
+      | IShort -> (get_boundaries 16 true, true)
+      | ILong -> (get_boundaries 64 true, true)
+      | ILongLong -> (get_boundaries 64 true, true)
+      (* Unsigned *)
+      | IUInt -> (get_boundaries 32 false, false)
+      | IUShort -> (get_boundaries 16 false, false)
+      | IULong -> (get_boundaries 64 false, false)
+      | IULongLong -> (get_boundaries 64 false, false)
+      | _ -> failwith "The method cast_of_int called for non-int"
+    in
+    let ((new_lower, new_upper), new_signed) = 
+      match new_ikind with
+      (* Signed *)
+      | IInt -> (get_boundaries 32 true, true)
+      | IShort -> (get_boundaries 16 true, true)
+      | ILong -> (get_boundaries 64 true, true)
+      | ILongLong -> (get_boundaries 64 true, true)
+      (* Unsigned *)
+      | IUInt -> (get_boundaries 32 false, false)
+      | IUShort -> (get_boundaries 16 false, false)
+      | IULong -> (get_boundaries 64 false, false)
+      | IULongLong -> (get_boundaries 64 false, false)
+      | _ -> failwith "The method cast_of_int called for non-int"
+    in
+    if v <= new_upper && v >= new_lower then
+      v
+    else if v > new_upper && new_signed then
+      failwith "Signed overflow"
+    else if v < new_lower && new_signed then
+      failwith "Signed underflow"
+    else if v > new_upper && not(new_signed) then
+      Int64.add new_lower (Int64.modulo v new_upper)
+    else 
+      Int64.sub new_upper (Int64.modulo v new_lower)
+
   let rec cil_exp_to_lexp =
     let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
       let add_one xs (var_name, var_coefficient) =
@@ -243,7 +308,19 @@ struct
         | Ne -> comb DISEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
         | _ -> raise (Invalid_argument "cil_exp_to_lexp")
       end
-    | CastE (_,e) -> cil_exp_to_lexp e
+    | CastE (TInt(new_ikind, _), e) -> 
+      let new_exp = (match e with
+      (* Do a cast of int constants *)
+      | Const (CInt64 (value, old_ikind, _)) -> 
+        let () = print_endline ("Old value "^(Int64.to_string value)) in
+        let () = print_endline ("Old value "^(Int64.to_string (cast_of_int value new_ikind old_ikind))) in
+        Const (CInt64 (cast_of_int value new_ikind old_ikind, new_ikind, None))
+      (* Ignore other casts *)
+      | Lval (Var varinfo, _) -> e (* TODO handle variable casts *)
+      |_ -> e) 
+      in
+      let () = print_endline ("Casting "^(Pretty.sprint 20 (Cil.d_exp () e))^" to "^(Pretty.sprint 20 (Cil.d_exp () new_exp)) ) in 
+      cil_exp_to_lexp new_exp
     | _ ->
       raise (Invalid_argument "cil_exp_to_lexp")
 
