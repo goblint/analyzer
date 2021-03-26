@@ -88,9 +88,7 @@ struct
     if D.is_bot ctx.local then D.bot () else
       begin
         match LibraryFunctions.classify f.vname args with
-        | `Assert expression -> (* D.assert_inv ctx.local expression false *)
-          (*D.assert_fn ctx ctx.local expression true false*)
-          ctx.local
+        | `Assert expression -> ctx.local
         | `Unknown "printf" -> ctx.local
         | `Unknown "__goblint_check" -> ctx.local
         | `Unknown "__goblint_commit" -> ctx.local
@@ -131,10 +129,6 @@ struct
       
       let nd = match e with
         | Some e when isArithmeticType (typeOf e) -> 
-          let () = (match e with
-          | CastE(t, e) -> D.print_octagon ctx.local
-          | _ -> print_endline "Other" )
-          in
           let nd = D.add_vars ctx.local (["#ret"],[]) in 
           let () = D.assign_var_with nd "#ret" e in
           nd
