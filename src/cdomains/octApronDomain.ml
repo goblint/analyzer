@@ -502,12 +502,25 @@ struct
   let cil_exp_to_apron_texpr1 env exp =
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
     Texpr1.of_expr env (cil_exp_to_cil_lhost exp)
-
+  
+  let is_chosen (v:string) =
+    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "octagon_vars") in 
+    if List.length oct_vars == 0 then
+      true
+    else
+      (* let () = print_endline (String.concat ", " oct_vars) in *)
+      List.mem ("\""^v^"\"") oct_vars
+  
   let var_in_env (v:string) d =
-    let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
-    let existing_var_names_int = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_int) in
-    let existing_var_names_real = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_real) in
-    (List.mem v existing_var_names_int) || (List.mem v existing_var_names_real)
+    if (is_chosen v) then
+      let () = print_endline (v^" is chosen") in
+      let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
+      let existing_var_names_int = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_int) in
+      let existing_var_names_real = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_real) in
+      (List.mem v existing_var_names_int) || (List.mem v existing_var_names_real)
+    else
+    let () = print_endline (v^" is NOT chosen") in
+      false
     
   let assign_var_eq_with d v v' =
     if var_in_env v d then 
@@ -536,9 +549,12 @@ struct
        ()
 
   let assign_var d v e =
-    let newd = A.copy Man.mgr d in
-    assign_var_with newd v e;
-    newd
+    if is_chosen v then
+      let newd = A.copy Man.mgr d in
+      assign_var_with newd v e;
+      newd
+    else
+      d
 
   let forget_all_with d xs =
     let xs = List.filter (fun elem -> var_in_env elem d) xs in
