@@ -8,9 +8,9 @@
   (public_name goblint.lib)
   (wrapped false)
   (modules :standard \ goblint mainarinc maindomaintest mainspec
-    apronDomain poly violationZ3)
+    violationZ3)
   (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js
-    qcheck-core.runner)
+    qcheck-core.runner apron apron.polkaMPQ apron.octD)
   (preprocess
     (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson
       ppx_distr_guards ocaml-monadic))
