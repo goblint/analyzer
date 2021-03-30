@@ -163,8 +163,7 @@ struct
       D.topE (A.env oct)
     else if outside && not signed then
       (* Unsigned overflows are defined, but for now the variable in question goes to top. *)
-      let l = [] @ [v.vname] in
-      D.forget_all_with oct [v.vname];
+      let () = D.forget_all_with oct [v.vname] in
       oct
     else
       D.assign_var oct v.vname e

@@ -218,44 +218,33 @@ struct
     lower_limit, upper_limit
   
   let cast_of_int (v:int64) new_ikind old_ikind =
-    let ((old_lower, old_upper), old_signed) = 
-      match old_ikind with
-      (* Signed *)
-      | IInt -> (get_boundaries 32 true, true)
-      | IShort -> (get_boundaries 16 true, true)
-      | ILong -> (get_boundaries 64 true, true)
-      | ILongLong -> (get_boundaries 64 true, true)
-      (* Unsigned *)
-      | IUInt -> (get_boundaries 32 false, false)
-      | IUShort -> (get_boundaries 16 false, false)
-      | IULong -> (get_boundaries 64 false, false)
-      | IULongLong -> (get_boundaries 64 false, false)
-      | _ -> failwith "The method cast_of_int called for non-int"
-    in
-    let ((new_lower, new_upper), new_signed) = 
-      match new_ikind with
-      (* Signed *)
-      | IInt -> (get_boundaries 32 true, true)
-      | IShort -> (get_boundaries 16 true, true)
-      | ILong -> (get_boundaries 64 true, true)
-      | ILongLong -> (get_boundaries 64 true, true)
-      (* Unsigned *)
-      | IUInt -> (get_boundaries 32 false, false)
-      | IUShort -> (get_boundaries 16 false, false)
-      | IULong -> (get_boundaries 64 false, false)
-      | IULongLong -> (get_boundaries 64 false, false)
-      | _ -> failwith "The method cast_of_int called for non-int"
-    in
-    if v <= new_upper && v >= new_lower then
-      v
-    else if v > new_upper && new_signed then
-      failwith "Signed overflow"
-    else if v < new_lower && new_signed then
-      failwith "Signed underflow"
-    else if v > new_upper && not(new_signed) then
-      Int64.add new_lower (Int64.modulo v new_upper)
-    else 
-      Int64.sub new_upper (Int64.modulo v new_lower)
+    match old_ikind with
+      (IInt | IShort | ILong | ILongLong | IUInt | IUShort | IULong | IULongLong) -> 
+      let ((new_lower, new_upper), new_signed) = 
+        match new_ikind with
+        (* Signed *)
+        | IInt -> (get_boundaries 32 true, true)
+        | IShort -> (get_boundaries 16 true, true)
+        | ILong -> (get_boundaries 64 true, true)
+        | ILongLong -> (get_boundaries 64 true, true)
+        (* Unsigned *)
+        | IUInt -> (get_boundaries 32 false, false)
+        | IUShort -> (get_boundaries 16 false, false)
+        | IULong -> (get_boundaries 64 false, false)
+        | IULongLong -> (get_boundaries 64 false, false)
+        | _ -> failwith "The method cast_of_int called for non-int"
+      in
+      if v <= new_upper && v >= new_lower then
+        v
+      else if v > new_upper && new_signed then
+        failwith "Signed overflow"
+      else if v < new_lower && new_signed then
+        failwith "Signed underflow"
+      else if v > new_upper && not(new_signed) then
+        Int64.add new_lower (Int64.modulo v new_upper)
+      else 
+        Int64.sub new_upper (Int64.modulo v new_lower)
+    | _ -> failwith "The method cast_of_int called for non-int"
 
   let rec cil_exp_to_lexp =
     let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
