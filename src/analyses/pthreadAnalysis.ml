@@ -28,6 +28,7 @@ module Function = struct
     | Exit
     | ThreadCreate
     | ThreadJoin
+    | ThreadExit
     | MutexInit
     | MutexLock
     | MutexUnlock
@@ -40,6 +41,7 @@ module Function = struct
     [ ("exit", Exit)
     ; ("pthread_create", ThreadCreate)
     ; ("pthread_join", ThreadJoin)
+    ; ("pthread_exit", ThreadExit)
     ; ("pthread_mutex_init", MutexInit)
     ; ("pthread_mutex_lock", MutexLock)
     ; ("pthread_mutex_unlock", MutexUnlock)
@@ -117,6 +119,7 @@ module Action = struct
     | Cond of string (* pred *)
     | ThreadCreate of thread
     | ThreadJoin of thread_id
+    | ThreadExit
     | MutexInit of mutex_id
     | MutexLock of mutex_id
     | MutexUnlock of mutex_id
@@ -425,6 +428,8 @@ module Variables = struct
     |> List.filter_map (function
            | Var v when Variable.is_global v ->
                Some v
+           | Top v when Variable.is_global v ->
+               Some v
            | _ ->
                None)
     |> List.unique
@@ -436,6 +441,8 @@ module Variables = struct
     |> Set.filter_map (function
            (* no globals *)
            | Var v when not (Variable.is_global v) ->
+               Some v
+           | Top v when not (Variable.is_global v) ->
                Some v
            | _ ->
                None)
@@ -466,7 +473,12 @@ module Variables = struct
 
   (* is a local var for thread tid or a global
    * var must not be set to top *)
-  let valid_var tid var = not (is_top tid var)
+  let valid_var tid var =
+    if Variable.is_global var
+    then not (is_top tid var)
+    else
+      Set.exists (( = ) (Var var)) @@ Hashtbl.find_default !table tid Set.empty
+
 
   (* all vars on rhs should be already registered, otherwise -> do not add this var *)
   let rec all_vars_are_valid ctx = function
@@ -563,10 +575,12 @@ module Codegen = struct
           "ThreadCreate(" ^ string_of_int t.tid ^ ");"
       | ThreadJoin tid ->
           "ThreadWait(" ^ string_of_int tid ^ ");"
+      | ThreadExit ->
+          "ThreadExit();"
       | MutexInit mid ->
           "MutexInit(" ^ string_of_int mid ^ ");"
       | MutexLock mid ->
-          "MutexLock(tid, " ^ string_of_int mid ^ ");"
+          "MutexLock(" ^ string_of_int mid ^ ");"
       | MutexUnlock mid ->
           "MutexUnlock(" ^ string_of_int mid ^ ");"
       | CondVarInit id ->
@@ -685,9 +699,16 @@ module Codegen = struct
         in
         let body =
           let return =
-            end_label
-            ^ ": "
-            ^ if is_thread then "ThreadBroadcast()" else "ret_" ^ snd res ^ "()"
+            let end_stmt =
+              match res with
+              | Thread, "mainfun" ->
+                  "exit()"
+              | Thread, _ ->
+                  "ThreadExit()"
+              | Function, f ->
+                  "ret_" ^ f ^ "()"
+            in
+            end_label ^ ": " ^ end_stmt
           in
           goto_start_node
           :: (flat_map walk_edges @@ AdjacencyMatrix.items a2bs)
@@ -699,7 +720,9 @@ module Codegen = struct
               let tid = Tbls.ThreadTidTbl.get name in
               let defs =
                 let local_defs =
-                  List.map Variable.show_def @@ Variables.get_locals tid
+                  Variables.get_locals tid
+                  |> List.map Variable.show_def
+                  |> List.unique
                 in
                 let stack_def = [ "int stack[20];"; "int sp = -1;" ] in
 
@@ -928,6 +951,8 @@ module Spec : Analyses.Spec = struct
     then (
       M.debug_each "assign: MyCFG.current_node not set :(" ;
       ctx.local )
+    else if PthreadDomain.D.is_bot ctx.local
+    then ctx.local
     else
       let env = Env.get ctx in
       let d = Env.d env in
@@ -935,9 +960,7 @@ module Spec : Analyses.Spec = struct
 
       let var_opt = Variable.make_from_lval lval in
 
-      if PthreadDomain.D.is_bot ctx.local
-         || Option.is_none var_opt
-         || (not @@ Variables.all_vars_are_valid ctx rval)
+      if Option.is_none var_opt || (not @@ Variables.all_vars_are_valid ctx rval)
       then (
         (* set lhs var to TOP *)
         Option.may (Variables.add_top tid) var_opt ;
@@ -1205,6 +1228,8 @@ module Spec : Analyses.Spec = struct
           add_actions
           @@ List.map (fun tid -> Action.ThreadJoin tid)
           @@ ExprEval.eval_var_id ctx thread Tbls.ThreadTidTbl.get
+      | ThreadExit, [ status ] ->
+          add_action Action.ThreadExit
       | MutexInit, [ mutex; mutex_attr ] ->
           (* TODO: reentrant mutex handling *)
           add_actions

@@ -52,10 +52,8 @@ inline mark(pc) {
 // handle exit call in C programs
 inline exit() {
   atomic {
-    byte i;
-
-    for (i in threads) {
-      threads[i].state = DONE;
+    for (___i in threads) {
+      threads[___i].state = DONE;
     }
   }
 }
@@ -132,7 +130,7 @@ inline ThreadWait(thread_id) {
 // called by the functions invoked by pthread_create
 // notify the caller, that the thread is done computing
 // similar to conditional var broadcast
-inline ThreadBroadcast() {
+inline ThreadExit() {
   atomic {
     printf("ThreadBroadcast: id %d\n", tid);
     assert(threads[tid].waitingOnResource.type == NONE); // thread should not be waiting for anything at this point
@@ -146,7 +144,7 @@ inline ThreadBroadcast() {
 
         setReady(___i);
 
-    :: else -> break
+    :: empty(threads[tid].waitQueue) -> break
     od
 
     threads[tid].state = DONE;
@@ -161,15 +159,19 @@ inline MutexInit(mid) {
   }
 }
 
-inline MutexLock(thread_id, x) {
+inline MutexLock(mid) {
+  __MutexLock(tid, mid)
+}
+
+inline __MutexLock(thread_id, x) {
   atomic {
     if
     :: mutexes[x].state == LOCKED -> // TODO: reentrant mutex?
-      printf("MutexLock will block: mutexes[%d]\n", x);
+      printf("__MutexLock will block: mutexes[%d]\n", x);
 
       if
       :: full(mutexes[x].blockedQueue) -> // TODO can this happen?
-        printf("FAIL: MutexLock: queue is full\n");
+        printf("FAIL: __MutexLock: queue is full\n");
         assert(false);
       :: nfull(mutexes[x].blockedQueue) ->
         printf("Thread %d put into queue for mutex %d\n", thread_id, x);
@@ -189,7 +191,7 @@ inline MutexLock(thread_id, x) {
       // so, atomic is broken after setWaiting, but that's ok since we're done with WaitSemaphore anyway
 
     :: mutexes[x].state == UNLOCKED ->
-      printf("MutexLock locked: mutexes[%d] = LOCKED by %d\n", x, thread_id);
+      printf("__MutexLock locked: mutexes[%d] = LOCKED by %d\n", x, thread_id);
       mutexes[x].state = LOCKED;
       mutexes[x].tid = thread_id;
     fi
@@ -212,13 +214,12 @@ inline MutexUnlock(x) {
         mutexes[x].blockedQueue?_,___i;
         printf("MutexUnlock: thread %d is waking up thread %d\n", tid, ___i);
 
-        MutexLock(___i, x);
+        __MutexLock(___i, x);
         setReady(___i);
 
-      :: else -> skip
+      :: empty(mutexes[x].blockedQueue) -> skip
       fi;
-    // mutex[x].tid != tid -> undefined behavior
-    :: else -> skip
+    :: mutexes[x].tid != tid -> skip // undefined behavior
     fi;
   }
 }
@@ -272,8 +273,8 @@ inline CondVarSignal(cond_var_id) {
       setReady(___i);
 
       // reacquire the mutex lock
-      MutexLock(___i, cond_vars[cond_var_id].mid)
-    :: else -> skip
+      __MutexLock(___i, cond_vars[cond_var_id].mid)
+    :: empty(cond_vars[cond_var_id].waitQueue) -> skip
     fi;
   }
 }
@@ -293,9 +294,9 @@ inline CondVarBroadcast(cond_var_id) {
 
         setReady(___i);
         // reacquire the mutex lock
-        MutexLock(___i, cond_vars[cond_var_id].mut_id);
+        __MutexLock(___i, cond_vars[cond_var_id].mid);
 
-      :: else -> break
+      :: empty(cond_vars[cond_var_id].waitQueue) -> break
     od
 
     // All waititng processes/threads are now waiting for the mutex to be released
