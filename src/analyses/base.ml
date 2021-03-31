@@ -1352,7 +1352,7 @@ struct
 
   let invariant ctx a gs st exp tv: store =
     let open Deriving.Cil in
-    let fallback reason =
+    let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
       invariant ctx a gs st exp tv
     in
@@ -1468,10 +1468,10 @@ struct
         if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
         a, b
     in
-    let eval e = eval_rv a gs st e in
-    let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
-    let set' lval v = set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx) in
-    let rec inv_exp c exp: store =
+    let eval e st = eval_rv a gs st e in
+    let eval_bool e st = match eval e st with `Int i -> ID.to_bool i | _ -> None in
+    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx) in
+    let rec inv_exp c exp (st:store): store =
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if ID.is_bot c then raise Deadcode;
       match exp with
@@ -1486,31 +1486,34 @@ struct
           | Some false -> ID.of_bool (Cilfacade.get_ikind (typeOf e)) false
           | _ -> ID.top_of (Cilfacade.get_ikind (typeOf e))
         in
-        inv_exp c' e
-      | UnOp ((BNot|Neg) as op, e, _) -> inv_exp (unop_ID op c) e
+        inv_exp c' e st
+      | UnOp ((BNot|Neg) as op, e, _) -> inv_exp (unop_ID op c) e st
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig (typeOf c1) = typeSig (typeOf c2) && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
-        inv_exp c (BinOp (op, c1, c2, t))
+        inv_exp c (BinOp (op, c1, c2, t)) st
       | BinOp (op, e1, e2, _) as e ->
-        if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty c;
-        (match eval e1, eval e2 with
+        if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1 st) (show_binop op) VD.pretty (eval e2 st) ID.pretty c;
+        (match eval e1 st, eval e2 st with
         | `Int a, `Int b ->
           let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
           let a', b' = inv_bin_int (a, b) ikind c op in
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
-          let m1 = try Some (inv_exp a' e1) with Deadcode -> None in
-          let m2 = try Some (inv_exp b' e2) with Deadcode -> None in
-          if M.tracing then M.tracel "inv" "binop: %a, m1: %a, m2: %a\n" d_exp e (docOpt (D.pretty ())) m1 (docOpt (D.pretty ())) m2;
-          (match m1, m2 with
-          | Some m1, Some m2 ->
-            (* With some privatizations, "A > 0" has global A in only m1.cpa, thus normal meet would forget refinement.
-               The rest (priv) must be properly meet-ed to get correct (parallel) cache set etc behavior. *)
-            let cpa_long_meet = CPA.long_map2 VD.meet in
-            let d_long_meet x y = {(D.meet x y) with cpa = cpa_long_meet x.cpa y.cpa} in
-            d_long_meet m1 m2
-          | Some m, None | None, Some m -> m
-          | None, None -> raise Deadcode)
+          let m1 = try Some (inv_exp a' e1 st) with Deadcode -> None in
+          begin match m1 with
+            | Some st' ->
+              let m2 = try Some (inv_exp b' e2 st') with Deadcode -> None in
+              begin match m2 with
+                | Some st'' -> st''
+                | None -> st'
+              end
+            | None ->
+              let m2 = try Some (inv_exp b' e2 st) with Deadcode -> None in
+              begin match m2 with
+                | Some st' -> st'
+                | None -> raise Deadcode
+              end
+          end
         (* | `Address a, `Address b -> ... *)
-        | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
+        | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
       | Lval x -> (* meet x with c *)
         let t = Cil.unrollType (typeOfLval x) in  (* unroll type to deal with TNamed *)
         let c' = match t with
@@ -1519,17 +1522,17 @@ struct
           | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
-        let oldv = eval (Lval x) in
+        let oldv = eval (Lval x) st in
         let v = VD.meet oldv c' in
         if is_some_bot v then raise Deadcode
         else (
           if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
-          set' x v
+          set' x v st
         )
       | Const _ -> st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e)
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
-        (match eval e with
+        (match eval e st with
         | `Int i ->
           if ID.leq i (ID.cast_to ik i) then
              match Cil.typeOf e with
@@ -1537,14 +1540,14 @@ struct
               | TEnum ({ekind = ik_e; _ }, _) ->
                 let c' = ID.cast_to ik_e c in
                 if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-                inv_exp c' e
-              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t)
+                inv_exp c' e st
+              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
           else
-            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
-        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
-      | e -> fallback (sprint d_plainexp e ^ " not implemented")
+            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
+        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
+      | e -> fallback (sprint d_plainexp e ^ " not implemented") st
     in
-    if eval_bool exp = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
+    if eval_bool exp st = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
     else
       let is_cmp = function
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
@@ -1558,7 +1561,7 @@ struct
           let ik = Cilfacade.get_ikind (typeOf exp) in
           ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
       in
-      inv_exp itv exp
+      inv_exp itv exp st
 
   let set_savetop ?ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     match v with
