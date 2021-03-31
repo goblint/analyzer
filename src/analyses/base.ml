@@ -1497,21 +1497,9 @@ struct
           let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
           let a', b' = inv_bin_int (a, b) ikind c op in
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
-          let m1 = try Some (inv_exp a' e1 st) with Deadcode -> None in
-          begin match m1 with
-            | Some st' ->
-              let m2 = try Some (inv_exp b' e2 st') with Deadcode -> None in
-              begin match m2 with
-                | Some st'' -> st''
-                | None -> st'
-              end
-            | None ->
-              let m2 = try Some (inv_exp b' e2 st) with Deadcode -> None in
-              begin match m2 with
-                | Some st' -> st'
-                | None -> raise Deadcode
-              end
-          end
+          let st' = inv_exp a' e1 st in
+          let st'' = inv_exp b' e2 st' in
+          st''
         (* | `Address a, `Address b -> ... *)
         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
       | Lval x -> (* meet x with c *)
