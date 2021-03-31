@@ -464,7 +464,6 @@ struct
   
   let var_in_env (v:string) d =
     if (is_chosen v) then
-      let () = print_endline (v^" is chosen") in
       let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
       let existing_var_names_int = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_int) in
       let existing_var_names_real = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_real) in

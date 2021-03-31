@@ -7,24 +7,24 @@ module M = Messages
 let (%?) = Option.bind
 let (||?) a b = match a,b with Some x,_ | _, Some x -> Some x | _ -> None
 
-module TermDomain = struct
-  include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
-end
+(* module TermDomain = struct
+  include SetDomain.ToppedSet (Basetype.Bools) (struct let topname = "All Variables" end)
+end *)
 
 module Spec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "loopTerm"
-  module D = TermDomain
-  module C = TermDomain
+  module D = Basetype.Bools
+  module C = D
   module G = Lattice.Unit
 
   (* queries *)
-  (*let query ctx (q:Queries.t) : Queries.Result.t =*)
-  (*match q with*)
-  (*| Queries.MustTerm loc -> `Bool (D.mem v ctx.local)*)
-  (*| _ -> Queries.Result.top ()*)
+  let query ctx (q:Queries.t) : Queries.Result.t =
+  match q with
+  | Queries.MustTerm loc -> `MustBool (D.is_bot ctx.local)
+  | _ -> Queries.Result.top ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -46,12 +46,29 @@ struct
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
-
-  let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
+    if D.is_bot ctx.local then 
+      D.bot () 
+    else
+      begin
+        match LibraryFunctions.classify f.vname arglist with
+        | `Unknown "__goblint_check" -> 
+            (match ctx.ask (Queries.Assert (List.hd arglist)) with
+            | `AssertionResult ar -> 
+              (match ar with            
+              | `Lifted b -> 
+                if b then 
+                  `Lifted true
+                else 
+                  `Lifted false
+              | `Top -> D.top ()
+              | `Bot -> D.bot ())
+            | _ -> D.top ())
+        | _ -> ctx.local
+      end
+  let startstate v = `Lifted true
+  let threadenter ctx lval f args = `Lifted true
   let threadspawn ctx lval f args fctx = D.bot ()
-  let exitstate  v = D.bot ()
+  let exitstate  v = `Lifted true
 end
 
 (* Visitors and their helper functions *)
@@ -181,10 +198,10 @@ end
 
 (* Registering visitors and the analysis *)
 let _ =
-  Cilfacade.register_preprocess "octApron" (new loopBreaksVisitor);
-  Cilfacade.register_preprocess "octApron" (new loopCounterVisitor);
-  Cilfacade.register_preprocess "octApron" (new recomputeVisitor);
+  Cilfacade.register_preprocess "loopTerm" (new loopBreaksVisitor);
+  Cilfacade.register_preprocess "loopTerm" (new loopCounterVisitor);
+  Cilfacade.register_preprocess "loopTerm" (new recomputeVisitor);
   Hashtbl.clear loopBreaks; (* because the sids are now different *)
-  Cilfacade.register_preprocess "octApron" (new loopBreaksVisitor);
-  Cilfacade.register_preprocess "octApron" (new expressionVisitor);
-  MCP.register_analysis (module Spec : Spec)
+  Cilfacade.register_preprocess "loopTerm" (new loopBreaksVisitor);
+  Cilfacade.register_preprocess "loopTerm" (new expressionVisitor);
+  MCP.register_analysis ~dep:["octApron"] (module Spec : Spec)

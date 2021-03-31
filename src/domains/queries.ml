@@ -67,6 +67,7 @@ type t = EqualSet of exp
        | HeapVar
        | Assert of exp
        | IsHeapVar of varinfo
+       | MustTerm of location
 [@@deriving to_yojson]
 
 module PartAccessResult = Access.PartAccessResult
