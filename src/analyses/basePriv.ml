@@ -988,9 +988,10 @@ struct
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let (vv, l) = st.priv in
-    let v' = Lockset.fold (fun m acc ->
+    (* TODO: replace a \in S with a \in \dom(L) or a \in \M in paper *)
+    let v' = L.fold (fun m _ acc ->
         V.add m (CachedVars.add x (V.find m acc)) acc
-      ) s vv
+      ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
     if not (!GU.earlyglobs && is_precious_glob x) then
