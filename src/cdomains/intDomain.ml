@@ -1970,7 +1970,7 @@ module Enums : S with type int_t = BigInt.t = struct
   (* let meet x y = let r = meet x y in print_endline @@ "meet " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
 
   let widen = join
-  let narrow = meet
+  let narrow i x y = x
 
   let leq x y = equal (join_ignore_ikind x y) y
 
