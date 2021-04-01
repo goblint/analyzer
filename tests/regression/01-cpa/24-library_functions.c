@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated[-] "'octApron'"
+//PARAM: --set ana.activated[-] "'octApron'" --set ana.activated[-] "'loopTerm'"
 // octApron needs to be included again and fixed
 
 #include <assert.h>
