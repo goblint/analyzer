@@ -1869,25 +1869,34 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
-  type e = I.t (* element *)
-  and t = Inc of I.t list | Exc of I.t list * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
+  module ISet = struct
+    include Set.Make(I)
+    let is_singleton s = cardinal s = 1
+  end
+  type t = Inc of ISet.t | Exc of ISet.t * R.t (* inclusion/exclusion set *)
+
   type int_t = BI.t
   let name () = "enums"
+  let to_yojson x = failwith @@ "to_yojson unimplemented for " ^ (name ())
   let top_range = R.of_interval range_ikind (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
 
   let bot () = failwith "bot () not implemented for Enums"
-  let top_of ik = Exc ([], size ik)
+  let top_of ik = Exc (ISet.empty, size ik)
   let top () = failwith "top () not implemented for Enums"
-  let bot_of ik = Inc []
+  let bot_of ik = Inc ISet.empty
 
   let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
 
-  let equal a b = a = b
+  let equal x y = match x, y with
+    | Inc a, Inc b -> ISet.equal a b
+    | Exc (a, r), Exc (b, s) -> ISet.equal a b && R.equal r s
+    | _, _ -> false
   let short _ = function
-    | Inc[] -> "bot" | Exc([],r) -> "top"
-    | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
-    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "} " ^ "("^R.short 2 r^")"
+    | Inc xs when ISet.is_empty xs -> "bot"
+    | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) (ISet.to_list  xs))) ^ "}"
+    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) (ISet.to_list xs))) ^ "} " ^ "("^R.short 2 r^")"
+
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
 
   let norm ikind v =
@@ -1901,18 +1910,18 @@ module Enums : S with type int_t = BigInt.t = struct
       R.leq r (size ikind)
     in
     match v with
-    | Inc xs when List.for_all value_in_ikind xs -> v
-    | Exc (xs, r) when List.for_all value_in_ikind xs && range_in_ikind r -> v
+    | Inc xs when ISet.for_all value_in_ikind xs -> v
+    | Exc (xs, r) when ISet.for_all value_in_ikind xs && range_in_ikind r -> v
     | _ -> top_of ikind
 
   let equal_to i = function
     | Inc x ->
-      if List.mem i x then
-        if List.length x = 1 then `Eq
+      if ISet.mem i x then
+        if ISet.is_singleton x then `Eq
         else `Top
       else `Neq
     | Exc (x, r) ->
-      if List.mem i x then `Neq
+      if ISet.mem i x then `Neq
       else `Top
 
   let cast_to ?torg ik v = norm ik @@ match v with
@@ -1921,82 +1930,61 @@ module Enums : S with type int_t = BigInt.t = struct
       if R.leq r r' then (* upcast -> no change *)
         Exc (s, r)
       else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
-        let s' = List.map (I.cast_to ik) s in
+        let s' = ISet.map (I.cast_to ik) s in
         Exc (s', r')
       else (* downcast: may overflow *)
-        Exc ([], r')
-    |  Inc x -> Inc (List.map (BigInt.cast_to ik) x)
+        Exc (ISet.empty, r')
+    |  Inc x -> Inc (ISet.map (BigInt.cast_to ik) x)
 
-  let of_int ikind x = cast_to ikind (Inc [x])
+  let of_int ikind x = cast_to ikind (Inc (ISet.singleton x))
 
   let of_interval ik (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
     let rec build_set set start_num end_num =
       if start_num > end_num then set
-      else (build_set (set @ [start_num]) (BI.add start_num (BI.of_int 1)) end_num) in
-    Inc (build_set [] x y)
+      else (build_set (ISet.add start_num set) (BI.add start_num (BI.of_int 1)) end_num) in
+    Inc (build_set ISet.empty x y)
 
-  let rec merge_cup a b = match a,b with
-    | [],x | x,[] -> x
-    | x::xs, y::ys -> (match compare x y with
-        | 0 -> x :: merge_cup xs ys
-        | 1 -> y :: merge_cup a ys
-        | _ -> x :: merge_cup xs b
-      )
-  let rec merge_cap a b = match a,b with
-    | [],_ | _,[] -> []
-    | x::xs, y::ys -> (match compare x y with
-        | 0 -> x :: merge_cap xs ys
-        | 1 -> merge_cap a ys
-        | _ -> merge_cap xs b
-      )
-  let rec merge_sub a b = match a,b with
-    | [],_ -> []
-    | _,[] -> a
-    | x::xs, y::ys -> (match compare x y with
-        | 0 -> merge_sub xs ys
-        | 1 -> merge_sub a ys
-        | _ -> x :: merge_sub xs b
-      )
   (* let merge_sub x y = Set.(diff (of_list x) (of_list y) |> to_list) *)
   let join_ignore_ikind = curry @@ function
-  | Inc x, Inc y -> Inc (merge_cup x y)
-  | Exc (x,r1), Exc (y,r2) -> Exc (merge_cap x y, R.join r1 r2)
+  | Inc x, Inc y -> Inc (ISet.union x y)
+  | Exc (x,r1), Exc (y,r2) -> Exc (ISet.inter x y, R.join r1 r2)
   | Exc (x,r), Inc y
   | Inc y, Exc (x,r) ->
-    let r = if y = []
+    let r = if ISet.is_empty y
       then r
       else
-        let (min_el_range, max_el_range) = Tuple2.mapn  (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (List.hd y,  List.last y) in
+        let (min_el_range, max_el_range) = Tuple2.mapn  (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (ISet.min_elt y, ISet.max_elt y) in
         let range = R.join min_el_range max_el_range in
         R.join r range
     in
-    Exc (merge_sub x y, r)
+    Exc (ISet.diff x y, r)
 
   let join ikind = join_ignore_ikind
 
   let meet ikind = curry @@ function
-    | Inc x, Inc y -> Inc (merge_cap x y)
-    | Exc (x,r1), Exc (y,r2) -> Exc (merge_cup x y, R.meet r1 r2)
+    | Inc x, Inc y -> Inc (ISet.inter x y)
+    | Exc (x,r1), Exc (y,r2) -> Exc (ISet.union x y, R.meet r1 r2)
     | Inc x, Exc (y,r)
-    | Exc (y,r), Inc x -> Inc (merge_sub x y)
+    | Exc (y,r), Inc x -> Inc (ISet.diff x y)
   (* let join x y = let r = join x y in print_endline @@ "join " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
   (* let meet x y = let r = meet x y in print_endline @@ "meet " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
 
   let widen = join
   let narrow = meet
 
-  let leq x y = (join_ignore_ikind x y) = y
+  let leq x y = equal (join_ignore_ikind x y) y
 
   let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
 
   let lift1 f ikind v = norm ikind @@ match v with
-    | Inc[x] -> Inc[f x]
-    | Inc xs when List.length xs <= max_elems () -> Inc (List.sort_unique compare @@ List.map f xs)
+    | Inc x when ISet.is_singleton x -> Inc (ISet.singleton (f (ISet.any x)))
+    | Inc xs when ISet.cardinal xs <= max_elems () -> Inc (ISet.map f xs)
     | _ -> top_of ikind
 
   let lift2 f (ikind: Cil.ikind) u v = norm ikind @@ match u, v with
-    | Inc[],_| _,Inc[] -> Inc[]
-    | Inc[x],Inc[y] -> Inc[f x y]
+    | Inc e,_ when ISet.is_empty e -> u
+    | _,Inc e when ISet.is_empty e -> v
+    | Inc x,Inc y when ISet.is_singleton x && ISet.is_singleton y -> Inc (ISet.singleton (f (ISet.any x) (ISet.any y)))
     | _,_ -> top_of ikind
 
   let lift2 f ikind a b =
@@ -2004,21 +1992,24 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let neg = lift1 I.neg
   let add ikind = curry @@ function
-    | Inc[z],x when z = BI.zero -> x
-    | x,Inc[z] when z = BI.zero -> x
+    | Inc z,x when ISet.is_singleton z && ISet.any z = BI.zero -> x
+    | x,Inc z when ISet.is_singleton z && ISet.any z = BI.zero -> x
     | x,y -> lift2 I.add ikind x y
   let sub = lift2 I.sub
-  let mul ikind = curry @@ function
-    | Inc[one],x when one = BI.one -> x
-    | x,Inc[one] when one = BI.one  -> x
-    | Inc[zero],_ when zero = BI.zero -> Inc[BI.zero]
-    | _,Inc[zero] when zero = BI.zero -> Inc[BI.zero]
+  let mul ikind a b =
+    match a, b with
+    | Inc one,x when ISet.is_singleton one && ISet.any one = BI.one -> x
+    | x,Inc one when ISet.is_singleton one && ISet.any one = BI.one -> x
+    | Inc zero,_ when ISet.is_singleton zero && ISet.any zero = BI.zero -> a
+    | _,Inc zero when ISet.is_singleton zero && ISet.any zero = BI.zero -> b
     | x,y -> lift2 I.mul ikind x y
-  let div ikind = curry @@ function
-    | x,Inc[one] when one = BI.one -> x
-    | Inc[zero],_ when zero = BI.zero -> Inc[BI.zero]
-    | _,Inc[zero] when zero = BI.zero -> top_of ikind
+
+  let div ikind a b = match a, b with
+    | x,Inc one when ISet.is_singleton one && ISet.any one = BI.one -> x
+    | Inc zero,_ when ISet.is_singleton zero && ISet.any zero = BI.zero -> a
+    | _,Inc zero when ISet.is_singleton zero && ISet.any zero = BI.zero -> top_of ikind
     | x,y -> lift2 I.div ikind x y
+
   let rem = lift2 I.rem
   let lt = lift2 I.lt
   let gt = lift2 I.gt
@@ -2055,25 +2046,25 @@ module Enums : S with type int_t = BigInt.t = struct
   let logand = lift2 I.logand
   let logor  = lift2 I.logor
 
-  let of_bool ikind x = Inc [if x then BI.one else BI.zero]
+  let of_bool ikind x = Inc (ISet.singleton (if x then BI.one else BI.zero))
   let to_bool  = function
-    | Inc [] | Exc ([],_) -> None
-    | Inc [zero] when zero = BI.zero -> Some false
-    | Inc xs when List.for_all ((<>) BI.zero) xs -> Some true
-    | Exc (xs,_) when List.exists ((=) BI.zero) xs -> Some true
+    | Inc e when ISet.is_empty e -> None
+    | Exc (e,_) when ISet.is_empty e -> None
+    | Inc zero when ISet.is_singleton zero && ISet.any zero = BI.zero -> Some false
+    | Inc xs when ISet.for_all ((<>) BI.zero) xs -> Some true
+    | Exc (xs,_) when ISet.exists ((=) BI.zero) xs -> Some true
     | _ -> None
   let is_bool = BatOption.is_some % to_bool
-  let to_int = function Inc [x] -> Some x | _ -> None
+  let to_int = function Inc x when ISet.is_singleton x -> Some (ISet.any x) | _ -> None
   let is_int = BatOption.is_some % to_int
 
-  let to_excl_list = function Exc (x,r) when x<>[] -> Some x | _ -> None
-  let of_excl_list t x = Exc (x, size t)
+  let to_excl_list = function Exc (x,r) when not (ISet.is_empty x) -> Some (ISet.to_list x) | _ -> None
+  let of_excl_list t x = Exc (ISet.of_list x, size t)
   let is_excl_list = BatOption.is_some % to_excl_list
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
-  let maximal = function Inc xs when xs<>[] -> Some (List.last xs) | _ -> None
-  let minimal = function Inc (x::xs) -> Some x | _ -> None
-  (* let of_incl_list xs = failwith "TODO" *)
+  let maximal = function Inc xs when not (ISet.is_empty xs) -> Some (ISet.max_elt xs) | _ -> None
+  let minimal = function Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs) | _ -> None
 
   let invariant_ikind c ik x =
     let c = Cil.(Lval (Option.get c.Invariant.lval)) in
@@ -2082,21 +2073,21 @@ module Enums : S with type int_t = BigInt.t = struct
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik (Big x), intType)) in
           Invariant.(a || i)
-        ) Invariant.none ps
+        ) Invariant.none (ISet.to_list ps)
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik (Big x), intType)) in
           Invariant.(a && i)
-        ) Invariant.none ns
+        ) Invariant.none (ISet.to_list ns)
 
   let arbitrary () =
     let open QCheck.Iter in
     let i_list_arb = QCheck.small_list (MyCheck.Arbitrary.big_int) in
-    let neg is = Exc (is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
-    let pos is = Inc is in
+    let neg is = Exc (ISet.of_list is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
+    let pos is = Inc (ISet.of_list is) in
     let shrink = function
-      | Exc (is, _) -> MyCheck.shrink i_list_arb is >|= neg (* S TODO: possibly shrink neg to pos *)
-      | Inc is -> MyCheck.shrink i_list_arb is >|= pos
+      | Exc (is, _) -> MyCheck.shrink i_list_arb (ISet.to_list is) >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Inc is -> MyCheck.shrink i_list_arb (ISet.to_list is) >|= pos
     in
     QCheck.frequency ~shrink ~print:(short 10000) [
       20, QCheck.map neg i_list_arb;
