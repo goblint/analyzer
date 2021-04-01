@@ -157,7 +157,7 @@ class loopBreaksVisitor (fd : fundec) = object(self)
     DoChildren
 end
 
-
+let instrumentedVars : (location, lval) Hashtbl.t = Hashtbl.create 13 (* loop location -> lval *)
 class loopCounterVisitor (fd : fundec) = object(self)
 inherit nopCilVisitor
 method! vstmt s =
@@ -165,6 +165,7 @@ method! vstmt s =
     | Loop (b, loc, _, _) -> 
       (* insert loop counter variable *)
       let t = var @@ makeVar fd loc "t" in
+      Hashtbl.add instrumentedVars loc t;
       (* initialise the loop counter to 0 *)
       let t_init = mkStmtOneInstr @@ Set (t, zero, loc) in
       (* increment the loop counter by 1 in every iteration *)
@@ -179,13 +180,13 @@ method! vstmt s =
       s
     | _ when Hashtbl.mem loopBreaks s.sid -> (* after a loop, we check that t is bounded/positive (no overflow happened) *)
       let loc = Hashtbl.find loopBreaks s.sid in
-      let t = var @@ makeVar fd loc "t" in
+      let t = Hashtbl.find instrumentedVars loc in
       let e1 = BinOp (Ge, Lval t, zero, intType) in
       let e2 = BinOp (Lt, Lval t, Const(CInt64(Int64.max_int, IInt, None)), intType) in
       let inv1 = mkStmtOneInstr @@ Call (None, f_check, [e1], loc) in
       let inv2 = mkStmtOneInstr @@ Call (None, f_check, [e2], loc) in
       let nb = mkBlock [mkStmt s.skind; inv1; inv2] in
-      s.skind <- Block nb;
+      s.skind <- Block nb; 
       s
     | _ -> s
   in ChangeDoChildrenPost (s, action)
