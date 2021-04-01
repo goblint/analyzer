@@ -1878,7 +1878,6 @@ module Enums : S with type int_t = BigInt.t = struct
   type int_t = BI.t
   let name () = "enums"
   let to_yojson x = failwith @@ "to_yojson unimplemented for " ^ (name ())
-  let top_range = R.of_interval range_ikind (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
 
   let bot () = failwith "bot () not implemented for Enums"
   let top_of ik = Exc (ISet.empty, size ik)
@@ -1901,7 +1900,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let norm ikind v =
     let min, max = min_int ikind, max_int ikind in
-    (* Whether the value v lies within the values of the specied ikind. *)
+    (* Whether the value v lies within the values of the specified ikind. *)
     let value_in_ikind v =
       I.compare min v <= 0 && I.compare v max <= 0
     in
@@ -1944,7 +1943,6 @@ module Enums : S with type int_t = BigInt.t = struct
       else (build_set (ISet.add start_num set) (BI.add start_num (BI.of_int 1)) end_num) in
     Inc (build_set ISet.empty x y)
 
-  (* let merge_sub x y = Set.(diff (of_list x) (of_list y) |> to_list) *)
   let join_ignore_ikind = curry @@ function
   | Inc x, Inc y -> Inc (ISet.union x y)
   | Exc (x,r1), Exc (y,r2) -> Exc (ISet.inter x y, R.join r1 r2)
