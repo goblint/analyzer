@@ -180,9 +180,11 @@ method! vstmt s =
     | _ when Hashtbl.mem loopBreaks s.sid -> (* after a loop, we check that t is bounded/positive (no overflow happened) *)
       let loc = Hashtbl.find loopBreaks s.sid in
       let t = var @@ makeVar fd loc "t" in
-      let e3 = BinOp (Ge, Lval t, zero, intType) in
-      let inv3 = mkStmtOneInstr @@ Call (None, f_check, [e3], loc) in
-      let nb = mkBlock [mkStmt s.skind; inv3] in
+      let e1 = BinOp (Ge, Lval t, zero, intType) in
+      let e2 = BinOp (Lt, Lval t, Const(CInt64(Int64.max_int, IInt, None)), intType) in
+      let inv1 = mkStmtOneInstr @@ Call (None, f_check, [e1], loc) in
+      let inv2 = mkStmtOneInstr @@ Call (None, f_check, [e2], loc) in
+      let nb = mkBlock [mkStmt s.skind; inv1; inv2] in
       s.skind <- Block nb;
       s
     | _ -> s
