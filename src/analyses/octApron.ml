@@ -107,10 +107,11 @@ struct
             | Some lv ->
               D.remove_all ctx.local [f.vname]
             | _ -> ctx.local)
-        | `ThreadJoin (id,ret_var) -> D.topE (A.env ctx.local)
-        | `ThreadCreate _ -> D.topE (A.env ctx.local)
-        | `Lock (_, _, _) -> D.topE (A.env ctx.local)
-        | `Unlock ->  D.topE (A.env ctx.local)
+        | `ThreadJoin (id,ret_var) -> 
+            let nd = ctx.local in
+            invalidate nd [ret_var];
+            nd
+        | `ThreadCreate _ -> ctx.local
         | _ ->
           begin
             let st =
