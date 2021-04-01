@@ -1415,6 +1415,53 @@ struct
     Priv.finalize ()
 end
 
+module TracingPriv (Priv: S): S with module D = Priv.D =
+struct
+  include Priv
+
+  let read_global ask getg st x =
+    if M.tracing then M.traceli "priv" "read_global %a\n" d_varinfo x;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let v = Priv.read_global ask getg st x in
+    if M.tracing then M.traceu "priv" "-> %a\n" VD.pretty v;
+    v
+
+  let write_global ask getg sideg st x v =
+    if M.tracing then M.traceli "priv" "write_global %a %a\n" d_varinfo x VD.pretty v;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      sideg x v
+    in
+    let r = write_global ask getg sideg st x v in
+    if M.tracing then M.traceu "priv" "\n";
+    r
+
+  let unlock ask getg sideg st m =
+    if M.tracing then M.traceli "priv" "unlock %a\n" LockDomain.Addr.pretty m;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      sideg x v
+    in
+    let r = unlock ask getg sideg st m in
+    if M.tracing then M.traceu "priv" "\n";
+    r
+
+end
+
 let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
@@ -1437,6 +1484,7 @@ let priv_module: (module S) Lazy.t =
     in
     let module Priv = PrecisionDumpPriv (Priv) in
     (* let module Priv = StatsPriv (Priv) in *)
+    let module Priv = TracingPriv (Priv) in
     (module Priv)
   )
 
