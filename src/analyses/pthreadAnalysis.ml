@@ -8,16 +8,27 @@ open BatteriesExceptionless
 open Option.Infix
 
 module Flags = struct
-  type t = AssumeSuccess
+  type t =
+    | AssumeSuccess
+    | IgnoreAssigns
 
-  let default_value = function AssumeSuccess -> true
+  let all = [ AssumeSuccess; IgnoreAssigns ]
+
+  let default_value = function AssumeSuccess -> true | IgnoreAssigns -> true
 
   let description = function
     | AssumeSuccess ->
         "Assume that all POSIX pthread functions succeed."
+    | IgnoreAssigns ->
+        "Ignors any assigns in POSIX programs"
 
 
-  let show = function AssumeSuccess -> "ana.pthread.assume_success"
+  let show = function
+    | AssumeSuccess ->
+        "ana.pthread.assume_success"
+    | IgnoreAssigns ->
+        "ana.pthread.ignore_assign"
+
 
   let eval = GobConfig.get_bool % show
 end
@@ -475,7 +486,11 @@ module Variables = struct
    * var must not be set to top *)
   let valid_var tid var =
     if Variable.is_global var
-    then not (is_top tid var)
+    then
+      !table
+      |> Hashtbl.values
+      |> List.of_enum
+      |> List.exists (Set.exists (( = ) (Var var)))
     else
       Set.exists (( = ) (Var var)) @@ Hashtbl.find_default !table tid Set.empty
 
@@ -947,12 +962,17 @@ module Spec : Analyses.Spec = struct
   let init () = LibraryFunctions.add_lib_funs Function.supported
 
   let assign ctx (lval : lval) (rval : exp) : D.t =
-    if Option.is_none !MyCFG.current_node
-    then (
-      M.debug_each "assign: MyCFG.current_node not set :(" ;
-      ctx.local )
-    else if PthreadDomain.D.is_bot ctx.local
+    if PthreadDomain.D.is_bot ctx.local || Flags.eval Flags.IgnoreAssigns
     then ctx.local
+    else if Option.is_none !MyCFG.current_node
+    then (
+      (* it is global var assignment *)
+      let var_opt = Variable.make_from_lval lval in
+      if Variables.all_vars_are_valid ctx rval
+         (* TODO: handle the assignment of the global *)
+      then Option.may (Variables.add (-1)) var_opt
+      else Option.may (Variables.add_top (-1)) var_opt ;
+      ctx.local )
     else
       let env = Env.get ctx in
       let d = Env.d env in

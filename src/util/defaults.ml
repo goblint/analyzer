@@ -136,8 +136,8 @@ let _ = ()
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
       ; (let open PthreadAnalysis.Flags in
-         let flag = AssumeSuccess in
-          reg Analyses (show flag) (string_of_bool @@ default_value flag) (description flag))
+         let register f = reg Analyses (show f) (string_of_bool @@ default_value f) (description f) in
+         List.iter register all)
 
 (* {4 category [Transformations]} *)
 let _ = ()
