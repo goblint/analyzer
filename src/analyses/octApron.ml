@@ -109,6 +109,8 @@ struct
             | _ -> ctx.local)
         | `ThreadJoin (id,ret_var) -> D.topE (A.env ctx.local)
         | `ThreadCreate _ -> D.topE (A.env ctx.local)
+        | `Lock (_, _, _) -> D.topE (A.env ctx.local)
+        | `Unlock ->  D.topE (A.env ctx.local)
         | _ ->
           begin
             let st =
