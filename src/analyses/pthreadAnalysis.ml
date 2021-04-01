@@ -7,6 +7,16 @@ open Deriving.Cil
 open BatteriesExceptionless
 open Option.Infix
 
+class uniqueVarPrinterClass =
+  object (self)
+    inherit defaultCilPrinterClass
+
+    method! pVar (v : varinfo) =
+      text v.vname ++ chr '_' ++ text (string_of_int v.vid)
+  end
+
+let printer = new uniqueVarPrinterClass
+
 module Flags = struct
   type t =
     | AssumeSuccess
@@ -419,7 +429,7 @@ module Variable = struct
 
   let make_from_lval (lhost, _) = make_from_lhost lhost
 
-  let show = sprint d_varinfo
+  let show = sprint (fun () -> printer#pVar)
 
   let show_def v = "int " ^ show v ^ ";"
 end
@@ -989,7 +999,7 @@ module Spec : Analyses.Spec = struct
         let var = Option.get var_opt in
 
         let lhs_str = Variable.show var in
-        let rhs_str = sprint d_exp rval in
+        let rhs_str = sprint printer#pExp rval in
         Edges.add env @@ Action.Assign (lhs_str, rhs_str) ;
 
         Variables.add tid var ;
