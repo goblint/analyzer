@@ -2004,8 +2004,8 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let div ikind a b = match a, b with
     | x,Inc one when ISet.is_singleton one && ISet.any one = BI.one -> x
-    | Inc zero,_ when ISet.is_singleton zero && ISet.any zero = BI.zero -> a
     | _,Inc zero when ISet.is_singleton zero && ISet.any zero = BI.zero -> top_of ikind
+    | Inc zero,_ when ISet.is_singleton zero && ISet.any zero = BI.zero -> a
     | x,y -> lift2 I.div ikind x y
 
   let rem = lift2 I.rem
