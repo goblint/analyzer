@@ -1129,8 +1129,11 @@ struct
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
-      sideg (mutex_global x) (GWeak.add s (GWeakW.add s v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
+    if not (!GU.earlyglobs && is_precious_glob x) then (
+      let v_init = GWeakW.find (lockset_init ()) (GWeak.find (Lockset.empty ()) (fst (getg (mutex_global x)))) in
+      let v = VD.join v v_init in
+      sideg (mutex_global x) (GWeak.add s (GWeakW.add s v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ())
+    );
     (* TODO: publish all g under M_g? *)
     {st with cpa = cpa'; priv = (w', p')}
 
@@ -1147,6 +1150,8 @@ struct
           let w_x = W.find x w in
           if M.tracing then M.trace "priv" "gsyncw %a %a %a\n" d_varinfo x VD.pretty v MinLocksets.pretty w_x;
           MinLocksets.fold (fun w acc ->
+              let v_init = GWeakW.find (lockset_init ()) (GWeak.find (Lockset.empty ()) (fst (getg (mutex_global x)))) in
+              let v = VD.join v v_init in
               GSyncW.add w (CPA.add x v (GSyncW.find w acc)) acc
             ) w_x acc
         ) else
