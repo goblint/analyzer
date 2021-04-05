@@ -2,16 +2,15 @@ open! Defaults (* CircInterval / Enums / ... need initialized conf *)
 open! Batteries
 open Prelude
 open Ana
+open PrivPrecCompareUtil
 
 module VD = BaseDomain.VD
-(* TODO: share with PrecisionDumpPriv *)
-module LVH = Hashtbl.Make (Printable.Prod (Basetype.ProgLines) (Basetype.Variables))
 
 let load filename =
   let f = open_in_bin filename in
-  let lvh: VD.t LVH.t = Marshal.from_channel f in
+  let dump: dump = Marshal.from_channel f in
   close_in_noerr f;
-  lvh
+  dump
 
 module Comparison =
 struct
@@ -45,8 +44,8 @@ end
 
 let compare_dumps filename1 filename2 =
   (* TODO: don't load multiple times *)
-  let lvh1 = load filename1 in
-  let lvh2 = load filename2 in
+  let {name = name1; lvh = lvh1} = load filename1 in
+  let {name = name2; lvh = lvh2} = load filename2 in
   let lvh = LVH.merge (fun k v1 v2 -> Some (v1, v2)) lvh1 lvh2 in
   let compared = LVH.map (fun (l, x) (v1, v2) ->
       let v1 = v1 |? VD.bot () in
@@ -62,7 +61,7 @@ let compare_dumps filename1 filename2 =
         ++
         (if VD.leq v2 v1 then nil else dprintf "reverse diff: %a\n" VD.pretty_diff (v2, v1))
       in
-      let msg = Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" filename1 (Comparison.to_string_infix c) filename2 filename1 VD.pretty v1 (Comparison.to_string_infix c) filename2 VD.pretty v2 diff in
+      let msg = Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 VD.pretty v1 (Comparison.to_string_infix c) name2 VD.pretty v2 diff in
       (c, msg)
     ) lvh
   in
@@ -73,7 +72,7 @@ let compare_dumps filename1 filename2 =
         ignore (Pretty.printf "%a %a: %t\n" d_loc l d_varinfo x (fun () -> msg))
     ) compared;
   let c = LVH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.Equal in
-  let msg = Pretty.dprintf "%s %s %s" filename1 (Comparison.to_string_infix c) filename2 in
+  let msg = Pretty.dprintf "%s %s %s" name1 (Comparison.to_string_infix c) name2 in
   (c, msg)
 
 let () =
