@@ -73,9 +73,17 @@ module WP =
           (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
         let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
         let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
-        HM.iter (fun k _ -> Hashtbl.modify_def 1 (str k) ((+)1) histo) rho;
-        let ks,n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
-        ignore @@ Pretty.printf "max #contexts: %d for %s\n" n ks
+        let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
+        HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 1 (str k) ((+)1) histo) rho;
+        (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
+        (* ignore @@ Pretty.printf "max #contexts: %d for %s\n" n max_k; *)
+        let ncontexts = Hashtbl.fold (fun _ -> (+)) histo 0 in
+        let topn = 5 in
+        Printf.printf "Found %d contexts for %d functions. Top %d functions:\n" ncontexts (Hashtbl.length histo) topn;
+        Hashtbl.to_list histo
+        |> List.sort (fun (_,n1) (_,n2) -> compare n2 n1)
+        |> List.take topn
+        |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k;
       in
 
       if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
