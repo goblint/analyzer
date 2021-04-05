@@ -970,10 +970,10 @@ struct
   let event ctx e octx =
     let st: store = ctx.local in
     match e with
-    | Events.Lock addr when ThreadFlag.is_multi ctx.ask ->
+    | Events.Lock addr when ThreadFlag.is_multi ctx.ask -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       Priv.lock octx.ask octx.global st addr
-    | Events.Unlock addr when ThreadFlag.is_multi ctx.ask ->
+    | Events.Unlock addr when ThreadFlag.is_multi ctx.ask -> (* TODO: is this condition sound? *)
       Priv.unlock octx.ask octx.global octx.sideg st addr
     | Events.Escape escaped ->
       Priv.escape octx.ask octx.global octx.sideg st escaped
