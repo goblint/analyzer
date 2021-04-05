@@ -982,9 +982,9 @@ struct
     | _ ->
       ctx.local
 
-  let update_variable variable value cpa =
+  let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top ()) cpa
+      CPA.add variable (VD.top_value typ) cpa
     else
       CPA.add variable value cpa
 
@@ -1012,9 +1012,9 @@ struct
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
   let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
-    let update_variable x y z =
+    let update_variable x t y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
-      let r = update_variable x y z in (* refers to defintion that is outside of set *)
+      let r = update_variable x t y z in (* refers to defintion that is outside of set *)
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
@@ -1121,13 +1121,13 @@ struct
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
                 VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
             in
-            { st with cpa = update_variable arr nval st.cpa }
+            { st with cpa = update_variable arr arr.vtype nval st.cpa }
           in
           (* change_array is false if a change to the way arrays are partitioned is not necessary *)
           (* for now, this is only the case when guards are evaluated *)
           List.fold_left (fun x y -> effect_on_array change_array y x) st affected_arrays
         in
-        let x_updated = update_variable x new_value st.cpa in
+        let x_updated = update_variable x t new_value st.cpa in
         let with_dep = add_partitioning_dependencies x new_value {st with cpa = x_updated } in
         effect_on_arrays a with_dep
       end
@@ -1176,7 +1176,7 @@ struct
       let effect_on_array arr st =
         let v = CPA.find arr st in
         let nval = VD.affect_move ~replace_with_const:(get_bool ("exp.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
-        update_variable arr nval st
+        update_variable arr arr.vtype nval st
       in
       { st with cpa = List.fold_left (fun x y -> effect_on_array y x) st.cpa affected_arrays }
     in
@@ -1552,6 +1552,7 @@ struct
       inv_exp itv exp st
 
   let set_savetop ?ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
+    if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
     match v with
     | `Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
     | v -> set ~ctx ask gs st adr lval_t v ?lval_raw ?rval_raw
