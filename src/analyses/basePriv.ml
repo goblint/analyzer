@@ -981,6 +981,10 @@ struct
       else
         GWeak.find (lockset_init ()) weaks
     in
+    if M.tracing then M.trace "priv" "d_cpa: %a\n" VD.pretty d_cpa;
+    if M.tracing then M.trace "priv" "d_sync: %a\n" VD.pretty d_sync;
+    if M.tracing then M.trace "priv" "d_weak: %a\n" VD.pretty d_weak;
+    if M.tracing then M.trace "priv" "d_init: %a\n" VD.pretty d_init;
     let d_weak = VD.join d_weak d_init in
     let d = VD.join d_cpa (VD.join d_sync d_weak) in
     d
