@@ -78,7 +78,9 @@ let compare_dumps filename1 filename2 =
 
 let () =
   let filenames = List.tl (Array.to_list Sys.argv) in
-  List.cartesian_product filenames filenames
-  |> List.filter (fun (filename1, filename2) -> String.compare filename1 filename2 < 0)
+  let i_filenames = List.mapi (fun i filename -> (i, filename)) filenames in
+  List.cartesian_product i_filenames i_filenames
+  |> List.filter (fun ((i1, _), (i2, _)) -> i1 < i2)
+  |> List.map (Tuple2.map snd snd)
   |> List.map (uncurry compare_dumps)
   |> List.iter (fun (_, msg) -> ignore (Pretty.printf "%t\n" (fun () -> msg)))
