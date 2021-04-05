@@ -1116,6 +1116,9 @@ struct
           acc
       ) weaks (VD.bot ())
     in
+    if M.tracing then M.trace "priv" "d_cpa: %a\n" VD.pretty d_cpa;
+    if M.tracing then M.trace "priv" "d_sync: %a\n" VD.pretty d_sync;
+    if M.tracing then M.trace "priv" "d_weak: %a\n" VD.pretty d_weak;
     let d = VD.join d_cpa (VD.join d_sync d_weak) in
     d
 
@@ -1419,8 +1422,11 @@ module TracingPriv (Priv: S): S with module D = Priv.D =
 struct
   include Priv
 
+  module BaseComponents = BaseComponents (D)
+
   let read_global ask getg st x =
     if M.tracing then M.traceli "priv" "read_global %a\n" d_varinfo x;
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
@@ -1432,6 +1438,7 @@ struct
 
   let write_global ask getg sideg st x v =
     if M.tracing then M.traceli "priv" "write_global %a %a\n" d_varinfo x VD.pretty v;
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
@@ -1442,11 +1449,24 @@ struct
       sideg x v
     in
     let r = write_global ask getg sideg st x v in
-    if M.tracing then M.traceu "priv" "\n";
+    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    r
+
+  let lock ask getg st m =
+    if M.tracing then M.traceli "priv" "lock %a\n" LockDomain.Addr.pretty m;
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let r = lock ask getg st m in
+    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
   let unlock ask getg sideg st m =
     if M.tracing then M.traceli "priv" "unlock %a\n" LockDomain.Addr.pretty m;
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
@@ -1457,7 +1477,7 @@ struct
       sideg x v
     in
     let r = unlock ask getg sideg st m in
-    if M.tracing then M.traceu "priv" "\n";
+    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
 end
