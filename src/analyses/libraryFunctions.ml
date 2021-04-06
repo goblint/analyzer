@@ -322,6 +322,7 @@ let invalidate_actions = ref [
     "svcudp_create", readsAll;(*safe*)
     "svc_register", writesAll;(*unsafe*)
     "sleep", readsAll;(*safe*)
+    "usleep", readsAll;
     "svc_run", writesAll;(*unsafe*)
     "dup", readsAll; (*safe*)
     "__builtin_expect", readsAll; (*safe*)
