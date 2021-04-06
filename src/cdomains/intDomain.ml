@@ -1861,7 +1861,7 @@ module Booleans = MakeBooleans (
     let falsename = "False"
   end)
 
-(* Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
+(* Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
 module Enums : S with type int_t = BigInt.t = struct
   open Batteries
   module I = BigInt
@@ -1937,7 +1937,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let of_int ikind x = cast_to ikind (Inc (ISet.singleton x))
 
-  let of_interval ik (x,y) = (* TODO this implementation might lead to very big lists; also use ana.int.enums_max? *)
+  let of_interval ik (x,y) = (* TODO this implementation might lead to very big lists; use some configurable limit? *)
     let rec build_set set start_num end_num =
       if start_num > end_num then set
       else (build_set (ISet.add start_num set) (BI.add start_num (BI.of_int 1)) end_num) in
