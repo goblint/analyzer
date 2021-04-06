@@ -1238,6 +1238,13 @@ struct
 
   let lockset_init () = Lockset.All
 
+  let distr_init getg x v =
+    if get_bool "exp.priv-distr-init" then
+      let v_init = GWeakW.find (lockset_init ()) (GWeak.find (Lockset.empty ()) (fst (getg (mutex_global x)))) in
+      VD.join v v_init
+    else
+      v
+
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     let (l, w, p) = st.priv in
@@ -1308,8 +1315,10 @@ struct
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
-      sideg (mutex_global x) (GWeak.add s (GWeakW.add s v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ());
+    if not (!GU.earlyglobs && is_precious_glob x) then (
+      let v = distr_init getg x v in
+      sideg (mutex_global x) (GWeak.add s (GWeakW.add s v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ())
+    );
     (* TODO: publish all g under M_g? *)
     {st with cpa = cpa'; priv = (l, w', p')}
 
@@ -1326,6 +1335,7 @@ struct
     let side_gsyncw = CPA.fold (fun x v acc ->
         if is_global ask x then
           MinLocksets.fold (fun w acc ->
+              let v = distr_init getg x v in
               GSyncW.add w (CPA.add x v (GSyncW.find w acc)) acc
             ) (W.find x w) acc
         else
