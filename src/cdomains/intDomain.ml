@@ -1970,11 +1970,8 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let leq x y = equal (join_ignore_ikind x y) y
 
-  let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
-
   let lift1 f ikind v = norm ikind @@ match v with
     | Inc x when ISet.is_singleton x -> Inc (ISet.singleton (f (ISet.any x)))
-    | Inc xs when ISet.cardinal xs <= max_elems () -> Inc (ISet.map f xs)
     | _ -> top_of ikind
 
   let lift2 f (ikind: Cil.ikind) u v = norm ikind @@ match u, v with
