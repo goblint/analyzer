@@ -1887,9 +1887,9 @@ module Enums : S with type int_t = BigInt.t = struct
   let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
 
-  let equal x y = match x, y with
-    | Inc a, Inc b -> ISet.equal a b
-    | Exc (a, r), Exc (b, s) -> ISet.equal a b && R.equal r s
+  let equal u v = match u, v with
+    | Inc x, Inc y -> ISet.equal x y
+    | Exc (x, r), Exc (y, s) -> ISet.equal x y && R.equal r s
     | _, _ -> false
   let short _ = function
     | Inc xs when ISet.is_empty xs -> "bot"
@@ -1897,6 +1897,27 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) (ISet.to_list xs))) ^ "} " ^ "("^R.short 2 r^")"
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+
+  let compare a b =
+    let value c =
+      match c with Inc _ -> 0 | Exc _ -> 1
+    in
+    match a, b with
+    | Inc x, Inc y -> ISet.compare x y
+    | Exc (x,r), Exc (y, s) ->
+        let comp_sets = ISet.compare x y in
+        if comp_sets = 0 then R.compare r s else comp_sets
+    | _, _ -> compare (value a) (value b)
+
+  let hash = function
+    | Inc x ->
+      let m = match BI.to_int (ISet.min_elt x) with n -> n | exception Not_found -> 41 | exception Failure _ -> 61 in (* Failure occurs when the conversion to int did not work, Not_found occurs when the set is empty *)
+      let n = match BI.to_int (ISet.max_elt x) with n -> n | exception Not_found -> 43 | exception Failure _ -> 67 in
+      3  * ISet.cardinal x + 7 * m + 13 * n
+    | Exc (x, r) ->
+      let m = match BI.to_int (ISet.min_elt x) with n -> n | exception Not_found  -> 53 | exception Failure _ -> 71 in
+      let n = match BI.to_int (ISet.max_elt x) with n -> n | exception Not_found  -> 59 | exception Failure _ -> 73 in
+      R.hash r + 5  * ISet.cardinal x + 11 * m + 19 * n
 
   let norm ikind v =
     let min, max = min_int ikind, max_int ikind in
@@ -1966,7 +1987,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (y,r), Inc x -> Inc (ISet.diff x y)
 
   let widen = join
-  let narrow i x y = x
+  let narrow = meet
 
   let leq x y = equal (join_ignore_ikind x y) y
 
