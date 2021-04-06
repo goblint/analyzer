@@ -280,7 +280,7 @@ let merge_preprocessed cpp_file_names =
 
   (* create the Control Flow Graph from CIL's AST *)
   Cilfacade.createCFG merged_AST;
-  Cilfacade.ugglyImperativeHack := merged_AST;
+  Cilfacade.current_file := merged_AST;
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
@@ -313,7 +313,7 @@ let do_analyze change_info merged_AST =
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
           raise x
-          (* Cilfacade.ugglyImperativeHack := ast'; *)
+          (* Cilfacade.current_file := ast'; *)
       in
       (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
          new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
@@ -454,9 +454,13 @@ let main =
         do_stats ();
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
-        if !Messages.worldStopped then exit 124 (* timeout! *)
-      with Exit -> exit 1
+      with
+        | Exit ->
+          exit 1
+        | Timeout ->
+          Printexc.print_backtrace BatInnerIO.stderr;
+          exit 124
     )
 
-let _ =
-  at_exit main
+(* The actual entry point is in the auto-generated goblint.ml module, and it is defined as: *)
+(* let _ = at_exit main *)

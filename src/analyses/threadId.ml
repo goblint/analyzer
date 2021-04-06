@@ -64,11 +64,6 @@ struct
   let special ctx lval f args =
     ctx.local
 
-  let query ctx x =
-    match x with
-    | Queries.CurrentThreadId -> `Varinfo ctx.local
-    | _ -> `Top
-
   let is_unique ctx =
     match ctx.ask Queries.MustBeUniqueThread with
     | `MustBool true -> true
@@ -83,11 +78,18 @@ struct
     else
       (Access.LSSSet.singleton es, es)
 
+  let query ctx x =
+    match x with
+    | Queries.CurrentThreadId -> `Varinfo ctx.local
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
+    | _ -> `Top
+
   let threadenter ctx lval f args =
-    create_tid f
+    [create_tid f]
 
   let threadspawn ctx lval f args fctx =
-    ThreadLifted.bot ()
+    ctx.local
 end
 
 let _ =

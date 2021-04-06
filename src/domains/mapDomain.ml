@@ -33,7 +33,6 @@ sig
   val map2: (value -> value -> value) -> t -> t -> t
   val long_map2: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
-  (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
 
   val cardinal: t -> int
   val choose: t -> key * value
@@ -457,18 +456,18 @@ struct
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
     let p key value =
-      not (try Range.leq value (find key m2) with Not_found -> true)
+      not (try Range.leq (find key m1) value with Not_found -> false)
     in
     let report key v1 v2 =
       Pretty.dprintf "Map: %a =@?@[%a@]"
         Domain.pretty key Range.pretty_diff (v1,v2)
     in
     let diff_key k v = function
-      | None   when p k v -> Some (report k v (find k m2))
-      | Some w when p k v -> Some (w++Pretty.line++report k v (find k m2))
+      | None   when p k v -> Some (report k (find k m1) v)
+      | Some w when p k v -> Some (w++Pretty.line++report k (find k m1) v)
       | x -> x
     in
-    match fold diff_key m1 None with
+    match fold diff_key m2 None with
     | Some w -> w
     | None -> Pretty.dprintf "No binding grew."
 end

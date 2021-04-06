@@ -164,7 +164,7 @@ struct
   let to_bigint = Big_int_Z.big_int_of_int64
 end
 
-module BigIntOps : IntOps with type t = Big_int_Z.big_int =
+module BigIntOps =
 struct
   type t = Big_int_Z.big_int
   let zero = Big_int_Z.zero_big_int
@@ -179,6 +179,7 @@ struct
   let div = Big_int_Z.div_big_int
   let rem = Big_int_Z.mod_big_int
 
+  let pred x = Big_int_Z.sub_big_int x Big_int_Z.unit_big_int
   let shift_left = Big_int_Z.shift_left_big_int
   let shift_right = Big_int_Z.shift_right_big_int
   let logand = Big_int_Z.and_big_int
@@ -200,4 +201,13 @@ struct
   let to_string = Big_int_Z.string_of_big_int
   let of_bigint x = x
   let to_bigint x = x
+
+  let of_bool = function
+    | true -> one
+    | false -> zero
+
+  let lt x y = of_bool (compare x y < 0)
+  let gt x y = of_bool (compare x y > 0)
+  let le x y = of_bool (compare x y <= 0)
+  let ge x y = of_bool (compare x y >= 0)
 end

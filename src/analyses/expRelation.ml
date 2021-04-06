@@ -52,11 +52,11 @@ struct
     | _ -> false
 
   let query ctx (q:Queries.t) : Queries.Result.t =
-    let lvalsEq l1 l2 = Expcompare.compareExp (Lval l1) (Lval l2) in (* == would be wrong here *)
+    let lvalsEq l1 l2 = Basetype.CilExp.compareExp (Lval l1) (Lval l2) = 0 in (* == would be wrong here *)
     match q with
     | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
       begin
-        if Expcompare.compareExp (canonize e1) (canonize e2) then
+        if Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0 then
           `MustBool true
         else
           `MustBool false
@@ -112,8 +112,8 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 end
 

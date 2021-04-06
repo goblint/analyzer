@@ -66,17 +66,18 @@ struct
       let escaped = reachable ctx.ask ptc_arg in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
-      escaped
-    | _ -> D.bot ()
+      [escaped]
+    | _ -> [D.bot ()]
 
   let threadspawn ctx lval f args fctx =
-    match args with
-    | [ptc_arg] ->
-      let escaped = fctx.local in (* reuse reachable computation from threadenter *)
-      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
-        ctx.emit (Events.Escape escaped);
-      escaped
-    | _ -> D.bot ()
+    D.join ctx.local @@
+      match args with
+      | [ptc_arg] ->
+        let escaped = fctx.local in (* reuse reachable computation from threadenter *)
+        if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+          ctx.emit (Events.Escape escaped);
+        escaped
+      | _ -> D.bot ()
 end
 
 let _ =

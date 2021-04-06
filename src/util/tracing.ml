@@ -141,7 +141,7 @@ let tracec sys fmt = gtrace false printtrace sys None ignore fmt
 let traceu sys fmt =
   let f sys d = printtrace sys d; traceOutdent () in
   let g () = deactivate sys in
-  gtrace false f sys None g fmt
+  gtrace true f sys None g fmt
 
 
 let traceli sys ?var ?(subsys=[]) fmt =

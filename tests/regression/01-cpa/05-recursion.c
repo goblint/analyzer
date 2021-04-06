@@ -1,4 +1,3 @@
-// SKIP!
 #include<stdio.h>
 #include<assert.h>
 
@@ -15,32 +14,32 @@ void rec1 (int x) {
 void rec2 (int *p, int x) {
   int i = 0;
   // the first call
-  if (x == 0) { 
-    rec2(&i, 1);
+  if (x == 0) {
+    rec2(p, 1);
     *p = i;
   // the second call
-  } else { 
+  } else {
     *p = 9;
     i = 0;
   }
 }
 
 int fact(int x) {
-  if (x < 2) 
+  if (x < 2)
     return 1;
-  else 
+  else
     return x * fact (x-1);
 }
 
 int main () {
   int a = 1;
-  
+
   rec1(0);
   assert(t == 5);
 
   rec2(&a, 0);
   printf("a = %d\n", a);
-  assert(a == 9);
+  assert(a == 0);
 
   a = fact(6);
   assert(a == 720);

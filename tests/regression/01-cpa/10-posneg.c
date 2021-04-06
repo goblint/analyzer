@@ -1,3 +1,5 @@
+//PARAM: --enable ana.int.wrap_on_signed_overflow
+// Enabling ana.int.wrap_on_signed_overflow here, to retain precision for cases when a signed overflow might occcur
 #include<stdio.h>
 #include<assert.h>
 
@@ -9,6 +11,10 @@ int main() {
     return 0;
   }
   assert(k != 5);
+
+  // Signed overflows might occur in some of the following operations (e.g. the first assignment k could be MAX_INT).
+  // Signed overflows are undefined behavior, so by default we go to top when they might occur.
+  // Here we activated wrap_on_signed_overflow, so we retain precision, assuming that signed overflows are defined (via the usual two's complement representation).
 
   // simple arithmetic
   i = k + 1;

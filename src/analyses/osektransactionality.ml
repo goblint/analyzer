@@ -13,7 +13,7 @@ struct
   let violations = ref false (*print negative warnings? *)
 
   let name () = "OSEK2"
-  module D = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
+  module D = Lattice.Prod (Osektupel) (Osektupel) (* Summary x Result *)
   module C = D
   module G = Lattice.Unit
   let offpry = Osek.Spec.offensivepriorities
@@ -114,8 +114,8 @@ struct
       (ctxs, ctxr)
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   (** Finalization and other result printing functions: *)

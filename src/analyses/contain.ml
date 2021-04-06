@@ -113,7 +113,7 @@ struct
   let init () =
     init_inh_rel ();
     Printexc.record_backtrace true;
-    iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
+    iterGlobals (!Cilfacade.current_file) (function GFun (f,_) -> incr funcount| _ -> ());
     ignore (if (get_bool "allfuns") then ignore (printf "CUR VER_ALL FUNS\n"));
     let ctrl = Gc.get () in
     ctrl.Gc.verbose <- 0;
@@ -805,8 +805,8 @@ struct
       end
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 

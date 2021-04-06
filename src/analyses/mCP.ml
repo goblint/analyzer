@@ -552,108 +552,10 @@ struct
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
-    | Queries.Access(e,write,reach,conf) ->
-      if reach || write then do_access ctx write reach conf e;
-      Access.distribute_access_exp (do_access ctx) false false conf e;
-      `Bot
     | _ ->
       let x = fold_left f `Top @@ spec_list ctx.local in
       do_sideg ctx !sides;
       x
-
-  and part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
-    let open Access in
-    let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
-    let sides  = ref [] in
-    let f (po,lo) (n, (module S: MCPSpec), d) : part =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; prev_node = ctx.prev_node
-        ; control_context = ctx.control_context
-        ; context = (fun () -> ctx.context () |> assoc n |> obj)
-        ; edge   = ctx.edge
-        ; ask    = query ctx
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in part_assign context.")
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v         -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d       -> failwith "part_access::spawn")
-        ; split  = (fun d es      -> failwith "part_access::split")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> failwith "part_access::assign")
-        }
-      in
-      let (pd, ld) = S.part_access ctx' e vo w in
-      let ln = LSSet.union lo ld in
-      let mult_po s = LSSSet.union (LSSSet.map (LSSet.union s) po) in
-      let pn = LSSSet.fold mult_po pd (LSSSet.empty ())  in
-      do_sideg ctx !sides;
-      (* printf "e=%a po=%a pd=%a pn=%a\n" d_exp e LSSSet.pretty po LSSSet.pretty pd LSSSet.pretty pn; *)
-      (pn, ln)
-      (* (LSSSet.map (LSSet.add pn) po, LSSet.union lo ln) *)
-    in
-    List.fold_left f start (spec_list ctx.local)
-
-  and do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
-    let open Queries in
-    let add_access conf vo oo =
-      let (po,pd) = part_access ctx e vo w in
-      Access.add e w conf vo oo (po,pd)
-    in
-    let add_access_struct conf ci =
-      let (po,pd) = part_access ctx e None w in
-      Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
-    in
-    let has_escaped g =
-      match ctx.ask (Queries.MayEscape g) with
-      | `MayBool false -> false
-      | _ -> true
-    in
-    (* The following function adds accesses to the lval-set ls
-       -- this is the common case if we have a sound points-to set. *)
-    let on_lvals ls includes_uk =
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      let conf = if reach then conf - 20 else conf in
-      let conf = if includes_uk then conf - 10 else conf in
-      let f (var, offs) =
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
-          add_access conf None (Some coffs)
-        else
-          add_access conf (Some var) (Some coffs)
-      in
-      LS.iter f ls
-    in
-    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
-    match ctx.ask reach_or_mpt with
-    | `Bot -> ()
-    | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-      (* the case where the points-to set is non top and does not contain unknown values *)
-      on_lvals ls false
-    | `LvalSet ls when not (LS.is_top ls) ->
-      (* the case where the points-to set is non top and contains unknown values *)
-      let includes_uk = ref false in
-      (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes e) with
-        | `Bot -> ()
-        | `TypeSet ts when Queries.TS.is_top ts ->
-          includes_uk := true
-        | `TypeSet ts ->
-          if Queries.TS.is_empty ts = false then
-            includes_uk := true;
-          let f = function
-            | TComp (ci, _) ->
-              add_access_struct (conf - 50) ci
-            | _ -> ()
-          in
-          Queries.TS.iter f ts
-        | _ ->
-          includes_uk := true
-      end;
-      on_lvals ls !includes_uk
-    | _ ->
-      add_access (conf - 60) None None
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in
@@ -1031,7 +933,7 @@ struct
   let threadenter (ctx:(D.t, G.t, C.t) ctx) lval f a =
     let sides  = ref [] in
     let emits = ref [] in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -1042,7 +944,7 @@ struct
         ; ask    = query ctx
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
+        ; postsub= []
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadenter context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in threadenter context.")
@@ -1050,12 +952,12 @@ struct
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadenter context.")
         }
       in
-      n, repr @@ S.threadenter ctx' lval f a
+      map (fun d -> (n, repr d)) @@ S.threadenter ctx' lval f a
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
+    let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;
-    let d = do_emits ctx !emits d in
-    if q then raise Deadcode else d
+    (* TODO: this do_emits is now different from everything else *)
+    map (do_emits ctx !emits) @@ map topo_sort_an @@ n_cartesian_product css
 
   let threadspawn (ctx:(D.t, G.t, C.t) ctx) lval f a fctx =
     let sides  = ref [] in

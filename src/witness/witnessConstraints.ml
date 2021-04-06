@@ -373,24 +373,8 @@ struct
       try Dom.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
       with Deadcode -> xs
     in
-    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) in
+    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
-
-  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
-  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
-  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
-  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
-  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
-  let asm ctx           = map ctx Spec.asm     identity
-  let skip ctx          = map ctx Spec.skip    identity
-  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
-
-  (* TODO: do additional witness things here *)
-  let threadenter ctx lval f args = map ctx Spec.threadenter (fun h -> h lval f args)
-  let threadspawn ctx lval f args fctx =
-    let fd1 = Dom.choose (fst fctx.local) in
-    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
   let fold ctx f g h a =
     let k x a =
@@ -413,6 +397,33 @@ struct
       with Deadcode -> a
     in
     Dom.fold' k (fst ctx.local) a
+
+  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
+  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
+  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
+  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
+  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
+  let intrpt ctx        = map ctx Spec.intrpt  identity
+  let asm ctx           = map ctx Spec.asm     identity
+  let skip ctx          = map ctx Spec.skip    identity
+  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  (* TODO: do additional witness things here *)
+  let threadenter ctx lval f args =
+    let g xs x' ys =
+      let ys' = List.map (fun y ->
+          (* R.bot () isn't right here? doesn't actually matter? *)
+          let yr = R.bot () in
+          (* keep left syncs so combine gets them for no-inline case *)
+          (Dom.singleton y yr, Sync.bot ())
+        ) ys
+      in
+      ys' @ xs
+    in
+    fold' ctx Spec.threadenter (fun h -> h lval f args) g []
+  let threadspawn ctx lval f args fctx =
+    let fd1 = Dom.choose (fst fctx.local) in
+    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
   let sync ctx reason =
     fold'' ctx Spec.sync (fun h -> h reason) (fun ((a, async),b) x r (a',b') ->
@@ -486,7 +497,4 @@ struct
     in
     let d = Dom.fold k (fst d) (Dom.bot ()) in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end

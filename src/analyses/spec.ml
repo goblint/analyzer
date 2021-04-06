@@ -101,7 +101,7 @@ struct
          Multiple forwarding wildcards are not allowed, i.e. new_a must be None, otherwise we end up in a loop. *)
       if SC.is_wildcard c && fwd && new_a=None then Some (m,fwd,Some (b,a),old_key) (* replace b with a in the following checks *)
       else
-        (* save origninal start state of the constraint (needed to detect reflexive edges) *)
+        (* save original start state of the constraint (needed to detect reflexive edges) *)
         let old_a = a in
         (* Assume new_a  *)
         let a = match new_a with
@@ -227,6 +227,7 @@ struct
     | `Varinfo x -> "`Varinfo"
     | `MustBool x -> "`MustBool"
     | `MayBool x -> "`MayBool"
+    | `PartAccessResult x -> "`PartAccessResult"
     | `Bot -> "`Bot"
 
 
@@ -510,8 +511,8 @@ struct
 
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 

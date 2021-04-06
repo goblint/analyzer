@@ -76,7 +76,7 @@ let intDomains: (module IntDomain.IkindUnawareS) list = [
 ]
 
 let nonAssocIntDomains: (module IntDomain.IkindUnawareS) list = [
-  (module IntDomain.DefExc)
+  (* (module IntDomain.DefExc) *)
 ]
 
 let testsuite =
@@ -108,4 +108,4 @@ let nonAssocIntTestsuite =
     nonAssocIntDomains
   |> List.flatten
 let () =
-  QCheck_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
+  QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)

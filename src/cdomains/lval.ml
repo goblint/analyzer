@@ -533,7 +533,7 @@ struct
       match a,b with
       | `NoOffset , `NoOffset -> true
       | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Expcompare.compareExp i1 i2 -> eq o1 o2
+      | `Index (i1,o1), `Index (i2,o2) when Basetype.CilExp.compareExp i1 i2 = 0 -> eq o1 o2
       | _ -> false
     in
     x1.vid=x2.vid && eq o1 o2

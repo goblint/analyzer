@@ -23,8 +23,8 @@ struct
   let name () = "symb_locks"
 
   let startstate v = D.top ()
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let branch ctx exp tv = ctx.local
@@ -145,10 +145,6 @@ struct
     | _ ->
       ust
 
-  let query ctx (q:Queries.t) =
-    match q with
-    | _ -> Queries.Result.top ()
-
   let add_per_element_access ctx e rw =
     let module LSSet = Access.LSSet in
     (* Per-element returns a triple of exps, first are the "element" pointers,
@@ -222,6 +218,12 @@ struct
     let ls = add_per_element_access ctx e false in
     (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
     (LSSSet.singleton (LSSet.empty ()), ls)
+
+  let query ctx (q:Queries.t) =
+    match q with
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
+    | _ -> Queries.Result.top ()
 end
 
 let _ =
