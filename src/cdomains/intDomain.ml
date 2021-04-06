@@ -1964,8 +1964,6 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (x,r1), Exc (y,r2) -> Exc (ISet.union x y, R.meet r1 r2)
     | Inc x, Exc (y,r)
     | Exc (y,r), Inc x -> Inc (ISet.diff x y)
-  (* let join x y = let r = join x y in print_endline @@ "join " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
-  (* let meet x y = let r = meet x y in print_endline @@ "meet " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
 
   let widen = join
   let narrow i x y = x
