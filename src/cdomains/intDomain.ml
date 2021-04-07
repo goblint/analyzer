@@ -1870,7 +1870,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
   module ISet = struct
-    include Set.Make(I)
+    include SetDomain.Make(I)
     let is_singleton s = cardinal s = 1
   end
   type t = Inc of ISet.t | Exc of ISet.t * R.t (* inclusion/exclusion set *)
@@ -1880,9 +1880,9 @@ module Enums : S with type int_t = BigInt.t = struct
   let to_yojson x = failwith @@ "to_yojson unimplemented for " ^ (name ())
 
   let bot () = failwith "bot () not implemented for Enums"
-  let top_of ik = Exc (ISet.empty, size ik)
+  let top_of ik = Exc (ISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
-  let bot_of ik = Inc ISet.empty
+  let bot_of ik = Inc (ISet.empty ())
 
   let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
@@ -1953,7 +1953,7 @@ module Enums : S with type int_t = BigInt.t = struct
         let s' = ISet.map (I.cast_to ik) s in
         Exc (s', r')
       else (* downcast: may overflow *)
-        Exc (ISet.empty, r')
+        Exc ((ISet.empty ()), r')
     |  Inc x -> Inc (ISet.map (BigInt.cast_to ik) x)
 
   let of_int ikind x = cast_to ikind (Inc (ISet.singleton x))
@@ -1962,7 +1962,7 @@ module Enums : S with type int_t = BigInt.t = struct
     let rec build_set set start_num end_num =
       if start_num > end_num then set
       else (build_set (ISet.add start_num set) (BI.add start_num (BI.of_int 1)) end_num) in
-    Inc (build_set ISet.empty x y)
+    Inc (build_set (ISet.empty ()) x y)
 
   let join_ignore_ikind = curry @@ function
   | Inc x, Inc y -> Inc (ISet.union x y)
