@@ -1,6 +1,6 @@
 # goblint
 ![Build status](https://github.com/goblint/analyzer/workflows/build%20and%20run%20tests/badge.svg)
-[![Docker Build Status](https://img.shields.io/docker/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
+[![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
 
 ## Setup
 ### Linux / MacOS
