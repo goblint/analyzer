@@ -527,7 +527,7 @@ struct
       snd (getg x)
 
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
-    sideg x (v, VD.bot ());
+    sideg x (v, if !GU.earlyglobs then v else VD.bot ()); (* earlyglobs workaround for 13/60 *)
     if is_unprotected ask x then
       st
     else
