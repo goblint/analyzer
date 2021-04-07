@@ -1873,12 +1873,10 @@ module Enums : S with type int_t = BigInt.t = struct
     include SetDomain.Make(I)
     let is_singleton s = cardinal s = 1
   end
-  type t = Inc of ISet.t | Exc of ISet.t * R.t (* inclusion/exclusion set *)
+  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
 
   type int_t = BI.t
   let name () = "enums"
-  let to_yojson x = failwith @@ "to_yojson unimplemented for " ^ (name ())
-
   let bot () = failwith "bot () not implemented for Enums"
   let top_of ik = Exc (ISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
