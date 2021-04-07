@@ -1950,11 +1950,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let of_int ikind x = cast_to ikind (Inc (ISet.singleton x))
 
-  let of_interval ik (x,y) = (* TODO this implementation might lead to very big lists; use some configurable limit? *)
-    let rec build_set set start_num end_num =
-      if start_num > end_num then set
-      else (build_set (ISet.add start_num set) (BI.add start_num (BI.of_int 1)) end_num) in
-    Inc (build_set (ISet.empty ()) x y)
+  let of_interval ik (x,y) = if x = y then of_int ik x else top_of ik
 
   let join_ignore_ikind = curry @@ function
   | Inc x, Inc y -> Inc (ISet.union x y)
