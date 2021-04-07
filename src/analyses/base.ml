@@ -1723,8 +1723,11 @@ struct
     match fundec.svar.vname with
     | "__goblint_dummy_init"
     | "StartupHook" ->
+      if M.tracing then M.trace "init" "dummy init: %a\n" D.pretty st;
       publish_all ctx `Init;
-      st
+      (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
+      (* TODO: move into sync `Init *)
+      Priv.enter_multithreaded ctx.ask ctx.global ctx.sideg st
     | _ ->
       let locals = (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_paritioning ctx.ask ctx.local locals in

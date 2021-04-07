@@ -1504,6 +1504,22 @@ struct
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
+  let enter_multithreaded ask getg sideg st =
+    if M.tracing then M.traceli "priv" "enter_multithreaded\n";
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      sideg x v
+    in
+    let r = enter_multithreaded ask getg sideg st in
+    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    r
+
 end
 
 let priv_module: (module S) Lazy.t =
