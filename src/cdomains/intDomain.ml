@@ -1910,14 +1910,8 @@ module Enums : S with type int_t = BigInt.t = struct
     | _, _ -> compare (value a) (value b)
 
   let hash = function
-    | Inc x ->
-      let m = match BI.to_int (ISet.min_elt x) with n -> n | exception Not_found -> 41 | exception Failure _ -> 61 in (* Failure occurs when the conversion to int did not work, Not_found occurs when the set is empty *)
-      let n = match BI.to_int (ISet.max_elt x) with n -> n | exception Not_found -> 43 | exception Failure _ -> 67 in
-      3  * ISet.cardinal x + 7 * m + 13 * n
-    | Exc (x, r) ->
-      let m = match BI.to_int (ISet.min_elt x) with n -> n | exception Not_found  -> 53 | exception Failure _ -> 71 in
-      let n = match BI.to_int (ISet.max_elt x) with n -> n | exception Not_found  -> 59 | exception Failure _ -> 73 in
-      R.hash r + 5  * ISet.cardinal x + 11 * m + 19 * n
+    | Inc x -> ISet.hash x
+    | Exc (x, r) -> 31 * R.hash r + 37  * ISet.hash x
 
   let norm ikind v =
     let min, max = min_int ikind, max_int ikind in
