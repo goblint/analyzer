@@ -48,7 +48,8 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : D.t =
-    ctx.local
+    (* Initialize locals to top *)
+    List.fold (fun m l -> D.add l (I.top ()) m) ctx.local f.slocals
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
