@@ -1,3 +1,5 @@
+// SKIP
+// See https://github.com/goblint/cil/issues/29
 //PARAM: --disable ana.int.interval --disable ana.int.def_exc --enable ana.int.enums
 int main (int argc, char* argv[])
 {
