@@ -6,43 +6,13 @@ module BI = IntOps.BigIntOps
 
 module CPA =
 struct
-  include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
+  module M =
+  struct
+    include MapDomain.LiftTop (VD) (MapDomain.HashCached (MapDomain.MapBot (Basetype.Variables) (VD)))
+    let name () = "value domain"
+  end
 
-  (* TODO: remove CPA timing *)
-  (* let time str f arg = Stats.time "cpa" (Stats.time str f) arg
-
-  let equal x y = time "equal" (equal x) y
-  let compare x y = time "compare" (compare x) y
-  let hash x = time "hash" hash x
-
-  let leq x y = time "leq" (leq x) y
-  let join x y = time "join" (join x) y
-  let meet x y = time "meet" (meet x) y
-  let widen x y = time "widen" (widen x) y
-  let narrow x y = time "narrow" (narrow x) y
-
-  let add k v cpa = time "add" (add k v) cpa
-  let remove k cpa = time "remove" (remove k) cpa
-  let find k cpa = time "find" (find k) cpa
-  let find_opt k cpa = time "find_opt" (find_opt k) cpa
-  let mem k cpa = time "mem" (mem k) cpa
-  let map f cpa = time "map" (map f) cpa
-  let add_list xs cpa = time "add_list" (add_list xs) cpa
-  let add_list_set ks v cpa = time "add_list_set" (add_list_set ks v) cpa
-  let add_list_fun ks f cpa = time "add_list_fun" (add_list_fun ks f) cpa
-  let filter_class i cpa = time "filter_class" (filter_class i) cpa
-  let map2 f x y = time "map2" (map2 f x) y
-  let long_map2 f x y = time "long_map2" (long_map2 f x) y
-  let for_all f cpa = time "for_all" (for_all f) cpa
-  let iter f cpa = time "iter" (iter f) cpa
-  let fold f x a = time "fold" (fold f x) a
-  let filter f x = time "filter" (filter f) x
-  let merge f x y = time "merge" (merge f x) y
-  let leq_with_fct f x y = time "leq_with_fct" (leq_with_fct f x) y
-  let join_with_fct f x y = time "join_with_fct" (join_with_fct f x) y
-  let widen_with_fct f x y = time "widen_with_fct" (widen_with_fct f x) y *)
-
-  let name () = "value domain"
+  include M
 
   let invariant (c:Invariant.context) (m:t) =
     (* VS is used to detect and break cycles in deref_invariant calls *)
@@ -208,14 +178,13 @@ end
 
 (* The domain with an ExpEval that only returns constant values for top-level vars that are definite ints *)
 module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
-  module M = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
 
   type t = BaseComponents (PrivD).t
   let eval_exp (r: t) e =
     match e with
     | Lval (Var v, NoOffset) ->
       begin
-        match M.find v r.cpa with
+        match CPA.find v r.cpa with
         | `Int i -> ValueDomain.ID.to_int i
         | _ -> None
       end

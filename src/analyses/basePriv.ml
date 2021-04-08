@@ -1386,7 +1386,7 @@ struct
       ) st.cpa st
 end
 
-module StatsPriv (Priv: S): S with module D = Priv.D =
+module TimedPriv (Priv: S): S with module D = Priv.D =
 struct
   module D = Priv.D
   module G = Priv.G
@@ -1543,7 +1543,7 @@ let priv_module: (module S) Lazy.t =
       )
     in
     let module Priv = PrecisionDumpPriv (Priv) in
-    (* let module Priv = StatsPriv (Priv) in *)
+    (* let module Priv = TimedPriv (Priv) in *)
     let module Priv = TracingPriv (Priv) in
     (module Priv)
   )

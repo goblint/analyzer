@@ -393,7 +393,8 @@ module WidenContextLifterSide (S:Spec)
 =
 struct
   module B = WidenContextLifter (S)
-  include (B : module type of B with module C := B.C)
+  (* include (B : module type of B with module C := B.C) *)
+  include B
   (* same as WidenContextLifter, but with a different C *)
   module C = S.C
 
