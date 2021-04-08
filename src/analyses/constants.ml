@@ -9,7 +9,7 @@ struct
 
   let name () = "constants"
 
-  module I = Lattice.LiftTop(IntDomain.Integers)
+  module I = IntDomain.Flattened
   module D = MapDomain.MapBot (Basetype.Variables) (I)
   module G = Lattice.Unit
   module C = Lattice.Unit
@@ -17,18 +17,31 @@ struct
   let val_of () = D.bot ()
   let context _ = ()
 
-  let rec is_simple (e: exp) = true
-
-  let rec eval (e: exp) = I.top ()
+  let is_integer_var (v: varinfo) =
+    match v.vtype with
+      | TInt _ -> true
+      | _ -> false
 
   let get_local = function
-    | Var v, NoOffset when  not (v.vglob || v.vreferenced) -> Some v (* local variable whose address is never taken *)
+    | Var v, NoOffset when is_integer_var v && not (v.vglob || v.vaddrof) -> Some v (* local integer variable whose address is never taken *)
     | _, _ -> None
+
+  let eval (state : D.t) (e: exp) =
+    match e with
+    | Const c -> (match c with
+      | CInt64 (i,_,_) -> I.of_int i
+      | _ -> I.top ()
+      )
+    | Lval lv -> (match get_local lv with
+      | Some v -> D.find v state
+      | _ -> I.top ()
+      )
+    | _ -> I.top ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     match get_local lval with
-        | Some loc -> D.add loc (eval rval) ctx.local
+        | Some loc -> D.add loc (eval ctx.local rval) ctx.local
         | None -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
