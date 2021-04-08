@@ -16,11 +16,17 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
+    let query e = ctx.ask (Q.MayPointTo e) in
     match lval with
-      | Mem e, NoOffset -> (
-        let answer = ctx.ask (Q.MayPointTo e) in
-        match answer with
+      | Mem e, NoOffset
+      | Mem e, Index _ ->
+        (match query e with
           | `LvalSet s -> D.union ctx.local s
+          | _ -> ctx.local
+        )
+      | Mem e, Field (finfo, offs) ->
+        (match query e with
+          | `LvalSet s -> D.union ctx.local (Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset))) s)
           | _ -> ctx.local
         )
       | _, _ -> ctx.local
