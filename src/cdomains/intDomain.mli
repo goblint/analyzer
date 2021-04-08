@@ -339,8 +339,7 @@ module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) op
 module BigInt : Printable.S
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
-module DefExc
-  : S with type int_t = BigInt.t
+module DefExc : S with type int_t = BigInt.t
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
 
@@ -365,7 +364,7 @@ module Reverse (Base: IkindUnawareS): IkindUnawareS
 
 (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
-module Enums : IkindUnawareS
+module Enums : S with type int_t = BigInt.t
 
 (** {b Boolean domains} *)
 
