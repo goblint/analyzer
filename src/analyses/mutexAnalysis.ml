@@ -215,9 +215,9 @@ struct
     | _ ->
       add_access (conf - 60) None None
 
-  let access_one_top ctx write reach exp =
+  let access_one_top ?(force=false) ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    if ThreadFlag.is_multi ctx.ask then (
+    if force || ThreadFlag.is_multi ctx.ask then (
       let conf = 110 in
       if reach || write then do_access ctx write reach conf exp;
       Access.distribute_access_exp (do_access ctx) false false conf exp;
@@ -226,7 +226,6 @@ struct
   (** We just lift start state, global and dependency functions: *)
   let startstate v = Lockset.empty ()
   let threadenter ctx lval f args = [Lockset.empty ()]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = Lockset.empty ()
 
   let query ctx (q:Queries.t) : Queries.Result.t =
@@ -392,6 +391,15 @@ struct
     end;
     List.iter (access_one_top ctx false false) args;
     al
+
+
+  let threadspawn ctx lval f args fctx =
+    (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
+    begin match lval with
+    | None -> ()
+    | Some lval -> access_one_top ~force:true ctx true false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+    end;
+    ctx.local
 
   let init () =
     init ();
