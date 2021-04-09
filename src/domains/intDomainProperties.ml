@@ -42,6 +42,10 @@ struct
 
   let of_int = of_int (Ik.ikind ())
 
+  let bot () = bot_of (Ik.ikind ())
+  let top () = top_of (Ik.ikind ())
+  let is_top = is_top_of (Ik.ikind ())
+
   let name () = Pretty.(sprint ~width:80 (dprintf "%s (%a)" (name ()) Cil.d_ikind (Ik.ikind ())))
 
   let arbitrary () = QCheck.map (cast_to (Ik.ikind ())) (arbitrary ())
