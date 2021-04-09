@@ -76,6 +76,7 @@ let compare_dumps filename1 filename2 =
   (c, msg)
 
 let () =
+  Cil.initCIL (); (* ValueDomain.Compound.leq depends on ptrdiffType initialization *)
   let filenames = List.tl (Array.to_list Sys.argv) in
   let i_filenames = List.mapi (fun i filename -> (i, filename)) filenames in
   List.cartesian_product i_filenames i_filenames

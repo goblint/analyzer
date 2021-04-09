@@ -4,13 +4,13 @@
 
 set -e
 
-gcc -c -Werror=implicit-function-declaration ./ypbind_comb.c
+gcc -c -Werror=implicit-function-declaration ./iowarrior.c
 
 # OPTS="./pfscan_comb.c --enable custom_libc"
-OPTS="./ypbind_comb.c --enable allfuns"
+OPTS="./iowarrior.c --enable ana.sv-comp.functions"
 # PRIVS=(global global-read global-history mine-W mine-lazy mine-global)
-PRIVS=(global global-history)
-INTERESTING="global incomparable to global-history"
+PRIVS=(global mine-W)
+INTERESTING="mine-W: (Unknown int([0,64]))"
 OUTDIR="privPrecCompare-creduce"
 GOBLINTDIR="/home/simmo/dev/goblint/sv-comp/goblint"
 
@@ -26,4 +26,4 @@ done
 PRIVDUMPS=("${PRIVS[*]/#/$OUTDIR/}") # why [*] here?
 $GOBLINTDIR/_build/default/src/privPrecCompare.exe $PRIVDUMPS 2>&1 | tee "$OUTDIR/compare.txt"
 
-grep "$INTERESTING" "$OUTDIR/compare.txt"
+grep -F "$INTERESTING" "$OUTDIR/compare.txt"

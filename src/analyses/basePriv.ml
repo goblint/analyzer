@@ -882,7 +882,16 @@ struct
       (st, [])
 
   let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    (* required for first thread's ID set into global variable *)
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+        if is_global ask x then (
+          sideg (mutex_global x) (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ());
+          {st with priv = D.add x st.priv}
+        )
+        else
+          st
+      ) st.cpa st
 end
 
 module PreciseDomains =
