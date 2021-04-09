@@ -99,18 +99,20 @@ let ikinds: Cil.ikind list = [
 
 let testsuite =
   domains
-  |> List.concat_map (fun d ->
+  |> List.map (fun d ->
       let module D = (val d: Lattice.S) in
       let module DP = DomainProperties.All (D) in
       DP.tests
     )
+  |> List.flatten
 let nonAssocTestsuite =
   nonAssocDomains
-  |> List.concat_map (fun d ->
+  |> List.map (fun d ->
       let module D = (val d: Lattice.S) in
       let module DP = DomainProperties.AllNonAssoc (D) in
       DP.tests
     )
+  |> List.flatten
 
 let old_intdomains intDomains =
   BatList.cartesian_product intDomains ikinds
@@ -121,17 +123,19 @@ let old_intdomains intDomains =
     )
 let intTestsuite =
   old_intdomains intDomains
-  |> List.concat_map (fun d ->
+  |> List.map (fun d ->
       let module D = (val d: IntDomainProperties.OldS) in
       let module DP = IntDomainProperties.All (D) in
       DP.tests
     )
+  |> List.flatten
 let nonAssocIntTestsuite =
   old_intdomains nonAssocIntDomains
-  |> List.concat_map (fun d ->
+  |> List.map (fun d ->
       let module D = (val d: IntDomainProperties.OldS) in
       let module DP = IntDomainProperties.AllNonAssoc (D) in
       DP.tests
     )
+  |> List.flatten
 let () =
   QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
