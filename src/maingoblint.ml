@@ -274,8 +274,6 @@ let merge_preprocessed cpp_file_names =
     | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
   in
 
-  (* using CIL's partial evaluation and constant folding! *)
-  if get_bool "dopartial" then Cilfacade.partial merged_AST;
   Cilfacade.rmTemps merged_AST;
 
   (* create the Control Flow Graph from CIL's AST *)

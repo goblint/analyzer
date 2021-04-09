@@ -1,4 +1,4 @@
-//PARAM: --disable ana.int.interval --enable ana.int.def_exc --disable ana.int.enums
+//PARAM: --disable ana.int.interval --disable ana.int.def_exc --enable ana.int.enums
 #include <assert.h>
 
 int main(){
@@ -12,8 +12,8 @@ int main(){
     assert(a);
 
     unsigned long long y = x + 4;
-    // Unsigned overflow -- The following assertion should succeed
-    assert(y == 3);
+    // Unsigned overflow -- The following assertion should succeed, but is unknown for now
+    assert(y == 3); // UNKNOWN
 
     // maximum value for long long
     signed long long s = 9223372036854775807;

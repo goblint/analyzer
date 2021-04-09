@@ -57,7 +57,6 @@ let _ = ()
       ; reg Std "custom_libc"     "false"        "Use goblints custom libc."
       ; reg Std "justcil"         "false"        "Just parse and output the CIL."
       ; reg Std "justcfg"         "false"        "Only output the CFG in cfg.dot ."
-      ; reg Std "dopartial"       "false"        "Use Cil's partial evaluation & constant folding."
       ; reg Std "printstats"      "false"        "Outputs timing information."
       ; reg Std "gccwarn"         "false"        "Output warnings in GCC format."
       ; reg Std "verify"          "true"         "Verify that the solver reached a post-fixpoint. Beware that disabling this also disables output of warnings since post-processing of the results is done in the verification phase!"
@@ -114,8 +113,7 @@ let _ = ()
       ; reg Analyses "ana.int.wrap_on_signed_overflow" "false" "Whether to assume wrap-around behavior on signed overflow. If set to true, assumes two's complement representation of signed integers. If set to false, goes to top on signed overflow."
       ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: (int64 * int64) option."
-      ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations after ana.int.enums_max values. Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
-      ; reg Analyses "ana.int.enums_max"   "1"     "Maximum number of resulting elements of operations before going to top. Widening is still just the join, so this might increase the size by n^2!"
+      ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
       ; reg Analyses "ana.int.cinterval"   "false" "Use IntDomain.CircInterval: Wrapped, Signedness agnostic intervals."
       ; reg Analyses "ana.int.cdebug"      "false" "Debugging output for wrapped interval analysis."
       ; reg Analyses "ana.int.cwiden"      "'basic'" "Widening variant to use for wrapped interval analysis ('basic', 'double')"
@@ -219,7 +217,7 @@ let _ = ()
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'printstats', 'gccwarn', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
 , 'properties' :
   { 'ana' :
@@ -250,7 +248,6 @@ let default_schema = "\
   , 'custom_libc'     : {}
   , 'justcil'         : {}
   , 'justcfg'         : {}
-  , 'dopartial'       : {}
   , 'printstats'      : {}
   , 'gccwarn'         : {}
   , 'verify'        : {}
