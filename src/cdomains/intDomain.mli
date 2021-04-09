@@ -364,7 +364,7 @@ module Reverse (Base: IkindUnawareS): IkindUnawareS
 
 (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
-module Enums : S with type int_t = BigInt.t
+module Enums : S with type int_t = IntOps.BigIntOps.t
 
 (** {b Boolean domains} *)
 
