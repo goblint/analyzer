@@ -206,7 +206,7 @@ struct
     in
     let lower_limit = 
       let bound = if signed then 
-        Big_int.minus_big_int (Big_int.shift_left_big_int Big_int.unit_big_int n) (* -2^(n-1) *)
+        Big_int.minus_big_int (Big_int.shift_left_big_int Big_int.unit_big_int (Int.sub n 1)) (* -2^(n-1) *)
       else 
         Big_int.zero_big_int (* 0 *)
       in
