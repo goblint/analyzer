@@ -410,7 +410,7 @@ module Size = struct (* size in bits as int, range as int64 *)
       if b <= 64L then
         let upper_bound_less = Int64.sub b 1L in
         let max_one_less = BI.(pred @@ shift_left BI.one (Int64.to_int upper_bound_less)) in
-        if x < max_one_less then
+        if x <= max_one_less then
           a, upper_bound_less
         else
           a,b
