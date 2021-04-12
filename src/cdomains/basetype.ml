@@ -177,7 +177,7 @@ struct
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let isSimple _ = true
-  let short _ (x:t) =  if x then "\" true \"" else "\" false \""
+  let short _ (x:t) =  if x then "true" else "false"
   let pretty_f sf () x = text (if x then "true" else "false")
   let pretty () x = text (short () x)
   let name () = "raw bools"
