@@ -159,6 +159,9 @@ struct
 
   let check_boundaries oct v e ikind (n:int) signed = 
     let lower_limit, upper_limit = D.get_boundaries n signed in 
+    (* let lower_limit2, upper_limit2 = IntDomain.Size.range ikind in  (* Doesn't work when number of bits is > 63 *) 
+    let () = print_endline ("Limits before "^(Int64.to_string lower_limit)^" "^(Int64.to_string upper_limit)) in 
+    let () = print_endline ("Limits after  "^(Int64.to_string lower_limit2)^" "^(Int64.to_string upper_limit2)) in *)
     let oct_with_max = D.assert_inv oct (BinOp (Ge, e, (Const (CInt64 (upper_limit, ikind, None))), intType)) true in
     let oct_with_min = D.assert_inv oct (BinOp (Le, e, (Const (CInt64 (lower_limit, ikind, None))), intType)) true in
     let outside = D.is_bot oct_with_max && D.is_bot oct_with_min in 
