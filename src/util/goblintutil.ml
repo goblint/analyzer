@@ -364,8 +364,6 @@ let demangle x =
 
 exception Timeout
 
-let handle_sigalrm signo = raise Timeout
-
 let timeout = Timeout.timeout
 
 let vars = ref 0

@@ -416,12 +416,12 @@ struct
       match value with
       | `Top ->
         let typ = AD.get_type adr in
-        let warning = "Unknown value in " ^ AD.short 40 adr ^ " could be an escaped pointer address!" in
+        let warning = "Unknown value in " ^ AD.short 800 adr ^ " could be an escaped pointer address!" in
         if VD.is_immediate_type typ then () else M.warn_each warning; empty
       | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
       | `Address adrs when AD.is_top adrs ->
-        let warning = "Unknown address in " ^ AD.short 40 adr ^ " has escaped." in
-        M.warn_each warning; empty
+        let warning = "Unknown address in " ^ AD.short 800 adr ^ " has escaped." in
+        M.warn_each warning; adrs (* return known addresses still to be a bit more sane (but still unsound) *)
       (* The main thing is to track where pointers go: *)
       | `Address adrs -> adrs
       (* Unions are easy, I just ingore the type info. *)

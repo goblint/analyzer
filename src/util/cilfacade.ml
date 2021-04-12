@@ -89,9 +89,6 @@ let createCFG (fileAST: file) =
     );
   do_preprocess fileAST
 
-let partial fileAST =
-  Partial.partial fileAST "main" []
-
 let simplify fileAST =
   iterGlobals fileAST Simplify.doGlobal
 

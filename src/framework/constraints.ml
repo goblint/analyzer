@@ -377,12 +377,14 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f m in
+      let v_old = M.find f m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
       Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
       v_new, M.add f v_new m
     in
-    S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
+    S.enter (conv ctx) r f args
+    |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
 
   let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args (fst fc) (fst es))
 end
@@ -392,7 +394,7 @@ end
 module WidenContextLifterSide (S:Spec)
 =
 struct
-  module B = WidenContextLifter (S)
+  module B = WidenContextLifter (S) (* can't just include this since type of ctx and some tf functions are different; TODO some generic functor to lift functions with conv, inj, proj? *)
   (* include (B : module type of B with module C := B.C) *)
   include B
   (* same as WidenContextLifter, but with a different C *)
@@ -427,12 +429,14 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f m in
+      let v_old = M.find f m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
       Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
       v_new, M.add f v_new m
     in
-    S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
+    S.enter (conv ctx) r f args
+    |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
 
   let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args fc (fst es))
 end
