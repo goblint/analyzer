@@ -189,7 +189,11 @@ struct
   let add = Big_int_Z.add_big_int
   let sub = Big_int_Z.sub_big_int
   let mul = Big_int_Z.mult_big_int
-  let div = Big_int_Z.div_big_int
+
+  (* If the first operand of a div is negative, Zarith rounds the result away from zero.
+    We thus always transform this into a divison with a non-negative first operand.
+  *)
+  let div a b = if Big_int_Z.lt_big_int a zero then Big_int_Z.minus_big_int (Big_int_Z.div_big_int (Big_int_Z.minus_big_int a) b) else Big_int_Z.div_big_int a b
   let rem = Big_int_Z.mod_big_int
 
   let compare = Big_int_Z.compare_big_int
