@@ -1,0 +1,9 @@
+{
+  "ana": {
+    "int": {
+      "def_exc": true,
+      "interval": true,
+      "enums": true
+    }
+  }
+}
