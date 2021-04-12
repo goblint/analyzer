@@ -231,7 +231,7 @@ struct
   include B
   let pred x = sub x one
   let of_bool x = if x then one else zero
-  let to_bool x = x = zero
+  let to_bool x = x <> zero
   let log_op op a b = of_bool @@ op (to_bool a) (to_bool b)
   let lognot x = of_bool (x = zero)
   let logand = log_op (&&)
