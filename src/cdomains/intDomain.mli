@@ -299,6 +299,7 @@ val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
 
 module Size : sig
   val top_typ : Cil.typ
+  val range   : Cil.ikind -> int64 * int64 
   (** The biggest type we support for integers. *)
 end
 
