@@ -2087,19 +2087,21 @@ module Enums : S with type int_t = BigInt.t = struct
           Invariant.(a && i)
         ) Invariant.none (ISet.to_list ns)
 
+
   let arbitrary () =
     let open QCheck.Iter in
-    let i_list_arb = QCheck.small_list (MyCheck.Arbitrary.big_int) in
-    let neg is = Exc (ISet.of_list is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
-    let pos is = Inc (ISet.of_list is) in
+    let neg s = Exc (s, size Cil.ILong) in (* S TODO: non-fixed range *)
+    let pos s = Inc s in
     let shrink = function
-      | Exc (is, _) -> MyCheck.shrink i_list_arb (ISet.to_list is) >|= neg (* S TODO: possibly shrink neg to pos *)
-      | Inc is -> MyCheck.shrink i_list_arb (ISet.to_list is) >|= pos
+      | Exc (s, _) -> MyCheck.shrink (ISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Inc s -> MyCheck.shrink (ISet.arbitrary ()) s >|= pos
     in
     QCheck.frequency ~shrink ~print:(short 10000) [
-      20, QCheck.map neg i_list_arb;
-      10, QCheck.map pos i_list_arb;
+      20, QCheck.map neg (ISet.arbitrary ());
+      10, QCheck.map pos (ISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
+
+
 end
 
 
