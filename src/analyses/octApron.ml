@@ -78,11 +78,12 @@ struct
         | _ -> [])
     | UnOp (unop, e, typ) -> get_vnames_list e
     | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
+    | AddrOf lval -> get_vnames_list (Lval(lval))
+    | CastE(_, e) -> get_vnames_list e
     | _ -> []
 
   let invalidate oct (exps: exp list) =
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    let () = print_list_exp exps in 
     let l = List.flatten (List.map get_vnames_list exps) in
     D.forget_all_with oct l
 
