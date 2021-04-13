@@ -1799,9 +1799,9 @@ module IntDomTupleImpl = struct
 
   open Batteries
   type int_t = BI.t
-  module I1 (*: S with type int_t  = int_t *) = DefExc
-  module I2 (*: S with type int_t  = int_t *) = Interval
-  module I3 (*: S with type int_t  = int_t *) = Enums
+  module I1 = DefExc
+  module I2 = Interval
+  module I3 = Enums
   type t = I1.t option * I2.t option * I3.t option [@@deriving to_yojson]
 
   (* The Interval32 domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
