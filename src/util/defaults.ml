@@ -139,6 +139,8 @@ let _ = ()
 
 (* {4 category [Semantics]} *)
 let _ = ()
+      (* TODO: split unknown_function to undefined_function and unknown_function_ptr *)
+      ; reg Semantics "sem.unknown_function.spawn" "true"  "Unknown function call spawns reachable functions"
       ; reg Semantics "sem.builtin_unreachable.dead_code" "false"  "__builtin_unreachable is assumed to be dead code"
 
 (* {4 category [Transformations]} *)
@@ -169,7 +171,6 @@ let _ = ()
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
       ; reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
       ; reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
-      ; reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls spawn reachable functions and switch to MT-mode?"
       ; reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs."
       ; reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
       ; reg Experimental "exp.g2html_path"       "'.'"   "Location of the g2html.jar file."

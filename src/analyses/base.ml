@@ -1864,7 +1864,7 @@ struct
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
       end
-    | `Unknown _ when get_bool "exp.unknown_funs_spawn" -> begin
+    | `Unknown _ when get_bool "sem.unknown_function.spawn" -> begin
         let args =
           match LF.get_invalidate_action f.vname with
           | Some fnc -> fnc `Write  args (* why do we only spawn arguments that are written?? *)
