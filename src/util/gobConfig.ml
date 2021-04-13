@@ -285,11 +285,13 @@ struct
       failwith "get_path_string"
 
   (** Convenience functions for reading values. *)
-  let get_int    = get_path_string number
-  let get_bool   = get_path_string bool
-  let get_string = get_path_string string
-  let get_length = List.length % (!) % get_path_string array
-  let get_list = List.map (!) % (!) % get_path_string array
+  (* memoize for each type with BatCache: *)
+  let memo gen = (BatCache.make_ht ~gen ~init_size:5).get (* uses hashtable; fine since our options are bounded *)
+  let get_int    = memo @@ get_path_string number
+  let get_bool   = memo @@ get_path_string bool
+  let get_string = memo @@ get_path_string string
+  let get_length = memo @@ List.length % (!) % get_path_string array
+  let get_list = memo @@ List.map (!) % (!) % get_path_string array
   let get_string_list = List.map string % get_list
 
   (** Helper functions for writing values. *)
