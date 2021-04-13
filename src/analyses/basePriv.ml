@@ -955,6 +955,13 @@ struct
 
   let lockset_init () = Lockset.All
 
+  let distr_init getg x v =
+    if get_bool "exp.priv-distr-init" then
+      let v_init = GWeak.find (lockset_init ()) (fst (getg (mutex_global x))) in
+      VD.join v v_init
+    else
+      v
+
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     let (vv, l) = st.priv in
@@ -1007,8 +1014,10 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
-      sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
+    if not (!GU.earlyglobs && is_precious_glob x) then (
+      let v = distr_init getg x v in
+      sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ())
+    );
     {st with cpa = cpa'; priv = (v', l)}
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -1022,6 +1031,11 @@ struct
     let s = Lockset.remove m (current_lockset ask) in
     let is_in_G x _ = is_global ask x in
     let side_cpa = CPA.filter is_in_G st.cpa in
+    let side_cpa = CPA.mapi (fun x v ->
+        let v = distr_init getg x v in
+        v
+      ) side_cpa
+    in
     sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
     (* m stays in v, l *)
     (* TODO: why is it so imprecise now? *)
