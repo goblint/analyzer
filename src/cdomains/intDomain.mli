@@ -291,7 +291,7 @@ module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type 
 (* module IntDomList : S *)
 module IntDomTuple : sig
   include Z
-  val no_interval32: t -> t
+  val no_interval: t -> t
 end
 
 val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t

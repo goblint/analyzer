@@ -1805,7 +1805,7 @@ module IntDomTupleImpl = struct
   type t = I1.t option * I2.t option * I3.t option [@@deriving to_yojson]
 
   (* The Interval32 domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
-  let no_interval32 = Tuple3.map2 (const None)
+  let no_interval = Tuple3.map2 (const None)
 
   type 'a m = (module S with type t = 'a)
   type 'a m2 = (module S with type t = 'a and type int_t = int_t )
@@ -1946,7 +1946,7 @@ struct
  include I
 
  let top () = failwith "top in IntDomTuple not supported. Use top_of instead."
- let no_interval32 (x: I.t) = {x with v = IntDomTupleImpl.no_interval32 x.v}
+ let no_interval (x: I.t) = {x with v = IntDomTupleImpl.no_interval x.v}
 
 end
 

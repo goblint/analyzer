@@ -523,7 +523,7 @@ struct
       in
       CPA.map replace_val st
 
-  let drop_interval32 = CPA.map (function `Int x -> `Int (ID.no_interval32 x) | x -> x)
+  let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
   let context (cpa,dep) =
     let f t f (cpa,dep) = if t then f cpa, dep else cpa, dep in
@@ -531,7 +531,7 @@ struct
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
     %> f (get_bool "exp.addr-context") drop_non_ptrs
     %> f (get_bool "exp.no-int-context") drop_ints
-    %> f (get_bool "exp.no-interval32-context") drop_interval32
+    %> f (get_bool "exp.no-interval32-context") drop_interval
 
   let context_cpa (cpa,dep) = fst @@ context (cpa,dep)
 
