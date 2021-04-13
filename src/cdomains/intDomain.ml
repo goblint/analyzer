@@ -1801,8 +1801,8 @@ module IntDomTupleImpl = struct
   type int_t = BI.t
   module I1 (*: S with type int_t  = int_t *) = DefExc
   module I2 (*: S with type int_t  = int_t *) = Interval
-  module I4 (*: S with type int_t  = int_t *) = Enums
-  type t = I1.t option * I2.t option * I4.t option [@@deriving to_yojson]
+  module I3 (*: S with type int_t  = int_t *) = Enums
+  type t = I1.t option * I2.t option * I3.t option [@@deriving to_yojson]
 
   (* The Interval32 domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
   let no_interval32 = Tuple3.map2 (const None)
@@ -1820,18 +1820,18 @@ module IntDomTupleImpl = struct
   type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I4)
+    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3)
   let create2 r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I4)
+    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3)
 
-  let mapp r (a,b,c) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b,  map (r.fp (module I4)) c)
-  let mapp2 r (a,b,c) = BatOption.(map (r.fp2 (module I1)) a, map (r.fp2 (module I2)) b, map (r.fp2 (module I4)) c)
+  let mapp r (a,b,c) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b,  map (r.fp (module I3)) c)
+  let mapp2 r (a,b,c) = BatOption.(map (r.fp2 (module I1)) a, map (r.fp2 (module I2)) b, map (r.fp2 (module I3)) c)
 
-  let map r (a,b,c) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I4)) c)
+  let map r (a,b,c) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
-  let map2  r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I4)) xc yc
-  let map2p r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb,  opt_map2 (r.f2p  (module I4)) xc yc
+  let map2  r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc
+  let map2p r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb,  opt_map2 (r.f2p  (module I3)) xc yc
   let to_list x = Tuple3.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
@@ -1937,7 +1937,7 @@ module IntDomTupleImpl = struct
           Invariant.(a && i)
         ) Invariant.none is
 
-  let arbitrary () = QCheck.(set_print (short 10000) @@ triple (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I4.arbitrary ())))
+  let arbitrary () = QCheck.(set_print (short 10000) @@ triple (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())))
 end
 
 module IntDomTuple =
