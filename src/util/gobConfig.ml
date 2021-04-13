@@ -70,9 +70,6 @@ sig
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
 
-  (** Functions to query the length of conf array variable. *)
-  val get_length : string -> int
-
   (** Functions to modify conf array variables to drop one index. *)
   val drop_index : string -> int    -> unit
 
@@ -290,7 +287,6 @@ struct
   let get_int    = memo @@ get_path_string number
   let get_bool   = memo @@ get_path_string bool
   let get_string = memo @@ get_path_string string
-  let get_length = memo @@ List.length % (!) % get_path_string array
   let get_list = memo @@ List.map (!) % (!) % get_path_string array
   let get_string_list = List.map string % get_list
 
