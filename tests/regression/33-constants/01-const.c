@@ -8,15 +8,17 @@ int main(){
     int x = 3;
     int y = x;
     int z = y;
-    int *b = &z;
+    int *p = &z;
 
-    *b = 2;
+    *p = 2;
+
+    int w = x + y;
 
     int a;
     int b;
     while(x < 10){
         a = 13;
-        b = x;
+        p = x;
         x++;
     }
 

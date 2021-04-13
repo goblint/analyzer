@@ -26,7 +26,7 @@ struct
     | Var v, NoOffset when is_integer_var v && not (v.vglob || v.vaddrof) -> Some v (* local integer variable whose address is never taken *)
     | _, _ -> None
 
-  let eval (state : D.t) (e: exp) =
+  let rec eval (state : D.t) (e: exp) =
     match e with
     | Const c -> (match c with
       | CInt64 (i,_,_) -> I.of_int i
@@ -36,6 +36,11 @@ struct
       | Some v -> D.find v state
       | _ -> I.top ()
       )
+    | BinOp (PlusA, e1, e2, t) -> (
+      let v1 = eval state e1 in
+      let v2 = eval state e2 in
+      I.add v1 v2
+    )
     | _ -> I.top ()
 
   (* transfer functions *)
