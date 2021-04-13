@@ -410,7 +410,7 @@ module Size = struct (* size in bits as int, range as int64 *)
       if b <= 64L then
         let upper_bound_less = Int64.sub b 1L in
         let max_one_less = BI.(pred @@ shift_left BI.one (Int64.to_int upper_bound_less)) in
-        if x < max_one_less then
+        if x <= max_one_less then
           a, upper_bound_less
         else
           a,b
@@ -762,17 +762,19 @@ struct
       with e -> None)
     | None -> None
 
-  let arbitrary () = failwith "arbitrary unimplemented for Interval"
-    (* let open QCheck.Iter in
-    let pair_arb = QCheck.pair ( MyCheck.Arbitrary.int64) ( MyCheck.Arbitrary.int64) in
-    (* TODO: use arbitrary ikind *)
+  let arbitrary () =
+    (* TODO: use arbitrary ikind? *)
     let ik = Cil.ILongLong in
-    let pair_arb = QCheck.
+    let open QCheck.Iter in
+    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
+    (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let pair_arb = QCheck.pair int_arb int_arb in
     let shrink = function
       | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval ik)
       | None -> empty
     in
-    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik pair_arb)) *)
+    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
 end
 
 
@@ -1022,6 +1024,8 @@ module BigInt = struct
   let pretty _ x = Pretty.text (BI.to_string x)
   let to_yojson x = failwith "to_yojson not implemented for BigIntPrinable"
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+
+  let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
 
 module DefExc : S with type int_t = BigInt.t = (* definite or set of excluded values *)
@@ -1814,6 +1818,7 @@ struct
   let equal = Bool.equal
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
   let hash = function true -> 51534333 | _ -> 561123444
+  let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
   let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
@@ -1946,7 +1951,11 @@ module Enums : S with type int_t = BigInt.t = struct
         Exc (s', r')
       else (* downcast: may overflow *)
         Exc ((ISet.empty ()), r')
-    |  Inc x -> Inc (ISet.map (BigInt.cast_to ik) x)
+    | Inc xs ->
+      let casted_xs = ISet.map (BigInt.cast_to ik) xs in
+      if Cil.isSigned ik && not (ISet.equal xs casted_xs)
+        then top_of ik (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
+        else Inc casted_xs
 
   let of_int ikind x = cast_to ikind (Inc (ISet.singleton x))
 
@@ -2082,19 +2091,21 @@ module Enums : S with type int_t = BigInt.t = struct
           Invariant.(a && i)
         ) Invariant.none (ISet.to_list ns)
 
+
   let arbitrary () =
     let open QCheck.Iter in
-    let i_list_arb = QCheck.small_list (MyCheck.Arbitrary.big_int) in
-    let neg is = Exc (ISet.of_list is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
-    let pos is = Inc (ISet.of_list is) in
+    let neg s = Exc (s, size Cil.ILong) in (* S TODO: non-fixed range *)
+    let pos s = Inc s in
     let shrink = function
-      | Exc (is, _) -> MyCheck.shrink i_list_arb (ISet.to_list is) >|= neg (* S TODO: possibly shrink neg to pos *)
-      | Inc is -> MyCheck.shrink i_list_arb (ISet.to_list is) >|= pos
+      | Exc (s, _) -> MyCheck.shrink (ISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Inc s -> MyCheck.shrink (ISet.arbitrary ()) s >|= pos
     in
     QCheck.frequency ~shrink ~print:(short 10000) [
-      20, QCheck.map neg i_list_arb;
-      10, QCheck.map pos i_list_arb;
+      20, QCheck.map neg (ISet.arbitrary ());
+      10, QCheck.map pos (ISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
+
+
 end
 
 
