@@ -7,6 +7,12 @@
     }
   },
   "sem": {
+    "unknown_function": {
+      "invalidate": {
+        "globals": false
+      },
+      "spawn": true
+    },
     "builtin_unreachable": {
       "dead_code": true
     }
