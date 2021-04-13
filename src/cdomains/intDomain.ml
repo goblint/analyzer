@@ -1951,7 +1951,11 @@ module Enums : S with type int_t = BigInt.t = struct
         Exc (s', r')
       else (* downcast: may overflow *)
         Exc ((ISet.empty ()), r')
-    |  Inc x -> Inc (ISet.map (BigInt.cast_to ik) x)
+    | Inc xs ->
+      let casted_xs = ISet.map (BigInt.cast_to ik) xs in
+      if Cil.isSigned ik && not (ISet.equal xs casted_xs)
+        then top_of ik (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
+        else Inc casted_xs
 
   let of_int ikind x = cast_to ikind (Inc (ISet.singleton x))
 
