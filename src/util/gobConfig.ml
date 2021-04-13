@@ -236,11 +236,11 @@ struct
       | Array a, Index (Int i, pth) ->
         set_value v (List.at !a i) pth
       | Array a, Index (App, pth) ->
-        o := Array (ref (!a @ [ref (create_new v pth)]))      
+        o := Array (ref (!a @ [ref (create_new v pth)]))
       | Array a, Index (Rem, pth) ->
-        let original_list = !a in 
+        let original_list = !a in
         let excluded_elem = create_new v pth in
-        let filtered_list = 
+        let filtered_list =
           List.filter (fun ref_elem ->
             let elem = !ref_elem in
             match (elem, excluded_elem) with
@@ -263,7 +263,7 @@ struct
     validate conf_schema !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
-  let get_path_string f typ st =
+  let get_path_string f st =
     try
       let st = String.trim st in
       let st, x =
@@ -276,9 +276,8 @@ struct
       in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson x;
       try f x
-      with JsonE _ ->
-        eprintf "The value for '%s' does not have type %s, it is actually %a.\n"
-          st typ printJson x;
+      with JsonE s ->
+        eprintf "The value for '%s' has the wrong type: %s\n" st s;
         failwith "get_path_string"
     with ConfTypeError ->
       eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to defaults.ml?\n"
@@ -286,11 +285,11 @@ struct
       failwith "get_path_string"
 
   (** Convenience functions for reading values. *)
-  let get_int    = get_path_string number "int"
-  let get_bool   = get_path_string bool   "bool"
-  let get_string = get_path_string string "string"
-  let get_length = List.length % (!) % get_path_string array "array"
-  let get_list = List.map (!) % (!) % get_path_string array "array"
+  let get_int    = get_path_string number
+  let get_bool   = get_path_string bool
+  let get_string = get_path_string string
+  let get_length = List.length % (!) % get_path_string array
+  let get_list = List.map (!) % (!) % get_path_string array
   let get_string_list = List.map string % get_list
 
   (** Helper functions for writing values. *)
@@ -340,7 +339,7 @@ struct
 
   (** Function to drop one element of an 'array' *)
   let drop_index st i =
-    let old = get_path_string array "array" st in
+    let old = get_path_string array st in
     if tracing then
       trace "conf" "Removing index %d from '%s' to %a." i st prettyJson (Array old);
     match List.split_at i !old with
