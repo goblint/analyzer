@@ -2099,6 +2099,8 @@ struct
           | Some fnc -> invalidate ~ctx ctx.ask gs st (fnc `Write  args)
           | None -> (
               (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
+              (if f.vid = dummyFunDec.svar.vid then M.warn_each ("Unknown function ptr called"));
+              M.warn_each "INVALIDATING ALL GLOBALS!";
               let addrs = foldGlobals !Cilfacade.current_file (fun acc global ->
                   match global with
                   | GVar (vi, _, _) when not (is_static vi) ->
