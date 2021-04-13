@@ -9,6 +9,7 @@ open List
 (** Main categories of configuration variables. *)
 type category = Std             (** Parsing input, includes, standard stuff, etc. *)
               | Analyses        (** Analyses                                      *)
+              | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
@@ -17,6 +18,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
 let catDescription = function
   | Std             -> "Standard options for configuring input/output"
   | Analyses        -> "Options for analyses"
+  | Semantics       -> "Options for semantics"
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
@@ -135,6 +137,10 @@ let _ = ()
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
 
+(* {4 category [Semantics]} *)
+let _ = ()
+      ; reg Semantics "sem.builtin_unreachable.dead_code" "false"  "__builtin_unreachable is assumed to be dead code"
+
 (* {4 category [Transformations]} *)
 let _ = ()
       ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
@@ -228,6 +234,7 @@ let default_schema = "\
     , 'additionalProps' : true
     , 'required'        : []
     }
+  , 'sem'               : {}
   , 'trans'             : {}
   , 'phases'            : {}
   , 'exp' :

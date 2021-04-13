@@ -2012,7 +2012,7 @@ struct
       end
     | `Unknown "exit" ->  raise Deadcode
     | `Unknown "abort" -> raise Deadcode
-    | `Unknown "__builtin_unreachable" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
+    | `Unknown "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     | `Unknown "pthread_exit" ->
       begin match args with
         | [exp] ->

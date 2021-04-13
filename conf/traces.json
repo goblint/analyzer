@@ -6,6 +6,11 @@
       "enums": true
     }
   },
+  "sem": {
+    "builtin_unreachable": {
+      "dead_code": true
+    }
+  },
   "exp": {
     "malloc": {
       "wrappers": [
