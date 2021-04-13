@@ -283,11 +283,17 @@ struct
 
   (** Convenience functions for reading values. *)
   (* memoize for each type with BatCache: *)
-  let memo gen = (BatCache.make_ht ~gen ~init_size:5).get (* uses hashtable; fine since our options are bounded *)
-  let get_int    = memo @@ get_path_string number
-  let get_bool   = memo @@ get_path_string bool
-  let get_string = memo @@ get_path_string string
-  let get_list = memo @@ List.map (!) % (!) % get_path_string array
+  let memo gen = BatCache.make_ht ~gen ~init_size:5 (* uses hashtable; fine since our options are bounded *)
+  let memog f = memo @@ get_path_string f
+
+  let memo_int    = memog number
+  let memo_bool   = memog bool
+  let memo_string = memog string
+  let memo_list   = memo @@ List.map (!) % (!) % get_path_string array
+  let get_int    = memo_int.get
+  let get_bool   = memo_bool.get
+  let get_string = memo_string.get
+  let get_list   = memo_list.get
   let get_string_list = List.map string % get_list
 
   (** Helper functions for writing values. *)
@@ -300,11 +306,11 @@ struct
     set_path_string st v
 
   (** Convenience functions for writing values. *)
-  let set_int    st i = set_path_string_trace st (Build.number i)
-  let set_bool   st i = set_path_string_trace st (Build.bool i)
-  let set_string st i = set_path_string_trace st (Build.string i)
+  let set_int    st i = memo_int.del st; set_path_string_trace st (Build.number i)
+  let set_bool   st i = memo_bool.del st; set_path_string_trace st (Build.bool i)
+  let set_string st i = memo_string.del st; set_path_string_trace st (Build.string i)
   let set_null   st   = set_path_string_trace st Build.null
-  let set_list   st l = set_value (Build.array l) json_conf (parse_path st)
+  let set_list   st l = memo_list.del st; set_value (Build.array l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =

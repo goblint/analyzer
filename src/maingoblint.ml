@@ -339,7 +339,7 @@ let do_html_output () =
       let command = "java -jar "^get_path jar^" --result-dir "^get_path (get_string "outfile")^" "^get_path !Messages.xml_file_name in
       try match Unix.system command with
         | Unix.WEXITED 0 -> ()
-        | _ -> eprintf "HTML generation failed!\n"
+        | _ -> eprintf "HTML generation failed! Command: %s\n" command
       with Unix.Unix_error (e, f, a) ->
         eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
     ) else
