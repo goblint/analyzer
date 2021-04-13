@@ -702,9 +702,16 @@ struct
     in
     let one_function f =
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
-      if has_dec && not (LibraryFunctions.use_special f.vname)
-      then tf_normal_call ctx lv e f args getl sidel getg sideg
-      else tf_special_call ctx lv f args
+      if has_dec then (
+        if LibraryFunctions.use_special f.vname then (
+          M.warn_each ("Using special for defined function " ^ f.vname);
+          tf_special_call ctx lv f args
+        )
+        else
+          tf_normal_call ctx lv e f args getl sidel getg sideg
+      )
+      else
+        tf_special_call ctx lv f args
     in
     if [] = functions then
       d (* because LevelSliceLifter *)
