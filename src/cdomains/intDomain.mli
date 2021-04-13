@@ -343,8 +343,6 @@ module DefExc : S with type int_t = IntOps.BigIntOps.t
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
 
-module CircInterval: IkindUnawareS (* for property-based testing *)
-
 (** {b Domain constructors} *)
 
 module Flat (Base: IkindUnawareS): IkindUnawareS
