@@ -2100,14 +2100,19 @@ struct
           | None -> (
               (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
               (if f.vid = dummyFunDec.svar.vid then M.warn_each ("Unknown function ptr called"));
-              M.warn_each "INVALIDATING ALL GLOBALS!";
-              let addrs = foldGlobals !Cilfacade.current_file (fun acc global ->
-                  match global with
-                  | GVar (vi, _, _) when not (is_static vi) ->
-                    mkAddrOf (Var vi, NoOffset) :: acc
-                    (* TODO: what about GVarDecl? *)
-                  | _ -> acc
-                ) args
+              let addrs =
+                if get_bool "sem.unknown_function.invalidate.globals" then (
+                  M.warn_each "INVALIDATING ALL GLOBALS!";
+                  foldGlobals !Cilfacade.current_file (fun acc global ->
+                      match global with
+                      | GVar (vi, _, _) when not (is_static vi) ->
+                        mkAddrOf (Var vi, NoOffset) :: acc
+                        (* TODO: what about GVarDecl? *)
+                      | _ -> acc
+                    ) args
+                )
+                else
+                  args
               in
               (* TODO: what about escaped local variables? *)
               (* invalidate arguments and non-static globals for unknown functions *)

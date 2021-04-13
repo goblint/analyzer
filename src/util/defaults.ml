@@ -141,6 +141,7 @@ let _ = ()
 let _ = ()
       (* TODO: split unknown_function to undefined_function and unknown_function_ptr *)
       ; reg Semantics "sem.unknown_function.spawn" "true"  "Unknown function call spawns reachable functions"
+      ; reg Semantics "sem.unknown_function.invalidate.globals" "true"  "Unknown function call invalidates all globals"
       ; reg Semantics "sem.builtin_unreachable.dead_code" "false"  "__builtin_unreachable is assumed to be dead code"
 
 (* {4 category [Transformations]} *)
