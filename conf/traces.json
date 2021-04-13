@@ -18,6 +18,7 @@
     }
   },
   "exp": {
+    "priv-distr-init": true,
     "malloc": {
       "wrappers": [
         "kmalloc",

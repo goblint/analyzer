@@ -155,7 +155,7 @@ let _ = ()
       (* TODO: priv subobject *)
       ; reg Experimental "exp.privatization"     "'mine-global'" "Which privatization to use? none/old/mutex-oplus/mutex-meet/global/global-read/global-vesal/mine/mine-nothread/mine-W/mine-lazy/global-history/mine-global"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
-      ; reg Experimental "exp.priv-distr-init"   "true"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
+      ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
