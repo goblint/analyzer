@@ -4,15 +4,16 @@
 
 set -e
 
-gcc -c -Werror=implicit-function-declaration ./pfscan.c
+gcc -c -Werror=implicit-function-declaration ./tegra20.c
 
-# OPTS="./pfscan_comb.c --enable custom_libc"
-OPTS="./pfscan.c --enable custom_libc"
-# PRIVS=(global global-read global-history mine-W mine-lazy mine-global)
-PRIVS=(global mine-W)
-INTERESTING="(Unknown int([-31,31])) instead of (Not {0}([-31,31]))"
-OUTDIR="privPrecCompare-creduce"
 GOBLINTDIR="/home/simmo/dev/goblint/sv-comp/goblint"
+# OPTS="./pfscan_comb.c --enable custom_libc"
+OPTS="./tegra20.c --conf $GOBLINTDIR/conf/traces.json --enable ana.sv-comp.functions"
+# PRIVS=(global global-read global-history mine-W mine-lazy mine-global)
+PRIVS=(global global-history)
+INTERESTING="global more precise than global-history"
+OUTDIR="privPrecCompare-creduce"
+
 
 mkdir -p $OUTDIR
 
