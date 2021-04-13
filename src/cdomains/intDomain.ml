@@ -2109,7 +2109,8 @@ module Enums : S with type int_t = BigInt.t = struct
 end
 
 
-(* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
+(* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I4 below to see where you need to extend. *)
+(* discussion: https://github.com/goblint/analyzer/pull/188#issuecomment-818928540 *)
 module IntDomTupleImpl = struct
   include Printable.Std (* for default invariant, tag, ... *)
 
