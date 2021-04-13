@@ -1864,6 +1864,7 @@ struct
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
       end
+    | `Unknown "free" -> []
     | `Unknown _ when get_bool "sem.unknown_function.spawn" -> begin
         let args =
           match LF.get_invalidate_action f.vname with
@@ -1872,6 +1873,7 @@ struct
         in
         let flist = collect_funargs ctx.ask ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
+        if addrs <> [] then M.warn_each ("Spawning functions from unknown function: " ^ sprint (d_list ", " d_varinfo) addrs);
         List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
