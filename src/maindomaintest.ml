@@ -68,11 +68,11 @@ let nonAssocDomains: (module Lattice.S) list = []
 
 let intDomains: (module IntDomainProperties.S) list = [
   (module IntDomain.Interval);
+  (module IntDomain.Enums);
   (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
   (* (module IntDomain.CircInterval); *)
-  (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
 ]
 
