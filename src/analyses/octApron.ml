@@ -157,57 +157,11 @@ struct
       let vars = D.typesort f.slocals in
       D.add_vars ctx.local vars
 
-  let check_boundaries oct v e ikind (n:int) signed = 
-    let lower_limit, upper_limit = D.get_boundaries n signed in 
-    (* let lower_limit2, upper_limit2 = IntDomain.Size.range ikind in  (* Doesn't work when number of bits is > 63 *) 
-    let () = print_endline ("Limits before "^(Int64.to_string lower_limit)^" "^(Int64.to_string upper_limit)) in 
-    let () = print_endline ("Limits after  "^(Int64.to_string lower_limit2)^" "^(Int64.to_string upper_limit2)) in *)
-    let oct_with_max = D.assert_inv oct (BinOp (Ge, e, (Const (CInt64 (upper_limit, ikind, None))), intType)) true in
-    let oct_with_min = D.assert_inv oct (BinOp (Le, e, (Const (CInt64 (lower_limit, ikind, None))), intType)) true in
-    let outside = D.is_bot oct_with_max && D.is_bot oct_with_min in 
-    let new_oct = if outside && signed then 
-      (* Signed overflows are undefined behavior, so octagon goes to top. *)
-      D.topE (A.env oct)
-    else if outside && not signed then
-      (* Unsigned overflows are defined, but for now the variable in question goes to top. *)
-      let () = D.forget_all_with oct [v.vname] in
-      oct
-    else
-      D.assign_var oct v.vname e
-    in
-    (outside, new_oct)
-    
-  
-  let handle_underflow_and_overflow oct v e =
-    let out_of_bounds, new_oct = match v.vtype with
-      | TInt (ikind, _)-> (
-        match ikind with
-        (* Signed *)
-        | IInt -> check_boundaries oct v e ikind 32 true
-        | IShort -> check_boundaries oct v e ikind 16 true
-        | ILong -> check_boundaries oct v e ikind 64 true
-        | ILongLong -> check_boundaries oct v e ikind 64 true
-        (* Unsigned *)
-        | IUInt -> check_boundaries oct v e ikind 32 false
-        | IUShort -> check_boundaries oct v e ikind 16 false
-        | IULong -> check_boundaries oct v e ikind 64 false
-        | IULongLong -> check_boundaries oct v e ikind 64 false
-        | _ -> (false, oct) 
-      )
-      | _ -> (false, oct) 
-    in
-    let () = if out_of_bounds then
-      print_endline (v.vname^" is under/overflowing")
-    else 
-      print_endline (v.vname^" is not under/overflowing "^(Pretty.sprint 20 (Cil.d_type () v.vtype)))
-    in
-    new_oct
-
   let assign ctx (lv:lval) e =
     if D.is_bot ctx.local then D.bot () else
       match lv with
       | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> 
-        handle_underflow_and_overflow ctx.local v e
+        D.handle_underflow_and_overflow ctx.local v e
       | _ -> D.topE (A.env ctx.local)
 
   let query ctx (q:Queries.t) : Queries.Result.t =
