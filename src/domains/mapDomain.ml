@@ -43,8 +43,8 @@ end
 module type Groupable =
 sig
   include Printable.S
-  val classify: t -> int
-  val class_name: int -> string
+  val classify: t -> int (* groups are sorted by this *)
+  val class_name: int -> string (* name of group *)
   val trace_enabled: bool
 end
 
