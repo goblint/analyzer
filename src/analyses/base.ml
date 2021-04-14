@@ -1820,9 +1820,15 @@ struct
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
     let st' =
-      if thread then
+      if thread then (
+        (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+           Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+           sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+           EnterMultithreaded events only execute after threadenter and threadspawn. *)
+        if not (ThreadFlag.is_multi ctx.ask) then
+          ignore (Priv.enter_multithreaded ctx.ask ctx.global ctx.sideg st);
         Priv.threadenter ctx.ask st
-      else
+      ) else
         let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k) st.cpa in
         {st with cpa = new_cpa}
     in
