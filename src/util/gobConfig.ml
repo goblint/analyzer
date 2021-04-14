@@ -70,9 +70,6 @@ sig
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
 
-  (** Functions to query the length of conf array variable. *)
-  val get_length : string -> int
-
   (** Functions to modify conf array variables to drop one index. *)
   val drop_index : string -> int    -> unit
 
@@ -236,11 +233,11 @@ struct
       | Array a, Index (Int i, pth) ->
         set_value v (List.at !a i) pth
       | Array a, Index (App, pth) ->
-        o := Array (ref (!a @ [ref (create_new v pth)]))      
+        o := Array (ref (!a @ [ref (create_new v pth)]))
       | Array a, Index (Rem, pth) ->
-        let original_list = !a in 
+        let original_list = !a in
         let excluded_elem = create_new v pth in
-        let filtered_list = 
+        let filtered_list =
           List.filter (fun ref_elem ->
             let elem = !ref_elem in
             match (elem, excluded_elem) with
@@ -263,7 +260,7 @@ struct
     validate conf_schema !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
-  let get_path_string f typ st =
+  let get_path_string f st =
     try
       let st = String.trim st in
       let st, x =
@@ -276,9 +273,8 @@ struct
       in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson x;
       try f x
-      with JsonE _ ->
-        eprintf "The value for '%s' does not have type %s, it is actually %a.\n"
-          st typ printJson x;
+      with JsonE s ->
+        eprintf "The value for '%s' has the wrong type: %s\n" st s;
         failwith "get_path_string"
     with ConfTypeError ->
       eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to defaults.ml?\n"
@@ -286,11 +282,18 @@ struct
       failwith "get_path_string"
 
   (** Convenience functions for reading values. *)
-  let get_int    = get_path_string number "int"
-  let get_bool   = get_path_string bool   "bool"
-  let get_string = get_path_string string "string"
-  let get_length = List.length % (!) % get_path_string array "array"
-  let get_list = List.map (!) % (!) % get_path_string array "array"
+  (* memoize for each type with BatCache: *)
+  let memo gen = BatCache.make_ht ~gen ~init_size:5 (* uses hashtable; fine since our options are bounded *)
+  let memog f = memo @@ get_path_string f
+
+  let memo_int    = memog number
+  let memo_bool   = memog bool
+  let memo_string = memog string
+  let memo_list   = memo @@ List.map (!) % (!) % get_path_string array
+  let get_int    = memo_int.get
+  let get_bool   = memo_bool.get
+  let get_string = memo_string.get
+  let get_list   = memo_list.get
   let get_string_list = List.map string % get_list
 
   (** Helper functions for writing values. *)
@@ -303,11 +306,11 @@ struct
     set_path_string st v
 
   (** Convenience functions for writing values. *)
-  let set_int    st i = set_path_string_trace st (Build.number i)
-  let set_bool   st i = set_path_string_trace st (Build.bool i)
-  let set_string st i = set_path_string_trace st (Build.string i)
+  let set_int    st i = memo_int.del st; set_path_string_trace st (Build.number i)
+  let set_bool   st i = memo_bool.del st; set_path_string_trace st (Build.bool i)
+  let set_string st i = memo_string.del st; set_path_string_trace st (Build.string i)
   let set_null   st   = set_path_string_trace st Build.null
-  let set_list   st l = set_value (Build.array l) json_conf (parse_path st)
+  let set_list   st l = memo_list.del st; set_value (Build.array l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =
@@ -340,7 +343,7 @@ struct
 
   (** Function to drop one element of an 'array' *)
   let drop_index st i =
-    let old = get_path_string array "array" st in
+    let old = get_path_string array st in
     if tracing then
       trace "conf" "Removing index %d from '%s' to %a." i st prettyJson (Array old);
     match List.split_at i !old with

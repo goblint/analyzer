@@ -4,7 +4,6 @@ open Prelude.Ana
 open Analyses
 open Apron
 open OctApronDomain
-open Utilities
 
 module Spec : Analyses.Spec =
 struct
@@ -31,7 +30,7 @@ struct
       let is = is @ List.map (fun x -> x^"'") is in
       let fs = fs @ List.map (fun x -> x^"'") fs in
       let newd = D.add_vars ctx.local (is,fs) in
-      let formargs = Utilities.zip f.sformals args in
+      let formargs = Goblintutil.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
       List.iter (fun (v, e) -> D.assign_var_with newd (v.vname^"'") e) arith_formals;
       D.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
@@ -50,7 +49,7 @@ struct
         let fis = List.map Var.to_string fis in
         let ffs = List.map Var.to_string ffs in
         let nd' = D.add_vars d (fis,ffs) in
-        let formargs = Utilities.zip f.sformals args in
+        let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
         List.iter (fun (v, e) -> D.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> x.vname^"'") arith_formals in

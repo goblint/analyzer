@@ -9,8 +9,6 @@ struct
 
   let equal a b = Basetype.CilExp.compareExp a b = 0
   let hash = Hashtbl.hash
-  let classify _ = 0
-  let class_name _ = "None"
   let name () = "Cil expressions"
 
   let pretty = d_exp
@@ -254,8 +252,6 @@ struct
 
   let equal = Util.equals
   let hash = Hashtbl.hash
-  let classify _ = 0
-  let class_name _ = "None"
   let name () = "Per-Element locking triple"
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
