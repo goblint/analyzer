@@ -967,21 +967,6 @@ struct
       end
     | _ -> Q.Result.top ()
 
-  let event ctx e octx =
-    let st: store = ctx.local in
-    match e with
-    | Events.Lock addr when ThreadFlag.is_multi ctx.ask -> (* TODO: is this condition sound? *)
-      if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
-      Priv.lock octx.ask octx.global st addr
-    | Events.Unlock addr when ThreadFlag.is_multi ctx.ask -> (* TODO: is this condition sound? *)
-      Priv.unlock octx.ask octx.global octx.sideg st addr
-    | Events.Escape escaped ->
-      Priv.escape octx.ask octx.global octx.sideg st escaped
-    | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded octx.ask octx.global octx.sideg st
-    | _ ->
-      ctx.local
-
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
       CPA.add variable (VD.top_value typ) cpa
@@ -2210,17 +2195,35 @@ struct
       [ctx.local]
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
+    begin match lval with
+      | Some lval ->
+        begin match ThreadId.get_current fctx.ask with
+          | `Lifted tid ->
+            (* Cannot set here, because ctx isn't in multithreaded mode and set wouldn't side-effect if lval is global. *)
+            ctx.emit (Events.AssignSpawnedThread (lval, tid))
+          | _ -> ()
+        end
+      | None -> ()
+    end;
     (* D.join ctx.local @@ *)
-    match lval with
-    | Some lval ->
-      begin match ThreadId.get_current fctx.ask with
-        | `Lifted tid ->
-          (* TODO: is this type right? *)
-          set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
-        | _ ->
-          ctx.local
-      end
-    | None ->
+    ctx.local
+
+  let event ctx e octx =
+    let st: store = ctx.local in
+    match e with
+    | Events.Lock addr when ThreadFlag.is_multi ctx.ask -> (* TODO: is this condition sound? *)
+      if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
+      Priv.lock octx.ask octx.global st addr
+    | Events.Unlock addr when ThreadFlag.is_multi ctx.ask -> (* TODO: is this condition sound? *)
+      Priv.unlock octx.ask octx.global octx.sideg st addr
+    | Events.Escape escaped ->
+      Priv.escape octx.ask octx.global octx.sideg st escaped
+    | Events.EnterMultiThreaded ->
+      Priv.enter_multithreaded octx.ask octx.global octx.sideg st
+    | Events.AssignSpawnedThread (lval, tid) ->
+      (* TODO: is this type right? *)
+      set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
+    | _ ->
       ctx.local
 end
 
