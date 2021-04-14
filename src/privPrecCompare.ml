@@ -42,10 +42,7 @@ struct
 end
 
 
-let compare_dumps filename1 filename2 =
-  (* TODO: don't load multiple times *)
-  let {name = name1; lvh = lvh1} = load filename1 in
-  let {name = name2; lvh = lvh2} = load filename2 in
+let compare_dumps {name = name1; lvh = lvh1} {name = name2; lvh = lvh2} =
   let lvh = LVH.merge (fun k v1 v2 -> Some (v1, v2)) lvh1 lvh2 in
   let compared = LVH.map (fun (l, x) (v1, v2) ->
       let v1 = v1 |? VD.bot () in
@@ -78,8 +75,9 @@ let compare_dumps filename1 filename2 =
 let () =
   Cil.initCIL (); (* ValueDomain.Compound.leq depends on ptrdiffType initialization *)
   let filenames = List.tl (Array.to_list Sys.argv) in
-  let i_filenames = List.mapi (fun i filename -> (i, filename)) filenames in
-  List.cartesian_product i_filenames i_filenames
+  let dumps = List.map load filenames in
+  let i_dumps = List.mapi (fun i dump -> (i, dump)) dumps in
+  List.cartesian_product i_dumps i_dumps
   |> List.filter (fun ((i1, _), (i2, _)) -> i1 < i2)
   |> List.map (Tuple2.map snd snd)
   |> List.map (uncurry compare_dumps)
