@@ -86,6 +86,13 @@ struct
         );
       in
       Result.iter add_one xs;
+      let live_count = StringMap.fold (fun _ file_lines acc ->
+          StringMap.fold (fun _ fun_lines acc ->
+              acc + ISet.cardinal fun_lines
+            ) file_lines acc
+        ) !live_lines 0
+      in
+      printf "Live lines: %d\n" live_count;
       let live file fn =
         try StringMap.find fn (StringMap.find file !live_lines)
         with Not_found -> BatISet.empty
