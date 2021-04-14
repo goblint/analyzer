@@ -18,6 +18,7 @@ sig
 
   val escape: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseDomain.BaseComponents (D).t
   val enter_multithreaded: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
+  val threadenter: Queries.ask -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
 
   val is_private: Queries.ask -> varinfo -> bool
 

@@ -36,6 +36,7 @@ sig
 
   val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
+  val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
 
   (* TODO: better name *)
   val is_private: Q.ask -> varinfo -> bool
@@ -62,6 +63,9 @@ struct
 
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg st = st
+  let threadenter ask (st: BaseComponents (D).t) =
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+    {st with cpa = new_cpa}
 
   let sync_privates reason ask =
     match reason with
@@ -274,6 +278,10 @@ struct
       ) st.cpa st.cpa
     in
     {st with cpa = cpa'}
+
+  let threadenter ask (st: BaseComponents (D).t) =
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+    {st with cpa = new_cpa}
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
@@ -488,6 +496,11 @@ struct
     in
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var st.cpa (st, [])
+
+  (* Copied from OldPrivBase but to match different D *)
+  let threadenter ask (st: BaseComponents (D).t) =
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+    {st with cpa = new_cpa}
 end
 
 module type PerGlobalPrivParam =
@@ -601,6 +614,9 @@ struct
           st
       ) st.cpa st
 
+  let threadenter ask (st: BaseComponents (D).t) =
+    {st with cpa = CPA.bot (); priv = startstate ()}
+
   (* ??? *)
   let is_private ask x = true
 end
@@ -643,6 +659,9 @@ struct
 
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
+  let threadenter ask (st: BaseComponents (D).t) =
+    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+    {st with cpa = new_cpa}
 
   (* ??? *)
   let is_private ask x = true
@@ -892,6 +911,9 @@ struct
         else
           st
       ) st.cpa st
+
+  let threadenter ask (st: BaseComponents (D).t) =
+    {st with cpa = CPA.bot (); priv = startstate ()}
 end
 
 module PreciseDomains =
@@ -1078,6 +1100,9 @@ struct
         else
           st
       ) st.cpa st
+
+  let threadenter ask (st: BaseComponents (D).t) =
+    {st with cpa = CPA.bot (); priv = startstate ()}
 end
 
 module PerGlobalHistoryPriv: S =
@@ -1232,6 +1257,9 @@ struct
         else
           st
       ) st.cpa st
+
+  let threadenter ask (st: BaseComponents (D).t) =
+    {st with cpa = CPA.bot (); priv = startstate ()}
 end
 
 module MinePerGlobalPriv: S =
@@ -1407,6 +1435,9 @@ struct
         else
           st
       ) st.cpa st
+
+  let threadenter ask (st: BaseComponents (D).t) =
+    {st with cpa = CPA.bot (); priv = startstate ()}
 end
 
 module TimedPriv (Priv: S): S with module D = Priv.D =
@@ -1424,6 +1455,7 @@ struct
   let sync reason ctx = time "sync" (Priv.sync reason) ctx
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
+  let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
 
   let is_private = Priv.is_private
 
@@ -1540,6 +1572,13 @@ struct
       sideg x v
     in
     let r = enter_multithreaded ask getg sideg st in
+    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    r
+
+  let threadenter ask st =
+    if M.tracing then M.traceli "priv" "threadenter\n";
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    let r = threadenter ask st in
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 

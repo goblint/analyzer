@@ -1811,7 +1811,7 @@ struct
     List.concat (List.map do_exp exps)
 
 
-  let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
+  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ctx.ask ctx.global st) args in
@@ -1819,15 +1819,21 @@ struct
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k) st.cpa in
+    let st' =
+      if thread then
+        Priv.threadenter ctx.ask st
+      else
+        let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k) st.cpa in
+        {st with cpa = new_cpa}
+    in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
-    let new_cpa = CPA.add_list pa new_cpa in
+    let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
-    { st with cpa = new_cpa }
+    {st' with cpa = new_cpa}
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -2192,7 +2198,7 @@ struct
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     try
-      [make_entry ctx f args]
+      [make_entry ~thread:true ctx f args]
     with Not_found ->
       (* Unknown functions *)
       [ctx.local]
