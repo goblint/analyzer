@@ -331,7 +331,7 @@ struct
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          (st, [(mutex_global x, CPA.add x v (CPA.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, CPA.add x v (CPA.bot ()))])
         | _ ->
           (st, [])
       end
@@ -723,9 +723,9 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-      | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) (ThreadMap.add x v (ThreadMap.bot ())) (GWeak.bot ()), GSync.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, (GWeak.add (Lockset.empty ()) (ThreadMap.add x v (ThreadMap.bot ())) (GWeak.bot ()), GSync.bot ()))])
         | _ ->
           (st, [])
       end
@@ -796,9 +796,9 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-      | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
         | _ ->
           (st, [])
       end
@@ -869,9 +869,9 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-      | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
         | _ ->
           (st, [])
       end
@@ -1045,9 +1045,9 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-      | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
         | _ ->
           (st, [])
       end
@@ -1198,9 +1198,9 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-      | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) (GWeakW.add (Lockset.empty ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, (GWeak.add (Lockset.empty ()) (GWeakW.add (Lockset.empty ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ()))])
         | _ ->
           (st, [])
       end
@@ -1373,9 +1373,9 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-      | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          (st, [(mutex_global x, (GWeak.add (Lockset.empty ()) (GWeakW.add (Lockset.empty ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, (GWeak.add (Lockset.empty ()) (GWeakW.add (Lockset.empty ()) v (GWeakW.bot ())) (GWeak.bot ()), GSync.bot ()))])
         | _ ->
           (st, [])
       end
@@ -1542,6 +1542,22 @@ struct
     let r = enter_multithreaded ask getg sideg st in
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
+
+  let sync ask getg st reason =
+    if M.tracing then M.traceli "priv" "sync\n";
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v
+    in
+    let (r, rsideg) = sync ask getg st reason in
+    List.iter (uncurry sideg) rsideg;
+    if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
+    (r, rsideg)
 
 end
 
