@@ -299,8 +299,9 @@ val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
 
 module Size : sig
   (** The biggest type we support for integers. *)
-  val top_typ : Cil.typ
-  val range   : Cil.ikind -> int64 * int64 
+  val top_typ         : Cil.typ
+  val range           : Cil.ikind -> int64 * int64 
+  val range_big_int   : Cil.ikind -> Z.t * Z.t
 end
 
 exception ArithmeticOnIntegerBot of string
