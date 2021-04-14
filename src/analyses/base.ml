@@ -28,11 +28,9 @@ let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !preciou
 
 let privatization = ref false
 let is_private (a: Q.ask) (_,_) (v: varinfo): bool =
-  !privatization &&
-  (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-   match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
-   if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
-   false)
+  !privatization && (* must be true *)
+  (not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+  || match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ -> false) (* usual case where MayBePublic answers *)
 
 module MainFunctor(RVEval:BaseDomain.ExpEvaluator) =
 struct
@@ -1832,7 +1830,8 @@ struct
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
+    let globals = CPA.filter (fun k v ->  V.is_global k) cpa in
+    let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
