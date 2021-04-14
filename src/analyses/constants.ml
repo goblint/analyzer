@@ -50,7 +50,11 @@ struct
         | None -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+    (* testen ob tv erfüllbar *)
+    let v = eval ctx.local exp in
+    match I.to_bool v with
+      | Some b when b <> tv -> D.bot () (* if the expression evalautes to not tv, the tv branch is not reachable *)
+      | _ -> ctx.local
 
   let body ctx (f:fundec) : D.t =
     (* Initialize locals to top *)
