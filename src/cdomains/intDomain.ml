@@ -1,8 +1,5 @@
 open GobConfig
 open Pretty
-open IntervalOps
-open CircularInterval
-open CircularIntOps
 
 module GU = Goblintutil
 module JB = Json
@@ -1484,319 +1481,6 @@ struct
       else raise (Overflow (Printf.sprintf "%Ld * %Ld" a b))
 
 end
-
-module CircInterval : IkindUnawareS with type t = CBigInt.t interval and type int_t = int64 =
-struct
-  include Printable.Std
-  module I = CBigInt
-  module C = CircularBigInt
-  type t = I.t interval
-  type int_t = int64
-  let to_yojson _ = failwith "TODO to_yojson"
-
-  let max_width = 64
-  let size t = Size.bit t
-
-  let name () = "circular int intervals"
-  let cast_to ?torg t x =
-    match (I.bounds x) with
-    | None -> Bot (size t)
-    | Some(a,b) -> I.of_t (size t) a b
-
-  let equal_to i x = failwith "equal_to not implemented"
-
-  (* Int Conversion *)
-  let to_int x =
-    match x with
-    | Int(w,a,b) when C.eq a b -> Some (C.to_int64 w a)
-    | _ -> None
-  let of_int x = I.of_int64 max_width x x
-  let is_int x =
-    match x with
-    | Int(_,a,b) -> C.eq a b
-    | _ -> false
-
-  let of_interval ik (x,y) = I.of_int64 max_width x y
-
-  (* Bool Conversion *)
-  let to_bool x =
-    match to_int x with
-    | None -> None
-    | Some 0L -> Some false
-    | _ -> Some true
-  let of_bool x =
-    if x
-    then Int(1, C.one, C.one)
-    else Int(1, C.zero, C.zero)
-  let is_bool x =
-    match x with
-    | Int(_,a,b) -> C.eq a b
-    | _ -> false
-
-  (* List Conversion *)
-  let to_excl_list x = None
-  let of_excl_list t x = Top max_width
-  let is_excl_list x = false
-
-  (* Starting/Ending *)
-  let starting ikind x =
-    let r = I.of_t max_width (C.of_int64 max_width x) (C.max_value max_width)
-    in
-    print_endline ("starting: "^(I.to_string r)^" .. "^(Int64.to_string x));
-    r
-  let ending ikind x =
-    let r = I.of_t max_width C.zero (C.of_int64 max_width x)
-    in
-    print_endline ("ending: "^(I.to_string r)^" .. "^(Int64.to_string x));
-    r
-  let maximal x =
-    print_endline ("maximal: "^(I.to_string x));
-    match I.bounds x with
-    | Some(_,m) -> Some (C.to_int64 (I.width x) m)
-    | _ -> None
-  let minimal x =
-    print_endline ("minimal: "^(I.to_string x));
-    match I.bounds x with
-    | Some(m,_) -> Some (C.to_int64 (I.width x) m)
-    | _ -> None
-
-  (* Debug Helpers *)
-  let wrap_debug1 n f =
-    fun a ->
-    let r = f a in
-    if get_bool "ana.int.cdebug" then print_endline (n^": "^(I.to_string a)^" = "^(I.to_string r));
-    r
-
-  let wrap_debug2 n f =
-    fun a b ->
-    let r = f a b in
-    if get_bool "ana.int.cdebug"
-    then print_endline (n^": "^(I.to_string a)^" .. "^(I.to_string b)^" = "^(I.to_string r));
-    r
-
-  (* Arithmetic *)
-  let neg = wrap_debug1 "neg" I.neg
-  let add = wrap_debug2 "add" I.add
-  let sub = wrap_debug2 "sub" I.sub
-  let mul = wrap_debug2 "mul" I.mul
-  let div = wrap_debug2 "div" I.div_s
-  let rem = wrap_debug2 "rem" I.rem
-
-  (* Comparison *)
-  let comp_lt f a b =
-    let w = I.width a in
-    let np = I.north_pole_end w in
-    if I.contains a (I.north_pole w) || I.contains b (I.north_pole w)
-    then I.of_int 1 0 1
-    else
-      match I.bounds a, I.bounds b with
-      | Some(l0,u0), Some(l1,u1) ->
-        if (f w np u0 l1) then of_bool true
-        else if (f w np l0 l1) then I.of_int 1 0 1
-        else of_bool false
-      | _ -> I.of_int 1 0 1
-
-  let comp_gt f a b =
-    let w = I.width a in
-    let np = I.north_pole_end w in
-    if I.contains a (I.north_pole w) || I.contains b (I.north_pole w)
-    then I.of_int 1 0 1
-    else
-      match I.bounds a, I.bounds b with
-      | Some(l0,u0), Some(l1,u1) ->
-        if (f w np l0 u1) then of_bool true
-        else if (f w np u0 u1) then I.of_int 1 0 1
-        else of_bool false
-      | _ -> I.of_int 1 0 1
-
-  let lt = wrap_debug2 "lt" (comp_lt I.relative_lt)
-  let le = wrap_debug2 "le" (comp_lt I.relative_leq)
-  let gt = wrap_debug2 "gt" (comp_gt I.relative_gt)
-  let ge = wrap_debug2 "ge" (comp_gt I.relative_geq)
-
-  let eq' a b =
-    match (I.meet a b) with
-    | Bot _ -> of_bool false
-    | _ ->
-      match I.bounds a, I.bounds b with
-      | Some(x,y), Some(u,v) ->
-        if (C.eq x y) && (C.eq u v) && (C.eq x u)
-        then of_bool true
-        else I.of_int 1 0 1
-      | _ -> I.of_int 1 0 1
-
-  let ne' a b =
-    match (I.meet a b) with
-    | Bot _ -> of_bool true
-    | _ ->
-      match I.bounds a, I.bounds b with
-      | Some(x,y), Some(u,v) ->
-        if (C.eq x y) && (C.eq u v) && (C.eq x u)
-        then of_bool false
-        else I.of_int 1 0 1
-      | _ -> I.of_int 1 0 1
-
-  let eq = wrap_debug2 "eq" eq'
-  let ne = wrap_debug2 "ne" ne'
-
-  let leq a b = I.contains b a
-
-  (* Bitwise *)
-  let bitnot x =
-    match x with
-    | Bot _ -> x
-    | Int(w,a,b) when C.eq a b ->
-      let v = C.lognot w a in
-      Int(w,v,v)
-    | _ -> Top (I.width x)
-  let bitand = wrap_debug2 "bitand" I.logand
-  let bitor = wrap_debug2 "bitor" I.logor
-  let bitxor = wrap_debug2 "bitxor" I.logxor
-  let shift_left = wrap_debug2 "shift_left" I.shift_left
-  let shift_right = wrap_debug2 "shift_right" I.shift_right
-
-  (* Lattice *)
-  let top () = Top max_width
-  let bot () = Bot max_width
-  let is_top x =
-    match x with
-    | Top _ -> true
-    | _ -> false
-  let is_bot x =
-    match x with
-    | Bot _ -> true
-    | _ -> false
-  let top_of ik = top ()
-  let bot_of ik = bot ()
-
-
-  (* Logical *)
-  let log1 f i1 =
-    if is_bot i1 then bot ()
-    else
-      match to_bool i1 with
-      | Some x -> of_bool (f x)
-      | _      -> top ()
-  let log f i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, _
-    | _   , true -> bot ()
-    | _ ->
-      match to_bool i1, to_bool i2 with
-      | Some x, Some y -> of_bool (f x y)
-      | _              -> top ()
-
-  let lognot = log1 not
-  let logor  = log (||)
-  let logand = log (&&)
-
-  (* Others *)
-  let meet = wrap_debug2 "meet" I.meet
-  let join = wrap_debug2 "join" I.join
-  let equal = I.eql
-
-  let hash x =
-    match x with
-    | Top w -> w
-    | Bot _ -> 0
-    | Int(w,a,b) -> w lxor (Hashtbl.hash b) lxor (Hashtbl.hash a)
-
-  let isSimple x = true
-  let short _ x = I.to_string x
-  let pretty_f sh () x = text (sh 10 x)
-  let pretty = pretty_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
-
-  (* Widen
-   * Roughly double the interval size. *)
-  let widen_double a b =
-    let w = I.width b in
-    let two = C.of_int w 2 and add = C.add w
-    and sub = C.sub w and mul = C.mul w
-    in
-    if (I.contains a b) then b
-    else if C.geq (I.count b) (I.north_pole_end w) then Top w
-    else
-      match I.bounds a,I.bounds b with
-      | Some(u,v), Some(x,y) ->
-        let j = I.join a b and uy = I.of_t w u y and xv = I.of_t w x y in
-        if I.eql j uy then
-          I.join uy (I.of_t w u (add (sub (mul v two) u) C.one))
-        else if I.eql j xv then
-          I.join xv (I.of_t w (sub (sub (mul u two) v) C.one) v)
-        else if (I.contains_element b u) && (I.contains_element b v) then
-          I.join b (I.of_t w x (add (sub (add x (mul v two)) (mul u two)) C.one))
-        else Top w
-      | _ -> Top w
-
-  let widen_basic a b =
-    if (I.eql a b) then b
-    else Top (I.width b)
-
-  let widen' a b =
-    match get_string "ana.int.cwiden" with
-    | "basic" -> widen_basic a b
-    | "double" -> widen_double a b
-    | _ -> b
-
-  let widen = wrap_debug2 "widen" widen'
-
-  (* Narrow
-   * Take half of interval size. *)
-  let narrow_half a b =
-    let w = I.width b in
-    let delta = C.of_int w 2 and add = C.add w
-    and sub = C.sub w and div = C.div w
-    in
-    if I.eql a b then b
-    else if C.leq (I.count b) (C.of_int w 2) then b
-    else
-      match I.bounds a, I.bounds b with
-      | Some(u,v), Some(x,y) ->
-        let m = I.meet a b and uy = I.of_t w u y and xv = I.of_t w x v in
-        if I.eql m uy then
-          I.meet uy (I.of_t w u (sub (add (div u delta) (div v delta)) C.one))
-        else if I.eql m xv then
-          I.meet xv (I.of_t w (add C.one (add (div u delta) (div v delta))) v)
-        else
-          I.meet b (I.of_t w (add (div u delta) (div v delta)) (add (div u delta) (div v delta)))
-      | _ -> b
-
-  let narrow_basic a b =
-    if (I.eql a b) then b
-    else
-      match a with
-      | Top _ -> b
-      | _ -> a
-
-  let narrow' a b =
-    match get_string "ana.int.cnarrow" with
-    | "basic" -> narrow_basic a b
-    | "half"  -> narrow_half a b
-    | _ -> b
-
-  let narrow = wrap_debug2 "narrow" narrow'
-
-  (* S TODO: shrinker for bigint circular intervals *)
-  (* let arbitrary () = QCheck.set_print (short 10000) @@ QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 *)
-  let arbitrary () =
-    let open QCheck.Iter in
-    let pair_arb = QCheck.pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int in
-    (* let int (a, b) = Int (max_width, a, b) in *) (* shrinker gets stuck, probably doesn't satisfy some invariant *)
-    let int (a, b) = I.of_t max_width a b in
-    let shrink = function
-      | Int (w, a, b) -> (return (Bot w)) <+> (MyCheck.shrink pair_arb (a, b) >|= int)
-      | Bot w -> empty
-      | Top w -> MyCheck.Iter.of_arbitrary ~n:20 pair_arb >|= int
-    in
-    QCheck.frequency ~shrink ~print:(short 10000) [
-      20, QCheck.map int pair_arb;
-      1, QCheck.always (Bot max_width);
-      1, QCheck.always (Top max_width)
-    ] (* S TODO: decide frequencies *)
-end
-
 (* BOOLEAN DOMAINS *)
 
 module type BooleansNames =
@@ -2116,14 +1800,13 @@ module IntDomTupleImpl = struct
 
   open Batteries
   type int_t = BI.t
-  module I1 (*: S with type int_t  = int_t *) = DefExc
-  module I2 (*: S with type int_t  = int_t *) = Interval
-  module I3 (*: S with type int_t  = int_t *) = OldDomainFacade(CircInterval)
-  module I4 (*: S with type int_t  = int_t *) = Enums
-  type t = I1.t option * I2.t option * I3.t option * I4.t option [@@deriving to_yojson]
+  module I1 = DefExc
+  module I2 = Interval
+  module I3 = Enums
+  type t = I1.t option * I2.t option * I3.t option [@@deriving to_yojson]
 
   (* The Interval32 domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
-  let no_interval32 = Tuple4.map2 (const None)
+  let no_interval = Tuple3.map2 (const None)
 
   type 'a m = (module S with type t = 'a)
   type 'a m2 = (module S with type t = 'a and type int_t = int_t )
@@ -2138,19 +1821,19 @@ module IntDomTupleImpl = struct
   type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
+    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3)
   let create2 r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "cinterval" @@ r.fi2 (module I3), f "enums" @@ r.fi2 (module I4)
+    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3)
 
-  let mapp r (a,b,c,d) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
-  let mapp2 r (a,b,c,d) = BatOption.(map (r.fp2 (module I1)) a, map (r.fp2 (module I2)) b, map (r.fp2 (module I3)) c, map (r.fp2 (module I4)) d)
+  let mapp r (a,b,c) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b,  map (r.fp (module I3)) c)
+  let mapp2 r (a,b,c) = BatOption.(map (r.fp2 (module I1)) a, map (r.fp2 (module I2)) b, map (r.fp2 (module I3)) c)
 
-  let map r (a,b,c,d) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
+  let map r (a,b,c) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
-  let map2  r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc, opt_map2 (r.f2  (module I4)) xd yd
-  let map2p r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc, opt_map2 (r.f2p  (module I4)) xd yd
-  let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let map2  r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc
+  let map2p r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb,  opt_map2 (r.f2p  (module I3)) xc yc
+  let to_list x = Tuple3.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
 
@@ -2176,7 +1859,7 @@ module IntDomTupleImpl = struct
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple4.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple3.enum |> List.of_enum |> List.filter_map identity in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top
@@ -2255,7 +1938,7 @@ module IntDomTupleImpl = struct
           Invariant.(a && i)
         ) Invariant.none is
 
-  let arbitrary () = QCheck.(set_print (short 10000) @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
+  let arbitrary () = QCheck.(set_print (short 10000) @@ triple (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())))
 end
 
 module IntDomTuple =
@@ -2264,7 +1947,7 @@ struct
  include I
 
  let top () = failwith "top in IntDomTuple not supported. Use top_of instead."
- let no_interval32 (x: I.t) = {x with v = IntDomTupleImpl.no_interval32 x.v}
+ let no_interval (x: I.t) = {x with v = IntDomTupleImpl.no_interval x.v}
 
 end
 

@@ -349,8 +349,8 @@ let do_html_output () =
 let check_arguments () =
   let fail m = failwith ("Option clash: " ^ m) in
   let info m = eprintf "Option info: %s\n" m in
-  let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval32-context" in
-  if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval32-context)";
+  let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval-context" in
+  if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval-context)";
   let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
   if ctx_insens && get_bool "exp.full-context" then info "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; info "allfuns enables exp.earlyglobs.\n")

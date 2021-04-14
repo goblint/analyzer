@@ -1,4 +1,4 @@
-open! Defaults (* CircInterval / Enums / ... need initialized conf *)
+open! Defaults (* Enums / ... need initialized conf *)
 
 module type FiniteSetElems =
 sig
@@ -55,7 +55,6 @@ let domains: (module Lattice.S) list = [
   (module IntDomain.Booleans);
 
   (* TODO: fix *)
-  (* (module IntDomain.CircInterval); *)
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
 
@@ -72,7 +71,6 @@ let intDomains: (module IntDomainProperties.S) list = [
   (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
-  (* (module IntDomain.CircInterval); *)
   (* (module IntDomain.IntDomTuple); *)
 ]
 

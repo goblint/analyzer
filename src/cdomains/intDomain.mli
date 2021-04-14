@@ -291,7 +291,7 @@ module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type 
 (* module IntDomList : S *)
 module IntDomTuple : sig
   include Z
-  val no_interval32: t -> t
+  val no_interval: t -> t
 end
 
 val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
@@ -342,8 +342,6 @@ module Interval : S with type int_t = IntOps.BigIntOps.t
 module DefExc : S with type int_t = IntOps.BigIntOps.t
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
-
-module CircInterval: IkindUnawareS (* for property-based testing *)
 
 (** {b Domain constructors} *)
 
