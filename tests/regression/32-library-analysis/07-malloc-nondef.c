@@ -14,6 +14,6 @@ int main(){
     }
     // p and p2 should be represented by the same non-definite memory-block representation.
     // Therefore, the following assert should be unknown:
-    assert(z == 1); // UNKNOWN
+    assert(z == 32); // UNKNOWN!
     return 0;
 }
