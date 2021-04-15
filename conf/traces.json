@@ -2,7 +2,7 @@
   "ana": {
     "int": {
       "def_exc": true,
-      "interval": true,
+      "interval": false,
       "enums": true
     }
   },
@@ -18,7 +18,7 @@
     }
   },
   "exp": {
-    "priv-distr-init": true,
+    "priv-distr-init": false,
     "malloc": {
       "wrappers": [
         "kmalloc",
