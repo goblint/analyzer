@@ -875,8 +875,8 @@ struct
 
     let weak = fst
     let sync = snd
-    let create_weak m = (m, GSync.bot ())
-    let create_sync m = (GWeak.bot (), m)
+    let create_weak weak = (weak, GSync.bot ())
+    let create_sync sync = (GWeak.bot (), sync)
   end
 
   let startstate () = W.empty ()
@@ -953,6 +953,7 @@ struct
       old_threadenter
 end
 
+(* TODO: split this up *)
 module PreciseDomains =
 struct
   open MinePrivBase
@@ -984,10 +985,11 @@ struct
   end
 end
 
+(** Lock-Centered Reading. *)
 module MineLazyPriv: S =
 struct
   include MinePrivBase
-  include PreciseDomains
+  open PreciseDomains
 
   module V =
   struct
@@ -996,6 +998,7 @@ struct
   end
   module D = Lattice.Prod (V) (L)
 
+  (* TODO: share with MineWPriv *)
   module GWeak =
   struct
     include MapDomain.MapBot (Lockset) (VD)
@@ -1004,19 +1007,27 @@ struct
   module GSync =
   struct
     include MapDomain.MapBot (Lockset) (CPA)
-    let name () = "sync"
+    let name () = "synchronized"
   end
-  (* weak: G -> (2^M -> D) *)
-  (* sync: M -> (2^M -> (G -> D)) *)
-  module G = Lattice.Prod (GWeak) (GSync)
+  module G =
+  struct
+    (* weak: G -> (2^M -> D) *)
+    (* sync: M -> (2^M -> (G -> D)) *)
+    include Lattice.Prod (GWeak) (GSync)
+
+    let weak = fst
+    let sync = snd
+    let create_weak weak = (weak, GSync.bot ())
+    let create_sync sync = (GWeak.bot (), sync)
+  end
 
   let startstate () = (V.bot (), L.bot ())
 
-  let lockset_init () = Lockset.All
+  let lockset_init = Lockset.All
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
-      let v_init = GWeak.find (lockset_init ()) (fst (getg (mutex_global x))) in
+      let v_init = GWeak.find lockset_init (G.weak (getg (mutex_global x))) in
       VD.join v v_init
     else
       v
@@ -1027,7 +1038,7 @@ struct
     let d_cpa = CPA.find x st.cpa in
     let d_sync = L.fold (fun m bs acc ->
         if not (CachedVars.mem x (V.find m vv)) then
-          let syncs = snd (getg (mutex_addr_to_varinfo m)) in
+          let syncs = G.sync (getg (mutex_addr_to_varinfo m)) in
           MinLocksets.fold (fun b acc ->
               GSync.fold (fun s' cpa' acc ->
                   if Lockset.disjoint b s' then
@@ -1041,7 +1052,7 @@ struct
           acc
       ) l (VD.bot ())
     in
-    let weaks = fst (getg (mutex_global x)) in
+    let weaks = G.weak (getg (mutex_global x)) in
     let d_weak = GWeak.fold (fun s' v acc ->
         if Lockset.disjoint s s' then
           VD.join v acc
@@ -1050,11 +1061,10 @@ struct
       ) weaks (VD.bot ())
     in
     let d_init =
-      (* TODO: V.exists *)
-      if not (V.for_all (fun m cached -> not (CachedVars.mem x cached)) vv) then
+      if V.exists (fun m cached -> CachedVars.mem x cached) vv then
         VD.bot ()
       else
-        GWeak.find (lockset_init ()) weaks
+        GWeak.find lockset_init weaks
     in
     if M.tracing then M.trace "priv" "d_cpa: %a\n" VD.pretty d_cpa;
     if M.tracing then M.trace "priv" "d_sync: %a\n" VD.pretty d_sync;
@@ -1067,7 +1077,6 @@ struct
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let (vv, l) = st.priv in
-    (* TODO: replace a \in S with a \in \dom(L) or a \in \M in paper *)
     let v' = L.fold (fun m _ acc ->
         V.add m (CachedVars.add x (V.find m acc)) acc
       ) l vv
@@ -1075,7 +1084,7 @@ struct
     let cpa' = CPA.add x v st.cpa in
     if not (!GU.earlyglobs && is_precious_glob x) then (
       let v = distr_init getg x v in
-      sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ())
+      sideg (mutex_global x) (G.create_weak (GWeak.singleton s v))
     );
     {st with cpa = cpa'; priv = (v', l)}
 
@@ -1095,7 +1104,7 @@ struct
         v
       ) side_cpa
     in
-    sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
+    sideg (mutex_addr_to_varinfo m) (G.create_sync (GSync.singleton s side_cpa));
     (* m stays in v, l *)
     (* TODO: why is it so imprecise now? *)
     st
@@ -1106,7 +1115,7 @@ struct
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, G.create_weak (GWeak.singleton (Lockset.empty ()) v))])
         | _ ->
           (st, [])
       end
@@ -1119,7 +1128,7 @@ struct
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
-          sideg (mutex_global x) (GWeak.add (lockset_init ()) v (GWeak.bot ()), GSync.bot ());
+          sideg (mutex_global x) (G.create_weak (GWeak.singleton lockset_init v));
           CPA.remove x acc
         )
         else
@@ -1131,7 +1140,7 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (mutex_global x) (GWeak.add (lockset_init ()) v (GWeak.bot ()), GSync.bot ());
+          sideg (mutex_global x) (G.create_weak (GWeak.singleton lockset_init v));
           {st with cpa = CPA.remove x st.cpa}
         )
         else
