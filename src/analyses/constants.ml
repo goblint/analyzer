@@ -33,7 +33,7 @@ struct
     | _, _ -> None
 
     (** Evaluates expressions *)
-    let rec eval (state : D.t) (e: exp) =
+  let rec eval (state : D.t) (e: exp) =
     match e with
     | Const c -> (match c with
       | CInt64 (i,_,_) -> I.of_int i
