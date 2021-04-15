@@ -509,11 +509,18 @@ sig
   val check_read_unprotected: bool
 end
 
+(** Protection-Based Reading. *)
 module PerGlobalPriv (Param: PerGlobalPrivParam): S =
 struct
   include NewPrivBase
 
-  module D = CachedVars
+  module P =
+  struct
+    include CachedVars
+    let name () = "P"
+  end
+  (* W is implicitly represented by CPA domain *)
+  module D = P
 
   module GUnprot =
   struct
@@ -527,26 +534,24 @@ struct
   end
   module G = Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
 
-  let startstate () = D.top ()
+  let startstate () = P.empty ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
-    if CachedVars.mem x st.priv then
+    if P.mem x st.priv then
       CPA.find x st.cpa
     else if is_unprotected ask x then
-      fst (getg x)
-    else if CPA.mem x st.cpa then
-      VD.join (CPA.find x st.cpa) (snd (getg x))
+      fst (getg x) (* CPA unnecessary because all values in GUnprot anyway *)
     else
-      snd (getg x)
+      VD.join (CPA.find x st.cpa) (snd (getg x))
 
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     sideg x (v, if !GU.earlyglobs then v else VD.bot ()); (* earlyglobs workaround for 13/60 *)
     if is_unprotected ask x then
       st
     else
-      {st with cpa = CPA.add x v st.cpa; priv = CachedVars.add x st.priv}
+      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
 
-  let lock ask getg cpa m = cpa
+  let lock ask getg st m = st
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
@@ -559,7 +564,7 @@ struct
             sideg x (VD.bot (), v);
 
           if is_unprotected_without ask x m then (* is_in_V' *)
-            {st with cpa = CPA.remove x st.cpa; priv = CachedVars.remove x st.priv}
+            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
           else
             st
         )
@@ -573,7 +578,7 @@ struct
       let (st', sidegs) =
         CPA.fold (fun x v (((st: BaseComponents (D).t), sidegs) as acc) ->
             if is_global ask x && is_unprotected ask x then
-              ({st with cpa = CPA.remove x st.cpa; priv = CachedVars.remove x st.priv}, (x, (v, VD.bot ())) :: sidegs)
+              ({st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}, (x, (v, VD.bot ())) :: sidegs)
             else
               acc
           ) st.cpa (st, [])
@@ -583,7 +588,7 @@ struct
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          ({st with cpa = CPA.remove x st.cpa; priv = CachedVars.remove x st.priv}, [(x, (v, VD.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}, [(x, (v, VD.bot ()))])
         | _ ->
           (st, [])
       end
@@ -608,7 +613,7 @@ struct
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
           sideg x (v, v);
-          {st with cpa = CPA.remove x st.cpa; priv = CachedVars.remove x st.priv}
+          {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
         )
         else
           st
