@@ -21,7 +21,7 @@ int main(){
 
     int res = f(3, 5);
 
-    assert(res == 8);
+    assert(res == 64);
     printf("result of f: %d\n", res);
 
     return res;
