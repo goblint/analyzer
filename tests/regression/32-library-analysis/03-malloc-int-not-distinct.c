@@ -11,7 +11,7 @@ int main(){
         z = 0;
     }
 
-    assert(z == 1); // Unknown!
+    assert(z == 1); // UNKNOWN!
 
     return 2;
 }
