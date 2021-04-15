@@ -13,7 +13,7 @@ struct
 
   module I = IntDomain.Flattened
 
-  (* Map of (local int) varibales to flat integers *)
+  (* Map of (local int) variables to flat integers *)
   module D = MapDomain.MapBot (Basetype.Variables) (I)
   (* No information about globals*)
   module G = Lattice.Unit
@@ -59,7 +59,7 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     let v = eval ctx.local exp in
     match I.to_bool v with
-      | Some b when b <> tv -> raise Deadcode (* if the expression evalautes to not tv, the tv branch is not reachable *)
+      | Some b when b <> tv -> raise Deadcode (* if the expression evaluates to not tv, the tv branch is not reachable *)
       | _ -> ctx.local
 
   let body ctx (f:fundec) : D.t =
