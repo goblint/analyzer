@@ -845,11 +845,17 @@ sig
   val side_effect_global_init: bool
 end
 
+(** Interference-Based Reading? Side-effecting Mine using W set. *)
 module MineWPriv (Param: MineWPrivParam): S =
 struct
   include MinePrivBase
 
-  module D = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+  module W =
+  struct
+    include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
+    let name () = "W"
+  end
+  module D = W
 
   module GWeak =
   struct
@@ -859,13 +865,21 @@ struct
   module GSync =
   struct
     include MapDomain.MapBot (Lockset) (CPA)
-    let name () = "sync"
+    let name () = "synchronized"
   end
-  (* weak: G -> (2^M -> D) *)
-  (* sync: M -> (2^M -> (G -> D)) *)
-  module G = Lattice.Prod (GWeak) (GSync)
+  module G =
+  struct
+    (* weak: G -> (2^M -> D) *)
+    (* sync: M -> (2^M -> (G -> D)) *)
+    include Lattice.Prod (GWeak) (GSync)
 
-  let startstate () = D.empty ()
+    let weak = fst
+    let sync = snd
+    let create_weak m = (m, GSync.bot ())
+    let create_sync m = (GWeak.bot (), m)
+  end
+
+  let startstate () = W.empty ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
@@ -874,14 +888,14 @@ struct
           VD.join v acc
         else
           acc
-      ) (fst (getg (mutex_global x))) (CPA.find x st.cpa)
+      ) (G.weak (getg (mutex_global x))) (CPA.find x st.cpa)
 
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
     if not (!GU.earlyglobs && is_precious_glob x) then
-      sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
-    {st with cpa = cpa'; priv = D.add x st.priv}
+      sideg (mutex_global x) (G.create_weak (GWeak.singleton s v));
+    {st with cpa = cpa'; priv = W.add x st.priv}
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
@@ -890,15 +904,15 @@ struct
           CPA.join cpa' acc
         else
           acc
-      ) (snd (getg (mutex_addr_to_varinfo m))) st.cpa
+      ) (G.sync (getg (mutex_addr_to_varinfo m))) st.cpa
     in
     {st with cpa = cpa'}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = Lockset.remove m (current_lockset ask) in
-    let is_in_W x _ = D.mem x st.priv in
+    let is_in_W x _ = W.mem x st.priv in
     let side_cpa = CPA.filter is_in_W st.cpa in
-    sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.add s side_cpa (GSync.bot ()));
+    sideg (mutex_addr_to_varinfo m) (G.create_sync (GSync.singleton s side_cpa));
     st
 
   let sync ask getg (st: BaseComponents (D).t) reason =
@@ -907,7 +921,7 @@ struct
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa}, [(mutex_global x, G.create_weak (GWeak.singleton (Lockset.empty ()) v))])
         | _ ->
           (st, [])
       end
@@ -917,13 +931,13 @@ struct
     | `Thread ->
       (st, [])
 
-  let escape ask getg sideg st escaped = st
+  let escape ask getg sideg st escaped = st (* TODO: do something here when side_effect_global_init? *)
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     if Param.side_effect_global_init then (
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
           if is_global ask x then (
-            sideg (mutex_global x) (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ());
-            {st with priv = D.add x st.priv} (* TODO: is this add necessary? *)
+            sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
+            {st with priv = W.add x st.priv} (* TODO: is this add necessary? *)
           )
           else
             st
