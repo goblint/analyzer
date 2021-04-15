@@ -16,8 +16,8 @@ void (*fp)(void) = &hello;
 
 int main(){
 	s.f = &hello;
-	assert(s.f == &hello); // UNKNOWN
-	assert(fp == &hello); // UNKNOWN
+	assert(s.f == &hello);
+	assert(fp == &hello);
 	f_everything_up();
 	s.f();
 	assert(s.data == 0); // UNKNOWN!!1!one!

@@ -41,7 +41,7 @@ int main() {
   else
     assert(1);
 
-  assert(p == &x); // UNKNOWN
+  assert(p == &x);
   if (q == p)
     assert(1);
   else

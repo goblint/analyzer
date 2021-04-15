@@ -12,12 +12,12 @@ int main() {
   *x = 0;
   *y = 1;
 
-  assert(*x == 0); // UNKNOWN
-  assert(*y == 1); // UNKNOWN
+  assert(*x == 0);
+  assert(*y == 1);
 
   p = x; x = y; y = p;
-  assert(*x == 1); // UNKNOWN
-  assert(*y == 0); // UNKNOWN
+  assert(*x == 1);
+  assert(*y == 0);
 
   return 0;
 }

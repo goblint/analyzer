@@ -283,7 +283,7 @@ int t1(){
 	assert(x == y);
 	f(a);
 	assert(x == y); // UNKNOWN
-	assert(a == &y); // UNKNOWN
+	assert(a == &y);
 
 	return 0;
 }
