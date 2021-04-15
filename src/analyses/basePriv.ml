@@ -828,7 +828,13 @@ struct
       (st, [])
 end
 
-module MineWPriv: S =
+module type MineWPrivParam =
+sig
+  (** Whether to side effect global inits to match our traces paper scenario. *)
+  val side_effect_global_init: bool
+end
+
+module MineWPriv (Param: MineWPrivParam): S =
 struct
   include MinePrivBase
 
@@ -901,14 +907,27 @@ struct
       (st, [])
 
   let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    if Param.side_effect_global_init then (
+      CPA.fold (fun x v (st: BaseComponents (D).t) ->
+          if is_global ask x then (
+            sideg (mutex_global x) (GWeak.add (Lockset.empty ()) v (GWeak.bot ()), GSync.bot ());
+            {st with priv = D.add x st.priv} (* TODO: is this add necessary? *)
+          )
+          else
+            st
+        ) st.cpa st
+    )
+    else
+      st
 
-  (* TODO: this doesn't work due to global inits being unavailable *)
-  (* let threadenter ask (st: BaseComponents (D).t) =
-    {st with cpa = CPA.bot (); priv = startstate ()} *)
   let threadenter ask (st: BaseComponents (D).t) =
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
-    {st with cpa = new_cpa}
+    if Param.side_effect_global_init then
+      {st with cpa = CPA.bot (); priv = startstate ()}
+    else (
+      let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+      {st with cpa = new_cpa}
+    )
 end
 
 module PreciseDomains =
@@ -1608,7 +1627,8 @@ let priv_module: (module S) Lazy.t =
         | "global-vesal" -> (module PerGlobalVesalPriv)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
-        | "mine-W" -> (module MineWPriv)
+        | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
+        | "mine-W-init" -> (module MineWPriv (struct let side_effect_global_init = false end))
         | "mine-lazy" -> (module MineLazyPriv)
         | "global-history" -> (module PerGlobalHistoryPriv)
         | "mine-global" -> (module MinePerGlobalPriv)
