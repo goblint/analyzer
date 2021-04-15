@@ -532,7 +532,16 @@ struct
     include VD
     let name () = "protected"
   end
-  module G = Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
+  module G =
+  struct
+    include Lattice.Prod (GUnprot) (GProt) (* [g]', [g] *)
+
+    let unprotected = fst
+    let protected = snd
+    let create_unprotected v = (v, GProt.bot ())
+    let create_protected v = (GUnprot.bot (), v)
+    let create_init v = (v, v)
+  end
 
   let startstate () = P.empty ()
 
@@ -540,12 +549,12 @@ struct
     if P.mem x st.priv then
       CPA.find x st.cpa
     else if is_unprotected ask x then
-      fst (getg x) (* CPA unnecessary because all values in GUnprot anyway *)
+      G.unprotected (getg x) (* CPA unnecessary because all values in GUnprot anyway *)
     else
-      VD.join (CPA.find x st.cpa) (snd (getg x))
+      VD.join (CPA.find x st.cpa) (G.protected (getg x))
 
   let write_global ask getg sideg (st: BaseComponents (D).t) x v =
-    sideg x (v, if !GU.earlyglobs then v else VD.bot ()); (* earlyglobs workaround for 13/60 *)
+    sideg x (if !GU.earlyglobs then G.create_init v else G.create_unprotected v); (* earlyglobs workaround for 13/60 *)
     if is_unprotected ask x then
       st
     else
@@ -561,7 +570,7 @@ struct
              If global is read-protected by multiple locks,
              then inner unlock shouldn't yet publish. *)
           if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
-            sideg x (VD.bot (), v);
+            sideg x (G.create_protected v);
 
           if is_unprotected_without ask x m then (* is_in_V' *)
             {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
@@ -578,7 +587,7 @@ struct
       let (st', sidegs) =
         CPA.fold (fun x v (((st: BaseComponents (D).t), sidegs) as acc) ->
             if is_global ask x && is_unprotected ask x then
-              ({st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}, (x, (v, VD.bot ())) :: sidegs)
+              ({st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}, (x, G.create_unprotected v) :: sidegs)
             else
               acc
           ) st.cpa (st, [])
@@ -588,7 +597,7 @@ struct
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          ({st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}, [(x, (v, VD.bot ()))])
+          ({st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}, [(x, G.create_unprotected v)])
         | _ ->
           (st, [])
       end
@@ -600,7 +609,7 @@ struct
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
-          sideg x (v, v);
+          sideg x (G.create_init v);
           CPA.remove x acc
         )
         else
@@ -612,7 +621,7 @@ struct
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg x (v, v);
+          sideg x (G.create_init v);
           {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
         )
         else
