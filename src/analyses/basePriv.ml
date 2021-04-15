@@ -51,6 +51,13 @@ struct
   let finalize () = ()
 end
 
+let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
+  let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+  {st with cpa = new_cpa}
+
+let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomain.basecomponents_t) =
+  {st with cpa = CPA.bot (); priv = startstate ()}
+
 module OldPrivBase =
 struct
   include NoInitFinalize
@@ -63,9 +70,7 @@ struct
 
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg st = st
-  let threadenter ask (st: BaseComponents (D).t) =
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
-    {st with cpa = new_cpa}
+  let threadenter = old_threadenter
 
   let sync_privates reason ask =
     match reason with
@@ -279,9 +284,7 @@ struct
     in
     {st with cpa = cpa'}
 
-  let threadenter ask (st: BaseComponents (D).t) =
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
-    {st with cpa = new_cpa}
+  let threadenter = old_threadenter
 
   (* TODO: does this make sense? *)
   let is_private ask x = true
@@ -497,10 +500,7 @@ struct
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var st.cpa (st, [])
 
-  (* Copied from OldPrivBase but to match different D *)
-  let threadenter ask (st: BaseComponents (D).t) =
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
-    {st with cpa = new_cpa}
+  let threadenter = old_threadenter
 end
 
 module type PerGlobalPrivParam =
@@ -614,8 +614,7 @@ struct
           st
       ) st.cpa st
 
-  let threadenter ask (st: BaseComponents (D).t) =
-    {st with cpa = CPA.bot (); priv = startstate ()}
+  let threadenter = startstate_threadenter startstate
 
   (* ??? *)
   let is_private ask x = true
@@ -659,9 +658,7 @@ struct
 
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
-  let threadenter ask (st: BaseComponents (D).t) =
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
-    {st with cpa = new_cpa}
+  let threadenter = old_threadenter
 
   (* ??? *)
   let is_private ask x = true
@@ -921,13 +918,11 @@ struct
     else
       st
 
-  let threadenter ask (st: BaseComponents (D).t) =
+  let threadenter =
     if Param.side_effect_global_init then
-      {st with cpa = CPA.bot (); priv = startstate ()}
-    else (
-      let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
-      {st with cpa = new_cpa}
-    )
+      startstate_threadenter startstate
+    else
+      old_threadenter
 end
 
 module PreciseDomains =
@@ -1115,8 +1110,7 @@ struct
           st
       ) st.cpa st
 
-  let threadenter ask (st: BaseComponents (D).t) =
-    {st with cpa = CPA.bot (); priv = startstate ()}
+  let threadenter = startstate_threadenter startstate
 end
 
 module PerGlobalHistoryPriv: S =
@@ -1272,8 +1266,7 @@ struct
           st
       ) st.cpa st
 
-  let threadenter ask (st: BaseComponents (D).t) =
-    {st with cpa = CPA.bot (); priv = startstate ()}
+  let threadenter = startstate_threadenter startstate
 end
 
 module MinePerGlobalPriv: S =
@@ -1450,8 +1443,7 @@ struct
           st
       ) st.cpa st
 
-  let threadenter ask (st: BaseComponents (D).t) =
-    {st with cpa = CPA.bot (); priv = startstate ()}
+  let threadenter = startstate_threadenter startstate
 end
 
 module TimedPriv (Priv: S): S with module D = Priv.D =
