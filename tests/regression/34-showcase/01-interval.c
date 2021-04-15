@@ -17,7 +17,7 @@ int main(){
         *py = *py - 1;
     }
 
-    printf("fac 100: %d\n", fac);
+    printf("fac 4: %d\n", fac);
 
     int res = f(3, 5);
 

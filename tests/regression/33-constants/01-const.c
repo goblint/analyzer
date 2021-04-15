@@ -1,7 +1,7 @@
 //PARAM: --sets ana.activated[+] constants
 int f(int a, int b){
     int d = 3;
-    int z= a + d;
+    int z = a + d;
     return z;
 }
 
