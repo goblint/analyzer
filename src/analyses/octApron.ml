@@ -161,7 +161,7 @@ struct
     if D.is_bot ctx.local then D.bot () else
       match lv with
       | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> 
-        D.handle_underflow_and_overflow ctx.local v e
+        D.assign_var_handling_underflow_overflow ctx.local v e
       | _ -> D.topE (A.env ctx.local)
 
   let query ctx (q:Queries.t) : Queries.Result.t =
