@@ -30,6 +30,6 @@ int main(){
     }
 
     int d = 0;
-    d =  f(2, 3);
+    d = f(2, 3);
     return 0;
 }
