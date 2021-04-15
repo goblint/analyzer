@@ -32,7 +32,7 @@ struct
     | Var v, NoOffset when is_integer_var v && not (v.vglob || v.vaddrof) -> Some v (* local integer variable whose address is never taken *)
     | _, _ -> None
 
-    (** Evaluates expressions *)
+  (** Evaluates expressions *)
   let rec eval (state : D.t) (e: exp) =
     match e with
     | Const c -> (match c with
