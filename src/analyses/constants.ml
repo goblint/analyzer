@@ -1,11 +1,10 @@
-(** An analysis specification for didactic purposes.
- It only considers definite values of local variables.
- Parameters are passed as top.
- *)
 
 open Prelude.Ana
 open Analyses
 
+(** An analysis specification for didactic purposes.
+ It only considers definite values of local variables.
+ We do not pass information interprocedurally. *)
 module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
@@ -13,8 +12,12 @@ struct
   let name () = "constants"
 
   module I = IntDomain.Flattened
+
+  (* Map of (local int) varibales to flat integers *)
   module D = MapDomain.MapBot (Basetype.Variables) (I)
+  (* No information about globals*)
   module G = Lattice.Unit
+  (* No contexts*)
   module C = Lattice.Unit
 
   let val_of () = D.bot ()
@@ -29,7 +32,8 @@ struct
     | Var v, NoOffset when is_integer_var v && not (v.vglob || v.vaddrof) -> Some v (* local integer variable whose address is never taken *)
     | _, _ -> None
 
-  let rec eval (state : D.t) (e: exp) =
+    (** Evaluates expressions *)
+    let rec eval (state : D.t) (e: exp) =
     match e with
     | Const c -> (match c with
       | CInt64 (i,_,_) -> I.of_int i
@@ -63,12 +67,14 @@ struct
     List.fold (fun m l -> D.add l (I.top ()) m) ctx.local f.slocals
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
+    (* Do nothing, as we are not interested in return values for now. *)
     ctx.local
 
   let enter ctx (lval: lval option) (fv:varinfo) (args:exp list) : (D.t * D.t) list =
     let f = Cilfacade.getdec fv in
+    (* Set the formal int arguments to top *)
     let callee_state = List.fold (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals in
-    [ctx.local, callee_state]
+    [(ctx.local, callee_state)]
 
   let set_local_int_lval_top (state: D.t) (lval: lval option) =
     match lval with
