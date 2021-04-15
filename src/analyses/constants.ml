@@ -53,7 +53,6 @@ struct
         | None -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    (* testen ob tv erfüllbar *)
     let v = eval ctx.local exp in
     match I.to_bool v with
       | Some b when b <> tv -> raise Deadcode (* if the expression evalautes to not tv, the tv branch is not reachable *)
@@ -79,9 +78,13 @@ struct
       |_ -> state
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+    (* If we have a function call with assignment
+        x = f (e1, ... , ek)
+      with a local int variable x on the left, we set it to top *)
     set_local_int_lval_top ctx.local lval
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    (* When calling a special function, and assign the result to some local int variable, we also set it to top. *)
     set_local_int_lval_top ctx.local lval
 
   let startstate v = D.bot ()
