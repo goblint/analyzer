@@ -65,8 +65,10 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.bot ()]
+  let enter ctx (lval: lval option) (fv:varinfo) (args:exp list) : (D.t * D.t) list =
+    let f = Cilfacade.getdec fv in
+    let callee_state = List.fold (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals in
+    [ctx.local, callee_state]
 
   let set_local_int_lval_top (state: D.t) (lval: lval option) =
     match lval with
