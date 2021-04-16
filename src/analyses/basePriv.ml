@@ -839,23 +839,9 @@ struct
       (st, [])
 end
 
-module type MineWPrivParam =
-sig
-  (** Whether to side effect global inits to match our traces paper scenario. *)
-  val side_effect_global_init: bool
-end
-
-(** Interference-Based Reading? Side-effecting Mine using W set. *)
-module MineWPriv (Param: MineWPrivParam): S =
+module LockCenteredGBase =
 struct
-  include MinePrivBase
-
-  module W =
-  struct
-    include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
-    let name () = "W"
-  end
-  module D = W
+  open MinePrivBase (* TODO: move Lockset out *)
 
   module GWeak =
   struct
@@ -878,6 +864,26 @@ struct
     let create_weak weak = (weak, GSync.bot ())
     let create_sync sync = (GWeak.bot (), sync)
   end
+end
+
+module type MineWPrivParam =
+sig
+  (** Whether to side effect global inits to match our traces paper scenario. *)
+  val side_effect_global_init: bool
+end
+
+(** Interference-Based Reading? Side-effecting Mine using W set. *)
+module MineWPriv (Param: MineWPrivParam): S =
+struct
+  include MinePrivBase
+  include LockCenteredGBase
+
+  module W =
+  struct
+    include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
+    let name () = "W"
+  end
+  module D = W
 
   let startstate () = W.empty ()
 
@@ -997,32 +1003,10 @@ end
 module MineLazyPriv: S =
 struct
   include MinePrivBase
+  include LockCenteredGBase
+
   open PreciseDomains
-
   module D = Lattice.Prod (V) (L)
-
-  (* TODO: share with MineWPriv *)
-  module GWeak =
-  struct
-    include MapDomain.MapBot (Lockset) (VD)
-    let name () = "weak"
-  end
-  module GSync =
-  struct
-    include MapDomain.MapBot (Lockset) (CPA)
-    let name () = "synchronized"
-  end
-  module G =
-  struct
-    (* weak: G -> (2^M -> D) *)
-    (* sync: M -> (2^M -> (G -> D)) *)
-    include Lattice.Prod (GWeak) (GSync)
-
-    let weak = fst
-    let sync = snd
-    let create_weak weak = (weak, GSync.bot ())
-    let create_sync sync = (GWeak.bot (), sync)
-  end
 
   let startstate () = (V.bot (), L.bot ())
 
