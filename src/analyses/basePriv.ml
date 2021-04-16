@@ -678,25 +678,50 @@ struct
   let is_private ask x = true
 end
 
+module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
+struct
+  open MinePrivBase (* TODO: move Lockset out *)
+
+  module GWeak =
+  struct
+    include MapDomain.MapBot (Lockset) (WeakRange)
+    let name () = "weak"
+  end
+  module GSync =
+  struct
+    include MapDomain.MapBot (Lockset) (SyncRange)
+    let name () = "synchronized"
+  end
+  module G =
+  struct
+    (* weak: G -> (2^M -> WeakRange) *)
+    (* sync: M -> (2^M -> SyncRange) *)
+    include Lattice.Prod (GWeak) (GSync)
+
+    let weak = fst
+    let sync = snd
+    let create_weak weak = (weak, GSync.bot ())
+    let create_sync sync = (GWeak.bot (), sync)
+  end
+end
+
+module LockCenteredGBase =
+struct
+  (* weak: G -> (2^M -> D) *)
+  (* sync: M -> (2^M -> (G -> D)) *)
+  include AbstractLockCenteredGBase (VD) (CPA)
+end
+
 module MinePriv: S =
 struct
   include MinePrivBase
 
   module Thread = ConcDomain.Thread
   module ThreadMap = MapDomain.MapBot (Thread) (VD)
-  module GWeak =
-  struct
-    include MapDomain.MapBot (Lockset) (ThreadMap)
-    let name () = "weak"
-  end
-  module GSync =
-  struct
-    include MapDomain.MapBot (Lockset) (CPA)
-    let name () = "sync"
-  end
+
   (* weak: G -> (2^M -> (T -> D)) *)
   (* sync: M -> (2^M -> (G -> D)) *)
-  module G = Lattice.Prod (GWeak) (GSync)
+  include AbstractLockCenteredGBase (ThreadMap) (CPA)
 
   let global_init_thread = RichVarinfo.single ~name:"global_init"
   let current_thread (ask: Q.ask): Thread.t =
@@ -769,20 +794,7 @@ end
 module MineNoThreadPriv: S =
 struct
   include MinePrivBase
-
-  module GWeak =
-  struct
-    include MapDomain.MapBot (Lockset) (VD)
-    let name () = "weak"
-  end
-  module GSync =
-  struct
-    include MapDomain.MapBot (Lockset) (CPA)
-    let name () = "sync"
-  end
-  (* weak: G -> (2^M -> D) *)
-  (* sync: M -> (2^M -> (G -> D)) *)
-  module G = Lattice.Prod (GWeak) (GSync)
+  include LockCenteredGBase
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
@@ -837,40 +849,6 @@ struct
     | `Init
     | `Thread ->
       (st, [])
-end
-
-module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
-struct
-  open MinePrivBase (* TODO: move Lockset out *)
-
-  module GWeak =
-  struct
-    include MapDomain.MapBot (Lockset) (WeakRange)
-    let name () = "weak"
-  end
-  module GSync =
-  struct
-    include MapDomain.MapBot (Lockset) (SyncRange)
-    let name () = "synchronized"
-  end
-  module G =
-  struct
-    (* weak: G -> (2^M -> WeakRange) *)
-    (* sync: M -> (2^M -> SyncRange) *)
-    include Lattice.Prod (GWeak) (GSync)
-
-    let weak = fst
-    let sync = snd
-    let create_weak weak = (weak, GSync.bot ())
-    let create_sync sync = (GWeak.bot (), sync)
-  end
-end
-
-module LockCenteredGBase =
-struct
-  (* weak: G -> (2^M -> D) *)
-  (* sync: M -> (2^M -> (G -> D)) *)
-  include AbstractLockCenteredGBase (VD) (CPA)
 end
 
 module type MineWPrivParam =
