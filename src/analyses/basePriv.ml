@@ -194,7 +194,7 @@ struct
     | _ -> failwith "PrivBase.is_atomic"
 end
 
-module MutexGlobals =
+module MutexGlobalsBase =
 struct
   let mutex_addr_to_varinfo = function
     | LockDomain.Addr.Addr (v, `NoOffset) -> v
@@ -202,8 +202,17 @@ struct
       M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "NewPrivBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs);
       v
     | _ -> failwith "NewPrivBase.mutex_addr_to_varinfo"
+end
 
-  (* let mutex_global x = x *)
+module ImplicitMutexGlobals =
+struct
+  include MutexGlobalsBase
+  let mutex_global x = x
+end
+
+module ExplicitMutexGlobals =
+struct
+  include MutexGlobalsBase
   let mutex_global = RichVarinfo.Variables.map ~name:(fun x -> "MUTEX_GLOBAL_" ^ x.vname)
   let mutex_global x =
     let r = mutex_global x in
@@ -214,7 +223,7 @@ end
 module PerMutexPrivBase =
 struct
   include NoInitFinalize
-  include MutexGlobals
+  include ExplicitMutexGlobals
   include Protection
 
   module D = Lattice.Unit
@@ -636,8 +645,7 @@ end
 module MinePrivBase =
 struct
   include NoInitFinalize
-  include MutexGlobals
-  let mutex_global x = x (* MutexGlobals.mutex_global not needed here because G is Prod anyway? *)
+  include ImplicitMutexGlobals (* explicit not needed here because G is Prod anyway? *)
 
   module D = Lattice.Unit
 
