@@ -22,9 +22,9 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g >= 2);
+  assert(g >= 2); // TODO
   pthread_mutex_lock(&B);
-  assert(g >= 2);
-  assert(g == 3);
+  assert(g >= 2); // TODO
+  assert(g == 3); // TODO
   return 0;
 }

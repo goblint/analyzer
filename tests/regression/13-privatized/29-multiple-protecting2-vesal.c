@@ -27,12 +27,12 @@ int main(void) {
   pthread_mutex_lock(&mutex1);
   pthread_mutex_lock(&__global_lock); // Read & join to g2 Mine influence: [[g2, __global_lock], t2_fun, {mutex2}] -> (0 join 1 = Unknown)
   assert(0 <= g2); // TODO (widening)
-  assert(g2 <= 1);
+  assert(g2 <= 1); // TODO
   pthread_mutex_unlock(&__global_lock);
 
   pthread_mutex_lock(&mutex2);
   pthread_mutex_lock(&__global_lock);
-  assert(g2 == 0);
+  assert(g2 == 0); // TODO
   pthread_mutex_unlock(&__global_lock);
   pthread_mutex_unlock(&mutex2);
 
