@@ -1003,7 +1003,6 @@ end
 
 module BigInt = struct
   include  BI
-  (* include Printable.Std *)
   let name () = "BigIntPrintable"
   let top () = raise Unknown
   let bot () = raise Error
@@ -1249,7 +1248,6 @@ struct
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
   let not_zero ikind = from_excl ikind (S.singleton BI.zero)
 
-  (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp ik x = of_int ik (if x then BI.one else BI.zero)
   let of_bool = of_bool_cmp
   let to_bool x =
@@ -1268,12 +1266,8 @@ struct
   let starting ikind x = if BigInt.compare x BigInt.zero > 0 then not_zero ikind else top_of ikind
   let ending ikind x = if BigInt.compare x BigInt.zero < 0 then not_zero ikind else top_of ikind
 
-  (* calculates the minimal extension of range r to cover the exclusion set s *)
-  (* let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r *)
-
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
-    (* let r = extend_range (R.bot ()) (S.of_list l) in *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list x = match x with
