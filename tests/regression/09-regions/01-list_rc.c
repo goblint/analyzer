@@ -10,7 +10,7 @@ struct s {
 
 void init (struct s *p, int x) {
   p -> datum = x;
- // p -> next = NULL;
+  p -> next = NULL;
 }
 
 pthread_mutex_t A_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -34,9 +34,9 @@ int main () {
   struct s *p = malloc(sizeof(struct s));
   init(p,9);
 
-  // A = malloc(sizeof(struct s));
-  // init(A,3);
-  // A->next = p;
+  A = malloc(sizeof(struct s));
+  init(A,3);
+  A->next = p;
 
   pthread_create(&t1, NULL, t_fun, NULL);
 
@@ -44,4 +44,5 @@ int main () {
   p = A->next; // RACE!
   printf("%d\n", p->datum);
   pthread_mutex_unlock(&A_mutex);
+  return 0;
 }
