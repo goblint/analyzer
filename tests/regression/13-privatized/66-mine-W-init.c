@@ -11,5 +11,5 @@ void main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
   g = 1;
-  assert(g); // Mine's analysis would succeed, our mine-W doesn't
+  assert(g); // TODO (Mine's analysis would succeed, our mine-W doesn't)
 }
