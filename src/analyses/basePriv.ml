@@ -669,6 +669,9 @@ struct
             Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
           ) ls (Lockset.empty ())
       | _ -> failwith "MinePrivBase.current_lockset"
+
+  (* TODO: reversed SetDomain.Hoare *)
+  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -961,13 +964,9 @@ struct
       old_threadenter
 end
 
-(* TODO: split this up *)
-module PreciseDomains =
+module LockCenteredD =
 struct
   open Locksets
-
-  (* TODO: reversed SetDomain.Hoare *)
-  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
 
   module V =
   struct
@@ -980,25 +979,6 @@ struct
     include MapDomain.MapBot_LiftTop (Lock) (MinLocksets)
     let name () = "L"
   end
-
-  module W =
-  struct
-    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
-    let name () = "W"
-  end
-
-  module P =
-  struct
-    (* Note different Map order! *)
-    include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
-    let name () = "P"
-
-    (* TODO: no longer right? remove? *)
-    (* let mem_V x m p =
-      let p_x = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
-      MinLocksets.for_all (fun s -> Lockset.mem m s) p_x
-      (* MinLocksets.leq p_x (MinLocksets.singleton (Lockset.singleton m)) *) *)
-  end
 end
 
 (** Lock-Centered Reading. *)
@@ -1008,7 +988,7 @@ struct
   include LockCenteredGBase
   open Locksets
 
-  open PreciseDomains
+  open LockCenteredD
   module D = Lattice.Prod (V) (L)
 
   let startstate () = (V.bot (), L.bot ())
@@ -1152,6 +1132,30 @@ struct
   include AbstractLockCenteredGBase (GWeakW) (GSyncW)
 end
 
+module WriteCenteredD =
+struct
+  open Locksets
+
+  module W =
+  struct
+    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
+    let name () = "W"
+  end
+
+  module P =
+  struct
+    (* Note different Map order! *)
+    include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
+    let name () = "P"
+
+    (* TODO: no longer right? remove? *)
+    (* let mem_V x m p =
+      let p_x = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
+      MinLocksets.for_all (fun s -> Lockset.mem m s) p_x
+      (* MinLocksets.leq p_x (MinLocksets.singleton (Lockset.singleton m)) *) *)
+  end
+end
+
 (** Write-Centered Reading. *)
 module PerGlobalHistoryPriv: S =
 struct
@@ -1159,7 +1163,7 @@ struct
   include WriteCenteredGBase
   open Locksets
 
-  open PreciseDomains
+  open WriteCenteredD
   module D = Lattice.Prod (W) (P)
 
   let startstate () = (W.bot (), P.top ())
@@ -1302,7 +1306,8 @@ struct
   include WriteCenteredGBase
   open Locksets
 
-  open PreciseDomains
+  open LockCenteredD
+  open WriteCenteredD
   module D = Lattice.Prod (Lattice.Prod (W) (P)) (Lattice.Prod (V) (L))
 
   let startstate () = ((W.bot (), P.top ()), (V.bot (), L.bot ()))
