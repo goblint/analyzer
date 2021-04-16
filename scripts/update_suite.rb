@@ -118,6 +118,7 @@ regs.sort.each do |d|
   next unless thegroup.nil? or groupname == thegroup or # group x = only group x
     (thegroup.start_with?"-" and groupname != thegroup[1..-1]) # group -x = all groups but x
   grouppath = File.expand_path(d, testfiles)
+  next unless File.directory?(grouppath)
   group = Dir.open(grouppath)
   group.sort.each do |f|
     next if File.basename(f)[0] == ?.
