@@ -96,6 +96,13 @@ struct
       | _ -> failwith("Ran without a malloc analysis.") in
     info
 
+  let arg_value ask (t:  typ) : Addr.t list BatMap.Int.t =
+    match ask (Q.ArgVarTyp t) with
+    | `Varinfo (`Lifted v) -> (AD.from_var v)
+    | _ -> failwith "Ran without heap analysis"
+
+  let create_val ask t = VD.arg_value (arg_value ask) t
+
   let init () =
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
@@ -726,7 +733,19 @@ struct
           let a1 = eval_rv a gs st arg1 in
           evalunop op typ a1
         (* The &-operator: we create the address abstract element *)
-        | AddrOf lval -> `Address (eval_lv a gs st lval)
+        | AddrOf lval ->
+          let adrs = eval_lv a gs st lval in
+          let adrs = if get_bool "ana.library" then (
+            let vars = AD.to_var_may adrs in
+            let type_based_adresses = List.map
+              (fun v -> if v.vglob then
+                (match (arg_value a (typeOf (Lval lval))) with v -> Some v | exception Failure _ -> None) else None) vars in
+            (* Join type based adresses into abstract value *)
+            List.fold (fun acc a -> match a with Some a -> AD.union acc a | _ -> acc) adrs type_based_adresses
+          ) else
+            adrs
+          in
+          `Address adrs
         (* CIL's very nice implicit conversion of an array name [a] to a pointer
          * to its first element [&a[0]]. *)
         | StartOf lval ->
@@ -1871,10 +1890,7 @@ struct
       List.map (fun (_,snd,_) -> snd) args
     | _ -> failwith "Not a function type"
 
-  let arg_value ctx (t:  typ) : Addr.t list BatMap.Int.t =
-    match ctx.ask (Q.ArgVarTyp t) with
-    | `Varinfo (`Lifted v) -> (AD.from_var v)
-    | _ -> failwith "Ran without heap analysis"
+
 
   let heapify_pointers ctx (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
     let module AVSet = Set.Make(struct
@@ -1882,9 +1898,8 @@ struct
         let compare (x1,_,y1) (x2,_,y2) = let r = AD.compare x1 x2 in if r <> 0 then r else VD.compare y1 y2 (* TODO: Can we really ignore typ here? *)
       end)
     in
-    let create_val t = VD.arg_value (arg_value ctx) t  in
     let arg_types = get_arg_types fn in
-    let values = List.fold_right (fun t acc ->  (create_val t)::acc) arg_types []  in
+    let values = List.fold_right (fun t acc ->  (create_val ctx t)::acc) arg_types []  in
     let heap_mem = values |> List.map snd |> List.flatten |> AVSet.of_list |> AVSet.to_list in
     let fundec = Cilfacade.getdec fn in
     let values = List.map fst values in
@@ -1897,7 +1912,7 @@ struct
     let vals, pa, heap_mem =
       (* if we perform a (modular) library analysis, we create special arguments values *)
       if GobConfig.get_bool "ana.library" then
-        heapify_pointers ctx fn ctx.global ctx.local args
+        heapify_pointers ctx.ask fn ctx.global ctx.local args
       else
         let vals = List.map (eval_rv ctx.ask ctx.global st) args in
         let fundec = Cilfacade.getdec fn in
