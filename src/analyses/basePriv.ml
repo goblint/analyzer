@@ -167,10 +167,8 @@ struct
     CPA.fold add_var st.cpa (st, [])
 end
 
-module NewPrivBase =
+module Protection =
 struct
-  include NoInitFinalize
-
   let is_unprotected ask x: bool =
     let multi = ThreadFlag.is_multi ask in
     (!GU.earlyglobs && not multi && not (is_precious_glob x)) ||
@@ -223,8 +221,9 @@ end
 
 module PerMutexPrivBase =
 struct
-  include NewPrivBase
+  include NoInitFinalize
   include MutexGlobals
+  include Protection
 
   module D = Lattice.Unit
   module G = CPA
@@ -512,7 +511,8 @@ end
 (** Protection-Based Reading. *)
 module PerGlobalPriv (Param: PerGlobalPrivParam): S =
 struct
-  include NewPrivBase
+  include NoInitFinalize
+  open Protection
 
   module P =
   struct
