@@ -273,7 +273,6 @@ struct
       WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
-    (* GU.earlyglobs := false; *)
     GU.earlyglobs := get_bool "exp.earlyglobs";
     Spec.init ();
     Access.init file;
@@ -365,7 +364,6 @@ struct
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
-    GU.earlyglobs := get_bool "exp.earlyglobs";
     GU.global_initialization := false;
 
     let startvars' =
