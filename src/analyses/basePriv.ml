@@ -671,22 +671,6 @@ struct
       | _ -> failwith "MinePrivBase.current_lockset"
 end
 
-module MinePrivBase =
-struct
-  include NoInitFinalize
-  include ImplicitMutexGlobals (* explicit not needed here because G is Prod anyway? *)
-
-  module D = Lattice.Unit
-
-  let startstate () = ()
-  let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
-  let threadenter = old_threadenter
-
-  (* ??? *)
-  let is_private ask x = true
-end
-
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
 struct
   open Locksets
@@ -721,9 +705,30 @@ struct
   include AbstractLockCenteredGBase (VD) (CPA)
 end
 
-module MinePriv: S =
+module MinePrivBase =
+struct
+  include NoInitFinalize
+  include ImplicitMutexGlobals (* explicit not needed here because G is Prod anyway? *)
+
+  (* ??? *)
+  let is_private ask x = true
+end
+
+module MineNaivePrivBase =
 struct
   include MinePrivBase
+
+  module D = Lattice.Unit
+
+  let startstate () = ()
+  let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
+  let threadenter = old_threadenter
+end
+
+module MinePriv: S =
+struct
+  include MineNaivePrivBase
   open Locksets
 
   module Thread = ConcDomain.Thread
@@ -803,7 +808,7 @@ end
 
 module MineNoThreadPriv: S =
 struct
-  include MinePrivBase
+  include MineNaivePrivBase
   include LockCenteredGBase
   open Locksets
 
