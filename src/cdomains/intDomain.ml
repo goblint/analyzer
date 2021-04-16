@@ -224,7 +224,7 @@ struct
 end
 
 
-module IntDomLifter (I : S) (*: Z with type int_t = I.int_t and type t =  'a { v : I.t; ikind : ikind } *)=
+module IntDomLifter (I : S) =
 struct
   open Cil
   type int_t = I.int_t
@@ -446,7 +446,6 @@ module Std (B: sig
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
   let is_top_of ik x = B.equal x (top_of ik)
-  (* let is_bot_of ik x = B.equal x (bot_of ik) *)
 
   (* all output is based on B.short *)
   let pretty_f sh () x = text (sh Goblintutil.summary_length x)
@@ -456,8 +455,6 @@ module Std (B: sig
 
   include StdTop (B)
 end
-(* include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end) *)
-
 
 module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
