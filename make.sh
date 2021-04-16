@@ -8,7 +8,7 @@ gen() { # generate configuration files and goblint.ml which opens all modules in
   scripts/set_version.sh # generate the version file
   echo '[@@@ocaml.warning "-33"]' > $TARGET.ml # disable warning 'Unused open statement.'
   ls -1 src/**/*.ml | egrep -v "goblint.ml|apronDomain|poly|violationZ3" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
-  echo "open Maingoblint" >> $TARGET.ml
+  echo "let _ = at_exit Maingoblint.main" >> $TARGET.ml
 }
 
 opam_setup() {
@@ -90,7 +90,7 @@ rule() {
     ;; deps)
       opam update; opam install -y . --deps-only --locked --unlock-base
     ;; setup)
-      echo "Make sure you have the following installed: opam >= 1.2.2, git, patch, m4, autoconf, libgmp-dev"
+      echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
       echo "For running the regression tests you also need: ruby, gem, curl"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
