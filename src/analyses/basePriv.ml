@@ -430,18 +430,18 @@ struct
       (st, [])
 end
 
-module CachedVars =
+module MustVars =
 struct
-  module VarSet = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All Variables" end)
-  include SetDomain.Reverse (VarSet)
-  let name () = "definitely cached variables"
+  module MayVars = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+  include SetDomain.Reverse (MayVars)
+  let name () = "must variables"
 end
 
 module PerGlobalVesalPriv: S =
 struct
   include OldPrivBase
 
-  module D = CachedVars
+  module D = MustVars
   module G = BaseDomain.VD
 
   let startstate () = D.top ()
@@ -456,9 +456,9 @@ struct
      * state, waiting for the sync function to publish it. *)
     (* Copied from MainFunctor.update_variable *)
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-      {st with cpa = CPA.add x (VD.top ()) st.cpa; priv = CachedVars.add x st.priv}
+      {st with cpa = CPA.add x (VD.top ()) st.cpa; priv = MustVars.add x st.priv}
     else
-      {st with cpa = CPA.add x v st.cpa; priv = CachedVars.add x st.priv}
+      {st with cpa = CPA.add x v st.cpa; priv = MustVars.add x st.priv}
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
     (not (ThreadFlag.is_multi a) && is_precious_glob v ||
@@ -481,9 +481,9 @@ struct
           let protected = is_protected ask v in
           if privates && not (is_precious_glob v) || not protected then begin
             if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-            ({ st with cpa = CPA.remove v st.cpa; priv = CachedVars.remove v st.priv} , (v,value) :: acc)
+            ({ st with cpa = CPA.remove v st.cpa; priv = MustVars.remove v st.priv} , (v,value) :: acc)
           end else (* protected == true *)
-            let (st, acc) = if not (CachedVars.mem v st.priv) then
+            let (st, acc) = if not (MustVars.mem v st.priv) then
               let joined = VD.join (CPA.find v st.cpa) (getg v) in
               ( {st with cpa = CPA.add v joined st.cpa} ,acc)
              else (st,acc)
@@ -515,7 +515,7 @@ struct
 
   module P =
   struct
-    include CachedVars
+    include MustVars
     let name () = "P"
   end
   (* W is implicitly represented by CPA domain *)
@@ -953,7 +953,7 @@ struct
 
   module V =
   struct
-    include MapDomain.MapBot_LiftTop (Lock) (CachedVars)
+    include MapDomain.MapBot_LiftTop (Lock) (MustVars)
     let name () = "V"
   end
 
@@ -1008,7 +1008,7 @@ struct
     let (vv, l) = st.priv in
     let d_cpa = CPA.find x st.cpa in
     let d_sync = L.fold (fun m bs acc ->
-        if not (CachedVars.mem x (V.find m vv)) then
+        if not (MustVars.mem x (V.find m vv)) then
           let syncs = G.sync (getg (mutex_addr_to_varinfo m)) in
           MinLocksets.fold (fun b acc ->
               GSync.fold (fun s' cpa' acc ->
@@ -1032,7 +1032,7 @@ struct
       ) weaks (VD.bot ())
     in
     let d_init =
-      if V.exists (fun m cached -> CachedVars.mem x cached) vv then
+      if V.exists (fun m cached -> MustVars.mem x cached) vv then
         VD.bot ()
       else
         GWeak.find lockset_init weaks
@@ -1049,7 +1049,7 @@ struct
     let s = current_lockset ask in
     let (vv, l) = st.priv in
     let v' = L.fold (fun m _ acc ->
-        V.add m (CachedVars.add x (V.find m acc)) acc
+        V.add m (MustVars.add x (V.find m acc)) acc
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
@@ -1062,7 +1062,7 @@ struct
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
     let (v, l) = st.priv in
-    let v' = V.add m (CachedVars.empty ()) v in
+    let v' = V.add m (MustVars.empty ()) v in
     let l' = L.add m (MinLocksets.singleton s) l in
     {st with priv = (v', l')}
 
@@ -1301,7 +1301,7 @@ struct
     let p_x = P.find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
     let d_cpa = CPA.find x st.cpa in
     let d_m_sync = L.fold (fun m bs acc ->
-        if not (CachedVars.mem x (V.find m vv)) then
+        if not (MustVars.mem x (V.find m vv)) then
           let syncs = G.sync (getg (mutex_addr_to_varinfo m)) in
           MinLocksets.fold (fun b acc ->
               GSync.fold (fun s' gsyncw' acc ->
@@ -1366,7 +1366,7 @@ struct
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let v' = L.fold (fun m _ acc ->
-        V.add m (CachedVars.add x (V.find m acc)) acc
+        V.add m (MustVars.add x (V.find m acc)) acc
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
@@ -1380,7 +1380,7 @@ struct
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
     let (wp, (v, l)) = st.priv in
-    let v' = V.add m (CachedVars.empty ()) v in
+    let v' = V.add m (MustVars.empty ()) v in
     let l' = L.add m (MinLocksets.singleton s) l in
     {st with priv = (wp, (v', l'))}
 
