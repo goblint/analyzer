@@ -169,7 +169,7 @@ struct
       match ask (Q.MayBePublic {global=x; write=true}) with
       | `MayBool x -> x
       | `Top -> true
-      | _ -> failwith "PrivBase.is_unprotected"
+      | _ -> failwith "Protection.is_unprotected"
     )
 
   let is_unprotected_without ask ?(write=true) x m: bool =
@@ -177,7 +177,7 @@ struct
     match ask (Q.MayBePublicWithout {global=x; write; without_mutex=m}) with
     | `MayBool x -> x
     | `Top -> true
-    | _ -> failwith "PrivBase.is_unprotected_without"
+    | _ -> failwith "Protection.is_unprotected_without"
 
   let is_protected_by ask m x: bool =
     is_global ask x &&
@@ -185,13 +185,13 @@ struct
     match ask (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
     | `MustBool x -> x
     | `Top -> false
-    | _ -> failwith "PrivBase.is_protected_by"
+    | _ -> failwith "Protection.is_protected_by"
 
   let is_atomic ask: bool =
     match ask Q.MustBeAtomic with
     | `MustBool x -> x
     | `Top -> false
-    | _ -> failwith "PrivBase.is_atomic"
+    | _ -> failwith "Protection.is_atomic"
 end
 
 module MutexGlobalsBase =
@@ -199,9 +199,9 @@ struct
   let mutex_addr_to_varinfo = function
     | LockDomain.Addr.Addr (v, `NoOffset) -> v
     | LockDomain.Addr.Addr (v, offs) ->
-      M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "NewPrivBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs);
+      M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs);
       v
-    | _ -> failwith "NewPrivBase.mutex_addr_to_varinfo"
+    | _ -> failwith "MutexGlobalsBase.mutex_addr_to_varinfo"
 end
 
 module ImplicitMutexGlobals =
@@ -668,7 +668,7 @@ struct
         Q.LS.fold (fun (var, offs) acc ->
             Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
           ) ls (Lockset.empty ())
-      | _ -> failwith "MinePrivBase.current_lockset"
+      | _ -> failwith "Locksets.current_lockset"
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
