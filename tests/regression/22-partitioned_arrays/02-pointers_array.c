@@ -24,12 +24,12 @@ void example1(void) {
     *ptr = 42;
     ptr++;
 
-    assert(a[0] == 42);// UNKNOWN
+    assert(a[0] == 42);
     assert(a[1] == 42); // UNKNOWN
 
     *ptr = 42;
-    assert(a[0] == 42);// UNKNOWN
-    assert(a[1] == 42);// UNKNOWN
+    assert(a[0] == 42);
+    assert(a[1] == 42);
     ptr++;
 
     *ptr = 42;
@@ -43,7 +43,7 @@ void example1(void) {
 
 
     int i = 5;
-    assert(a[i] == 42);// UNKNOWN
+    assert(a[i] == 42);
 
     if(top) {
         i++;
@@ -114,9 +114,9 @@ void example5(void) {
   *ptr = 40;
 
   assert(*ptr == 40);
-  assert(array1[4] == 42); // UNKNOWN
-  assert(array1[3] == 42); // UNKNOWN
-  assert(array1[2] == 40); // UNKNOWN
+  assert(array1[4] == 42);
+  assert(array1[3] == 42);
+  assert(array1[2] == 40);
   assert(array1[0] == 42); // UNKNOWN
 }
 
@@ -135,15 +135,15 @@ void example6(void) {
 
   // This is necessary for the tests that we are doing later
   int k = ptr-&array1;
-  assert(k == 2);   // UNKNOWN
+  assert(k == 2);
   int m = ptr-array1;
-  assert(m == 2);   // UNKNOWN
+  assert(m == 2);
 
   int* np = &array1;
   np++;
   np++;
   int x = *np;
-  assert(x==7);   // UNKNOWN
+  assert(x==7);
 }
 
 void example7(void) {

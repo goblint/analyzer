@@ -19,8 +19,8 @@ int main(void) {
     *ptr = 1; ptr++;
     *ptr = 1; ptr++;
 
-    assert(b[0] == 1);  // UNKNOWN
-    assert(b[1] == 1);  // UNKNOWN
-    assert(b[2] == 1);  // UNKNOWN
-    assert(b[3] == 1);  // UNKNOWN
+    assert(b[0] == 1);
+    assert(b[1] == 1);
+    assert(b[2] == 1);
+    assert(b[3] == 1);
 }
