@@ -40,6 +40,7 @@ struct
   let isSimple _ = true
 end
 
+(* TODO: use SetDomain.Reverse? *)
 module ListPtrSet = SetDomain.ToppedSet (ListPtr) (struct let topname = "All elements" end)
 module ListPtrSetR = Lattice.Reverse (ListPtrSet)
 

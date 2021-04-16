@@ -77,6 +77,7 @@ struct
   end
   type r = R.t
   open R
+  (* TODO: use SetDomain.Reverse? *)
   module Must' = SetDomain.ToppedSet (R) (struct let topname = "top" end)
   module Must = Lattice.Reverse (Must')
   module May  = SetDomain.ToppedSet (R) (struct let topname = "top" end)

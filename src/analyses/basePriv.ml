@@ -433,8 +433,7 @@ end
 module CachedVars =
 struct
   module VarSet = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All Variables" end)
-  include VarSet
-  include Lattice.Reverse (VarSet)
+  include SetDomain.Reverse (VarSet)
   let name () = "definitely cached variables"
 end
 

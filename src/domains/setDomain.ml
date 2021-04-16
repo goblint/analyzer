@@ -611,3 +611,9 @@ struct
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)
 end
+
+module Reverse (Base: S) =
+struct
+  include Base
+  include Lattice.Reverse (Base)
+end
