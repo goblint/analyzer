@@ -5,6 +5,7 @@ int g;
 
 int f(int *x){
     int a = 1;
+    int *g_ptr = &g;
     if(x==&g){
         a = 0;
     }
