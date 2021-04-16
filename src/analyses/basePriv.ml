@@ -839,24 +839,24 @@ struct
       (st, [])
 end
 
-module LockCenteredGBase =
+module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
 struct
   open MinePrivBase (* TODO: move Lockset out *)
 
   module GWeak =
   struct
-    include MapDomain.MapBot (Lockset) (VD)
+    include MapDomain.MapBot (Lockset) (WeakRange)
     let name () = "weak"
   end
   module GSync =
   struct
-    include MapDomain.MapBot (Lockset) (CPA)
+    include MapDomain.MapBot (Lockset) (SyncRange)
     let name () = "synchronized"
   end
   module G =
   struct
-    (* weak: G -> (2^M -> D) *)
-    (* sync: M -> (2^M -> (G -> D)) *)
+    (* weak: G -> (2^M -> WeakRange) *)
+    (* sync: M -> (2^M -> SyncRange) *)
     include Lattice.Prod (GWeak) (GSync)
 
     let weak = fst
@@ -864,6 +864,13 @@ struct
     let create_weak weak = (weak, GSync.bot ())
     let create_sync sync = (GWeak.bot (), sync)
   end
+end
+
+module LockCenteredGBase =
+struct
+  (* weak: G -> (2^M -> D) *)
+  (* sync: M -> (2^M -> (G -> D)) *)
+  include AbstractLockCenteredGBase (VD) (CPA)
 end
 
 module type MineWPrivParam =
@@ -1141,30 +1148,12 @@ module WriteCenteredGBase =
 struct
   open MinePrivBase
 
-  (* TODO: abstract with MineLazyPriv *)
   module GWeakW = MapDomain.MapBot (Lockset) (VD)
-  module GWeak =
-  struct
-    include MapDomain.MapBot (Lockset) (GWeakW)
-    let name () = "weak"
-  end
   module GSyncW = MapDomain.MapBot (Lockset) (CPA)
-  module GSync =
-  struct
-    include MapDomain.MapBot (Lockset) (GSyncW)
-    let name () = "synchronized"
-  end
-  module G =
-  struct
-    (* weak: G -> (S:2^M -> (W:2^M -> D)) *)
-    (* sync: M -> (S:2^M -> (W:2^M -> (G -> D))) *)
-    include Lattice.Prod (GWeak) (GSync)
 
-    let weak = fst
-    let sync = snd
-    let create_weak weak = (weak, GSync.bot ())
-    let create_sync sync = (GWeak.bot (), sync)
-  end
+  (* weak: G -> (S:2^M -> (W:2^M -> D)) *)
+  (* sync: M -> (S:2^M -> (W:2^M -> (G -> D))) *)
+  include AbstractLockCenteredGBase (GWeakW) (GSyncW)
 end
 
 (** Write-Centered Reading. *)
