@@ -642,16 +642,10 @@ struct
   let is_private ask x = true
 end
 
-module MinePrivBase =
+module Locksets =
 struct
-  include NoInitFinalize
-  include ImplicitMutexGlobals (* explicit not needed here because G is Prod anyway? *)
-
-  module D = Lattice.Unit
-
-  let startstate () = ()
-
   module Lock = LockDomain.Addr
+
   module Lockset =
   struct
     include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
@@ -675,8 +669,16 @@ struct
             Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
           ) ls (Lockset.empty ())
       | _ -> failwith "MinePrivBase.current_lockset"
+end
 
+module MinePrivBase =
+struct
+  include NoInitFinalize
+  include ImplicitMutexGlobals (* explicit not needed here because G is Prod anyway? *)
 
+  module D = Lattice.Unit
+
+  let startstate () = ()
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
   let threadenter = old_threadenter
@@ -687,7 +689,7 @@ end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
 struct
-  open MinePrivBase (* TODO: move Lockset out *)
+  open Locksets
 
   module GWeak =
   struct
@@ -722,6 +724,7 @@ end
 module MinePriv: S =
 struct
   include MinePrivBase
+  open Locksets
 
   module Thread = ConcDomain.Thread
   module ThreadMap = MapDomain.MapBot (Thread) (VD)
@@ -802,6 +805,7 @@ module MineNoThreadPriv: S =
 struct
   include MinePrivBase
   include LockCenteredGBase
+  open Locksets
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
@@ -869,6 +873,7 @@ module MineWPriv (Param: MineWPrivParam): S =
 struct
   include MinePrivBase
   include LockCenteredGBase
+  open Locksets
 
   module W =
   struct
@@ -954,7 +959,7 @@ end
 (* TODO: split this up *)
 module PreciseDomains =
 struct
-  open MinePrivBase
+  open Locksets
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
@@ -996,6 +1001,7 @@ module MineLazyPriv: S =
 struct
   include MinePrivBase
   include LockCenteredGBase
+  open Locksets
 
   open PreciseDomains
   module D = Lattice.Prod (V) (L)
@@ -1131,7 +1137,7 @@ end
 
 module WriteCenteredGBase =
 struct
-  open MinePrivBase
+  open Locksets
 
   module GWeakW = MapDomain.MapBot (Lockset) (VD)
   module GSyncW = MapDomain.MapBot (Lockset) (CPA)
@@ -1146,6 +1152,7 @@ module PerGlobalHistoryPriv: S =
 struct
   include MinePrivBase
   include WriteCenteredGBase
+  open Locksets
 
   open PreciseDomains
   module D = Lattice.Prod (W) (P)
@@ -1288,6 +1295,7 @@ module MinePerGlobalPriv: S =
 struct
   include MinePrivBase
   include WriteCenteredGBase
+  open Locksets
 
   open PreciseDomains
   module D = Lattice.Prod (Lattice.Prod (W) (P)) (Lattice.Prod (V) (L))
