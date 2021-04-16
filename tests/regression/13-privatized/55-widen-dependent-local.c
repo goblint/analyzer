@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval
+// PARAM: --enable ana.int.interval --enable exp.priv-distr-init
 #include <pthread.h>
 #include <assert.h>
 
@@ -22,7 +22,7 @@ int put() {
   while (g >= limit) { // problematic widen
 
   }
-  assert(g >= 0);
+  assert(g >= 0); // TODO
   g++;
   pthread_mutex_unlock(&A);
 }

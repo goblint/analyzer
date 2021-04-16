@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval
+// PARAM: --enable ana.int.interval --enable exp.priv-distr-init
 #include <pthread.h>
 #include <assert.h>
 
@@ -16,7 +16,7 @@ void *worker(void *arg )
   while (g <= 0) {
 
   }
-  assert(g > 0);
+  assert(g > 0); // TODO
   g--;
   pthread_mutex_unlock(&A);
   return NULL;
@@ -31,7 +31,7 @@ int main(int argc , char **argv )
   while (g >= 10) {
 
   }
-  assert(g >= 0);
+  assert(g >= 0); // TODO
   g++;
   pthread_mutex_unlock(&A);
   return 0;

@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval
+// PARAM: --enable ana.int.interval --enable exp.priv-distr-init
 #include <pthread.h>
 #include <assert.h>
 
@@ -29,7 +29,7 @@ int pqueue_put(PQUEUE *qp)
   while (qp->occupied >= qp->qsize) {
 
   }
-  assert(qp->occupied >= 0);
+  assert(qp->occupied >= 0); // TODO
   (qp->occupied) ++;
   pthread_mutex_unlock(& qp->mtx);
   return (1);
@@ -42,7 +42,7 @@ int pqueue_get(PQUEUE *qp)
   while (qp->occupied <= 0) {
 
   }
-  assert(qp->occupied > 0);
+  assert(qp->occupied > 0); // TODO
   if (qp->occupied > 0) {
     (qp->occupied) --;
     got = 1;
