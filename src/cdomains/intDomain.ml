@@ -784,8 +784,8 @@ struct
   type int_t = int64
   let top () = raise Unknown
   let bot () = raise Error
-  let top_of ik = top () (* TODO: Improve *)
-  let bot_of ik = bot () (* TODO: Improve *)
+  let top_of ik = top ()
+  let bot_of ik = bot ()
   let short _ x = if x = GU.inthack then "*" else Int64.to_string x
 
   let equal = Int64.equal
