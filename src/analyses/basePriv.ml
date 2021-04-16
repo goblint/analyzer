@@ -1148,6 +1148,9 @@ struct
     include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
     let name () = "P"
 
+    (* TODO: change MinLocksets.exists/top instead? *)
+    let find x p = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) (* ensure exists has something to check for thread returns *)
+
     (* TODO: no longer right? remove? *)
     (* let mem_V x m p =
       let p_x = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
@@ -1180,7 +1183,7 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     let (w, p) = st.priv in
-    let p_x = P.find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
+    let p_x = P.find x p in
     let d_cpa = CPA.find x st.cpa in
     let d_sync = Lockset.fold (fun m acc ->
         if MinLocksets.exists (fun s''' -> not (Lockset.mem m s''')) p_x then
@@ -1324,7 +1327,7 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
     let ((w, p), (vv, l)) = st.priv in
-    let p_x = P.find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
+    let p_x = P.find x p in
     let d_cpa = CPA.find x st.cpa in
     let d_m_sync = L.fold (fun m bs acc ->
         if not (MustVars.mem x (V.find m vv)) then
