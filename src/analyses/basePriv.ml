@@ -1137,13 +1137,9 @@ struct
   let threadenter = startstate_threadenter startstate
 end
 
-(** Write-Centered Reading. *)
-module PerGlobalHistoryPriv: S =
+module WriteCenteredGBase =
 struct
-  include MinePrivBase
-  open PreciseDomains
-
-  module D = Lattice.Prod (W) (P)
+  open MinePrivBase
 
   (* TODO: abstract with MineLazyPriv *)
   module GWeakW = MapDomain.MapBot (Lockset) (VD)
@@ -1169,6 +1165,16 @@ struct
     let create_weak weak = (weak, GSync.bot ())
     let create_sync sync = (GWeak.bot (), sync)
   end
+end
+
+(** Write-Centered Reading. *)
+module PerGlobalHistoryPriv: S =
+struct
+  include MinePrivBase
+  include WriteCenteredGBase
+
+  open PreciseDomains
+  module D = Lattice.Prod (W) (P)
 
   let startstate () = (W.bot (), P.top ())
 
@@ -1307,34 +1313,10 @@ end
 module MinePerGlobalPriv: S =
 struct
   include MinePrivBase
+  include WriteCenteredGBase
+
   open PreciseDomains
-
   module D = Lattice.Prod (Lattice.Prod (W) (P)) (Lattice.Prod (V) (L))
-
-  (* TODO: share with PerGlobalHistoryPriv *)
-  module GWeakW = MapDomain.MapBot (Lockset) (VD)
-  module GWeak =
-  struct
-    include MapDomain.MapBot (Lockset) (GWeakW)
-    let name () = "weak"
-  end
-  module GSyncW = MapDomain.MapBot (Lockset) (CPA)
-  module GSync =
-  struct
-    include MapDomain.MapBot (Lockset) (GSyncW)
-    let name () = "sync"
-  end
-  module G =
-  struct
-    (* weak: G -> (S:2^M -> (W:2^M -> D)) *)
-    (* sync: M -> (S:2^M -> (W:2^M -> (G -> D))) *)
-    include Lattice.Prod (GWeak) (GSync)
-
-    let weak = fst
-    let sync = snd
-    let create_weak weak = (weak, GSync.bot ())
-    let create_sync sync = (GWeak.bot (), sync)
-  end
 
   let startstate () = ((W.bot (), P.top ()), (V.bot (), L.bot ()))
 
