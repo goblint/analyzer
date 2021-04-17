@@ -128,60 +128,54 @@ let eq_edge_list xs ys = eq_list eq_edge xs ys
 
 let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
 
-let waitingList : (node * node) t = Queue.create ()
-
 let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
-    let rec compareNext (stdSet, diffSet) =
-      if Queue.is_empty waitingList then (stdSet, diffSet)
-      else
-        let fromNode1, fromNode2 = Queue.take waitingList in
-        let outList1 = Cfg1.next fromNode1 in
-        let outList2 = Cfg2.next fromNode2 in
+  let diff = Hashtbl.create 113 in
+  let same = Hashtbl.create 113 in
+  let waitingList : (node * node) t = Queue.create () in
 
-        let findEquiv (edgeList1, toNode1) ls2 stdSet diffSet =
-          let rec aux ls2 stdSet diffSet =
-            match ls2 with
-            | [] -> let diffSet' = DiffS.add ((fromNode1, fromNode2), edgeList1, toNode1) diffSet in (stdSet, diffSet')
-            | (locEdgeList2, toNode2) :: ls2' ->
-              let edgeList2 = to_edge_list locEdgeList2 in
-              if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
-                begin
-                  let notIn = StdS.for_all
-                      (fun (fromNodes', edges, (toNode1', toNode2')) -> not (Node.equal toNode1 toNode1' && Node.equal toNode2 toNode2')) stdSet in
-                  if notIn then Queue.add (toNode1, toNode2) waitingList;
-                  let stdSet' = StdS.add ((fromNode1, fromNode2), (edgeList1, edgeList2), (toNode1, toNode2)) stdSet
-                  in (stdSet', diffSet)
-                end
-              else aux ls2' stdSet diffSet in
-          aux ls2 stdSet diffSet in
+  let rec compareNext () =
+    if Queue.is_empty waitingList then ()
+    else
+      let fromNode1, fromNode2 = Queue.take waitingList in
+      let outList1 = Cfg1.next fromNode1 in
+      let outList2 = Cfg2.next fromNode2 in
 
-        let rec iterOuts ls1 stdSet diffSet =
-          match ls1 with
-          | [] -> (stdSet, diffSet)
-          | (locEdgeList1, toNode1) :: ls1' ->
-              let edgeList1 = to_edge_list locEdgeList1 in
-              (* Differentiate between a possibly duplicate Test(1,false) edge and a single occurence. In the first
-              case the edge is directly added to the diff set to avoid undetected ambiguities during the recursive
-              call. *)
-              let testFalseEdge edge = match edge with
-                | Test (p,b) -> p = Cil.one && b = false
-                | _ -> false in
-              let posAmbigEdge edgeList = let findTestFalseEdge (ll,_) = testFalseEdge (snd (List.hd ll)) in
-                let numDuplicates l = List.length (List.find_all findTestFalseEdge l) in
-                testFalseEdge (List.hd edgeList) && (numDuplicates outList1 > 1 || numDuplicates outList2 > 1) in
-              let (stdSet', diffSet') = if posAmbigEdge edgeList1
-                then (stdSet, DiffS.add ((fromNode1, fromNode2), edgeList1, toNode1) diffSet)
-                else findEquiv (edgeList1, toNode1) outList2 stdSet diffSet in
-            iterOuts ls1' stdSet' diffSet' in
-      compareNext (iterOuts outList1 stdSet diffSet) in
+      let findEquiv (edgeList1, toNode1) =
+        let aux (locEdgeList2, toNode2) b = if b then b else
+          let edgeList2 = to_edge_list locEdgeList2 in
+          if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
+            begin
+              let notIn = Hashtbl.fold (fun (toNode1', toNode2') v acc -> acc && not (Node.equal toNode1 toNode1' && Node.equal toNode2 toNode2')) same true in
+              if notIn then Queue.add (toNode1, toNode2) waitingList;
+              Hashtbl.add same (toNode1, toNode2) ();
+              true
+            end
+          else false in
+        let found = List.fold_right aux outList2 false in
+        if not found then Hashtbl.add diff toNode1 () in
 
-    let initSets = (StdS.empty, DiffS.empty) in
-    let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
-  Queue.push (entryNode1,entryNode2) waitingList; (compareNext initSets)
+      let iterOuts (locEdgeList1, toNode1) =
+        let edgeList1 = to_edge_list locEdgeList1 in
+        (* Differentiate between a possibly duplicate Test(1,false) edge and a single occurence. In the first
+        case the edge is directly added to the diff set to avoid undetected ambiguities during the recursive
+        call. *)
+        let testFalseEdge edge = match edge with
+          | Test (p,b) -> p = Cil.one && b = false
+          | _ -> false in
+        let posAmbigEdge edgeList = let findTestFalseEdge (ll,_) = testFalseEdge (snd (List.hd ll)) in
+          let numDuplicates l = List.length (List.find_all findTestFalseEdge l) in
+          testFalseEdge (List.hd edgeList) && (numDuplicates outList1 > 1 || numDuplicates outList2 > 1) in
+        if posAmbigEdge edgeList1
+          then Hashtbl.add diff toNode1 ()
+          else findEquiv (edgeList1, toNode1) in
+    List.iter iterOuts outList1; compareNext () in
 
-let reexamine f1 f2 stdSet diffSet (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) =
-  let diffNodes1 = DiffS.fold (fun (_, _, n) acc -> NodeSet.add n acc) diffSet NodeSet.empty in
-  let sameNodes = let fromStdSet = StdS.fold (fun (_, _, (n1, n2)) acc -> NodeNodeSet.add (n1,n2) acc) stdSet NodeNodeSet.empty in
+  let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
+  Queue.push (entryNode1,entryNode2) waitingList; compareNext (); (same, diff)
+
+let reexamine f1 f2 same diff (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) =
+  let diffNodes1 = Hashtbl.fold (fun n _ acc -> NodeSet.add n acc) diff NodeSet.empty in
+  let sameNodes = let fromStdSet = Hashtbl.fold (fun (n1, n2) _ acc -> NodeNodeSet.add (n1,n2) acc) same NodeNodeSet.empty in
     let notInDiff = NodeNodeSet.filter (fun (n1,n2) -> not (NodeSet.mem n1 diffNodes1)) fromStdSet in
     NodeNodeSet.add (FunctionEntry f1, FunctionEntry f2) notInDiff in
   let _, addedNodes =
@@ -196,11 +190,10 @@ let reexamine f1 f2 stdSet diffSet (module Cfg1 : CfgForward) (module Cfg2 : Cfg
     dfs2 (FunctionEntry f2) (NodeSet.empty, NodeSet.empty) in
   let (sameNodes, primRemovedNodes, removedNodes) =
     let rec dfs1 node (sameNodes, primRemovedNodes, removedNodes) =
-      let classify k (same, primRemoved, removed) = match k with
-        | Function d -> (same, primRemoved, removed) (* leave out regular back-edge from return statement to function node  *)
-        | _ -> if NodeSet.mem k primRemoved || NodeSet.mem k removed then (same, primRemoved, removed)
-          else if NodeNodeSet.exists (fun (n1,_) -> Node.equal n1 k) same then (NodeNodeSet.filter (fun (n1,_) -> not (Node.equal n1 k)) same, NodeSet.add k primRemoved, NodeSet.add k removed)
-          else dfs1 k (same, primRemoved, NodeSet.add k removed) in
+      let classify k (same, primRemoved, removed) =
+        if NodeSet.mem k primRemoved || NodeSet.mem k removed then (same, primRemoved, removed)
+        else if NodeNodeSet.exists (fun (n1,_) -> Node.equal n1 k) same then (NodeNodeSet.filter (fun (n1,_) -> not (Node.equal n1 k)) same, NodeSet.add k primRemoved, NodeSet.add k removed)
+        else dfs1 k (same, primRemoved, NodeSet.add k removed) in
       let succ = List.map snd (Cfg1.next node) in
       List.fold_right classify succ (sameNodes, primRemovedNodes, removedNodes) in
     NodeSet.fold dfs1 diffNodes1 (sameNodes, diffNodes1, diffNodes1) in
