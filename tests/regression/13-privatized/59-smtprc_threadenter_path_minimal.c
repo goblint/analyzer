@@ -48,7 +48,7 @@ int main(int argc , char **argv )
   }
   pthread_mutex_unlock(& main_thread_count_mutex);
 
-  // mine-lazy gets here with two paths and crashes
+  // lock gets here with two paths and crashes
   pthread_create(& c_tid, NULL, & thread_start, NULL);
   return (0);
 }

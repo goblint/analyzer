@@ -982,7 +982,7 @@ struct
 end
 
 (** Lock-Centered Reading. *)
-module MineLazyPriv: S =
+module LockCenteredPriv: S =
 struct
   include MinePrivBase
   include LockCenteredGBase
@@ -1648,7 +1648,7 @@ let priv_module: (module S) Lazy.t =
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
         | "mine-W-init" -> (module MineWPriv (struct let side_effect_global_init = false end))
-        | "mine-lazy" -> (module MineLazyPriv)
+        | "lock" -> (module LockCenteredPriv)
         | "global-history" -> (module PerGlobalHistoryPriv)
         | "mine-global" -> (module MinePerGlobalPriv)
         | _ -> failwith "exp.privatization: illegal value"

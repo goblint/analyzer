@@ -51,7 +51,7 @@ void *worker(void *arg )
 {
   while (1) {
     pqueue_get(& pqb);
-    // extra mutex makes mine-W more precise than mine-lazy
+    // extra mutex makes mine-W more precise than lock
     pthread_mutex_lock(& print_lock);
     pthread_mutex_unlock(& print_lock);
   }

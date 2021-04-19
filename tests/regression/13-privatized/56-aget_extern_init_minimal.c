@@ -16,7 +16,7 @@ int main(int argc , char **argv )
 
   if (optind >= argc) {
     if (optind == argc) {
-      // mine-lazy priv should also read Unknown int, not Unknown here
+      // lock priv should also read Unknown int, not Unknown here
       exit(1);
     }
   }
