@@ -2,8 +2,8 @@
 #include <pthread.h>
 #include <assert.h>
 
-// global priv succeeds
-// global-history fails due to [1,1] widen [0,1] -> [-inf,1]
+// protection priv succeeds
+// write fails due to [1,1] widen [0,1] -> [-inf,1]
 // sensitive to eval and widen order!
 
 struct __anonstruct_PQUEUE_63 {

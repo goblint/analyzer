@@ -73,8 +73,8 @@ struct
       !GU.earlyglobs && not (ThreadFlag.is_multi ask)
 end
 
-(* Copy of OldPriv with is_private constantly false. *)
-module NoPriv: S =
+(* Copy of ProtectionBasedOldPriv with is_private constantly false. *)
+module NonePriv: S =
 struct
   include OldPrivBase
 
@@ -112,7 +112,11 @@ struct
     CPA.fold add_var st.cpa (st, [])
 end
 
-module OldPriv: S =
+(** Protection-Based Reading old implementation.
+    Unsound!
+    Based on [sync].
+    Works for OSEK. *)
+module ProtectionBasedOldPriv: S =
 struct
   include OldPrivBase
 
@@ -446,7 +450,10 @@ struct
   let name () = "must variables"
 end
 
-module PerGlobalVesalPriv: S =
+(** Protection-Based Reading early implementation for traces paper by Vesal.
+    Based on [sync].
+    Works for OSEK. *)
+module ProtectionBasedVesalPriv: S =
 struct
   include OldPrivBase
 
@@ -517,7 +524,7 @@ sig
 end
 
 (** Protection-Based Reading. *)
-module PerGlobalPriv (Param: PerGlobalPrivParam): S =
+module ProtectionBasedPriv (Param: PerGlobalPrivParam): S =
 struct
   include NoInitFinalize
   open Protection
@@ -982,7 +989,7 @@ struct
 end
 
 (** Lock-Centered Reading. *)
-module MineLazyPriv: S =
+module LockCenteredPriv: S =
 struct
   include MinePrivBase
   include LockCenteredGBase
@@ -1154,7 +1161,7 @@ struct
 end
 
 (** Write-Centered Reading. *)
-module PerGlobalHistoryPriv: S =
+module WriteCenteredPriv: S =
 struct
   include MinePrivBase
   include WriteCenteredGBase
@@ -1297,7 +1304,7 @@ struct
 end
 
 (** Write-Centered Reading and Lock-Centered Reading combined. *)
-module MinePerGlobalPriv: S =
+module WriteAndLockCenteredPriv: S =
 struct
   include MinePrivBase
   include WriteCenteredGBase
@@ -1631,20 +1638,20 @@ let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
       (val match get_string "exp.privatization" with
-        | "none" -> (module NoPriv: S)
-        | "old" -> (module OldPriv)
+        | "none" -> (module NonePriv: S)
+        | "protection-old" -> (module ProtectionBasedOldPriv)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
-        | "global" -> (module PerGlobalPriv (struct let check_read_unprotected = false end))
-        | "global-read" -> (module PerGlobalPriv (struct let check_read_unprotected = true end))
-        | "global-vesal" -> (module PerGlobalVesalPriv)
+        | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
+        | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
+        | "protection-vesal" -> (module ProtectionBasedVesalPriv)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
-        | "mine-W-init" -> (module MineWPriv (struct let side_effect_global_init = false end))
-        | "mine-lazy" -> (module MineLazyPriv)
-        | "global-history" -> (module PerGlobalHistoryPriv)
-        | "mine-global" -> (module MinePerGlobalPriv)
+        | "mine-W-noinit" -> (module MineWPriv (struct let side_effect_global_init = false end))
+        | "lock" -> (module LockCenteredPriv)
+        | "write" -> (module WriteCenteredPriv)
+        | "write+lock" -> (module WriteAndLockCenteredPriv)
         | _ -> failwith "exp.privatization: illegal value"
       )
     in

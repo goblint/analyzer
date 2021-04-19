@@ -16,7 +16,7 @@ void *worker(void *arg )
       g--;
     }
     pthread_mutex_unlock(&A);
-    // extra mutex makes mine-W more precise than mine-lazy
+    // extra mutex makes mine-W more precise than lock
     pthread_mutex_lock(&B);
     pthread_mutex_unlock(&B);
   }

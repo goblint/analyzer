@@ -1,26 +1,26 @@
-old:
+protection-old:
 9 tests failed: ["13/18 first-reads", "13/19 publish-precision", "13/21 publish-basic", "13/22 traces-paper", "13/23 traces-paper2", "13/48 pfscan_protected_loop_minimal", "13/49 refine-protected-loop", "13/50 pfscan_protected_loop_minimal2", "13/51 refine-protected-loop2"]
 
-global:
+protection:
 24 tests failed: ["13/20 publish-regression", "13/24 multiple-protecting", "13/27 multiple-protecting2", "13/28 multiple-protecting2-simple", "13/30 traces-oplus-vs-meet", "13/31 traces-mine-vs-mutex", "13/35 traces-ex-2", "13/37 traces-ex-4", "13/38 traces-ex-4-switch", "13/42 traces-ex-mini", "28/02 simple_racefree", "28/04 munge_racefree", "28/05 lockfuns_racefree", "28/08 cond_racefree", "28/10 ptrmunge_racefree", "28/12 ptr_racefree", "28/20 callback_racefree", "28/28 funptr_racefree", "28/36 indirect_racefree", "28/41 trylock_racefree", "28/42 trylock2_racefree", "28/46 escape_racefree", "28/51 mutexptr_racefree", "28/60 invariant_racefree"]
 
-global-read:
+protection-read:
 No errors :)
 
-global-vesal:
+protection-vesal:
 2 tests failed: ["13/22 traces-paper", "13/23 traces-paper2"]
 
-global-history:
+write:
 No errors :)
 
 mine-W:
 44 tests failed: ["03/17 struct_priv", "13/01 priv_nr", "13/03 priv_inv", "13/04 priv_multi", "13/17 priv_interval", "13/19 publish-precision", "13/20 publish-regression", "13/21 publish-basic", "13/22 traces-paper", "13/23 traces-paper2", "13/24 multiple-protecting", "13/25 struct_nr", "13/27 multiple-protecting2", "13/28 multiple-protecting2-simple", "13/30 traces-oplus-vs-meet", "13/31 traces-mine-vs-mutex", "13/35 traces-ex-2", "13/36 traces-ex-3", "13/38 traces-ex-4-switch", "13/42 traces-ex-mini", "13/45 traces-per-global-and-current-lock-mine-incomparable", "13/46 refine-protected1", "13/47 refine-protected2", "13/48 pfscan_protected_loop_minimal", "13/49 refine-protected-loop", "13/50 pfscan_protected_loop_minimal2", "13/51 refine-protected-loop2", "13/52 refine-protected-loop2-small", "13/58 singlethreaded-lock", "28/02 simple_racefree", "28/04 munge_racefree", "28/05 lockfuns_racefree", "28/08 cond_racefree", "28/10 ptrmunge_racefree", "28/12 ptr_racefree", "28/20 callback_racefree", "28/28 funptr_racefree", "28/36 indirect_racefree", "28/41 trylock_racefree", "28/42 trylock2_racefree", "28/51 mutexptr_racefree", "28/60 invariant_racefree", "29/16 atomic_priv", "29/18 atomic_fun_priv"]
 
-mine-W-init:
+mine-W-noinit:
 13 tests failed: ["13/20 publish-regression", "13/24 multiple-protecting", "13/27 multiple-protecting2", "13/28 multiple-protecting2-simple", "13/30 traces-oplus-vs-meet", "13/31 traces-mine-vs-mutex", "13/35 traces-ex-2", "13/36 traces-ex-3", "13/38 traces-ex-4-switch", "13/42 traces-ex-mini", "13/45 traces-per-global-and-current-lock-mine-incomparable", "13/61 otherfun-priv", "28/42 trylock2_racefree"]
 
-mine-lazy:
+lock:
 10 tests failed: ["13/20 publish-regression", "13/24 multiple-protecting", "13/30 traces-oplus-vs-meet", "13/35 traces-ex-2", "13/36 traces-ex-3", "13/38 traces-ex-4-switch", "13/42 traces-ex-mini", "13/45 traces-per-global-and-current-lock-mine-incomparable", "13/58 singlethreaded-lock", "28/42 trylock2_racefree"]
 
-mine-global:
+write+lock:
 No errors :)
