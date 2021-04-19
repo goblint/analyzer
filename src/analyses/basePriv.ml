@@ -73,8 +73,8 @@ struct
       !GU.earlyglobs && not (ThreadFlag.is_multi ask)
 end
 
-(* Copy of OldPriv with is_private constantly false. *)
-module NoPriv: S =
+(* Copy of ProtectionBasedOldPriv with is_private constantly false. *)
+module NonePriv: S =
 struct
   include OldPrivBase
 
@@ -1644,7 +1644,7 @@ let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
       (val match get_string "exp.privatization" with
-        | "none" -> (module NoPriv: S)
+        | "none" -> (module NonePriv: S)
         | "protection-old" -> (module ProtectionBasedOldPriv)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
