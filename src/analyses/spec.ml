@@ -464,7 +464,7 @@ struct
           (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
           D.alias k vvar au
         else (* returned variable was a local *)
-          let v = D.V.set_key k v in (* ajust var-field to lval *)
+          let v = D.V.set_key k v in (* adjust var-field to lval *)
           (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
           D.add' k v au
     | _ -> au
