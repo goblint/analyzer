@@ -89,7 +89,6 @@ let createCFG (fileAST: file) =
   (* Since we want the output of justcil to compile, we do not run allBB visitor if justcil is enable, regardless of  *)
   (* exp.basic-blocks. This does not matter, as we will not run any analysis anyway, when justcil is enabled.         *)
   if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
-  (* Partial.calls_end_basic_blocks fileAST; *)
   visitCilFileSameGlobals (new vidVisitor) fileAST;
   iterGlobals fileAST (fun glob ->
       match glob with
@@ -100,24 +99,9 @@ let createCFG (fileAST: file) =
     );
   do_preprocess fileAST
 
-let partial fileAST =
-  Partial.partial fileAST "main" []
-
-let simplify fileAST =
-  iterGlobals fileAST Simplify.doGlobal
-
-let oneret fileAST =
-  iterGlobals fileAST (fun glob ->
-      match glob with
-      | GFun(fd,_) -> Oneret.oneret fd;
-      | _ -> ()
-    )
-
 let getAST fileName =
   let fileAST = parse fileName in
   (*  rmTemps fileAST; *)
-  (*  oneret fileAST;*)
-  (*  simplify fileAST;*)
   fileAST
 
 (* a visitor that puts calls to constructors at the starting points to main *)
