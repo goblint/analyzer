@@ -1,4 +1,4 @@
-old:
+protection-old:
 9 tests failed: ["13/18 first-reads", "13/19 publish-precision", "13/21 publish-basic", "13/22 traces-paper", "13/23 traces-paper2", "13/48 pfscan_protected_loop_minimal", "13/49 refine-protected-loop", "13/50 pfscan_protected_loop_minimal2", "13/51 refine-protected-loop2"]
 
 protection:

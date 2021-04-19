@@ -112,7 +112,11 @@ struct
     CPA.fold add_var st.cpa (st, [])
 end
 
-module OldPriv: S =
+(** Protection-Based Reading old implementation.
+    Unsound!
+    Based on [sync].
+    Works for OSEK. *)
+module ProtectionBasedOldPriv: S =
 struct
   include OldPrivBase
 
@@ -1641,7 +1645,7 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "exp.privatization" with
         | "none" -> (module NoPriv: S)
-        | "old" -> (module OldPriv)
+        | "protection-old" -> (module ProtectionBasedOldPriv)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
