@@ -22,5 +22,5 @@ mine-W-init:
 lock:
 10 tests failed: ["13/20 publish-regression", "13/24 multiple-protecting", "13/30 traces-oplus-vs-meet", "13/35 traces-ex-2", "13/36 traces-ex-3", "13/38 traces-ex-4-switch", "13/42 traces-ex-mini", "13/45 traces-per-global-and-current-lock-mine-incomparable", "13/58 singlethreaded-lock", "28/42 trylock2_racefree"]
 
-mine-global:
+write+lock:
 No errors :)
