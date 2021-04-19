@@ -517,7 +517,7 @@ sig
 end
 
 (** Protection-Based Reading. *)
-module PerGlobalPriv (Param: PerGlobalPrivParam): S =
+module ProtectionBasedPriv (Param: PerGlobalPrivParam): S =
 struct
   include NoInitFinalize
   open Protection
@@ -1641,8 +1641,8 @@ let priv_module: (module S) Lazy.t =
         | "old" -> (module OldPriv)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
-        | "global" -> (module PerGlobalPriv (struct let check_read_unprotected = false end))
-        | "global-read" -> (module PerGlobalPriv (struct let check_read_unprotected = true end))
+        | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
+        | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
         | "global-vesal" -> (module PerGlobalVesalPriv)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)

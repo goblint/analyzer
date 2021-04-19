@@ -2,7 +2,7 @@
 #include <pthread.h>
 #include <assert.h>
 
-// global priv succeeds
+// protection priv succeeds
 // global-history fails due to [1,+inf] widen ([1,+inf] join [0,+inf]) -> [-inf,+inf]
 // sensitive to eval and widen order!
 

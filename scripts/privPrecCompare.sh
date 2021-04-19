@@ -2,7 +2,7 @@
 
 # ./scripts/privPrecCompare.sh ../goblint-bench/pthread/pfscan_comb.c --enable custom_libc
 
-PRIVS=(global global-read global-history mine-W mine-lazy mine-global)
+PRIVS=(protection protection-read global-history mine-W mine-lazy mine-global)
 OUTDIR="privPrecCompare"
 
 mkdir -p $OUTDIR
