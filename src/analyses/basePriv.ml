@@ -446,7 +446,10 @@ struct
   let name () = "must variables"
 end
 
-module PerGlobalVesalPriv: S =
+(** Protection-Based Reading early implementation for traces paper by Vesal.
+    Based on [sync].
+    Works for OSEK. *)
+module ProtectionBasedVesalPriv: S =
 struct
   include OldPrivBase
 
@@ -1643,7 +1646,7 @@ let priv_module: (module S) Lazy.t =
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
         | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
-        | "global-vesal" -> (module PerGlobalVesalPriv)
+        | "protection-vesal" -> (module ProtectionBasedVesalPriv)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))

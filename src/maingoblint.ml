@@ -354,7 +354,7 @@ let check_arguments () =
   let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
   if ctx_insens && get_bool "exp.full-context" then info "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; info "allfuns enables exp.earlyglobs.\n");
-  if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "global-vesal" || get_string "exp.privatization" = "old") then (set_string "exp.privatization" "global-vesal"; info "oil require old/global-vesal privatization")
+  if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "old") then (set_string "exp.privatization" "protection-vesal"; info "oil require old/protection-vesal privatization")
 
 let handle_extraspecials () =
   let f xs = function
