@@ -3,7 +3,7 @@ open GobConfig
 module Q = Queries
 
 let is_global (a: Q.ask) (v: varinfo): bool =
-  v.vglob || match a (Q.MayEscape v) with `MayBool tv -> tv | _ -> false
+  v.vglob || ThreadEscape.has_escaped a v
 
 let is_static (v:varinfo): bool = v.vstorage = Static
 
