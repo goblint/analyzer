@@ -155,7 +155,7 @@ sig
   val eval_exp: t  ->  Cil.exp -> IntOps.BigIntOps.t option
 end
 
-(* Takes a module specifying how expressions can be evaluated inside the domain and returns the domain *)
+(* Takes a module for privatization component and a module specifying how expressions can be evaluated inside the domain and returns the domain *)
 module DomFunctor (PrivD: Lattice.S) (ExpEval: ExpEvaluator with type t = BaseComponents (PrivD).t) =
 struct
   include BaseComponents (PrivD)
