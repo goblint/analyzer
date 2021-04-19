@@ -57,7 +57,7 @@ struct
 
   let startstate () = ()
 
-  let lock ask getg cpa m = cpa
+  let lock ask getg st m = st
   let unlock ask getg sideg st m = st
 
   let escape ask getg sideg st escaped = st
