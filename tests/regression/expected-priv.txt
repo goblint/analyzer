@@ -10,7 +10,7 @@ No errors :)
 global-vesal:
 2 tests failed: ["13/22 traces-paper", "13/23 traces-paper2"]
 
-global-history:
+write:
 No errors :)
 
 mine-W:

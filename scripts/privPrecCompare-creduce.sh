@@ -9,9 +9,9 @@ gcc -c -Werror=implicit-function-declaration ./tegra20.c
 GOBLINTDIR="/home/simmo/dev/goblint/sv-comp/goblint"
 # OPTS="./pfscan_comb.c --enable custom_libc"
 OPTS="./tegra20.c --conf $GOBLINTDIR/conf/traces.json --enable ana.sv-comp.functions"
-# PRIVS=(protection protection-read global-history mine-W lock mine-global)
-PRIVS=(protection global-history)
-INTERESTING="protection precise than global-history"
+# PRIVS=(protection protection-read write mine-W lock mine-global)
+PRIVS=(protection write)
+INTERESTING="protection more precise than write"
 OUTDIR="privPrecCompare-creduce"
 
 

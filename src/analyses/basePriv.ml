@@ -1160,7 +1160,7 @@ struct
 end
 
 (** Write-Centered Reading. *)
-module PerGlobalHistoryPriv: S =
+module WriteCenteredPriv: S =
 struct
   include MinePrivBase
   include WriteCenteredGBase
@@ -1649,7 +1649,7 @@ let priv_module: (module S) Lazy.t =
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
         | "mine-W-init" -> (module MineWPriv (struct let side_effect_global_init = false end))
         | "lock" -> (module LockCenteredPriv)
-        | "global-history" -> (module PerGlobalHistoryPriv)
+        | "write" -> (module WriteCenteredPriv)
         | "mine-global" -> (module MinePerGlobalPriv)
         | _ -> failwith "exp.privatization: illegal value"
       )
