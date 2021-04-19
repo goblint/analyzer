@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','mallocWrapper','threadflag']"
+// PARAM: --sets ana.activated[-] escape
 #include <pthread.h>
 int g = 10;
 
