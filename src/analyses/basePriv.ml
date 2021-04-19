@@ -1654,7 +1654,7 @@ let priv_module: (module S) Lazy.t =
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
-        | "mine-W-init" -> (module MineWPriv (struct let side_effect_global_init = false end))
+        | "mine-W-noinit" -> (module MineWPriv (struct let side_effect_global_init = false end))
         | "lock" -> (module LockCenteredPriv)
         | "write" -> (module WriteCenteredPriv)
         | "write+lock" -> (module WriteAndLockCenteredPriv)
