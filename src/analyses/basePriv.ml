@@ -1150,12 +1150,6 @@ struct
 
     (* TODO: change MinLocksets.exists/top instead? *)
     let find x p = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) (* ensure exists has something to check for thread returns *)
-
-    (* TODO: no longer right? remove? *)
-    (* let mem_V x m p =
-      let p_x = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) in (* ensure exists has something to check for thread returns *)
-      MinLocksets.for_all (fun s -> Lockset.mem m s) p_x
-      (* MinLocksets.leq p_x (MinLocksets.singleton (Lockset.singleton m)) *) *)
   end
 end
 
