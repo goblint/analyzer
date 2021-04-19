@@ -127,7 +127,7 @@ struct
       match nre with
       | `Lifted m ->
         let alive =
-          match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
+          match MyLiveness.getLiveSet !Cilfacade.current_statement.sid with
           | Some x -> x
           | _      -> Usedef.VS.empty
         in

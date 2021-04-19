@@ -526,7 +526,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       blab (proper_list_segment ask gl lp sm) (fun () -> Pretty.printf "no donut\n") &&
       let pointedBy = reflTransBack ask gl sm (lp) (ListPtrSet.empty ()) in
       let alive =
-        match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
+        match MyLiveness.getLiveSet !Cilfacade.current_statement.sid with
         | Some x -> x
         | _      -> Usedef.VS.empty
       in
