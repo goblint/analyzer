@@ -101,7 +101,7 @@ struct
     | `Varinfo (`Lifted v) -> (AD.from_var v)
     | _ -> failwith "Ran without heap analysis"
 
-  let create_val ask t = VD.arg_value (arg_value ask) t
+  let create_val ask t : value * (address * typ * value) list = VD.arg_value (arg_value ask) t
 
   let init () =
     privatization := get_bool "exp.privatization";
@@ -1026,8 +1026,8 @@ struct
       `MustBool (is_malloc_assignment rval)
     | _ -> Q.Result.top ()
 
-  let update_variable variable value state =
-    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
+  let update_variable ?(force_update=false) variable value state  =
+    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable) && not force_update) then
       CPA.add variable (VD.top ()) state
     else
       CPA.add variable value state
@@ -1055,10 +1055,10 @@ struct
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
-  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st,dep: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
+  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?(force_update=false)?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st,dep: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
-      let r = update_variable x y z in (* refers to defintion that is outside of set *)
+      let r = update_variable ~force_update x y z  in (* refers to defintion that is outside of set *)
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
@@ -1199,10 +1199,10 @@ struct
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
       M.warn_each "Assignment to unknown address"; (st,dep)
 
-  let set_many a (gs:glob_fun) (st,dep as store: store) lval_value_list: store =
+  let set_many ?(force_update=false) a (gs:glob_fun) (st,dep as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
-      set a gs acc lval typ value
+      set ~force_update a gs acc lval typ value
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f store lval_value_list
@@ -1929,7 +1929,7 @@ struct
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
     (* Add values for memory cells pointed to by arguments.*)
-    let new_cpa = fst @@ set_many ctx.ask ctx.global (new_cpa, dep) heap_mem in
+    let new_cpa = fst @@ set_many ~force_update:true ctx.ask ctx.global (new_cpa, dep) heap_mem in
     new_cpa, dep
 
   let enter ctx lval fn args : (D.t * D.t) list =
