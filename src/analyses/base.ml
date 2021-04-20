@@ -523,6 +523,8 @@ struct
 
   let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
+  let drop_globals = CPA.filter (fun k v -> neg V.is_global k)
+
   let context (cpa,dep) =
     let f t f (cpa,dep) = if t then f cpa, dep else cpa, dep in
     (cpa,dep) |>
@@ -530,6 +532,7 @@ struct
     %> f (get_bool "exp.addr-context") drop_non_ptrs
     %> f (get_bool "exp.no-int-context") drop_ints
     %> f (get_bool "exp.no-interval-context") drop_interval
+    %> f (get_bool "exp.no-globals-context") drop_globals
 
   let context_cpa (cpa,dep) = fst @@ context (cpa,dep)
 
