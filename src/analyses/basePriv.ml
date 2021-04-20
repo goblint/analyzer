@@ -1083,7 +1083,6 @@ struct
     in
     sideg (mutex_addr_to_varinfo m) (G.create_sync (GSync.singleton s side_cpa));
     (* m stays in v, l *)
-    (* TODO: why is it so imprecise now? *)
     st
 
   let sync ask getg (st: BaseComponents (D).t) reason =
@@ -1429,7 +1428,7 @@ struct
       ) st.cpa (GSyncW.bot ())
     in
     sideg (mutex_addr_to_varinfo m) (G.create_sync (GSync.singleton s side_gsyncw));
-    (* m stays in l *)
+    (* m stays in v, l *)
     {st with priv = ((w, p'), vl)}
 
   let sync ask getg (st: BaseComponents (D).t) reason =
