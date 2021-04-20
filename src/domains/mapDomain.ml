@@ -26,7 +26,6 @@ sig
   val add_list: (key * value) list -> t -> t
   val add_list_set: key list -> value -> t -> t
   val add_list_fun: key list -> (key -> value) -> t -> t
-  val filter_class: int -> t -> t
 
   val for_all: (key -> value -> bool) -> t -> bool
   val map2: (value -> value -> value) -> t -> t -> t
@@ -44,8 +43,8 @@ end
 module type Groupable =
 sig
   include Printable.S
-  val classify: t -> int
-  val class_name: int -> string
+  val classify: t -> int (* groups are sorted by this *)
+  val class_name: int -> string (* name of group *)
   val trace_enabled: bool
 end
 
@@ -148,9 +147,6 @@ struct
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 
   let pretty () x = pretty_f short () x
-
-  let filter_class g m =
-    fold (fun key value acc -> if Domain.classify key = g then add key value acc else acc) m M.empty
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
@@ -319,10 +315,6 @@ struct
     | `Top -> `Top
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
-  let filter_class i = function
-    | `Top -> `Top
-    | `Lifted x -> `Lifted (M.filter_class i x)
-
   let map2 f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
@@ -420,10 +412,6 @@ struct
   let add_list_fun ks f = function
     | `Bot -> `Bot
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
-
-  let filter_class i = function
-    | `Bot -> `Bot
-    | `Lifted x -> `Lifted (M.filter_class i x)
 
   let map2 f x y =
     match x, y with

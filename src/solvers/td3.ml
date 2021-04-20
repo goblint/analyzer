@@ -68,6 +68,12 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let () = print_stats := fun () ->
+        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+        print_context_stats rho
+      in
+
       if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in

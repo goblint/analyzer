@@ -274,8 +274,6 @@ let merge_preprocessed cpp_file_names =
     | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
   in
 
-  (* using CIL's partial evaluation and constant folding! *)
-  if get_bool "dopartial" then Cilfacade.partial merged_AST;
   Cilfacade.rmTemps merged_AST;
 
   (* create the Control Flow Graph from CIL's AST *)
@@ -341,7 +339,7 @@ let do_html_output () =
       let command = "java -jar "^get_path jar^" --result-dir "^get_path (get_string "outfile")^" "^get_path !Messages.xml_file_name in
       try match Unix.system command with
         | Unix.WEXITED 0 -> ()
-        | _ -> eprintf "HTML generation failed!\n"
+        | _ -> eprintf "HTML generation failed! Command: %s\n" command
       with Unix.Unix_error (e, f, a) ->
         eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
     ) else
@@ -351,8 +349,8 @@ let do_html_output () =
 let check_arguments () =
   let fail m = failwith ("Option clash: " ^ m) in
   let info m = eprintf "Option info: %s\n" m in
-  let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval32-context" in
-  if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval32-context)";
+  let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval-context" in
+  if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval-context)";
   let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
   if ctx_insens && get_bool "exp.full-context" then info "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; info "allfuns enables exp.earlyglobs.\n")
@@ -453,8 +451,12 @@ let main =
         do_stats ();
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
-        if !Messages.worldStopped then exit 124 (* timeout! *)
-      with Exit -> exit 1
+      with
+        | Exit ->
+          exit 1
+        | Timeout ->
+          Printexc.print_backtrace BatInnerIO.stderr;
+          exit 124
     )
 
 (* The actual entry point is in the auto-generated goblint.ml module, and it is defined as: *)

@@ -1,4 +1,4 @@
-open! Defaults (* CircInterval / Enums / ... need initialized conf *)
+open! Defaults (* Enums / ... need initialized conf *)
 
 module type FiniteSetElems =
 sig
@@ -55,7 +55,6 @@ let domains: (module Lattice.S) list = [
   (module IntDomain.Booleans);
 
   (* TODO: fix *)
-  (* (module IntDomain.CircInterval); *)
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
 
@@ -66,46 +65,75 @@ let domains: (module Lattice.S) list = [
 
 let nonAssocDomains: (module Lattice.S) list = []
 
-let intDomains: (module IntDomain.IkindUnawareS) list = [
-  (module IntDomain.Flattened);
+let intDomains: (module IntDomainProperties.S) list = [
+  (module IntDomain.Interval);
+  (module IntDomain.Enums);
+  (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
-  (* (module IntDomain.CircInterval); *)
-  (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
 ]
 
-let nonAssocIntDomains: (module IntDomain.IkindUnawareS) list = [
-  (* (module IntDomain.DefExc) *)
+let nonAssocIntDomains: (module IntDomainProperties.S) list = [
+  (module IntDomain.DefExc);
+]
+
+(* TODO: make arbitrary ikind part of domain test for better efficiency *)
+let ikinds: Cil.ikind list = [
+  (* TODO: enable more, some seem to break things *)
+  IChar;
+  ISChar;
+  (* IUChar; *)
+  (* IBool; *)
+  IInt;
+  (* IUInt; *)
+  IShort;
+  (* IUShort; *)
+  (* ILong; *)
+  (* IULong; *)
+  (* ILongLong; *)
+  (* IULongLong; *)
 ]
 
 let testsuite =
-  List.map (fun d ->
+  domains
+  |> List.map (fun d ->
       let module D = (val d: Lattice.S) in
       let module DP = DomainProperties.All (D) in
-      DP.tests)
-    domains
+      DP.tests
+    )
   |> List.flatten
 let nonAssocTestsuite =
-  List.map (fun d ->
+  nonAssocDomains
+  |> List.map (fun d ->
       let module D = (val d: Lattice.S) in
       let module DP = DomainProperties.AllNonAssoc (D) in
-      DP.tests)
-    nonAssocDomains
+      DP.tests
+    )
   |> List.flatten
+
+let old_intdomains intDomains =
+  BatList.cartesian_product intDomains ikinds
+  |> List.map (fun (d, ik) ->
+      let module D = (val d: IntDomainProperties.S) in
+      let module Ikind = struct let ikind () = ik end in
+      (module IntDomainProperties.WithIkind (D) (Ikind): IntDomainProperties.OldS)
+    )
 let intTestsuite =
-  List.map (fun d ->
-      let module D = (val d: IntDomain.IkindUnawareS) in
+  old_intdomains intDomains
+  |> List.map (fun d ->
+      let module D = (val d: IntDomainProperties.OldS) in
       let module DP = IntDomainProperties.All (D) in
-      DP.tests)
-    intDomains
+      DP.tests
+    )
   |> List.flatten
 let nonAssocIntTestsuite =
-  List.map (fun d ->
-      let module D = (val d: IntDomain.IkindUnawareS) in
+  old_intdomains nonAssocIntDomains
+  |> List.map (fun d ->
+      let module D = (val d: IntDomainProperties.OldS) in
       let module DP = IntDomainProperties.AllNonAssoc (D) in
-      DP.tests)
-    nonAssocIntDomains
+      DP.tests
+    )
   |> List.flatten
 let () =
   QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)

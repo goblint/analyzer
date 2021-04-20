@@ -512,7 +512,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> Messages.waitWhat "Timeout reached!") in
+      (fun () -> M.print_msg "Timeout reached!" (!Tracing.current_loc); raise GU.Timeout) in
     let local_xml = solver2source_result lh in
 
     let liveness =
@@ -540,7 +540,12 @@ struct
   let rec analyze_loop file fs change_info =
     try
       analyze file fs change_info
-    with Witness.RestartAnalysis ->
+    with Refinement.RestartAnalysis ->
+      (* Tail-recursively restart the analysis again, when requested.
+         All solving starts from scratch.
+         Whoever raised the exception should've modified some global state
+         to do a more precise analysis next time. *)
+      (* TODO: do some more incremental refinement and reuse parts of solution *)
       analyze_loop file fs change_info
 end
 
