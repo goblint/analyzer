@@ -373,7 +373,12 @@ struct
             | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
           else begin
             if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-            CPA.find x st
+            (* assert (CPA.mem x st); *)
+            if not (CPA.mem x st) then (
+              ignore @@ Pretty.eprintf "Base.get Not_found (bot) for %a\n" Basetype.Variables.pretty x;
+              `Top
+            ) else
+              CPA.find x st
           end
         in
 
