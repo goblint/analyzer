@@ -27,7 +27,6 @@ sig
   val add_list: (key * value) list -> t -> t
   val add_list_set: key list -> value -> t -> t
   val add_list_fun: key list -> (key -> value) -> t -> t
-  val filter_class: int -> t -> t
 
   val for_all: (key -> value -> bool) -> t -> bool
   val map2: (value -> value -> value) -> t -> t -> t
@@ -59,8 +58,8 @@ end
 module type Groupable =
 sig
   include Printable.S
-  val classify: t -> int
-  val class_name: int -> string
+  val classify: t -> int (* groups are sorted by this *)
+  val class_name: int -> string (* name of group *)
   val trace_enabled: bool
 end
 
@@ -175,9 +174,6 @@ struct
 
   let pretty () x = pretty_f short () x
 
-  let filter_class g m =
-    fold (fun key value acc -> if Domain.classify key = g then add key value acc else acc) m M.empty
-
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
@@ -233,8 +229,6 @@ struct
 
   let map2 op = lift_f2' (M.map2 op)
 
-  let filter_class g = lift_f' (M.filter_class g)
-
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
@@ -284,8 +278,6 @@ struct
   let long_map2 op = lift_f2' (M.long_map2 op)
 
   let map2 op = lift_f2' (M.map2 op)
-
-  let filter_class g = lift_f' (M.filter_class g)
 
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
@@ -361,8 +353,6 @@ struct
   let long_map2 f x y = time "long_map2" (M.long_map2 f x) y
 
   let map2 f x y = time "map2" (M.map2 f x) y
-
-  let filter_class g x = time "filter_class" (M.filter_class g) x
 
   let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
   let join_with_fct f x y = time "join_with_fct" (M.join_with_fct f x) y
@@ -519,10 +509,6 @@ struct
     | `Top -> `Top
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
-  let filter_class i = function
-    | `Top -> `Top
-    | `Lifted x -> `Lifted (M.filter_class i x)
-
   let map2 f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
@@ -650,10 +636,6 @@ struct
   let add_list_fun ks f = function
     | `Bot -> `Bot
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
-
-  let filter_class i = function
-    | `Bot -> `Bot
-    | `Lifted x -> `Lifted (M.filter_class i x)
 
   let map2 f x y =
     match x, y with

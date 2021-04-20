@@ -498,7 +498,7 @@ struct
       in
       CPA.map replace_val st
 
-  let drop_interval32 = CPA.map (function `Int x -> `Int (ID.no_interval32 x) | x -> x)
+  let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
   let context (st: store): store =
     let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
@@ -506,7 +506,7 @@ struct
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
     %> f (get_bool "exp.addr-context") drop_non_ptrs
     %> f (get_bool "exp.no-int-context") drop_ints
-    %> f (get_bool "exp.no-interval32-context") drop_interval32
+    %> f (get_bool "exp.no-interval-context") drop_interval
 
   let context_cpa (st: store) = (context st).cpa
 
@@ -1806,7 +1806,9 @@ struct
           ignore (Priv.enter_multithreaded ctx.ask ctx.global ctx.sideg st);
         Priv.threadenter ctx.ask st
       ) else
-        let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> V.is_global k) st.cpa in
+        let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
+        (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
+        let new_cpa = globals in
         {st with cpa = new_cpa}
     in
     (* Assign parameters to arguments *)

@@ -44,7 +44,10 @@ struct
 end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
-  let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ask) then CPA.filter_class 2 st.cpa else CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+  (* Copy-paste from Base make_entry *)
+  let globals = CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+  (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
+  let new_cpa = globals in
   {st with cpa = new_cpa}
 
 let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomain.basecomponents_t) =
@@ -134,10 +137,8 @@ struct
     | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let is_private (a: Q.ask) (v: varinfo): bool =
-    (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-     match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
-     if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
-     false)
+    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    || match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     if invariant && not (is_private ask x) then (
@@ -477,10 +478,8 @@ struct
     | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
-    (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-     match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ ->
-     if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
-     false)
+    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    || match a (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
   let is_private = is_invisible
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
@@ -499,8 +498,8 @@ struct
     )
 
   let is_protected (a: Q.ask) (v: varinfo): bool =
-    (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-        match a (Q.MayBePublic {global=v; write=true}) with `MayBool tv -> not tv | _ -> false)
+    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    || match a (Q.MayBePublic {global=v; write=true}) with `MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
 
   let sync ask getg (st: BaseComponents (D).t) reason =
     let privates = sync_privates reason ask in

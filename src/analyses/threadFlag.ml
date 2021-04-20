@@ -7,6 +7,7 @@ open Prelude.Ana
 open Analyses
 
 let is_multi (ask: Queries.ask): bool =
+  if !GU.global_initialization then false else
   match ask Queries.MustBeSingleThreaded with
   | `MustBool x -> not x
   | `Top -> true

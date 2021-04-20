@@ -1,8 +1,5 @@
 open GobConfig
 open Pretty
-open IntervalOps
-open CircularInterval
-open CircularIntOps
 
 module GU = Goblintutil
 module JB = Json
@@ -227,7 +224,7 @@ struct
 end
 
 
-module IntDomLifter (I : S) (*: Z with type int_t = I.int_t and type t =  'a { v : I.t; ikind : ikind } *)=
+module IntDomLifter (I : S) =
 struct
   open Cil
   type int_t = I.int_t
@@ -410,7 +407,7 @@ module Size = struct (* size in bits as int, range as int64 *)
       if b <= 64L then
         let upper_bound_less = Int64.sub b 1L in
         let max_one_less = BI.(pred @@ shift_left BI.one (Int64.to_int upper_bound_less)) in
-        if x < max_one_less then
+        if x <= max_one_less then
           a, upper_bound_less
         else
           a,b
@@ -449,7 +446,6 @@ module Std (B: sig
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
   let is_top_of ik x = B.equal x (top_of ik)
-  (* let is_bot_of ik x = B.equal x (bot_of ik) *)
 
   (* all output is based on B.short *)
   let pretty_f sh () x = text (sh Goblintutil.summary_length x)
@@ -459,8 +455,6 @@ module Std (B: sig
 
   include StdTop (B)
 end
-(* include Std (struct type nonrec t = t let name = name let top = top let bot = bot let short = short end) *)
-
 
 module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
@@ -766,17 +760,19 @@ struct
       with e -> None)
     | None -> None
 
-  let arbitrary () = failwith "arbitrary unimplemented for Interval"
-    (* let open QCheck.Iter in
-    let pair_arb = QCheck.pair ( MyCheck.Arbitrary.int64) ( MyCheck.Arbitrary.int64) in
-    (* TODO: use arbitrary ikind *)
+  let arbitrary () =
+    (* TODO: use arbitrary ikind? *)
     let ik = Cil.ILongLong in
-    let pair_arb = QCheck.
+    let open QCheck.Iter in
+    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
+    (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let pair_arb = QCheck.pair int_arb int_arb in
     let shrink = function
       | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval ik)
       | None -> empty
     in
-    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik pair_arb)) *)
+    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
 end
 
 
@@ -792,8 +788,8 @@ struct
   type int_t = int64
   let top () = raise Unknown
   let bot () = raise Error
-  let top_of ik = top () (* TODO: Improve *)
-  let bot_of ik = bot () (* TODO: Improve *)
+  let top_of ik = top ()
+  let bot_of ik = bot ()
   let short _ x = if x = GU.inthack then "*" else Int64.to_string x
 
   let equal = Int64.equal
@@ -1011,7 +1007,6 @@ end
 
 module BigInt = struct
   include  BI
-  (* include Printable.Std *)
   let name () = "BigIntPrintable"
   let top () = raise Unknown
   let bot () = raise Error
@@ -1026,6 +1021,8 @@ module BigInt = struct
   let pretty _ x = Pretty.text (BI.to_string x)
   let to_yojson x = failwith "to_yojson not implemented for BigIntPrinable"
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+
+  let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
 
 module DefExc : S with type int_t = BigInt.t = (* definite or set of excluded values *)
@@ -1255,7 +1252,6 @@ struct
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
   let not_zero ikind = from_excl ikind (S.singleton BI.zero)
 
-  (* let of_bool x = if x then not_zero else zero *)
   let of_bool_cmp ik x = of_int ik (if x then BI.one else BI.zero)
   let of_bool = of_bool_cmp
   let to_bool x =
@@ -1274,12 +1270,8 @@ struct
   let starting ikind x = if BigInt.compare x BigInt.zero > 0 then not_zero ikind else top_of ikind
   let ending ikind x = if BigInt.compare x BigInt.zero < 0 then not_zero ikind else top_of ikind
 
-  (* calculates the minimal extension of range r to cover the exclusion set s *)
-  (* let extend_range r s = S.fold (fun i s -> R.join s (size @@ Size.min_for i)) s r *)
-
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
-    (* let r = extend_range (R.bot ()) (S.of_list l) in *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list x = match x with
@@ -1484,319 +1476,6 @@ struct
       else raise (Overflow (Printf.sprintf "%Ld * %Ld" a b))
 
 end
-
-module CircInterval : IkindUnawareS with type t = CBigInt.t interval and type int_t = int64 =
-struct
-  include Printable.Std
-  module I = CBigInt
-  module C = CircularBigInt
-  type t = I.t interval
-  type int_t = int64
-  let to_yojson _ = failwith "TODO to_yojson"
-
-  let max_width = 64
-  let size t = Size.bit t
-
-  let name () = "circular int intervals"
-  let cast_to ?torg t x =
-    match (I.bounds x) with
-    | None -> Bot (size t)
-    | Some(a,b) -> I.of_t (size t) a b
-
-  let equal_to i x = failwith "equal_to not implemented"
-
-  (* Int Conversion *)
-  let to_int x =
-    match x with
-    | Int(w,a,b) when C.eq a b -> Some (C.to_int64 w a)
-    | _ -> None
-  let of_int x = I.of_int64 max_width x x
-  let is_int x =
-    match x with
-    | Int(_,a,b) -> C.eq a b
-    | _ -> false
-
-  let of_interval ik (x,y) = I.of_int64 max_width x y
-
-  (* Bool Conversion *)
-  let to_bool x =
-    match to_int x with
-    | None -> None
-    | Some 0L -> Some false
-    | _ -> Some true
-  let of_bool x =
-    if x
-    then Int(1, C.one, C.one)
-    else Int(1, C.zero, C.zero)
-  let is_bool x =
-    match x with
-    | Int(_,a,b) -> C.eq a b
-    | _ -> false
-
-  (* List Conversion *)
-  let to_excl_list x = None
-  let of_excl_list t x = Top max_width
-  let is_excl_list x = false
-
-  (* Starting/Ending *)
-  let starting ikind x =
-    let r = I.of_t max_width (C.of_int64 max_width x) (C.max_value max_width)
-    in
-    print_endline ("starting: "^(I.to_string r)^" .. "^(Int64.to_string x));
-    r
-  let ending ikind x =
-    let r = I.of_t max_width C.zero (C.of_int64 max_width x)
-    in
-    print_endline ("ending: "^(I.to_string r)^" .. "^(Int64.to_string x));
-    r
-  let maximal x =
-    print_endline ("maximal: "^(I.to_string x));
-    match I.bounds x with
-    | Some(_,m) -> Some (C.to_int64 (I.width x) m)
-    | _ -> None
-  let minimal x =
-    print_endline ("minimal: "^(I.to_string x));
-    match I.bounds x with
-    | Some(m,_) -> Some (C.to_int64 (I.width x) m)
-    | _ -> None
-
-  (* Debug Helpers *)
-  let wrap_debug1 n f =
-    fun a ->
-    let r = f a in
-    if get_bool "ana.int.cdebug" then print_endline (n^": "^(I.to_string a)^" = "^(I.to_string r));
-    r
-
-  let wrap_debug2 n f =
-    fun a b ->
-    let r = f a b in
-    if get_bool "ana.int.cdebug"
-    then print_endline (n^": "^(I.to_string a)^" .. "^(I.to_string b)^" = "^(I.to_string r));
-    r
-
-  (* Arithmetic *)
-  let neg = wrap_debug1 "neg" I.neg
-  let add = wrap_debug2 "add" I.add
-  let sub = wrap_debug2 "sub" I.sub
-  let mul = wrap_debug2 "mul" I.mul
-  let div = wrap_debug2 "div" I.div_s
-  let rem = wrap_debug2 "rem" I.rem
-
-  (* Comparison *)
-  let comp_lt f a b =
-    let w = I.width a in
-    let np = I.north_pole_end w in
-    if I.contains a (I.north_pole w) || I.contains b (I.north_pole w)
-    then I.of_int 1 0 1
-    else
-      match I.bounds a, I.bounds b with
-      | Some(l0,u0), Some(l1,u1) ->
-        if (f w np u0 l1) then of_bool true
-        else if (f w np l0 l1) then I.of_int 1 0 1
-        else of_bool false
-      | _ -> I.of_int 1 0 1
-
-  let comp_gt f a b =
-    let w = I.width a in
-    let np = I.north_pole_end w in
-    if I.contains a (I.north_pole w) || I.contains b (I.north_pole w)
-    then I.of_int 1 0 1
-    else
-      match I.bounds a, I.bounds b with
-      | Some(l0,u0), Some(l1,u1) ->
-        if (f w np l0 u1) then of_bool true
-        else if (f w np u0 u1) then I.of_int 1 0 1
-        else of_bool false
-      | _ -> I.of_int 1 0 1
-
-  let lt = wrap_debug2 "lt" (comp_lt I.relative_lt)
-  let le = wrap_debug2 "le" (comp_lt I.relative_leq)
-  let gt = wrap_debug2 "gt" (comp_gt I.relative_gt)
-  let ge = wrap_debug2 "ge" (comp_gt I.relative_geq)
-
-  let eq' a b =
-    match (I.meet a b) with
-    | Bot _ -> of_bool false
-    | _ ->
-      match I.bounds a, I.bounds b with
-      | Some(x,y), Some(u,v) ->
-        if (C.eq x y) && (C.eq u v) && (C.eq x u)
-        then of_bool true
-        else I.of_int 1 0 1
-      | _ -> I.of_int 1 0 1
-
-  let ne' a b =
-    match (I.meet a b) with
-    | Bot _ -> of_bool true
-    | _ ->
-      match I.bounds a, I.bounds b with
-      | Some(x,y), Some(u,v) ->
-        if (C.eq x y) && (C.eq u v) && (C.eq x u)
-        then of_bool false
-        else I.of_int 1 0 1
-      | _ -> I.of_int 1 0 1
-
-  let eq = wrap_debug2 "eq" eq'
-  let ne = wrap_debug2 "ne" ne'
-
-  let leq a b = I.contains b a
-
-  (* Bitwise *)
-  let bitnot x =
-    match x with
-    | Bot _ -> x
-    | Int(w,a,b) when C.eq a b ->
-      let v = C.lognot w a in
-      Int(w,v,v)
-    | _ -> Top (I.width x)
-  let bitand = wrap_debug2 "bitand" I.logand
-  let bitor = wrap_debug2 "bitor" I.logor
-  let bitxor = wrap_debug2 "bitxor" I.logxor
-  let shift_left = wrap_debug2 "shift_left" I.shift_left
-  let shift_right = wrap_debug2 "shift_right" I.shift_right
-
-  (* Lattice *)
-  let top () = Top max_width
-  let bot () = Bot max_width
-  let is_top x =
-    match x with
-    | Top _ -> true
-    | _ -> false
-  let is_bot x =
-    match x with
-    | Bot _ -> true
-    | _ -> false
-  let top_of ik = top ()
-  let bot_of ik = bot ()
-
-
-  (* Logical *)
-  let log1 f i1 =
-    if is_bot i1 then bot ()
-    else
-      match to_bool i1 with
-      | Some x -> of_bool (f x)
-      | _      -> top ()
-  let log f i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, _
-    | _   , true -> bot ()
-    | _ ->
-      match to_bool i1, to_bool i2 with
-      | Some x, Some y -> of_bool (f x y)
-      | _              -> top ()
-
-  let lognot = log1 not
-  let logor  = log (||)
-  let logand = log (&&)
-
-  (* Others *)
-  let meet = wrap_debug2 "meet" I.meet
-  let join = wrap_debug2 "join" I.join
-  let equal = I.eql
-
-  let hash x =
-    match x with
-    | Top w -> w
-    | Bot _ -> 0
-    | Int(w,a,b) -> w lxor (Hashtbl.hash b) lxor (Hashtbl.hash a)
-
-  let isSimple x = true
-  let short _ x = I.to_string x
-  let pretty_f sh () x = text (sh 10 x)
-  let pretty = pretty_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
-
-  (* Widen
-   * Roughly double the interval size. *)
-  let widen_double a b =
-    let w = I.width b in
-    let two = C.of_int w 2 and add = C.add w
-    and sub = C.sub w and mul = C.mul w
-    in
-    if (I.contains a b) then b
-    else if C.geq (I.count b) (I.north_pole_end w) then Top w
-    else
-      match I.bounds a,I.bounds b with
-      | Some(u,v), Some(x,y) ->
-        let j = I.join a b and uy = I.of_t w u y and xv = I.of_t w x y in
-        if I.eql j uy then
-          I.join uy (I.of_t w u (add (sub (mul v two) u) C.one))
-        else if I.eql j xv then
-          I.join xv (I.of_t w (sub (sub (mul u two) v) C.one) v)
-        else if (I.contains_element b u) && (I.contains_element b v) then
-          I.join b (I.of_t w x (add (sub (add x (mul v two)) (mul u two)) C.one))
-        else Top w
-      | _ -> Top w
-
-  let widen_basic a b =
-    if (I.eql a b) then b
-    else Top (I.width b)
-
-  let widen' a b =
-    match get_string "ana.int.cwiden" with
-    | "basic" -> widen_basic a b
-    | "double" -> widen_double a b
-    | _ -> b
-
-  let widen = wrap_debug2 "widen" widen'
-
-  (* Narrow
-   * Take half of interval size. *)
-  let narrow_half a b =
-    let w = I.width b in
-    let delta = C.of_int w 2 and add = C.add w
-    and sub = C.sub w and div = C.div w
-    in
-    if I.eql a b then b
-    else if C.leq (I.count b) (C.of_int w 2) then b
-    else
-      match I.bounds a, I.bounds b with
-      | Some(u,v), Some(x,y) ->
-        let m = I.meet a b and uy = I.of_t w u y and xv = I.of_t w x v in
-        if I.eql m uy then
-          I.meet uy (I.of_t w u (sub (add (div u delta) (div v delta)) C.one))
-        else if I.eql m xv then
-          I.meet xv (I.of_t w (add C.one (add (div u delta) (div v delta))) v)
-        else
-          I.meet b (I.of_t w (add (div u delta) (div v delta)) (add (div u delta) (div v delta)))
-      | _ -> b
-
-  let narrow_basic a b =
-    if (I.eql a b) then b
-    else
-      match a with
-      | Top _ -> b
-      | _ -> a
-
-  let narrow' a b =
-    match get_string "ana.int.cnarrow" with
-    | "basic" -> narrow_basic a b
-    | "half"  -> narrow_half a b
-    | _ -> b
-
-  let narrow = wrap_debug2 "narrow" narrow'
-
-  (* S TODO: shrinker for bigint circular intervals *)
-  (* let arbitrary () = QCheck.set_print (short 10000) @@ QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 *)
-  let arbitrary () =
-    let open QCheck.Iter in
-    let pair_arb = QCheck.pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int in
-    (* let int (a, b) = Int (max_width, a, b) in *) (* shrinker gets stuck, probably doesn't satisfy some invariant *)
-    let int (a, b) = I.of_t max_width a b in
-    let shrink = function
-      | Int (w, a, b) -> (return (Bot w)) <+> (MyCheck.shrink pair_arb (a, b) >|= int)
-      | Bot w -> empty
-      | Top w -> MyCheck.Iter.of_arbitrary ~n:20 pair_arb >|= int
-    in
-    QCheck.frequency ~shrink ~print:(short 10000) [
-      20, QCheck.map int pair_arb;
-      1, QCheck.always (Bot max_width);
-      1, QCheck.always (Top max_width)
-    ] (* S TODO: decide frequencies *)
-end
-
 (* BOOLEAN DOMAINS *)
 
 module type BooleansNames =
@@ -1818,6 +1497,7 @@ struct
   let equal = Bool.equal
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
   let hash = function true -> 51534333 | _ -> 561123444
+  let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
   let cast_to ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
@@ -1950,7 +1630,11 @@ module Enums : S with type int_t = BigInt.t = struct
         Exc (s', r')
       else (* downcast: may overflow *)
         Exc ((ISet.empty ()), r')
-    |  Inc x -> Inc (ISet.map (BigInt.cast_to ik) x)
+    | Inc xs ->
+      let casted_xs = ISet.map (BigInt.cast_to ik) xs in
+      if Cil.isSigned ik && not (ISet.equal xs casted_xs)
+        then top_of ik (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
+        else Inc casted_xs
 
   let of_int ikind x = cast_to ikind (Inc (ISet.singleton x))
 
@@ -2086,36 +1770,38 @@ module Enums : S with type int_t = BigInt.t = struct
           Invariant.(a && i)
         ) Invariant.none (ISet.to_list ns)
 
+
   let arbitrary () =
     let open QCheck.Iter in
-    let i_list_arb = QCheck.small_list (MyCheck.Arbitrary.big_int) in
-    let neg is = Exc (ISet.of_list is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
-    let pos is = Inc (ISet.of_list is) in
+    let neg s = Exc (s, size Cil.ILong) in (* S TODO: non-fixed range *)
+    let pos s = Inc s in
     let shrink = function
-      | Exc (is, _) -> MyCheck.shrink i_list_arb (ISet.to_list is) >|= neg (* S TODO: possibly shrink neg to pos *)
-      | Inc is -> MyCheck.shrink i_list_arb (ISet.to_list is) >|= pos
+      | Exc (s, _) -> MyCheck.shrink (ISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Inc s -> MyCheck.shrink (ISet.arbitrary ()) s >|= pos
     in
     QCheck.frequency ~shrink ~print:(short 10000) [
-      20, QCheck.map neg i_list_arb;
-      10, QCheck.map pos i_list_arb;
+      20, QCheck.map neg (ISet.arbitrary ());
+      10, QCheck.map pos (ISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
+
+
 end
 
 
-(* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
+(* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I3 below to see where you need to extend. *)
+(* discussion: https://github.com/goblint/analyzer/pull/188#issuecomment-818928540 *)
 module IntDomTupleImpl = struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Batteries
   type int_t = BI.t
-  module I1 (*: S with type int_t  = int_t *) = DefExc
-  module I2 (*: S with type int_t  = int_t *) = Interval
-  module I3 (*: S with type int_t  = int_t *) = OldDomainFacade(CircInterval)
-  module I4 (*: S with type int_t  = int_t *) = Enums
-  type t = I1.t option * I2.t option * I3.t option * I4.t option [@@deriving to_yojson]
+  module I1 = DefExc
+  module I2 = Interval
+  module I3 = Enums
+  type t = I1.t option * I2.t option * I3.t option [@@deriving to_yojson]
 
-  (* The Interval32 domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
-  let no_interval32 = Tuple4.map2 (const None)
+  (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
+  let no_interval = Tuple3.map2 (const None)
 
   type 'a m = (module S with type t = 'a)
   type 'a m2 = (module S with type t = 'a and type int_t = int_t )
@@ -2130,19 +1816,19 @@ module IntDomTupleImpl = struct
   type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
+    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3)
   let create2 r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "cinterval" @@ r.fi2 (module I3), f "enums" @@ r.fi2 (module I4)
+    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3)
 
-  let mapp r (a,b,c,d) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
-  let mapp2 r (a,b,c,d) = BatOption.(map (r.fp2 (module I1)) a, map (r.fp2 (module I2)) b, map (r.fp2 (module I3)) c, map (r.fp2 (module I4)) d)
+  let mapp r (a,b,c) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b,  map (r.fp (module I3)) c)
+  let mapp2 r (a,b,c) = BatOption.(map (r.fp2 (module I1)) a, map (r.fp2 (module I2)) b, map (r.fp2 (module I3)) c)
 
-  let map r (a,b,c,d) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
+  let map r (a,b,c) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
-  let map2  r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc, opt_map2 (r.f2  (module I4)) xd yd
-  let map2p r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc, opt_map2 (r.f2p  (module I4)) xd yd
-  let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let map2  r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc
+  let map2p r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb,  opt_map2 (r.f2p  (module I3)) xc yc
+  let to_list x = Tuple3.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
 
@@ -2168,7 +1854,7 @@ module IntDomTupleImpl = struct
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple4.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple3.enum |> List.of_enum |> List.filter_map identity in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top
@@ -2247,7 +1933,7 @@ module IntDomTupleImpl = struct
           Invariant.(a && i)
         ) Invariant.none is
 
-  let arbitrary () = QCheck.(set_print (short 10000) @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
+  let arbitrary () = QCheck.(set_print (short 10000) @@ triple (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())))
 end
 
 module IntDomTuple =
@@ -2256,7 +1942,7 @@ struct
  include I
 
  let top () = failwith "top in IntDomTuple not supported. Use top_of instead."
- let no_interval32 (x: I.t) = {x with v = IntDomTupleImpl.no_interval32 x.v}
+ let no_interval (x: I.t) = {x with v = IntDomTupleImpl.no_interval x.v}
 
 end
 
