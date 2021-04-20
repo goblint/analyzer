@@ -1,4 +1,4 @@
-//PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper']"
+//PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']"
 
 void foo2(int n , int (*a)[n] )
 {

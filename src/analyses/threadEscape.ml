@@ -5,6 +5,19 @@ open Analyses
 
 module M = Messages
 
+let has_escaped (ask: Queries.ask) (v: varinfo): bool =
+  assert (not v.vglob);
+  if not v.vaddrof then
+    false (* Cannot have escaped without taking address. Override provides extra precision for degenerate ask in base eval_exp used for partitioned arrays. *)
+  else
+    match ask (Queries.MayEscape v) with
+    | `MayBool b -> b
+    | `Top ->
+      M.warn "Without thread escape analysis all variables are considered escaped, i.e. global";
+      true
+    | _ -> failwith "ThreadEscape.has_escaped"
+
+
 module Spec =
 struct
   include Analyses.DefaultSpec
