@@ -1174,8 +1174,10 @@ struct
     in
     let complain_sideg v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
-                GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) G.pretty lhs G.pretty rhs)
+      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
+                GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v)
+                G.pretty lhs G.pretty rhs
+                G.pretty_diff (rhs,lhs))
     in
     (* For each variable v which has been assigned value d', would like to check
      * that d' satisfied all constraints. *)
