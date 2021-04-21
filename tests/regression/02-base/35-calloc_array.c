@@ -6,14 +6,14 @@
 int main(void) {
     int *r = calloc(5,sizeof(int));
 
-    assert(r[0] == 0); 
-    
+    assert(r[0] == 0);
+
     r[0] = 3;
 
-    assert(r[0] == 3); //UNKNOWN 
+    assert(r[0] == 3); //UNKNOWN
 
     int z = r[1];
 
-    assert(z == 0); //UNKNOWN 
+    assert(z == 0); //UNKNOWN
     assert(z != 365);
 }

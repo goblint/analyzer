@@ -12,7 +12,7 @@ let stripCastsDeep e =
   end
   in visitCilExpr v e
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
   let name () = "octagon"
@@ -300,7 +300,7 @@ struct
     | Some (Mem _, _)
     | None -> ctx.local
   let startstate v = D.top ()
-  let threadenter ctx lval f args = D.top ()
+  let threadenter ctx lval f args = [D.top ()]
   let exitstate  v = D.top ()
 
   let query ctx q =
@@ -371,9 +371,9 @@ struct
       else `Top
     | _ -> Queries.Result.top ()
 
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 end
 
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

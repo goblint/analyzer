@@ -283,7 +283,7 @@ let merge_preprocessed cpp_file_names =
 
   (* create the Control Flow Graph from CIL's AST *)
   Cilfacade.createCFG merged_AST;
-  Cilfacade.ugglyImperativeHack := merged_AST;
+  Cilfacade.current_file := merged_AST;
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
@@ -316,7 +316,7 @@ let do_analyze change_info merged_AST =
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
           raise x
-          (* Cilfacade.ugglyImperativeHack := ast'; *)
+          (* Cilfacade.current_file := ast'; *)
       in
       (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
          new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
@@ -360,7 +360,8 @@ let check_arguments () =
   let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
   if ctx_insens && get_bool "exp.full-context" then warn "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
-  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!"
+  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
+  if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization")
 
 let handle_extraspecials () =
   let f xs = function
@@ -438,6 +439,7 @@ let main =
         Stats.reset Stats.SoftwareTimer;
         parse_arguments ();
         check_arguments ();
+        AfterConfig.run ();
 
         (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
           for overflows, as this will replace potential overflows with constants after wrap-around *)

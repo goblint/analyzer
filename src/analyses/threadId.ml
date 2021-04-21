@@ -86,11 +86,11 @@ struct
     | _ -> `Top
 
   let threadenter ctx lval f args =
-    create_tid f
+    [create_tid f]
 
   let threadspawn ctx lval f args fctx =
-    ThreadLifted.bot ()
+    ctx.local
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

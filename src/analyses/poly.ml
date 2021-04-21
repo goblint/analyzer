@@ -6,7 +6,7 @@ open Apron
 
 open ApronDomain
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -19,8 +19,8 @@ struct
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
 
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  _ = D.top ()
   let startstate _ = D.top ()
 
@@ -120,4 +120,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

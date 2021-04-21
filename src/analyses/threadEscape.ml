@@ -75,14 +75,23 @@ struct
 
   let threadenter ctx lval f args =
     match args with
-    | [ptc_arg] -> reachable ctx.ask ptc_arg
-    | _ -> D.bot ()
+    | [ptc_arg] ->
+      let escaped = reachable ctx.ask ptc_arg in
+      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+        ctx.emit (Events.Escape escaped);
+      [escaped]
+    | _ -> [D.bot ()]
 
   let threadspawn ctx lval f args fctx =
-    match args with
-    | [ptc_arg] -> reachable ctx.ask ptc_arg (* TODO: just use fd? *)
-    | _ -> D.bot ()
+    D.join ctx.local @@
+      match args with
+      | [ptc_arg] ->
+        let escaped = fctx.local in (* reuse reachable computation from threadenter *)
+        if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+          ctx.emit (Events.Escape escaped);
+        escaped
+      | _ -> D.bot ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

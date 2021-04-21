@@ -84,9 +84,7 @@ let escape (x:string):string =
   Str.global_replace (Str.regexp ">") "&gt;" |>
   Str.global_replace (Str.regexp "\"") "&quot;" |>
   Str.global_replace (Str.regexp "'") "&apos;" |>
-  Str.global_replace (Str.regexp "\x0b") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
-  Str.global_replace (Str.regexp "\001") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
-  Str.global_replace (Str.regexp "\x0c") "" (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "[\x0b\001\x0c\x0f\x0e]") "" (* g2html just cannot handle from some kernel benchmarks, even when escaped... *)
 
 let trim (x:string): string =
   let len = String.length x in

@@ -230,8 +230,8 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 
@@ -250,4 +250,4 @@ let _ =
   Cilfacade.register_preprocess (Spec.name ()) (new recomputeVisitor);
   Hashtbl.clear loopBreaks; (* because the sids are now different *)
   Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

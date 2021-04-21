@@ -40,6 +40,7 @@ struct
   let isSimple _ = true
 end
 
+(* TODO: use SetDomain.Reverse? *)
 module ListPtrSet = SetDomain.ToppedSet (ListPtr) (struct let topname = "All elements" end)
 module ListPtrSetR = Lattice.Reverse (ListPtrSet)
 
@@ -74,7 +75,7 @@ let is_private ask (lp:ListPtr.t) =
     match ask Queries.MustBeSingleThreaded with
     | `Bot | `MustBool true -> true
     | _ ->
-      match ask (Queries.MayBePublic v)  with
+      match ask (Queries.MayBePublic {global=v; write=false})  with
       | `Bot | `MayBool false -> true
       | _ -> false
   in
@@ -525,7 +526,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       blab (proper_list_segment ask gl lp sm) (fun () -> Pretty.printf "no donut\n") &&
       let pointedBy = reflTransBack ask gl sm (lp) (ListPtrSet.empty ()) in
       let alive =
-        match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
+        match MyLiveness.getLiveSet !Cilfacade.current_statement.sid with
         | Some x -> x
         | _      -> Usedef.VS.empty
       in

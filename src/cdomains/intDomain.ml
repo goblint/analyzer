@@ -565,6 +565,10 @@ struct
       let l2 = if Ints_t.compare l0 l1 = 0 then l0 else min l1 (min_int ik) in
       let u2 = if Ints_t.compare u0 u1 = 0 then u0 else max u1 (max_int ik) in
       norm ik @@ Some (l2,u2)
+  let widen ik x y =
+    let r = widen ik x y in
+    if M.tracing then M.trace "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    r
 
   let narrow ik x y =
     match x, y with

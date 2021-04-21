@@ -113,7 +113,7 @@ struct
   let init () =
     init_inh_rel ();
     Printexc.record_backtrace true;
-    iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
+    iterGlobals (!Cilfacade.current_file) (function GFun (f,_) -> incr funcount| _ -> ());
     ignore (if (get_bool "allfuns") then ignore (printf "CUR VER_ALL FUNS\n"));
     let ctrl = Gc.get () in
     ctrl.Gc.verbose <- 0;
@@ -206,7 +206,7 @@ struct
       (not no_mainclass) && (D.is_private_method_name f.vname) (*uncomenting the rest brakes fptr propagation*)(*&& not (D.is_public_method_name f.vname)*) (*fun may be priv andpub simultaneously*)
 
 
-  let sync ctx =
+  let sync ctx reason =
     let (x,y,z:D.t) = ctx.local in (x, y, ContainDomain.Diff.empty ()), ContainDomain.Diff.elements z
 
   let time_transfer n f =
@@ -805,11 +805,11 @@ struct
       end
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

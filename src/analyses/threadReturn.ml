@@ -10,7 +10,7 @@ let is_current (ask: Queries.ask): bool =
   | _ -> failwith "ThreadReturn.is_current"
 
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -42,8 +42,8 @@ struct
     ctx.local
 
   let startstate v = true
-  let threadenter ctx lval f args = true
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [true]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let query ctx x =
@@ -53,4 +53,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

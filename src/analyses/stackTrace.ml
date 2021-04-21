@@ -36,8 +36,8 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 end
 
@@ -77,15 +77,15 @@ struct
   let exitstate  v = D.top ()
 
   let threadenter ctx lval f args =
-    D.push !Tracing.current_loc ctx.local
+    [D.push !Tracing.current_loc ctx.local]
 
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 end
 
 
 module Spec1 = Spec (StackDomain.Dom1) (struct let name = "stack_trace" end)
 module Spec2 = Spec (StackDomain.Dom2) (struct let name = "stack_trace_set" end)
 let _ =
-  MCP.register_analysis (module SpecLoc : Spec);
-  MCP.register_analysis (module Spec1 : Spec);
-  MCP.register_analysis (module Spec2 : Spec)
+  MCP.register_analysis (module SpecLoc : MCPSpec);
+  MCP.register_analysis (module Spec1 : MCPSpec);
+  MCP.register_analysis (module Spec2 : MCPSpec)
