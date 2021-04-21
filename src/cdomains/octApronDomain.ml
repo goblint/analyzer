@@ -4,8 +4,6 @@ open Pretty
 (* For Apron implementation of octagons *)
 open Apron
 
-exception Overflow
-
 module Man =
 struct
   (* Manager type, parameter for the command below *)
@@ -300,7 +298,7 @@ struct
           that come from the expression we wish to assert. *)
           A.meet_lincons_array Man.mgr d ea
         | None -> d
-    with Invalid_argument "cil_exp_to_lexp" -> d
+    with Invalid_argument _ -> d
 
   (* Creates the opposite invariant and assters it *)
   let assert_op_inv d x b =
@@ -338,7 +336,7 @@ struct
           assert_inv d e b
 
         | _ ->  assert_inv d x b
-    with Invalid_argument "cil_exp_to_lexp" -> d
+    with Invalid_argument _ -> d
 
   let check_assert (e:exp) state =
     match e with
@@ -436,7 +434,7 @@ struct
       begin try
           A.assign_texpr_with Man.mgr d (Var.of_string v)
             (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
-        with Invalid_argument "cil_exp_to_apron_texpr1" ->
+        with Invalid_argument _ ->
           A.forget_array_with Man.mgr d [|Var.of_string v|] false
           (* | Manager.Error q -> *)
           (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
@@ -468,7 +466,7 @@ struct
     begin try
         A.substitute_texpr_with Man.mgr d (Var.of_string v)
           (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
-      with Invalid_argument "cil_exp_to_apron_texpr1" ->
+      with Invalid_argument _ ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
         (* | Manager.Error q ->
            ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
@@ -561,7 +559,7 @@ struct
           | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
           | _, _ -> None, None)
       | _ -> None, None
-    with Invalid_argument "cil_exp_to_lexp" -> None, None
+    with Invalid_argument _ -> None, None
 
   let get_int_val_for_cil_exp d cil_exp =
     match get_int_interval_for_cil_exp d cil_exp with

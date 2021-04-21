@@ -7,7 +7,7 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (wrapped false)
-  (modules :standard apronDomain poly \ goblint mainarinc maindomaintest mainspec
+  (modules :standard \ goblint mainarinc maindomaintest mainspec
     violationZ3)
   (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js
     qcheck-core.runner apron apron.polkaMPQ apron.octD)
