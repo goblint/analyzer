@@ -108,7 +108,7 @@ struct
     let rec is_offs_prefix_of pr os =
       match (pr, os) with
       | (`NoOffset, _) -> true
-      | (`Field (f1, o1), `Field (f2,o2)) -> f1.fcomp.ckey = f2.fcomp.ckey && f1.fname = f2.fname && is_offs_prefix_of o1 o2
+      | (`Field (f1, o1), `Field (f2,o2)) -> f1.fname = f2.fname && is_offs_prefix_of o1 o2
       | (_, _) -> false
     in
     (v1.vid == v2.vid) && is_offs_prefix_of ofs1 ofs2
