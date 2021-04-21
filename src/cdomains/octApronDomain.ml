@@ -644,63 +644,25 @@ struct
         comp_result
       end
 
-    (* Returns the lowest and the highest (un)signed integer stored in n bits *)
-  let get_boundaries ikind =
-    let n_bits_min, n_bits_max = IntDomain.Size.bits ikind in
-    let signed = (Cil.isSigned ikind) in
-    let upper_limit = 
-      let bound = if signed then
-        Big_int.sub_big_int (Big_int.shift_left_big_int Big_int.unit_big_int (Int.sub n_bits_max 1)) Big_int.unit_big_int (* 2^(n-1)-1 *)
-      else
-        Big_int.sub_big_int (Big_int.shift_left_big_int Big_int.unit_big_int n_bits_max) Big_int.unit_big_int (* 2^n-1 *)
-      in
-      (* Ocaml int64 uses in expressions can not store the biggest integer in C *)
-      (* TODO: find a better solution to suport all C integers, a similar problem is below *)
-      match Big_int.int64_of_big_int_opt bound with
-      | Some b -> b
-      | None -> Int64.max_int
-    in
-    let lower_limit = 
-      let bound = if signed then 
-        Big_int.minus_big_int (Big_int.shift_left_big_int Big_int.unit_big_int (Int.sub n_bits_min 1)) (* -2^(n-1) *)
-      else 
-        Big_int.zero_big_int (* 0 *)
-      in
-      (* Ocaml int64 uses in expressions can not store the smallest integer in C *)
-      match Big_int.int64_of_big_int_opt bound with
-      | Some b -> b
-      | None -> Int64.min_int
-    in
-    lower_limit, upper_limit
     
     let assign_var_handling_underflow_overflow oct v e =
       (match v.vtype with
         | TInt (ikind, _)-> 
           let signed = Cil.isSigned ikind in
           let new_oct = assign_var oct v.vname e in
-          (*let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in 
-          let oct_with_max = 
-            assert_inv new_oct (BinOp (Ge, e, (Const (CInt64 (
-              try Z.to_int64 upper_limit with Overflow -> 0L;
-              , IInt, None))), intType)) true in
-          let oct_with_min = 
-            assert_inv new_oct (BinOp (Le, e, (Const (CInt64 (
-              try Z.to_int64 lower_limit with Overflow -> 0L;
-              , IInt, None))), intType)) true in
-          *)
-          let lower_limit, upper_limit = get_boundaries ikind in
-          let oct_with_max = 
-            assert_inv oct (BinOp (Ge, e, (Const (CInt64 (upper_limit, IInt, None))), intType)) true in
-          let oct_with_min = 
-            assert_inv oct (BinOp (Le, e, (Const (CInt64 (lower_limit, IInt, None))), intType)) true in
+          let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in 
+          let check_max = 
+            check_assert (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) new_oct in
+          let check_min = 
+            check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
           if signed then 
-            if is_bot oct_with_max || is_bot oct_with_min then 
+            if check_max = `False || check_min = `False then 
               (* Signed overflows are undefined behavior, so octagon goes to top if it happened for sure. *)
               topE (A.env oct)
             else
               new_oct
           else
-            if is_bot oct_with_max || is_bot oct_with_min || is_top oct_with_max || is_top oct_with_min then
+            if check_max != `True || check_min != `True then
               (* Unsigned overflows are defined, but for now 
               the variable in question goes to top if there is a possibility of overflow. *)
               let () = forget_all_with oct [v.vname] in
