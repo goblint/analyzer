@@ -303,7 +303,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
     | _ -> get_type (typeOf e) e
   with _ -> get_type voidType e
 
-let some_accesses = ref true
+let some_accesses = ref false
 let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
     some_accesses := true;
@@ -669,5 +669,3 @@ let print_result () =
     | _ ->
       print_accesses ();
       print_summary ()
-  else
-    failwith "wtf"
