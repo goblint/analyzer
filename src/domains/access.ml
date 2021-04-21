@@ -100,7 +100,7 @@ let init (f:file) =
 let rec compareOffset (off1: offset) (off2: offset) : bool =
   match off1, off2 with
   | Field (fld1, off1'), Field (fld2, off2') ->
-    fld1 == fld2 && compareOffset off1' off2'
+    fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname && compareOffset off1' off2'
   | Index (e1, off1'), Index (e2, off2') ->
     Basetype.CilExp.compareExp e1 e2 = 0 && compareOffset off1' off2'
   | NoOffset, NoOffset -> true
@@ -111,7 +111,7 @@ type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
 let rec compareOffs (off1: offs) (off2: offs) : bool =
   match off1, off2 with
   | `Field (fld1, off1'), `Field (fld2, off2') ->
-    fld1 == fld2 && compareOffs off1' off2'
+    fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname && compareOffs off1' off2'
   | `Index off1', `Index off2' ->
     compareOffs off1' off2'
   | `NoOffset, `NoOffset -> true
@@ -303,7 +303,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
     | _ -> get_type (typeOf e) e
   with _ -> get_type voidType e
 
-let some_accesses = ref false
+let some_accesses = ref true
 let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
     some_accesses := true;
@@ -669,3 +669,5 @@ let print_result () =
     | _ ->
       print_accesses ();
       print_summary ()
+  else
+    failwith "wtf"
