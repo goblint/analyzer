@@ -309,6 +309,7 @@ struct
       (* build a ctx for using the query system *)
       let rec ctx =
         { ask    = query
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = fst lvar
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> snd lvar)
@@ -319,7 +320,7 @@ struct
         ; presub = []
         ; postsub= []
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in witness context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }

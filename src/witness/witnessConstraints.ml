@@ -51,6 +51,7 @@ struct
 end
 
 (* TODO: weaken R to Lattice.S ? *)
+(* TODO: fix after traces, domaintest fails *)
 module HoareMap (SpecD:Lattice.S) (R:SetDomain.S) =
 struct
   module SpecDGroupable =
@@ -62,12 +63,13 @@ struct
   include MM
 
   (* TODO: get rid of these value-ignoring set-mimicing hacks *)
-  let cardinal (s: t): int = match s with
+  (* let cardinal (s: t): int = match s with
     | `Top -> failwith "cardinal"
-    | `Lifted s -> M.M.cardinal s
-  let choose' (s: t) = match s with
+    | `Lifted s -> M.lift_f M.M.cardinal s *)
+  (* let choose' (s: t) = match s with
     | `Top -> failwith "choose"
-    | `Lifted s -> M.M.choose s
+    | `Lifted s -> M.lift_f M.M.choose s *)
+  let choose' = choose
   let choose (s: t): SpecD.t = fst (choose' s)
   let filter' = filter
   let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
@@ -77,46 +79,54 @@ struct
   let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
   let fold' = fold
   let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
-  let singleton (x: key) (r: R.t): t = `Lifted (M.M.singleton x r)
-  let empty (): t = `Lifted M.M.empty
-  let add (x: key) (r: R.t) (s: t): t = match s with
+  (* let singleton (x: key) (r: R.t): t = `Lifted (M.lift @@ M.M.singleton x r) *)
+  (* let empty (): t = `Lifted (M.lift @@ M.M.empty) *)
+  (* let add (x: key) (r: R.t) (s: t): t = match s with
     | `Top -> `Top
-    | `Lifted s -> `Lifted (M.M.add x (R.join r (M.find x s)) s)
-  let map (f: key -> key) (s: t): t = match s with
+    | `Lifted s -> `Lifted (M.lift_f' (M.M.add x (R.join r (M.find x s))) s) *)
+  let add (x: key) (r: R.t) (s: t): t = add x (R.join r (find x s)) s (* TODO: is this the same? *)
+  (* let map (f: key -> key) (s: t): t = match s with
     | `Top -> `Top
-    | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.M.add (f x) (R.join v (M.find (f x) acc)) acc) s (M.M.empty))
+    | `Lifted s -> `Lifted (M.fold (fun x v acc -> M.lift_f' (M.M.add (f x) (R.join v (M.find (f x) acc))) acc) s (M.lift @@ M.M.empty)) *)
+  let map (f: key -> key) (s: t): t = fold' (fun x v acc -> add (f x) v acc) s (empty ()) (* TODO: is this the same? *)
   let map' = map (* HACK: for PathSensitive morphstate *)
   (* TODO: reducing map, like HoareSet *)
 
   module S =
   struct
-    let exists (p: key -> bool) (s: M.t): bool = M.M.exists (fun x _ -> p x) s
-    let filter (p: key -> bool) (s: M.t): M.t = M.M.filter (fun x _ -> p x) s
-    let elements (s: M.t): (key * R.t) list = M.M.bindings s
-    let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.M.add x (R.join r (M.find x acc)) acc) M.M.empty l
-    let union = M.long_map2 R.union
+    (* let exists (p: key -> bool) (s: M.t): bool = M.lift_f (M.M.exists (fun x _ -> p x)) s *)
+    let exists (p: key -> bool) (s: t): bool = exists (fun x _ -> p x) s
+    (* let filter (p: key -> bool) (s: M.t): M.t = M.lift_f' (M.M.filter (fun x _ -> p x)) s *)
+    let filter (p: key -> bool) (s: t): t = filter' (fun x _ -> p x) s
+    (* let elements (s: M.t): (key * R.t) list = M.lift_f M.M.bindings s *)
+    let elements (s: t): (key * R.t) list = bindings s
+    (* let of_list (l: (key * R.t) list): M.t = List.fold_left (fun acc (x, r) -> M.lift_f' (M.M.add x (R.join r (M.find x acc))) acc) (M.lift @@ M.M.empty) l *)
+    let of_list (l: (key * R.t) list): t = List.fold_left (fun acc (x, r) -> add x r acc) (empty ()) l
+    let union = long_map2 R.union
   end
 
 
   (* copied & modified from SetDomain.Hoare *)
-  let mem x xr = function
+  (* let mem x xr = function
     | `Top -> true
     (* | `Lifted s -> S.exists (Spec.D.leq x) s *)
     (* exists check per previous VIE.t in R.t *)
     (* seems to be necessary for correct ARG but why? *)
     (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.mem vie yr) s) xr *)
     (* | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> Spec.D.leq x y && R.exists (fun vie' -> VIE.leq vie vie') yr) s) xr *)
-    | `Lifted s -> R.for_all (fun vie -> M.M.exists (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
-  let leq a b =
+    | `Lifted s -> R.for_all (fun vie -> M.lift_f (M.M.exists (fun y yr -> SpecD.leq x y && R.mem vie yr)) s) xr *)
+  let mem x xr s = R.for_all (fun vie -> exists (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
+  (* let leq a b =
     match a with
     | `Top -> b = `Top
-    | _ -> for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
+    | _ -> for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *) *)
+  let leq a b = for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
 
   let le x y = SpecD.leq x y && not (SpecD.equal x y) && not (SpecD.leq y x)
   (* let reduce = function
     | `Top -> `Top
     | `Lifted s -> `Lifted (S.filter (fun x -> not (S.exists (le x) s) && not (SpecD.is_bot x)) s) *)
-  let reduce: t -> t = function
+  (* let reduce: t -> t = function
     | `Top -> `Top
     | `Lifted s ->
       (* get map with just maximal keys and their ranges *)
@@ -132,23 +142,47 @@ struct
               ) s xr
           ) maximals
       in
-      `Lifted maximals
-  let product_bot op op2 a b = match a,b with
+      `Lifted maximals *)
+  let reduce (s: t): t =
+    (* get map with just maximal keys and their ranges *)
+    let maximals = S.filter (fun x -> not (S.exists (le x) s) && not (SpecD.is_bot x)) s in
+    (* join le ranges also *)
+    let maximals =
+      mapi (fun x xr ->
+          fold' (fun y yr acc ->
+              if le y x then
+                R.join acc yr
+              else
+                acc
+            ) s xr
+        ) maximals
+    in
+    maximals
+  (* let product_bot op op2 a b = match a,b with
     | `Top, a | a, `Top -> a
     | `Lifted a, `Lifted b ->
       let a,b = S.elements a, S.elements b in
-      List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x))
-  let product_bot2 op2 a b = match a,b with
+      List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x)) *)
+  let product_bot op op2 a b =
+    let a,b = S.elements a, S.elements b in
+    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (S.of_list x)
+  (* let product_bot2 op2 a b = match a,b with
     | `Top, a | a, `Top -> a
     | `Lifted a, `Lifted b ->
       let a,b = S.elements a, S.elements b in
-      List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x))
+      List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (`Lifted (S.of_list x)) *)
+  let product_bot2 op2 a b =
+    let a,b = S.elements a, S.elements b in
+    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (S.of_list x)
   (* why are type annotations needed for product_widen? *)
-  let product_widen op op2 (a:t) (b:t): t = match a,b with (* assumes b to be bigger than a *)
+  (* let product_widen op op2 (a:t) (b:t): t = match a,b with (* assumes b to be bigger than a *)
     | `Top, _ | _, `Top -> `Top
     | `Lifted a, `Lifted b ->
       let xs,ys = S.elements a, S.elements b in
-      List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (`Lifted (S.union b (S.of_list x)))
+      List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (`Lifted (S.union b (S.of_list x))) *)
+  let product_widen op op2 (a:t) (b:t): t =
+    let xs,ys = S.elements a, S.elements b in
+    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (S.union b (S.of_list x))
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
   (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
@@ -157,9 +191,10 @@ struct
   let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
 
   (* TODO: shouldn't this also reduce? *)
-  let apply_list f = function
+  (* let apply_list f = function
     | `Top -> `Top
-    | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list)
+    | `Lifted s -> `Lifted (S.elements s |> f |> S.of_list) *)
+  let apply_list f s = S.elements s |> f |> S.of_list
 end
 
 module N = struct let topname = "Top" end
@@ -264,14 +299,19 @@ struct
     let widen = binop widen
     let narrow = binop narrow
 
-    let invariant c s =
+    (* let invariant c s =
       match s with
       | `Top -> failwith "invariant Top"
       | `Lifted s ->
         (* TODO: optimize indexing, using inner hashcons somehow? *)
         (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
         let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (S.elements s) in
-        Spec.D.invariant c d
+        Spec.D.invariant c d *)
+    let invariant c s =
+      (* TODO: optimize indexing, using inner hashcons somehow? *)
+      (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (S.elements s) in
+      Spec.D.invariant c d
   end
 
   (* Additional dependencies component between values before and after sync.
@@ -334,24 +374,8 @@ struct
       try Dom.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
       with Deadcode -> xs
     in
-    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) in
+    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
-
-  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
-  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
-  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
-  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
-  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
-  let asm ctx           = map ctx Spec.asm     identity
-  let skip ctx          = map ctx Spec.skip    identity
-  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
-
-  (* TODO: do additional witness things here *)
-  let threadenter ctx lval f args = map ctx Spec.threadenter (fun h -> h lval f args)
-  let threadspawn ctx lval f args fctx =
-    let fd1 = Dom.choose (fst fctx.local) in
-    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
   let fold ctx f g h a =
     let k x a =
@@ -375,8 +399,35 @@ struct
     in
     Dom.fold' k (fst ctx.local) a
 
-  let sync ctx =
-    fold'' ctx Spec.sync identity (fun ((a, async),b) x r (a',b') ->
+  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
+  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
+  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
+  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
+  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
+  let intrpt ctx        = map ctx Spec.intrpt  identity
+  let asm ctx           = map ctx Spec.asm     identity
+  let skip ctx          = map ctx Spec.skip    identity
+  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  (* TODO: do additional witness things here *)
+  let threadenter ctx lval f args =
+    let g xs x' ys =
+      let ys' = List.map (fun y ->
+          (* R.bot () isn't right here? doesn't actually matter? *)
+          let yr = R.bot () in
+          (* keep left syncs so combine gets them for no-inline case *)
+          (Dom.singleton y yr, Sync.bot ())
+        ) ys
+      in
+      ys' @ xs
+    in
+    fold' ctx Spec.threadenter (fun h -> h lval f args) g []
+  let threadspawn ctx lval f args fctx =
+    let fd1 = Dom.choose (fst fctx.local) in
+    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
+
+  let sync ctx reason =
+    fold'' ctx Spec.sync (fun h -> h reason) (fun ((a, async),b) x r (a',b') ->
         (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async), b'@b
       ) ((Dom.empty (), Sync.bot ()), [])
 

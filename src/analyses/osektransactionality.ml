@@ -114,8 +114,8 @@ struct
       (ctxs, ctxr)
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   (** Finalization and other result printing functions: *)
@@ -167,12 +167,11 @@ struct
     (* let _ = print_endline ( "Finalize trans") in *)
     let _ = Hashtbl.iter report_trans funs in
     if !transactional then
-      print_endline "Goblint did not find any non-transactional behavior in this program!";
-    Base.Main.finalize ()
+      print_endline "Goblint did not find any non-transactional behavior in this program!"
 
   let init () = ()
 
 end
 
 let _ =
-  MCP.register_analysis ~dep:["OSEK"; "stack_trace_set"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["OSEK"; "stack_trace_set"] (module Spec : MCPSpec)

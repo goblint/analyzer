@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutex','mallocWrapper']"
 
 #include<pthread.h>
 #include<assert.h>
@@ -10,7 +10,7 @@ int glob3 = 9;
 
 void *t_fun(void *arg) {
   glob3 = 8;
-  assert(glob3 == 8); // UNKNOWN
+  assert(glob3 == 8); // UNKNOWN!
   return NULL;
 }
 
@@ -24,10 +24,10 @@ int main() {
   assert(glob1 == 5);
 
   glob2 = 5;
-  assert(glob2 == 5); // UNKNOWN
+  assert(glob2 == 5); // TODO
 
   glob3 = 9;
-  assert(glob3 == 9); // UNKNOWN
+  assert(glob3 == 9); // UNKNOWN!
 
   return 0;
 }

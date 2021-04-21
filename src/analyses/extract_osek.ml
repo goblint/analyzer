@@ -208,7 +208,8 @@ struct
     match List.assoc "base" ctx.presub with
     | Some base ->
       let pid, ctxh, pred = ctx.local in
-      let base_context = Base.Main.context_cpa @@ Obj.obj base in
+      let module BaseMain = (val Base.get_main ()) in
+      let base_context = BaseMain.context_cpa @@ Obj.obj base in
       let context_hash = Hashtbl.hash (base_context, pid) in
       pid, Ctx.of_int (Int64.of_int context_hash), pred
     | None -> ctx.local (* TODO when can this happen? *)
@@ -316,8 +317,8 @@ struct
             ) ctx.local args_product
 
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 
   let init () = (* registers which functions to extract and writes out their definitions *)
@@ -335,4 +336,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)
