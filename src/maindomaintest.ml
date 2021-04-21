@@ -31,7 +31,7 @@ struct
     let name = name
     let short = short
   end
-  include Printable.Std
+  include Printable.StdPolyCompare
   include Printable.PrintSimple (P)
 
   let hash = Char.code
