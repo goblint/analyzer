@@ -68,6 +68,12 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let () = print_stats := fun () ->
+        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+        print_context_stats rho
+      in
+
       if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in
@@ -155,7 +161,12 @@ module WP =
         );
         assert (S.system y = None);
         init y;
-        let op = if HM.mem wpoint y then fun a b -> S.Dom.widen a (S.Dom.join a b) else S.Dom.join in
+        let op = if HM.mem wpoint y then fun a b ->
+          if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+          let r = S.Dom.widen a (S.Dom.join a b) in
+          if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+          r
+        else S.Dom.join in
         let old = HM.find rho y in
         let tmp = op old d in
         HM.replace stable y ();

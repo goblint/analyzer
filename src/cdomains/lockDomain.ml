@@ -46,6 +46,7 @@ struct
     let pretty = pretty_f short
   end
 
+  (* TODO: use SetDomain.Reverse *)
   module ReverseAddrSet = SetDomain.ToppedSet (Lock)
       (struct let topname = "All mutexes" end)
 
@@ -104,6 +105,7 @@ end
 
 module Symbolic =
 struct
+  (* TODO: use SetDomain.Reverse *)
   module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
 

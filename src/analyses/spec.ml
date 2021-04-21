@@ -184,7 +184,7 @@ struct
                 let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp var))] in (* use Fl for Lval instead? *)
                 (* TODO encode key in exp somehow *)
                 (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
-                ctx.split new_m c_exp true;
+                ctx.split new_m [Events.SplitBranch (c_exp, true)];
                 Set.add (new_m,c_exp,true) (Set.add (new_m,c_exp,false) branches)
               in
               List.fold_left do_branch branches branch_edges
@@ -464,7 +464,7 @@ struct
           (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
           D.alias k vvar au
         else (* returned variable was a local *)
-          let v = D.V.set_key k v in (* ajust var-field to lval *)
+          let v = D.V.set_key k v in (* adjust var-field to lval *)
           (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
           D.add' k v au
     | _ -> au
@@ -511,10 +511,10 @@ struct
 
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

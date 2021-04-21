@@ -322,6 +322,7 @@ let invalidate_actions = ref [
     "svcudp_create", readsAll;(*safe*)
     "svc_register", writesAll;(*unsafe*)
     "sleep", readsAll;(*safe*)
+    "usleep", readsAll;
     "svc_run", writesAll;(*unsafe*)
     "dup", readsAll; (*safe*)
     "__builtin_expect", readsAll; (*safe*)
@@ -459,11 +460,11 @@ let get_threadsafe_inv_ac name =
 
 
 
-let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_trylock"; "spin_unlock_irqrestore"])
+let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 
-let effects = ref []
+let effects: (string -> Cil.exp list -> (Cil.lval * ValueDomain.Compound.t) list option) list ref = ref []
 let add_effects f = effects := f :: !effects
 let effects_for fname args = List.filter_map (fun f -> f fname args) !effects
 

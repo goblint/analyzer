@@ -1,6 +1,5 @@
 (** Path-sensitive analysis that verifies checking the result of the malloc function. *)
 
-module BS = Base.Main
 module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
 module Offs = ValueDomain.Offs
@@ -216,8 +215,8 @@ struct
       begin
         match get_concrete_lval ctx.ask lv with
         | Some (Var v, offs) ->
-          ctx.split ctx.local (Lval lv) true;
-          ctx.split (D.add (Addr.from_var_offset (v,offs)) ctx.local) (Lval lv) false;
+          ctx.split ctx.local [Events.SplitBranch ((Lval lv), true)];
+          ctx.split (D.add (Addr.from_var_offset (v,offs)) ctx.local) [Events.SplitBranch ((Lval lv), false)];
           raise Analyses.Deadcode
         | _ -> ctx.local
       end
@@ -226,8 +225,8 @@ struct
   let name () = "malloc_null"
 
   let startstate v = D.empty ()
-  let threadenter ctx lval f args = D.empty ()
-  let threadspawn ctx lval f args fctx = D.empty ()
+  let threadenter ctx lval f args = [D.empty ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.empty ()
 
   let init () =
@@ -236,4 +235,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

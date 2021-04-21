@@ -126,19 +126,8 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location (x,s) = x.vdecl
-  let classify x = match x with
-    | x,_ when x.vglob -> 2
-    | x,_ when x.vdecl.line = -1 -> -1
-    | x,_ when x.vdecl.line = -3 -> 5
-    | _, Context -> 4
-    | _, _ -> 1
-  let class_name n = match n with
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  let classify (x,sx) = match sx with Context -> 4 | _ -> Variables.classify x
+  let class_name = Variables.class_name
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -169,27 +158,27 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
     let bot_name = "-"
   end)
 
-  module RawBools: Printable.S with type t = bool =
-  struct
-    include Printable.StdPolyCompare
-    open Pretty
-    type t = bool [@@deriving to_yojson]
-    let hash (x:t) = Hashtbl.hash x
-    let equal (x:t) (y:t) = x=y
-    let isSimple _ = true
-    let short _ (x:t) =  if x then "\" true \"" else "\" false \""
-    let pretty_f sf () x = text (if x then "true" else "false")
-    let pretty () x = text (short () x)
-    let name () = "raw bools"
-    let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short () x)
-  end
+module RawBools: Printable.S with type t = bool =
+struct
+  include Printable.StdPolyCompare
+  open Pretty
+  type t = bool [@@deriving to_yojson]
+  let hash (x:t) = Hashtbl.hash x
+  let equal (x:t) (y:t) = x=y
+  let isSimple _ = true
+  let short _ (x:t) =  if x then "true" else "false"
+  let pretty_f sf () x = text (if x then "true" else "false")
+  let pretty () x = text (short () x)
+  let name () = "raw bools"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short () x)
+end
 
-  module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
-    Lattice.Flat (RawBools) (struct
-      let top_name = "?"
-      let bot_name = "-"
-    end)
+module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
+  Lattice.Flat (RawBools) (struct
+    let top_name = "?"
+    let bot_name = "-"
+  end)
 
 module CilExp =
 struct
@@ -482,8 +471,6 @@ struct
   let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
   let short _ x = x.fname
   let pretty_f sf () x = Pretty.text (sf max_int x)
-  let classify _ = 0
-  let class_name _ = "None"
   let pretty () x = pretty_f short () x
   let name () = "field"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

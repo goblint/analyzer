@@ -54,8 +54,4 @@ struct
     match x with
     | `Lifted x -> Map.for_all f x
     | _ -> false
-  let filter_class i x =
-    match x with
-    | `Lifted x -> `Lifted (Map.filter_class i x)
-    | _ -> x
 end

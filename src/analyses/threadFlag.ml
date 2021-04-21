@@ -7,6 +7,7 @@ open Prelude.Ana
 open Analyses
 
 let is_multi (ask: Queries.ask): bool =
+  if !GU.global_initialization then false else
   match ask Queries.MustBeSingleThreaded with
   | `MustBool x -> not x
   | `Top -> true
@@ -31,6 +32,8 @@ struct
 
   let create_tid v =
     Flag.get_multi ()
+
+  let should_join = D.equal
 
   let body ctx f = ctx.local
 
@@ -77,11 +80,15 @@ struct
     | _ -> `Top
 
   let threadenter ctx lval f args =
-    create_tid f
+    if not (is_multi ctx.ask) then
+      ctx.emit Events.EnterMultiThreaded;
+    [create_tid f]
 
   let threadspawn ctx lval f args fctx =
-    Flag.get_main ()
+    if not (is_multi ctx.ask) then
+      ctx.emit Events.EnterMultiThreaded;
+    D.join ctx.local (Flag.get_main ())
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)
