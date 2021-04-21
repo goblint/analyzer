@@ -1,11 +1,8 @@
 open Prelude
 open Cil
 open Pretty
-
-(* This is to be able to use their implementation of octagons *)
+(* For Apron implementation of octagons *)
 open Apron
-
-exception Overflow
 
 module Man =
 struct
@@ -52,24 +49,19 @@ struct
   let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
   let print_octagon o = print_endline (short 30 o)
 
-  (* This function joins two octagons.
-  If one of them is equal to bottom, the other one is the result of the join. 
-  Otherwise, we use the manager form Apron to join the octagons. *)
   let join x y =
     let ret = if is_bot x then
       y
     else if is_bot y then
       x
-    (*else if is_top x || is_top y then
-      top ()*)
+    (* This would make sense, but causes:
+      Fatal error: exception Apron.Manager.Error(_) *)
+    (* else if is_top x || is_top y then
+      top () *) 
     else
       A.join (Man.mgr) x y in
     ret
 
-  (* This function performs a meet two octagons.
-  If one of them is equal to top, the other one is the result of the meet. 
-  If either of them is equal to bottom, bottom is the result of the meet.
-  Otherwise, we use the manager form Apron to join the octagons. *)
   let meet x y =
     let ret = if is_top x then y else
     if is_top y then x else
@@ -77,9 +69,6 @@ struct
       A.meet Man.mgr x y in
     ret
 
-  (* This function performs a widening of two octagons.
-  If one of them is equal to bottom, the other one is the result of the widening. 
-  Otherwise, we use the manager from Apron to do the widening. *)
   let widen x y =
     let ret = if is_bot x then
       y
@@ -91,28 +80,16 @@ struct
 
   let narrow = meet
 
-  (* This function is used to compare two octagons for equality. *)
   let equal x y =
-    (* If both octagons are equal to bottom then they are equal. *)
-    (* If only the first octagon is equal to bottom, then they are different. *)
     if is_bot x then is_bot y 
-    (* If only the second octagon is equal to bottom, then they are different. *)
     else if is_bot y then false
-    (* If both octagons are equal to top then they are equal. *)
-    (* If only the first octagon is equal to top, then they are different. *)
     else if is_top x then is_top y 
-    (* If only the second octagon is equal to top, then they are different. *)
     else if is_top y then false 
-    (* Otherwise, we use Apron to check for equality. *)
     else A.is_eq Man.mgr x y 
 
-  (* Compares octagons for <= *)
   let leq x y =
-    (* There is nothing less than bottom or greater than top,
-    the following two ifs logically follow from that. *)
     if is_bot x || is_top y then true else
     if is_bot y || is_top x then false else
-    (* Otherwise, Apron does the comparison. *)
       A.is_leq (Man.mgr) x y
 
   let hash (x:t) = Hashtbl.hash x
@@ -249,10 +226,9 @@ struct
       (* Do a cast of int constants *)
       | Const (CInt64 (value, old_ikind, _)) -> Cil.kinteger64 new_ikind (IntDomain.Integers.cast_to new_ikind value)
       (* Ignore other casts *)
-      | Lval (Var varinfo, _) -> e (* TODO handle variable casts *)
+      | Lval (Var varinfo, _) -> e (* TODO: handle variable casts *)
       |_ -> e) 
       in
-      let () = print_endline ("Casting "^(Pretty.sprint 20 (Cil.d_exp () e))^" to "^(Pretty.sprint 20 (Cil.d_exp () new_exp)) ) in 
       cil_exp_to_lexp new_exp
     | _ ->
       raise (Invalid_argument "cil_exp_to_lexp")
@@ -298,8 +274,6 @@ struct
         | _ -> x in
       match x with 
       | BinOp (Ne, lhd, rhs, intType) -> 
-        let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
-        let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
         if not (is_bot assert_gt) then
@@ -328,23 +302,17 @@ struct
 
   (* Creates the opposite invariant and assters it *)
   let assert_op_inv d x b =
-    (*let () = print_endline "Opposite is" in
-    let () = print_expression x in*)
     (* if assert(x) then convert it to assert(x != 0) *)
     let x = match x with
     | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
       BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
     | _ -> x in
-    (*let () = print_expression x in*)
     try
       match x with
         | BinOp (Ne, lhd, rhs, intType) -> 
-          (*let () = print_expression (BinOp (Eq, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
 
         | BinOp (Eq, lhd, rhs, intType) -> 
-          (*let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in
-          let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in*)
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
           if not (is_bot assert_gt) then
@@ -353,54 +321,39 @@ struct
             assert_lt
 
         | BinOp (Lt, lhd, rhs, intType) -> 
-          (*let () = print_expression (BinOp (Ge, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Ge, lhd, rhs, intType)) b
 
         | BinOp (Gt, lhd, rhs, intType) -> 
-          (*let () = print_expression (BinOp (Le, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Le, lhd, rhs, intType)) b
 
         | BinOp (Le, lhd, rhs, intType) -> 
-          (*let () = print_expression (BinOp (Lt, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
 
         | BinOp (Ge, lhd, rhs, intType) -> 
-          (*let () = print_expression (BinOp (Gt, lhd, rhs, intType)) in*)
           assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
         
         | UnOp(LNot, e, t) -> 
-          (*let () = print_expression e in*)
           assert_inv d e b
 
         | _ ->  assert_inv d x b
     with Invalid_argument _ -> d
 
   let check_assert (e:exp) state =
-    let () = print_expression e in
     match e with
     | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
     | CastE(t, e) -> `Top (* Octagon doesn't handle casts as assertions *)
     | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
     | _ -> 
       let result_state = (assert_inv state e false) in
-      let () = print_endline "Result" in
-      let () = print_octagon result_state in
       let result_state_op = (assert_op_inv state e false) in
-      let () = print_endline "Result of the opposite" in
-      let () = print_octagon result_state_op in
       if is_bot result_state then
         `False
       else if is_bot result_state_op then
         `True
       else 
-      let () = print_endline "We do not know!!!!!" in
         `Top
 
   let assert_fn ctrlctx octa e warn change =  
-    let () = print_endline "----------\nThe octagon is" in
-    let () = print_octagon octa in
-    let () = print_endline "Asserting" in
-    let () = print_expression e in
     let expr = sprint 30 (Cil.d_exp () e) in 
     let warn ?annot msg = if warn then
         if GobConfig.get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
@@ -457,13 +410,11 @@ struct
   
   let var_in_env (v:string) d =
     if (is_chosen v) then
-      let () = print_endline (v^" is chosen") in
       let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
       let existing_var_names_int = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_int) in
       let existing_var_names_real = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_real) in
       (List.mem v existing_var_names_int) || (List.mem v existing_var_names_real)
     else
-    let () = print_endline (v^" is NOT chosen") in
       false
     
   let assign_var_eq_with d v v' =
@@ -560,7 +511,6 @@ struct
     | head::body -> (list_length body) + 1
 
   let remove_all_but_with d xs =
-      let () = print_list_string xs in
       let is', fs' = get_vars d in
       let vs = List.append (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is')
           (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) fs') in
@@ -569,7 +519,6 @@ struct
 
   let remove_all_with d xs =
     if list_length xs > 0 then
-      let () = print_list_string xs in
       (* let vars = List.filter (fun v -> isArithmeticType v.vtype) xs in *)
       let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
       let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
@@ -620,27 +569,15 @@ struct
         else None
       end
     | _ -> None
-
-  (* This function is used by the query function to compare expressions for equality. *)
-  (* The arguments are the octagon and the two expressions to be compared. *)
+  
   let cil_exp_equals d exp1 exp2 =
-    (* If the octagon is equal to bottom, we return false. *)
     if (is_bot d) then false
     else
       begin
-        (* let () = print_endline (String.concat " compare_expression " [(Pretty.sprint 20 (Cil.d_exp () exp1)); (Pretty.sprint 20 (Cil.d_exp () exp2))])  in *)
-        (* Create a compare expression from two expressions *)
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
         (* We compare the octagon with the octagon we get by performing meet of it with the linear constraints coming from the expression *)
-        (*let () = print_endline "cil_exp_equals will compare exps" in
-        let () = print_endline (Pretty.sprint 20 (Cil.d_exp () exp1))  in 
-        let () = print_endline (Pretty.sprint 20 (Cil.d_exp () exp2))  in *)
         let resulting_oct = (assert_inv d compare_expression false) in
         let comp_result = equal d resulting_oct in
-        (*let () = print_endline "comparing..." in
-        let () = print_endline (short 30 d) in
-        let () = print_endline "...and..." in
-        let () = print_endline (short 30 resulting_oct) in*)
         comp_result
       end
 

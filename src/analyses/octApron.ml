@@ -4,7 +4,6 @@ open Prelude.Ana
 open Analyses
 open Apron
 open OctApronDomain
-open Utilities
 
 module Spec : Analyses.Spec =
 struct
@@ -31,9 +30,7 @@ struct
       let is = is @ List.map (fun x -> x^"'") is in
       let fs = fs @ List.map (fun x -> x^"'") fs in
       let newd = D.add_vars ctx.local (is,fs) in
-      let () = print_endline ("List 1: "^string_of_int(List.length f.sformals)) in
-      let () = print_endline ("List 2: "^string_of_int(List.length args)) in
-      let formargs = Utilities.zip f.sformals args in
+      let formargs = Goblintutil.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
       List.iter (fun (v, e) -> D.assign_var_with newd (v.vname^"'") e) arith_formals;
       D.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
@@ -52,7 +49,7 @@ struct
         let fis = List.map Var.to_string fis in
         let ffs = List.map Var.to_string ffs in
         let nd' = D.add_vars d (fis,ffs) in
-        let formargs = Utilities.zip f.sformals args in
+        let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
         List.iter (fun (v, e) -> D.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> x.vname^"'") arith_formals in
@@ -91,9 +88,7 @@ struct
     if D.is_bot ctx.local then D.bot () else
       begin
         match LibraryFunctions.classify f.vname args with
-        | `Assert expression -> (* D.assert_inv ctx.local expression false *)
-          (*D.assert_fn ctx ctx.local expression true false*)
-          ctx.local
+        | `Assert expression -> ctx.local
         | `Unknown "printf" -> ctx.local
         | `Unknown "__goblint_check" -> ctx.local
         | `Unknown "__goblint_commit" -> ctx.local
@@ -112,12 +107,15 @@ struct
             let nd = ctx.local in
             invalidate nd [ret_var];
             nd
-        | `ThreadCreate _ -> ctx.local
+        | `ThreadCreate (id,start,ptc_arg) -> 
+            let nd = ctx.local in
+            invalidate nd [ptc_arg];
+            nd
         | _ ->
           begin
             let st =
               match LibraryFunctions.get_invalidate_action f.vname with
-              | Some fnc -> let () = print_endline "invalidate" in let () = invalidate ctx.local (fnc `Write  args) in ctx.local
+              | Some fnc -> let () = invalidate ctx.local (fnc `Write  args) in ctx.local
               | None -> D.topE (A.env ctx.local)
             in
               st      
@@ -136,16 +134,12 @@ struct
     if D.is_bot ctx.local then D.bot () else
       
       let nd = match e with
-        | Some e when isArithmeticType (typeOf e) -> let () = print_endline "some" in
-          let () = (match e with
-          | CastE(t, e) -> D.print_octagon ctx.local
-          | _ -> print_endline "Other" )
-          in
+        | Some e when isArithmeticType (typeOf e) -> 
           let nd = D.add_vars ctx.local (["#ret"],[]) in 
           let () = D.assign_var_with nd "#ret" e in
           nd
-        | None ->let () = print_endline "none" in D.topE (A.env ctx.local)
-        | _ -> let () = print_endline "last option" in D.add_vars ctx.local (["#ret"],[])
+        | None -> D.topE (A.env ctx.local)
+        | _ -> D.add_vars ctx.local (["#ret"],[])
       in
       let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
       let vars = List.map (fun x -> x.vname) vars in
@@ -167,10 +161,8 @@ struct
   let query ctx (q:Queries.t) : Queries.Result.t =
     let open Queries in
     let d = ctx.local in
-    (*let () = Node.print (Node.pretty_short_node () ctx.node) in
-    let () = print_endline "" in*)
     match q with
-    | Assert e ->  (* F, T, bot*)
+    | Assert e ->
       let x = match D.check_assert e ctx.local with
         | `Top -> `Top
         | `True -> `Lifted true 
@@ -184,10 +176,6 @@ struct
         | Some i -> `Int i
         | _ -> `Top
       end
-    (*| MustBeEqual (e1, e2) ->
-      (* let () = print_endline (String.concat " must be equal " [(Pretty.sprint 20 (Cil.d_exp () e1)); (Pretty.sprint 20 (Cil.d_exp () e2))])  in *)
-      if D.cil_exp_equals d e1 e2 then `MustBool true
-      else `MustBool false*)
     | _ -> Result.top ()
 end
 
