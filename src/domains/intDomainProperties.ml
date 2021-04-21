@@ -1,5 +1,59 @@
+module BI = IntOps.BigIntOps
+
+(* TODO: deduplicate with IntDomain *)
+module type OldS =
+sig
+  include Lattice.S
+  include IntDomain.Arith with type t := t
+  val of_int: BI.t -> t
+end
+
+module type S = IntDomain.S with type int_t = BI.t
+
+(* TODO: deduplicate with IntDomain, extension of IntDomWithDefaultIkind, inverse of OldDomainFacade? *)
+module WithIkind (I: S) (Ik: IntDomain.Ikind): OldS =
+struct
+  include I
+  let join = join (Ik.ikind ())
+  let meet = meet (Ik.ikind ())
+  let widen = widen (Ik.ikind ())
+  let narrow = narrow (Ik.ikind ())
+  let neg = neg (Ik.ikind ())
+  let add = add (Ik.ikind ())
+  let sub = sub (Ik.ikind ())
+  let mul = mul (Ik.ikind ())
+  let div = div (Ik.ikind ())
+  let rem = rem (Ik.ikind ())
+  let lt = lt (Ik.ikind ())
+  let gt = gt (Ik.ikind ())
+  let le = le (Ik.ikind ())
+  let ge = ge (Ik.ikind ())
+  let eq = eq (Ik.ikind ())
+  let ne = ne (Ik.ikind ())
+  let bitnot = bitnot (Ik.ikind ())
+  let bitand = bitand (Ik.ikind ())
+  let bitor = bitor (Ik.ikind ())
+  let bitxor = bitxor (Ik.ikind ())
+  let shift_left = shift_left (Ik.ikind ())
+  let shift_right = shift_right (Ik.ikind ())
+  let lognot = lognot (Ik.ikind ())
+  let logand = logand (Ik.ikind ())
+  let logor = logor (Ik.ikind ())
+
+  let of_int = of_int (Ik.ikind ())
+
+  let bot () = bot_of (Ik.ikind ())
+  let top () = top_of (Ik.ikind ())
+  let is_top = is_top_of (Ik.ikind ())
+
+  let name () = Pretty.(sprint ~width:80 (dprintf "%s (%a)" (name ()) Cil.d_ikind (Ik.ikind ())))
+
+  let arbitrary () = QCheck.map ~rev:(fun x -> x) (cast_to (Ik.ikind ())) (arbitrary ())
+end
+
 module IntegerSet =
 struct
+  (* TODO: base this on BI instead *)
   module Base = IntDomain.Integers
 
   include SetDomain.Make(Base)
@@ -36,13 +90,14 @@ struct
 end
 
 module CD = IntegerSet
-module AF (AD: IntDomain.IkindUnawareS) =
+module AF (AD: OldS) =
 struct
-  let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
-  let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int c) x) s
+  (* TODO: don't do this through int64, make CD use BI instead *)
+  let abstract s = CD.fold (fun c a -> AD.join (AD.of_int (BI.of_int64 c)) a) s (AD.bot ())
+  let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int (BI.of_int64 c)) x) s
 end
 
-module Valid (AD: IntDomain.IkindUnawareS): DomainProperties.S =
+module Valid (AD: OldS): DomainProperties.S =
 struct
   include AbstractionDomainProperties.ValidTest (CD) (AD) (AF (AD))
 
@@ -104,7 +159,7 @@ struct
   ]
 end
 
-module All (D: IntDomain.IkindUnawareS): DomainProperties.S =
+module All (D: OldS): DomainProperties.S =
 struct
   module A = DomainProperties.All (D)
   module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))
@@ -113,7 +168,7 @@ struct
   let tests = A.tests @ M.tests @ V.tests
 end
 
-module AllNonAssoc (D:IntDomain.IkindUnawareS): DomainProperties.S =
+module AllNonAssoc (D: OldS): DomainProperties.S =
 struct
   module A = DomainProperties.AllNonAssoc (D)
   module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))

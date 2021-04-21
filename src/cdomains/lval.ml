@@ -189,19 +189,10 @@ struct
     | _ -> builtinLoc
 
   let classify = function
-    | Addr (x,_) when x.vglob -> 2
-    | Addr (x,_) when x.vdecl.line = -1 -> -1
-    | Addr (x,_) when x.vdecl.line = -3 -> 5
-    | Addr (x,_) when x.vdecl.line = -4 -> 4
+    | Addr (x,_) -> Basetype.Variables.classify x
     | _ -> 1
 
-  let class_name = function
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  let class_name = Basetype.Variables.class_name
 
   let from_var x = Addr (x, `NoOffset)
   let from_var_offset x = Addr x

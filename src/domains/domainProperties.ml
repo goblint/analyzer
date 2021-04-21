@@ -116,12 +116,21 @@ module Top (D: Lattice.S): S =
 struct
   include DomainTest (D)
 
-  let top_leq = make ~name:"top leq" (arb) (fun a -> D.leq a (D.top ()))
-  let top_is_top = make ~name:"top is_top" (arb) (fun a -> 
-    try D.is_top a = (a @= (D.top ()))
-    with Failure s -> s = "is_top not implemented for IntDomain.Std"
-  )
-  let top_meet = make ~name:"top meet" (arb) (fun a -> (D.meet a (D.top ())) @= a)
+  (* TODO: remove this hack *)
+  let has_top = try ignore (D.top ()); true with Failure _ -> false
+
+  let top_leq = make ~name:"top leq" (arb) (fun a ->
+      assume has_top;
+      D.leq a (D.top ())
+    )
+  let top_is_top = make ~name:"top is_top" (arb) (fun a ->
+      assume has_top;
+      D.is_top a = (a @= (D.top ()))
+    )
+  let top_meet = make ~name:"top meet" (arb) (fun a ->
+      assume has_top;
+      (D.meet a (D.top ())) @= a
+    )
 
   let tests = [
     top_leq;

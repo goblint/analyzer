@@ -366,8 +366,6 @@ let demangle x =
 
 exception Timeout
 
-let handle_sigalrm signo = raise Timeout
-
 let timeout = Timeout.timeout
 
 let vars = ref 0
@@ -414,3 +412,8 @@ let command = String.concat " " (Array.to_list Sys.argv)
 let opt_predicate (f : 'a -> bool) = function
   | Some x -> f x
   | None -> false
+
+(* The normal haskell zip that throws no exception *)
+let rec zip x y = match x,y with
+| (x::xs), (y::ys) -> (x,y) :: zip xs ys
+| _ -> []

@@ -3,7 +3,6 @@
 open Prelude.Ana
 open Analyses
 open GobConfig
-open Utilities
 module A = Analyses
 module H = Hashtbl
 module Q = Queries
@@ -20,7 +19,7 @@ module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
 
 let is_global (a: Q.ask) (v: varinfo): bool =
-  v.vglob || match a (Q.MayEscape v) with `MayBool tv -> tv | _ -> false
+  v.vglob || ThreadEscape.has_escaped a v
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
@@ -29,11 +28,9 @@ let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !preciou
 
 let privatization = ref false
 let is_private (a: Q.ask) (_,_) (v: varinfo): bool =
-  !privatization &&
-  (not (ThreadFlag.is_multi a) && is_precious_glob v ||
-   match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ ->
-   if M.tracing then M.tracel "osek" "isPrivate yields top(!!!!)";
-   false)
+  !privatization && (* must be true *)
+  (not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+  || match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ -> false) (* usual case where MayBePublic answers *)
 
 module MainFunctor(RVEval:BaseDomain.ExpEvaluator) =
 struct
@@ -437,12 +434,12 @@ struct
       match value with
       | `Top ->
         let typ = AD.get_type adr in
-        let warning = "Unknown value in " ^ AD.short 40 adr ^ " could be an escaped pointer address!" in
+        let warning = "Unknown value in " ^ AD.short 800 adr ^ " could be an escaped pointer address!" in
         if VD.is_immediate_type typ then () else M.warn_each warning; empty
       | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
       | `Address adrs when AD.is_top adrs ->
-        let warning = "Unknown address in " ^ AD.short 40 adr ^ " has escaped." in
-        M.warn_each warning; empty
+        let warning = "Unknown address in " ^ AD.short 800 adr ^ " has escaped." in
+        M.warn_each warning; adrs (* return known addresses still to be a bit more sane (but still unsound) *)
       (* The main thing is to track where pointers go: *)
       | `Address adrs -> adrs
       (* Unions are easy, I just ingore the type info. *)
@@ -519,7 +516,7 @@ struct
       in
       CPA.map replace_val st
 
-  let drop_interval32 = CPA.map (function `Int x -> `Int (ID.no_interval32 x) | x -> x)
+  let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
   let context (cpa,dep) =
     let f t f (cpa,dep) = if t then f cpa, dep else cpa, dep in
@@ -527,7 +524,7 @@ struct
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
     %> f (get_bool "exp.addr-context") drop_non_ptrs
     %> f (get_bool "exp.no-int-context") drop_ints
-    %> f (get_bool "exp.no-interval32-context") drop_interval32
+    %> f (get_bool "exp.no-interval-context") drop_interval
 
   let context_cpa (cpa,dep) = fst @@ context (cpa,dep)
 
@@ -1828,9 +1825,10 @@ struct
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    let new_cpa = if not (!GU.earlyglobs || ThreadFlag.is_multi ctx.ask) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
+    let globals = CPA.filter (fun k v ->  V.is_global k) cpa in
+    let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in
     (* Assign parameters to arguments *)
-    let pa = Utilities.zip fundec.sformals vals in
+    let pa = Goblintutil.zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
