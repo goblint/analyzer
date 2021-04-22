@@ -63,7 +63,7 @@ sig
   val group_to_enum: group -> int
   val group_of_enum: int -> group option
   val to_group: t -> group
-  val trace_enabled: bool
+  val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
 module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
