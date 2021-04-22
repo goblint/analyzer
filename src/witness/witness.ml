@@ -280,7 +280,7 @@ let print_task_result (module TaskResult:TaskResult): unit =
 
 open Analyses
 module Result (Cfg : CfgBidir)
-              (Spec : SpecHC)
+              (Spec : Spec)
               (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                                   and module GVar = Basetype.Variables
                                   and module D = Spec.D

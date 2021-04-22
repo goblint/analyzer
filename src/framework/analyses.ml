@@ -93,7 +93,7 @@ struct
 end
 
 
-module VarF (LD: Printable.HC) =
+module VarF (LD: Printable.S) =
 struct
   type t = MyCFG.node * LD.t
   let relift (n,x) = n, LD.relift x
@@ -455,12 +455,6 @@ module type MCPSpec =
 sig
   include Spec
   val event : (D.t, G.t, C.t) ctx -> Events.t -> (D.t, G.t, C.t) ctx -> D.t
-end
-
-module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)
-sig
-  module C : Printable.HC
-  include Spec with module C := C
 end
 
 type increment_data = {

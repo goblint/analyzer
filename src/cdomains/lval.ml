@@ -533,6 +533,31 @@ struct
   let name () = "simplified lval"
   let isSimple _ = true
 
+  let compare (x1,o1) (x2,o2) =
+    let tag = function
+      | `NoOffset -> 0
+      | `Field _ -> 1
+      | `Index _ -> 2
+      | _ -> 3
+    in
+    let rec compare a b =
+      let r = tag a - tag b in
+      if r <> 0 then r else
+      match a,b with
+      | `NoOffset , `NoOffset -> 0
+      | `Field (f1,o1), `Field (f2,o2) ->
+        let r = String.compare f1.fname f2.fname in
+        if r <>0 then r else
+          compare o1 o2
+      | `Index (i1,o1), `Index (i2,o2) ->
+        let r = Basetype.CilExp.compareExp i1 i2 in
+        if r <> 0 then r else
+          compare o1 o2
+      | _ -> failwith "unexpected tag"
+    in
+    let r = x1.vid - x2.vid in
+    if r <> 0 then r else compare o1 o2
+
   let class_tag (v,o) =
     match v with
     | _ when v.vglob -> `Global

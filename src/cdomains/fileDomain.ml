@@ -19,6 +19,7 @@ struct
   let opened   s = s <> Closed && s <> Error
   let closed   s = s = Closed
   let writable s = match s with Open((_,Write)) -> true | _ -> false
+  let compare = compare
 end
 
 

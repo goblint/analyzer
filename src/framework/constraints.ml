@@ -9,16 +9,16 @@ open GobConfig
 
 module M = Messages
 
-(** Lifts a [Spec] so that the domain and the context are [Hashcons]d and that C offers a relift function for incremental to re-hashcons loaded values. *)
+(** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S:Spec)
-  : SpecHC with module D = Lattice.HConsed (S.D)
+  : Spec with module D = Lattice.HConsed (S.D)
           and module G = S.G
-          and module C = Printable.HC (S.C)
+          and module C = S.C
 =
 struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
-  module C = Printable.HC (S.C)
+  module C = S.C
 
   let name () = S.name () ^" hashconsed"
 
@@ -165,11 +165,6 @@ struct
 
   let threadspawn ctx lval f args fctx =
     S.threadspawn (conv ctx) lval f args (conv fctx)
-end
-
-module NoHashconsLifter (S: Spec) = struct
-  module C = Printable.HC (S.C)
-  include (S : Spec with module C := C)
 end
 
 (* see option ana.opt.equal *)
@@ -510,7 +505,7 @@ sig
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:SpecHC) (Cfg:CfgBackward) (I: Increment)
+module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = Basetype.Variables
@@ -1115,7 +1110,7 @@ struct
 end
 
 module Compare
-    (S:SpecHC)
+    (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
                         and module GVar = Basetype.Variables
                         and module D = S.D
@@ -1256,8 +1251,10 @@ struct
     in
     let complain_sideg v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
-                GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) G.pretty lhs G.pretty rhs)
+      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
+                GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v)
+                G.pretty lhs G.pretty rhs
+                G.pretty_diff (rhs,lhs))
     in
     (* For each variable v which has been assigned value d', would like to check
      * that d' satisfied all constraints. *)

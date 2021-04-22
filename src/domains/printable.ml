@@ -27,11 +27,7 @@ sig
   val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
 
   val arbitrary: unit -> t QCheck.arbitrary
-end
 
-module type HC = (* HashCons *)
-sig
-  include S
   (* For hashconsing together with incremental we need to re-hashcons old values.
    * For HashconsLifter.D this is done on any lattice operation, so we can replace x with `join bot x` to hashcons it again and get a new tag for it.
    * For HashconsLifter.C we call hashcons only in `context` which is in Analyses.Spec but not in Analyses.GlobConstrSys, i.e. not visible to the solver. *)
@@ -39,16 +35,11 @@ sig
   val relift: t -> t
 end
 
-module HC (X: S) = struct
-  include X
-  let relift x = x
-end
 
 module Std =
 struct
   (*  let equal = Util.equals
       let hash = Hashtbl.hash*)
-  let compare = compare (* Beware that this does not terminate on cyclic data! *)
   let classify _ = 0
   let class_name _ = "None"
   let name () = "std"
@@ -57,6 +48,14 @@ struct
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
+  let relift x = x
+end
+
+(* Only include where data is guaranteed to be non-cyclic *)
+module StdPolyCompare =
+struct
+  include Std
+  let compare = compare (* Careful, does not terminate on cyclic data *)
 end
 
 module Blank =
@@ -69,6 +68,13 @@ struct
   let name () = "blank"
   let pretty_diff () (x,y) = dprintf "Unsupported"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
+end
+
+(* Only include where data is guaranteed to be non-cyclic *)
+module BlankPolyCompare =
+struct
+  include Blank
+  let compare = compare (* Careful, does not terminate on cyclic data *)
 end
 
 module PrintSimple (P: sig
@@ -91,6 +97,7 @@ module UnitConf (N: Name) =
 struct
   type t = unit [@@deriving yojson]
   include Std
+  let compare _ _ = 0
   let hash () = 7134679
   let equal _ _ = true
   let pretty () _ = text N.name
@@ -103,6 +110,7 @@ struct
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.name)
 
   let arbitrary () = QCheck.unit
+  let relift x = x
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -130,7 +138,7 @@ struct
   let unlift x = x.BatHashcons.obj
   let lift = HC.hashcons htable
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
-  let relift x = HC.hashcons htable x.BatHashcons.obj
+  let relift x = let y = Base.relift x.BatHashcons.obj in HC.hashcons htable y
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
   let tag x = x.BatHashcons.tag
@@ -417,10 +425,10 @@ struct
 
   let compare (x1,x2) (y1,y2) =
     match Base1.compare x1 y1, Base2.compare x2 y2 with
-    | (-1, _) -> -1
-    | ( 1, _) ->  1
-    | ( 0,-1) -> -1
-    | ( 0, 1) ->  1
+    | (x, _) when x < 0 -> -1
+    | (x, _) when x > 0->  1
+    | ( 0, x) when x < 0 -> -1
+    | ( 0, x) when x > 0 ->  1
     | ( 0, 0) ->  0
     | _       -> failwith "is this possible?"
 
@@ -458,6 +466,8 @@ struct
 
   let invariant c (x, y) = Invariant.(Base1.invariant c x && Base2.invariant c y)
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
+
+  let relift (x,y) = (Base1.relift x, Base2.relift y)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -550,6 +560,7 @@ module Chain (P: ChainParams): S with type t = int =
 struct
   type t = int [@@deriving yojson]
   include Std
+  let compare x y = x-y
 
   let short _ x = P.names x
   let pretty_f f () x = text (f max_int x)
@@ -562,6 +573,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
 
   let arbitrary () = QCheck.int_range 0 (P.n - 1)
+  let relift x = x
 end
 
 module LiftBot (Base : S) =
@@ -576,6 +588,13 @@ struct
     | (`Bot, `Bot) -> true
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
+
+  let compare x y =
+    match x,y with
+    | `Bot,`Bot -> 0
+    | (`Bot, _) -> -1
+    | (_, `Bot) -> 1
+    | (`Lifted x, `Lifted y) -> Base.compare x y
 
   let hash = function
     | `Bot -> 56613454
@@ -670,7 +689,7 @@ end
 module Strings =
 struct
   type t = string [@@deriving to_yojson]
-  include Std
+  include StdPolyCompare
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let pretty () n = text n

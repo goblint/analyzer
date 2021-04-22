@@ -48,6 +48,7 @@ struct
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Edge: no tag"
   let arbitrary () = failwith "Edge: no arbitrary"
+  let relift x = x
 end
 
 (* TODO: weaken R to Lattice.S ? *)

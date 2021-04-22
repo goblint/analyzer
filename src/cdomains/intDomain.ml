@@ -328,6 +328,7 @@ struct
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
+  let relift x = { v = I.relift x.v; ikind = x.ikind }
 end
 
 module type Ikind =
@@ -437,7 +438,7 @@ module Std (B: sig
     val short: int -> t -> string
     val equal: t -> t -> bool
   end) = struct
-  include Printable.Std
+  include Printable.StdPolyCompare
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
   let isSimple _ = true
@@ -773,6 +774,7 @@ struct
       | None -> empty
     in
     QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
+  let relift x = x
 end
 
 
@@ -1019,7 +1021,7 @@ module BigInt = struct
   let short l x = BI.to_string x
   let isSimple _ = true
   let pretty _ x = Pretty.text (BI.to_string x)
-  let to_yojson x = failwith "to_yojson not implemented for BigIntPrinable"
+  let to_yojson x = failwith "to_yojson not implemented for BigIntPrintable"
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
 
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
@@ -1123,15 +1125,15 @@ struct
       match v with
       | `Excluded (s, r) ->
         let possibly_overflowed = not (R.leq r (size ik)) in
-        (* If no overflow occured, just return x *)
+        (* If no overflow occurred, just return x *)
         if not possibly_overflowed then (
           v
         )
-        (* Else, if an overflow occured that we should not treat with wrap-around, go to top *)
+        (* Else, if an overflow occurred that we should not treat with wrap-around, go to top *)
         else if not (should_wrap ik) then(
           top_of ik
         ) else (
-          (* Else an overflow occured that we should treat with wrap-around *)
+          (* Else an overflow occurred that we should treat with wrap-around *)
           let r = size ik in
           (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
           let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
@@ -1601,7 +1603,7 @@ module Enums : S with type int_t = BigInt.t = struct
     let value_in_ikind v =
       I.compare min v <= 0 && I.compare v max <= 0
     in
-    (* Whether the range r lies witihin the range of the ikind. *)
+    (* Whether the range r lies within the range of the ikind. *)
     let range_in_ikind r =
       R.leq r (size ikind)
     in
@@ -1718,7 +1720,7 @@ module Enums : S with type int_t = BigInt.t = struct
       let (b : int) = BI.to_int b in
       shift_op a b
     in
-    (* If one of the parameters of the shift is negative, the result is undedined *)
+    (* If one of the parameters of the shift is negative, the result is undefined *)
     let x_min = minimal x in
     let y_min = minimal y in
     if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then

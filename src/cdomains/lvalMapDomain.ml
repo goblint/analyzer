@@ -64,16 +64,26 @@ module Value (Impl: sig
     val name: string
     val var_state: s
     val string_of_state: s -> string
+    val compare: s -> s -> int
   end) : S with type s = Impl.s =
 struct
   type k = Lval.CilLval.t
   type s = Impl.s
   module R = struct
+    include Printable.Blank
     type t = { key: k; loc: location list; state: s }
     let hash = Hashtbl.hash
     let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc && a.state = b.state
+
+    let compare a b =
+      let r = Lval.CilLval.compare a.key b.key in
+      if r <> 0 then r else
+        let r = compare a.loc b.loc in
+        if r <> 0 then r else
+          Impl.compare a.state b.state
+
     let to_yojson _ = failwith "TODO to_yojson"
-    include Printable.Blank
+    let name () = "LValMapDomainValue"
   end
   type r = R.t
   open R
@@ -85,8 +95,6 @@ struct
 
   (* converts to polymorphic sets *)
   let split (x,y) = try Must'.elements x |> Set.of_list, May.elements y |> Set.of_list with SetDomain.Unsupported _ -> Set.empty, Set.empty
-
-  include Printable.Std
 
   (* special variable used for indirection *)
   let alias_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset

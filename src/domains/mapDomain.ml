@@ -232,6 +232,8 @@ struct
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
+
+  let relift x = x
 end
 
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)
@@ -357,6 +359,8 @@ struct
   let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
   let join_with_fct f x y = time "join_with_fct" (M.join_with_fct f x) y
   let widen_with_fct f x y = time "widen_with_fct" (M.widen_with_fct f x) y
+
+  let relift x = M.relift x
 end
 
 module MapBot (Domain: Groupable) (Range: Lattice.S) : S with

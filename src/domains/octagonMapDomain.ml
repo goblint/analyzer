@@ -24,9 +24,38 @@ end
 
 
 let ikind = OctagonDomain.IKind.ikind
-module Liszt (B: Lattice.S) =
+
+module E = struct
+  module F = Lattice.Fake(BV)
+  include Lattice.Prod3 (IntDomain.Booleans) (F) (INV)
+
+  let compare_sign_and_var (lsign, lvar) (rsign, rvar) =
+    let cmp = BV.compare lvar rvar in
+    if cmp <> 0 then
+      cmp
+    else -(IntDomain.Booleans.compare lsign rsign)
+
+  let compare (lsign, lvar, linv) (rsign, rvar, rinv) =
+    let cmp = BV.compare lvar rvar in
+    if cmp <> 0 then
+      cmp
+    else let cmp = (IntDomain.Booleans.compare lsign rsign) in
+    if cmp <> 0 then
+      -cmp
+    else
+      INV.compare linv rinv
+
+  let leq ((lsign, lvar, linv):t) ((rsign, rvar, rinv):t) =
+    lsign = rsign && BV.equal lvar rvar && INV.leq linv rinv
+
+  let is_top (_, _, inv) = INV.is_top_of (ikind ()) inv
+end
+
+
+module OctLiszt =
 struct
-  include Lattice.Liszt (B)
+  include Lattice.Liszt (E)
+  module B = E
 
   let rec map2 keep f x y =
     let concat elt ls = if keep then elt::ls else ls in
@@ -34,14 +63,14 @@ struct
     | [], [] -> []
     | hd::tl, [] | [], hd::tl ->
       concat hd (map2 keep f [] tl)
-    | xh :: xs, yh :: ys when (B.compare xh yh) = 0 ->
+    | ((xhsign,xhvar,_ ) as xh) :: xs, ((yhsign,yhvar,_ ) as yh) :: ys when (B.compare_sign_and_var (xhsign,xhvar) (yhsign,yhvar)) = 0 ->
       let res = f xh yh in
       if B.is_top res then
         (map2 keep f xs ys)
       else
         res :: (map2 keep f xs ys)
-    | xh :: xs, yh :: ys ->
-      if B.compare xh yh < 0 then
+    | ((xhsign,xhvar,_ ) as xh) :: xs, ((yhsign,yhvar,_ ) as yh) :: ys ->
+      if (B.compare_sign_and_var (xhsign,xhvar) (yhsign,yhvar)) < 0 then
         concat xh (map2 keep f xs y)
       else
         concat yh (map2 keep f x ys)
@@ -67,8 +96,8 @@ struct
     match x, y with
     | _, [] -> true (* x has additional constraints (x leq y for all other constraints) => x leq y  *)
     | [], _ -> false (* y has additional constraints (x leq y for all other constraints) => not (x leq y) *)
-    | x :: xs, y :: ys
-      when (B.compare x y) = 0 -> (* Compare zero here if constraints are about the same var and sign *)
+    | ((xsign,xvar,xinv) as x) :: xs, ((ysign,yvar,yinv) as y) :: ys
+      when (B.compare_sign_and_var (xsign,xvar) (ysign,yvar)) = 0 -> (* Compare zero here if constraints are about the same var and sign *)
       B.leq x y && leq xs ys
     | _ :: xs, y ->
       leq xs y
@@ -109,25 +138,7 @@ sig
 end
 
 
-module E = struct
-  module F = Lattice.Fake(BV)
-  include Lattice.Prod3 (IntDomain.Booleans) (F) (INV)
-
-  let compare (lsign, lvar, _) (rsign, rvar, _) =
-    let cmp = BV.compare lvar rvar in
-    if cmp <> 0 then
-      cmp
-    else
-      -(IntDomain.Booleans.compare lsign rsign)
-
-  let leq (lsign, lvar, linv) (rsign, rvar, rinv) =
-    lsign = rsign && BV.equal lvar rvar && INV.leq linv rinv
-
-  let is_top (_, _, inv) = INV.is_top_of (ikind ()) inv
-end
-
-
-module VD = Lattice.Prod (INV) (Liszt(E))
+module VD = Lattice.Prod (INV) (OctLiszt)
 module MapOctagon : S
   with type key = BV.t
 = struct
@@ -171,7 +182,7 @@ module MapOctagon : S
     in
     match ls with
     | ((sign2, v2, inv2) as x) :: xs ->
-      let cmp = E.compare (sign, v, value) x in
+      let cmp = E.compare_sign_and_var (sign,v) (sign2,v2) in
       if cmp = 0 then
         begin
           let inv = construct_inv inv2 in
@@ -202,7 +213,7 @@ module MapOctagon : S
   let rec delete_constraint (sign, v) ls =
     match ls with
     | ((sign2, v2, _) as x) :: xs ->
-      let cmp = E.compare (sign,v, INV.top ()) x in
+      let cmp = E.compare_sign_and_var (sign,v) (sign2, v2) in
       if cmp = 0 then
         xs
       else if cmp < 0 then
