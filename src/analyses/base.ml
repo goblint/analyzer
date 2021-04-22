@@ -3,6 +3,7 @@
 open Prelude.Ana
 open Analyses
 open GobConfig
+open BaseUtil
 module A = Analyses
 module H = Hashtbl
 module Q = Queries
@@ -18,52 +19,38 @@ module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
 
-let is_global (a: Q.ask) (v: varinfo): bool =
-  v.vglob || ThreadEscape.has_escaped a v
+module VD     = BaseDomain.VD
+module CPA    = BaseDomain.CPA
+module Dep    = BaseDomain.PartDeps
+module BaseComponents = BaseDomain.BaseComponents
 
-let is_static (v:varinfo): bool = v.vstorage == Static
 
-let precious_globs = ref []
-let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
-let privatization = ref false
-let is_private (a: Q.ask) (_,_) (v: varinfo): bool =
-  !privatization && (* must be true *)
-  (not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
-  || match a (Q.MayBePublic v) with `MayBool tv -> not tv | _ -> false) (* usual case where MayBePublic answers *)
-
-module MainFunctor(RVEval:BaseDomain.ExpEvaluator) =
+module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
 struct
   include Analyses.DefaultSpec
 
   exception Top
 
-  module VD     = BaseDomain.VD
-  module CPA    = BaseDomain.CPA
-  module Dep    = BaseDomain.PartDeps
+  module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
+  type t = Dom.t
 
-  module Dom    = BaseDomain.DomFunctor(RVEval)
-
-  module G      = BaseDomain.VD
+  module G      = Priv.G
   module D      = Dom
   module C      = Dom
   module V      = Basetype.Variables
 
-
-  let name () = "base"
-  let startstate v = CPA.bot (), Dep.bot ()
-  let exitstate  v = CPA.bot (), Dep.bot ()
-
-
-  let morphstate v (cpa,dep) = cpa, dep
-
-  type cpa = CPA.t
   type extra = (varinfo * Offs.t * bool) list
   type store = D.t
   type value = VD.t
   type address = AD.t
   type glob_fun  = V.t -> G.t
   type glob_diff = (V.t * G.t) list
+
+  let name () = "base"
+  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
+  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
+  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
 
   (**************************************************************************
    * Helpers
@@ -93,10 +80,15 @@ struct
       | _ -> failwith("Ran without a malloc analysis.") in
     info
 
+  (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
+  let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
+
   let init () =
-    privatization := get_bool "exp.privatization";
-    precious_globs := get_list "exp.precious_globs";
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType
+    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
+    Priv.init ()
+
+  let finalize () =
+    Priv.finalize ()
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -326,58 +318,45 @@ struct
    * State functions
    **************************************************************************)
 
-  let globalize ?(privates=false) a (cpa,dep): cpa * glob_diff  =
-    (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (cpa,acc) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
-      let res =
-        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a (cpa,dep) v)) then begin
-          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          (CPA.remove v cpa, (v,value) :: acc)
-        end else
-          (cpa,acc)
-      in
-      if M.tracing then M.traceu "globalize" "Done!\n";
-      res
+  let sync' reason ctx: D.t * glob_diff =
+    let multi =
+      match reason with
+      | `Init
+      | `Thread ->
+        true
+      | _ ->
+        ThreadFlag.is_multi ctx.ask
     in
-    (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var cpa (cpa, [])
+    if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
+    if !GU.earlyglobs || multi then Priv.sync ctx.ask ctx.global ctx.local reason else (ctx.local,[])
 
-  let sync' privates multi ctx: D.t * glob_diff =
-    let cpa,dep = ctx.local in
-    let privates = privates || (!GU.earlyglobs && not multi) in
-    let cpa, diff = if !GU.earlyglobs || multi then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
-    (cpa, dep), diff
+  let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
 
-  let sync ctx = sync' false (ThreadFlag.is_multi ctx.ask) ctx
+  let publish_all ctx reason =
+    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason ctx))
 
-  let publish_all ctx =
-    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true true ctx))
+  let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
+    if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
+      Priv.read_global a gs st x
+    else begin
+      if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+      CPA.find x st.cpa
+    end
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
-  let rec get ?(full=false) a (gs: glob_fun) (st,dep: store) (addrs:address) (exp:exp option): value =
+  let rec get ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.get_type addrs in
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
-    let get_global x = gs x in
-    if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
+    if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-            match CPA.find x st with
-            | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
-            | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-          else begin
-            if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-            CPA.find x st
-          end
-        in
-
-        let v = VD.eval_offset a (fun x -> get a gs (st,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
+        let var = get_var a gs st x in
+        let v = VD.eval_offset a (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
           | `Blob (c,s,_) -> c
@@ -400,8 +379,6 @@ struct
     in
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
     res
-
-  let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
 
   (**************************************************************************
@@ -518,15 +495,15 @@ struct
 
   let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
-  let context (cpa,dep) =
-    let f t f (cpa,dep) = if t then f cpa, dep else cpa, dep in
-    (cpa,dep) |>
+  let context (st: store): store =
+    let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
+    st |>
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
     %> f (get_bool "exp.addr-context") drop_non_ptrs
     %> f (get_bool "exp.no-int-context") drop_ints
     %> f (get_bool "exp.no-interval-context") drop_interval
 
-  let context_cpa (cpa,dep) = fst @@ context (cpa,dep)
+  let context_cpa (st: store) = (context st).cpa
 
   let convertToQueryLval x =
     let rec offsNormal o =
@@ -814,7 +791,7 @@ struct
   let eval_exp x (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
     let knownothing = fun _ -> `Top in (* our version of ask *)
-    let gs = fun _ -> `Top in (* the expression is guaranteed to not contain globals *)
+    let gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
     match (eval_rv knownothing gs x exp) with
     | `Int x -> ValueDomain.ID.to_int x
     | _ -> None
@@ -985,14 +962,14 @@ struct
       end
     | _ -> Q.Result.top ()
 
-  let update_variable variable value state =
+  let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top ()) state
+      CPA.add variable (VD.top_value typ) cpa
     else
-      CPA.add variable value state
+      CPA.add variable value cpa
 
   (** Add dependencies between a value and the expression it (or any of its contents) are partitioned by *)
-  let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st,dep:store):store =
+  let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st:store):store =
     let add_one_dep (array:varinfo) (var:varinfo) dep =
       let vMap = Dep.find_opt var dep |? Dep.VarSet.empty () in
       let vMapNew = Dep.VarSet.add array vMap in
@@ -1004,28 +981,29 @@ struct
     | `Union _ ->
       begin
         let vars_in_paritioning = VD.affecting_vars value in
-        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_paritioning in
-        (st, dep_new)
+        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_paritioning in
+        { st with deps = dep_new }
       end
     (* `List and `Blob cannot contain arrays *)
-    | _ ->  (st, dep)
+    | _ ->  st
 
 
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
-  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st,dep: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
-    let update_variable x y z =
+  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
+    let update_variable x t y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
-      let r = update_variable x y z in (* refers to defintion that is outside of set *)
+      let r = update_variable x t y z in (* refers to defintion that is outside of set *)
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
-    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
+    let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
+    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
-    let update_one_addr (x, offs) (nst, dep): store =
+    let update_one_addr (x, offs) (st: store): store =
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
@@ -1044,45 +1022,33 @@ struct
               M.warn ("Cil.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset));
               lval_type
       in
-      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
+      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype D.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
-        nst, dep
+        st
       end else
       if get_bool "exp.globs_are_top" then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: BAD? exp.globs_are_top is set \n";
-        CPA.add x `Top nst, dep
+        { st with cpa = CPA.add x `Top st.cpa }
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-        (* Check if we should avoid producing a side-effect, such as updates to
-         * the state when following conditional guards. *)
-        if not effect && not (is_private a (st,dep) x) then begin
-          if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
-          nst, dep
-        end else begin
-          let get x st =
-            match CPA.find x st with
-            | `Bot -> (if M.tracing then M.tracec "set" "Reading from global invariant.\n"; gs x)
-            | x -> (if M.tracing then M.tracec "set" "Reading from privatized version.\n"; x)
-          in
-          if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-          (* Here, an effect should be generated, but we add it to the local
-           * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) (Var x, cil_offset) t) nst, dep
-        end
-      else begin
+      if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
+        if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
+        let var = Priv.read_global a gs st x in
+        let r = Priv.write_global ~invariant:(not effect) a gs (Option.get ctx).sideg st x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t) in
+        if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
+        r
+      end else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw ((Var x), cil_offset) t in
+        let new_value = VD.update_offset a (CPA.find x st.cpa) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
-        let effect_on_arrays a (st, dep)=
+        let effect_on_arrays a (st: store) =
           let affected_arrays =
-            let set = Dep.find_opt x dep |? Dep.VarSet.empty () in
+            let set = Dep.find_opt x st.deps |? Dep.VarSet.empty () in
             Dep.VarSet.elements set
           in
           let movement_for_expr l' r' currentE' =
@@ -1103,8 +1069,8 @@ struct
               else
                 None
           in
-          let effect_on_array actually_moved arr (st,dep):store =
-            let v = CPA.find arr st in
+          let effect_on_array actually_moved arr (st: store):store =
+            let v = CPA.find arr st.cpa in
             let nval =
               if actually_moved then
                 match lval_raw, rval_raw with
@@ -1119,7 +1085,7 @@ struct
                 let patched_ask =
                 match ctx with
                 | Some ctx ->
-                  let patched = swap_st ctx (st,dep) in
+                  let patched = swap_st ctx st in
                   query patched
                 | _ ->
                   a
@@ -1127,14 +1093,14 @@ struct
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
                 VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
             in
-            update_variable arr nval st, dep
+            { st with cpa = update_variable arr arr.vtype nval st.cpa }
           in
           (* change_array is false if a change to the way arrays are partitioned is not necessary *)
           (* for now, this is only the case when guards are evaluated *)
-          List.fold_left (fun x y -> effect_on_array change_array y x) (st,dep) affected_arrays
+          List.fold_left (fun x y -> effect_on_array change_array y x) st affected_arrays
         in
-        let x_updated = update_variable x new_value nst in
-        let with_dep = add_partitioning_dependencies x new_value (x_updated, dep) in
+        let x_updated = update_variable x t new_value st.cpa in
+        let with_dep = add_partitioning_dependencies x new_value {st with cpa = x_updated } in
         effect_on_arrays a with_dep
       end
     in
@@ -1145,49 +1111,49 @@ struct
     in try
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
-      let nst = AD.fold update_one lval (st, dep) in
+      let nst = AD.fold update_one lval st in
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state1 %a\n" CPA.pretty nst; *)
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
-      let nst = if AD.cardinal lval > 1 then (CPA.join st (fst nst), dep) else nst in
+      let nst = if AD.cardinal lval > 1 then { nst with cpa = CPA.join st.cpa nst.cpa } else nst in
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state2 %a\n" CPA.pretty nst; *)
       nst
     with
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
-      M.warn_each "Assignment to unknown address"; (st,dep)
+      M.warn_each "Assignment to unknown address"; st
 
-  let set_many a (gs:glob_fun) (st,dep as store: store) lval_value_list: store =
+  let set_many ?ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
-      set a gs acc lval typ value
+      set ~ctx a gs acc lval typ value
     in
     (* And fold over the list starting from the store turned wstore: *)
-    List.fold_left f store lval_value_list
+    List.fold_left f st lval_value_list
 
-  let rem_many a (st,dep: store) (v_list: varinfo list): store =
+  let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
     let g dep v = Dep.remove v dep in
-    List.fold_left f st v_list, List.fold_left g dep v_list
+    { st with cpa = List.fold_left f st.cpa v_list; deps = List.fold_left g st.deps v_list }
 
   (* Removes all partitionings done according to this variable *)
-  let rem_many_paritioning a (s:store) (v_list: varinfo list):store =
+  let rem_many_paritioning a (st:store) (v_list: varinfo list):store =
     (* Removes the partitioning information from all affected arrays, call before removing locals *)
-    let rem_partitioning a (st,dep:store) (x:varinfo):store =
+    let rem_partitioning a (st:store) (x:varinfo):store =
       let affected_arrays =
-        let set = Dep.find_opt x dep |? Dep.VarSet.empty () in
+        let set = Dep.find_opt x st.deps |? Dep.VarSet.empty () in
         Dep.VarSet.elements set
       in
       let effect_on_array arr st =
         let v = CPA.find arr st in
         let nval = VD.affect_move ~replace_with_const:(get_bool ("exp.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
-        update_variable arr nval st
+        update_variable arr arr.vtype nval st
       in
-      let nst = List.fold_left (fun x y -> effect_on_array y x) st affected_arrays in
-      (nst, dep) in
+      { st with cpa = List.fold_left (fun x y -> effect_on_array y x) st.cpa affected_arrays }
+    in
     let f s v = rem_partitioning a s v in
-    List.fold_left f s v_list
+    List.fold_left f st v_list
 
  (**************************************************************************
    * Auxillary functions
@@ -1356,11 +1322,11 @@ struct
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
       st
 
-  let invariant ctx a gs st exp tv =
+  let invariant ctx a gs st exp tv: store =
     let open Deriving.Cil in
-    let fallback reason =
+    let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
-      fst (invariant ctx a gs st exp tv)
+      invariant ctx a gs st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
@@ -1474,10 +1440,10 @@ struct
         if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
         a, b
     in
-    let eval e = eval_rv a gs st e in
-    let eval_bool e = match eval e with `Int i -> ID.to_bool i | _ -> None in
-    let set' lval v = fst (set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx)) in
-    let rec inv_exp c exp =
+    let eval e st = eval_rv a gs st e in
+    let eval_bool e st = match eval e st with `Int i -> ID.to_bool i | _ -> None in
+    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx) in
+    let rec inv_exp c exp (st:store): store =
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if ID.is_bot c then raise Deadcode;
       match exp with
@@ -1492,25 +1458,22 @@ struct
           | Some false -> ID.of_bool (Cilfacade.get_ikind (typeOf e)) false
           | _ -> ID.top_of (Cilfacade.get_ikind (typeOf e))
         in
-        inv_exp c' e
-      | UnOp ((BNot|Neg) as op, e, _) -> inv_exp (unop_ID op c) e
+        inv_exp c' e st
+      | UnOp ((BNot|Neg) as op, e, _) -> inv_exp (unop_ID op c) e st
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig (typeOf c1) = typeSig (typeOf c2) && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
-        inv_exp c (BinOp (op, c1, c2, t))
+        inv_exp c (BinOp (op, c1, c2, t)) st
       | BinOp (op, e1, e2, _) as e ->
-        if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1) (show_binop op) VD.pretty (eval e2) ID.pretty c;
-        (match eval e1, eval e2 with
+        if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1 st) (show_binop op) VD.pretty (eval e2 st) ID.pretty c;
+        (match eval e1 st, eval e2 st with
         | `Int a, `Int b ->
           let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
           let a', b' = inv_bin_int (a, b) ikind c op in
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
-          let m1 = try Some (inv_exp a' e1) with Deadcode -> None in
-          let m2 = try Some (inv_exp b' e2) with Deadcode -> None in
-          (match m1, m2 with
-          | Some m1, Some m2 -> CPA.meet m1 m2
-          | Some m, None | None, Some m -> m
-          | None, None -> raise Deadcode)
+          let st' = inv_exp a' e1 st in
+          let st'' = inv_exp b' e2 st' in
+          st''
         (* | `Address a, `Address b -> ... *)
-        | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2))
+        | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
       | Lval x -> (* meet x with c *)
         let t = Cil.unrollType (typeOfLval x) in  (* unroll type to deal with TNamed *)
         let c' = match t with
@@ -1519,17 +1482,17 @@ struct
           | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
-        let oldv = eval (Lval x) in
+        let oldv = eval (Lval x) st in
         let v = VD.meet oldv c' in
         if is_some_bot v then raise Deadcode
         else (
           if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
-          set' x v
+          set' x v st
         )
-      | Const _ -> fst st (* nothing to do *)
+      | Const _ -> st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e)
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
-        (match eval e with
+        (match eval e st with
         | `Int i ->
           if ID.leq i (ID.cast_to ik i) then
              match Cil.typeOf e with
@@ -1537,14 +1500,14 @@ struct
               | TEnum ({ekind = ik_e; _ }, _) ->
                 let c' = ID.cast_to ik_e c in
                 if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-                inv_exp c' e
-              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t)
+                inv_exp c' e st
+              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
           else
-            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t)
-        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v))
-      | e -> fallback (sprint d_plainexp e ^ " not implemented")
+            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
+        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
+      | e -> fallback (sprint d_plainexp e ^ " not implemented") st
     in
-    if eval_bool exp = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
+    if eval_bool exp st = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
     else
       let is_cmp = function
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
@@ -1558,12 +1521,13 @@ struct
           let ik = Cilfacade.get_ikind (typeOf exp) in
           ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
       in
-      Tuple2.map1 (fun _ -> inv_exp itv exp) st
+      inv_exp itv exp st
 
-  let set_savetop ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
+  let set_savetop ?ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
+    if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
     match v with
-    | `Top -> set ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
-    | v -> set ask gs st adr lval_t v ?lval_raw ?rval_raw
+    | `Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
+    | v -> set ~ctx ask gs st adr lval_t v ?lval_raw ?rval_raw
 
 
   (**************************************************************************
@@ -1616,7 +1580,7 @@ struct
     in
     match is_list_init () with
     | Some a when (get_bool "exp.list-type") ->
-        set ctx.ask ctx.global ctx.local (AD.singleton (Addr.from_var a)) lval_t (`List (ValueDomain.Lists.bot ()))
+        set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local (AD.singleton (Addr.from_var a)) lval_t (`List (ValueDomain.Lists.bot ()))
     | _ ->
       let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
       let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
@@ -1649,15 +1613,15 @@ struct
             let t = v.vtype in
             let iv = VD.bot_value t in (* correct bottom value for top level variable *)
             let nv = VD.update_offset ctx.ask iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-            set_savetop ctx.ask ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
+            set_savetop ~ctx ctx.ask ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
           | _ ->
-            set_savetop ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+            set_savetop ~ctx ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           )
         | _ ->
-          set_savetop ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+          set_savetop ~ctx ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
         )
       | _ ->
-        set_savetop ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+        set_savetop ~ctx ctx.ask ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
 
 
   module Locmap = Deadcode.Locmap
@@ -1724,21 +1688,22 @@ struct
     let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
-    set_many ctx.ask ctx.global ctx.local inits
+    set_many ~ctx ctx.ask ctx.global ctx.local inits
 
-  let return ctx exp fundec =
-    let (cp,dep) = ctx.local in
+  let return ctx exp fundec: store =
+    let st: store = ctx.local in
     match fundec.svar.vname with
-    | "__goblint_dummy_init" ->
-      publish_all ctx;
-      cp, dep
+    | "__goblint_dummy_init"
     | "StartupHook" ->
-      publish_all ctx;
-      cp, dep
+      if M.tracing then M.trace "init" "dummy init: %a\n" D.pretty st;
+      publish_all ctx `Init;
+      (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
+      (* TODO: move into sync `Init *)
+      Priv.enter_multithreaded ctx.ask ctx.global ctx.sideg st
     | _ ->
       let locals = (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_paritioning ctx.ask ctx.local locals in
-      let nst = rem_many ctx.ask nst_part locals in
+      let nst: store = rem_many ctx.ask nst_part locals in
       match exp with
       | None -> nst
       | Some exp ->
@@ -1748,12 +1713,12 @@ struct
           | _ -> assert false
         in
         let rv = eval_rv ctx.ask ctx.global ctx.local exp in
-        let nst =
+        let nst: store =
           match ThreadId.get_current ctx.ask with
-          | `Lifted tid when ThreadReturn.is_current ctx.ask -> Tuple2.map1 (CPA.add tid rv) nst
+          | `Lifted tid when ThreadReturn.is_current ctx.ask -> { nst with cpa = CPA.add tid rv nst.cpa}
           | _ -> nst
         in
-        set ~t_override ctx.ask ctx.global nst (return_var ()) t_override rv
+        set ~ctx:(Some ctx) ~t_override ctx.ask ctx.global nst (return_var ()) t_override rv
         (* lval_raw:None, and rval_raw:None is correct here *)
 
   let vdecl ctx (v:varinfo) =
@@ -1763,13 +1728,14 @@ struct
       let lval = eval_lv ctx.ask ctx.global ctx.local (Var v, NoOffset) in
       let current_value = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
       let new_value = VD.update_array_lengths (eval_rv ctx.ask ctx.global ctx.local) current_value v.vtype in
-      set ctx.ask ctx.global ctx.local lval v.vtype new_value
+      set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local lval v.vtype new_value
 
   (**************************************************************************
    * Function calls
    **************************************************************************)
-  let invalidate ask (gs:glob_fun) (st:store) (exps: exp list): store =
+  let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
+    M.warn_each ("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps);
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
@@ -1791,9 +1757,8 @@ struct
     in
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
-    let my_favorite_things = List.map Json.string !precious_globs in
     let is_fav_addr x =
-      List.exists (fun x -> List.mem x.vname my_favorite_things) (AD.to_var_may x)
+      List.exists BaseUtil.is_precious_glob (AD.to_var_may x)
     in
     let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
@@ -1801,7 +1766,7 @@ struct
       let vs = List.map (Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
-    set_many ask gs st invalids'
+    set_many ?ctx ask gs st invalids'
 
   (* Variation of the above for yet another purpose, uhm, code reuse? *)
   let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) =
@@ -1818,22 +1783,37 @@ struct
     List.concat (List.map do_exp exps)
 
 
-  let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
-    let (cpa,dep) as st = ctx.local in
+  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
+    let st: store = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ctx.ask ctx.global st) args in
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    let globals = CPA.filter (fun k v ->  V.is_global k) cpa in
-    let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in
+    (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
+    let st' =
+      if thread then (
+        (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+           Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+           sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+           EnterMultithreaded events only execute after threadenter and threadspawn. *)
+        if not (ThreadFlag.is_multi ctx.ask) then
+          ignore (Priv.enter_multithreaded ctx.ask ctx.global ctx.sideg st);
+        Priv.threadenter ctx.ask st
+      ) else
+        let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
+        (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
+        let new_cpa = globals in
+        {st with cpa = new_cpa}
+    in
     (* Assign parameters to arguments *)
     let pa = GU.zip fundec.sformals vals in
-    let new_cpa = CPA.add_list pa new_cpa in
+    let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
-    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
-    new_cpa, dep
+    let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
+    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    {st' with cpa = new_cpa}
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -1865,12 +1845,13 @@ struct
     (* handling thread creations *)
     | `ThreadCreate (id,start,ptc_arg) -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
-        publish_all ctx;
+        publish_all ctx `Thread;
         (* Collect the threads. *)
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
       end
-    | `Unknown _ when get_bool "exp.unknown_funs_spawn" -> begin
+    | `Unknown "free" -> []
+    | `Unknown _ when get_bool "sem.unknown_function.spawn" -> begin
         let args =
           match LF.get_invalidate_action f.vname with
           | Some fnc -> fnc `Write  args (* why do we only spawn arguments that are written?? *)
@@ -1878,6 +1859,7 @@ struct
         in
         let flist = collect_funargs ctx.ask ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
+        if addrs <> [] then M.warn_each ("Spawning functions from unknown function: " ^ sprint (d_list ", " d_varinfo) addrs);
         List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
@@ -1968,7 +1950,7 @@ struct
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
-    let cpa,dep as st = ctx.local in
+    let st: store = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
     | `Unknown "F59" (* strcpy *)
@@ -2013,10 +1995,10 @@ struct
               let eadr = AD.singleton (Addr.from_var elm) in
               let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
               let new_list = `List (ValueDomain.Lists.add eadr ld) in
-              let s1 = set ctx.ask ctx.global ctx.local ladr lst.vtype new_list in
-              let s2 = set ctx.ask ctx.global s1 eitemadr (AD.get_type eitemadr) (`Address (AD.singleton (Addr.from_var lst))) in
+              let s1 = set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local ladr lst.vtype new_list in
+              let s2 = set ~ctx:(Some ctx) ctx.ask ctx.global s1 eitemadr (AD.get_type eitemadr) (`Address (AD.singleton (Addr.from_var lst))) in
               s2
-            | _ -> set ctx.ask ctx.global ctx.local ladr lst.vtype `Top
+            | _ -> set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local ladr lst.vtype `Top
           end
         | _ -> M.bailwith "List function arguments are strange/complicated."
       end
@@ -2028,13 +2010,13 @@ struct
             let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
             let lprt_val = get ctx.ask ctx.global ctx.local lptr None in
             let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
-            let s1 = set ctx.ask ctx.global ctx.local lptr (AD.get_type lptr) (VD.join lprt_val lst_poison) in
+            let s1 = set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local lptr (AD.get_type lptr) (VD.join lprt_val lst_poison) in
             match get ctx.ask ctx.global ctx.local lptr None with
             | `Address ladr -> begin
                 match get ctx.ask ctx.global ctx.local ladr None with
                 | `List ld ->
                   let del_ls = ValueDomain.Lists.del eadr ld in
-                  let s2 = set ctx.ask ctx.global s1 ladr (AD.get_type ladr) (`List del_ls) in
+                  let s2 = set ~ctx:(Some ctx) ctx.ask ctx.global s1 ladr (AD.get_type ladr) (`List del_ls) in
                   s2
                 | _ -> s1
               end
@@ -2050,13 +2032,16 @@ struct
       end
     | `Unknown "exit" ->  raise Deadcode
     | `Unknown "abort" -> raise Deadcode
+    | `Unknown "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     | `Unknown "pthread_exit" ->
       begin match args with
         | [exp] ->
           begin match ThreadId.get_current ctx.ask with
             | `Lifted tid ->
               let rv = eval_rv ctx.ask ctx.global ctx.local exp in
-              ctx.sideg tid rv
+              let nst = {st with cpa=CPA.add tid rv st.cpa} in
+              (* TODO: emit thread return event so other analyses are aware? *)
+              publish_all {ctx with local=nst} `Return (* like normal return *)
             | _ -> ()
           end;
           raise Deadcode
@@ -2074,19 +2059,19 @@ struct
       end
     (* handling thread creations *)
     | `ThreadCreate _ ->
-      D.bot () (* actual results joined via threadspawn *)
+      ctx.local (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
-        | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> cpa,dep
+        | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv ctx.ask gs st id with
             | `Address a ->
               (* TODO: is this type right? *)
-              set ctx.ask gs st ret_a (Cil.typeOf ret_var) (get ctx.ask gs st a None)
-            | _      -> invalidate ctx.ask gs st [ret_var]
+              set ~ctx:(Some ctx) ctx.ask gs st ret_a (Cil.typeOf ret_var) (get ctx.ask gs st a None)
+            | _      -> invalidate ~ctx ctx.ask gs st [ret_var]
           end
-        | _      -> invalidate ctx.ask gs st [ret_var]
+        | _      -> invalidate ~ctx ctx.ask gs st [ret_var]
       end
     | `Malloc size -> begin
         match lv with
@@ -2097,7 +2082,7 @@ struct
             else AD.from_var (heap_var ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ctx.ask gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int ctx.ask gs st size, true));
+          set_many ~ctx ctx.ask gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int ctx.ask gs st size, true));
                                   (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
         | _ -> st
       end
@@ -2110,14 +2095,14 @@ struct
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-          set_many ctx.ask gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size, false))));
+          set_many ~ctx ctx.ask gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int ctx.ask gs st size, false))));
                                   (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
         | _ -> st
       end
     | `Unknown "__goblint_unknown" ->
       begin match args with
         | [Lval lv] | [CastE (_,AddrOf lv)] ->
-          let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv)  `Top in
+          let st = set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv)  `Top in
           st
         | _ ->
           M.bailwith "Function __goblint_unknown expected one address-of argument."
@@ -2131,17 +2116,27 @@ struct
     | _ -> begin
         let st =
           match LF.get_invalidate_action f.vname with
-          | Some fnc -> invalidate ctx.ask gs st (fnc `Write  args)
+          | Some fnc -> invalidate ~ctx ctx.ask gs st (fnc `Write  args)
           | None -> (
               (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
-              let st_expr (v:varinfo) (value) a =
-                if is_global ctx.ask v && not (is_static v) then
-                  mkAddrOf (Var v, NoOffset) :: a
-                else a
+              (if f.vid = dummyFunDec.svar.vid then M.warn_each ("Unknown function ptr called"));
+              let addrs =
+                if get_bool "sem.unknown_function.invalidate.globals" then (
+                  M.warn_each "INVALIDATING ALL GLOBALS!";
+                  foldGlobals !Cilfacade.current_file (fun acc global ->
+                      match global with
+                      | GVar (vi, _, _) when not (is_static vi) ->
+                        mkAddrOf (Var vi, NoOffset) :: acc
+                        (* TODO: what about GVarDecl? *)
+                      | _ -> acc
+                    ) args
+                )
+                else
+                  args
               in
-              let addrs = CPA.fold st_expr cpa args in
-              (* invalidate arguments for unknown functions *)
-              let (cpa,dep as st) = invalidate ctx.ask gs st addrs in
+              (* TODO: what about escaped local variables? *)
+              (* invalidate arguments and non-static globals for unknown functions *)
+              let st = invalidate ~ctx ctx.ask gs st addrs in
               (*
                *  TODO: invalidate vars reachable via args
                *  publish globals
@@ -2156,77 +2151,105 @@ struct
           | None -> st
           | Some x ->
             if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for unknown function call %s\n" d_plainlval x f.vname;
-            invalidate ctx.ask gs st [mkAddrOrStartOf x]
+            invalidate ~ctx ctx.ask gs st [mkAddrOrStartOf x]
         in
         (* apply all registered abstract effects from other analysis on the base value domain *)
-        List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
+        LF.effects_for f.vname args
+        |> List.map (fun sets ->
+            List.fold_left (fun acc (lv, x) ->
+                set ~ctx:(Some ctx) ctx.ask ctx.global acc (eval_lv ctx.ask ctx.global acc lv) (Cil.typeOfLval lv) x
+              ) st sets
+          )
+        |> BatList.fold_left D.meet st
+
+        (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
-    let combine_one (loc,ldep as st: D.t) ((fun_st,fun_dep) as fun_d: D.t) =
+    let combine_one (st: D.t) (fun_st: D.t) =
+      if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
-      let add_globals (cpa_s,dep_s) (cpa_d, dep_d) =
+      let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_s = CPA.remove (return_varinfo ()) cpa_s in
-        let new_cpa = CPA.fold CPA.add cpa_s cpa_d in
-        (new_cpa, dep_s)
+        let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
+        let cpa_local = CPA.filter (fun x _ -> not (is_global ctx.ask x)) st.cpa in
+        let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+        { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
       let return_val =
-        if CPA.mem (return_varinfo ()) fun_st
-        then get ctx.ask ctx.global fun_d return_var None
+        if CPA.mem (return_varinfo ()) fun_st.cpa
+        then get ctx.ask ctx.global fun_st return_var None
         else VD.top ()
       in
-      let st = add_globals (fun_st, fun_dep) st in
+      let st = add_globals st fun_st in
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) (Cil.typeOfLval lval) return_val
+      | Some lval -> set_savetop ~ctx ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) (Cil.typeOfLval lval) return_val
     in
     combine_one ctx.local after
 
-  let call_descr f (es,dep) =
+  let call_descr f (st: store) =
     let short_fun x =
-      match x.vtype, CPA.find x es with
+      match x.vtype, CPA.find x st.cpa with
       | TPtr (t, attr), `Address a
         when (not (AD.is_top a))
           && List.length (AD.to_var_may a) = 1
           && not (VD.is_immediate_type t)
         ->
         let cv = List.hd (AD.to_var_may a) in
-        "ref " ^ VD.short 26 (CPA.find cv es)
+        "ref " ^ VD.short 26 (CPA.find cv st.cpa)
       | _, v -> VD.short 30 v
     in
     let args_short = List.map short_fun f.sformals in
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" 80 args_short
 
-
-  let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t =
+  let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     try
-      make_entry ctx f args
+      [make_entry ~thread:true ctx f args]
     with Not_found ->
       (* Unknown functions *)
-      ctx.local
+      [ctx.local]
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
-    match lval with
-    | Some lval ->
-      begin match ThreadId.get_current fctx.ask with
-        | `Lifted tid ->
-          (* TODO: is this type right? *)
-          set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
-        | _ ->
-          ctx.local
-      end
-    | None ->
+    begin match lval with
+      | Some lval ->
+        begin match ThreadId.get_current fctx.ask with
+          | `Lifted tid ->
+            (* Cannot set here, because ctx isn't in multithreaded mode and set wouldn't side-effect if lval is global. *)
+            ctx.emit (Events.AssignSpawnedThread (lval, tid))
+          | _ -> ()
+        end
+      | None -> ()
+    end;
+    (* D.join ctx.local @@ *)
+    ctx.local
+
+  let event ctx e octx =
+    let st: store = ctx.local in
+    match e with
+    | Events.Lock addr when ThreadFlag.is_multi ctx.ask -> (* TODO: is this condition sound? *)
+      if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
+      Priv.lock octx.ask octx.global st addr
+    | Events.Unlock addr when ThreadFlag.is_multi ctx.ask -> (* TODO: is this condition sound? *)
+      Priv.unlock octx.ask octx.global octx.sideg st addr
+    | Events.Escape escaped ->
+      Priv.escape octx.ask octx.global octx.sideg st escaped
+    | Events.EnterMultiThreaded ->
+      Priv.enter_multithreaded octx.ask octx.global octx.sideg st
+    | Events.AssignSpawnedThread (lval, tid) ->
+      (* TODO: is this type right? *)
+      set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))
+    | _ ->
       ctx.local
 end
 
 module type MainSpec = sig
-  include Spec
+  include MCPSpec
   include BaseDomain.ExpEvaluator
   val return_lval: unit -> Cil.lval
   val return_varinfo: unit -> Cil.varinfo
@@ -2234,8 +2257,26 @@ module type MainSpec = sig
   val context_cpa: D.t -> BaseDomain.CPA.t
 end
 
-module rec Main:MainSpec = MainFunctor(Main:BaseDomain.ExpEvaluator)
+let main_module: (module MainSpec) Lazy.t =
+  lazy (
+    let module Priv = (val BasePriv.get_priv ()) in
+    let module Main =
+    struct
+      (* Only way to locally define a recursive module. *)
+      module rec Main:MainSpec with type t = BaseComponents (Priv.D).t = MainFunctor (Priv) (Main)
+      include Main
+    end
+    in
+    (module Main)
+  )
+
+let get_main (): (module MainSpec) =
+  Lazy.force main_module
+
+let after_config () =
+  let module Main = (val get_main ()) in
+  (* add ~dep:["expRelation"] after modifying test cases accordingly *)
+  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : MCPSpec)
 
 let _ =
-  (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : Spec)
+  AfterConfig.register after_config

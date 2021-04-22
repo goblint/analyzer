@@ -9,6 +9,7 @@ open List
 (** Main categories of configuration variables. *)
 type category = Std             (** Parsing input, includes, standard stuff, etc. *)
               | Analyses        (** Analyses                                      *)
+              | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
@@ -17,6 +18,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
 let catDescription = function
   | Std             -> "Standard options for configuring input/output"
   | Analyses        -> "Options for analyses"
+  | Semantics       -> "Options for semantics"
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
@@ -136,6 +138,13 @@ let _ = ()
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
       ; reg Analyses "ana.oct_no_uints"    "false"  "Use OctApron without tracking unsigned integers."
 
+(* {4 category [Semantics]} *)
+let _ = ()
+      (* TODO: split unknown_function to undefined_function and unknown_function_ptr *)
+      ; reg Semantics "sem.unknown_function.spawn" "true"  "Unknown function call spawns reachable functions"
+      ; reg Semantics "sem.unknown_function.invalidate.globals" "true"  "Unknown function call invalidates all globals"
+      ; reg Semantics "sem.builtin_unreachable.dead_code" "false"  "__builtin_unreachable is assumed to be dead code"
+
 (* {4 category [Transformations]} *)
 let _ = ()
       ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
@@ -144,7 +153,10 @@ let _ = ()
 (* {4 category [Experimental]} *)
 let _ = ()
       ; reg Experimental "exp.lower-constants"   "true"  "Use Cil.lowerConstants to simplify some constant? (assumes wrap-around for signed int)"
-      ; reg Experimental "exp.privatization"     "true"  "Use privatization?"
+      (* TODO: priv subobject *)
+      ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
+      ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
+      ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
@@ -161,7 +173,6 @@ let _ = ()
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
       ; reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
       ; reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
-      ; reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls spawn reachable functions and switch to MT-mode?"
       ; reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs."
       ; reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
       ; reg Experimental "exp.g2html_path"       "'.'"   "Location of the g2html.jar file."
@@ -226,6 +237,7 @@ let default_schema = "\
     , 'additionalProps' : true
     , 'required'        : []
     }
+  , 'sem'               : {}
   , 'trans'             : {}
   , 'phases'            : {}
   , 'exp' :

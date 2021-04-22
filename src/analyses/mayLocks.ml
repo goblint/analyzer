@@ -44,8 +44,8 @@ struct
     match lv with
     | None -> nls
     | Some lv ->
-      ctx.split nls (Lval lv) return_value_on_success;
-      if may_fail then ctx.split ls (Lval lv) (not return_value_on_success);
+      ctx.split nls [Events.SplitBranch (Lval lv, return_value_on_success)];
+      if may_fail then ctx.split ls [Events.SplitBranch (Lval lv, not return_value_on_success)];
       raise Analyses.Deadcode
 
   (* transfer function to handle library functions --- for us locking & unlocking *)
@@ -69,10 +69,10 @@ struct
     | _ -> ctx.local
 
   let startstate v = D.empty ()
-  let threadenter ctx lval f args = D.empty ()
-  let threadspawn ctx lval f args fctx = D.empty ()
+  let threadenter ctx lval f args = [D.empty ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

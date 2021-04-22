@@ -5,7 +5,7 @@ open Analyses
 open Apron
 open OctApronDomain
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -18,10 +18,36 @@ struct
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
 
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+
+  let rec print_list_exp myList = match myList with
+    | [] -> print_endline "End!"
+    | head::body -> 
+    begin
+      D.print_expression head;
+      print_list_exp body
+    end
+
+  let rec get_vnames_list exp = match exp with
+  | Lval lval -> 
+    let lhost, offset = lval in 
+    (match lhost with
+      | Var vinfo -> [vinfo.vname]
+      | _ -> [])
+  | UnOp (unop, e, typ) -> get_vnames_list e
+  | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
+  | AddrOf lval -> get_vnames_list (Lval(lval))
+  | CastE(_, e) -> get_vnames_list e
+  | _ -> []
+
+  let invalidate oct (exps: exp list) =
+    if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
+    let l = List.flatten (List.map get_vnames_list exps) in
+    D.forget_all_with oct l
+
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = let d = ctx.local in (invalidate d args); d
   let exitstate  _ = D.top ()
-  let startstate _ = D.top ()
+  let startstate _ =  D.top ()
 
   let enter ctx r f args =
     if D.is_bot ctx.local then [ctx.local, D.bot ()] else
@@ -59,30 +85,6 @@ struct
         D.remove_all_with nd' ["#ret"];
         A.unify Man.mgr nd nd'
       | _ -> D.topE (A.env ctx.local)
-  let rec print_list_exp myList = match myList with
-    | [] -> print_endline "End!"
-    | head::body -> 
-    begin
-      D.print_expression head;
-      print_list_exp body
-    end
-
-  let rec get_vnames_list exp = match exp with
-    | Lval lval -> 
-      let lhost, offset = lval in 
-      (match lhost with
-        | Var vinfo -> [vinfo.vname]
-        | _ -> [])
-    | UnOp (unop, e, typ) -> get_vnames_list e
-    | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
-    | AddrOf lval -> get_vnames_list (Lval(lval))
-    | CastE(_, e) -> get_vnames_list e
-    | _ -> []
-
-  let invalidate oct (exps: exp list) =
-    if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    let l = List.flatten (List.map get_vnames_list exps) in
-    D.forget_all_with oct l
 
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
@@ -107,10 +109,7 @@ struct
             let nd = ctx.local in
             invalidate nd [ret_var];
             nd
-        | `ThreadCreate (id,start,ptc_arg) -> 
-            let nd = ctx.local in
-            invalidate nd [ptc_arg];
-            nd
+        | `ThreadCreate _ -> ctx.local
         | _ ->
           begin
             let st =
@@ -180,4 +179,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

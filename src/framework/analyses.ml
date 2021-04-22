@@ -378,6 +378,7 @@ end
 *)
 type ('d,'g,'c) ctx =
   { ask      : Queries.t -> Queries.Result.t
+  ; emit     : Events.t -> unit
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
   ; control_context : Obj.t (** (Control.get_spec ()) context, represented type: unit -> (Control.get_spec ()).C.t *)
@@ -388,7 +389,7 @@ type ('d,'g,'c) ctx =
   ; presub   : (string * Obj.t) list
   ; postsub  : (string * Obj.t) list
   ; spawn    : lval option -> varinfo -> exp list -> unit
-  ; split    : 'd -> exp -> bool -> unit
+  ; split    : 'd -> Events.t list -> unit
   ; sideg    : varinfo -> 'g -> unit
   ; assign   : ?name:string -> lval -> exp -> unit
   }
@@ -427,7 +428,7 @@ sig
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
-  val sync  : (D.t, G.t, C.t) ctx -> D.t * (varinfo * G.t) list
+  val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t * (varinfo * G.t) list
   val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
   val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
   val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
@@ -443,8 +444,17 @@ sig
   val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> C.t -> D.t -> D.t
 
-  val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  (** Returns initial state for created thread. *)
+  val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t list
+
+  (** Updates the local state of the creator thread using initial state of created thread. *)
   val threadspawn : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
+end
+
+module type MCPSpec =
+sig
+  include Spec
+  val event : (D.t, G.t, C.t) ctx -> Events.t -> (D.t, G.t, C.t) ctx -> D.t
 end
 
 module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)
@@ -580,10 +590,12 @@ struct
   let query _ (q:Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)
 
+  let event ctx _ _ = ctx.local
+
   let morphstate v d = d
   (* Only for those who track thread IDs. *)
 
-  let sync ctx     = (ctx.local,[])
+  let sync ctx _ = (ctx.local,[])
   (* Most domains do not have a global part. *)
 
   let context x = x

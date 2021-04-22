@@ -226,7 +226,7 @@ struct
   module MyParam =
   struct
     module G = LockDomain.Priorities
-    let effect_fun (ls: LockDomain.Lockset.t) =
+    let effect_fun ?write:(w=false) (ls: LockDomain.Lockset.t) =
       let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
       let prys = List.map names locks in
       let staticprys = List.filter is_task_res prys in
@@ -423,7 +423,7 @@ struct
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
     let ign_flag_filter acc tuple = not (AccLoc.equal acc (proj2_1 tuple)) in
     let remove_acc acc set = AccValSet.filter (ign_flag_filter acc) set in
-    if (Base.is_global ctx.ask v) then begin
+    if (BaseUtil.is_global ctx.ask v) then begin
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if !GU.should_warn then begin
           let new_acc = ((loc,fl,rv),ust,o) in
@@ -571,7 +571,7 @@ struct
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       `Int (Int64.of_int pry)
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
-    | Queries.MayBePublic v ->
+    | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
         `MayBool false
@@ -587,6 +587,9 @@ struct
           (*             offpry_flags flagstate v *)
           (*           end *)
         in `MayBool (off > pry)
+    | Queries.CurrentLockset -> (* delegate for MinePriv *)
+      (* TODO: delegate other queries? *)
+      M.query ctx q
     | _ -> Queries.Result.top ()
 
   let rec conv_offset x =
@@ -710,8 +713,8 @@ struct
   let startstate v = D.top ()
   let exitstate  v = D.top ()
 
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in
@@ -1260,8 +1263,7 @@ struct
     if !suppressed > 1 then
       print_endline ("However " ^ (string_of_int !suppressed) ^ " warnings have been suppressed.");
     if !filtered > 0 then
-      print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).");
-    Base.Main.finalize ()
+      print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).")
 
   let init () = (*
     let tramp = get_string "ana.osek.tramp" in
@@ -1283,4 +1285,4 @@ struct
     end;
 end
 
-let () = MCP.register_analysis ~dep:["base";"threadid";"threadflag";"fmode"] (module Spec : Spec)
+let () = MCP.register_analysis ~dep:["base";"threadid";"threadflag";"fmode"] (module Spec : MCPSpec)
