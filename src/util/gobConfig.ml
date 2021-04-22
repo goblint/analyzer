@@ -290,6 +290,15 @@ struct
   let memo_bool   = memog bool
   let memo_string = memog string
   let memo_list   = memo @@ List.map (!) % (!) % get_path_string array
+
+  let drop_memo ()  =
+    (* The explicit polymorphism is needed to make it compile *)
+    let drop:'a. (string,'a) BatCache.manual_cache -> _ = fun m ->
+      let r = m.enum () in
+      BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r
+    in
+    drop memo_int; drop memo_bool; drop memo_string; drop memo_list
+
   let get_int    = memo_int.get
   let get_bool   = memo_bool.get
   let get_string = memo_string.get
@@ -338,8 +347,8 @@ struct
   let merge_file fn =
     let v = JsonParser.value JsonLexer.token % Lexing.from_channel |> File.with_file_in fn in
     json_conf := merge !json_conf v;
+    drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
-
 
   (** Function to drop one element of an 'array' *)
   let drop_index st i =
