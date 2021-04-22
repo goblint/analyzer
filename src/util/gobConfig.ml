@@ -55,7 +55,7 @@ sig
   val set_string : string -> string -> unit
 
   (** Functions to modify conf variables by trying to parse the value.
-      The second argument must be valid Json exept single quotes represent double quotes. *)
+      The second argument must be valid Json except single quotes represent double quotes. *)
   val set_auto   : string -> string -> unit
 
   (** Get a list of values *)
@@ -311,15 +311,16 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
+    drop_memo ();
     if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson v;
     set_path_string st v
 
   (** Convenience functions for writing values. *)
-  let set_int    st i = memo_int.del st; set_path_string_trace st (Build.number i)
-  let set_bool   st i = memo_bool.del st; set_path_string_trace st (Build.bool i)
-  let set_string st i = memo_string.del st; set_path_string_trace st (Build.string i)
+  let set_int    st i = set_path_string_trace st (Build.number i)
+  let set_bool   st i = set_path_string_trace st (Build.bool i)
+  let set_string st i = set_path_string_trace st (Build.string i)
   let set_null   st   = set_path_string_trace st Build.null
-  let set_list   st l = memo_list.del st; set_value (Build.array l) json_conf (parse_path st)
+  let set_list   st l = set_value (Build.array l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =
