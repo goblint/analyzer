@@ -150,8 +150,6 @@ sig
   val str_ptr: unit -> t
   val is_null: t -> bool
   val get_location: t -> location
-  val classify: t -> int
-  val class_name: int -> string
 
   val from_var: varinfo -> t
   (** Creates an address from variable. *)
@@ -188,11 +186,11 @@ struct
     | Addr (x,_) -> x.vdecl
     | _ -> builtinLoc
 
-  let classify = function
-    | Addr (x,_) -> Basetype.Variables.classify x
-    | _ -> 1
-
-  let class_name = Basetype.Variables.class_name
+  type group = Basetype.Variables.group
+  let show_group, group_to_enum, group_of_enum = Basetype.Variables.(show_group, group_to_enum, group_of_enum)
+  let to_group = function
+    | Addr (x,_) -> Basetype.Variables.to_group x
+    | _ -> Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)
   let from_var_offset x = Addr x

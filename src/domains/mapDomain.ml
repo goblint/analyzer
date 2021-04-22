@@ -58,15 +58,18 @@ end
 module type Groupable =
 sig
   include Printable.S
-  val classify: t -> int (* groups are sorted by this *)
-  val class_name: int -> string (* name of group *)
+  type group (* use [@@deriving show, enum] *)
+  val show_group: group -> string
+  val group_to_enum: group -> int
+  val group_of_enum: int -> group option
+  val to_group: t -> group
   val trace_enabled: bool
 end
 
 module StripClasses (G: Groupable) =
 struct
   include G
-  let classify x = 0
+  let to_group _ = 0
 end
 
 (* Just a global hack for tracing individual variables. *)
@@ -149,7 +152,7 @@ struct
   let pretty_f short () mapping =
     let groups =
       let group_fold key itm gps =
-        let cl = Domain.classify key in
+        let cl = Domain.to_group key |> Domain.group_to_enum in
         match gps with
         | (a,n) when cl <>  n -> ((cl,(M.add key itm M.empty))::a, cl)
         | (a,_) -> ((fst (List.hd a),(M.add key itm (snd (List.hd a))))::(List.tl a),cl) in
@@ -163,12 +166,12 @@ struct
         dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else
                   dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
     in
-    let group_name a () = text (Domain.class_name a) in
+    let group_name a () = text (Domain.show_group a) in
     let pretty_group  map () = fold f map nil in
     let pretty_groups rest map =
       match (fst map) with
       | 0 ->  rest ++ pretty_group (snd map) ()
-      | a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name a) (pretty_group (snd map)) in
+      | a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name (Domain.group_of_enum a |> Option.get)) (pretty_group (snd map)) in
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 

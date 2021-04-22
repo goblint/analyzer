@@ -40,10 +40,16 @@ module Std =
 struct
   (*  let equal = Util.equals
       let hash = Hashtbl.hash*)
-  let classify _ = 0
-  let class_name _ = "None"
   let name () = "std"
+
+  (* start MapDomain.Groupable *)
+  type group = unit
+  let show_group () = "None"
+  let group_to_enum () = 0
+  let group_of_enum _ = Some () (* None would not lead to type error if we forgot to override *)
+  let to_group _ = ()
   let trace_enabled = false
+  (* end MapDomain.Groupable *)
 
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
