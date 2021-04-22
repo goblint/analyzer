@@ -82,7 +82,7 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location x = x.vdecl
-  type group = Temp | Local | Global | Context | Parameter [@@deriving show, enum]
+  type group = Temp | Local | Global | Context | Parameter [@@deriving show { with_path = false }, enum]
   let to_group = function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp

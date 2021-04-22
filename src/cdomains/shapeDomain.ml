@@ -30,7 +30,7 @@ struct
 
   let pretty = pretty_f short
 
-  type group = Variables | Values [@@deriving show, enum]
+  type group = Variables | Values [@@deriving show { with_path = false }, enum]
   let to_group = function
     | `Left  v -> Variables
     | `Right v -> Values

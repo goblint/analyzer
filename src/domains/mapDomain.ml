@@ -58,7 +58,7 @@ end
 module type Groupable =
 sig
   include Printable.S
-  type group (* use [@@deriving show, enum] *)
+  type group (* use [@@deriving show { with_path = false }, enum] *)
   val show_group: group -> string
   val group_to_enum: group -> int
   val group_of_enum: int -> group option
