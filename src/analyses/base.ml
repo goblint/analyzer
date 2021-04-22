@@ -21,6 +21,12 @@ module BI = IntOps.BigIntOps
 let is_global (a: Q.ask) (v: varinfo): bool =
   v.vglob || match a (Q.MayEscape v) with `MayBool tv -> tv | _ -> false
 
+let is_heap_var (a: Q.ask) (v: varinfo): bool =
+  match a (Q.IsHeapVar v) with `MustBool tv -> tv | _ -> false
+
+let is_always_unknown (a: Q.ask) (variable: varinfo) = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype ||
+ (GobConfig.get_bool "ana.library" && variable.vglob && not (is_heap_var a variable))
+
 let is_static (v:varinfo): bool = v.vstorage == Static
 
 (* The unknown pointer arguments for these functions should get a special treatment for the library analysis *)
@@ -377,16 +383,17 @@ struct
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = if GobConfig.get_bool "ana.library" && is_global a x
-          then VD.top ()
-        else if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-            match CPA.find x st with
-            | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
-            | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-          else begin
-            if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-            CPA.find x st
-          end
+        let var =
+          if is_always_unknown a x then
+              VD.top ()
+          else if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
+              match CPA.find x st with
+              | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
+              | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+            else begin
+              if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+              CPA.find x st
+            end
         in
 
         let v = VD.eval_offset a (fun x -> get a gs (st,dep) x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
@@ -412,9 +419,6 @@ struct
     in
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
     res
-
-  let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype || (GobConfig.get_bool "ana.library" && variable.vglob)
-
 
   (**************************************************************************
    * Auxiliary functions for function calls
@@ -1026,8 +1030,8 @@ struct
       `MustBool (is_malloc_assignment rval)
     | _ -> Q.Result.top ()
 
-  let update_variable ?(force_update=false) variable value state  =
-    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable) && not force_update) then
+  let update_variable ?(force_update=false) (a: Q.ask) variable value state  =
+    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown a variable) && not force_update) then
       CPA.add variable (VD.top ()) state
     else
       CPA.add variable value state
@@ -1058,7 +1062,7 @@ struct
   let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?(force_update=false)?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st,dep: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
-      let r = update_variable ~force_update x y z  in (* refers to defintion that is outside of set *)
+      let r = update_variable ~force_update a x y z  in (* refers to defintion that is outside of set *)
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
@@ -1071,8 +1075,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          let is_heap_var = match a (Q.IsHeapVar x) with `MayBool(true) -> true | _ -> false in
-          if is_heap_var then
+          if is_heap_var a x then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
             lval_type
@@ -1223,7 +1226,7 @@ struct
       let effect_on_array arr st =
         let v = CPA.find arr st in
         let nval = VD.affect_move ~replace_with_const:(get_bool ("exp.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
-        update_variable arr nval st
+        update_variable a arr nval st
       in
       let nst = List.fold_left (fun x y -> effect_on_array y x) st affected_arrays in
       (nst, dep) in
