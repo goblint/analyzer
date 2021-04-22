@@ -187,9 +187,9 @@ struct
     | _ -> builtinLoc
 
   type group = Basetype.Variables.group
-  let show_group, group_to_enum, group_of_enum = Basetype.Variables.(show_group, group_to_enum, group_of_enum)
-  let to_group = function
-    | Addr (x,_) -> Basetype.Variables.to_group x
+  let show_group = Basetype.Variables.show_group
+  let to_group = Option.some @@ function
+    | Addr (x,_) -> Option.get Basetype.Variables.to_group x
     | _ -> Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)

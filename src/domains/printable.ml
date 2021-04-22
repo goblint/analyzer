@@ -45,9 +45,7 @@ struct
   (* start MapDomain.Groupable *)
   type group = unit
   let show_group () = "None"
-  let group_to_enum () = -1
-  let group_of_enum _ = Some () (* None would not lead to type error if we forgot to override *)
-  let to_group _ = ()
+  let to_group = None
   let trace_enabled = false
   (* end MapDomain.Groupable *)
 

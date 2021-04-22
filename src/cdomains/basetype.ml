@@ -82,8 +82,8 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location x = x.vdecl
-  type group = Temp | Local | Global | Context | Parameter [@@deriving show { with_path = false }, enum]
-  let to_group = function
+  type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
+  let to_group = Option.some @@ function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp
     | x when x.vdecl.line = -3 -> Parameter
@@ -120,7 +120,7 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location (x,s) = x.vdecl
-  let to_group (x,sx) = match sx with Context -> Variables.Context | _ -> Variables.to_group x
+  let to_group (x,sx) = Option.some @@ match sx with Context -> Variables.Context | _ -> Option.get Variables.to_group x
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -512,7 +512,7 @@ struct
     Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
 
   let get_location x = (get_var x).vdecl
-  let to_group x = Variables.to_group (get_var x)
+  let to_group x = Option.get Variables.to_group (get_var x)
 
   let pretty () x = pretty_f short () x
   let name () = "variables and fields"

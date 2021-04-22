@@ -58,11 +58,9 @@ end
 module type Groupable =
 sig
   include Printable.S
-  type group (* use [@@deriving show { with_path = false }, enum] *)
+  type group (* use [@@deriving show { with_path = false }] *)
   val show_group: group -> string
-  val group_to_enum: group -> int
-  val group_of_enum: int -> group option
-  val to_group: t -> group
+  val to_group: (t -> group) option
   val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
@@ -143,12 +141,12 @@ struct
 
   let pretty_f short () mapping =
     let groups =
-      let group_fold key itm gps =
-        let cl = Domain.to_group key |> Domain.group_to_enum in
-        match gps with
-        | (a,n) when cl <>  n -> ((cl,(M.add key itm M.empty))::a, cl)
-        | (a,_) -> ((fst (List.hd a),(M.add key itm (snd (List.hd a))))::(List.tl a),cl) in
-      List.rev (fst (fold group_fold mapping ([],min_int)))
+      let h = Hashtbl.create 13 in
+      let opt_apply k = Option.bind Domain.to_group (fun to_group -> Some (to_group k)) in
+      iter (fun k v -> BatHashtbl.modify_def M.empty (opt_apply k) (M.add k v) h) mapping;
+      let cmpBy f a b = Stdlib.compare (f a) (f b) in
+      (* sort groups (order of constructors in type group)  *)
+      BatHashtbl.to_list h |> List.sort (cmpBy fst)
     in
     let f key st dok =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
@@ -159,11 +157,11 @@ struct
                   dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
     in
     let group_name a () = text (Domain.show_group a) in
-    let pretty_group  map () = fold f map nil in
-    let pretty_groups rest map =
-      match (fst map) with
-      | -1 ->  rest ++ pretty_group (snd map) ()
-      | a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name (Domain.group_of_enum a |> Option.get)) (pretty_group (snd map)) in
+    let pretty_group map () = fold f map nil in
+    let pretty_groups rest (group, map) =
+      match group with
+      | None ->  rest ++ pretty_group map ()
+      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 

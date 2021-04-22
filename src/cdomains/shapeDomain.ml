@@ -30,8 +30,8 @@ struct
 
   let pretty = pretty_f short
 
-  type group = Variables | Values [@@deriving show { with_path = false }, enum]
-  let to_group = function
+  type group = Variables | Values [@@deriving show { with_path = false }]
+  let to_group = Option.some @@ function
     | `Left  v -> Variables
     | `Right v -> Values
   let isSimple _ = true
