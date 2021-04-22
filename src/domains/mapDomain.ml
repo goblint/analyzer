@@ -162,7 +162,7 @@ struct
     let pretty_group  map () = fold f map nil in
     let pretty_groups rest map =
       match (fst map) with
-      | 0 ->  rest ++ pretty_group (snd map) ()
+      | -1 ->  rest ++ pretty_group (snd map) ()
       | a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name (Domain.group_of_enum a |> Option.get)) (pretty_group (snd map)) in
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
