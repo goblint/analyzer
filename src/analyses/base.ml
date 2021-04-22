@@ -1807,7 +1807,7 @@ struct
         {st with cpa = new_cpa}
     in
     (* Assign parameters to arguments *)
-    let pa = Goblintutil.zip fundec.sformals vals in
+    let pa = GU.zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
