@@ -307,8 +307,8 @@ doproject = lambda do |p|
         puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.itemize
       end
     end
-  #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
-  #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
+    #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
+    #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
     File.open(statsfile, "a") do |f|
       f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
       f.puts "Analysis began: #{starttime}"
@@ -317,6 +317,7 @@ doproject = lambda do |p|
       f.puts "Goblint params: #{cmd}"
       f.puts vrsn
     end
+    FileUtils.rm_rf('run')
   end
   p.ok = status == 0
   p
