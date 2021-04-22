@@ -168,7 +168,7 @@ struct
       eprintf "Error: Couldn't parse the json path '%s'\n%!" s;
       failwith "parsing"
 
-  (** Here we store the actual confinguration. *)
+  (** Here we store the actual configuration. *)
   let json_conf : jvalue ref = ref Null
 
   (** The schema for the conf [json_conf] *)
@@ -311,7 +311,7 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
-    drop_memo ();
+    if not !build_config then drop_memo ();
     if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson v;
     set_path_string st v
 
