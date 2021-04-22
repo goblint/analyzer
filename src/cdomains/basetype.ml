@@ -516,19 +516,8 @@ struct
     Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
 
   let get_location x = (get_var x).vdecl
-  let classify x = match (get_var x) with
-    | x when x.vglob -> 2
-    | x when x.vdecl.line = -1 -> -1
-    | x when x.vdecl.line = -3 -> 5
-    | x when x.vdecl.line = -4 -> 4
-    | _ -> 1
-  let class_name n = match n with
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  let classify x = Variables.classify (get_var x)
+  let class_name = Variables.class_name
 
   let pretty () x = pretty_f short () x
   let name () = "variables and fields"
