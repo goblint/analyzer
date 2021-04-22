@@ -1,7 +1,7 @@
 //PARAM: --enable ana.library --enable allfuns --sets ana.activated[+] mallocWrapperTypeBased
 #include <assert.h>
 
-int g;
+int g = 2;
 
 int f(int *x){
     g = 2;
