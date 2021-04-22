@@ -66,14 +66,6 @@ sig
   val trace_enabled: bool
 end
 
-module StripClasses (G: Groupable) =
-struct
-  include G
-  let to_group _ = 0
-end
-
-(* Just a global hack for tracing individual variables. *)
-
 module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
