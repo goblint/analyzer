@@ -55,13 +55,15 @@ struct
       Hashtbl.add heap_vars newvar.vid ();
       newvar
 
-  let get_arg_var (ts : typsig) =
+  let get_arg_var (t : typ) =
+    let t = unrollType t in
+    let ts = Cil.typeSig t in
     try Hashtbl.find arg_hash ts
     with Not_found ->
       let tsname = Pretty.sprint ~width:80 (d_typsig () ts) in
       (* "nd" for "not definite" *)
       let name = prefix_non_definite_mem ^ ":" ^ tsname ^ ")" in
-      let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
+      let newvar = Goblintutil.create_var (makeGlobalVar name t) in
       Hashtbl.add arg_hash ts newvar;
       Hashtbl.add heap_vars newvar.vid ();
       newvar
@@ -69,8 +71,7 @@ struct
   let query ctx (q:Q.t) : Q.Result.t =
     match q with
     | Q.ArgVarTyp t ->
-      let ts = typeSig t in
-      `Varinfo (`Lifted (get_arg_var ts))
+      `Varinfo (`Lifted (get_arg_var t))
     | Q.HeapVar ->
       let fn = (MyCFG.getFun ctx.node).svar in
       let rval =
