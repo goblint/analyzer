@@ -256,7 +256,7 @@ doproject = lambda do |p|
     if status == 1 then
       puts stats.last(5).itemize
     elsif status == 2 then # if stats[0] =~ /exception/ then
-      relpath = (Pathname.new filepath).relative_path_from(Pathname.new File.dirname(goblint))
+      relpath = (Pathname.new filepath).relative_path_from Dir.getwd
       lastline = (File.readlines warnfile).last()
       puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
       puts stats[0..9].itemize
@@ -298,7 +298,7 @@ doproject = lambda do |p|
       if status == 1 then
         puts stats.last(5).itemize
       elsif status == 2 then # if stats[0] =~ /exception/ then
-        relpath = (Pathname.new filepath).relative_path_from(Pathname.new File.dirname(goblint))
+        relpath = (Pathname.new filepath).relative_path_from Dir.getwd
         lastline = (File.readlines warnfile).last()
         puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
         puts stats[0..9].itemize
