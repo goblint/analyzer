@@ -411,7 +411,8 @@ File.open(theresultfile, "w") do |f|
       check = lambda {|cond|
         if cond then
           correct += 1
-          if p.todo.include? idx then puts "Excellent: ignored check on #{p.name.cyan}:#{idx.to_s.blue} is now passing!" end
+          relpath = (Pathname.new p.path).relative_path_from Dir.getwd # full path too long, p.name does not allow click to open in terminal
+          if p.todo.include? idx then puts "Excellent: ignored check on #{relpath.to_s.cyan}:#{idx.to_s.blue} is now passing!" end
         else
           if p.todo.include? idx then ignored += 1 else
             puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
