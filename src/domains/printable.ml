@@ -43,9 +43,9 @@ struct
   let name () = "std"
 
   (* start MapDomain.Groupable *)
-  type group = unit
-  let show_group () = "None"
-  let to_group = None
+  type group = |
+  let show_group (x: group)= match x with _ -> .
+  let to_group _ = None
   let trace_enabled = false
   (* end MapDomain.Groupable *)
 

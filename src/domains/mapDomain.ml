@@ -60,7 +60,7 @@ sig
   include Printable.S
   type group (* use [@@deriving show { with_path = false }] *)
   val show_group: group -> string
-  val to_group: (t -> group) option
+  val to_group: t -> group option
   val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
@@ -142,8 +142,7 @@ struct
   let pretty_f short () mapping =
     let groups =
       let h = Hashtbl.create 13 in
-      let opt_apply k = Option.bind Domain.to_group (fun to_group -> Some (to_group k)) in
-      iter (fun k v -> BatHashtbl.modify_def M.empty (opt_apply k) (M.add k v) h) mapping;
+      iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
       let cmpBy f a b = Stdlib.compare (f a) (f b) in
       (* sort groups (order of constructors in type group)  *)
       BatHashtbl.to_list h |> List.sort (cmpBy fst)
@@ -166,6 +165,9 @@ struct
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 
   let pretty () x = pretty_f short () x
+
+  (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
+  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y

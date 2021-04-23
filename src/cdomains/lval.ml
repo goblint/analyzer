@@ -188,9 +188,9 @@ struct
 
   type group = Basetype.Variables.group
   let show_group = Basetype.Variables.show_group
-  let to_group = Option.some @@ function
-    | Addr (x,_) -> Option.get Basetype.Variables.to_group x
-    | _ -> Basetype.Variables.Local
+  let to_group = function
+    | Addr (x,_) -> Basetype.Variables.to_group x
+    | _ -> Some Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)
   let from_var_offset x = Addr x
