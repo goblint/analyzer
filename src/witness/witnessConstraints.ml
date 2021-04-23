@@ -344,8 +344,13 @@ struct
     in
     fold' ctx Spec.threadenter (fun h -> h lval f args) g []
   let threadspawn ctx lval f args fctx =
+    assert (Dom.cardinal (fst fctx.local) = 1);
     let fd1 = Dom.choose (fst fctx.local) in
-    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
+    let h xs x xr x' =
+      Dom.add x' xr xs (* don't make second step after special+threadspawn *)
+    in
+    let d = fold'' ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1)) h (Dom.empty ()) in
+    (d, Sync.bot ())
 
   let sync ctx reason =
     fold'' ctx Spec.sync (fun h -> h reason) (fun ((a, async),b) x r (a',b') ->
