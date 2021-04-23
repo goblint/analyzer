@@ -278,7 +278,7 @@ let merge_preprocessed cpp_file_names =
 
   (* create the Control Flow Graph from CIL's AST *)
   Cilfacade.createCFG merged_AST;
-  Cilfacade.ugglyImperativeHack := merged_AST;
+  Cilfacade.current_file := merged_AST;
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
@@ -311,7 +311,7 @@ let do_analyze change_info merged_AST =
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
           raise x
-          (* Cilfacade.ugglyImperativeHack := ast'; *)
+          (* Cilfacade.current_file := ast'; *)
       in
       (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
          new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
@@ -347,14 +347,17 @@ let do_html_output () =
   )
 
 let check_arguments () =
-  let fail m = failwith ("Option clash: " ^ m) in
-  let info m = eprintf "Option info: %s\n" m in
+  let eprint_color m = eprintf "%s\n" (Messages.colorize m) in
+  let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in
+  let warn m = eprint_color ("{yellow}Option warning: "^m) in
   let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval-context" in
   if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval-context)";
   let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
-  if ctx_insens && get_bool "exp.full-context" then info "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
-  if get_bool "ana.library" && get_bool "allfuns" then info "Both ana.library and allfuns are activated. This is not recommended.";
-  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; info "allfuns enables exp.earlyglobs.\n")
+  if ctx_insens && get_bool "exp.full-context" then warn "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
+  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
+  if get_bool "ana.library" && get_bool "allfuns" then warn "Both ana.library and allfuns are activated. This is not recommended.";
+  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
+  if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization")
 
 let handle_extraspecials () =
   let f xs = function
@@ -432,6 +435,7 @@ let main =
         Stats.reset Stats.SoftwareTimer;
         parse_arguments ();
         check_arguments ();
+        AfterConfig.run ();
 
         (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
           for overflows, as this will replace potential overflows with constants after wrap-around *)

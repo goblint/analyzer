@@ -2,10 +2,7 @@ open Cil
 open Pretty
 open GobConfig
 
-module ID = IntDomain.IntDomTuple
-module IndexDomain = IntDomain.IntDomWithDefaultIkind (ID) (IntDomain.PtrDiffIkind)
-module AD = AddressDomain.AddressSet (IndexDomain)
-module Addr = Lval.NormalLat (IndexDomain)
+include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil

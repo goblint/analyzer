@@ -9,7 +9,7 @@ open Constraints
 
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
-let get_spec () : (module SpecHC) =
+let get_spec () : (module Spec) =
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -26,15 +26,16 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
+            |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
           ) in
-  (module (val if get_bool "ana.opt.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
+  (module S1)
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) (increment: increment_data) =
 
     let module Inc = struct let increment = increment end in
 
@@ -86,6 +87,13 @@ struct
         );
       in
       Result.iter add_one xs;
+      let live_count = StringMap.fold (fun _ file_lines acc ->
+          StringMap.fold (fun _ fun_lines acc ->
+              acc + ISet.cardinal fun_lines
+            ) file_lines acc
+        ) !live_lines 0
+      in
+      printf "Live lines: %d\n" live_count;
       let live file fn =
         try StringMap.find fn (StringMap.find file !live_lines)
         with Not_found -> BatISet.empty
@@ -190,18 +198,23 @@ struct
       foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
     in
 
+    (* Simulate globals before analysis. *)
+    (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
+    let gh = GHT.create 13 in
+    let getg v = GHT.find_default gh v (Spec.G.bot ()) in
+    let sideg v d =
+      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Prelude.Ana.d_varinfo v Spec.G.pretty d;
+      GHT.replace gh v (Spec.G.join (getg v) d)
+    in
+    (* Old-style global function for context.
+     * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
+    let getg v = Spec.G.bot () in
+
     (* analyze cil's global-inits function to get a starting state *)
-    let do_global_inits (file: file) : Spec.D.t * fundec list * (varinfo * Spec.G.t) list =
-      (* Simulate globals before analysis. *)
-      (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
-      let gh = GHT.create 13 in
-      let getg v = GHT.find_default gh v (Spec.G.bot ()) in
-      let sideg v d = GHT.replace gh v (Spec.G.join (getg v) d) in
-      (* Old-style global function for context.
-       * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
-      let getg v = Spec.G.bot () in
+    let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
@@ -244,7 +257,8 @@ struct
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      result, !funs, GHT.to_list gh
+      if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pretty result;
+      result, !funs
     in
 
     let print_globals glob =
@@ -260,7 +274,7 @@ struct
       WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
-    GU.earlyglobs := false;
+    GU.earlyglobs := get_bool "exp.earlyglobs";
     Spec.init ();
     Access.init file;
 
@@ -279,7 +293,7 @@ struct
       )
     in
 
-    let startstate, more_funs, entrystates_global =
+    let startstate, more_funs =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
       Stats.time "global_inits" do_global_inits file
     in
@@ -290,18 +304,19 @@ struct
       let st = st fd.svar in
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
-        ; global  = (fun _ -> Spec.G.bot ())
+        ; global  = getg
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = sideg
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
@@ -324,22 +339,24 @@ struct
     let otherstate st v =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
-        ; global  = (fun _ -> Spec.G.bot ())
+        ; global  = getg
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = sideg
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
-      Spec.threadenter ctx None v []
+      (* TODO: don't hd *)
+      List.hd (Spec.threadenter ctx None v [])
       (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
@@ -348,7 +365,6 @@ struct
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
-    GU.earlyglobs := get_bool "exp.earlyglobs";
     GU.global_initialization := false;
 
     let startvars' =
@@ -359,6 +375,7 @@ struct
     in
 
     let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
+    let entrystates_global = GHT.to_list gh in
 
     let solve_and_postprocess () =
       (* handle save_run/load_run *)
@@ -485,6 +502,7 @@ struct
           (* build a ctx for using the query system *)
           let rec ctx =
             { ask    = query
+            ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
             ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
             ; prev_node = MyCFG.dummy_node
             ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
@@ -495,7 +513,7 @@ struct
             ; presub = []
             ; postsub= []
             ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-            ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
+            ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
             ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
             ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
             }

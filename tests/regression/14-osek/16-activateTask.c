@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --sets ana.osek.oil 16-activateTask.oil --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
+// NOMARSHAL PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --sets ana.osek.oil 16-activateTask.oil --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 int x = 1;
 int t;

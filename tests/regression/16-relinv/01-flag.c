@@ -1,4 +1,4 @@
-//PARAM: --oil 01-flag.oil
+// NOMARSHAL PARAM: --oil 01-flag.oil
 
 #include <stdio.h>
 #include <string.h>
@@ -32,7 +32,7 @@ ISR(printer)
        p.x = 0;
        p.y = 0;
        cs = 0;
-//        usleep(1000); 
+//        usleep(1000);
 }
 
 TASK(shutdown)

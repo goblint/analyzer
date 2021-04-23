@@ -5,7 +5,7 @@ open Analyses
 
 module Q = Queries
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -50,10 +50,10 @@ struct
     ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.top ()
+  let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

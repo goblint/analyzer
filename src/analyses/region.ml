@@ -6,7 +6,6 @@ open Analyses
 module RegMap = RegionDomain.RegMap
 module RegPart = RegionDomain.RegPart
 module Reg = RegionDomain.Reg
-module BS  = Base.Main
 
 module Spec =
 struct
@@ -105,7 +104,9 @@ struct
     | `Lifted reg ->
       let old_regpart = get_regpart ctx in
       let regpart, reg = match exp with
-        | Some exp -> Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
+        | Some exp ->
+          let module BS = (val Base.get_main ()) in
+          Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
         | None -> (old_regpart, reg)
       in
       let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
@@ -136,6 +137,7 @@ struct
     match au with
     | `Lifted reg -> begin
       let old_regpart = get_regpart ctx in
+      let module BS = (val Base.get_main ()) in
       let regpart, reg = match lval with
         | None -> (old_regpart, reg)
         | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg)
@@ -173,8 +175,8 @@ struct
     `Lifted (RegMap.bot ())
 
   let threadenter ctx lval f args =
-    `Lifted (RegMap.bot ())
-  let threadspawn ctx lval f args fctx = D.bot ()
+    [`Lifted (RegMap.bot ())]
+  let threadspawn ctx lval f args fctx = ctx.local
 
   let exitstate v = `Lifted (RegMap.bot ())
 
@@ -186,4 +188,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

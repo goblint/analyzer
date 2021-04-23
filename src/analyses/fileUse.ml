@@ -213,7 +213,7 @@ struct
     let split_err_branch lval dom =
       (* type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType -> no difference *)
       if not (GobConfig.get_bool "ana.file.optimistic") then
-        ctx.split dom (Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType)) true;
+        ctx.split dom [Events.SplitBranch ((Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType)), true)];
       dom
     in
     (* fold possible keys on domain *)
@@ -296,10 +296,10 @@ struct
     | _ -> m
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

@@ -4,7 +4,7 @@ open Prelude.Ana
 open Analyses
 let prefix_non_definite_mem = Lval.prefix_non_definite_mem
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -35,7 +35,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ()
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.top ()
+  let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
@@ -98,4 +98,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

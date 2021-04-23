@@ -16,8 +16,8 @@ let init () =
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
 
-let currentStatement = ref dummyStmt
-let ugglyImperativeHack = ref dummyFile
+let current_statement = ref dummyStmt
+let current_file = ref dummyFile
 let showtemps = ref false
 
 let parse fileName =
@@ -112,6 +112,7 @@ class addConstructors cons = object
   val mutable cons1 = cons
   method! vfunc fd =
     if List.mem fd.svar.vname (List.map string (get_list "mainfun")) then begin
+      if get_bool "dbg.verbose" then ignore (Pretty.printf "Adding constructors to: %s\n" fd.svar.vname);
       let loc = try get_stmtLoc (List.hd fd.sbody.bstmts).skind with Failure _ -> locUnknown in
       let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
       let call_cons = List.map f cons1 in
@@ -145,13 +146,15 @@ let callConstructors ast =
       );
     !cons
   in
+  let d_fundec () fd = Pretty.text fd.svar.vname in
+  if get_bool "dbg.verbose" then ignore (Pretty.printf "Constructors: %a\n" (Pretty.d_list ", " d_fundec) constructors);
   visitCilFileSameGlobals (new addConstructors constructors) ast;
   ast
 
 exception Found of fundec
 let getFun fun_name =
   try
-    iterGlobals !ugglyImperativeHack (fun glob ->
+    iterGlobals !current_file (fun glob ->
         match glob with
         | GFun({svar={vname=vn; _}; _} as def,_) when vn = fun_name -> raise (Found def)
         | _ -> ()
@@ -219,7 +222,7 @@ let dec_table = Hashtbl.create 111
 let dec_make () : unit =
   dec_table_ok := true ;
   Hashtbl.clear dec_table;
-  iterGlobals !ugglyImperativeHack (fun glob ->
+  iterGlobals !current_file (fun glob ->
       match glob with
       | GFun({svar={vid=vid; _}; _} as def,_) -> Hashtbl.add dec_table vid def
       | _ -> ()
