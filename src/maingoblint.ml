@@ -353,6 +353,7 @@ let check_arguments () =
   if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval-context)";
   let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
   if ctx_insens && get_bool "exp.full-context" then info "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
+  if get_bool "ana.library" && get_bool "allfuns" then info "Both ana.library and allfuns are activated. This is not recommended.";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; info "allfuns enables exp.earlyglobs.\n")
 
 let handle_extraspecials () =

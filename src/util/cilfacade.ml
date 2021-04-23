@@ -208,6 +208,7 @@ let getFuns fileAST : startfuns =
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
     | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
+    | GFun (def, _) when ((get_bool "ana.library")) -> add_main def acc
     | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
     | _ -> acc
   in
