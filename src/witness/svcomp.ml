@@ -109,6 +109,8 @@ sig
 
   val result: Result.t
 
+  val threadid: Arg.Node.t -> string option
+
   (* correctness witness *)
   val invariant: Arg.Node.t -> Invariant.t
 
@@ -122,6 +124,8 @@ struct
   module Arg = MyARG.Stack (Cfg) (TaskResult.Arg)
 
   let result = TaskResult.result
+
+  let threadid nl = TaskResult.threadid (List.hd nl)
 
   let invariant nl = TaskResult.invariant (List.hd nl)
 

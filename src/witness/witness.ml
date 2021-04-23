@@ -237,6 +237,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             [("returnFromFunction2", f.svar.vname)] *)
           | _ -> []
         end;
+        begin match TaskResult.threadid to_node with
+          | Some tid ->
+            [("threadId", tid)]
+          | None -> []
+        end;
         [("goblintEdge", Arg.Edge.to_string edge)]
       ])
   in
@@ -428,6 +433,13 @@ struct
       Spec.D.invariant context (get (n, c))
     in
 
+    let find_threadid (n, c, i) =
+      let ask = ask_local (n, c) (get (n, c)) in
+      match ThreadId.get_current ask with
+      | `Lifted tid -> Some tid.vname
+      | _ -> None
+    in
+
     match Task.specification with
     | UnreachCall _ ->
       (* error function name is globally known through Svcomp.task *)
@@ -447,6 +459,7 @@ struct
         struct
           module Arg = Arg
           let result = Result.True
+          let threadid = find_threadid
           let invariant = find_invariant
           let is_violation _ = false
           let is_sink _ = false
@@ -486,6 +499,7 @@ struct
           struct
             module Arg = Arg
             let result = Result.Unknown
+            let threadid = find_threadid
             let invariant = find_invariant
             let is_violation = is_violation
             let is_sink = is_sink
@@ -503,6 +517,7 @@ struct
             struct
               module Arg = PathArg
               let result = Result.False (Some Task.specification)
+              let threadid _ = None
               let invariant _ = Invariant.none
               let is_violation = is_violation
               let is_sink _ = false
@@ -549,6 +564,7 @@ struct
         struct
           module Arg = TrivialArg
           let result = Result.True
+          let threadid _ = None
           let invariant _ = Invariant.none
           let is_violation _ = false
           let is_sink _ = false
@@ -560,6 +576,7 @@ struct
         struct
           module Arg = TrivialArg
           let result = Result.Unknown
+          let threadid _ = None
           let invariant _ = Invariant.none
           let is_violation _ = false
           let is_sink _ = false
@@ -579,6 +596,7 @@ struct
         struct
           module Arg = Arg
           let result = Result.True
+          let threadid = find_threadid
           let invariant = find_invariant
           let is_violation _ = false
           let is_sink _ = false
@@ -590,6 +608,7 @@ struct
         struct
           module Arg = TrivialArg
           let result = Result.Unknown
+          let threadid _ = None
           let invariant _ = Invariant.none
           let is_violation _ = false
           let is_sink _ = false
