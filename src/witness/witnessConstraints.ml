@@ -70,6 +70,8 @@ struct
   let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
   let for_all' = for_all
   let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
+  let exists' = exists
+  let exists (p: key -> bool) (s: t): bool = exists (fun x _ -> p x) s
   let fold' = fold
   let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
   let add (x: key) (r: R.t) (s: t): t = add x (R.join r (find x s)) s
@@ -77,24 +79,19 @@ struct
   let map' = map (* HACK: for PathSensitive morphstate *)
   (* TODO: reducing map, like HoareSet *)
 
-  module S =
-  struct
-    let exists (p: key -> bool) (s: t): bool = exists (fun x _ -> p x) s
-    let filter (p: key -> bool) (s: t): t = filter' (fun x _ -> p x) s
-    let elements (s: t): (key * R.t) list = bindings s
-    let of_list (l: (key * R.t) list): t = List.fold_left (fun acc (x, r) -> add x r acc) (empty ()) l
-    let union = long_map2 R.union
-  end
+  let elements (s: t): (key * R.t) list = bindings s
+  let of_list (l: (key * R.t) list): t = List.fold_left (fun acc (x, r) -> add x r acc) (empty ()) l
+  let union = long_map2 R.union
 
 
   (* copied & modified from SetDomain.Hoare_NoTop *)
-  let mem x xr s = R.for_all (fun vie -> exists (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
+  let mem x xr s = R.for_all (fun vie -> exists' (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
   let leq a b = for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
 
   let le x y = SpecD.leq x y && not (SpecD.equal x y) && not (SpecD.leq y x)
   let reduce (s: t): t =
     (* get map with just maximal keys and their ranges *)
-    let maximals = S.filter (fun x -> not (S.exists (le x) s) && not (SpecD.is_bot x)) s in
+    let maximals = filter (fun x -> not (exists (le x) s) && not (SpecD.is_bot x)) s in
     (* join le ranges also *)
     let maximals =
       mapi (fun x xr ->
@@ -108,15 +105,15 @@ struct
     in
     maximals
   let product_bot op op2 a b =
-    let a,b = S.elements a, S.elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (S.of_list x)
+    let a,b = elements a, elements b in
+    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
   let product_bot2 op2 a b =
-    let a,b = S.elements a, S.elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (S.of_list x)
+    let a,b = elements a, elements b in
+    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
   (* why are type annotations needed for product_widen? *)
   let product_widen op op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
-    let xs,ys = S.elements a, S.elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (S.union b (S.of_list x))
+    let xs,ys = elements a, elements b in
+    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (union b (of_list x))
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
   (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
@@ -125,7 +122,7 @@ struct
   let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
 
   (* TODO: shouldn't this also reduce? *)
-  let apply_list f s = S.elements s |> f |> S.of_list
+  let apply_list f s = elements s |> f |> of_list
 end
 
 module N = struct let topname = "Top" end
@@ -234,7 +231,7 @@ struct
     let invariant c s =
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (S.elements s) in
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (elements s) in
       Spec.D.invariant c d
   end
 
