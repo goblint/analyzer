@@ -288,6 +288,11 @@ struct
       step ctx.prev_node (ctx.context ()) x e (snd ctx.local)
     with Ctx_failure _ ->
       R.bot ()
+  let step_ctx' ctx x e sync =
+    try
+      step ctx.prev_node (ctx.context ()) x e sync
+    with Ctx_failure _ ->
+      R.bot ()
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
 
   let map ctx f g =
@@ -330,13 +335,12 @@ struct
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
-  (* TODO: do additional witness things here *)
   let threadenter ctx lval f args =
     let g xs x' ys =
       let ys' = List.map (fun y ->
-          (* R.bot () isn't right here? doesn't actually matter? *)
-          let yr = R.bot () in
-          (* keep left syncs so combine gets them for no-inline case *)
+          let nosync = Sync.singleton x' (SyncSet.singleton x') in
+          (* threadenter called on pre-sync ctx in FromSpec *)
+          let yr = step_ctx' ctx x' ThreadEntry nosync in
           (Dom.singleton y yr, Sync.bot ())
         ) ys
       in
