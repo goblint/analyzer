@@ -117,7 +117,14 @@ struct
   include DomainTest (D)
 
   (* TODO: remove this hack *)
-  let has_top = try ignore (D.top ()); true with Failure _ -> false
+  let has_top =
+    try
+      ignore (D.top ());
+      true
+    with
+      | Failure _ (* raised by IntDomain *)
+      | Lattice.Unsupported _ (* raised by MapDomain *) ->
+        false
 
   let top_leq = make ~name:"top leq" (arb) (fun a ->
       assume has_top;

@@ -52,7 +52,6 @@ struct
 end
 
 (* TODO: weaken R to Lattice.S ? *)
-(* TODO: fix after traces, domaintest fails *)
 module HoareMap (SpecD:Lattice.S) (R:SetDomain.S) =
 struct
   module SpecDGroupable =
