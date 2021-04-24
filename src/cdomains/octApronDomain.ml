@@ -593,13 +593,16 @@ struct
           let check_min = 
             check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
           if signed then 
-            if check_max = `False || check_min = `False then 
-              (* Signed overflows are undefined behavior, so octagon goes to top if it happened for sure. *)
-              topE (A.env oct)
+            if check_max <> `True || check_min <> `True then 
+              if GobConfig.get_bool "ana.int.no_signed_overflow" then 
+                new_oct
+              else
+                (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
+                topE (A.env oct)
             else
               new_oct
           else
-            if check_max != `True || check_min != `True then
+            if check_max <> `True || check_min <> `True then
               (* Unsigned overflows are defined, but for now 
               the variable in question goes to top if there is a possibility of overflow. *)
               let () = forget_all_with oct [v.vname] in

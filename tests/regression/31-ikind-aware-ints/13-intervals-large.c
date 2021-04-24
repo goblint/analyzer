@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.interval --disable ana.int.def_exc --disable ana.int.enums
+//PARAM: --enable ana.int.interval --disable ana.int.def_exc --disable ana.int.enums --set ana.int.no_signed_overflow false
 #include <assert.h>
 
 int main(){
