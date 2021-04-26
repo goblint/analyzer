@@ -109,23 +109,6 @@ struct
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
-    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
-        try
-          let p t tr = not (mem t tr s2) in
-          let (evil, evilr) = choose' (filter' p s1) in
-          let evilr' = R.choose evilr in
-          dprintf "%a -> %a:\n" Spec.D.pretty evil VIEB.pretty evilr'
-          ++
-          fold' (fun other otherr acc ->
-              (dprintf "not leq %a because %a\nand not mem %a because %a\n" Spec.D.pretty other Spec.D.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
-            ) s2 nil
-        with _ ->
-          dprintf "choose failed b/c of empty set s1: %d s2: %d"
-          (cardinal s1)
-          (cardinal s2)
-      end
-
     let printXml f x =
       let print_one x r =
         (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)

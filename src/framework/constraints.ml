@@ -964,22 +964,6 @@ struct
     include HoareDomain.Hoare_NoTop (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
-    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
-        try
-          let p t = not (mem t s2) in
-          let evil = choose (filter p s1) in
-          dprintf "%a:\n" Spec.D.pretty evil
-          ++
-          fold (fun other acc ->
-              (dprintf "not leq %a because %a\n" Spec.D.pretty other Spec.D.pretty_diff (evil, other)) ++ acc
-            ) s2 nil
-        with _ ->
-          dprintf "choose failed b/c of empty set s1: %d s2: %d"
-          (cardinal s1)
-          (cardinal s2)
-      end
-
     let printXml f x =
       let print_one x =
         BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x
