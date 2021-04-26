@@ -160,7 +160,7 @@ end
 (*   val apply_list : (elt list -> elt list) -> t -> t *)
 (*   val product_top : (elt -> elt -> elt) -> t -> t -> t *)
 (* end = *)
-module Hoare (B : Lattice.S) (N: SetDomain.ToppedSetNames) =
+module Set_LiftTop (B : Lattice.S) (N: SetDomain.ToppedSetNames) =
 struct
   include SetDomain.ToppedSet (B) (N)
   (* include ToppedSet (B) (struct let topname = "Top" end) *)

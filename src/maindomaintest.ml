@@ -45,7 +45,7 @@ module ArbitraryLattice = FiniteSet (PrintableChar) (
   end
 )
 
-module HoareArbitrary = HoareDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end)
+module HoareArbitrary = HoareDomain.Set_LiftTop (ArbitraryLattice) (struct let topname = "Top" end)
 module HoareArbitrary_NoTop = HoareDomain.Hoare_NoTop (ArbitraryLattice)
 
 let domains: (module Lattice.S) list = [
