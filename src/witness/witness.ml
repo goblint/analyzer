@@ -116,19 +116,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   (* GML.write_key g "edge" "enterFunction2" "string" None;
   GML.write_key g "edge" "returnFromFunction2" "string" None; *)
 
-  GML.start_graph g;
-
-  GML.write_metadata g "witness-type" (
-      match TaskResult.result with
-      | Result.True -> "correctness_witness"
-      | Result.False _ -> "violation_witness"
-      | Result.Unknown -> "unknown_witness"
-    );
-  GML.write_metadata g "sourcecodelang" "C";
-  GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
-  GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
   let programfile = (getLoc (N.cfgnode main_entry)).file in
-  GML.write_metadata g "programfile" programfile;
   let programhash =
     (* TODO: calculate SHA-256 hash without external process *)
     let in_channel = Unix.open_process_in (Printf.sprintf "sha256sum '%s'" programfile) in (* TODO: pass filename as proper argument instead of through shell, open_process_args_in requires OCaml 4.08.0 *)
@@ -136,9 +124,24 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
     close_in in_channel;
     line
   in
-  GML.write_metadata g "programhash" programhash;
-  GML.write_metadata g "architecture" (get_string "exp.architecture");
-  GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
+
+  let start_graph_metadata () =
+    GML.start_graph g;
+
+    GML.write_metadata g "witness-type" (
+        match TaskResult.result with
+        | Result.True -> "correctness_witness"
+        | Result.False _ -> "violation_witness"
+        | Result.Unknown -> "unknown_witness"
+      );
+    GML.write_metadata g "sourcecodelang" "C";
+    GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
+    GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
+    GML.write_metadata g "programfile" programfile;
+    GML.write_metadata g "programhash" programhash;
+    GML.write_metadata g "architecture" (get_string "exp.architecture");
+    GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ())
+  in
 
   let write_node ?(entry=false) node =
     let cfgnode = N.cfgnode node in
@@ -248,6 +251,8 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       ])
   in
 
+  let todo_threads = ref [main_entry] in
+
   (* DFS with BFS-like child ordering, just for nicer ordering of witness graph children *)
   let itered_nodes = NH.create 100 in
   let rec iter_node node =
@@ -260,6 +265,16 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           Arg.next node
           (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
         in
+        let (edge_to_nodes, edge_to_threads) = List.partition (function
+            | (MyARG.ThreadEntry, _) -> false
+            | (_, _) -> true
+          ) edge_to_nodes
+        in
+        List.iter (fun (edge, to_thread) ->
+            (* TODO: optimize *)
+            if not (List.exists (Arg.Node.equal to_thread) !todo_threads) then
+              todo_threads := !todo_threads @ [to_thread]
+          ) edge_to_threads;
         List.iter (fun (edge, to_node) ->
             write_node to_node;
             write_edge node edge to_node
@@ -271,10 +286,25 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
     end
   in
 
-  write_node ~entry:true main_entry;
-  iter_node main_entry;
+  let iter_thread node =
+    start_graph_metadata ();
 
-  GML.stop_graph g;
+    write_node ~entry:true node;
+    iter_node node;
+
+    GML.stop_graph g;
+  in
+
+  let rec iter_threads () =
+    match !todo_threads with
+    | node :: todo_threads' ->
+      todo_threads := todo_threads';
+      iter_thread node;
+      iter_threads ()
+    | [] -> ()
+  in
+
+  iter_threads ();
 
   GML.stop g;
   close_out_noerr out
