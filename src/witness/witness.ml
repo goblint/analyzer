@@ -473,9 +473,12 @@ struct
 
     let find_threadid (n, c, i) =
       let ask = ask_local (n, c) (get (n, c)) in
-      match ThreadId.get_current ask with
-      | `Lifted tid -> Some tid.vname
-      | _ -> None
+      if not (get_bool "exp.witness.thread.singlethreaded") && not (ThreadFlag.is_multi ask) then
+        None
+      else
+        match ThreadId.get_current ask with
+        | `Lifted tid -> Some tid.vname
+        | _ -> None
     in
 
     match Task.specification with
