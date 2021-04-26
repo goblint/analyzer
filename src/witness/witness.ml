@@ -291,6 +291,8 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   in
 
   let iter_thread node =
+    ignore (Pretty.printf "Writing thread witness: %a\n" (Pretty.docOpt Pretty.text) (TaskResult.threadid node));
+
     start_graph_metadata ();
 
     write_node ~entry:true node;
