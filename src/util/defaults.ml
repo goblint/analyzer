@@ -78,7 +78,7 @@ let _ = ()
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
       ; reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main). This requires exp.earlyglobs!"
       ; reg Std "nonstatic"       "false"        "Analyzes all non-static functions."
-      ; reg Std "colors"          "false"        "Colored output."
+      ; reg Std "colors"          "true"         "Colored output."
       ; reg Std "g2html"          "false"        "Run g2html.jar on the generated xml."
       ; reg Std "interact.out"    "'result'"     "The result directory in interactive mode."
       ; reg Std "interact.enabled" "false"       "Is interactive mode enabled."
