@@ -28,10 +28,7 @@ module VI = Lattice.Flat (Basetype.Variables) (struct
   let bot_name = "Unreachable line"
 end)
 
-module AR = Lattice.Flat (Basetype.RawBools) (struct
-  let top_name = "Unknown"
-  let bot_name = "Impossible"
-end)
+module AR = Basetype.Bools
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 let iterprevvar_to_yojson _ = `Null
@@ -247,15 +244,7 @@ struct
       | (`MustBool x, `MustBool y) -> `MustBool (x && y)
       | (`MayBool x, `MayBool y) -> `MayBool (x || y)
       | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.join x y)
-      | (`AssertionResult x, `AssertionResult y) -> 
-        if AR.equal x y then
-          `AssertionResult x
-        else if AR.leq x y then
-          `AssertionResult y
-        else if AR.leq x y then
-          `AssertionResult x
-        else
-          `Bot
+      | (`AssertionResult x, `AssertionResult y) -> `AssertionResult (AR.join x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -274,15 +263,7 @@ struct
       | (`MustBool x, `MustBool y) -> `MustBool (x || y)
       | (`MayBool x, `MayBool y) -> `MayBool (x && y)
       | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.meet x y)
-      | (`AssertionResult x, `AssertionResult y) -> 
-        if AR.equal x y then
-          `AssertionResult x
-        else if AR.leq x y then
-          `AssertionResult x
-        else if AR.leq x y then
-          `AssertionResult y
-        else
-          `Bot
+      | (`AssertionResult x, `AssertionResult y) -> `AssertionResult (AR.meet x y)
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 
