@@ -45,8 +45,8 @@ module ArbitraryLattice = FiniteSet (PrintableChar) (
   end
 )
 
-module HoareArbitrary = SetDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end)
-module HoareArbitrary_NoTop = SetDomain.Hoare_NoTop (ArbitraryLattice)
+module HoareArbitrary = HoareDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end)
+module HoareArbitrary_NoTop = HoareDomain.Hoare_NoTop (ArbitraryLattice)
 
 let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
@@ -62,8 +62,8 @@ let domains: (module Lattice.S) list = [
   (module ArbitraryLattice);
   (module HoareArbitrary);
   (module HoareArbitrary_NoTop);
-  (module WitnessConstraints.HoareMap (ArbitraryLattice) (HoareArbitrary));
-  (module WitnessConstraints.HoareMap (ArbitraryLattice) (HoareArbitrary_NoTop));
+  (module HoareDomain.HoareMap (ArbitraryLattice) (HoareArbitrary));
+  (module HoareDomain.HoareMap (ArbitraryLattice) (HoareArbitrary_NoTop));
 ]
 
 let nonAssocDomains: (module Lattice.S) list = []
