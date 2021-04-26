@@ -13,7 +13,6 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.github.io/analyzer"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
-  "apron"
   "ocaml" {>= "4.04.1"}
   "dune"
   "zarith_stubs_js"
@@ -30,6 +29,9 @@ depends: [
   "odoc" {with-doc}
   "ocamlbuild"
   "ocamlfind"
+]
+depopts: [
+  "apron"
 ]
 build: [
   ["dune" "subst"] {pinned}
