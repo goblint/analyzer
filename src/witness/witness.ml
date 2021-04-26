@@ -271,9 +271,13 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           ) edge_to_nodes
         in
         List.iter (fun (edge, to_thread) ->
-            (* TODO: optimize *)
-            if not (List.exists (Arg.Node.equal to_thread) !todo_threads) then
-              todo_threads := !todo_threads @ [to_thread]
+            if get_bool "exp.witness.thread.enabled" then (
+              (* TODO: optimize *)
+              if not (List.exists (Arg.Node.equal to_thread) !todo_threads) then
+                todo_threads := !todo_threads @ [to_thread]
+            )
+            else
+              failwith "exp.witness.thread.enabled: threads not supported in witness when false"
           ) edge_to_threads;
         List.iter (fun (edge, to_node) ->
             write_node to_node;
