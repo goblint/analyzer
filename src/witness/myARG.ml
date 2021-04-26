@@ -35,6 +35,7 @@ type inline_edge =
   | InlineEntry of Deriving.Cil.exp list
   | InlineReturn of Deriving.Cil.lval option
   | ThreadEntry
+  | ThreadSpawn of {edge: edge; threadid: string}
   [@@deriving to_yojson]
 
 let pretty_inline_edge () = function
@@ -43,6 +44,7 @@ let pretty_inline_edge () = function
   | InlineReturn None -> Pretty.dprintf "InlineReturn"
   | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
   | ThreadEntry -> Pretty.dprintf "ThreadEntry"
+  | ThreadSpawn {edge; threadid} -> Pretty.dprintf "ThreadSpawn (%a) '%s'" MyCFG.pretty_edge edge threadid
 
 module InlineEdge: Edge with type t = inline_edge =
 struct
@@ -52,6 +54,7 @@ struct
 
   let cfgedge = function
     | CFGEdge e -> Some e
+    | ThreadSpawn {edge; _} -> Some edge
     | _ -> None
 
   let to_string e = Pretty.sprint 80 (pretty_inline_edge () e)

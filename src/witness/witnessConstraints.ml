@@ -350,8 +350,15 @@ struct
   let threadspawn ctx lval f args fctx =
     assert (Dom.cardinal (fst fctx.local) = 1);
     let fd1 = Dom.choose (fst fctx.local) in
+    let threadid = (ThreadId.get_current_unlift fctx.ask).vname in
     let h xs x xr x' =
-      Dom.add x' xr xs (* don't make second step after special+threadspawn *)
+      let xr' = R.map (function
+          | `Lifted (vi, CFGEdge e) -> `Lifted (vi, ThreadSpawn {edge=e; threadid})
+          | `Lifted (_, _) -> failwith "PathSensitive3.threadspawn: spawning from non-CFGEdge"
+          | `Bot -> `Bot
+        ) xr
+      in
+      Dom.add x' xr' xs (* don't make second step after special+threadspawn *)
     in
     let d = fold'' ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1)) h (Dom.empty ()) in
     (d, Sync.bot ())

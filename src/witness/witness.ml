@@ -235,6 +235,8 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             [("enterFunction2", f.svar.vname)]
           | MyARG.CFGEdge (Ret (_, f)) ->
             [("returnFromFunction2", f.svar.vname)] *)
+          | MyARG.ThreadSpawn {threadid; _} ->
+            [("createThread", threadid)]
           | _ -> []
         end;
         begin match TaskResult.threadid to_node with
