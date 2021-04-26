@@ -51,80 +51,6 @@ struct
   let relift x = x
 end
 
-(* TODO: weaken R to Lattice.S ? *)
-module HoareMap (SpecD:Lattice.S) (R:SetDomain.S) =
-struct
-  module SpecDGroupable =
-  struct
-    include Printable.Std
-    include SpecD
-  end
-  include MapDomain.MapBot (SpecDGroupable) (R)
-
-  (* TODO: get rid of these value-ignoring set-mimicing hacks *)
-  let choose' = choose
-  let choose (s: t): SpecD.t = fst (choose' s)
-  let filter' = filter
-  let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
-  let iter' = iter
-  let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
-  let for_all' = for_all
-  let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
-  let exists' = exists
-  let exists (p: key -> bool) (s: t): bool = exists (fun x _ -> p x) s
-  let fold' = fold
-  let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
-  let add (x: key) (r: R.t) (s: t): t = add x (R.join r (find x s)) s
-  let map (f: key -> key) (s: t): t = fold' (fun x v acc -> add (f x) v acc) s (empty ())
-  let map' = map (* HACK: for PathSensitive morphstate *)
-  (* TODO: reducing map, like HoareSet *)
-
-  let elements (s: t): (key * R.t) list = bindings s
-  let of_list (l: (key * R.t) list): t = List.fold_left (fun acc (x, r) -> add x r acc) (empty ()) l
-  let union = long_map2 R.union
-
-
-  (* copied & modified from SetDomain.Hoare_NoTop *)
-  let mem x xr s = R.for_all (fun vie -> exists' (fun y yr -> SpecD.leq x y && R.mem vie yr) s) xr
-  let leq a b = for_all' (fun x xr -> mem x xr b) a (* mem uses B.leq! *)
-
-  let le x y = SpecD.leq x y && not (SpecD.equal x y) && not (SpecD.leq y x)
-  let reduce (s: t): t =
-    (* get map with just maximal keys and their ranges *)
-    let maximals = filter (fun x -> not (exists (le x) s) && not (SpecD.is_bot x)) s in
-    (* join le ranges also *)
-    let maximals =
-      mapi (fun x xr ->
-          fold' (fun y yr acc ->
-              if le y x then
-                R.join acc yr
-              else
-                acc
-            ) s xr
-        ) maximals
-    in
-    maximals
-  let product_bot op op2 a b =
-    let a,b = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
-  let product_bot2 op2 a b =
-    let a,b = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
-  (* why are type annotations needed for product_widen? *)
-  let product_widen op op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
-    let xs,ys = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (union b (of_list x))
-  let join a b = join a b |> reduce
-  let meet = product_bot SpecD.meet R.inter
-  (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
-  (* TODO: move PathSensitive3-specific narrow out of HoareMap *)
-  let narrow = product_bot2 (fun (x, xr) (y, yr) -> if SpecD.leq y x then (SpecD.narrow x y, yr) else (x, xr))
-  let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
-
-  (* TODO: shouldn't this also reduce? *)
-  let apply_list f s = elements s |> f |> of_list
-end
-
 module N = struct let topname = "Top" end
 
 (** Add path sensitivity to a analysis *)
@@ -179,7 +105,7 @@ struct
 
   module Dom =
   struct
-    include HoareMap (Spec.D) (R)
+    include HoareDomain.HoareMap (Spec.D) (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
@@ -239,7 +165,7 @@ struct
    * This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
    * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
   module SyncSet = HoareDomain.Hoare_NoTop (Spec.D)
-  module Sync = HoareMap (Spec.D) (SyncSet)
+  module Sync = HoareDomain.HoareMap (Spec.D) (SyncSet)
   module D =
   struct
     include Lattice.Prod (Dom) (Sync)
