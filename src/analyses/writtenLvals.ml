@@ -9,44 +9,46 @@ struct
   include Analyses.DefaultSpec
 
   let name () = "writtenLvals"
-  module D = Q.LS
+  module D = Lattice.Unit
   module G = Q.LS
-  module C = Q.LS
+  module C = Lattice.Unit
 
+  let val_of _ = ()
 
-  let side_to_f ctx newst =
+  let side_to_f ctx side =
     let get_current_fun () =
       MyCFG.getFun @@ (match !MyCFG.current_node with Some n -> n | _ -> failwith "Code is not within a function.")
     in
     let f = get_current_fun () in
-    ctx.sideg f.svar newst;
-    newst
+    ctx.sideg f.svar side;
+    side
 
   (* transfer functions *)
-  let add_written_lval ctx (lval:lval): D.t =
+  let add_written_lval ctx (lval:lval): G.t =
     let query e = ctx.ask (Q.MayPointTo e) in
-    let newst = match lval with
+    let side = match lval with
       | Mem e, NoOffset
       | Mem e, Index _ ->
         (match query e with
-          | `LvalSet s -> D.union ctx.local s
-          | _ -> ctx.local
+          | `LvalSet s -> s
+          | _ -> G.bot ()
         )
       | Mem e, Field (finfo, offs) ->
         (match query e with
-          | `LvalSet s -> D.union ctx.local (Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset))) s)
-          | _ -> ctx.local
+          | `LvalSet s -> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset))) s
+          | _ -> G.bot ()
         )
-      | _, _ -> ctx.local
+      | _, _ -> G.bot ()
     in
-    side_to_f ctx newst
+    side_to_f ctx side
 
-  let add_written_option_lval ctx (lval: lval option): D.t =
+  let add_written_option_lval ctx (lval: lval option): G.t =
     match lval with
     | Some lval -> add_written_lval ctx lval
-    | None -> ctx.local
+    | None -> G.bot ()
 
-  let assign ctx (lval:lval) (rval:exp) : D.t = add_written_lval ctx lval
+  let assign ctx (lval:lval) (rval:exp) : D.t =
+    ignore @@ add_written_lval ctx lval
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -58,15 +60,16 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, Q.LS.bot ()]
+    [ctx.local, D.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    let newst = D.union (add_written_option_lval ctx lval) au in
-    side_to_f ctx newst
+    let side = G.union (add_written_option_lval ctx lval) (ctx.global f) in
+    ignore @@ side_to_f ctx side
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let newst = add_written_option_lval ctx lval in
-    side_to_f ctx newst
+    ignore @@ side_to_f ctx newst;
+    ()
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
