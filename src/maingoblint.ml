@@ -309,7 +309,7 @@ let do_analyze change_info merged_AST =
         try Control.analyze change_info ast funs
         with x ->
           let loc = !Tracing.current_loc in
-          Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
+          Messages.print_msg "About to crash!" loc;
           raise x
           (* Cilfacade.current_file := ast'; *)
       in
