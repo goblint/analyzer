@@ -1,4 +1,3 @@
-(** An analysis specification for didactic purposes. *)
 
 open Prelude.Ana
 open Analyses
@@ -60,6 +59,12 @@ struct
   let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
+
+  let query ctx (q:Q.t) = match q with
+    | Q.WrittenLvals ->
+      `LvalSet ctx.local
+    | _ -> `Top
+
 end
 
 let _ =

@@ -2235,6 +2235,23 @@ struct
         let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
         { fun_st with cpa = cpa' }
       in
+      let update_lvals ctx (ls: Q.LS.t) (args: exp list) =
+        let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+        let reachable = reachable_vars ctx.ask (get_ptrs vals) ctx.global st in
+        let update_lval reachable =
+          let f  = fun s a ->
+            (let at = AD.get_type a in set ctx.ask ctx.global s a at (VD.top_value at))
+          in
+          List.fold f ctx.local reachable
+        in
+        match ls with
+        | All ->
+          update_lval reachable
+        | Set s ->
+          let list = Q.LS.S.to_list s in
+          let written_type_sigs = Set.of_list @@ List.map (fun e -> Cil.typeSig (Cil.typeOfLval (Lval.CilLval.to_lval e))) list in
+          List.filter (fun x -> Set.mem (Cil.typeSig (AD.get_type x)) written_type_sigs) reachable |> update_lval
+      in
       let return_var = return_var () in
       let return_val = if GobConfig.get_bool "ana.library" then (
         (* TODO: Check whether argument memory block has been returned. *)
@@ -2246,6 +2263,17 @@ struct
         then get ctx.ask ctx.global fun_st return_var None
         else VD.top ()
       )
+      in
+      let st = if get_bool "ana.library" then
+          begin
+            let writtenLvals = match (ctx.ask Q.WrittenLvals) with
+              | `LvalSet s -> s
+              | _ -> failwith "Ran without written lval analysis"
+            in
+            update_lvals ctx writtenLvals args
+          end
+        else
+          st
       in
       let st = add_globals st fun_st in
       match lval with
