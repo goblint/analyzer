@@ -41,8 +41,8 @@
       <source name="goblintNode" origin="customProperty" type="string"/>
       <target name="labelText" type="string">
         <hints>
-          <hint type="boolean">true</hint>
           <hint type="int">0</hint>
+          <hint type="boolean">true</hint>
         </hints>
       </target>
       <conversion type="asIs"/>
@@ -120,6 +120,38 @@
         <regexp>
           <pattern xml:space="preserve"><![CDATA[(.*)]]></pattern>
           <replacement xml:space="preserve"><![CDATA[return: $1]]></replacement>
+          <replaceAll>false</replaceAll>
+          <replaceAlways>true</replaceAlways>
+        </regexp>
+      </conversion>
+    </mapping>
+    <mapping>
+      <source name="createThread" origin="customProperty" type="string"/>
+      <target name="labelText" type="string">
+        <hints>
+          <hint type="int">1</hint>
+        </hints>
+      </target>
+      <conversion type="regexp">
+        <regexp>
+          <pattern xml:space="preserve"><![CDATA[(.*)]]></pattern>
+          <replacement xml:space="preserve"><![CDATA[create: $1]]></replacement>
+          <replaceAll>false</replaceAll>
+          <replaceAlways>true</replaceAlways>
+        </regexp>
+      </conversion>
+    </mapping>
+    <mapping>
+      <source name="threadId" origin="customProperty" type="string"/>
+      <target name="labelText" type="string">
+        <hints>
+          <hint type="int">2</hint>
+        </hints>
+      </target>
+      <conversion type="regexp">
+        <regexp>
+          <pattern xml:space="preserve"><![CDATA[(.*)]]></pattern>
+          <replacement xml:space="preserve"><![CDATA[tid: $1]]></replacement>
           <replaceAll>false</replaceAll>
           <replaceAlways>true</replaceAlways>
         </regexp>
