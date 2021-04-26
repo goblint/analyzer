@@ -51,7 +51,7 @@ struct
     [ctx.local, Q.LS.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    add_written_option_lval ctx lval
+    D.union (add_written_option_lval ctx lval) au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     add_written_option_lval ctx lval
