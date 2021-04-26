@@ -4,6 +4,9 @@ open Pretty
 (* For Apron implementation of octagons *)
 open Apron
 
+exception Invalid_CilExpToLhost
+exception Invalid_CilExpToLexp
+
 module Man =
 struct
   (* Manager type, parameter for the command below *)
@@ -145,7 +148,7 @@ struct
     | CastE (TFloat (FDouble,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Double,Zero)
     | CastE (TFloat (FLongDouble,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Extended,Zero)
     | CastE (TInt _,e) -> Unop(Cast,cil_exp_to_cil_lhost e,Int,Zero)
-    | _ -> raise (Invalid_argument "cil_exp_to_apron_texpr1")
+    | _ -> raise Invalid_CilExpToLhost
 
 
   let add_t x y =
@@ -182,7 +185,7 @@ struct
         else (var_name, var_coefficient)::xs in
       match r, r' with
       | EQ, EQ -> List.fold_left add_one xs ys, add_t' x y, EQ
-      | _ -> raise (Invalid_argument "cil_exp_to_lexp")
+      | _ -> raise Invalid_CilExpToLexp
     in
     function
     | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
@@ -205,12 +208,12 @@ struct
           (List.map (function (n,`int x) -> n, `int (x*y) | (n,`float x) -> n, `float (x*.float_of_int y)) xs, `none, EQ)
         | (xs, `none, EQ), ([], `float y, EQ) | ([], `float y, EQ), (xs, `none, EQ) ->
           (List.map (function (n,`float x) -> n, `float (x*.y) | (n,`int x) -> (n,`float (float_of_int x*.y))) xs, `none, EQ)
-        | _ -> raise (Invalid_argument "cil_exp_to_lexp")
+        | _ -> raise Invalid_CilExpToLexp
       end
     | BinOp (r,e1,e2,_) ->
       let comb r = function
         | (xs,y,EQ) -> (xs,y,r)
-        | _ -> raise (Invalid_argument "cil_exp_to_lexp")
+        | _ -> raise Invalid_CilExpToLexp
       in
       begin match r with
         | Lt -> comb SUP   (add (cil_exp_to_lexp e2) (negate (cil_exp_to_lexp e1)))
@@ -219,7 +222,7 @@ struct
         | Ge -> comb SUPEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
         | Eq -> comb EQ    (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
         | Ne -> comb DISEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | _ -> raise (Invalid_argument "cil_exp_to_lexp")
+        | _ -> raise Invalid_CilExpToLexp
       end
     | CastE (TInt(new_ikind, _), e) -> 
       let new_exp = (match e with
@@ -231,7 +234,7 @@ struct
       in
       cil_exp_to_lexp new_exp
     | _ ->
-      raise (Invalid_argument "cil_exp_to_lexp")
+      raise Invalid_CilExpToLexp
 
   let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
     let inverse_comparator comparator =
@@ -298,7 +301,7 @@ struct
           that come from the expression we wish to assert. *)
           A.meet_lincons_array Man.mgr d ea
         | None -> d
-    with Invalid_argument _ -> d
+    with Invalid_CilExpToLexp -> d
 
   (* Creates the opposite invariant and assters it *)
   let assert_op_inv d x b =
@@ -336,7 +339,7 @@ struct
           assert_inv d e b
 
         | _ ->  assert_inv d x b
-    with Invalid_argument _ -> d
+    with Invalid_CilExpToLexp -> d
 
   let check_assert (e:exp) state =
     match e with
@@ -433,15 +436,13 @@ struct
       begin try
           A.assign_texpr_with Man.mgr d (Var.of_string v)
             (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
-        with Invalid_argument _ ->
+        with Invalid_CilExpToLhost ->
           A.forget_array_with Man.mgr d [|Var.of_string v|] false
           (* | Manager.Error q -> *)
           (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
           (* ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e); *)
           (* raise (Manager.Error q) *)
       end
-    else
-       ()
 
   let assign_var d v e =
     if is_chosen v then
@@ -465,7 +466,7 @@ struct
     begin try
         A.substitute_texpr_with Man.mgr d (Var.of_string v)
           (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
-      with Invalid_argument _ ->
+      with Invalid_CilExpToLhost ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
         (* | Manager.Error q ->
            ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
@@ -558,7 +559,7 @@ struct
           | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
           | _, _ -> None, None)
       | _ -> None, None
-    with Invalid_argument _ -> None, None
+    with Invalid_CilExpToLexp -> None, None
 
   let get_int_val_for_cil_exp d cil_exp =
     match get_int_interval_for_cil_exp d cil_exp with
