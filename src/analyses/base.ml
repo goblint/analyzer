@@ -1870,8 +1870,8 @@ struct
       match eval_rv ctx.ask ctx.global st e with
       | `Int v when ID.is_bool v ->
         begin match ID.to_bool v with
-          | Some false ->  `False
-          | Some true  ->  `True
+          | Some false ->  `Lifted false
+          | Some true  ->  `Lifted true
           | _ -> `Top
         end
       | `Bot -> `Bot
@@ -1894,42 +1894,23 @@ struct
         ) else
           M.warn_each ~ctx:ctx.control_context msg
     in
-    let meet_results a b = 
-        match (a, b) with
-        | (a, `Bot) -> `Bot
-        | (`Bot, b) -> `Bot
-        | (a, `Top) -> a
-        | (`Top, b) -> b
-        | (`True, `False) -> `Bot
-        | (`False, `True) -> `Bot
-        | (a, b) ->  a
-    in
     let base_result = check_assert e ctx.local in
     let result = 
       if should_warn then
         let other_analsyis_result = 
           match ctx.ask (Q.Assert e) with
-          | `AssertionResult ar -> 
-            let simplified = match ar with            
-            | `Lifted b -> 
-              if b then 
-                `True 
-              else 
-                `False
-            | `Top -> `Top
-            | `Bot -> `Bot in
-            simplified
+          | `AssertionResult ar -> ar
           | _ -> `Top
         in
-        meet_results base_result other_analsyis_result 
+        Basetype.Bools.meet base_result other_analsyis_result 
       else
         base_result
     in 
     match result with
-    | `False ->
+    | `Lifted false ->
       warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
-    | `True ->
+    | `Lifted true ->
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
@@ -1940,7 +1921,7 @@ struct
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx ctx.ask ctx.global ctx.local e true in
-        (* if check_assert e newst <> `True then
+         (* if check_assert e newst <> `Lifted true then
             M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
         newst
       end
