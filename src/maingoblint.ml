@@ -57,11 +57,6 @@ let create_temp_dir () =
 let remove_temp_dir () =
   if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf !Goblintutil.tempDirName)
 
-
-let rec print_list = function 
-  [] -> ()
-  | e::l -> print_int e ; print_string " " ; print_list l
-
 (** [Arg] option specification *)
 let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
