@@ -9,6 +9,7 @@ sig
   val write_metadata: t -> string -> string -> unit
   val write_node: t -> node -> (string * string) list -> unit
   val write_edge: t -> node -> node -> (string * string) list -> unit
+  val stop_graph: t -> unit
   val stop: t -> unit
 end
 
@@ -59,8 +60,11 @@ struct
     | _ ->
       BatPrintf.fprintf f "    <edge source=\"%s\" target=\"%s\">\n%a    </edge>\n" (escape source) (escape target) write_datas datas
 
+  let stop_graph f =
+    BatPrintf.fprintf f "  </graph>\n"
+
   let stop f =
-    BatPrintf.fprintf f "  </graph>\n</graphml>\n";
+    BatPrintf.fprintf f "</graphml>\n";
     BatIO.close_out f
 end
 
@@ -79,6 +83,7 @@ struct
   let write_metadata = M.write_metadata
   let write_node g node datas = M.write_node g (string_of_node node) datas
   let write_edge g source target datas = M.write_edge g (string_of_node source) (string_of_node target) datas
+  let stop_graph = M.stop_graph
   let stop = M.stop
 end
 
@@ -112,6 +117,7 @@ struct
   let write_metadata {delegate; _} = M.write_metadata delegate
   let write_node ({delegate; _} as g) node datas = M.write_node delegate (string_of_node g node) datas
   let write_edge ({delegate; _} as g) source target datas = M.write_edge delegate (string_of_node g source) (string_of_node g target) datas
+  let stop_graph {delegate; _} = M.stop_graph delegate
   let stop {delegate; _} = M.stop delegate
 end
 
@@ -138,6 +144,7 @@ struct
     end
 
   let write_edge {delegate; _} = M.write_edge delegate
+  let stop_graph {delegate; _} = M.stop_graph delegate
   let stop {delegate; _} = M.stop delegate
 
 end

@@ -274,6 +274,8 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   write_node ~entry:true main_entry;
   iter_node main_entry;
 
+  GML.stop_graph g;
+
   GML.stop g;
   close_out_noerr out
 
