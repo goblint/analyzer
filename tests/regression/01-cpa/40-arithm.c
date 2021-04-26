@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.def_exc --disable ana.int.interval  --set ana.activated[-] "'octApron'"
+// PARAM: --enable ana.int.def_exc --disable ana.int.interval
 #include<stdio.h>
 #include<assert.h>
 // 2 ^ 30

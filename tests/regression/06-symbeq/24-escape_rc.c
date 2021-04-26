@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'var_eq'" --set ana.activated[-] "'octApron'"
+// PARAM: --set ana.activated[+] "'var_eq'"
 // Copy of 04/45 with var_eq enabled
 // octApron needs to be included again and fixed
 #include <pthread.h>
