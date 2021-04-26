@@ -19,7 +19,7 @@ int *fooBar(int *x){
 
 int main(){
     int i = 3;
-    foor(&i);
+    foo(&i);
     bar(&i);
     int *p;
     p = foo(&i);
