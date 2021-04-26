@@ -105,7 +105,7 @@ struct
 
   module Dom =
   struct
-    include HoareDomain.HoareMap (Spec.D) (R)
+    include HoareDomain.MapBot (Spec.D) (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
@@ -148,7 +148,7 @@ struct
    * This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
    * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
   module SyncSet = HoareDomain.Set (Spec.D)
-  module Sync = HoareDomain.HoareMap (Spec.D) (SyncSet)
+  module Sync = HoareDomain.MapBot (Spec.D) (SyncSet)
   module D =
   struct
     include Lattice.Prod (Dom) (Sync)

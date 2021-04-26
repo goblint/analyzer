@@ -301,7 +301,7 @@ struct
 end
 
 (* TODO: weaken R to Lattice.S ? *)
-module HoareMap (SpecD:Lattice.S) (R:SetDomain.S) =
+module MapBot (SpecD:Lattice.S) (R:SetDomain.S) =
 struct
   module SpecDGroupable =
   struct
