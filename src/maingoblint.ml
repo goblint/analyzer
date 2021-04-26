@@ -459,7 +459,7 @@ let main =
         | Exit ->
           exit 1
         | Timeout ->
-          Printexc.print_backtrace BatInnerIO.stderr;
+          (* Printexc.print_backtrace BatInnerIO.stderr; *)
           exit 124
     )
 
