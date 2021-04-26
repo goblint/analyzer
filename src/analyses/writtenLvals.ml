@@ -10,13 +10,22 @@ struct
 
   let name () = "writtenLvals"
   module D = Q.LS
-  module G = Lattice.Unit
+  module G = Q.LS
   module C = Q.LS
+
+
+  let side_to_f ctx newst =
+    let get_current_fun () =
+      MyCFG.getFun @@ (match !MyCFG.current_node with Some n -> n | _ -> failwith "Code is not within a function.")
+    in
+    let f = get_current_fun () in
+    ctx.sideg f.svar newst;
+    newst
 
   (* transfer functions *)
   let add_written_lval ctx (lval:lval): D.t =
     let query e = ctx.ask (Q.MayPointTo e) in
-    match lval with
+    let newst = match lval with
       | Mem e, NoOffset
       | Mem e, Index _ ->
         (match query e with
@@ -29,6 +38,8 @@ struct
           | _ -> ctx.local
         )
       | _, _ -> ctx.local
+    in
+    side_to_f ctx newst
 
   let add_written_option_lval ctx (lval: lval option): D.t =
     match lval with
@@ -50,10 +61,12 @@ struct
     [ctx.local, Q.LS.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    D.union (add_written_option_lval ctx lval) au
+    let newst = D.union (add_written_option_lval ctx lval) au in
+    side_to_f ctx newst
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    add_written_option_lval ctx lval
+    let newst = add_written_option_lval ctx lval in
+    side_to_f ctx newst
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
@@ -61,8 +74,8 @@ struct
   let exitstate  v = D.top ()
 
   let query ctx (q:Q.t) = match q with
-    | Q.WrittenLvals ->
-      `LvalSet ctx.local
+    | Q.WrittenLvals f ->
+      `LvalSet (ctx.global f)
     | _ -> `Top
 
 end

@@ -2266,7 +2266,7 @@ struct
       in
       let st = if get_bool "ana.library" then
           begin
-            let writtenLvals = match (ctx.ask Q.WrittenLvals) with
+            let writtenLvals = match (ctx.ask (Q.WrittenLvals f) ) with
               | `LvalSet s -> s
               | _ -> failwith "Ran without written lval analysis"
             in
