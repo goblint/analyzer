@@ -2337,7 +2337,7 @@ let get_main (): (module MainSpec) =
 let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : MCPSpec)
+  MCP.register_analysis (module Main : MCPSpec)
 
 let _ =
   AfterConfig.register after_config

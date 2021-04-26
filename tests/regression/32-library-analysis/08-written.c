@@ -1,4 +1,4 @@
-//PARAM: --enable allfuns --enable ana.library  --set ana.activated "['base','mallocWrapperTypeBased','writtenLvals']"
+//PARAM: --enable ana.library --sets ana.activated[+] mallocWrapperTypeBased --sets ana.activated[-] mallocWrapper
 
 typedef struct foo{
     long *ptr;

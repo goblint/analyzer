@@ -1,4 +1,4 @@
-//PARAM: --enable ana.library --sets ana.activated[+] mallocWrapperTypeBased
+//PARAM: --enable ana.library --sets ana.activated[+] mallocWrapperTypeBased --sets ana.activated[-] mallocWrapper
 #include <assert.h>
 
 int g;
