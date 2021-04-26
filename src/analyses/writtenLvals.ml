@@ -16,11 +16,12 @@ struct
   let val_of _ = ()
 
   let side_to_f ctx side =
-    let get_current_fun () =
-      MyCFG.getFun @@ (match !MyCFG.current_node with Some n -> n | _ -> failwith "Code is not within a function.")
-    in
+    let get_current_fun () = Option.map MyCFG.getFun !MyCFG.current_node in
     let f = get_current_fun () in
-    ctx.sideg f.svar side;
+    (match f with
+      | Some f -> ctx.sideg f.svar side
+      | None -> ()
+    );
     side
 
   (* transfer functions *)
