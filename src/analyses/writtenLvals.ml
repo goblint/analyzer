@@ -15,7 +15,7 @@ struct
   module C = Q.LS
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
+  let add_written_lval ctx (lval:lval): D.t =
     let query e = ctx.ask (Q.MayPointTo e) in
     match lval with
       | Mem e, NoOffset
@@ -31,6 +31,13 @@ struct
         )
       | _, _ -> ctx.local
 
+  let add_written_option_lval ctx (lval: lval option): D.t =
+    match lval with
+    | Some lval -> add_written_lval ctx lval
+    | None -> ctx.local
+
+  let assign ctx (lval:lval) (rval:exp) : D.t = add_written_lval ctx lval
+
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
 
@@ -44,10 +51,10 @@ struct
     [ctx.local, Q.LS.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    au
+    add_written_option_lval ctx lval
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+    add_written_option_lval ctx lval
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
