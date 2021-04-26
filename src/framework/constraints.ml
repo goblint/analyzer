@@ -954,14 +954,14 @@ module N = struct let topname = "Top" end
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = SetDomain.Hoare_NoTop(Spec.D).t
+    with type D.t = HoareDomain.Hoare_NoTop(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
 =
 struct
   module D =
   struct
-    include SetDomain.Hoare_NoTop (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    include HoareDomain.Hoare_NoTop (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =

@@ -1,0 +1,268 @@
+(** Abstract domains with Hoare ordering. *)
+
+open Pretty
+
+(* Hoare hash set for partial orders: keeps incomparable elements separate
+   - All comparable elements must have the same hash so that they land in the same bucket!
+   - Pairwise operations like join then only need to be done per bucket.
+   - E should throw Lattice.Incomparable if an operation is not defined for two elements.
+     In this case the operation will be done on the level of the set instead.
+   - Hoare set means that for comparable elements, we only keep the biggest one.
+     -> We only need to find the first comparable element for a join etc.
+     -> There should only be one element per bucket except for hash collisions.
+*)
+module HoarePO (E : Lattice.PO) =
+struct
+  open Batteries
+  type bucket = E.t list
+  type t = bucket Map.Int.t
+  module Map = Map.Int
+
+  module B = struct (* bucket *)
+    (* join element e with bucket using op *)
+    let rec join op e = function
+      | [] -> [e]
+      | x::xs -> try op e x :: xs with Lattice.Uncomparable -> x :: join op e xs
+
+    (* meet element e with bucket using op *)
+    let rec meet op e = function
+      | [] -> []
+      | x::xs -> try [op e x] with Lattice.Uncomparable -> meet op e xs
+
+    (* merge element e into its bucket in m using f, discard bucket if empty *)
+    let merge_element f e m =
+      let i = E.hash e in
+      let b = f e (Map.find_default [] i m) in
+      if b = [] then Map.remove i m
+      else Map.add i b m
+  end
+
+  let elements m = Map.values m |> List.of_enum |> List.flatten
+
+  (* merge elements in x and y by f *)
+  let merge op f x y =
+    let g = match op with
+      | `Join -> B.join
+      | `Meet -> B.meet
+    in
+    Map.merge (fun i a b -> match a, b with
+        | Some a, Some b ->
+          let r = List.fold_left (flip (g f)) a b in
+          if r = [] then None else Some r
+        | Some x, None
+        | None, Some x when op = `Join -> Some x
+        | _ -> None
+      ) x y
+
+  let merge_meet f x y =
+    Map.merge (fun i a b -> match a, b with
+        | Some a, Some b ->
+          let r = List.concat @@ List.map (fun x -> B.meet f x a) b in
+          if r = [] then None else Some r
+        | _ -> None
+      ) x y
+
+  (* join all elements from the smaller map into their bucket in the other one.
+   * this doesn't need to go over all elements of both maps as the general merge above. *)
+  let merge_join f x y =
+    (* let x, y = if Map.cardinal x < Map.cardinal y then x, y else y, x in *)
+    List.fold_left (flip (B.merge_element (B.join f))) y (elements x)
+
+  let join   x y = merge_join E.join x y
+  let widen  x y = merge_join E.widen x y
+  let meet   x y = merge_meet E.meet x y
+  let narrow x y = merge_meet E.narrow x y
+
+  (* Set *)
+  let of_list_by f es = List.fold_left (flip (B.merge_element (B.join f))) Map.empty es
+  let of_list es = of_list_by E.join es
+  let keep_apart x y = raise Lattice.Uncomparable
+  let of_list_apart es = of_list_by keep_apart es
+  let singleton e = of_list [e]
+  let exists p m = List.exists p (elements m)
+  let for_all p m = List.for_all p (elements m)
+  let mem e m = exists (E.leq e) m
+  let choose m = List.hd (snd (Map.choose m))
+  let apply_list f m = of_list (f (elements m))
+  let map f m =
+    (* Map.map (List.map f) m *)
+    (* since hashes might change we need to rebuild: *)
+    apply_list (List.map f) m
+  let filter f m = apply_list (List.filter f) m (* TODO do something better? *)
+  let remove x m =
+    let ngreq x y = not (E.leq y x) in
+    B.merge_element (fun _ -> List.filter (ngreq x)) x m
+  (* let add e m = if mem e m then m else B.merge List.cons e m *)
+  let add e m = if mem e m then m else join (singleton e) m
+  let fold f m a = Map.fold (fun _ -> List.fold_right f) m a
+  let cardinal m = fold (const succ) m 0
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let empty () = Map.empty
+  let is_empty m = Map.is_empty m
+  (* let union x y = merge (B.join keep_apart) x y *)
+  let union x y = join x y
+  let iter f m = Map.iter (fun _ -> List.iter f) m
+
+  let is_element e m = Map.cardinal m = 1 && snd (Map.choose m) = [e]
+
+  (* Lattice *)
+  let bot () = Map.empty
+  let is_bot = Map.is_empty
+  let top () = raise (SetDomain.Unsupported "HoarePO.top")
+  let is_top _ = false
+  let leq x y = (* all elements in x must be leq than the ones in y *)
+    for_all (flip mem y) x
+
+  (* Printable *)
+  let name () = "Set (" ^ E.name () ^ ")"
+  (* let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false *)
+  let equal x y = leq x y && leq y x
+  let hash xs = fold (fun v a -> a + E.hash v) xs 0
+  let compare x y =
+    if equal x y
+      then 0
+      else
+        let caridnality_comp = compare (cardinal x) (cardinal y) in
+        if caridnality_comp <> 0
+          then caridnality_comp
+          else Map.compare (List.compare E.compare) x y
+  let isSimple _ = false
+  let short w x : string =
+    let usable_length = w - 5 in
+    let all_elems : string list = List.map (E.short usable_length) (elements x) in
+    Printable.get_short_list "{" "}" usable_length all_elems
+
+  let to_yojson x = [%to_yojson: E.t list] (elements x)
+
+  let pretty_f _ () x =
+    let content = List.map (E.pretty ()) (elements x) in
+    let rec separate x =
+      match x with
+      | [] -> []
+      | [x] -> [x]
+      | (x::xs) -> x ++ (text ", ") :: separate xs
+    in
+    let separated = separate content in
+    let content = List.fold_left (++) nil separated in
+    (text "{") ++ content ++ (text "}")
+  let pretty () x = pretty_f short () x
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y
+  let printXml f x =
+    BatPrintf.fprintf f "<value>\n<set>\n";
+    List.iter (E.printXml f) (elements x);
+    BatPrintf.fprintf f "</set>\n</value>\n"
+end
+
+(* module Hoare (B : Lattice.S) (N: ToppedSetNames) : sig *)
+(*   include S with type elt = B.t *)
+(*   val apply_list : (elt list -> elt list) -> t -> t *)
+(*   val product_top : (elt -> elt -> elt) -> t -> t -> t *)
+(* end = *)
+module Hoare (B : Lattice.S) (N: SetDomain.ToppedSetNames) =
+struct
+  include SetDomain.ToppedSet (B) (N)
+  (* include ToppedSet (B) (struct let topname = "Top" end) *)
+
+  let exists p = function
+    | All -> true
+    | Set s -> S.exists p s
+  let for_all p = function
+    | All -> false
+    | Set s -> S.for_all p s
+  let mem x = function
+    | All -> true
+    | Set s -> S.exists (B.leq x) s
+  let leq a b =
+    match a with
+    | All -> b = All
+    | _ -> for_all (fun x -> mem x b) a (* mem uses B.leq! *)
+  let eq a b = leq a b && leq b a
+  let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
+  let reduce = function
+    | All -> All
+    | Set s -> Set (S.filter (fun x -> not (S.exists (le x) s) && not (B.is_bot x)) s)
+  let product_bot op a b = match a,b with
+    | All, a | a, All -> a
+    | Set a, Set b ->
+      let a,b = S.elements a, S.elements b in
+      List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (Set (S.of_list x))
+  let product_widen op a b = match a,b with (* assumes b to be bigger than a *)
+    | All, _ | _, All -> All
+    | Set a, Set b ->
+      let xs,ys = S.elements a, S.elements b in
+      List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (Set (S.union b (S.of_list x)))
+  let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
+  let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
+
+  let add x a = if mem x a then a else add x a (* special mem! *)
+  let remove x a = failwith "Hoare: unsupported remove"
+  let union a b = union a b |> reduce
+  let join = union
+  let inter = product_bot B.meet
+  let meet = inter
+  let subset = leq
+  let map' = map (* HACK: for PathSensitive morphstate *)
+  let map f a = map f a |> reduce
+  let min_elt a = B.bot ()
+  let split x a = failwith "Hoare: unsupported split"
+  let apply_list f = function
+    | All -> All
+    | Set s -> Set (S.elements s |> f |> S.of_list)
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let of_list xs = List.fold_right add xs (empty ()) |> reduce
+  let is_element e s = cardinal s = 1 && choose s = e
+
+  (* Copied from ToppedSet *)
+  let arbitrary () =
+    let set x = reduce (Set x) in (* added reduce here to satisfy implicit invariant *)
+    let open QCheck.Iter in
+    let shrink = function
+      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
+      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
+    in
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map set (S.arbitrary ());
+      1, QCheck.always All
+    ] (* S TODO: decide frequencies *)
+end
+
+(* Copy of Hoare without ToppedSet. *)
+module Hoare_NoTop (B : Lattice.S) =
+struct
+  include SetDomain.Make (B)
+
+  let mem x s = exists (B.leq x) s
+  let leq a b = for_all (fun x -> mem x b) a (* mem uses B.leq! *)
+  let eq a b = leq a b && leq b a
+  let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
+  let reduce s = filter (fun x -> not (exists (le x) s) && not (B.is_bot x)) s
+  let product_bot op a b =
+    let a,b = elements a, elements b in
+    List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (of_list x)
+  let product_widen op a b = (* assumes b to be bigger than a *)
+    let xs,ys = elements a, elements b in
+    List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (union b (of_list x))
+  let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
+  let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
+
+  let add x a = if mem x a then a else add x a (* special mem! *)
+  let remove x a = failwith "Hoare_NoTop: unsupported remove"
+  let union a b = union a b |> reduce
+  let join = union
+  let inter = product_bot B.meet
+  let meet = inter
+  let subset = leq
+  let map' = map (* HACK: for PathSensitive morphstate *)
+  let map f a = map f a |> reduce
+  let min_elt a = B.bot ()
+  let split x a = failwith "Hoare_NoTop: unsupported split"
+  let apply_list f s = elements s |> f |> of_list
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let of_list xs = List.fold_right add xs (empty ()) |> reduce
+  let is_element e s = cardinal s = 1 && choose s = e
+
+  (* Copied from Make *)
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (B.arbitrary ())
+end

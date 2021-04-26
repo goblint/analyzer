@@ -173,7 +173,7 @@ struct
   (* Bot is needed for Hoare widen *)
   (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
   module VIEB = Lattice.LiftBot (VIE)
-  module VIES = SetDomain.Hoare_NoTop (VIEB)
+  module VIES = HoareDomain.Hoare_NoTop (VIEB)
 
   module R = VIES
 
@@ -238,7 +238,7 @@ struct
   (* Additional dependencies component between values before and after sync.
    * This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
    * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
-  module SyncSet = SetDomain.Hoare_NoTop (Spec.D)
+  module SyncSet = HoareDomain.Hoare_NoTop (Spec.D)
   module Sync = HoareMap (Spec.D) (SyncSet)
   module D =
   struct
