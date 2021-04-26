@@ -246,7 +246,7 @@ struct
 end
 
 (* Copy of Hoare without ToppedSet. *)
-module Hoare_NoTop (B : Lattice.S) =
+module Set (B : Lattice.S) =
 struct
   include SetDomain.Make (B)
 
