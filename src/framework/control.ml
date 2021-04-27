@@ -127,6 +127,7 @@ struct
           printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
         )
       );
+      printf "Total lines (logical LoC): %d\n" (live_count + !count);
       let str = function true -> "then" | false -> "else" in
       let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
