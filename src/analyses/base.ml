@@ -2229,34 +2229,47 @@ struct
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
+      let update_lvals ctx (exps: exp list) =
+        let update_lvals ctx (ls: Q.LS.t) (args: exp list) =
+          let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+          let reachable = reachable_vars ctx.ask (get_ptrs vals) ctx.global st in
+          let update_lval reachable =
+            let f  = fun s a ->
+              let at = AD.get_type a in
+              set ctx.ask ctx.global s a at (VD.top_value at)
+            in
+            List.fold f ctx.local reachable
+          in
+          match ls with
+          | All ->
+            update_lval reachable
+          | Set s ->
+            let list = Q.LS.S.to_list s in
+            let written_type_sigs = Set.of_list @@ List.map (fun e -> Cil.typeSig (Cil.typeOfLval (Lval.CilLval.to_lval e))) list in
+            List.filter (fun x -> Set.mem (Cil.typeSig (AD.get_type x)) written_type_sigs) reachable |> update_lval
+        in
+        let writtenLvals = match (ctx.ask (Q.WrittenLvals f) ) with
+          | `LvalSet s -> s
+          | _ -> failwith "Ran without written lval analysis"
+        in
+        update_lvals ctx writtenLvals exps
+      in
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
       let add_globals (st: store) (fun_st: store) =
-        (* Remove the return value as this is dealt with separately. *)
-        let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
-        let cpa_local = CPA.filter (fun x _ -> not (is_global ctx.ask x)) st.cpa in
-        let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
-        { fun_st with cpa = cpa' }
-      in
-      let update_lvals ctx (ls: Q.LS.t) (args: exp list) =
-        let vals = List.map (eval_rv ctx.ask ctx.global st) args in
-        let reachable = reachable_vars ctx.ask (get_ptrs vals) ctx.global st in
-        let update_lval reachable =
-          let f  = fun s a ->
-            (let at = AD.get_type a in set ctx.ask ctx.global s a at (VD.top_value at))
-          in
-          List.fold f ctx.local reachable
-        in
-        match ls with
-        | All ->
-          update_lval reachable
-        | Set s ->
-          let list = Q.LS.S.to_list s in
-          let written_type_sigs = Set.of_list @@ List.map (fun e -> Cil.typeSig (Cil.typeOfLval (Lval.CilLval.to_lval e))) list in
-          List.filter (fun x -> Set.mem (Cil.typeSig (AD.get_type x)) written_type_sigs) reachable |> update_lval
+        if get_bool "ana.library" then
+          (* Update globals that were written by the called function *)
+          let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) fun_st.cpa [] in
+          update_lvals ctx globals
+        else
+          (* Remove the return value as this is dealt with separately. *)
+          let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
+          let cpa_local = CPA.filter (fun x _ -> not (is_global ctx.ask x)) st.cpa in
+          let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+          { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
       let return_val = if GobConfig.get_bool "ana.library" then (
@@ -2270,16 +2283,9 @@ struct
         else VD.top ()
       )
       in
-      let st = if get_bool "ana.library" then
-          begin
-            let writtenLvals = match (ctx.ask (Q.WrittenLvals f) ) with
-              | `LvalSet s -> s
-              | _ -> failwith "Ran without written lval analysis"
-            in
-            update_lvals ctx writtenLvals args
-          end
-        else
-          st
+      let st = if get_bool "ana.library"
+        then update_lvals ctx args (* Update locations that are pointed to by arguments and were possibly written by the called function *)
+        else st
       in
       let st = add_globals st fun_st in
       match lval with
