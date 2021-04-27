@@ -6,6 +6,9 @@ require 'find'
 require 'fileutils'
 require 'timeout'
 require 'pathname'
+def relpath(file)
+  return Pathname(file).relative_path_from Pathname(Dir.getwd) # Pathname for arg required for ruby 2.5, 2.6 accepts string as well
+end
 require 'set'
 timeout = 5 # seconds
 
@@ -256,9 +259,8 @@ doproject = lambda do |p|
     if status == 1 then
       puts stats.last(5).itemize
     elsif status == 2 then # if stats[0] =~ /exception/ then
-      relpath = (Pathname.new filepath).relative_path_from Dir.getwd
       lastline = (File.readlines warnfile).last()
-      puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
+      puts lastline.strip().sub filename, relpath(filepath).to_s unless lastline.nil?
       puts stats[0..9].itemize
     elsif status == 3 then
       warn = File.readlines warnfile
@@ -298,9 +300,8 @@ doproject = lambda do |p|
       if status == 1 then
         puts stats.last(5).itemize
       elsif status == 2 then # if stats[0] =~ /exception/ then
-        relpath = (Pathname.new filepath).relative_path_from Dir.getwd
         lastline = (File.readlines warnfile).last()
-        puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
+        puts lastline.strip().sub filename, relpath(filepath).to_s unless lastline.nil?
         puts stats[0..9].itemize
       elsif status == 3 then
         warn = File.readlines warnfile
@@ -407,12 +408,12 @@ File.open(theresultfile, "w") do |f|
     correct = 0
     ignored = 0
     ferr = nil
+    path = relpath(p.path) # full p.path is too long and p.name does not allow click to open in terminal
     p.tests.each_pair do |idx, type|
       check = lambda {|cond|
         if cond then
           correct += 1
-          relpath = (Pathname.new p.path).relative_path_from Dir.getwd # full path too long, p.name does not allow click to open in terminal
-          if p.todo.include? idx then puts "Excellent: ignored check on #{relpath.to_s.cyan}:#{idx.to_s.blue} is now passing!" end
+          if p.todo.include? idx then puts "Excellent: ignored check on #{path.to_s.cyan}:#{idx.to_s.blue} is now passing!" end
         else
           if p.todo.include? idx then ignored += 1 else
             puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
