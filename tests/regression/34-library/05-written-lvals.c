@@ -19,7 +19,7 @@ int main(){
     long l = 4;
     *x = 323;
     bar(&p, &l);
-    assert(p==3); // UNKNOWN
+    assert(p==3); // UNKNOWN!
     assert(l==4);
     return 0;
 }
