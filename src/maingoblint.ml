@@ -460,6 +460,8 @@ let main =
           exit 1
         | Timeout ->
           (* Printexc.print_backtrace BatInnerIO.stderr; *)
+          do_stats ();
+          eprintf "%s\n" (Messages.colorize "{RED}Analysis was aborted because it reached the set timeout!");
           exit 124
     )
 
