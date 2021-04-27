@@ -37,7 +37,11 @@ let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
 
-let colorize ?on:(on=get_bool "colors") msg =
+let colors_on () = (* use colors? *)
+  let c = get_string "colors" in
+  c = "always" || c = "auto" && Unix.(isatty stdout)
+
+let colorize ?on:(on=colors_on ()) msg =
   let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
                 ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
   let replace (color,code) =
@@ -54,7 +58,7 @@ let print_msg msg loc =
   if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
   else
-    let color = if get_bool "colors" then "{violet}" else "" in
+    let color = if colors_on () then "{violet}" else "" in
     let s = Printf.sprintf "%s %s(%s:%d)" msgc color loc.file loc.line in
     Printf.fprintf !warn_out "%s\n%!" (colorize s)
 
