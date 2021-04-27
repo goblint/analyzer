@@ -430,7 +430,7 @@ let () = (* signal handling *)
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
   (* catch_break true; *)
-  set_signal sigusr1 (Signal_handle (fun _ -> raise Break)) (* e.g. `pkill -SIGUSR1 goblint`, or `kill`, `htop` *)
+  set_signal sigusr1 (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr)) (* e.g. `pkill -SIGUSR1 goblint`, or `kill`, `htop` *)
 
 (** the main function *)
 let main =
@@ -465,7 +465,7 @@ let main =
       with
         | Exit ->
           exit 1
-        | Sys.Break ->
+        | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
           Printexc.print_backtrace BatInnerIO.stderr
         | Timeout ->
           do_stats ();
