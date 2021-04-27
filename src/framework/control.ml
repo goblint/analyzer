@@ -529,8 +529,12 @@ struct
     MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
 
     (* Use "normal" constraint solving *)
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> M.print_msg "Timeout reached!" (!Tracing.current_loc); raise GU.Timeout) in
+    let timeout_reached () =
+      M.print_msg "Timeout reached!" (!Tracing.current_loc);
+      (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
+      raise GU.Timeout
+    in
+    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout")) timeout_reached in
     let local_xml = solver2source_result lh in
 
     let liveness =
