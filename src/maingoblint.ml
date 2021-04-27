@@ -426,6 +426,12 @@ let do_stats () =
     Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ()
 
+let () = (* signal handling *)
+  let open Sys in
+  (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
+  (* catch_break true; *)
+  set_signal sigusr1 (Signal_handle (fun _ -> raise Break)) (* e.g. `pkill -SIGUSR1 goblint`, or `kill`, `htop` *)
+
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
@@ -459,8 +465,9 @@ let main =
       with
         | Exit ->
           exit 1
+        | Sys.Break ->
+          Printexc.print_backtrace BatInnerIO.stderr
         | Timeout ->
-          (* Printexc.print_backtrace BatInnerIO.stderr; *)
           do_stats ();
           print_newline ();
           eprintf "%s\n" (Messages.colorize "{RED}Analysis was aborted because it reached the set timeout!");
