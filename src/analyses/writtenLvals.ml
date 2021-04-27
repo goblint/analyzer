@@ -24,19 +24,25 @@ struct
     );
     side
 
+  let is_heap_var ctx (v: varinfo) =
+    match ctx.ask (Q.IsHeapVar v) with
+      | `MustBool true -> true
+      | _ -> false
+
   (* transfer functions *)
   let add_written_lval ctx (lval:lval): G.t =
     let query e = ctx.ask (Q.MayPointTo e) in
+    let filter (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_heap_var ctx v) s in
     let side = match lval with
       | Mem e, NoOffset
       | Mem e, Index _ ->
         (match query e with
-          | `LvalSet s -> s
+          | `LvalSet s -> filter s
           | _ -> G.bot ()
         )
       | Mem e, Field (finfo, offs) ->
         (match query e with
-          | `LvalSet s -> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset))) s
+          | `LvalSet s -> filter s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
           | _ -> G.bot ()
         )
       | _, _ -> G.bot ()
@@ -69,8 +75,7 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let newst = add_written_option_lval ctx lval in
-    ignore @@ side_to_f ctx newst;
-    ()
+    ignore @@ side_to_f ctx newst
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
