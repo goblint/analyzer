@@ -427,3 +427,5 @@ let signal_of_string = let open Sys in function
   | "sigprof" -> sigprof (* Profiling interrupt *)
   | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
   | s -> failwith ("Unhandled signal " ^ s)
+
+let self_signal signal = Unix.kill (Unix.getpid ()) signal
