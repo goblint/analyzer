@@ -27,20 +27,21 @@ struct
       | `MustBool true -> true
       | _ -> false
 
+  let filter_heap_vars ctx (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_heap_var ctx v) s
+
   (* transfer functions *)
   let add_written_lval ctx (lval:lval): unit =
     let query e = ctx.ask (Q.MayPointTo e) in
-    let filter (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_heap_var ctx v) s in
     let side = match lval with
       | Mem e, NoOffset
       | Mem e, Index _ ->
         (match query e with
-          | `LvalSet s -> filter s
+          | `LvalSet s -> filter_heap_vars ctx s
           | _ -> G.bot ()
         )
       | Mem e, Field (finfo, offs) ->
         (match query e with
-          | `LvalSet s -> filter s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
+          | `LvalSet s -> filter_heap_vars ctx s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
           | _ -> G.bot ()
         )
       | _, _ -> G.bot ()
@@ -68,8 +69,28 @@ struct
     [ctx.local, D.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+    (* We have a call: [lval =] f(e1,...,ek) *)
+    (* Set the lval to written, if any. *)
     add_written_option_lval ctx lval;
-    side_to_f ctx (ctx.global f)
+
+    (* Find the heapvars that are reachable from the passed arguments *)
+    let reachable_heap_vars =
+      let reachable_exp exp = match ctx.ask (Q.ReachableFrom exp) with
+        | `LvalSet s -> s
+        | `Top -> All
+        | `Bot | _ -> Q.LS.bot ()
+      in
+      List.fold (fun acc exp -> Q.LS.join (reachable_exp exp) acc) (Q.LS.bot ()) args
+        |> filter_heap_vars ctx
+    in
+    let reachable_heap_var_typesigs = match reachable_heap_vars with
+      | Set s -> (Q.LS.S.to_list s) |> List.map (fun (v,o) -> Cil.typeSig v.vtype) |> Set.of_list
+      | All -> failwith "This should not happen!"
+    in
+    (* Filter the written lvals by f to passed heapvars *)
+    let written_by_f = ctx.global f in
+    let written_heap_vars_by_f = Q.LS.filter (fun (v, o) -> Set.mem (Cil.typeSig v.vtype) reachable_heap_var_typesigs) written_by_f in
+    side_to_f ctx written_heap_vars_by_f
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     add_written_option_lval ctx lval
