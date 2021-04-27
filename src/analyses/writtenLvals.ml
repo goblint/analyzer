@@ -18,11 +18,9 @@ struct
   let side_to_f ctx side =
     let get_current_fun () = Option.map MyCFG.getFun !MyCFG.current_node in
     let f = get_current_fun () in
-    (match f with
+    match f with
       | Some f -> ctx.sideg f.svar side
       | None -> ()
-    );
-    side
 
   let is_heap_var ctx (v: varinfo) =
     match ctx.ask (Q.IsHeapVar v) with
@@ -30,7 +28,7 @@ struct
       | _ -> false
 
   (* transfer functions *)
-  let add_written_lval ctx (lval:lval): G.t =
+  let add_written_lval ctx (lval:lval): unit =
     let query e = ctx.ask (Q.MayPointTo e) in
     let filter (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_heap_var ctx v) s in
     let side = match lval with
@@ -49,13 +47,13 @@ struct
     in
     side_to_f ctx side
 
-  let add_written_option_lval ctx (lval: lval option): G.t =
+  let add_written_option_lval ctx (lval: lval option): unit =
     match lval with
     | Some lval -> add_written_lval ctx lval
-    | None -> G.bot ()
+    | None -> ()
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    ignore @@ add_written_lval ctx lval
+    add_written_lval ctx lval
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -70,12 +68,11 @@ struct
     [ctx.local, D.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    let side = G.union (add_written_option_lval ctx lval) (ctx.global f) in
-    ignore @@ side_to_f ctx side
+    add_written_option_lval ctx lval;
+    side_to_f ctx (ctx.global f)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let newst = add_written_option_lval ctx lval in
-    ignore @@ side_to_f ctx newst
+    add_written_option_lval ctx lval
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
