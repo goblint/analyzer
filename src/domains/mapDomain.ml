@@ -58,18 +58,11 @@ end
 module type Groupable =
 sig
   include Printable.S
-  val classify: t -> int (* groups are sorted by this *)
-  val class_name: int -> string (* name of group *)
-  val trace_enabled: bool
+  type group (* use [@@deriving show { with_path = false }] *)
+  val show_group: group -> string
+  val to_group: t -> group option
+  val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
-
-module StripClasses (G: Groupable) =
-struct
-  include G
-  let classify x = 0
-end
-
-(* Just a global hack for tracing individual variables. *)
 
 module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
@@ -148,12 +141,11 @@ struct
 
   let pretty_f short () mapping =
     let groups =
-      let group_fold key itm gps =
-        let cl = Domain.classify key in
-        match gps with
-        | (a,n) when cl <>  n -> ((cl,(M.add key itm M.empty))::a, cl)
-        | (a,_) -> ((fst (List.hd a),(M.add key itm (snd (List.hd a))))::(List.tl a),cl) in
-      List.rev (fst (fold group_fold mapping ([],min_int)))
+      let h = Hashtbl.create 13 in
+      iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
+      let cmpBy f a b = Stdlib.compare (f a) (f b) in
+      (* sort groups (order of constructors in type group)  *)
+      BatHashtbl.to_list h |> List.sort (cmpBy fst)
     in
     let f key st dok =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
@@ -163,16 +155,19 @@ struct
         dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else
                   dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
     in
-    let group_name a () = text (Domain.class_name a) in
-    let pretty_group  map () = fold f map nil in
-    let pretty_groups rest map =
-      match (fst map) with
-      | 0 ->  rest ++ pretty_group (snd map) ()
-      | a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name a) (pretty_group (snd map)) in
+    let group_name a () = text (Domain.show_group a) in
+    let pretty_group map () = fold f map nil in
+    let pretty_groups rest (group, map) =
+      match group with
+      | None ->  rest ++ pretty_group map ()
+      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 
   let pretty () x = pretty_f short () x
+
+  (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
+  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y

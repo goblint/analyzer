@@ -82,19 +82,14 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location x = x.vdecl
-  let classify x = match x with
-    | x when x.vglob -> 2
-    | x when x.vdecl.line = -1 -> -1
-    | x when x.vdecl.line = -3 -> 5
-    | x when x.vdecl.line = -4 -> 4
-    | _ -> 1
-  let class_name n = match n with
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
+  let (%) = Batteries.(%)
+  let to_group = Option.some % function
+    | x when x.vglob -> Global
+    | x when x.vdecl.line = -1 -> Temp
+    | x when x.vdecl.line = -3 -> Parameter
+    | x when x.vdecl.line = -4 -> Context
+    | _ -> Local
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -126,8 +121,7 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location (x,s) = x.vdecl
-  let classify (x,sx) = match sx with Context -> 4 | _ -> Variables.classify x
-  let class_name = Variables.class_name
+  let to_group (x,sx) = Option.some @@ match sx with Context -> Some Variables.Context | _ -> Variables.to_group x
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -519,8 +513,7 @@ struct
     Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
 
   let get_location x = (get_var x).vdecl
-  let classify x = Variables.classify (get_var x)
-  let class_name = Variables.class_name
+  let to_group x = Variables.to_group (get_var x)
 
   let pretty () x = pretty_f short () x
   let name () = "variables and fields"

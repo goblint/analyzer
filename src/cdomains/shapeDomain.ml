@@ -30,13 +30,10 @@ struct
 
   let pretty = pretty_f short
 
-  let classify = function
-    | `Left  v -> 1
-    | `Right v -> 2
-  let class_name = function
-    | 1 -> "Variables"
-    | 2 -> "Values"
-    | _ -> "Sadness"
+  type group = Variables | Values [@@deriving show { with_path = false }]
+  let to_group = function
+    | `Left  v -> Some Variables
+    | `Right v -> Some Values
   let isSimple _ = true
 end
 
