@@ -1080,6 +1080,9 @@ struct
         r
       end else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
+
+        (* If we do library analysis, we always have to do non-destructive updates for globals, so join with value here. *)
+        let value = if get_bool "ana.library" && x.vglob then VD.join value @@ eval_rv a gs st (Lval (Var x, cil_offset)) else value in
         (* Normal update of the local state *)
         let new_value = VD.update_offset a (CPA.find x st.cpa) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
