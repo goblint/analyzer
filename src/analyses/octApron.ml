@@ -153,9 +153,11 @@ struct
   let assign ctx (lv:lval) e =
     if D.is_bot ctx.local then D.bot () else
       match lv with
-      | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> 
-        D.assign_var_handling_underflow_overflow ctx.local v e
-      | _ -> D.topE (A.env ctx.local)
+      (* Locals which are numbers, have no offset and their address wasn't taken *)
+      | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) && (not v.vaddrof)->
+          D.assign_var_handling_underflow_overflow ctx.local v e 
+      (* Ignoring all other assigns *)
+      | _ -> ctx.local
 
   let query ctx (q:Queries.t) : Queries.Result.t =
     let open Queries in
