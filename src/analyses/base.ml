@@ -27,8 +27,7 @@ module BaseComponents = BaseDomain.BaseComponents
 let is_heap_var (a: Q.ask) (v: varinfo): bool =
   match a (Q.IsHeapVar v) with `MustBool tv -> tv | _ -> false
 
-let is_always_unknown (a: Q.ask) (variable: varinfo) = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype ||
- (GobConfig.get_bool "ana.library" && variable.vglob && not (is_heap_var a variable))
+let is_always_unknown (variable: varinfo) = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
@@ -1004,7 +1003,7 @@ struct
     | _ -> Q.Result.top ()
 
   let update_variable ?(force_update=false) (a: Q.ask) variable typ value cpa  =
-    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown a variable) && not force_update) then
+    if get_bool "exp.volatiles_are_top" && is_always_unknown variable && not force_update then
       CPA.add variable (VD.top_value typ) cpa
     else
       CPA.add variable value cpa
@@ -1849,14 +1848,14 @@ struct
       List.map (fun (_,snd,_) -> snd) args
     | _ -> failwith "Not a function type"
 
-  let heapify_pointers ctx (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
+  let heapify_pointers ask (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
     let module AVSet = Set.Make(struct
         type t = address * typ * value
         let compare (x1,_,y1) (x2,_,y2) = let r = AD.compare x1 x2 in if r <> 0 then r else VD.compare y1 y2 (* TODO: Can we really ignore typ here? *)
       end)
     in
     let arg_types = get_arg_types fn in
-    let values = List.fold_right (fun t acc ->  (create_val ctx t)::acc) arg_types []  in
+    let values = List.fold_right (fun t acc ->  (create_val ask t)::acc) arg_types []  in
     let heap_mem = values |> List.map snd |> List.flatten |> AVSet.of_list |> AVSet.to_list in
     let fundec = Cilfacade.getdec fn in
     let values = List.map fst values in
@@ -1888,7 +1887,14 @@ struct
         if not (ThreadFlag.is_multi ctx.ask) then
           ignore (Priv.enter_multithreaded ctx.ask ctx.global ctx.sideg st);
         Priv.threadenter ctx.ask st
-      ) else
+      ) else if get_bool "ana.library" then
+        let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
+        (* TODO: rework so we don't have to create a list here *)
+        let global_list = CPA.fold (fun k v acc -> k::acc) st.cpa [] in
+        let global_values = List.fold_right (fun k acc -> (k , Tuple2.first (create_val ctx.ask (k.vtype)))::acc) global_list [] in
+        let globals = CPA.mapi (fun k old -> List.assoc k global_values) globals in
+        {st with cpa = globals}
+      else
         let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
         (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
         let new_cpa = globals in
