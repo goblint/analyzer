@@ -329,16 +329,18 @@ struct
   (* print generic and specific stats *)
   let print_stats _ =
     print_newline ();
-    print_newline ();
     (* print_endline "# Generic solver stats"; *)
     Printf.printf "runtime: %s\n" (string_of_time ());
     Printf.printf "vars: %d, evals %d\n" !Goblintutil.vars !Goblintutil.evals;
     Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
+    print_newline ();
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();
+    print_newline ();
     (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
     Goblintutil.print_gc_quick_stat Legacy.stdout;
+    print_newline ();
     (* print_string "Do you want to continue? [Y/n]"; *)
     flush stdout
     (* if read_line () = "n" then raise Break *)

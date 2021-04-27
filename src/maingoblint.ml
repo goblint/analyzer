@@ -420,6 +420,7 @@ let diff_and_rename file =
 
 let do_stats () =
   if get_bool "printstats" then
+    print_newline ();
     ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
     print_newline ();
     Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
@@ -461,6 +462,7 @@ let main =
         | Timeout ->
           (* Printexc.print_backtrace BatInnerIO.stderr; *)
           do_stats ();
+          print_newline ();
           eprintf "%s\n" (Messages.colorize "{RED}Analysis was aborted because it reached the set timeout!");
           exit 124
     )
