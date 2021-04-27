@@ -84,6 +84,7 @@ while
   end=`date +%s`
   runtime=$((end-start))
   log "  Goblint ran $runtime seconds"
+  echo "$commit; $runtime; $(grep 'evals = ' $outc/analyzer.log | cut -d" " -f9)" >> $outp/incremental_runtime.log
   log "  $(grep 'evals = ' $outc/analyzer.log)"
   log "  $(grep 'change_info = ' $outc/analyzer.log)"
   log "  Obsolete functions: $(grep 'Obsolete function' $outc/analyzer.log | wc -l)"
