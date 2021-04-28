@@ -297,7 +297,7 @@ struct
   let exists f = schema_default true (S.exists f)
   let filter f = schema (fun t -> Set (S.filter f t)) "filter on All"
   let elements = schema S.elements "elements on All"
-  let of_list xs = Set (List.fold_right S.add xs (S.empty ()))
+  let of_list xs = Set (S.of_list xs)
   let cardinal = schema S.cardinal "cardinal on All"
   let min_elt = schema S.min_elt "min_elt on All"
   let max_elt = schema S.max_elt "max_elt on All"
@@ -337,9 +337,9 @@ struct
 
   let leq = subset
   let join = union
-  let widen = join
+  let widen = join (* TODO: why doesn't use S.widen? *)
   let meet = inter
-  let narrow = meet
+  let narrow = meet (* TODO: why doesn't use S.narrow? *)
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
     | Set x, Set y -> S.pretty_diff () (x,y)

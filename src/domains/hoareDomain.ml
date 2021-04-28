@@ -188,7 +188,7 @@ struct
   let split x a = failwith "Hoare_NoTop: unsupported split"
   let apply_list f s = elements s |> f |> of_list
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
-  let of_list xs = List.fold_right add xs (empty ()) |> reduce
+  let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
   let is_element e s = cardinal s = 1 && choose s = e
 
   (* Copied from Make *)
@@ -219,87 +219,35 @@ end
 (* end = *)
 module Set_LiftTop (B : Lattice.S) (N: SetDomain.ToppedSetNames) =
 struct
-  include SetDomain.ToppedSet (B) (N)
-  (* include ToppedSet (B) (struct let topname = "Top" end) *)
+  module S = Set (B)
+  include SetDomain.LiftTop (S) (N)
 
-  let exists p = function
-    | All -> true
-    | Set s -> S.exists p s
-  let for_all p = function
-    | All -> false
-    | Set s -> S.for_all p s
-  let mem x = function
-    | All -> true
-    | Set s -> S.exists (B.leq x) s
-  let leq a b =
-    match a with
-    | All -> b = All
-    | _ -> for_all (fun x -> mem x b) a (* mem uses B.leq! *)
-  let eq a b = leq a b && leq b a
-  let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
-  let reduce = function
+  let eq a b = leq a b && leq b a (* TODO: unnecessary? *)
+  let reduce = function (* TODO: unnecessary? *)
     | All -> All
-    | Set s -> Set (S.filter (fun x -> not (S.exists (le x) s) && not (B.is_bot x)) s)
-  let product_bot op a b = match a,b with
-    | All, a | a, All -> a
-    | Set a, Set b ->
-      let a,b = S.elements a, S.elements b in
-      List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (Set (S.of_list x))
-  let product_widen op a b = match a,b with (* assumes b to be bigger than a *)
-    | All, _ | _, All -> All
-    | Set a, Set b ->
-      let xs,ys = S.elements a, S.elements b in
-      List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (Set (S.union b (S.of_list x)))
-  let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
-  let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
+    | Set s -> Set (S.reduce s)
 
-  let add x a = if mem x a then a else add x a (* special mem! *)
-  let remove x a = failwith "Hoare: unsupported remove"
-  let union a b = union a b |> reduce
-  let join = union
-  let inter = product_bot B.meet
-  let meet = inter
-  let subset = leq
-  let map' = map (* HACK: for PathSensitive morphstate *)
-  let map f a = map f a |> reduce
+  (* TODO: why aren't these in SetDomain.LiftTop already? *)
+  let widen x y = (* assumes y to be bigger than x *)
+    match x, y with
+    | All, _
+    | _, All -> All
+    | Set x, Set y -> Set (S.widen x y)
+  let narrow x y =
+    match x, y with
+    | All, y -> y
+    | x, All -> x
+    | Set x, Set y -> Set (S.narrow x y)
+
+  let map' f x = (* HACK: for PathSensitive morphstate *)
+    match x with
+    | All -> All
+    | Set t -> Set (S.map' f t)
   let min_elt a = B.bot ()
-  let split x a = failwith "Hoare: unsupported split"
   let apply_list f = function
     | All -> All
-    | Set s -> Set (S.elements s |> f |> S.of_list)
-  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
-  let of_list xs = List.fold_right add xs (empty ()) |> reduce
-  let is_element e s = cardinal s = 1 && choose s = e
-
-  (* Copied from ToppedSet *)
-  let arbitrary () =
-    let set x = reduce (Set x) in (* added reduce here to satisfy implicit invariant *)
-    let open QCheck.Iter in
-    let shrink = function
-      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
-      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
-    in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
-      20, QCheck.map set (S.arbitrary ());
-      1, QCheck.always All
-    ] (* S TODO: decide frequencies *)
-
-
-  let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-    if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
-      try
-        let p t = not (mem t s2) in
-        let evil = choose (filter p s1) in
-        dprintf "%a:\n" B.pretty evil
-        ++
-        fold (fun other acc ->
-            (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
-          ) s2 nil
-      with _ ->
-        dprintf "choose failed b/c of empty set s1: %d s2: %d"
-        (cardinal s1)
-        (cardinal s2)
-    end
+    | Set s -> Set (S.apply_list f s)
+  let is_element e s = cardinal s = 1 && choose s = e (* TODO: unused, remove? *)
 end
 
 
