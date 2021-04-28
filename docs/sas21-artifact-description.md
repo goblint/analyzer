@@ -76,8 +76,7 @@ TODO: update for Docker container running and paths
 
 ### Outline of how the code is structured
 Lastly, we give a general outline of how code in the Goblint framework is organized:
-
-The source code is in the directory src, where the subdirectories are structured as follows:
+The source code is in the directory `./src`, where the subdirectories are structured as follows:
 
 The most relevant directories are:
 - `./src/solvers`: Different fix-point solvers that can be used by Goblint (default is TD3)
