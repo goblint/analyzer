@@ -19,7 +19,7 @@ TODO: update for Docker container running and paths
         | Write-Centered   | `write`         |
         | Combined         | `write+lock`    |
 
-    2. The last column of the table links to automaton pairwise precision comparison output of the analyses for each benchmark. These are described in Section 5 in the paper.
+    2. The last column of the table links to automatic pairwise precision comparison output of the analyses for each benchmark. These are described in Section 5 in the paper.
 
     3. The last number (after `=`) in parenthesis in the table cells gives the logical LoC. These are mentioned in Section 5 in the paper.
 
