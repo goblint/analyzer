@@ -201,13 +201,11 @@ sig
   val topname: string
 end
 
-(** Functor for creating artificially topped set domains. *)
-module ToppedSet (Base: Printable.S) (N: ToppedSetNames) =
+module LiftTop (S: S) (N: ToppedSetNames) =
 struct
-  module S = Make (Base)
   include Printable.Blank
   type t = All | Set of S.t [@@deriving to_yojson]
-  type elt = Base.t
+  type elt = S.elt
 
   let hash = function
     | All -> 999999
@@ -334,10 +332,7 @@ struct
     | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
     | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n"
-    | Set s ->
-      BatPrintf.fprintf f "<value><set>\n" ;
-      S.iter (Base.printXml f) s;
-      BatPrintf.fprintf f "</set></value>\n"
+    | Set s -> S.printXml f s
 
   let invariant c = function
     | All -> Invariant.none
@@ -354,6 +349,13 @@ struct
       20, QCheck.map set (S.arbitrary ());
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)
+end
+
+(** Functor for creating artificially topped set domains. *)
+module ToppedSet (Base: Printable.S) (N: ToppedSetNames) =
+struct
+  module S = Make (Base)
+  include LiftTop (S) (N)
 end
 
 (* This one just removes the extra "{" notation and also by always returning
