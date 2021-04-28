@@ -208,7 +208,7 @@ end
 module type LiftTop_t =
 sig
   type s_t
-  type t = All | Set of s_t
+  type t = [`Top | `Lifted of s_t]
 end
 
 module LiftTop (S: S) (N: ToppedSetNames):
@@ -218,112 +218,112 @@ sig
 end =
 struct
   include Printable.Blank
-  type t = All | Set of S.t [@@deriving to_yojson]
+  type t = [`Top | `Lifted of S.t] [@@deriving to_yojson]
   type elt = S.elt
 
   let hash = function
-    | All -> 999999
-    | Set x -> S.hash x
+    | `Top -> 999999
+    | `Lifted x -> S.hash x
   let name () = "Topped " ^ S.name ()
   let equal x y =
     match x, y with
-    | All, All -> true
-    | Set x, Set y -> S.equal x y
+    | `Top, `Top -> true
+    | `Lifted x, `Lifted y -> S.equal x y
     | _ -> false
 
   let compare x y =
     match (x, y) with
-    | All, All -> 0
-    | All, Set _ -> 1
-    | Set _, All -> -1
-    | Set x, Set y -> S.compare x y
+    | `Top, `Top -> 0
+    | `Top, `Lifted _ -> 1
+    | `Lifted _, `Top -> -1
+    | `Lifted x, `Lifted y -> S.compare x y
 
-  let empty () = Set (S.empty ())
+  let empty () = `Lifted (S.empty ())
   let is_empty x =
     match x with
-    | All -> false
-    | Set x -> S.is_empty x
+    | `Top -> false
+    | `Lifted x -> S.is_empty x
   let mem x s =
     match s with
-    | All -> true
-    | Set s -> S.mem x s
+    | `Top -> true
+    | `Lifted s -> S.mem x s
   let add x s =
     match s with
-    | All -> All
-    | Set s -> Set (S.add x s)
-  let singleton x = Set (S.singleton x)
+    | `Top -> `Top
+    | `Lifted s -> `Lifted (S.add x s)
+  let singleton x = `Lifted (S.singleton x)
   let remove x s =
     match s with
-    | All -> All   (* NB! NB! NB! *)
-    | Set s -> Set (S.remove x s)
+    | `Top -> `Top   (* NB! NB! NB! *)
+    | `Lifted s -> `Lifted (S.remove x s)
   let union x y =
     match x, y with
-    | All, _ -> All
-    | _, All -> All
-    | Set x, Set y -> Set (S.union x y)
+    | `Top, _ -> `Top
+    | _, `Top -> `Top
+    | `Lifted x, `Lifted y -> `Lifted (S.union x y)
   let inter x y =
     match x, y with
-    | All, y -> y
-    | x, All -> x
-    | Set x, Set y -> Set (S.inter x y)
+    | `Top, y -> y
+    | x, `Top -> x
+    | `Lifted x, `Lifted y -> `Lifted (S.inter x y)
   let diff x y =
     match x, y with
-    | x, All -> empty ()
-    | All, y -> All (* NB! NB! NB! *)
-    | Set x, Set y -> Set (S.diff x y)
+    | x, `Top -> empty ()
+    | `Top, y -> `Top (* NB! NB! NB! *)
+    | `Lifted x, `Lifted y -> `Lifted (S.diff x y)
   let subset x y =
     match x, y with
-    | _, All -> true
-    | All, _ -> false
-    | Set x, Set y -> S.subset x y
+    | _, `Top -> true
+    | `Top, _ -> false
+    | `Lifted x, `Lifted y -> S.subset x y
 
   let schema normal abnormal x =
     match x with
-    | All -> raise (Unsupported abnormal)
-    | Set t -> normal t
+    | `Top -> raise (Unsupported abnormal)
+    | `Lifted t -> normal t
   let schema_default v f = function
-    | All -> v
-    | Set x -> f x
+    | `Top -> v
+    | `Lifted x -> f x
   (* HACK! Map is an exception in that it doesn't throw an exception! *)
   let map f x =
     match x with
-    | All -> All
-    | Set t -> Set (S.map f t)
+    | `Top -> `Top
+    | `Lifted t -> `Lifted (S.map f t)
 
-  let iter f = schema (S.iter f) "iter on All"
-  (*  let map f = schema (fun t -> Set (S.map f t)) "map"*)
-  let fold f x e = schema (fun t -> S.fold f t e) "fold on All" x
+  let iter f = schema (S.iter f) "iter on `Top"
+  (*  let map f = schema (fun t -> `Lifted (S.map f t)) "map"*)
+  let fold f x e = schema (fun t -> S.fold f t e) "fold on `Top" x
   let for_all f = schema_default false (S.for_all f)
   let exists f = schema_default true (S.exists f)
-  let filter f = schema (fun t -> Set (S.filter f t)) "filter on All"
-  let elements = schema S.elements "elements on All"
-  let of_list xs = Set (S.of_list xs)
-  let cardinal = schema S.cardinal "cardinal on All"
-  let min_elt = schema S.min_elt "min_elt on All"
-  let max_elt = schema S.max_elt "max_elt on All"
-  let choose = schema S.choose "choose on All"
+  let filter f = schema (fun t -> `Lifted (S.filter f t)) "filter on `Top"
+  let elements = schema S.elements "elements on `Top"
+  let of_list xs = `Lifted (S.of_list xs)
+  let cardinal = schema S.cardinal "cardinal on `Top"
+  let min_elt = schema S.min_elt "min_elt on `Top"
+  let max_elt = schema S.max_elt "max_elt on `Top"
+  let choose = schema S.choose "choose on `Top"
   let partition f = schema (fun t -> match S.partition f t
-                             with (a,b) -> (Set a, Set b)) "filter on All"
+                             with (a,b) -> (`Lifted a, `Lifted b)) "filter on `Top"
   let split e = schema (fun t -> match S.split e t
-                         with (a,tv,b) -> (Set a,tv,Set b)) "split on All"
+                         with (a,tv,b) -> (`Lifted a,tv,`Lifted b)) "split on `Top"
 
 
   (* The printable implementation *)
 
   let pretty_f _ () x =
     match x with
-    | All -> text N.topname
-    | Set t -> S.pretty () t
+    | `Top -> text N.topname
+    | `Lifted t -> S.pretty () t
 
   let short w x : string =
     match x with
-    | All -> N.topname
-    | Set t -> S.short w t
+    | `Top -> N.topname
+    | `Lifted t -> S.short w t
 
   let isSimple x =
     match x with
-    | All -> true
-    | Set t -> S.isSimple t
+    | `Top -> true
+    | `Lifted t -> S.isSimple t
 
   let pretty () x = pretty_f short () x
 
@@ -332,8 +332,8 @@ struct
 
   let bot = empty
   let is_bot = is_empty
-  let top () = All
-  let is_top x = x = All
+  let top () = `Top
+  let is_top x = x = `Top
 
   let leq = subset
   let join = union
@@ -342,26 +342,26 @@ struct
   let narrow = meet (* TODO: why doesn't use S.narrow? *)
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
-    | Set x, Set y -> S.pretty_diff () (x,y)
+    | `Lifted x, `Lifted y -> S.pretty_diff () (x,y)
     | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
-    | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n"
-    | Set s -> S.printXml f s
+    | `Top   -> BatPrintf.fprintf f "<value>\n<data>\n`Top\n</data>\n</value>\n"
+    | `Lifted s -> S.printXml f s
 
   let invariant c = function
-    | All -> Invariant.none
-    | Set s -> S.invariant c s
+    | `Top -> Invariant.none
+    | `Lifted s -> S.invariant c s
 
   let arbitrary () =
-    let set x = Set x in
+    let set x = `Lifted x in
     let open QCheck.Iter in
     let shrink = function
-      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
-      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
+      | `Lifted x -> MyCheck.shrink (S.arbitrary ()) x >|= set
+      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
     QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
       20, QCheck.map set (S.arbitrary ());
-      1, QCheck.always All
+      1, QCheck.always `Top
     ] (* S TODO: decide frequencies *)
 end
 

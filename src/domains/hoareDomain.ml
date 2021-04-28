@@ -231,23 +231,23 @@ struct
   (* TODO: why aren't these in SetDomain.LiftTop already? *)
   let widen x y = (* assumes y to be bigger than x *)
     match x, y with
-    | All, _
-    | _, All -> All
-    | Set x, Set y -> Set (S.widen x y)
+    | `Top, _
+    | _, `Top -> `Top
+    | `Lifted x, `Lifted y -> `Lifted (S.widen x y)
   let narrow x y =
     match x, y with
-    | All, y -> y
-    | x, All -> x
-    | Set x, Set y -> Set (S.narrow x y)
+    | `Top, y -> y
+    | x, `Top -> x
+    | `Lifted x, `Lifted y -> `Lifted (S.narrow x y)
 
   let map' f x =
     match x with
-    | All -> All
-    | Set t -> Set (S.map' f t)
+    | `Top -> `Top
+    | `Lifted t -> `Lifted (S.map' f t)
   let min_elt a = B.bot ()
   let apply_list f = function
-    | All -> All
-    | Set s -> Set (S.apply_list f s)
+    | `Top -> `Top
+    | `Lifted s -> `Lifted (S.apply_list f s)
 end
 
 

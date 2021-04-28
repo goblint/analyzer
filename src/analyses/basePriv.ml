@@ -1009,7 +1009,7 @@ struct
 
   let startstate () = (V.bot (), L.bot ())
 
-  let lockset_init = Lockset.All
+  let lockset_init = Lockset.top ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
@@ -1182,7 +1182,7 @@ struct
 
   let startstate () = (W.bot (), P.top ())
 
-  let lockset_init = Lockset.All
+  let lockset_init = Lockset.top ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
@@ -1326,7 +1326,7 @@ struct
 
   let startstate () = ((W.bot (), P.top ()), (V.bot (), L.bot ()))
 
-  let lockset_init = Lockset.All
+  let lockset_init = Lockset.top ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
