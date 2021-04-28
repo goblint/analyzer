@@ -203,19 +203,9 @@ sig
   val topname: string
 end
 
-(* Hack for using non-polymorphic variant type in signature constraint: https://stackoverflow.com/a/47808236 *)
-(* TODO: remove once HoareDomain doesn't try to access All. *)
-module type LiftTop_t =
-sig
-  type s_t
-  type t = [`Top | `Lifted of s_t]
-end
-
-module LiftTop (S: S) (N: ToppedSetNames):
-sig
-  include LiftTop_t with type s_t := S.t
-  include S with type elt = S.elt and type t := t
-end =
+module LiftTop (S: S) (N: ToppedSetNames): S with
+  type elt = S.elt and
+  type t = [`Top | `Lifted of S.t] = (* Expose t for HoareDomain.Set_LiftTop *)
 struct
   include Printable.Blank
   type t = [`Top | `Lifted of S.t] [@@deriving to_yojson]
@@ -366,12 +356,9 @@ struct
 end
 
 (** Functor for creating artificially topped set domains. *)
-module ToppedSet (Base: Printable.S) (N: ToppedSetNames):
-sig
-  module S: S with type elt = Base.t
-  include LiftTop_t with type s_t := S.t
-  include S with type elt = Base.t and type t := t
-end =
+module ToppedSet (Base: Printable.S) (N: ToppedSetNames): S with
+  type elt = Base.t and
+  type t = [`Top | `Lifted of Make (Base).t] = (* TODO: don't expose t for ShapeDomain *)
 struct
   module S = Make (Base)
   include LiftTop (S) (N)
