@@ -1,3 +1,4 @@
+** This is the general README of Goblint, for the artifact description for SAS '21 please refer to `./doc/sas21-artifact-description.md` **
 # goblint
 ![Build status](https://github.com/goblint/analyzer/workflows/build%20and%20run%20tests/badge.svg)
 [![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
