@@ -14,13 +14,15 @@ int bar(int *p, long *l){
 }
 
 int main(){
-    int p = 3;
+    int pp = 3;
+    int *p = &pp;
     int q = 3;
     int *x = &q;
-    long l = 4;
+    long ll = 4;
+    long *l = &ll;
     *x = 323;
-    bar(&p, &l);
-    assert(p==3); // UNKNOWN
-    assert(l==4);
+    bar(p, l);
+    assert(*p==3); // UNKNOWN!
+    assert(*l==4);
     return 0;
 }
