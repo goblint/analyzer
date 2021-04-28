@@ -159,8 +159,8 @@ end
 module type SetS =
 sig
   include SetDomain.S
-  val reduce: t -> t
-  val map': (elt -> elt) -> t -> t
+  val map': (elt -> elt) -> t -> t (** HACK: for PathSensitive morphstate *)
+
   val apply_list: (elt list -> elt list) -> t -> t
 end
 
@@ -171,7 +171,6 @@ struct
 
   let mem x s = exists (B.leq x) s
   let leq a b = for_all (fun x -> mem x b) a (* mem uses B.leq! *)
-  let eq a b = leq a b && leq b a
   let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
   let reduce s = filter (fun x -> not (exists (le x) s) && not (B.is_bot x)) s
   let product_bot op a b =
@@ -190,14 +189,13 @@ struct
   let inter = product_bot B.meet
   let meet = inter
   let subset = leq
-  let map' = map (* HACK: for PathSensitive morphstate *)
+  let map' = map
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
   let split x a = failwith "Hoare_NoTop: unsupported split"
   let apply_list f s = elements s |> f |> of_list
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
-  let is_element e s = cardinal s = 1 && choose s = e
 
   (* Copied from Make *)
   let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (B.arbitrary ())
@@ -230,11 +228,6 @@ struct
   module S = Set (B)
   include SetDomain.LiftTop (S) (N)
 
-  let eq a b = leq a b && leq b a (* TODO: unnecessary? *)
-  let reduce = function (* TODO: unnecessary? *)
-    | All -> All
-    | Set s -> Set (S.reduce s)
-
   (* TODO: why aren't these in SetDomain.LiftTop already? *)
   let widen x y = (* assumes y to be bigger than x *)
     match x, y with
@@ -247,7 +240,7 @@ struct
     | x, All -> x
     | Set x, Set y -> Set (S.narrow x y)
 
-  let map' f x = (* HACK: for PathSensitive morphstate *)
+  let map' f x =
     match x with
     | All -> All
     | Set t -> Set (S.map' f t)
@@ -255,7 +248,6 @@ struct
   let apply_list f = function
     | All -> All
     | Set s -> Set (S.apply_list f s)
-  let is_element e s = cardinal s = 1 && choose s = e (* TODO: unused, remove? *)
 end
 
 
