@@ -2232,16 +2232,16 @@ struct
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-      let update_lvals ctx (exps: exp list) =
-        let update_lvals ctx (ls: Q.LS.t) (args: exp list) =
-          let vals = List.map (eval_rv ctx.ask ctx.global st) args in
-          let reachable = reachable_vars ctx.ask (get_ptrs vals) ctx.global st in
+      let update_lvals (ask: Q.ask) (st: D.t) (globs: glob_fun) (exps: exp list) =
+        let update_lvals (ask: Q.ask) (st: D.t) (global: glob_fun) (ls: Q.LS.t) (args: exp list) =
+          let vals = List.map (eval_rv ask global st) args in
+          let reachable = reachable_vars ask (get_ptrs vals) ctx.global st in
           let update_lval reachable =
             let f  = fun s a ->
               let at = AD.get_type a in
               set ctx.ask ctx.global s a at (VD.top_value at)
             in
-            List.fold f ctx.local reachable
+            List.fold f st reachable
           in
           match ls with
           | All ->
@@ -2255,7 +2255,7 @@ struct
           | `LvalSet s -> s
           | _ -> failwith "Ran without written lval analysis"
         in
-        update_lvals ctx writtenLvals exps
+        update_lvals ask st globs writtenLvals exps
       in
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
@@ -2265,8 +2265,8 @@ struct
       let add_globals (st: store) (fun_st: store) =
         if get_bool "ana.library" then
           (* Update globals that were written by the called function *)
-          let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) fun_st.cpa [] in
-          update_lvals ctx globals
+          let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) st.cpa [] in
+          update_lvals ctx.ask st ctx.global globals
         else
           (* Remove the return value as this is dealt with separately. *)
           let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
@@ -2287,7 +2287,7 @@ struct
       )
       in
       let st = if get_bool "ana.library"
-        then update_lvals ctx args (* Update locations that are pointed to by arguments and were possibly written by the called function *)
+        then update_lvals ctx.ask st ctx.global args (* Update locations that are pointed to by arguments and were possibly written by the called function *)
         else st
       in
       let st = add_globals st fun_st in
