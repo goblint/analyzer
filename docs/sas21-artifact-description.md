@@ -56,7 +56,7 @@ presented in the paper quickly.
 ### Step by Step Instructions
 TODO: update for Docker container running and paths
 
-1. Modify or add thread-modular analyses in `./src/analyses/basePriv.ml`.
+1. Modify or add thread-modular analyses in `./src/analyses/basePriv.ml`. (In case of adding also add to case distinction in `priv_module`)
 2. Run `make`.
 3. Observe updated behavior, either:
     * Re-run the benchmarking as described above under Validation.
@@ -64,6 +64,11 @@ TODO: update for Docker container running and paths
         or
 
     * Run the script `./scripts/privPrecCompare.sh --conf conf/traces.json ../bench/pthread/ypbind_comb.c` to run the analyses and their comparison on a single C program with the Goblint configuration file used for this evaluation.
+
+        or
+
+    * Run some of the regression tests in `tests/regression/13-privatized` by calling `./regtest.sh 13 xx` where `xx` is the number of the test. Especially `xx > 16` are interesting, these were added with the paper and highlight
+      differences between different approaches. If you added a new analysis make sure to pass `--sets exp.privatization chosenname` to the script.
 
 ### Outline of how the code is structured
 
@@ -83,4 +88,3 @@ Other, not directly relevant, directories:
 - src/transform: Specify transformations to run based on the analysis results
 - src/util: Various utility modules
 - src/witness: Related to witness generation
-
