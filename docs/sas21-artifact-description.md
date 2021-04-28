@@ -5,7 +5,7 @@
 ### Step by Step Instructions
 TODO: update for Docker container running and paths
 
-1. Run the script `./update_suite_traces.rb`.
+1. Run the script `./update_suite_traces.rb`. This takes ~20 min (see note below).
 2. Open the results HTML `./bench_result/index.html`.
 3. Validate results with the paper:
     1. The table cells give analysis time in seconds for each benchmark (along the left) and each analysis (along the top). These are illustrated by Figure 2 in the paper.
@@ -25,7 +25,10 @@ TODO: update for Docker container running and paths
 
         The column "Size" of the table only gives physical LoC, which includes excessive struct and extern function declarations.
 
-The source code for benchmarks can be found in `./pthread/` and `./svcomp/`.
+
+### Notes
+* The source code for benchmarks can be found in `./pthread/` and `./svcomp/`.
+* Although the it takes ~20 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish.
 
 
 ## Extension
