@@ -33,7 +33,7 @@ TODO: update for Docker container running and paths
 
 ## Extension
 
-### Implementation of analyses in the paper
+### Implementation of Analyses in the Paper
 The OCaml source code for the analyses is found in `./src/analyses/basePriv.ml`.
 Each one is an appropriately-named module, e.g. `ProtectionBasedPriv`, with the following members:
 * The inner module `D` defines the local domain (components), except σ. Rest of the implementation uses `st.priv` to access the `D` components and `st.cpa` to aggess the σ component.
