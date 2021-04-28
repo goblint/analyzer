@@ -1577,8 +1577,8 @@ module Enums : S with type int_t = BigInt.t = struct
     | _, _ -> false
   let short _ = function
     | Inc xs when ISet.is_empty xs -> "bot"
-    | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) (ISet.to_list  xs))) ^ "}"
-    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) (ISet.to_list xs))) ^ "} " ^ "("^R.short 2 r^")"
+    | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) (ISet.elements  xs))) ^ "}"
+    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) (ISet.elements xs))) ^ "} " ^ "("^R.short 2 r^")"
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
 
@@ -1670,13 +1670,13 @@ module Enums : S with type int_t = BigInt.t = struct
   let leq x y = equal (join_ignore_ikind x y) y
 
   let lift1 f ikind v = norm ikind @@ match v with
-    | Inc x when ISet.is_singleton x -> Inc (ISet.singleton (f (ISet.any x)))
+    | Inc x when ISet.is_singleton x -> Inc (ISet.singleton (f (ISet.choose x)))
     | _ -> top_of ikind
 
   let lift2 f (ikind: Cil.ikind) u v = norm ikind @@ match u, v with
     | Inc e,_ when ISet.is_empty e -> u
     | _,Inc e when ISet.is_empty e -> v
-    | Inc x,Inc y when ISet.is_singleton x && ISet.is_singleton y -> Inc (ISet.singleton (f (ISet.any x) (ISet.any y)))
+    | Inc x,Inc y when ISet.is_singleton x && ISet.is_singleton y -> Inc (ISet.singleton (f (ISet.choose x) (ISet.choose y)))
     | _,_ -> top_of ikind
 
   let lift2 f ikind a b =
@@ -1684,22 +1684,22 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let neg = lift1 I.neg
   let add ikind = curry @@ function
-    | Inc z,x when ISet.is_singleton z && ISet.any z = BI.zero -> x
-    | x,Inc z when ISet.is_singleton z && ISet.any z = BI.zero -> x
+    | Inc z,x when ISet.is_singleton z && ISet.choose z = BI.zero -> x
+    | x,Inc z when ISet.is_singleton z && ISet.choose z = BI.zero -> x
     | x,y -> lift2 I.add ikind x y
   let sub = lift2 I.sub
   let mul ikind a b =
     match a, b with
-    | Inc one,x when ISet.is_singleton one && ISet.any one = BI.one -> x
-    | x,Inc one when ISet.is_singleton one && ISet.any one = BI.one -> x
-    | Inc zero,_ when ISet.is_singleton zero && ISet.any zero = BI.zero -> a
-    | _,Inc zero when ISet.is_singleton zero && ISet.any zero = BI.zero -> b
+    | Inc one,x when ISet.is_singleton one && ISet.choose one = BI.one -> x
+    | x,Inc one when ISet.is_singleton one && ISet.choose one = BI.one -> x
+    | Inc zero,_ when ISet.is_singleton zero && ISet.choose zero = BI.zero -> a
+    | _,Inc zero when ISet.is_singleton zero && ISet.choose zero = BI.zero -> b
     | x,y -> lift2 I.mul ikind x y
 
   let div ikind a b = match a, b with
-    | x,Inc one when ISet.is_singleton one && ISet.any one = BI.one -> x
-    | _,Inc zero when ISet.is_singleton zero && ISet.any zero = BI.zero -> top_of ikind
-    | Inc zero,_ when ISet.is_singleton zero && ISet.any zero = BI.zero -> a
+    | x,Inc one when ISet.is_singleton one && ISet.choose one = BI.one -> x
+    | _,Inc zero when ISet.is_singleton zero && ISet.choose zero = BI.zero -> top_of ikind
+    | Inc zero,_ when ISet.is_singleton zero && ISet.choose zero = BI.zero -> a
     | x,y -> lift2 I.div ikind x y
 
   let rem = lift2 I.rem
@@ -1742,15 +1742,15 @@ module Enums : S with type int_t = BigInt.t = struct
   let to_bool  = function
     | Inc e when ISet.is_empty e -> None
     | Exc (e,_) when ISet.is_empty e -> None
-    | Inc zero when ISet.is_singleton zero && ISet.any zero = BI.zero -> Some false
+    | Inc zero when ISet.is_singleton zero && ISet.choose zero = BI.zero -> Some false
     | Inc xs when ISet.for_all ((<>) BI.zero) xs -> Some true
     | Exc (xs,_) when ISet.exists ((=) BI.zero) xs -> Some true
     | _ -> None
   let is_bool = BatOption.is_some % to_bool
-  let to_int = function Inc x when ISet.is_singleton x -> Some (ISet.any x) | _ -> None
+  let to_int = function Inc x when ISet.is_singleton x -> Some (ISet.choose x) | _ -> None
   let is_int = BatOption.is_some % to_int
 
-  let to_excl_list = function Exc (x,r) when not (ISet.is_empty x) -> Some (ISet.to_list x) | _ -> None
+  let to_excl_list = function Exc (x,r) when not (ISet.is_empty x) -> Some (ISet.elements x) | _ -> None
   let of_excl_list t x = Exc (ISet.of_list x, size t)
   let is_excl_list = BatOption.is_some % to_excl_list
   let starting     ikind x = top_of ikind
@@ -1765,12 +1765,12 @@ module Enums : S with type int_t = BigInt.t = struct
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik (Big x), intType)) in
           Invariant.(a || i)
-        ) Invariant.none (ISet.to_list ps)
+        ) Invariant.none (ISet.elements ps)
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik (Big x), intType)) in
           Invariant.(a && i)
-        ) Invariant.none (ISet.to_list ns)
+        ) Invariant.none (ISet.elements ns)
 
 
   let arbitrary () =

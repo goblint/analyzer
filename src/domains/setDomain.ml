@@ -71,7 +71,9 @@ end
 
 (** A functor for creating a simple set domain, there is no top element, and
   * calling [top ()] will raise an exception *)
-module Make (Base: Printable.S) =
+module Make (Base: Printable.S): S with
+  type elt = Base.t and
+  type t = BatSet.Make (Base).t = (* TODO: remove, only needed in VarEq for some reason... *)
 struct
   include Printable.Blank
   include BatSet.Make(Base)
