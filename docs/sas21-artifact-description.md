@@ -19,7 +19,7 @@ TODO: update for Docker container running and paths
         | Write-Centered   | `write`         |
         | Combined         | `write+lock`    |
 
-    2. The last column of the table links to automatic pairwise precision comparison output of the analyses for each benchmark. These are described in Section 5 in the paper.
+    2. The last column of the table links to the automatic pairwise precision comparison output of the analyses for each benchmark. These are described in Section 5 in the paper.
 
     3. The last number (after `=`) in parenthesis in the table cells gives the logical LoC. These are mentioned in Section 5 in the paper.
 
@@ -28,23 +28,30 @@ TODO: update for Docker container running and paths
 
 ### Notes
 * The source code for benchmarks can be found in `./pthread/` and `./svcomp/`.
-* Although the it takes ~20 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish.
+* Although it takes ~20 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish.
 
 
 ## Extension
 
 ### Implementation of Analyses in the Paper
-The OCaml source code for the analyses is found in `./src/analyses/basePriv.ml`.
+The OCaml source code for the core of the analyses is found in `./src/analyses/basePriv.ml`.
 Each one is an appropriately-named module, e.g. `ProtectionBasedPriv`, with the following members:
-* The inner module `D` defines the local domain (components), except σ. Rest of the implementation uses `st.priv` to access the `D` components and `st.cpa` to aggess the σ component.
-* The inner module `G` defines the global domain, while the global constraint variables are always fixed to be program variables. Hence, for example for Protection-Based, the global constraint variables [g] and [g]' in the paper are implemented by a pair of values under `g`.
+* The inner module `D` defines the domain of any analysis-specific additions to the local state on top of the σ component. (e.g., for Write-Centered Reading, this would be the `P` and `W` components of the local state).
+ The rest of the implementation uses `st.priv` to access the `D` components and `st.cpa` to access the σ component of the local state.
+* The inner module `G` defines the global domain: In contrast to the paper, there is only one constraint system unknown per global in the implementation.
+ Hence, for example for Protection-Based Reading, the global constraint system unknowns [g] and [g]' in the paper are implemented by a pair of abstract values stored at the constraint system unknown [g].
 * The function `startstate` defines "init" for `D`.
-* The functions `read_global` and `write_global` define "x = g" and "g = x" respectively. These implicitly include the surrounding "lock(m_g)" and "unlock(m_g)".
-* The functions `lock` and `unlock` define "lock(a)" and "unlock(a)" respectively.
+* The functions `read_global` and `write_global` define "x = g" and "g = x", respectively. These implicitly include the surrounding "lock(m_g)" and "unlock(m_g)".
+* The functions `lock` and `unlock` define "lock(a)" and "unlock(a)" for (a != m_g), respectively.
 * The function `threadenter` defines the side-effected initial state for u_1 in "x = create(u_1)".
-* The remaining functions `enter_multithreaded`, `escape` and `sync` implement other Goblint features necessary to soundly analyze actual C programs.
+* The remaining functions `enter_multithreaded`, `escape` and `sync` implement other Goblint features necessary to soundly analyze real-world C programs.
 
-Besides the five analyses presented in the paper, the `basePriv.ml` file already contains a handful of other experimental implementations, showing that the framework and its thread-modularity is extensible and not at all limited to the five analyses.
+Besides the five analyses presented in the paper, the `basePriv.ml` file already contains a handful of other experimental implementations, showing that the framework and its thread-modularity is extensible
+and a wide range of ideas can be expressed in this setting.
+
+Any of the modules in `basePriv.ml` can then be passed to the functor `MainFunctor` in `base.ml`. This base analysis then uses the functions described above to handle accesses to global variables as well as locking
+and unlocking. This provides a separation of concerns, making it possible to prototype new analyses such as the ones
+presented in the paper quickly.
 
 ### Step by Step Instructions
 TODO: update for Docker container running and paths
