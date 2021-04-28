@@ -203,7 +203,19 @@ sig
   val topname: string
 end
 
-module LiftTop (S: S) (N: ToppedSetNames) =
+(* Hack for using non-polymorphic variant type in signature constraint: https://stackoverflow.com/a/47808236 *)
+(* TODO: remove once HoareDomain doesn't try to access All. *)
+module type LiftTop_t =
+sig
+  type s_t
+  type t = All | Set of s_t
+end
+
+module LiftTop (S: S) (N: ToppedSetNames):
+sig
+  include LiftTop_t with type s_t := S.t
+  include S with type elt = S.elt and type t := t
+end =
 struct
   include Printable.Blank
   type t = All | Set of S.t [@@deriving to_yojson]
