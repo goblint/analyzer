@@ -366,7 +366,12 @@ struct
 end
 
 (** Functor for creating artificially topped set domains. *)
-module ToppedSet (Base: Printable.S) (N: ToppedSetNames) =
+module ToppedSet (Base: Printable.S) (N: ToppedSetNames):
+sig
+  module S: S with type elt = Base.t
+  include LiftTop_t with type s_t := S.t
+  include S with type elt = Base.t and type t := t
+end =
 struct
   module S = Make (Base)
   include LiftTop (S) (N)
