@@ -78,6 +78,11 @@ let createCFG (fileAST: file) =
   (* Since we want the output of justcil to compile, we do not run allBB visitor if justcil is enable, regardless of  *)
   (* exp.basic-blocks. This does not matter, as we will not run any analysis anyway, when justcil is enabled.         *)
   if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
+
+  (* We used to renumber vids but CIL already generates them fresh, so no need.
+   * Renumbering is problematic for using [Cabs2cil.environment], e.g. in witness invariant generation to use original variable names.
+   * See https://github.com/goblint/cil/issues/31#issuecomment-824939793. *)
+
   iterGlobals fileAST (fun glob ->
       match glob with
       | GFun(fd,_) ->
