@@ -156,8 +156,16 @@ struct
 end
 
 
+module type SetS =
+sig
+  include SetDomain.S
+  val reduce: t -> t
+  val map': (elt -> elt) -> t -> t
+  val apply_list: (elt list -> elt list) -> t -> t
+end
+
 (* Copy of Hoare without ToppedSet. *)
-module Set (B : Lattice.S) =
+module Set (B : Lattice.S): SetS with type elt = B.t =
 struct
   include SetDomain.Make (B)
 
@@ -217,7 +225,7 @@ end
 (*   val apply_list : (elt list -> elt list) -> t -> t *)
 (*   val product_top : (elt -> elt -> elt) -> t -> t -> t *)
 (* end = *)
-module Set_LiftTop (B : Lattice.S) (N: SetDomain.ToppedSetNames) =
+module Set_LiftTop (B : Lattice.S) (N: SetDomain.ToppedSetNames): SetS with type elt = B.t =
 struct
   module S = Set (B)
   include SetDomain.LiftTop (S) (N)
