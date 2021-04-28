@@ -207,26 +207,11 @@ module LiftTop (S: S) (N: ToppedSetNames): S with
   type elt = S.elt and
   type t = [`Top | `Lifted of S.t] = (* Expose t for HoareDomain.Set_LiftTop *)
 struct
-  include Printable.Blank
-  type t = [`Top | `Lifted of S.t] [@@deriving to_yojson]
+  include Printable.Std
+
+  include Lattice.LiftTop (S)
+
   type elt = S.elt
-
-  let hash = function
-    | `Top -> 999999
-    | `Lifted x -> S.hash x
-  let name () = "Topped " ^ S.name ()
-  let equal x y =
-    match x, y with
-    | `Top, `Top -> true
-    | `Lifted x, `Lifted y -> S.equal x y
-    | _ -> false
-
-  let compare x y =
-    match (x, y) with
-    | `Top, `Top -> 0
-    | `Top, `Lifted _ -> 1
-    | `Lifted _, `Top -> -1
-    | `Lifted x, `Lifted y -> S.compare x y
 
   let empty () = `Lifted (S.empty ())
   let is_empty x =
@@ -299,6 +284,7 @@ struct
 
 
   (* The printable implementation *)
+  (* Overrides `Top text *)
 
   let pretty_f _ () x =
     match x with
@@ -310,11 +296,6 @@ struct
     | `Top -> N.topname
     | `Lifted t -> S.short w t
 
-  let isSimple x =
-    match x with
-    | `Top -> true
-    | `Lifted t -> S.isSimple t
-
   let pretty () x = pretty_f short () x
 
 
@@ -322,37 +303,18 @@ struct
 
   let bot = empty
   let is_bot = is_empty
-  let top () = `Top
-  let is_top x = x = `Top
 
   let leq = subset
   let join = union
   let widen = join (* TODO: why doesn't use S.widen? *)
   let meet = inter
   let narrow = meet (* TODO: why doesn't use S.narrow? *)
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    match x,y with
-    | `Lifted x, `Lifted y -> S.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f = function
-    | `Top   -> BatPrintf.fprintf f "<value>\n<data>\n`Top\n</data>\n</value>\n"
-    | `Lifted s -> S.printXml f s
 
   let invariant c = function
     | `Top -> Invariant.none
     | `Lifted s -> S.invariant c s
 
-  let arbitrary () =
-    let set x = `Lifted x in
-    let open QCheck.Iter in
-    let shrink = function
-      | `Lifted x -> MyCheck.shrink (S.arbitrary ()) x >|= set
-      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
-    in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
-      20, QCheck.map set (S.arbitrary ());
-      1, QCheck.always `Top
-    ] (* S TODO: decide frequencies *)
+  let arbitrary () = QCheck.set_print (short 10000) (arbitrary ())
 end
 
 (** Functor for creating artificially topped set domains. *)
