@@ -46,6 +46,18 @@ Each one is an appropriately-named module, e.g. `ProtectionBasedPriv`, with the 
 
 Besides the five analyses presented in the paper, the `basePriv.ml` file already contains a handful of other experimental implementations, showing that the framework and its thread-modularity is extensible and not at all limited to the five analyses.
 
+### Step by Step Instructions
+TODO: update for Docker container running and paths
+
+1. Modify or add thread-modular analyses in `./src/analyses/basePriv.ml`.
+2. Run `make`.
+3. Observe updated behavior, either:
+    * Re-run the benchmarking as described above under Validation.
+
+        or
+
+    * Run the script `./scripts/privPrecCompare.sh ../bench/pthread/pfscan_comb.c` to run the analyses and their comparison on a single C program.
+
 ### Outline of how the code is structured
 
 The source code is in the directory src, where the subdirectories are structured as follows:
