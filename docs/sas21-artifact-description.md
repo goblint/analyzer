@@ -34,7 +34,7 @@ TODO: update for Docker container running and paths
 ## Extension
 
 **Goblint is a general framework for Abstract Interpretation and has been used to implement a wide variety of analyses. For extending Goblint with some entirely different analysis,
-one can use `analyses/constants.ml` as a jumping-off point showing how to specify an analysis in the framework.**
+one can use `./src/analyses/constants.ml` as a jumping-off point showing how to specify an analysis in the framework.**
 
 The following description is about how to more specifically extend one of the analyses presented in the paper at hand.
 ### Implementation of Analyses in the Paper
@@ -80,16 +80,16 @@ Lastly, we give a general outline of how code in the Goblint framework is organi
 The source code is in the directory src, where the subdirectories are structured as follows:
 
 The most relevant directories are:
-- src/solvers: Different fix-point solvers that can be used by Goblint (default is TD3)
-- src/domains: Various generic abstract domains: Sets, Maps, ...
-- src/cdomains: Abstract domains for C programs (e.g. Integers, Addresses, ...)
-- src/analyses: Different analyses supported by Goblint
-- src/framework: The code of the analysis framework
+- `./src/solvers`: Different fix-point solvers that can be used by Goblint (default is TD3)
+- `./src/domains`: Various generic abstract domains: Sets, Maps, ...
+- `./src/cdomains`: Abstract domains for C programs (e.g. Integers, Addresses, ...)
+- `./src/analyses`: Different analyses supported by Goblint
+- `./src/framework`: The code of the analysis framework
 
 Other, not directly relevant, directories:
-- src/extract: Related to extracting Promela models from C code
-- src/incremental: Related to Incremental Analysis
-- src/spec: Related to parsing Specifications for an automata-based analysis of liveness properties
-- src/transform: Specify transformations to run based on the analysis results
-- src/util: Various utility modules
-- src/witness: Related to witness generation
+- `./src/extract`: Related to extracting Promela models from C code
+- `./src/incremental`: Related to Incremental Analysis
+- `./src/spec`: Related to parsing Specifications for an automata-based analysis of liveness properties
+- `./src/transform`: Specify transformations to run based on the analysis results
+- `./src/util`: Various utility modules
+- `./src/witness`: Related to witness generation
