@@ -33,6 +33,19 @@ TODO: update for Docker container running and paths
 
 ## Extension
 
+### Implementation of analyses in the paper
+The OCaml source code for the analyses is found in `./src/analyses/basePriv.ml`.
+Each one is an appropriately-named module, e.g. `ProtectionBasedPriv`, with the following members:
+* The inner module `D` defines the local domain (components), except σ. Rest of the implementation uses `st.priv` to access the `D` components and `st.cpa` to aggess the σ component.
+* The inner module `G` defines the global domain, while the global constraint variables are always fixed to be program variables. Hence, for example for Protection-Based, the global constraint variables [g] and [g]' in the paper are implemented by a pair of values under `g`.
+* The function `startstate` defines "init" for `D`.
+* The functions `read_global` and `write_global` define "x = g" and "g = x" respectively. These implicitly include the surrounding "lock(m_g)" and "unlock(m_g)".
+* The functions `lock` and `unlock` define "lock(a)" and "unlock(a)" respectively.
+* The function `threadenter` defines the side-effected initial state for u_1 in "x = create(u_1)".
+* The remaining functions `enter_multithreaded`, `escape` and `sync` implement other Goblint features necessary to soundly analyze actual C programs.
+
+Besides the five analyses presented in the paper, the `basePriv.ml` file already contains a handful of other experimental implementations, showing that the framework and its thread-modularity is extensible and not at all limited to the five analyses.
+
 ### Outline of how the code is structured
 
 The source code is in the directory src, where the subdirectories are structured as follows:
