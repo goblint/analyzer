@@ -33,6 +33,10 @@ TODO: update for Docker container running and paths
 
 ## Extension
 
+Goblint is a general framework for Abstract Interpretation and has been used to implement a wide variety of analyses. For extending with some entirely different analysis,
+one can use `analyses/constants.ml` as a jumping-off point showing how to specify an analysis in the framework.
+
+The following description is about how to more specifically extend one of the analyses presented in the paper at hand.
 ### Implementation of Analyses in the Paper
 The OCaml source code for the core of the analyses is found in `./src/analyses/basePriv.ml`.
 Each one is an appropriately-named module, e.g. `ProtectionBasedPriv`, with the following members:
@@ -53,7 +57,7 @@ Any of the modules in `basePriv.ml` can then be passed to the functor `MainFunct
 and unlocking. This provides a separation of concerns, making it possible to prototype new analyses such as the ones
 presented in the paper quickly.
 
-### Step by Step Instructions
+### Step by Step Instructions to Extending these Analyses
 TODO: update for Docker container running and paths
 
 1. Modify or add thread-modular analyses in `./src/analyses/basePriv.ml`. (In case of adding also add to case distinction in `priv_module`)
@@ -71,6 +75,7 @@ TODO: update for Docker container running and paths
       differences between different approaches. If you added a new analysis make sure to pass `--sets exp.privatization chosenname` to the script.
 
 ### Outline of how the code is structured
+Lastly, we give a general outline of how code in the Goblint framework is organized:
 
 The source code is in the directory src, where the subdirectories are structured as follows:
 
