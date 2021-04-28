@@ -33,8 +33,8 @@ TODO: update for Docker container running and paths
 
 ## Extension
 
-Goblint is a general framework for Abstract Interpretation and has been used to implement a wide variety of analyses. For extending with some entirely different analysis,
-one can use `analyses/constants.ml` as a jumping-off point showing how to specify an analysis in the framework.
+**Goblint is a general framework for Abstract Interpretation and has been used to implement a wide variety of analyses. For extending Goblint with some entirely different analysis,
+one can use `analyses/constants.ml` as a jumping-off point showing how to specify an analysis in the framework.**
 
 The following description is about how to more specifically extend one of the analyses presented in the paper at hand.
 ### Implementation of Analyses in the Paper
