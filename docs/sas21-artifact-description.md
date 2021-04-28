@@ -56,7 +56,7 @@ TODO: update for Docker container running and paths
 
         or
 
-    * Run the script `./scripts/privPrecCompare.sh ../bench/pthread/pfscan_comb.c` to run the analyses and their comparison on a single C program.
+    * Run the script `./scripts/privPrecCompare.sh --conf conf/traces.json ../bench/pthread/ypbind_comb.c` to run the analyses and their comparison on a single C program with the Goblint configuration file used for this evaluation.
 
 ### Outline of how the code is structured
 
