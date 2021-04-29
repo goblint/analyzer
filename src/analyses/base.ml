@@ -1844,35 +1844,19 @@ struct
     in
     List.concat (List.map do_exp exps)
 
-  let get_arg_types (fn: varinfo) = match fn.vtype with
-    | TFun (_, None, _, _) -> []
-    | TFun (_, Some args, _vararg, _) ->
-      (* We do not handle varargs sepcifically here. Varargs are just top when queried *)
-      List.map (fun (_,snd,_) -> snd) args
-    | _ -> failwith "Not a function type"
+  (** Library analysis: Initialization of a variable value with a symbolic memory block representation. *)
+  let init_var_with_symbolic_value ask global local (v: varinfo) : store =
+    let t = unrollType v.vtype in
+    let value = create_val ask t in
+    let st = set ask ~force_update:true global local (AD.from_var v) t (fst value) in
+    List.fold (fun st (a, t, v) -> set ask ~force_update:true global st a t v) st (snd value)
 
-  let heapify_pointers ask (fn: varinfo) (gs:glob_fun) (st: store) (e: exp list) =
-    let module AVSet = Set.Make(struct
-        type t = address * typ * value
-        let compare (x1,_,y1) (x2,_,y2) = let r = AD.compare x1 x2 in if r <> 0 then r else VD.compare y1 y2 (* TODO: Can we really ignore typ here? *)
-      end)
-    in
-    let arg_types = get_arg_types fn in
-    let values = List.fold_right (fun t acc ->  (create_val ask t)::acc) arg_types []  in
-    let heap_mem = values |> List.map snd |> List.flatten |> AVSet.of_list |> AVSet.to_list in
-    let fundec = Cilfacade.getdec fn in
-    let values = List.map fst values in
-    let pa = zip fundec.sformals values in
-    (* Argument values, parameters -> values, argument memory cells -> values *)
-    (values, pa, heap_mem)
+  let init_vars_with_symbolic_values ask globals local (vs: varinfo list) : store =
+    List.fold (fun st v -> init_var_with_symbolic_value ask globals st v) local vs
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
     let st = ctx.local in
     let vals, pa, heap_mem =
-      (* if we perform a (modular) library analysis, we create special arguments values *)
-      if GobConfig.get_bool "ana.library" then
-        heapify_pointers ctx.ask fn ctx.global ctx.local args
-      else
         let vals = List.map (eval_rv ctx.ask ctx.global st) args in
         let fundec = Cilfacade.getdec fn in
         let pa = zip fundec.sformals vals in
@@ -1903,14 +1887,20 @@ struct
         let new_cpa = globals in
         {st with cpa = new_cpa}
     in
-    (* Assign parameters to arguments *)
-    let new_cpa = CPA.add_list pa st'.cpa in
-    (* List of reachable variables *)
-    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
-    let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
-    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
-    set_many ~ctx ~force_update:true ctx.ask ctx.global {st' with cpa = new_cpa} heap_mem
-
+    if get_bool "ana.library" then begin
+      let fundec = Cilfacade.getdec fn in
+      let st' = init_vars_with_symbolic_values ctx.ask ctx.global st' fundec.sformals in
+      st'
+    end
+    else begin
+      (* Assign parameters to arguments *)
+      let new_cpa = CPA.add_list pa st'.cpa in
+      (* List of reachable variables *)
+      let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
+      let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
+      let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+      {st' with cpa = new_cpa}
+    end
 
   let enter ctx lval fn args : (D.t * D.t) list =
     (* make_entry has special treatment for args that are equal to MyCFG.unknown_exp *)
