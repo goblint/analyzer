@@ -57,10 +57,6 @@ struct
       y
     else if is_bot y then
       x
-    (* This would make sense, but causes:
-      Fatal error: exception Apron.Manager.Error(_) *)
-    (* else if is_top x || is_top y then
-      top () *) 
     else
       A.join (Man.mgr) x y in
     ret
@@ -68,7 +64,6 @@ struct
   let meet x y =
     let ret = if is_top x then y else
     if is_top y then x else
-    if is_bot x || is_bot y then bot () else
       A.meet Man.mgr x y in
     ret
 
