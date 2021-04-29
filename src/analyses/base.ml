@@ -1082,7 +1082,7 @@ struct
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
 
         (* If we do library analysis, we always have to do non-destructive updates for globals, so join with value here. *)
-        let value = if get_bool "ana.library" && x.vglob then VD.join value @@ eval_rv a gs st (Lval (Var x, cil_offset)) else value in
+        let value = if get_bool "ana.library" && x.vglob && not force_update then VD.join value @@ eval_rv a gs st (Lval (Var x, cil_offset)) else value in
         (* Normal update of the local state *)
         let new_value = VD.update_offset a (CPA.find x st.cpa) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
@@ -1856,43 +1856,40 @@ struct
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
     let st = ctx.local in
-    let vals, pa, heap_mem =
+    if get_bool "ana.library" then begin
+      (* Initialize arguments with symbolic values *)
+      let fundec = Cilfacade.getdec fn in
+      let st' = init_vars_with_symbolic_values ctx.ask ctx.global st fundec.sformals in
+      (* Inititalize globals with symbolic values *)
+      let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
+      let global_list = CPA.fold (fun k v acc -> k::acc) globals [] in
+      init_vars_with_symbolic_values ctx.ask ctx.global st' global_list
+    end
+    else
+      let vals, pa, heap_mem =
         let vals = List.map (eval_rv ctx.ask ctx.global st) args in
         let fundec = Cilfacade.getdec fn in
         let pa = zip fundec.sformals vals in
         (vals, pa, [])
-    in
-    (* generate the entry states *)
-    (* If we need the globals, add them *)
-    (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
-    let st' =
-      if thread then (
-        (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-           Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-           sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-           EnterMultithreaded events only execute after threadenter and threadspawn. *)
-        if not (ThreadFlag.is_multi ctx.ask) then
-          ignore (Priv.enter_multithreaded ctx.ask ctx.global ctx.sideg st);
-        Priv.threadenter ctx.ask st
-      ) else if get_bool "ana.library" then
-        let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
-        (* TODO: rework so we don't have to create a list here *)
-        let global_list = CPA.fold (fun k v acc -> k::acc) st.cpa [] in
-        let global_values = List.fold_right (fun k acc -> (k , Tuple2.first (create_val ctx.ask (k.vtype)))::acc) global_list [] in
-        let globals = CPA.mapi (fun k old -> List.assoc k global_values) globals in
-        {st with cpa = globals}
-      else
-        let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
-        (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
-        let new_cpa = globals in
-        {st with cpa = new_cpa}
-    in
-    if get_bool "ana.library" then begin
-      let fundec = Cilfacade.getdec fn in
-      let st' = init_vars_with_symbolic_values ctx.ask ctx.global st' fundec.sformals in
-      st'
-    end
-    else begin
+      in
+      (* generate the entry states *)
+      (* If we need the globals, add them *)
+      (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
+      let st' =
+        if thread then (
+          (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+            Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+            EnterMultithreaded events only execute after threadenter and threadspawn. *)
+          if not (ThreadFlag.is_multi ctx.ask) then
+            ignore (Priv.enter_multithreaded ctx.ask ctx.global ctx.sideg st);
+          Priv.threadenter ctx.ask st
+        ) else
+          let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
+          (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
+          let new_cpa = globals in
+          {st with cpa = new_cpa}
+      in
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa st'.cpa in
       (* List of reachable variables *)
@@ -1900,7 +1897,7 @@ struct
       let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
       let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
       {st' with cpa = new_cpa}
-    end
+
 
   let enter ctx lval fn args : (D.t * D.t) list =
     (* make_entry has special treatment for args that are equal to MyCFG.unknown_exp *)
