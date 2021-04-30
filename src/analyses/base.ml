@@ -475,6 +475,56 @@ struct
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
 
+  let get_concretes (symb: varinfo) (st: store) =
+    let ts = typeSig symb.vtype in
+    let concretes = CPA.filter (fun k v -> ts = (typeSig k.vtype)) st.cpa in
+    CPA.fold (fun k v acc -> k::acc) concretes []
+
+  let is_symbolic (v: varinfo) : bool =
+    true
+
+  let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) =
+    let sym_address_to_conretes (addr: Addr.t) =
+      match addr with
+      | Addr  (v, ofs) ->
+        if is_symbolic v then
+          List.map (fun v -> AD.Addr.Addr (v, ofs)) (get_concretes v st)
+        else
+          [addr]
+      | StrPtr _
+      | NullPtr
+      | SafePtr
+      | UnknownPtr -> [addr]
+    in
+    let p = AD.elements addr in
+    List.map sym_address_to_conretes p
+
+  let get_concrete_value (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store)   =
+    let symb_value = get a g fun_st symb None in
+    let concrete = match symb_value with
+    | `Address addr ->
+      let concretes = List.flatten @@ symb_address_set_to_concretes a g symb st fun_st addr in
+      `Address (AD.of_list concretes)
+    | `Struct _
+    | `Union _
+    | `Top
+    | `Int _
+    | `Array _
+    | `Blob _
+    | `List _
+    | `Bot -> symb_value
+    in
+    concrete
+
+  let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: address) (fun_st: store): address =
+    let ts = typeSig @@ AD.get_type concrete in
+    let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_symbolic k && ts = (typeSig k.vtype)) fun_st.cpa in
+    let addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
+    addr
+
+
+
+
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
       let rec replace_val = function
@@ -1166,6 +1216,9 @@ struct
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
       M.warn_each "Assignment to unknown address"; st
 
+
+
+
   let set_many ?(force_update=false) ?ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
@@ -1173,6 +1226,17 @@ struct
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f st lval_value_list
+
+  (* Update the state st by adding the state fun_st  *)
+  let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
+    let reachable_vars = reachable_vars ask args gs st in
+    let f (st: store) (addr: address) : store =
+      let sa = get_symbolic_address ask gs addr fun_st in
+      let typ = AD.get_type addr in
+      let concrete_value = get_concrete_value ask gs sa st fun_st in
+      set ask gs st addr typ concrete_value
+    in
+    List.fold f st reachable_vars
 
   let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
@@ -2219,7 +2283,7 @@ struct
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-      let update_lvals (ask: Q.ask) (st: D.t) (globs: glob_fun) (exps: exp list) =
+      (* let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
         let update_lvals (ask: Q.ask) (st: D.t) (global: glob_fun) (ls: Q.LS.t) (args: exp list) =
           let vals = List.map (eval_rv ask global st) args in
           let reachable = reachable_vars ask (get_ptrs vals) ctx.global st in
@@ -2243,6 +2307,11 @@ struct
           | _ -> failwith "Ran without written lval analysis"
         in
         update_lvals ask st globs writtenLvals exps
+      in *)
+      (* let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store = *)
+      let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
+        let addresses = collect_funargs ask globs st exps in
+        update_reachable_written_vars ask addresses globs st fun_st (Q.LS.bot ())
       in
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
@@ -2253,7 +2322,7 @@ struct
         if get_bool "ana.library" then
           (* Update globals that were written by the called function *)
           let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) st.cpa [] in
-          update_lvals ctx.ask st ctx.global globals
+          update_lvals ctx.ask st after ctx.global globals
         else
           (* Remove the return value as this is dealt with separately. *)
           let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
@@ -2274,7 +2343,7 @@ struct
       )
       in
       let st = if get_bool "ana.library"
-        then update_lvals ctx.ask st ctx.global args (* Update locations that are pointed to by arguments and were possibly written by the called function *)
+        then update_lvals ctx.ask st after ctx.global args (* Update locations that are pointed to by arguments and were possibly written by the called function *)
         else st
       in
       let st = add_globals st fun_st in
