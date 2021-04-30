@@ -525,7 +525,6 @@ struct
     if q then raise Deadcode else d
 
   and query (ctx:(D.t, G.t, C.t) ctx) q =
-    let sides  = ref [] in
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
@@ -541,7 +540,7 @@ struct
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
@@ -553,9 +552,7 @@ struct
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
     | _ ->
-      let x = fold_left f `Top @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      x
+      fold_left f `Top @@ spec_list ctx.local
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in
