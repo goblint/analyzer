@@ -9,7 +9,7 @@ open Constraints
 
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
-let get_spec () : (module SpecHC) =
+let get_spec () : (module Spec) =
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -26,15 +26,16 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
+            |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
           ) in
-  (module (val if get_bool "ana.opt.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
+  (module S1)
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) (increment: increment_data) =
 
     let module Inc = struct let increment = increment end in
 
@@ -86,6 +87,13 @@ struct
         );
       in
       Result.iter add_one xs;
+      let live_count = StringMap.fold (fun _ file_lines acc ->
+          StringMap.fold (fun _ fun_lines acc ->
+              acc + ISet.cardinal fun_lines
+            ) file_lines acc
+        ) !live_lines 0
+      in
+      printf "Live lines: %d\n" live_count;
       let live file fn =
         try StringMap.find fn (StringMap.find file !live_lines)
         with Not_found -> BatISet.empty
@@ -119,6 +127,7 @@ struct
           printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
         )
       );
+      printf "Total lines (logical LoC): %d\n" (live_count + !count);
       let str = function true -> "then" | false -> "else" in
       let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
@@ -266,7 +275,6 @@ struct
       WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
-    (* GU.earlyglobs := false; *)
     GU.earlyglobs := get_bool "exp.earlyglobs";
     Spec.init ();
     Access.init file;
@@ -274,7 +282,7 @@ struct
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
       ignore (Pretty.printf "domain testing...: %s\n" (D.name ()));
-      let errcode = QCheck_runner.run_tests DP.tests in
+      let errcode = QCheck_base_runner.run_tests DP.tests in
       if (errcode <> 0) then
         failwith "domain tests failed"
     in
@@ -348,7 +356,8 @@ struct
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
-      Spec.threadenter ctx None v []
+      (* TODO: don't hd *)
+      List.hd (Spec.threadenter ctx None v [])
       (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
@@ -357,7 +366,6 @@ struct
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
-    GU.earlyglobs := get_bool "exp.earlyglobs";
     GU.global_initialization := false;
 
     let startvars' =
@@ -381,7 +389,14 @@ struct
       let lh, gh = if load_run <> "" then (
           if get_bool "dbg.verbose" then
             print_endline ("Loading the solver result of a saved run from " ^ load_run);
-          Serialize.unmarshal load_run
+            let lh,gh = Serialize.unmarshal load_run in
+            if get_bool "ana.opt.hashcons" then (
+              let lh' = LHT.create (LHT.length lh) in
+              let gh' = GHT.create (GHT.length gh) in
+              LHT.iter (fun k v -> let k' = EQSys.LVar.relift k in let v' = EQSys.D.join (EQSys.D.bot ()) v in LHT.replace lh' k' v') lh;
+              GHT.iter (fun k v -> let k' = EQSys.GVar.relift k in let v' = EQSys.G.join (EQSys.G.bot ()) v in GHT.replace gh' k' v') gh;
+              lh', gh'
+            ) else lh,gh
         ) else if compare_runs <> [] then (
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
@@ -396,13 +411,15 @@ struct
           if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
+            let analyses = append_opt "save_run" "analyses.marshalled" in
             let config = append_opt "save_run" "config.json" in
             let meta = append_opt "save_run" "meta.json" in
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ save_run ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
+              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
             );
             ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
             Serialize.marshal (lh, gh) save_run;
+            Serialize.marshal !MCP.analyses_table analyses;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
@@ -514,7 +531,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> Messages.waitWhat "Timeout reached!") in
+      (fun () -> M.print_msg "Timeout reached!" (!Tracing.current_loc); raise GU.Timeout) in
     let local_xml = solver2source_result lh in
 
     let liveness =
@@ -542,19 +559,27 @@ struct
   let rec analyze_loop file fs change_info =
     try
       analyze file fs change_info
-    with Witness.RestartAnalysis ->
+    with Refinement.RestartAnalysis ->
+      (* Tail-recursively restart the analysis again, when requested.
+         All solving starts from scratch.
+         Whoever raised the exception should've modified some global state
+         to do a more precise analysis next time. *)
+      (* TODO: do some more incremental refinement and reuse parts of solution *)
       analyze_loop file fs change_info
 end
 
-(** The main function to perform the selected analyses. *)
-let analyze change_info (file: file) fs =
-  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+let compute_cfg file =
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
     | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
-  let module CFG = struct let prev = cfgB let next = cfgF end in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir)
+
+(** The main function to perform the selected analyses. *)
+let analyze change_info (file: file) fs =
+  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+  let (module CFG) = compute_cfg file in
   let module A = AnalyzeCFG (CFG) in
   A.analyze_loop file fs change_info

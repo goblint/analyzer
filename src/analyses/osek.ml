@@ -423,7 +423,7 @@ struct
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
     let ign_flag_filter acc tuple = not (AccLoc.equal acc (proj2_1 tuple)) in
     let remove_acc acc set = AccValSet.filter (ign_flag_filter acc) set in
-    if (Base.is_global ctx.ask v) then begin
+    if (BaseUtil.is_global ctx.ask v) then begin
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if !GU.should_warn then begin
           let new_acc = ((loc,fl,rv),ust,o) in
@@ -458,7 +458,7 @@ struct
       Hashtbl.add type_inv_tbl c.ckey i;
       [i, `NoOffset]
 
-  (* Try to find a suitable type invarinat --- and by that we mean a struct. *)
+  (* Try to find a suitable type invariant --- and by that we mean a struct. *)
   let best_type_inv exs : (varinfo * Offs.t) option =
     let add_el es e : LockingPattern.ee list list =
       try LockingPattern.toEl e :: es
@@ -587,6 +587,9 @@ struct
           (*             offpry_flags flagstate v *)
           (*           end *)
         in `MayBool (off > pry)
+    | Queries.CurrentLockset -> (* delegate for MinePriv *)
+      (* TODO: delegate other queries? *)
+      M.query ctx q
     | _ -> Queries.Result.top ()
 
   let rec conv_offset x =
@@ -710,8 +713,8 @@ struct
   let startstate v = D.top ()
   let exitstate  v = D.top ()
 
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in

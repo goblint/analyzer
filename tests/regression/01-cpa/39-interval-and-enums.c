@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.def_exc --enable ana.int.enums  --set ana.int.enums_max 2
+// PARAM: --enable ana.int.interval --enable ana.int.def_exc --enable ana.int.enums
 #include<stdio.h>
 #include<assert.h>
 

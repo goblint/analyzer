@@ -9,16 +9,16 @@ open GobConfig
 
 module M = Messages
 
-(** Lifts a [Spec] so that the domain and the context are [Hashcons]d and that C offers a relift function for incremental to re-hashcons loaded values. *)
+(** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S:Spec)
-  : SpecHC with module D = Lattice.HConsed (S.D)
+  : Spec with module D = Lattice.HConsed (S.D)
           and module G = S.G
-          and module C = Printable.HC (S.C)
+          and module C = S.C
 =
 struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
-  module C = Printable.HC (S.C)
+  module C = S.C
 
   let name () = S.name () ^" hashconsed"
 
@@ -79,11 +79,8 @@ struct
   let combine ctx r fe f args fc es =
     D.lift @@ S.combine (conv ctx) r fe f args fc (D.unlift es)
 
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
-
   let threadenter ctx lval f args =
-    D.lift @@ S.threadenter (conv ctx) lval f args
+    List.map D.lift @@ S.threadenter (conv ctx) lval f args
 
   let threadspawn ctx lval f args fctx =
     D.lift @@ S.threadspawn (conv ctx) lval f args (conv fctx)
@@ -161,19 +158,11 @@ struct
   let combine ctx r fe f args fc es =
     S.combine (conv ctx) r fe f args (C.unlift fc) es
 
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
-
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
 
   let threadspawn ctx lval f args fctx =
     S.threadspawn (conv ctx) lval f args (conv fctx)
-end
-
-module NoHashconsLifter (S: Spec) = struct
-  module C = Printable.HC (S.C)
-  include (S : Spec with module C := C)
 end
 
 (* see option ana.opt.equal *)
@@ -245,7 +234,7 @@ struct
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args fc es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es))
 
-  let threadenter ctx lval f args = lift_fun ctx lift_start_level S.threadenter ((|>) args % (|>) f % (|>) lval)
+  let threadenter ctx lval f args = lift_fun ctx (List.map lift_start_level) S.threadenter ((|>) args % (|>) f % (|>) lval)
   let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let leq0 = function
@@ -285,9 +274,6 @@ struct
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 
@@ -375,23 +361,22 @@ struct
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
-  let threadenter ctx lval f args = lift_fun ctx S.threadenter ((|>) args % (|>) f % (|>) lval)
+  let threadenter ctx lval f args = S.threadenter (conv ctx) lval f args |> List.map (fun d -> (d, snd ctx.local))
   let threadspawn ctx lval f args fctx = lift_fun ctx S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f m in
+      let v_old = M.find f m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
       Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
       v_new, M.add f v_new m
     in
-    S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
+    S.enter (conv ctx) r f args
+    |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
 
   let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args (fst fc) (fst es))
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 
@@ -399,8 +384,9 @@ end
 module WidenContextLifterSide (S:Spec)
 =
 struct
-  module B = WidenContextLifter (S)
-  include (B : module type of B with module C := B.C)
+  module B = WidenContextLifter (S) (* can't just include this since type of ctx and some tf functions are different; TODO some generic functor to lift functions with conv, inj, proj? *)
+  (* include (B : module type of B with module C := B.C) *)
+  include B
   (* same as WidenContextLifter, but with a different C *)
   module C = S.C
 
@@ -427,18 +413,20 @@ struct
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
-  let threadenter ctx lval f args = lift_fun ctx S.threadenter ((|>) args % (|>) f % (|>) lval)
+  let threadenter ctx lval f args = S.threadenter (conv ctx) lval f args |> List.map (fun d -> (d, snd ctx.local))
   let threadspawn ctx lval f args fctx = lift_fun ctx S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f m in
+      let v_old = M.find f m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
       Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
       v_new, M.add f v_new m
     in
-    S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
+    S.enter (conv ctx) r f args
+    |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
 
   let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args fc (fst es))
 end
@@ -500,11 +488,8 @@ struct
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args fc es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es)) `Bot
 
-  let threadenter ctx lval f args = lift_fun ctx D.lift S.threadenter ((|>) args % (|>) f % (|>) lval) `Bot
+  let threadenter ctx lval f args = lift_fun ctx (List.map D.lift) S.threadenter ((|>) args % (|>) f % (|>) lval) []
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 module type Increment =
@@ -513,7 +498,7 @@ sig
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:SpecHC) (Cfg:CfgBackward) (I: Increment)
+module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = Basetype.Variables
@@ -535,9 +520,15 @@ struct
   let full_context = get_bool "exp.full-context"
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref =
+
+  let sync ctx =
+    match Cfg.prev ctx.prev_node with
+    | _ :: _ :: _ -> S.sync ctx `Join
+    | _ -> S.sync ctx `Normal
+
+  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
-    if !Messages.worldStopped then raise M.StopTheWorld;
+    let spawns = ref [] in
     (* now watch this ... *)
     let rec ctx =
       { ask     = query
@@ -559,43 +550,64 @@ struct
     and query x = S.query ctx x
     and spawn lval f args =
       (* TODO: adjust ctx node/edge? *)
-      let d = S.threadenter ctx lval f args in
-      let c = S.context d in
-      let rec fctx =
-        { ctx with
-          ask = fquery
-        ; local = d
-        }
-      and fquery x = S.query fctx x
-      in
-      r := S.threadspawn ctx lval f args fctx :: !r;
-      if not full_context then sidel (FunctionEntry f, c) d;
-      ignore (getl (Function f, c))
+      (* TODO: don't repeat for all paths that spawn same *)
+      let ds = S.threadenter ctx lval f args in
+      List.iter (fun d ->
+          let c = S.context d in
+          spawns := (lval, f, args, d) :: !spawns;
+          if not full_context then sidel (FunctionEntry f, c) d;
+          ignore (getl (Function f, c))
+        ) ds
     in
     (* ... nice, right! *)
-    let pval =
-      match Cfg.prev prev_node with
-      | _ :: _ :: _ -> S.sync ctx `Join
-      | _ -> S.sync ctx `Normal
-    in
-    { ctx with local = pval }, r
+    let pval = sync ctx in
+    { ctx with local = pval }, r, spawns
 
   let rec bigsqcup = function
     | []    -> D.bot ()
     | [x]   -> x
     | x::xs -> D.join x (bigsqcup xs)
 
+  let thread_spawns ctx d spawns =
+    if List.is_empty spawns then
+      d
+    else
+      let rec ctx' =
+        { ctx with
+          ask = query'
+        ; local = d
+        }
+      and query' x = S.query ctx' x
+      in
+      (* TODO: don't forget path dependencies *)
+      let one_spawn (lval, f, args, fd) =
+        let rec fctx =
+          { ctx with
+            ask = fquery
+          ; local = fd
+          }
+        and fquery x = S.query fctx x
+        in
+        S.threadspawn ctx' lval f args fctx
+      in
+      bigsqcup (List.map one_spawn spawns)
+
+  let common_join ctx d splits spawns =
+    thread_spawns ctx (bigsqcup (d :: splits)) spawns
+
+  let common_joins ctx ds splits spawns = common_join ctx (bigsqcup ds) splits spawns
+
   let tf_loop var edge prev_node getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.intrpt ctx)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.intrpt ctx) !r !spawns
 
   let tf_assign var edge prev_node lv e getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.assign ctx lv e)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.assign ctx lv e) !r !spawns
 
   let tf_vdecl var edge prev_node v getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.vdecl ctx v)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.vdecl ctx v) !r !spawns
 
   let normal_return r fd ctx sideg =
     let spawning_return = S.return ctx r fd in
@@ -609,7 +621,7 @@ struct
     nval
 
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d =
       if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
           List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
@@ -617,18 +629,19 @@ struct
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
     in
-    bigsqcup (d::!r)
+    common_join ctx d !r !spawns
 
   let tf_entry var edge prev_node fd getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.body ctx fd)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.body ctx fd) !r !spawns
 
   let tf_test var edge prev_node e tv getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.branch ctx e tv)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.branch ctx e tv) !r !spawns
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
     let combine (cd, fc, fd) =
+      if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
       (* Extra sync in case function has multiple returns.
          Each `Return sync is done before joining, so joined value may be unsound.
          Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
@@ -637,26 +650,32 @@ struct
         (* TODO: more accurate ctx? *)
         let rec sync_ctx = { ctx with
             ask = query;
-            local = fd
+            local = fd;
+            prev_node = Function f
           }
         and query x = S.query sync_ctx x
         in
-        S.sync sync_ctx `Return
+        sync sync_ctx
       in
-      S.combine {ctx with local = cd} lv e f args fc fd
+      let r = S.combine {ctx with local = cd} lv e f args fc fd in
+      if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
+      r
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
     let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
+    if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
-    List.fold_left D.join (D.bot ()) paths
+    let r = List.fold_left D.join (D.bot ()) paths in
+    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
+    r
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
       match ctx.ask (Queries.EvalFunvar e) with
       | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
@@ -665,23 +684,30 @@ struct
     in
     let one_function f =
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
-      if has_dec && not (LibraryFunctions.use_special f.vname)
-      then tf_normal_call ctx lv e f args getl sidel getg sideg
-      else tf_special_call ctx lv f args
+      if has_dec then (
+        if LibraryFunctions.use_special f.vname then (
+          M.warn_each ("Using special for defined function " ^ f.vname);
+          tf_special_call ctx lv f args
+        )
+        else
+          tf_normal_call ctx lv e f args getl sidel getg sideg
+      )
+      else
+        tf_special_call ctx lv f args
     in
     if [] = functions then
       d (* because LevelSliceLifter *)
     else
       let funs = List.map one_function functions in
-      bigsqcup (funs @ !r)
+      common_joins ctx funs !r !spawns
 
   let tf_asm var edge prev_node getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.asm ctx)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.asm ctx) !r !spawns
 
   let tf_skip var edge prev_node getl sidel getg sideg d =
-    let ctx, r = common_ctx var edge prev_node d getl sidel getg sideg in
-    bigsqcup ((S.skip ctx)::!r)
+    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    common_join ctx (S.skip ctx) !r !spawns
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
@@ -715,8 +741,7 @@ struct
     let old_node = !current_node in
     let _       = current_node := Some u in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg
-      with M.StopTheWorld -> D.bot ()
-         | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
+      with M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = current_node := old_node in
     d
 
@@ -910,19 +935,18 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
         (l', g')
     end
 
-module N = struct let topname = "Top" end
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = SetDomain.Hoare(Spec.D)(N).t
+    with type D.t = SetDomain.Hoare_NoTop(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
 =
 struct
   module D =
   struct
-    include SetDomain.Hoare (Spec.D) (N) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    include SetDomain.Hoare_NoTop (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
@@ -930,11 +954,11 @@ struct
         try
           let p t = not (mem t s2) in
           let evil = choose (filter p s1) in
-          let other = choose s2 in
-          (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
-             Spec.D.pretty evil Spec.D.pretty other
-             Spec.D.pretty_diff (evil,other) *)
-          Spec.D.pretty_diff () (evil,other)
+          dprintf "%a:\n" Spec.D.pretty evil
+          ++
+          fold (fun other acc ->
+              (dprintf "not leq %a because %a\n" Spec.D.pretty other Spec.D.pretty_diff (evil, other)) ++ acc
+            ) s2 nil
         with _ ->
           dprintf "choose failed b/c of empty set s1: %d s2: %d"
           (cardinal s1)
@@ -1011,21 +1035,6 @@ struct
     let d = D.fold h ctx.local (D.empty ()) in
     if D.is_bot d then raise Deadcode else d
 
-  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
-  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
-  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
-  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
-  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
-  let asm ctx           = map ctx Spec.asm     identity
-  let skip ctx          = map ctx Spec.skip    identity
-  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
-
-  let threadenter ctx lval f args = map ctx Spec.threadenter (fun h -> h lval f args)
-  let threadspawn ctx lval f args fctx =
-    let fd1 = D.choose fctx.local in
-    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
-
   let fold ctx f g h a =
     let k x a =
       try h a @@ g @@ f @@ conv ctx x
@@ -1041,7 +1050,24 @@ struct
     in
     D.fold k ctx.local a
 
-  let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
+  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
+  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
+  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
+  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
+  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
+  let intrpt ctx        = map ctx Spec.intrpt  identity
+  let asm ctx           = map ctx Spec.asm     identity
+  let skip ctx          = map ctx Spec.skip    identity
+  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+
+  let threadenter ctx lval f args =
+    let g xs ys = (List.map (fun y -> D.singleton y) ys) @ xs in
+    fold' ctx Spec.threadenter (fun h -> h lval f args) g []
+  let threadspawn ctx lval f args fctx =
+    let fd1 = D.choose fctx.local in
+    map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
+
+    let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx q =
     (* join results so that they are sound for all paths *)
@@ -1055,18 +1081,21 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
-      try D.add (Spec.combine (conv ctx cd) l fe f a fc x) y
-      with Deadcode -> y
+      if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
+      try
+        let r = Spec.combine (conv ctx cd) l fe f a fc x in
+        if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
+        D.add r y
+      with Deadcode ->
+        if M.tracing then M.traceu "combine" "combined function: dead\n";
+        y
     in
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 module Compare
-    (S:SpecHC)
+    (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
                         and module GVar = Basetype.Variables
                         and module D = S.D
@@ -1207,8 +1236,10 @@ struct
     in
     let complain_sideg v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
-                GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) G.pretty lhs G.pretty rhs)
+      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
+                GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v)
+                G.pretty lhs G.pretty rhs
+                G.pretty_diff (rhs,lhs))
     in
     (* For each variable v which has been assigned value d', would like to check
      * that d' satisfied all constraints. *)

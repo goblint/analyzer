@@ -70,8 +70,8 @@ struct
 
   let threadenter ctx lval f args =
     let st, re = ctx.local in
-    (LD.singleton (SHMap.top ()), Re.threadenter (re_context ctx re) lval f args)
-  let threadspawn ctx lval f args fctx = D.bot ()
+    Re.threadenter (re_context ctx re) lval f args |> List.map (fun d -> (LD.singleton (SHMap.top ()), d))
+  let threadspawn ctx lval f args fctx = ctx.local
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=
@@ -127,7 +127,7 @@ struct
       match nre with
       | `Lifted m ->
         let alive =
-          match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
+          match MyLiveness.getLiveSet !Cilfacade.current_statement.sid with
           | Some x -> x
           | _      -> Usedef.VS.empty
         in

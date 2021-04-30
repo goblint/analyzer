@@ -21,7 +21,7 @@ int main() {
   // otherwise, the global invariant will still have glob1=3.
 
   k = glob1;
-  assert(k == 3); // UNKNOWN
+  assert(k == 3); // UNKNOWN!
 
   k = glob2;
   assert(k == 9);

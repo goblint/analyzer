@@ -150,8 +150,6 @@ sig
   val str_ptr: unit -> t
   val is_null: t -> bool
   val get_location: t -> location
-  val classify: t -> int
-  val class_name: int -> string
 
   val from_var: varinfo -> t
   (** Creates an address from variable. *)
@@ -188,20 +186,11 @@ struct
     | Addr (x,_) -> x.vdecl
     | _ -> builtinLoc
 
-  let classify = function
-    | Addr (x,_) when x.vglob -> 2
-    | Addr (x,_) when x.vdecl.line = -1 -> -1
-    | Addr (x,_) when x.vdecl.line = -3 -> 5
-    | Addr (x,_) when x.vdecl.line = -4 -> 4
-    | _ -> 1
-
-  let class_name = function
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  type group = Basetype.Variables.group
+  let show_group = Basetype.Variables.show_group
+  let to_group = function
+    | Addr (x,_) -> Basetype.Variables.to_group x
+    | _ -> Some Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)
   let from_var_offset x = Addr x
@@ -533,7 +522,7 @@ struct
       match a,b with
       | `NoOffset , `NoOffset -> true
       | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Expcompare.compareExp i1 i2 -> eq o1 o2
+      | `Index (i1,o1), `Index (i2,o2) when Basetype.CilExp.compareExp i1 i2 = 0 -> eq o1 o2
       | _ -> false
     in
     x1.vid=x2.vid && eq o1 o2
@@ -541,6 +530,31 @@ struct
   let hash    = Hashtbl.hash
   let name () = "simplified lval"
   let isSimple _ = true
+
+  let compare (x1,o1) (x2,o2) =
+    let tag = function
+      | `NoOffset -> 0
+      | `Field _ -> 1
+      | `Index _ -> 2
+      | _ -> 3
+    in
+    let rec compare a b =
+      let r = tag a - tag b in
+      if r <> 0 then r else
+      match a,b with
+      | `NoOffset , `NoOffset -> 0
+      | `Field (f1,o1), `Field (f2,o2) ->
+        let r = String.compare f1.fname f2.fname in
+        if r <>0 then r else
+          compare o1 o2
+      | `Index (i1,o1), `Index (i2,o2) ->
+        let r = Basetype.CilExp.compareExp i1 i2 in
+        if r <> 0 then r else
+          compare o1 o2
+      | _ -> failwith "unexpected tag"
+    in
+    let r = x1.vid - x2.vid in
+    if r <> 0 then r else compare o1 o2
 
   let class_tag (v,o) =
     match v with

@@ -27,8 +27,8 @@ struct
   let should_join x y = D.equal x y
 
   let startstate v : D.t = D.empty ()
-  let threadenter ctx lval f args : D.t = D.empty ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.empty ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
@@ -107,7 +107,7 @@ struct
     let rec is_offs_prefix_of pr os =
       match (pr, os) with
       | (`NoOffset, _) -> true
-      | (`Field (f1, o1), `Field (f2,o2)) -> f1 == f2 && is_offs_prefix_of o1 o2
+      | (`Field (f1, o1), `Field (f2,o2)) -> f1.fname = f2.fname && is_offs_prefix_of o1 o2
       | (_, _) -> false
     in
     (v1.vid == v2.vid) && is_offs_prefix_of ofs1 ofs2
@@ -154,9 +154,9 @@ struct
     in
     let rec bothstruct (t:fieldinfo list) (tf:fieldinfo) (o:fieldinfo list) (no:lval_offs)  : var_offs list =
       match t, o with
-      | x::xs, y::ys when x.fcomp.ckey == tf.fcomp.ckey && x.fname == tf.fname ->
+      | x::xs, y::ys when x.fcomp.ckey = tf.fcomp.ckey && x.fname = tf.fname ->
         get_pfx v (`Field (y, cx)) no x.ftype y.ftype
-      | x::xs, y::ys when x.ftype == y.ftype ->
+      | x::xs, y::ys when Basetype.CilExp.compareType x.ftype y.ftype = 0 ->
         bothstruct xs tf ys no
       | x::xs, y::ys ->
         [] (* found a mismatch *)

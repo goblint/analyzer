@@ -68,6 +68,12 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let () = print_stats := fun () ->
+        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+        print_context_stats rho
+      in
+
       if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in
@@ -155,7 +161,12 @@ module WP =
         );
         assert (S.system y = None);
         init y;
-        let op = if HM.mem wpoint y then fun a b -> S.Dom.widen a (S.Dom.join a b) else S.Dom.join in
+        let op = if HM.mem wpoint y then fun a b ->
+          if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+          let r = S.Dom.widen a (S.Dom.join a b) in
+          if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+          r
+        else S.Dom.join in
         let old = HM.find rho y in
         let tmp = op old d in
         HM.replace stable y ();
@@ -363,7 +374,8 @@ module WP =
         (* Another problem are the tags for the context part of a S.Var.t.
          * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
          * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
-         * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
+         * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
+         *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           HM.iter (fun k v ->

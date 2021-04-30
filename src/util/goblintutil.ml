@@ -5,42 +5,6 @@ open GobConfig
 
 open Json
 
-(* This code was only used by solvers/interactive.ml which is currently broken and commented out anyway. This code causes
-   an issue when using it with Js_of_OCaml, because Unix is not available there. If solvers/interactive.ml is fixed,
-   we need to uncomment this and specify a way to exclude it when compiling with Js_of_OCaml *
-(** command port for eclipse debugger support *)
-let command_port = ref (-1)
-
-(** event port for eclipse debugger support *)
-let event_port = ref (-1)
-
-let command_socket = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
-let event_socket   = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
-let command_in  = ref stdin
-let command_out = ref stdout
-let event_out   = ref stdout
-
-let open_sockets i =
-  event_port := i;
-  ignore (Printf.printf "connecting...");
-  Unix.setsockopt command_socket Unix.SO_REUSEADDR true;
-  Unix.bind command_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, !command_port));
-  Unix.listen command_socket 1;
-  let (client,_) = Unix.accept command_socket in
-  command_in  := Unix.in_channel_of_descr client;
-  command_out := Unix.out_channel_of_descr client;
-  set_binary_mode_in !command_in false;
-  set_binary_mode_out !command_out false;
-  Unix.setsockopt event_socket Unix.SO_REUSEADDR true;
-  Unix.bind event_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, i));
-  Unix.listen event_socket 1;
-  let (client,_) = Unix.accept event_socket in
-  event_out  := Unix.out_channel_of_descr client;
-  set_binary_mode_out !event_out false;
-  ignore (Printf.printf "done.\n")
-*)
-
-
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
@@ -110,7 +74,7 @@ let earlyglobs = ref false
 (** true if in verifying stage *)
 let in_verifying_stage = ref false
 
-(* None if verification is disabled, Some true if verification succeeded, Some false if verfication failed *)
+(* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
 
 let escape (x:string):string =
@@ -120,9 +84,7 @@ let escape (x:string):string =
   Str.global_replace (Str.regexp ">") "&gt;" |>
   Str.global_replace (Str.regexp "\"") "&quot;" |>
   Str.global_replace (Str.regexp "'") "&apos;" |>
-  Str.global_replace (Str.regexp "\x0b") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
-  Str.global_replace (Str.regexp "\001") "" |> (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
-  Str.global_replace (Str.regexp "\x0c") "" (* g2html just cannot handle \v from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "[\x0b\001\x0c\x0f\x0e]") "" (* g2html just cannot handle from some kernel benchmarks, even when escaped... *)
 
 let trim (x:string): string =
   let len = String.length x in
@@ -400,25 +362,31 @@ let demangle x =
   let res=name_to_string y in
   if res="??" then x else res
 
-let set_timer tsecs =
-  ignore (Unix.setitimer Unix.ITIMER_REAL
-            { Unix.it_interval = 0.0; Unix.it_value = tsecs })
-
 exception Timeout
 
-let handle_sigalrm signo = raise Timeout
-
-let timeout f arg tsecs timeout_fn =
-  let oldsig = Sys.signal Sys.sigalrm (Sys.Signal_handle (fun _ -> timeout_fn ())) in
-  set_timer tsecs;
-  let res = f arg in
-  set_timer 0.0;
-  Sys.set_signal Sys.sigalrm oldsig;
-  res
-
+let timeout = Timeout.timeout
 
 let vars = ref 0
 let evals = ref 0
+
+(* print GC statistics; taken from Cil.Stats.print which also includes timing; there's also Gc.print_stat, but it's in words instead of MB and more info than we want (also slower than quick_stat since it goes through the heap) *)
+let print_gc_quick_stat chn =
+  let gc = Gc.quick_stat () in
+  let printM (w: float) : string =
+    let coeff = float_of_int (Sys.word_size / 8) in
+    Printf.sprintf "%.2fMB" (w *. coeff /. 1000000.0)
+  in
+  Printf.fprintf chn
+    "Memory statistics: total=%s, max=%s, minor=%s, major=%s, promoted=%s\n    minor collections=%d  major collections=%d compactions=%d\n"
+    (printM (gc.Gc.minor_words +. gc.Gc.major_words
+              -. gc.Gc.promoted_words))
+    (printM (float_of_int gc.Gc.top_heap_words))
+    (printM gc.Gc.minor_words)
+    (printM gc.Gc.major_words)
+    (printM gc.Gc.promoted_words)
+    gc.Gc.minor_collections
+    gc.Gc.major_collections
+    gc.Gc.compactions
 
 let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
 (* typedef struct {

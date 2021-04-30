@@ -7,10 +7,9 @@ struct
   type t = exp [@@deriving to_yojson]
   include Printable.Std
 
-  let equal = Expcompare.compareExp
+  let equal a b = Basetype.CilExp.compareExp a b = 0
+  let compare = Basetype.CilExp.compareExp
   let hash = Hashtbl.hash
-  let classify _ = 0
-  let class_name _ = "None"
   let name () = "Cil expressions"
 
   let pretty = d_exp
@@ -252,10 +251,18 @@ struct
   include Printable.Std
   type t = Exp.t * Exp.t * Exp.t [@@deriving to_yojson]
 
-  let equal = Util.equals
+  let compare (x,y,z) (a,b,c) =
+    let x = Exp.compare x a in
+    if x <> 0 then
+      x
+    else
+      let x = Exp.compare y b in
+      if x <> 0 then
+        x
+      else
+        Exp.compare z c
+  let equal a b = compare a b =0
   let hash = Hashtbl.hash
-  let classify _ = 0
-  let class_name _ = "None"
   let name () = "Per-Element locking triple"
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"

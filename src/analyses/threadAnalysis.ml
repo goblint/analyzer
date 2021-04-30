@@ -15,6 +15,8 @@ struct
   module C = D
   module G = ConcDomain.ThreadCreation
 
+  let should_join = D.equal
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
   let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
@@ -88,7 +90,7 @@ struct
     | _ -> Queries.Result.top ()
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
   let threadspawn ctx lval f args fctx =
     let creator = ThreadId.get_current ctx.ask in
     let tid = ThreadId.get_current_unlift fctx.ask in
@@ -100,7 +102,7 @@ struct
       | `Bot         -> (false,    TS.bot (),         false)
     in
     ctx.sideg tid eff;
-    D.singleton tid
+    D.join ctx.local (D.singleton tid)
   let exitstate  v = D.bot ()
 end
 
@@ -129,9 +131,9 @@ struct
 
   let threadenter ctx lval f args =
     let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
-    D.singleton (location f)
+    [D.singleton (location f)]
 
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 end
 
 let _ = MCP.register_analysis (module StartLocIDs : MCPSpec)

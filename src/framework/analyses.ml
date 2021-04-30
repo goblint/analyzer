@@ -93,7 +93,7 @@ struct
 end
 
 
-module VarF (LD: Printable.HC) =
+module VarF (LD: Printable.S) =
 struct
   type t = MyCFG.node * LD.t
   let relift (n,x) = n, LD.relift x
@@ -427,7 +427,6 @@ sig
   val val_of  : C.t -> D.t
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
-  val part_access: (D.t, G.t, C.t) ctx -> exp -> varinfo option -> bool -> (Access.LSSSet.t * Access.LSSet.t)
 
   val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
@@ -445,7 +444,10 @@ sig
   val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> C.t -> D.t -> D.t
 
-  val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  (** Returns initial state for created thread. *)
+  val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t list
+
+  (** Updates the local state of the creator thread using initial state of created thread. *)
   val threadspawn : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
 end
 
@@ -453,12 +455,6 @@ module type MCPSpec =
 sig
   include Spec
   val event : (D.t, G.t, C.t) ctx -> Events.t -> (D.t, G.t, C.t) ctx -> D.t
-end
-
-module type SpecHC = (* same as Spec but with relift function for hashcons in context module *)
-sig
-  module C : Printable.HC
-  include Spec with module C := C
 end
 
 type increment_data = {
@@ -601,8 +597,4 @@ struct
 
   let val_of x = x
   (* Assume that context is same as local domain. *)
-
-  let part_access _ _ _ _ =
-    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
-    (* No partitioning on accesses and not locks *)
 end

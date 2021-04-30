@@ -82,19 +82,14 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location x = x.vdecl
-  let classify x = match x with
-    | x when x.vglob -> 2
-    | x when x.vdecl.line = -1 -> -1
-    | x when x.vdecl.line = -3 -> 5
-    | x when x.vdecl.line = -4 -> 4
-    | _ -> 1
-  let class_name n = match n with
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
+  let (%) = Batteries.(%)
+  let to_group = Option.some % function
+    | x when x.vglob -> Global
+    | x when x.vdecl.line = -1 -> Temp
+    | x when x.vdecl.line = -3 -> Parameter
+    | x when x.vdecl.line = -4 -> Context
+    | _ -> Local
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -126,19 +121,7 @@ struct
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location (x,s) = x.vdecl
-  let classify x = match x with
-    | x,_ when x.vglob -> 2
-    | x,_ when x.vdecl.line = -1 -> -1
-    | x,_ when x.vdecl.line = -3 -> 5
-    | _, Context -> 4
-    | _, _ -> 1
-  let class_name n = match n with
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  let to_group (x,sx) = Option.some @@ match sx with Context -> Some Variables.Context | _ -> Variables.to_group x
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -149,7 +132,7 @@ end
 
 module RawStrings: Printable.S with type t = string =
 struct
-  include Printable.Std
+  include Printable.StdPolyCompare
   open Pretty
   type t = string [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x
@@ -169,27 +152,27 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
     let bot_name = "-"
   end)
 
-  module RawBools: Printable.S with type t = bool =
-  struct
-    include Printable.Std
-    open Pretty
-    type t = bool [@@deriving to_yojson]
-    let hash (x:t) = Hashtbl.hash x
-    let equal (x:t) (y:t) = x=y
-    let isSimple _ = true
-    let short _ (x:t) =  if x then "\" true \"" else "\" false \""
-    let pretty_f sf () x = text (if x then "true" else "false")
-    let pretty () x = text (short () x)
-    let name () = "raw bools"
-    let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short () x)
-  end
+module RawBools: Printable.S with type t = bool =
+struct
+  include Printable.StdPolyCompare
+  open Pretty
+  type t = bool [@@deriving to_yojson]
+  let hash (x:t) = Hashtbl.hash x
+  let equal (x:t) (y:t) = x=y
+  let isSimple _ = true
+  let short _ (x:t) =  if x then "true" else "false"
+  let pretty_f sf () x = text (if x then "true" else "false")
+  let pretty () x = text (short () x)
+  let name () = "raw bools"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short () x)
+end
 
-  module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
-    Lattice.Flat (RawBools) (struct
-      let top_name = "?"
-      let bot_name = "-"
-    end)
+module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
+  Lattice.Flat (RawBools) (struct
+    let top_name = "?"
+    let bot_name = "-"
+  end)
 
 module CilExp =
 struct
@@ -409,6 +392,9 @@ struct
       compare (a.fname, a.fbitfield, a.fattr, a.floc) (b.fname, b.fbitfield, b.fattr, b.floc)
   and compareType a b =
     compare (typeSig a) (typeSig b) (* call to typeSig here is necessary, otherwise compare might not terminate *)
+
+  let compare = compareExp
+  let equal a b = compare a b = 0
 end
 
 module CilStmt: Printable.S with type t = stmt =
@@ -479,8 +465,6 @@ struct
   let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
   let short _ x = x.fname
   let pretty_f sf () x = Pretty.text (sf max_int x)
-  let classify _ = 0
-  let class_name _ = "None"
   let pretty () x = pretty_f short () x
   let name () = "field"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -529,19 +513,7 @@ struct
     Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
 
   let get_location x = (get_var x).vdecl
-  let classify x = match (get_var x) with
-    | x when x.vglob -> 2
-    | x when x.vdecl.line = -1 -> -1
-    | x when x.vdecl.line = -3 -> 5
-    | x when x.vdecl.line = -4 -> 4
-    | _ -> 1
-  let class_name n = match n with
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  let to_group x = Variables.to_group (get_var x)
 
   let pretty () x = pretty_f short () x
   let name () = "variables and fields"
@@ -555,7 +527,8 @@ struct
   include Printable.Std
   let isSimple _  = true
   type t = typ [@@deriving to_yojson]
-  let equal x y = Util.equals x y
+  let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
+  let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
   let hash (x:typ) = Hashtbl.hash x
   let short w x = sprint ~width:w (d_type () x)
   let pretty_f sf () x = d_type () x

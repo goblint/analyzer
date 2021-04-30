@@ -77,6 +77,8 @@ struct
       if is_bullet e regpart ctx.local then `Bot else
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
         `LvalSet ls
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
 
   (* transfer functions *)
@@ -173,8 +175,8 @@ struct
     `Lifted (RegMap.bot ())
 
   let threadenter ctx lval f args =
-    `Lifted (RegMap.bot ())
-  let threadspawn ctx lval f args fctx = D.bot ()
+    [`Lifted (RegMap.bot ())]
+  let threadspawn ctx lval f args fctx = ctx.local
 
   let exitstate v = `Lifted (RegMap.bot ())
 

@@ -64,19 +64,30 @@ module Value (Impl: sig
     val name: string
     val var_state: s
     val string_of_state: s -> string
+    val compare: s -> s -> int
   end) : S with type s = Impl.s =
 struct
   type k = Lval.CilLval.t
   type s = Impl.s
   module R = struct
+    include Printable.Blank
     type t = { key: k; loc: location list; state: s }
     let hash = Hashtbl.hash
     let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc && a.state = b.state
+
+    let compare a b =
+      let r = Lval.CilLval.compare a.key b.key in
+      if r <> 0 then r else
+        let r = compare a.loc b.loc in
+        if r <> 0 then r else
+          Impl.compare a.state b.state
+
     let to_yojson _ = failwith "TODO to_yojson"
-    include Printable.Blank
+    let name () = "LValMapDomainValue"
   end
   type r = R.t
   open R
+  (* TODO: use SetDomain.Reverse? *)
   module Must' = SetDomain.ToppedSet (R) (struct let topname = "top" end)
   module Must = Lattice.Reverse (Must')
   module May  = SetDomain.ToppedSet (R) (struct let topname = "top" end)
@@ -84,8 +95,6 @@ struct
 
   (* converts to polymorphic sets *)
   let split (x,y) = try Must'.elements x |> Set.of_list, May.elements y |> Set.of_list with SetDomain.Unsupported _ -> Set.empty, Set.empty
-
-  include Printable.Std
 
   (* special variable used for indirection *)
   let alias_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset
@@ -154,10 +163,6 @@ struct
   module V = V
   module MD = MapDomain.MapBot (Lval.CilLval) (V)
   include MD
-  (* Used to access additional functions of Map.
-     Can't use BatMap because type is not compatible with MD.
-     Also avoids dependencies for other files using the following functions. *)
-  module MDMap = Legacy.Map.Make (Lval.CilLval) (* why does Make (K) not work? *)
 
   (* Map functions *)
   (* find that resolves aliases *)
@@ -168,7 +173,7 @@ struct
   let get_aliased k m = (* sources: get list of keys that link to k *)
     (* iter (fun k' (x,y) -> if V.is_alias (x,y) then print_endline ("alias "^V.string_of_key k'^" -> "^V.string_of_key (Set.choose y).key)) m; *)
     (* TODO V.get_alias v=k somehow leads to Out_of_memory... *)
-    filter (fun k' v -> V.is_alias v && V.string_of_key (V.get_alias v)=V.string_of_key k) m |> MDMap.bindings |> List.map fst
+    filter (fun k' v -> V.is_alias v && V.string_of_key (V.get_alias v)=V.string_of_key k) m |> bindings |> List.map fst
   let get_aliases k m = (* get list of all other keys that have the same pointee *)
     match get_alias k m with
     | Some k' -> [k] (* k links to k' *)
@@ -213,7 +218,7 @@ struct
   (* only keep globals, aliases to them and special variables *)
   let only_globals m = filter (fun k v ->  (fst k).vglob || V.is_alias v && (fst (V.get_alias v)).vglob || is_special_var k) m
   (* adds all the bindings from m2 to m1 (overwrites!) *)
-  let add_all m1 m2 = add_list (MDMap.bindings m2) m1
+  let add_all m1 m2 = add_list (bindings m2) m1
 
   (* callstack for locations *)
   let callstack_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
@@ -231,7 +236,7 @@ struct
     let flatten_sets = List.fold_left Set.union Set.empty in
     without_special_vars m
     |> filter (fun k v -> V.may p v && not (V.is_alias v))
-    |> MDMap.bindings |> List.map (fun (k,v) -> V.filter' p v)
+    |> bindings |> List.map (fun (k,v) -> V.filter' p v)
     |> List.split |> (fun (x,y) -> flatten_sets x, flatten_sets y)
   let filter_records k p m = (* filters both sets of k *)
     if mem k m then V.filter' p (find' k m) else Set.empty, Set.empty
@@ -244,7 +249,7 @@ struct
   let string_of_key k = V.string_of_key k
   let string_of_keys rs = Set.map (V.string_of_key % V.key) rs |> Set.elements |> String.concat ", "
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
-  let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (MDMap.bindings m)
+  let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
     Messages.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)

@@ -6,6 +6,7 @@
            | . <field-name> path'  (* field access *)
            | [ <index-nr> ] path'  (* array index access *)
            | [ + ] path'           (* cons to array *)
+           | [ - ] path'           (* cons away from array *)
            | [ * ] path'           (* reset array *)
 
   path ::==              path'     (*  *)
@@ -54,7 +55,7 @@ sig
   val set_string : string -> string -> unit
 
   (** Functions to modify conf variables by trying to parse the value.
-      The second argument must be valid Json exept single quotes represent double quotes. *)
+      The second argument must be valid Json except single quotes represent double quotes. *)
   val set_auto   : string -> string -> unit
 
   (** Get a list of values *)
@@ -68,9 +69,6 @@ sig
 
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
-
-  (** Functions to query the length of conf array variable. *)
-  val get_length : string -> int
 
   (** Functions to modify conf array variables to drop one index. *)
   val drop_index : string -> int    -> unit
@@ -99,7 +97,8 @@ struct
 
   (** Type of the index *)
   type index = Int of int  (** and integer *)
-             | App        (** prepend to the list *)
+             | App         (** prepend to the list *)
+             | Rem         (** remove from the list *)
              | New         (** create a new list *)
 
   (** Type of the path *)
@@ -113,6 +112,7 @@ struct
     | Select (s,p)    -> fprintf ch ".%s%a"  s print_path' p
     | Index (Int i,p) -> fprintf ch "[%d]%a" i print_path' p
     | Index (App ,p) -> fprintf ch "[+]%a"    print_path' p
+    | Index (Rem ,p) -> fprintf ch "[-]%a"    print_path' p
     | Index (New  ,p) -> fprintf ch "[*]%a"    print_path' p
 
   (** Path printing where you can ignore the first dot. *)
@@ -138,6 +138,7 @@ struct
   let parse_index s =
     try if s = "+" then App
       else if s = "*" then New
+      else if s = "-" then Rem
       else Int (int_of_string s)
     with Failure _ -> raise PathParseError
 
@@ -167,7 +168,7 @@ struct
       eprintf "Error: Couldn't parse the json path '%s'\n%!" s;
       failwith "parsing"
 
-  (** Here we store the actual confinguration. *)
+  (** Here we store the actual configuration. *)
   let json_conf : jvalue ref = ref Null
 
   (** The schema for the conf [json_conf] *)
@@ -233,6 +234,17 @@ struct
         set_value v (List.at !a i) pth
       | Array a, Index (App, pth) ->
         o := Array (ref (!a @ [ref (create_new v pth)]))
+      | Array a, Index (Rem, pth) ->
+        let original_list = !a in
+        let excluded_elem = create_new v pth in
+        let filtered_list =
+          List.filter (fun ref_elem ->
+            let elem = !ref_elem in
+            match (elem, excluded_elem) with
+            | (String s1, String s2) -> not (String.equal s1 s2)
+            | (_, _) -> failwith "At the moment it's only possible to remove a string from an array."
+            ) original_list in
+        o := Array (ref filtered_list)
       | Array _, Index (New, pth) ->
         o := Array (ref [ref (create_new v pth)])
       | Null, _ ->
@@ -248,7 +260,7 @@ struct
     validate conf_schema !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
-  let get_path_string f typ st =
+  let get_path_string f st =
     try
       let st = String.trim st in
       let st, x =
@@ -261,9 +273,8 @@ struct
       in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson x;
       try f x
-      with JsonE _ ->
-        eprintf "The value for '%s' does not have type %s, it is actually %a.\n"
-          st typ printJson x;
+      with JsonE s ->
+        eprintf "The value for '%s' has the wrong type: %s\n" st s;
         failwith "get_path_string"
     with ConfTypeError ->
       eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to defaults.ml?\n"
@@ -271,11 +282,27 @@ struct
       failwith "get_path_string"
 
   (** Convenience functions for reading values. *)
-  let get_int    = get_path_string number "int"
-  let get_bool   = get_path_string bool   "bool"
-  let get_string = get_path_string string "string"
-  let get_length = List.length % (!) % get_path_string array "array"
-  let get_list = List.map (!) % (!) % get_path_string array "array"
+  (* memoize for each type with BatCache: *)
+  let memo gen = BatCache.make_ht ~gen ~init_size:5 (* uses hashtable; fine since our options are bounded *)
+  let memog f = memo @@ get_path_string f
+
+  let memo_int    = memog number
+  let memo_bool   = memog bool
+  let memo_string = memog string
+  let memo_list   = memo @@ List.map (!) % (!) % get_path_string array
+
+  let drop_memo ()  =
+    (* The explicit polymorphism is needed to make it compile *)
+    let drop:'a. (string,'a) BatCache.manual_cache -> _ = fun m ->
+      let r = m.enum () in
+      BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r
+    in
+    drop memo_int; drop memo_bool; drop memo_string; drop memo_list
+
+  let get_int    = memo_int.get
+  let get_bool   = memo_bool.get
+  let get_string = memo_string.get
+  let get_list   = memo_list.get
   let get_string_list = List.map string % get_list
 
   (** Helper functions for writing values. *)
@@ -284,6 +311,7 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
+    if not !build_config then drop_memo ();
     if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson v;
     set_path_string st v
 
@@ -320,12 +348,12 @@ struct
   let merge_file fn =
     let v = JsonParser.value JsonLexer.token % Lexing.from_channel |> File.with_file_in fn in
     json_conf := merge !json_conf v;
+    drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
-
 
   (** Function to drop one element of an 'array' *)
   let drop_index st i =
-    let old = get_path_string array "array" st in
+    let old = get_path_string array st in
     if tracing then
       trace "conf" "Removing index %d from '%s' to %a." i st prettyJson (Array old);
     match List.split_at i !old with

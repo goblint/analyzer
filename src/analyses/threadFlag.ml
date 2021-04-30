@@ -7,6 +7,7 @@ open Prelude.Ana
 open Analyses
 
 let is_multi (ask: Queries.ask): bool =
+  if !GU.global_initialization then false else
   match ask Queries.MustBeSingleThreaded with
   | `MustBool x -> not x
   | `Top -> true
@@ -31,6 +32,8 @@ struct
 
   let create_tid v =
     Flag.get_multi ()
+
+  let should_join = D.equal
 
   let body ctx f = ctx.local
 
@@ -58,14 +61,6 @@ struct
   let special ctx lval f args =
     ctx.local
 
-  let query ctx x =
-    match x with
-    | Queries.MustBeSingleThreaded -> `MustBool (not (Flag.is_multi ctx.local))
-    | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
-    (* This used to be in base but also commented out. *)
-    (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
-    | _ -> `Top
-
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
     if is_multi ctx.ask then
@@ -74,15 +69,25 @@ struct
       (* kill access when single threaded *)
       (Access.LSSSet.empty (), es)
 
+  let query ctx x =
+    match x with
+    | Queries.MustBeSingleThreaded -> `MustBool (not (Flag.is_multi ctx.local))
+    | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
+    (* This used to be in base but also commented out. *)
+    (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
+    | _ -> `Top
+
   let threadenter ctx lval f args =
     if not (is_multi ctx.ask) then
       ctx.emit Events.EnterMultiThreaded;
-    create_tid f
+    [create_tid f]
 
   let threadspawn ctx lval f args fctx =
     if not (is_multi ctx.ask) then
       ctx.emit Events.EnterMultiThreaded;
-    Flag.get_main ()
+    D.join ctx.local (Flag.get_main ())
 end
 
 let _ =

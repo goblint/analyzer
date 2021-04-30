@@ -49,7 +49,29 @@ struct
   let pretty () x = pretty_f short () x
 end
 module LSSet = SetDomain.Make (LabeledString)
-module LSSSet = SetDomain.Make (LSSet)
+module LSSSet =
+struct
+  include SetDomain.Make (LSSet)
+  (* TODO: is this actually some partition domain? *)
+  let join po pd =
+    let mult_po s = union (map (LSSet.union s) po) in
+    fold mult_po pd (empty ())
+  let bot () = singleton (LSSet.empty ())
+  let is_bot x = cardinal x = 1 && LSSet.is_empty (choose x)
+  (* top & is_top come from SetDomain.Make *)
+
+  (* Since Queries.PartAccess and PartAccessResult are only used within MCP2,
+     these operations are never really called. *)
+  let leq _ _ = raise (Lattice.Unsupported "LSSSet.leq")
+  (* meet (i.e. join in PartAccessResult) for PathSensitive query joining
+     isn't needed, because accesses are handled only within MCP2. *)
+  let meet _ _ = raise (Lattice.Unsupported "LSSSet.meet")
+  let widen _ _ = raise (Lattice.Unsupported "LSSSet.widen")
+  let narrow _ _ = raise (Lattice.Unsupported "LSSSet.narrow")
+end
+
+(* Reverse because MCP2.query [meet]s. *)
+module PartAccessResult = Lattice.Reverse (Lattice.Prod (LSSSet) (LSSet))
 
 let typeVar  = Hashtbl.create 101
 let typeIncl = Hashtbl.create 101
@@ -78,9 +100,9 @@ let init (f:file) =
 let rec compareOffset (off1: offset) (off2: offset) : bool =
   match off1, off2 with
   | Field (fld1, off1'), Field (fld2, off2') ->
-    fld1 == fld2 && compareOffset off1' off2'
+    fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname && compareOffset off1' off2'
   | Index (e1, off1'), Index (e2, off2') ->
-    Expcompare.compareExp e1 e2 && compareOffset off1' off2'
+    Basetype.CilExp.compareExp e1 e2 = 0 && compareOffset off1' off2'
   | NoOffset, NoOffset -> true
   | _ -> false
 
@@ -89,7 +111,7 @@ type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
 let rec compareOffs (off1: offs) (off2: offs) : bool =
   match off1, off2 with
   | `Field (fld1, off1'), `Field (fld2, off2') ->
-    fld1 == fld2 && compareOffs off1' off2'
+    fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname && compareOffs off1' off2'
   | `Index off1', `Index off2' ->
     compareOffs off1' off2'
   | `NoOffset, `NoOffset -> true
