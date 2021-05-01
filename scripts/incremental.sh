@@ -78,11 +78,11 @@ while
   fi
   log "  All files: $(git -C $repo_path show --pretty=format:"" --shortstat $commit)"
   log "  *.c and *.h: $(git -C $repo_path show --pretty=format:"" --shortstat $commit -- *.c *.h)"
-  start=`date +%s`
+  start=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   # running it with (gtime -v ./goblint ...) doesn't react to ^C
   (date && ./goblint -v --conf conf/incremental.json $repo_path/Makefile 2>&1) | tee $outc/analyzer.log
-  end=`date +%s`
-  runtime=$((end-start))
+  end=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
+  runtime=$(echo "$end-$start" | bc)
   log "  Goblint ran $runtime seconds"
   echo "$commit; $runtime; $(grep 'evals = ' $outc/analyzer.log | cut -d" " -f9)" >> $outp/incremental_runtime.log
   log "  $(grep 'evals = ' $outc/analyzer.log)"
