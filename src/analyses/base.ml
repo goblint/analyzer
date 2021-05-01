@@ -27,6 +27,10 @@ module BaseComponents = BaseDomain.BaseComponents
 let is_heap_var (a: Q.ask) (v: varinfo): bool =
   match a (Q.IsHeapVar v) with `MustBool tv -> tv | _ -> false
 
+  (* TODO: There should be is_heap_var and is_arg_var *)
+let is_allocated_var (a: Q.ask) (v: varinfo): bool =
+    match a (Q.IsAllocatedVar v) with `MustBool tv -> tv | _ -> false
+
 let is_always_unknown (variable: varinfo) = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
 let is_static (v:varinfo): bool = v.vstorage == Static
@@ -480,14 +484,13 @@ struct
     let concretes = CPA.filter (fun k v -> ts = (typeSig k.vtype)) st.cpa in
     CPA.fold (fun k v acc -> k::acc) concretes []
 
-  let is_symbolic (v: varinfo) : bool =
-    true
-
   let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) =
     let sym_address_to_conretes (addr: Addr.t) =
       match addr with
       | Addr  (v, ofs) ->
-        if is_symbolic v then
+        if is_allocated_var a v then (* Address has been allocated within the function, we add it to our heap *)
+          [addr]
+        else if is_heap_var a v then
           List.map (fun v -> AD.Addr.Addr (v, ofs)) (get_concretes v st)
         else
           [addr]
@@ -518,7 +521,7 @@ struct
 
   let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: address) (fun_st: store): address =
     let ts = typeSig @@ AD.get_type concrete in
-    let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_symbolic k && ts = (typeSig k.vtype)) fun_st.cpa in
+    let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_heap_var a k && ts = (typeSig k.vtype)) fun_st.cpa in
     let addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
     addr
 
@@ -1230,10 +1233,12 @@ struct
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
     let reachable_vars = reachable_vars ask args gs st in
+    List.iter (fun addr -> M.tracel "update" "reachable is: %a\n" AD.pretty addr ) reachable_vars;
     let f (st: store) (addr: address) : store =
       let sa = get_symbolic_address ask gs addr fun_st in
       let typ = AD.get_type addr in
       let concrete_value = get_concrete_value ask gs sa st fun_st in
+      M.trace "update" "Setting %a to the value %a.\n" AD.pretty addr VD.pretty concrete_value;
       set ask gs st addr typ concrete_value
     in
     List.fold f st reachable_vars

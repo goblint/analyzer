@@ -40,8 +40,9 @@ struct
   let exitstate  v = D.top ()
 
   let heap_hash = Hashtbl.create 113
-  let heap_vars = Hashtbl.create 113
   let arg_hash = Hashtbl.create 113
+  let heap_vars = Hashtbl.create 113
+  let arg_vars = Hashtbl.create 113
 
 
   let get_heap_var (ts : typsig) (fn : varinfo) =
@@ -65,7 +66,7 @@ struct
       let name = prefix_non_definite_mem ^ ":" ^ tsname ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name t) in
       Hashtbl.add arg_hash ts newvar;
-      Hashtbl.add heap_vars newvar.vid ();
+      Hashtbl.add arg_vars newvar.vid ();
       newvar
 
   let query ctx (q:Q.t) : Q.Result.t =
@@ -88,8 +89,10 @@ struct
         | _ -> typeSig (TVoid []))
       in
       `Varinfo (`Lifted (get_heap_var ts fn))
-    | Q.IsHeapVar v ->
+    | Q.IsAllocatedVar v ->
       `MustBool (Hashtbl.mem heap_vars v.vid)
+    | Q.IsHeapVar v ->
+      `MustBool (Hashtbl.mem heap_vars v.vid || Hashtbl.mem arg_vars v.vid)
     | _ -> `Top
 
     let init () =

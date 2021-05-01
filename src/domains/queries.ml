@@ -68,6 +68,7 @@ type t = EqualSet of exp
        | WrittenLvals of varinfo
        | ArgVarTyp of typ
        | IsHeapVar of varinfo
+       | IsAllocatedVar of varinfo
 (* [@@deriving to_yojson] *)
 
 module PartAccessResult = Access.PartAccessResult
