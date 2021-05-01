@@ -269,25 +269,35 @@ module WP =
         let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.increment.changes.changed in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
         (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
-        let obsolete = Set.of_list (List.map (fun a -> Node.show_id (Function a))  obsolete_funs) in
+        let obsolete_ret = Set.of_list (List.map (fun a -> Node.show_id (Function a))  obsolete_funs) in
 
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
-        (* Actually destabilize all nodes contained in changed functions. *)
-        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable; (* TODO: don't use string-based nodes *)
+
+        (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
+        let old_ret = Hashtbl.create 103 in
+        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
+          print_endline (S.Var.var_id k);
+          ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k;
+          let old_rho = HM.find rho k in
+          let old_infl = HM.find_default infl k VS.empty in
+          Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
+
+        (* Do not destabilize changed functions immediately, instead remove ret nodes from stable and wait for result of function-only solve *)
+        Hashtbl.iter (fun k v -> HM.remove stable k) old_ret;
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         (* TODO: don't use string-based nodes, make marked_for_deletion of type unit (Hashtbl.Make (Node)).t *)
-        let add_nodes_of_fun (functions: fundec list) (nodes)=
+        let add_nodes_of_fun (functions: fundec list) (nodes) withEntry =
           let add_stmts (f: fundec) =
             List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
           in
-          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
+          List.iter (fun f -> if withEntry then Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion;
-        add_nodes_of_fun removed_funs marked_for_deletion;
+        add_nodes_of_fun obsolete_funs marked_for_deletion false;
+        add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
         let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in (* TODO: don't use string-based nodes *)
@@ -296,10 +306,27 @@ module WP =
         delete_marked wpoint;
         delete_marked stable;
 
-        print_data data "Data after clean-up"
+
+        print_data data "Data after clean-up";
+
+        (* solve on the return node of changed functions. Only destabilize influenced nodes outside the function if the analysis result changed *)
+        print_endline "solving changed functions";
+        List.iter set_start st;
+        let numDest = ref 0 in
+        Hashtbl.iter (fun x (old_rho, old_infl) -> ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
+          ignore @@ Pretty.printf "solving for %a\n" Node.pretty_trace (S.Var.node x);
+          solve x Widen;
+          if not (S.Dom.leq (HM.find rho x) old_rho) then (
+            numDest := !numDest + 1; print_endline "actually destabilize...";
+            HM.replace infl x old_infl;
+            destabilize x; HM.replace stable x ())
+        ) old_ret;
+
+        if !numDest = 0 && !Goblintutil.evals = 0 then print_endline "no actual destabilization needed!"
+        (* ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals); *)
       );
 
-      List.iter set_start st;
+      if !incremental_mode = "off" then List.iter set_start st;
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
       let i = ref 0 in
