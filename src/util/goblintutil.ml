@@ -445,3 +445,25 @@ let signal_of_string = let open Sys in function
   | s -> failwith ("Unhandled signal " ^ s)
 
 let self_signal signal = Unix.kill (Unix.getpid ()) signal
+
+module LazyEval (M : sig
+  type t
+  type result
+  val eval : t -> result
+end) : sig
+  type t
+  val make : M.t -> t
+  val force : t -> M.result
+end = struct
+  type t = { user_data : M.t; mutable value : M.result option }
+
+  let make user_data = { user_data; value = None }
+
+  let force l =
+    match l.value with
+    | None ->
+        let v = M.eval l.user_data in
+        l.value <- Some v;
+        v
+    | Some v -> v
+end
