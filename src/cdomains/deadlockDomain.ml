@@ -14,7 +14,7 @@ struct
   let equal x y = Ad.equal x.addr y.addr
   let hash x = Ad.hash x.addr
   let compare x y = Ad.compare x.addr y.addr
-  let short w x = (Ad.short (w/2) x.addr) ^ "@" ^ (Basetype.ProgLines.short (w/2) x.loc)
+  let short x = (Ad.short x.addr) ^ "@" ^ (Basetype.ProgLines.short x.loc)
   let pretty () x = Ad.pretty () x.addr ++ text "@" ++ Basetype.ProgLines.pretty () x.loc
   let printXml c x = Ad.printXml c x.addr
   let pretty_diff () (x,y) = Ad.pretty_diff () (x.addr,y.addr)

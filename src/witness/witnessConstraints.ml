@@ -11,13 +11,13 @@ struct
   let pretty_diff () (x,y) = dprintf "Unsupported"
   (* let short n x = Pretty.sprint n (pretty () x) *)
   (* let short _ x = var_id x *)
-  let short _ x =
+  let short x =
     let open MyCFG in
     match x with
     | Statement stmt  -> string_of_int stmt.sid
     | Function f      -> "return of " ^ f.vname ^ "()"
     | FunctionEntry f -> f.vname ^ "()"
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 100 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
   let name () = "var"
   let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"
@@ -32,7 +32,7 @@ struct
   let compare = Stdlib.compare
   let hash = Hashtbl.hash
 
-  let short w x = Pretty.sprint w (MyARG.pretty_inline_edge () x)
+  let short x = Pretty.sprint ~width:max_int (MyARG.pretty_inline_edge () x)
   let name () = "edge"
 
   include Printable.PrintSimple (

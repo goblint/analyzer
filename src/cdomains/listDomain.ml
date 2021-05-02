@@ -48,10 +48,10 @@ struct
   let entry_tail x = x
   let entry_rand x = x
 
-  let short w x =
+  let short x =
     if is_bot x
     then "Empty List"
-    else "List: " ^ short w x
+    else "List: " ^ short x
 
-  let pretty () x = Pretty.text (short max_int x)
+  let pretty () x = Pretty.text (short x)
 end

@@ -313,5 +313,5 @@ struct
           (elt_to_string upper) ^ to_string (i+1)
     in to_string 0
 
-  let short _ x = "array octagon"
+  let short x = "array octagon"
 end

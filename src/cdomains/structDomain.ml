@@ -27,12 +27,11 @@ struct
   type value = M.value
 
   (** Short summary for structs *)
-  let short w mapping =
-    let usable_length = w - 5 in
+  let short mapping =
     let assoclist = M.fold (fun x y rest -> (x,y)::rest) mapping [] in
-    let f (key, st) = Val.short usable_length st in
+    let f (key, st) = Val.short st in
     let whole_str_list = List.rev_map f assoclist in
-    Printable.get_short_list "<" ">" usable_length whole_str_list
+    Printable.get_short_list "<" ">" whole_str_list
 
   let for_all_common_bindings (pred: (value -> value -> bool)) (x:t) (y:t) =
     let pred_ok key value =

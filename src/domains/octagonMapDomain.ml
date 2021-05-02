@@ -269,7 +269,7 @@ module MapOctagon : S
 
   let print_inv = function
     | None -> print_endline "None"
-    | Some i -> print_endline (INV.short 0 i)
+    | Some i -> print_endline (INV.short i)
 
   let rec set_constraint const oct =
     match const with

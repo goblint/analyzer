@@ -73,7 +73,7 @@ struct
     let es = Access.LSSet.empty () in
     if is_unique ctx then
       let tid = ctx.local in
-      let tid = ThreadLifted.short 20 tid in
+      let tid = ThreadLifted.short tid in
       (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
     else
       (Access.LSSSet.singleton es, es)

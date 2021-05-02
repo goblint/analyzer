@@ -26,7 +26,7 @@ struct
     include SetDomain.Make (Basetype.ProgLocation)
     let of_node = singleton % MyCFG.getLoc
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.short 99
+    let string_of_elt = Basetype.ProgLocation.short
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D

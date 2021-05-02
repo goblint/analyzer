@@ -136,7 +136,7 @@ struct
     in
     M.merge f
 
-  let short _ x = "mapping"
+  let short x = "mapping"
 
   let pretty () mapping =
     let groups =
@@ -148,7 +148,7 @@ struct
     in
     let f key st dok =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
-         not (List.mem (Domain.short 80 key) !ME.tracevars) then
+         not (List.mem (Domain.short key) !ME.tracevars) then
         dok
       else
         dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
@@ -160,7 +160,7 @@ struct
       | None ->  rest ++ pretty_group map ()
       | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
     let content () = List.fold_left pretty_groups nil groups in
-    dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
+    dprintf "@[%s {\n  @[%t@]}@]" (short mapping) content
 
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
@@ -169,7 +169,7 @@ struct
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.short 800 k)) Range.printXml v
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.short k)) Range.printXml v
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;

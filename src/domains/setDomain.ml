@@ -105,10 +105,9 @@ struct
     (text "{") ++ content ++ (text "}")
 
   (** Short summary for sets. *)
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (Base.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let short x : string =
+    let all_elems : string list = List.map Base.short (elements x) in
+    Printable.get_short_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
 
@@ -298,10 +297,10 @@ struct
     | All -> text N.topname
     | Set t -> S.pretty () t
 
-  let short w x : string =
+  let short x : string =
     match x with
     | All -> N.topname
-    | Set t -> S.short w t
+    | Set t -> S.short t
 
 
   (* Lattice implementation *)
@@ -338,7 +337,7 @@ struct
       | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
       | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:short [
       20, QCheck.map set (S.arbitrary ());
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)
@@ -495,10 +494,9 @@ struct
         if caridnality_comp <> 0
           then caridnality_comp
           else Map.compare (List.compare E.compare) x y
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (E.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let short x : string =
+    let all_elems : string list = List.map E.short (elements x) in
+    Printable.get_short_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
@@ -589,7 +587,7 @@ struct
       | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
       | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:short [
       20, QCheck.map set (S.arbitrary ());
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)

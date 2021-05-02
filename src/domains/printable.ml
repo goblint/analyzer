@@ -11,7 +11,7 @@ sig
   val equal: t -> t -> bool
   val hash: t -> int
   val compare: t -> t -> int
-  val short: int -> t -> string
+  val short: t -> string
   val pretty: unit -> t -> doc
   val pretty_diff: unit -> (t * t) -> Pretty.doc
   (* These two lets us reuse the short function, and allows some overriding
@@ -64,7 +64,7 @@ module Blank =
 struct
   include Std
   let pretty () _ = text "Output not supported"
-  let short _ _ = "Output not supported"
+  let short _ = "Output not supported"
   let name () = "blank"
   let pretty_diff () (x,y) = dprintf "Unsupported"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
@@ -79,14 +79,14 @@ end
 
 module PrintSimple (P: sig
     type t'
-    val short: int -> t' -> string
+    val short: t' -> string
     val name: unit -> string
   end) =
 struct
-  let pretty () x = text (P.short max_int x)
+  let pretty () x = text (P.short x)
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (P.short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (P.short x))
 end
 
 
@@ -99,7 +99,7 @@ struct
   let hash () = 7134679
   let equal _ _ = true
   let pretty () _ = text N.name
-  let short _ _ = N.name
+  let short _ = N.name
   let name () = "Unit"
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -140,7 +140,7 @@ struct
   let tag x = x.BatHashcons.tag
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
-  let short w = lift_f (Base.short w)
+  let short = lift_f Base.short
   let to_yojson = lift_f (Base.to_yojson)
   let pretty () = lift_f (Base.pretty ())
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
@@ -185,7 +185,7 @@ struct
   let equal = lift_f2 M.equal
   let compare = lift_f2 M.compare
   let hash x = Lazy.force x.lazy_hash
-  let short w = lift_f (M.short w)
+  let short = lift_f M.short
 
   let pretty () = lift_f (M.pretty ())
 
@@ -231,9 +231,9 @@ struct
     | (`Lifted x, `Lifted y) -> Base.compare x y
     | _ -> raise @@ invalid_arg "Invalid argument for Lift.compare"
 
-  let short w state =
+  let short state =
     match state with
-    | `Lifted n ->  Base.short w n
+    | `Lifted n ->  Base.short n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -261,7 +261,7 @@ struct
       | `Bot -> empty
       | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:short [
       20, QCheck.map lift (Base.arbitrary ());
       1, QCheck.always `Bot;
       1, QCheck.always `Top
@@ -297,10 +297,10 @@ struct
     | `Left n ->  Base1.pretty () n
     | `Right n ->  Base2.pretty () n
 
-  let short w state =
+  let short state =
     match state with
-    | `Left n ->  Base1.short w n
-    | `Right n ->  Base2.short w n
+    | `Left n ->  Base1.short n
+    | `Right n ->  Base2.short n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let pretty_diff () (x,y) =
@@ -362,10 +362,10 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let short w state =
+  let short state =
     match state with
-    | `Lifted1 n ->  Base1.short w n
-    | `Lifted2 n ->  Base2.short w n
+    | `Lifted1 n ->  Base1.short n
+    | `Lifted2 n ->  Base2.short n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -404,11 +404,12 @@ struct
     | ( 0, 0) ->  0
     | _       -> failwith "is this possible?"
 
-  let short w (x,y) =
+  let short (x,y) =
+    (* TODO: remove ref *)
     let first  = ref "" in
     let second = ref "" in
-    first  := Base1.short (w - 4 - 6 (* chars for 2.*) ) x;
-    second := Base2.short (w - 4 - String.length !first) y;
+    first  := Base1.short x;
+    second := Base2.short y;
     "(" ^ !first ^ ", " ^ !second ^ ")"
 
   let name () = Base1.name () ^ " * " ^ Base2.name ()
@@ -416,12 +417,12 @@ struct
   let pretty () (x,y) =
     if expand_fst || expand_snd then
       text "("
-      ++ (if expand_fst then Base1.pretty () x else text (Base1.short 60 x))
+      ++ (if expand_fst then Base1.pretty () x else text (Base1.short x))
       ++ text ", "
-      ++ (if expand_snd then Base2.pretty () y else text (Base2.short 60 y))
+      ++ (if expand_snd then Base2.pretty () y else text (Base2.short y))
       ++ text ")"
     else
-      text (short Goblintutil.summary_length (x,y))
+      text (short (x,y))
 
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y
@@ -457,13 +458,14 @@ struct
       then comp2
       else Base3.compare x3 y3
 
-  let short w (x,y,z) =
+  let short (x,y,z) =
+    (* TODO: remove ref *)
     let first = ref "" in
     let second= ref "" in
     let third = ref "" in
-    first  := Base1.short (w-6- 12 (* chars for 2.&3.*) ) x;
-    second := Base2.short (w-6- 6 - String.length !first) y;
-    third  := Base3.short (w-6- String.length !first - String.length !second) z;
+    first  := Base1.short x;
+    second := Base2.short y;
+    third  := Base3.short z;
     "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
 
   let pretty () (x,y,z) =
@@ -493,11 +495,11 @@ struct
   let compare x y = BatList.compare Base.compare x y
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
-  let short _ x =
-    let elems = List.map (Base.short max_int) x in
+  let short x =
+    let elems = List.map Base.short x in
     "[" ^ (String.concat ", " elems) ^ "]"
 
-  let pretty () x = text (short max_int x)
+  let pretty () x = text (short x)
 
   let name () = Base.name () ^ " list"
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
@@ -525,8 +527,8 @@ struct
   include Std
   let compare x y = x-y
 
-  let short _ x = P.names x
-  let pretty () x = text (short max_int x)
+  let short x = P.names x
+  let pretty () x = text (short x)
   let hash x = x-5284
   let equal (x:int) (y:int) = x=y
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
@@ -561,9 +563,9 @@ struct
     | `Bot -> 56613454
     | `Lifted n -> Base.hash n
 
-  let short w state =
+  let short state =
     match state with
-    | `Lifted n ->  Base.short w n
+    | `Lifted n ->  Base.short n
     | `Bot -> "bot of " ^ (Base.name ())
 
   let pretty () (state:t) =
@@ -602,9 +604,9 @@ struct
     | `Top -> 7890
     | `Lifted n -> Base.hash n
 
-  let short w state =
+  let short state =
     match state with
-    | `Lifted n ->  Base.short w n
+    | `Lifted n ->  Base.short n
     | `Top -> "top of " ^ (Base.name ())
 
   let pretty () (state:t) =
@@ -628,7 +630,7 @@ struct
       | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
       | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:short [
       20, QCheck.map lift (Base.arbitrary ());
       1, QCheck.always `Top
     ] (* S TODO: decide frequencies *)
@@ -642,7 +644,7 @@ struct
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let pretty () n = text n
-  let short _ n = n
+  let short n = n
   let name () = "String"
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -652,13 +654,8 @@ end
 
 (** Concatenates a list of strings that
     fit in the given character constraint *)
-let get_short_list begin_str end_str w list =
+let get_short_list begin_str end_str list =
   let continues = "..." in
-  (* Maximal space for short description *)
-  let usable_length =
-    w-String.length continues
-    -String.length begin_str
-    -String.length end_str in
   (* Structure elements separator *)
   let separator = ", " in
   let separator_length = String.length separator in
@@ -670,8 +667,7 @@ let get_short_list begin_str end_str w list =
     | (a,aa)::tl -> (b,aa+bb+separator_length)::(a,aa)::tl in
   let str_list_sum_size_rev = List.fold_left to_length_pair [] str_list_w_size in
 
-  let cut_str_pair_list_rev =
-    List.filter (fun (a,s) -> s<=usable_length) str_list_sum_size_rev in
+  let cut_str_pair_list_rev = str_list_sum_size_rev in
 
   let cut_str_list_rev = List.map fst cut_str_pair_list_rev in
 

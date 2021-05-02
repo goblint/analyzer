@@ -257,15 +257,15 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let short w state =
+  let short state =
     match state with
-    | `Int n ->  ID.short w n
-    | `Address n ->  AD.short w n
-    | `Struct n ->  Structs.short w n
-    | `Union n ->  Unions.short w n
-    | `Array n ->  CArrays.short w n
-    | `Blob n ->  Blobs.short w n
-    | `List n ->  Lists.short w n
+    | `Int n ->  ID.short n
+    | `Address n ->  AD.short n
+    | `Struct n ->  Structs.short n
+    | `Union n ->  Unions.short n
+    | `Array n ->  CArrays.short n
+    | `Blob n ->  Blobs.short n
+    | `List n ->  Lists.short n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -828,7 +828,7 @@ struct
               end
             | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
+            | _ -> M.warn ("Trying to read an index, but was not given an array ("^short x^")"); top ()
           end
     in
     let l, o = match exp with
@@ -949,7 +949,7 @@ struct
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
+            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short x^")"); top ()
           end
       in mu result
     in

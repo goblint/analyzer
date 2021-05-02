@@ -12,11 +12,11 @@ struct
     x.line = y.line && x.file = y.file
   let compare x y = compare (x.file, x.line) (y.file, y.line)
   let hash x = Hashtbl.hash (x.line, x.file)
-  let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
-  let pretty () x = text (short max_int x)
+  let short x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
+  let pretty () x = text (short x)
   let name () = "proglines"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
 
 module ProgLocation : Printable.S with type t = location =
@@ -32,11 +32,11 @@ struct
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let short w x = show x
-  let pretty () x = text (short max_int x)
+  let short x = show x
+  let pretty () x = text (short x)
   let name () = "proglines_byte"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
 
 module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
@@ -53,11 +53,11 @@ struct
     | MyCFG.Function      f -> dprintf "result of %s at %a" f.vname ProgLines.pretty l
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.vname ProgLines.pretty l
 
-  let short w (x,a,f) = ProgLines.short w x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty () x = text (short max_int x)
+  let short (x,a,f) = ProgLines.short x ^ "(" ^ f.svar.vname ^ ")"
+  let pretty () x = text (short x)
   let name () = "proglinesfun"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
 
 module Variables =
@@ -71,8 +71,8 @@ struct
   let equal x y = x.vid = y.vid
   let compare x y = compare x.vid y.vid
   let hash x = x.vid - 4773
-  let short _ x = GU.demangle x.vname
-  let pretty () x = Pretty.text (short max_int x)
+  let short x = GU.demangle x.vname
+  let pretty () x = Pretty.text (short x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location x = x.vdecl
   type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
@@ -91,7 +91,7 @@ struct
   let description n = sprint 80 (pretty_trace () n)
   let context () _ = Pretty.nil
   let loopSep _ = true
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec.svar
 
@@ -127,11 +127,11 @@ struct
   type t = string [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
-  let short _ x = "\"" ^ x ^ "\""
-  let pretty () x = text (short 80 x)
+  let short x = "\"" ^ x ^ "\""
+  let pretty () x = text (short x)
   let name () = "raw strings"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
 
 module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
@@ -147,11 +147,11 @@ struct
   type t = bool [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
-  let short _ (x:t) =  if x then "true" else "false"
-  let pretty () x = text (short () x)
+  let short (x:t) =  if x then "true" else "false"
+  let pretty () x = text (short x)
   let name () = "raw bools"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short x)
 end
 
 module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
@@ -167,7 +167,7 @@ struct
   let copy x = x
   let equal x y = Util.equals x y
   let hash x = Hashtbl.hash x
-  let short w x = sprint ~width:w (d_exp () x)
+  let short x = sprint ~width:max_int (d_exp () x)
   let pretty () x = d_exp () x
 
   let name () = "expressions"
@@ -234,7 +234,7 @@ struct
     | Lval (Mem e',_) -> (get_vars e')
 
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 
   (* Need custom compare because normal compare on CIL Exp might not terminate *)
   let rec compareExp a b =
@@ -389,7 +389,7 @@ struct
   let compare x y = compare x.sid y.sid
   let equal x y = x.sid = y.sid
   let hash x = Hashtbl.hash (x.sid) * 97
-  let short _ x = "<stmt>"
+  let short x = "<stmt>"
   let pretty () x =
     match x.skind with
     | Instr (y::ys) -> dn_instr () y
@@ -398,7 +398,7 @@ struct
 
   let name () = "expressions"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
 
 module CilFun: Printable.S with type t = varinfo =
@@ -409,11 +409,11 @@ struct
   let compare x y = compare x.vid y.vid
   let equal x y = x.vid = y.vid
   let hash x = Hashtbl.hash x.vid
-  let short _ x = x.vname
-  let pretty () x = Pretty.text (short max_int x)
+  let short x = x.vname
+  let pretty () x = Pretty.text (short x)
   let name () = "functions"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
 
 module CilFundec =
@@ -424,12 +424,12 @@ struct
   let compare x y = compare x.svar.vid y.svar.vid
   let equal x y = x.svar.vid = y.svar.vid
   let hash x = x.svar.vid * 3
-  let short _ x = x.svar.vname
+  let short x = x.svar.vname
   let pretty () x = CilFun.pretty () x.svar
   let name () = "function decs"
   let dummy = dummyFunDec
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
 
 module CilField =
@@ -440,11 +440,11 @@ struct
   let compare x y = compare (x.fname, compFullName x.fcomp)  (y.fname, compFullName y.fcomp)
   let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
   let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
-  let short _ x = x.fname
-  let pretty () x = Pretty.text (short max_int x)
+  let short x = x.fname
+  let pretty () x = Pretty.text (short x)
   let name () = "field"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
 
 module FieldVariables =
@@ -503,10 +503,10 @@ struct
   let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
   let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
   let hash (x:typ) = Hashtbl.hash x
-  let short w x = sprint ~width:w (d_type () x)
+  let short x = sprint ~width:max_int (d_type () x)
   let pretty () x = d_type () x
 
   let name () = "types"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
 end
