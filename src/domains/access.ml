@@ -28,7 +28,6 @@ struct
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let compare (x:t) (y:t) = compare x y
-  let isSimple _ = true
   let short _ x = x
   let pretty_f sf () x = text (sf 80 x)
   let pretty () x = pretty_f short () x

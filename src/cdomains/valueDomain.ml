@@ -269,17 +269,6 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let isSimple x =
-    match x with
-    | `Int n ->  ID.isSimple n
-    | `Address n ->  AD.isSimple n
-    | `Struct n ->  Structs.isSimple n
-    | `Union n ->  Unions.isSimple n
-    | `Array n ->  CArrays.isSimple n
-    | `List n ->  Lists.isSimple n
-    | `Blob n ->  Blobs.isSimple n
-    | _ -> true
-
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) =
     match (x,y) with

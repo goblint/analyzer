@@ -29,7 +29,6 @@ let top () = (Val 0, Val 0, Val 0, Val 0)
 let is_top x = (x = top())
 let bot () = (Bot, Bot, Bot, Bot)
 let is_bot x = (x = bot())
-let isSimple _  = true
 
 let short _ (a,b,c,d) =
   let a' = match a with Bot -> "bot" | Val a'' -> string_of_int a'' in

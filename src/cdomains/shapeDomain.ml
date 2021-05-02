@@ -34,7 +34,6 @@ struct
   let to_group = function
     | `Left  v -> Some Variables
     | `Right v -> Some Values
-  let isSimple _ = true
 end
 
 (* TODO: use SetDomain.Reverse? *)

@@ -184,18 +184,6 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let isSimple x =
-    match x with
-    | `Int n ->  ID.isSimple n
-    | `LvalSet n ->  LS.isSimple n
-    | `ExprSet n ->  ES.isSimple n
-    | `ExpTriples n ->  PS.isSimple n
-    | `TypeSet n -> TS.isSimple n
-    | `Varinfo n -> VI.isSimple n
-    | `PartAccessResult n -> PartAccessResult.isSimple n
-    (* `MustBool and `MayBool should work by the following *)
-    | _ -> true
-
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 

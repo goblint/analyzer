@@ -62,7 +62,6 @@ struct
   let meet x y = M.meet x y
   let join x y = M.join x y
   let leq x y = M.leq x y
-  let isSimple x = M.isSimple x
   let hash x = M.hash x
   let widen = M.widen
   let narrow = M.narrow

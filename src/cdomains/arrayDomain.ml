@@ -687,7 +687,6 @@ struct
   let hash = unop P.hash T.hash
   let compare = binop P.compare T.compare
   let short l = unop (P.short l) (T.short l)
-  let isSimple = unop P.isSimple T.isSimple
   let pretty () = unop (P.pretty ()) (T.pretty ())
   let leq = binop P.leq T.leq
   let join = binop_to_t P.join T.join

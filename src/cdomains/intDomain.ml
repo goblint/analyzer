@@ -275,7 +275,6 @@ struct
       then ik_c
       else I.compare x.v y.v
   let short l x = I.short l x.v  (* TODO add ikind to output *)
-  let isSimple x = I.isSimple x.v
   let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
   let pretty_f f () x = pretty () x (* TODO add ikind to output *)
@@ -441,7 +440,6 @@ module Std (B: sig
   include Printable.StdPolyCompare
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let isSimple _ = true
   let hash = Hashtbl.hash
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
@@ -1019,7 +1017,6 @@ module BigInt = struct
 
   let hash x = (BI.to_int x) * 2147483647
   let short l x = BI.to_string x
-  let isSimple _ = true
   let pretty _ x = Pretty.text (BI.to_string x)
   let to_yojson x = failwith "to_yojson not implemented for BigIntPrintable"
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
@@ -1916,7 +1913,6 @@ module IntDomTupleImpl = struct
   let pretty_f sf () : t -> doc = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty_f I.short () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
   (* printing boilerplate *)
-  let isSimple _ = true
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)

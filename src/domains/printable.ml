@@ -12,7 +12,6 @@ sig
   val hash: t -> int
   val compare: t -> t -> int
   val short: int -> t -> string
-  val isSimple: t -> bool
   val pretty: unit -> t -> doc
   val pretty_diff: unit -> (t * t) -> Pretty.doc
   (* These two lets us reuse the short function, and allows some overriding
@@ -67,7 +66,6 @@ struct
   include Std
   let pretty () _ = text "Output not supported"
   let short _ _ = "Output not supported"
-  let isSimple _ = true
   let pretty_f _ = pretty
   let name () = "blank"
   let pretty_diff () (x,y) = dprintf "Unsupported"
@@ -87,7 +85,6 @@ module PrintSimple (P: sig
     val name: unit -> string
   end) =
 struct
-  let isSimple _ = true
   let pretty_f sf () x = text (sf max_int x)
   let pretty () x = pretty_f P.short () x
   let pretty_diff () (x,y) =
@@ -106,7 +103,6 @@ struct
   let equal _ _ = true
   let pretty () _ = text N.name
   let short _ _ = N.name
-  let isSimple _ = true
   let pretty_f _ = pretty
   let name () = "Unit"
   let pretty_diff () (x,y) =
@@ -152,7 +148,6 @@ struct
   let to_yojson = lift_f (Base.to_yojson)
   let pretty_f sf () = lift_f (Base.pretty_f (fun w x -> sf w (lift x)) ())
   let pretty = pretty_f short
-  let isSimple = lift_f Base.isSimple
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
 
@@ -196,7 +191,6 @@ struct
   let compare = lift_f2 M.compare
   let hash x = Lazy.force x.lazy_hash
   let short w = lift_f (M.short w)
-  let isSimple = lift_f M.isSimple
 
   let pretty_f short () = lift_f (M.pretty_f (fun w x -> short w (lift x)) ())
 
@@ -249,11 +243,6 @@ struct
     | `Lifted n ->  Base.short w n
     | `Bot -> bot_name
     | `Top -> top_name
-
-  let isSimple x =
-    match x with
-    | `Lifted n -> Base.isSimple n
-    | _ -> true
 
   let pretty_f _ () (state:t) =
     match state with
@@ -320,11 +309,6 @@ struct
     match state with
     | `Left n ->  Base1.short w n
     | `Right n ->  Base2.short w n
-
-  let isSimple x =
-    match x with
-    | `Left n ->  Base1.isSimple n
-    | `Right n ->  Base2.isSimple n
 
   let pretty () x = pretty_f short () x
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
@@ -394,12 +378,6 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let isSimple x =
-    match x with
-    | `Lifted1 n ->  Base1.isSimple n
-    | `Lifted2 n ->  Base2.isSimple n
-    | _ -> true
-
   let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -442,8 +420,6 @@ struct
     first  := Base1.short (w - 4 - 6 (* chars for 2.*) ) x;
     second := Base2.short (w - 4 - String.length !first) y;
     "(" ^ !first ^ ", " ^ !second ^ ")"
-
-  let isSimple (x,y) = Base1.isSimple x && Base2.isSimple y
 
   let name () = Base1.name () ^ " * " ^ Base2.name ()
 
@@ -511,8 +487,6 @@ struct
     Base3.pretty () z
     ++ text ")"
 
-  let isSimple (x,y,z) = Base1.isSimple x && Base2.isSimple y && Base3.isSimple z
-
   let printXml f (x,y,z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y (Goblintutil.escape (Base3.name ())) Base3.printXml z
 
@@ -537,7 +511,6 @@ struct
     "[" ^ (String.concat ", " elems) ^ "]"
 
   let pretty_f sf () x = text (sf max_int x)
-  let isSimple _ = true
 
   let pretty () x = pretty_f short () x
   let name () = Base.name () ^ " list"
@@ -567,9 +540,7 @@ struct
   let compare x y = x-y
 
   let short _ x = P.names x
-  let pretty_f f () x = text (f max_int x)
-  let isSimple _ = true
-  let hash x = x-5284
+  let pretty_f f () x = text (f max_int x)  let hash x = x-5284
   let equal (x:int) (y:int) = x=y
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
@@ -608,11 +579,6 @@ struct
     match state with
     | `Lifted n ->  Base.short w n
     | `Bot -> "bot of " ^ (Base.name ())
-
-  let isSimple x =
-    match x with
-    | `Lifted n -> Base.isSimple n
-    | _ -> true
 
   let pretty_f _ () (state:t) =
     match state with
@@ -656,11 +622,6 @@ struct
     | `Lifted n ->  Base.short w n
     | `Top -> "top of " ^ (Base.name ())
 
-  let isSimple x =
-    match x with
-    | `Lifted n -> Base.isSimple n
-    | _ -> true
-
   let pretty_f _ () (state:t) =
     match state with
     | `Lifted n ->  Base.pretty () n
@@ -698,7 +659,6 @@ struct
   let equal (x:t) (y:t) = x=y
   let pretty () n = text n
   let short _ n = n
-  let isSimple _ = true
   let pretty_f _ = pretty
   let name () = "String"
   let pretty_diff () (x,y) =

@@ -15,7 +15,6 @@ struct
   let hash x = Ad.hash x.addr
   let compare x y = Ad.compare x.addr y.addr
   let short w x = (Ad.short (w/2) x.addr) ^ "@" ^ (Basetype.ProgLines.short (w/2) x.loc)
-  let isSimple x = true
   let pretty_f sh () x = Ad.pretty () x.addr ++ text "@" ++ Basetype.ProgLines.pretty () x.loc
   let pretty = pretty_f short
   let printXml c x = Ad.printXml c x.addr

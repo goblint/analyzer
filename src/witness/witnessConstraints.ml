@@ -8,7 +8,6 @@ struct
   include Var
   let to_yojson = MyCFG.node_to_yojson
 
-  let isSimple _ = true
   let pretty_f _ = pretty
   let pretty_diff () (x,y) = dprintf "Unsupported"
   (* let short n x = Pretty.sprint n (pretty () x) *)

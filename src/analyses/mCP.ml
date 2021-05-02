@@ -121,7 +121,6 @@ struct
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
 
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
-  let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
 
   let name () =
     let domain_name (n, (module D: Printable.S)) =

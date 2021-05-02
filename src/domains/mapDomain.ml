@@ -137,7 +137,6 @@ struct
     M.merge f
 
   let short _ x = "mapping"
-  let isSimple _ = false
 
   let pretty_f short () mapping =
     let groups =
@@ -296,7 +295,6 @@ struct
   (* TODO: time these also? *)
   let name = M.name
   let to_yojson = M.to_yojson
-  let isSimple = M.isSimple
   let short = M.short
   let pretty_f = M.pretty_f
   let pretty = M.pretty

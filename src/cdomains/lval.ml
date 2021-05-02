@@ -106,8 +106,6 @@ struct
     | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> leq o1 o2
     | _ -> false
 
-  let isSimple x = true
-
   let rec merge cop x y =
     let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
     match x, y with
@@ -257,7 +255,6 @@ struct
     | UnknownPtr -> voidPtrType
 
   let copy x = x
-  let isSimple _  = true
 
   let hash = function
     | Addr (v,o) -> v.vid + 2 * Offs.hash o
@@ -378,8 +375,6 @@ struct
   type idx = Idx.t
   type t = bool * varinfo * (field, idx) offs_uk
   include Printable.Std
-
-  let isSimple _  = true
 
   let short _ (dest, x, offs) =
     let rec off_str ofs =
@@ -529,7 +524,6 @@ struct
 
   let hash    = Hashtbl.hash
   let name () = "simplified lval"
-  let isSimple _ = true
 
   let compare (x1,o1) (x2,o2) =
     let tag = function

@@ -545,7 +545,6 @@ module ResultType2 (S:Spec) =
 struct
   open S
   include Printable.Prod3 (C) (D) (Basetype.CilFundec)
-  let isSimple _ = false
   let short w (es,x,f:t) = call_descr f es
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =

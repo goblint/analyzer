@@ -118,9 +118,6 @@ struct
     cardinal x = cardinal y
     && for_all (fun e -> exists (Base.equal e) y) x
 
-  let isSimple x =
-    (List.length (elements x)) < 3
-
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
@@ -308,11 +305,6 @@ struct
     | All -> N.topname
     | Set t -> S.short w t
 
-  let isSimple x =
-    match x with
-    | All -> true
-    | Set t -> S.isSimple t
-
   let pretty () x = pretty_f short () x
 
 
@@ -362,8 +354,6 @@ end
 module HeadlessSet (Base: Printable.S) =
 struct
   include Make(Base)
-
-  let isSimple _ = false
 
   let name () = "Headless " ^ name ()
   let pretty_f _ () x =
@@ -510,7 +500,6 @@ struct
         if caridnality_comp <> 0
           then caridnality_comp
           else Map.compare (List.compare E.compare) x y
-  let isSimple _ = false
   let short w x : string =
     let usable_length = w - 5 in
     let all_elems : string list = List.map (E.short usable_length) (elements x) in

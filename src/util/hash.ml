@@ -109,7 +109,6 @@ struct
     in length x = length y && forall2 Range.equal x y
   let hash xs = fold (fun k v xs -> xs lxor (Domain.hash k) lxor (Range.hash v)) xs 0
   let short _ x = "mapping"
-  let isSimple _ = false
 
 
   open Pretty
