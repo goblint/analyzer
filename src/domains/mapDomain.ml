@@ -296,7 +296,6 @@ struct
   let name = M.name
   let to_yojson = M.to_yojson
   let short = M.short
-  let pretty_f = M.pretty_f
   let pretty = M.pretty
   let pretty_diff = M.pretty_diff
   let printXml = M.printXml

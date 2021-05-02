@@ -43,8 +43,7 @@ struct
     in
     M.for_all pred_ok x
 
-  let pretty_f sf = M.pretty_f sf
-  let pretty () x = M.pretty_f short () x
+  let pretty () = M.pretty ()
   let replace s field value = M.add field value s
   let get s field = M.find field s
   let fold = M.fold

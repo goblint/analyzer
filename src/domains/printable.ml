@@ -16,7 +16,6 @@ sig
   val pretty_diff: unit -> (t * t) -> Pretty.doc
   (* These two lets us reuse the short function, and allows some overriding
    * possibilities. *)
-  val pretty_f: (int -> t -> string) -> unit -> t -> doc
   val printXml : 'a BatInnerIO.output -> t -> unit
   (* This is for debugging *)
   val name: unit -> string
@@ -146,8 +145,7 @@ struct
   let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
   let short w = lift_f (Base.short w)
   let to_yojson = lift_f (Base.to_yojson)
-  let pretty_f sf () = lift_f (Base.pretty_f (fun w x -> sf w (lift x)) ())
-  let pretty = pretty_f short
+  let pretty () = lift_f (Base.pretty ())
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
 
@@ -192,9 +190,7 @@ struct
   let hash x = Lazy.force x.lazy_hash
   let short w = lift_f (M.short w)
 
-  let pretty_f short () = lift_f (M.pretty_f (fun w x -> short w (lift x)) ())
-
-  let pretty () x = pretty_f short () x
+  let pretty () = lift_f (M.pretty ())
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
   let printXml f = lift_f (M.printXml f)

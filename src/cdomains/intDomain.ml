@@ -1909,11 +1909,8 @@ module IntDomTupleImpl = struct
   let leq = for_all %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.leq }
   let equal = for_all %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.equal }
   let compare = List.fold_left (fun a x -> if x<>0 then x else a) 0 % to_list %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.compare } (* idea? same impl. as above... *)
-  (* val pretty_f: (int -> t -> string) -> unit -> t -> doc *)
-  let pretty_f sf () : t -> doc = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty_f I.short () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
-
+  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
   (* printing boilerplate *)
-  let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 

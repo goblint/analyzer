@@ -45,7 +45,7 @@ struct
   type value = Val.t
 
   let short w x = "Array: " ^ Val.short (w - 7) x
-  let pretty () x = text "Array: " ++ pretty_f short () x
+  let pretty () x = text "Array: " ++ pretty () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v

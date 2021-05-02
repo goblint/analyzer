@@ -53,5 +53,5 @@ struct
     then "Empty List"
     else "List: " ^ short w x
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (short max_int x)
 end
