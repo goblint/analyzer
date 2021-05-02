@@ -152,8 +152,7 @@ struct
          not (List.mem (Domain.short 80 key) !ME.tracevars) then
         dok
       else
-        dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else
-                  dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
+        dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
     in
     let group_name a () = text (Domain.show_group a) in
     let pretty_group map () = fold f map nil in

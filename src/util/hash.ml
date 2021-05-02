@@ -115,8 +115,7 @@ struct
   open Pretty
   let pretty_f _ () mapping =
     let f key st dok =
-      dok ++ (if Range.isSimple st then dprintf "%a -> @[%a@]\n" else
-                dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
+      dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
     in
     let content () = fold f mapping nil in
     let defline () = dprintf "OTHERS -> Not available\n" in
