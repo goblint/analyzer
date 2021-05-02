@@ -14,7 +14,6 @@ struct
 
   let pretty = d_exp
   let short w s = sprint w (d_exp () s)
-  let pretty_f _ = pretty
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let rec interesting x =
@@ -266,7 +265,6 @@ struct
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
   let short w (x,y,z) = sprint w (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
-  let pretty_f _ = pretty
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   type ee = EVar of varinfo

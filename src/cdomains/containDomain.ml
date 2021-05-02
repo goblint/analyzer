@@ -65,7 +65,7 @@ struct
 
   let short _ x = lookup x
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short () x)
 
 end
 
@@ -87,7 +87,7 @@ struct
 
   let short _ x = lookup x
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short () x)
 
 end
 

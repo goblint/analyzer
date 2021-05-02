@@ -123,7 +123,7 @@ struct
         Val.short ((w - 7)/3) xm ^ " -- " ^
         Val.short ((w - 7)/3) xr ^ ")"
 
-  let pretty () x = text "Array: " ++ pretty_f short () x
+  let pretty () x = text "Array: " ++ text (short max_int x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f ((e, (xl, xm, xr)) as x) =
@@ -714,7 +714,6 @@ struct
   let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
 
   let printXml f = unop (P.printXml f) (T.printXml f)
-  let pretty_f _ = pretty
 
   let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 

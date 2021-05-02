@@ -42,8 +42,7 @@ struct
       else
         "read lock " ^ addr_str
 
-    let pretty_f sf () x = text (sf max_int x)
-    let pretty = pretty_f short
+    let pretty () x = text (short max_int x)
   end
 
   (* TODO: use SetDomain.Reverse *)

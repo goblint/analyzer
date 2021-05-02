@@ -13,8 +13,7 @@ struct
   let compare x y = compare (x.file, x.line) (y.file, y.line)
   let hash x = Hashtbl.hash (x.line, x.file)
   let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
-  let pretty_f sf () x = text (sf max_int x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short max_int x)
   let name () = "proglines"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -34,8 +33,7 @@ struct
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
   let short w x = show x
-  let pretty_f sf () x = text (sf max_int x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short max_int x)
   let name () = "proglines_byte"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -56,8 +54,7 @@ struct
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.vname ProgLines.pretty l
 
   let short w (x,a,f) = ProgLines.short w x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty_f sf () x = text (sf max_int x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short max_int x)
   let name () = "proglinesfun"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -75,7 +72,7 @@ struct
   let compare x y = compare x.vid y.vid
   let hash x = x.vid - 4773
   let short _ x = GU.demangle x.vname
-  let pretty_f sf () x = Pretty.text (sf max_int x)
+  let pretty () x = Pretty.text (short max_int x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location x = x.vdecl
   type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
@@ -86,7 +83,6 @@ struct
     | x when x.vdecl.line = -3 -> Parameter
     | x when x.vdecl.line = -4 -> Context
     | _ -> Local
-  let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let category _ = -1
@@ -113,11 +109,10 @@ struct
   let compare (x,sx) (y,sy) = compare (x.vid,sx) (y.vid,sy)
   let hash (x,s) = Hashtbl.hash (x.vid,s)
   let short _ (x,s) = x.vname
-  let pretty_f sf () x = Pretty.text (sf max_int x)
+  let pretty () x = Pretty.text (short max_int x)
   let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location (x,s) = x.vdecl
   let to_group (x,sx) = Option.some @@ match sx with Context -> Some Variables.Context | _ -> Variables.to_group x
-  let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -133,8 +128,7 @@ struct
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let short _ x = "\"" ^ x ^ "\""
-  let pretty_f sf () x = text (sf 80 x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short 80 x)
   let name () = "raw strings"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -154,7 +148,6 @@ struct
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let short _ (x:t) =  if x then "true" else "false"
-  let pretty_f sf () x = text (if x then "true" else "false")
   let pretty () x = text (short () x)
   let name () = "raw bools"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -175,9 +168,8 @@ struct
   let equal x y = Util.equals x y
   let hash x = Hashtbl.hash x
   let short w x = sprint ~width:w (d_exp () x)
-  let pretty_f sf () x = d_exp () x
+  let pretty () x = d_exp () x
 
-  let pretty () x = pretty_f short () x
   let name () = "expressions"
 
   let rec occurs x e =
@@ -398,13 +390,12 @@ struct
   let equal x y = x.sid = y.sid
   let hash x = Hashtbl.hash (x.sid) * 97
   let short _ x = "<stmt>"
-  let pretty_f _ () x =
+  let pretty () x =
     match x.skind with
     | Instr (y::ys) -> dn_instr () y
     | If (exp,_,_,_) -> dn_exp () exp
     | _ -> dn_stmt () x
 
-  let pretty () x = pretty_f short () x
   let name () = "expressions"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -419,8 +410,7 @@ struct
   let equal x y = x.vid = y.vid
   let hash x = Hashtbl.hash x.vid
   let short _ x = x.vname
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (short max_int x)
   let name () = "functions"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -435,8 +425,7 @@ struct
   let equal x y = x.svar.vid = y.svar.vid
   let hash x = x.svar.vid * 3
   let short _ x = x.svar.vname
-  let pretty_f _ () x = CilFun.pretty () x.svar
-  let pretty () x = pretty_f short () x
+  let pretty () x = CilFun.pretty () x.svar
   let name () = "function decs"
   let dummy = dummyFunDec
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -452,8 +441,7 @@ struct
   let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
   let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
   let short _ x = x.fname
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (short max_int x)
   let name () = "field"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -495,14 +483,13 @@ struct
 
   let hash x = Hashtbl.hash ((get_var x).vid,(apply_field (fun x->"::"^x.fname) "" x))
 
-  let pretty_f sf () x = Pretty.text (sf max_int x)
+  let pretty () x = Pretty.text (short max_int x)
   let pretty_trace () x = let name = short 0 x in
     Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
 
   let get_location x = (get_var x).vdecl
   let to_group x = Variables.to_group (get_var x)
 
-  let pretty () x = pretty_f short () x
   let name () = "variables and fields"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
@@ -517,9 +504,8 @@ struct
   let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
   let hash (x:typ) = Hashtbl.hash x
   let short w x = sprint ~width:w (d_type () x)
-  let pretty_f sf () x = d_type () x
+  let pretty () x = d_type () x
 
-  let pretty () x = pretty_f short () x
   let name () = "types"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))

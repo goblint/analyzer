@@ -65,7 +65,6 @@ struct
   include Std
   let pretty () _ = text "Output not supported"
   let short _ _ = "Output not supported"
-  let pretty_f _ = pretty
   let name () = "blank"
   let pretty_diff () (x,y) = dprintf "Unsupported"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
@@ -84,8 +83,7 @@ module PrintSimple (P: sig
     val name: unit -> string
   end) =
 struct
-  let pretty_f sf () x = text (sf max_int x)
-  let pretty () x = pretty_f P.short () x
+  let pretty () x = text (P.short max_int x)
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (P.short 800 x))
@@ -102,7 +100,6 @@ struct
   let equal _ _ = true
   let pretty () _ = text N.name
   let short _ _ = N.name
-  let pretty_f _ = pretty
   let name () = "Unit"
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -240,13 +237,12 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let pretty_f _ () (state:t) =
+  let pretty () (state:t) =
     match state with
     | `Lifted n ->  Base.pretty () n
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
@@ -296,7 +292,7 @@ struct
     | (`Left x), (`Left y) -> Base1.compare x y
     | _, _ -> raise @@ Invalid_argument "Invalid argument for Either.compare"
 
-  let pretty_f _ () (state:t) =
+  let pretty () (state:t) =
     match state with
     | `Left n ->  Base1.pretty () n
     | `Right n ->  Base2.pretty () n
@@ -306,7 +302,6 @@ struct
     | `Left n ->  Base1.short w n
     | `Right n ->  Base2.short w n
 
-  let pretty () x = pretty_f short () x
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let pretty_diff () (x,y) =
     match (x,y) with
@@ -360,7 +355,7 @@ struct
     | `Bot -> 13432255
     | `Top -> -33434577
 
-  let pretty_f _ () (state:t) =
+  let pretty () (state:t) =
     match state with
     | `Lifted1 n ->  Base1.pretty () n
     | `Lifted2 n ->  Base2.pretty () n
@@ -374,7 +369,6 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
@@ -419,7 +413,7 @@ struct
 
   let name () = Base1.name () ^ " * " ^ Base2.name ()
 
-  let pretty_f sf () (x,y) =
+  let pretty () (x,y) =
     if expand_fst || expand_snd then
       text "("
       ++ (if expand_fst then Base1.pretty () x else text (Base1.short 60 x))
@@ -427,9 +421,7 @@ struct
       ++ (if expand_snd then Base2.pretty () y else text (Base2.short 60 y))
       ++ text ")"
     else
-      text (sf Goblintutil.summary_length (x,y))
-
-  let pretty () x = pretty_f short () x
+      text (short Goblintutil.summary_length (x,y))
 
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y
@@ -474,7 +466,7 @@ struct
     third  := Base3.short (w-6- String.length !first - String.length !second) z;
     "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
 
-  let pretty_f _ () (x,y,z) =
+  let pretty () (x,y,z) =
     text "(" ++
     Base1.pretty () x
     ++ text ", " ++
@@ -486,7 +478,6 @@ struct
   let printXml f (x,y,z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y (Goblintutil.escape (Base3.name ())) Base3.printXml z
 
-  let pretty () x = pretty_f short () x
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
@@ -506,9 +497,8 @@ struct
     let elems = List.map (Base.short max_int) x in
     "[" ^ (String.concat ", " elems) ^ "]"
 
-  let pretty_f sf () x = text (sf max_int x)
+  let pretty () x = text (short max_int x)
 
-  let pretty () x = pretty_f short () x
   let name () = Base.name () ^ " list"
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
@@ -536,9 +526,9 @@ struct
   let compare x y = x-y
 
   let short _ x = P.names x
-  let pretty_f f () x = text (f max_int x)  let hash x = x-5284
+  let pretty () x = text (short max_int x)
+  let hash x = x-5284
   let equal (x:int) (y:int) = x=y
-  let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
@@ -576,12 +566,11 @@ struct
     | `Lifted n ->  Base.short w n
     | `Bot -> "bot of " ^ (Base.name ())
 
-  let pretty_f _ () (state:t) =
+  let pretty () (state:t) =
     match state with
     | `Lifted n ->  Base.pretty () n
     | `Bot -> text ("bot of " ^ (Base.name ()))
 
-  let pretty () x = pretty_f short () x
   let name () = "bottom or " ^ Base.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
@@ -618,12 +607,11 @@ struct
     | `Lifted n ->  Base.short w n
     | `Top -> "top of " ^ (Base.name ())
 
-  let pretty_f _ () (state:t) =
+  let pretty () (state:t) =
     match state with
     | `Lifted n ->  Base.pretty () n
     | `Top -> text ("top of " ^ (Base.name ()))
 
-  let pretty () x = pretty_f short () x
   let name () = "top or " ^ Base.name ()
   let pretty_diff () (x,y) =
     match (x,y) with
@@ -655,7 +643,6 @@ struct
   let equal (x:t) (y:t) = x=y
   let pretty () n = text n
   let short _ n = n
-  let pretty_f _ = pretty
   let name () = "String"
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

@@ -13,7 +13,7 @@ struct
     let v_str = V.short w v in let w = w - String.length v_str in
     let fd_str = F.short w fd in
     v_str ^ fd_str
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (short max_int x)
 
   let printXml f (v,fi) =
     BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (Goblintutil.escape (V.short 80 v)) F.printInnerXml fi

@@ -91,7 +91,7 @@ struct
     let add_to_it x s = add (f x) s in
     fold add_to_it s (empty ())
 
-  let pretty_f _ () x =
+  let pretty () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
@@ -111,8 +111,6 @@ struct
     Printable.get_short_list "{" "}" usable_length all_elems
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
-
-  let pretty () x = pretty_f short () x
 
   let equal x y =
     cardinal x = cardinal y
@@ -295,7 +293,7 @@ struct
 
   (* The printable implementation *)
 
-  let pretty_f _ () x =
+  let pretty () x =
     match x with
     | All -> text N.topname
     | Set t -> S.pretty () t
@@ -304,8 +302,6 @@ struct
     match x with
     | All -> N.topname
     | Set t -> S.short w t
-
-  let pretty () x = pretty_f short () x
 
 
   (* Lattice implementation *)
@@ -356,7 +352,7 @@ struct
   include Make(Base)
 
   let name () = "Headless " ^ name ()
-  let pretty_f _ () x =
+  let pretty () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
@@ -369,7 +365,6 @@ struct
     let content = List.fold_left (++) nil separated in
     content
 
-  let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f xs =
@@ -507,7 +502,7 @@ struct
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let pretty_f _ () x =
+  let pretty () x =
     let content = List.map (E.pretty ()) (elements x) in
     let rec separate x =
       match x with
@@ -518,7 +513,6 @@ struct
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
     (text "{") ++ content ++ (text "}")
-  let pretty () x = pretty_f short () x
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y

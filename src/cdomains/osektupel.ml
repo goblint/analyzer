@@ -37,8 +37,7 @@ let short _ (a,b,c,d) =
   let d' = match d with Bot -> "bot" | Val d'' -> string_of_int d'' in
   "("^a'^", "^b'^", "^c'^", "^d'^")"
 
-let pretty_f _ _ x = Pretty.text (short 0 x)
-let pretty () x = pretty_f short () x
+let pretty () x = Pretty.text (short 0 x)
 
 let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
 

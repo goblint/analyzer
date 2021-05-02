@@ -277,7 +277,6 @@ struct
   let short l x = I.short l x.v  (* TODO add ikind to output *)
   let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
-  let pretty_f f () x = pretty () x (* TODO add ikind to output *)
   let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
@@ -447,8 +446,7 @@ module Std (B: sig
   let is_top_of ik x = B.equal x (top_of ik)
 
   (* all output is based on B.short *)
-  let pretty_f sh () x = text (sh Goblintutil.summary_length x)
-  let pretty = pretty_f short
+  let pretty () x = text (short Goblintutil.summary_length x)
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 

@@ -78,7 +78,7 @@ struct
     in
     fold_left (fun a (n,d) -> f a n d) a x
 
-  let pretty_f _ () x =
+  let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
@@ -100,8 +100,6 @@ struct
   let to_yojson x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
     [%to_yojson: Printable.json list] xs
-
-  let pretty = pretty_f short
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =

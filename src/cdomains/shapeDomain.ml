@@ -17,7 +17,7 @@ struct
       | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short w l
       | (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
 
-    let pretty = pretty_f short
+    let pretty () x = Pretty.text (short max_int x)
   end
 
   include Printable.Either (Var) (AdrPair)
@@ -27,8 +27,6 @@ struct
     | `Right (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
 
   let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
-
-  let pretty = pretty_f short
 
   type group = Variables | Values [@@deriving show { with_path = false }]
   let to_group = function
@@ -53,8 +51,6 @@ struct
     | `Lifted1 v -> "N "^ListPtrSet.short w v
     | `Lifted2 v -> "S "^ListPtrSet.short w v
     | x -> short w x
-
-  let pretty = pretty_f short
 end
 
 module Rhs =

@@ -154,7 +154,7 @@ struct
     | `PartAccessResult x, `PartAccessResult y -> PartAccessResult.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
-  let pretty_f s () state =
+  let pretty () state =
     match state with
     | `Int n ->  ID.pretty () n
     | `Str s ->  text s
@@ -184,7 +184,6 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let leq x y =

@@ -11,7 +11,7 @@ struct
     let v_str = V.short w v in let w = w - String.length v_str in
     let fd_str = F.short w fd in
     v_str ^ fd_str
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short max_int x)
 
   let prefix (v1,fd1: t) (v2,fd2: t): F.t option =
     if V.equal v1 v2 then F.prefix fd1 fd2 else None
@@ -25,15 +25,12 @@ struct
 
   let name () = "musteq"
 
-  let pretty_f short () mapping =
+  let short _ _ = "Equalities"
+  let pretty () mapping =
     let f (v1,v2) st dok: doc =
       dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 F.pretty st in
     let content () = fold f mapping nil in
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
-
-  let short _ _ = "Equalities"
-
-  let pretty () x = pretty_f short () x
 
   let add_old = add
   let rec add (x,y) fd d =

@@ -98,7 +98,7 @@ struct
     let third  = PrivD.short (w-6- String.length first - String.length second) r.priv in
     "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ")"
 
-  let pretty_f _ () r =
+  let pretty () r =
     text "(" ++
     CPA.pretty () r.cpa
     ++ text ", " ++
@@ -110,7 +110,6 @@ struct
   let printXml f r =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (CPA.name ())) CPA.printXml r.cpa (Goblintutil.escape (PartDeps.name ())) PartDeps.printXml r.deps (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-  let pretty () x = pretty_f short () x
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ PrivD.name ()
 
   let invariant c {cpa; deps; priv} =

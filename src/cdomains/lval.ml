@@ -56,9 +56,8 @@ struct
     | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (short w o)
     | `Field (x,o) -> "." ^ (x.fname) ^ (short w o)
 
-  let pretty_f sf () x = text (sf 80 x)
+  let pretty () x = text (short 80 x)
 
-  let pretty x = pretty_f short x
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
@@ -295,8 +294,7 @@ struct
             | StrPtr a, StrPtr b -> compare a b
             | _, _ -> raise @@ Invalid_argument "Invalid argument for Normal.compare"
 
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty = pretty_f short
+  let pretty () x = Pretty.text (short max_int x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   (* TODO: seems to be unused *)
@@ -386,8 +384,7 @@ struct
     in
     (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
 
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (short max_int x)
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
@@ -406,7 +403,7 @@ struct
     | (`Left x :: xs) -> "." ^ F.short w x ^ short w xs
     | (`Right x :: xs) -> "[" ^ I.short w x ^ "]" ^ short w xs
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short max_int x)
 
   let rec printInnerXml f = function
     | [] -> ()
@@ -588,8 +585,7 @@ struct
 
   let short _ (v,o) = short_offs o (GU.demangle v.vname)
 
-  let pretty_f sf () x = text (sf 80 x)
-  let pretty  = pretty_f short
+  let pretty () x = text (short 80 x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))

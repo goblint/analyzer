@@ -53,7 +53,6 @@ struct
   type elem = S.elt
 
   let short w _ = "Partitions"
-  let pretty () x = pretty_f short () x
 
   let leq x y =
     for_all (fun p -> exists (S.leq p) y) x
@@ -105,7 +104,6 @@ struct
   type partition = t
 
   let short w _ = "Partitions"
-  let pretty () x = pretty_f short () x
 
   let top = E.bot
   let bot = E.top

@@ -29,8 +29,7 @@ struct
   let equal (x:t) (y:t) = x=y
   let compare (x:t) (y:t) = compare x y
   let short _ x = x
-  let pretty_f sf () x = text (sf 80 x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (short 80 x)
   let name () = "strings"
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -42,10 +41,9 @@ end
 module LabeledString =
 struct
   include Printable.Prod (Ident) (Ident)
-  let pretty_f sf () (x,y) =
-    Pretty.text (sf Goblintutil.summary_length (x,y))
   let short _ (x,y) = x^":"^y
-  let pretty () x = pretty_f short () x
+  let pretty () (x,y) =
+    Pretty.text (short Goblintutil.summary_length (x,y))
 end
 module LSSet = SetDomain.Make (LabeledString)
 module LSSSet =

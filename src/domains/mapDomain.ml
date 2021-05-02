@@ -138,7 +138,7 @@ struct
 
   let short _ x = "mapping"
 
-  let pretty_f short () mapping =
+  let pretty () mapping =
     let groups =
       let h = Hashtbl.create 13 in
       iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
@@ -161,8 +161,6 @@ struct
       | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
-
-  let pretty () x = pretty_f short () x
 
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)

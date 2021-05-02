@@ -101,7 +101,7 @@ module SimpleThreadDomain = struct
   let short w (x,y) =
     let tid = ThreadLifted.short w y in
     if x > 1 then tid else tid ^ "!" (* ! means unique *)
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (short max_int x)
   let same_tid x y =
     match x,y with
     | (_, `Lifted x), (_, `Lifted y) -> Thread.equal x y

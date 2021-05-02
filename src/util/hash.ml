@@ -112,15 +112,13 @@ struct
 
 
   open Pretty
-  let pretty_f _ () mapping =
+  let pretty () mapping =
     let f key st dok =
       dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
     in
     let content () = fold f mapping nil in
     let defline () = dprintf "OTHERS -> Not available\n" in
     dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
-
-  let pretty () x = pretty_f short () x
 
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

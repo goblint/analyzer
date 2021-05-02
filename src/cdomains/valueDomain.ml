@@ -245,7 +245,7 @@ struct
     | `Blob x, `Blob y -> Blobs.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
-  let pretty_f _ () state =
+  let pretty () state =
     match state with
     | `Int n ->  ID.pretty () n
     | `Address n ->  AD.pretty () n
@@ -269,7 +269,6 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) =
     match (x,y) with
     | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
