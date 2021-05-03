@@ -2293,32 +2293,6 @@ struct
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-      (* let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
-        let update_lvals (ask: Q.ask) (st: D.t) (global: glob_fun) (ls: Q.LS.t) (args: exp list) =
-          let vals = List.map (eval_rv ask global st) args in
-          let reachable = reachable_vars ask (get_ptrs vals) ctx.global st in
-          let update_lval reachable =
-            let f  = fun s a ->
-              let at = AD.get_type a in
-              set ctx.ask ctx.global s a at (VD.top_value at)
-            in
-            List.fold f st reachable
-          in
-          match ls with
-          | All ->
-            update_lval reachable
-          | Set s ->
-            let list = Q.LS.S.to_list s in
-            let written_type_sigs = Set.of_list @@ List.map (fun e -> Cil.typeSig (Cil.typeOfLval (Lval.CilLval.to_lval e))) list in
-            List.filter (fun x -> Set.mem (Cil.typeSig (AD.get_type x)) written_type_sigs) reachable |> update_lval
-        in
-        let writtenLvals = match (ctx.ask (Q.WrittenLvals f) ) with
-          | `LvalSet s -> s
-          | _ -> failwith "Ran without written lval analysis"
-        in
-        update_lvals ask st globs writtenLvals exps
-      in *)
-      (* let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store = *)
       let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
         let addresses = collect_funargs ask globs st exps in
         let writtenLvals = (match ask (WrittenLvals f) with
