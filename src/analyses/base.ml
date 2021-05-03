@@ -525,9 +525,6 @@ struct
     let addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
     addr
 
-
-
-
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
       let rec replace_val = function
@@ -1233,6 +1230,14 @@ struct
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
     let reachable_vars = reachable_vars ask args gs st in
+    let reachable_written_vars = (match lvals with
+      | All -> reachable_vars
+      | Set s ->
+        let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.S.to_list s) in
+        let typeSigs = Set.of_list @@ List.map (fun e -> typeSig (typeOfLval e)) lvals in
+        List.filter (fun v -> Set.mem (typeSig (AD.get_type v)) typeSigs) reachable_vars
+    )
+    in
     List.iter (fun addr -> M.tracel "update" "reachable is: %a\n" AD.pretty addr ) reachable_vars;
     let f (st: store) (addr: address) : store =
       let sa = get_symbolic_address ask gs addr fun_st in
@@ -1241,7 +1246,7 @@ struct
       M.trace "update" "Setting %a to the value %a.\n" AD.pretty addr VD.pretty concrete_value;
       set ask gs st addr typ concrete_value
     in
-    List.fold f st reachable_vars
+    List.fold f st reachable_written_vars
 
   let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
@@ -2316,7 +2321,11 @@ struct
       (* let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store = *)
       let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
         let addresses = collect_funargs ask globs st exps in
-        update_reachable_written_vars ask addresses globs st fun_st (Q.LS.bot ())
+        let writtenLvals = (match ask (WrittenLvals f) with
+          | `LvalSet s -> s
+          | _ -> failwith "Ran without written lvals analysis"
+        ) in
+        update_reachable_written_vars ask addresses globs st fun_st writtenLvals
       in
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
