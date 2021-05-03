@@ -1,12 +1,13 @@
 # SAS21 Artifact Description
 
+The artifact is a Virtual Box Image based on Ubuntu 20.04.1. The login is goblint:goblint.
 ## Validation
 
 ### Step by Step Instructions
-TODO: update for Docker container running and paths
+Navigate to the folder `~/analyzer`. All paths are given relative to it.
 
-1. Run the script `./update_suite_traces.rb`. This takes ~20 min (see note below).
-2. Open the results HTML `./bench_result/index.html`.
+1. Run the script `../bench/update_bench_traces.rb`. This takes ~25 min (see note below).
+2. Open the results HTML `../bench/bench_result/index.html`.
 3. Validate results with the paper:
     1. The table cells give analysis time in seconds for each benchmark (along the left) and each analysis (along the top). These are illustrated by Figure 2 in the paper.
 
@@ -27,8 +28,9 @@ TODO: update for Docker container running and paths
 
 
 ### Notes
-* The source code for benchmarks can be found in `./pthread/` and `./svcomp/`.
-* Although it takes ~20 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish.
+* The source code for benchmarks can be found in `./../bench/pthread/` and `./../bench/svcomp/`.
+* Although it takes ~25 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish.
+* If you get messages such as `dune: command not found` run `eval $(opam env)`
 
 
 ## Extension
@@ -58,10 +60,9 @@ and unlocking. This provides a separation of concerns, making it possible to pro
 presented in the paper quickly.
 
 ### Step by Step Instructions to Extending these Analyses
-TODO: update for Docker container running and paths
 
 1. Modify or add thread-modular analyses in `./src/analyses/basePriv.ml`. (In case of adding also add to case distinction in `priv_module`)
-2. Run `make`.
+2. Run `make` and `make privPrecCompare`.
 3. Observe updated behavior, either:
     * Re-run the benchmarking as described above under Validation.
 
