@@ -54,6 +54,10 @@ rule() {
       eval $(opam config env)
       dune build src/maindomaintest.exe &&
       cp _build/default/src/maindomaintest.exe goblint.domaintest
+    ;; privPrecCompare)
+      eval $(opam config env)
+      dune build src/privPrecCompare.exe &&
+      cp _build/default/src/privPrecCompare.exe privPrecCompare
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
