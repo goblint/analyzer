@@ -485,39 +485,39 @@ struct
     CPA.fold (fun k v acc -> k::acc) concretes []
 
   let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) =
-    let sym_address_to_conretes (addr: Addr.t) =
+    let sym_address_to_conretes (addr: Addr.t) = (* Returns a list of concrete addresses and a list of addresses of memory blocks that are added to the heap *)
       match addr with
       | Addr  (v, ofs) ->
         if is_allocated_var a v then (* Address has been allocated within the function, we add it to our heap *)
-          [addr]
+          [addr], Some addr
         else if is_heap_var a v then
-          List.map (fun v -> AD.Addr.Addr (v, ofs)) (get_concretes v st)
+          List.map (fun v -> AD.Addr.Addr (v, ofs)) (get_concretes v st), None
         else
-          [addr]
+          [addr],None
       | StrPtr _
       | NullPtr
       | SafePtr
-      | UnknownPtr -> [addr]
+      | UnknownPtr -> [addr],None
     in
-    let p = AD.elements addr in
-    List.map sym_address_to_conretes p
+    let concrete_and_new_addresses = List.map sym_address_to_conretes (AD.elements addr) in
+    let concrete_addrs = AD.of_list @@ List.flatten @@ List.map Tuple2.first concrete_and_new_addresses in
+    let new_addrs = List.filter_map Tuple2.second concrete_and_new_addresses in
+    (concrete_addrs, new_addrs)
 
-  let get_concrete_value (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store)   =
+  let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store)  =
     let symb_value = get a g fun_st symb None in
-    let concrete = match symb_value with
-    | `Address addr ->
-      let concretes = List.flatten @@ symb_address_set_to_concretes a g symb st fun_st addr in
-      `Address (AD.of_list concretes)
-    | `Struct _
-    | `Union _
-    | `Top
-    | `Int _
-    | `Array _
-    | `Blob _
-    | `List _
-    | `Bot -> symb_value
-    in
-    concrete
+    match symb_value with
+      | `Address addr ->
+        let (concrete_addrs, new_addrs) = symb_address_set_to_concretes a g symb st fun_st addr in
+        (`Address concrete_addrs, new_addrs)
+      | `Struct _
+      | `Union _
+      | `Top
+      | `Int _
+      | `Array _
+      | `Blob _
+      | `List _
+      | `Bot -> symb_value, []
 
   let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: address) (fun_st: store): address =
     let ts = typeSig @@ AD.get_type concrete in
@@ -1239,14 +1239,34 @@ struct
     )
     in
     List.iter (fun addr -> M.tracel "update" "reachable is: %a\n" AD.pretty addr ) reachable_vars;
-    let f (st: store) (addr: address) : store =
+    let f (st, addr_list) (addr: address) =
       let sa = get_symbolic_address ask gs addr fun_st in
       let typ = AD.get_type addr in
-      let concrete_value = get_concrete_value ask gs sa st fun_st in
+      let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st in
       M.trace "update" "Setting %a to the value %a.\n" AD.pretty addr VD.pretty concrete_value;
-      set ask gs st addr typ concrete_value
+      (set ask gs st addr typ concrete_value, new_addresses::addr_list)
     in
-    List.fold f st reachable_written_vars
+    let (st, new_addresses) = List.fold f (st, []) reachable_written_vars in
+    let empty = AD.empty () in
+    let visited = ref empty in
+    let workset = ref (AD.of_list (List.flatten new_addresses)) in
+    let st = ref st in
+    while not (AD.is_empty !workset) do
+      visited := AD.union !visited !workset;
+      (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
+      let visit_and_collect var (acc, st) =
+        let sa = AD.singleton var in
+        let (concrete_value, new_addresses) =  get_concrete_value_and_new_blocks ask gs sa st fun_st in
+        let st = set ask gs st sa (AD.get_type sa) concrete_value in
+        let addrs = AD.union (reachable_from_address ask gs st sa) acc in
+        (addrs, st)
+      in
+      let collected, state = AD.fold visit_and_collect !workset (empty, !st) in
+      (* Update workset with not yet visited addresses *)
+      workset := AD.diff collected !visited;
+      st := state;
+    done;
+    !st
 
   let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
