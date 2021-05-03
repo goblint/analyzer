@@ -1953,7 +1953,7 @@ struct
     if get_bool "ana.library" then begin
       (* Initialize arguments with symbolic values *)
       let fundec = Cilfacade.getdec fn in
-      let st' = init_vars_with_symbolic_values ctx.ask ctx.global st fundec.sformals in
+      let st' = init_vars_with_symbolic_values ctx.ask ctx.global (D.bot ()) fundec.sformals in
       (* Inititalize globals with symbolic values *)
       let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
       let global_list = CPA.fold (fun k v acc -> k::acc) globals [] in
