@@ -1229,12 +1229,13 @@ struct
 
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
+    List.iter (fun a -> M.trace "update" "Args: %a\n" AD.pretty a) args;
     let reachable_vars = reachable_vars ask args gs st in
     let reachable_written_vars = (match lvals with
       | All -> reachable_vars
       | Set s ->
         let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.S.to_list s) in
-        let typeSigs = Set.of_list @@ List.map (fun e -> typeSig (typeOfLval e)) lvals in
+        let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> typeSig v.vtype | _ -> failwith "Should never happen!") lvals in
         List.filter (fun v -> Set.mem (typeSig (AD.get_type v)) typeSigs) reachable_vars
     )
     in
