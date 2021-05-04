@@ -300,14 +300,30 @@ struct
 
 
   (* Lattice implementation *)
+  (* Lift separately because lattice order might be different from subset order, e.g. after Reverse *)
 
-  let bot = empty
-  let is_bot = is_empty
+  let bot () = `Lifted (S.bot ())
+  let is_bot x =
+    match x with
+    | `Top -> false
+    | `Lifted x -> S.is_bot x
 
-  let leq = subset
-  let join = union
+  let leq x y =
+    match x, y with
+    | _, `Top -> true
+    | `Top, _ -> false
+    | `Lifted x, `Lifted y -> S.leq x y
+  let join x y =
+    match x, y with
+    | `Top, _ -> `Top
+    | _, `Top -> `Top
+    | `Lifted x, `Lifted y -> `Lifted (S.join x y)
   let widen = join (* TODO: why doesn't use S.widen? *)
-  let meet = inter
+  let meet x y =
+    match x, y with
+    | `Top, y -> y
+    | x, `Top -> x
+    | `Lifted x, `Lifted y -> `Lifted (S.meet x y)
   let narrow = meet (* TODO: why doesn't use S.narrow? *)
 
   let invariant c = function
