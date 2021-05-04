@@ -336,10 +336,10 @@ struct
     | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs
 
   (** [assoc_split_eq (=) 1 [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
-  let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
+  let assoc_split_eq eq (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
     let rec f a b = function
       | [] -> a, b
-      | (k',v)::xs when k=k' -> f (v::a) b xs
+      | (k',v)::xs when eq k k' -> f (v::a) b xs
       | x::xs -> f a (x::b) xs
     in
     f [] [] xs
