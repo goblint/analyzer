@@ -505,19 +505,26 @@ struct
     (concrete_addrs, new_addrs)
 
   let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store)  =
-    let symb_value = get a g fun_st symb None in
-    match symb_value with
+    let rec get_concrete_value_and_new_blocks_from_value symb_value = match symb_value with
       | `Address addr ->
         let (concrete_addrs, new_addrs) = symb_address_set_to_concretes a g symb st fun_st addr in
         (`Address concrete_addrs, new_addrs)
-      | `Struct _
-      | `Union _
+      | `Struct s ->
+        let (s', na) = ValueDomain.Structs.fold (fun field field_val (s', naddrs) ->
+          let concrete_val, new_adresses = get_concrete_value_and_new_blocks_from_value field_val in
+          ValueDomain.Structs.replace s' field concrete_val,  new_adresses::naddrs) s (s, []) in
+        `Struct s', List.flatten na
+      | `Blob _
       | `Top
+      | `Union _
       | `Int _
       | `Array _
-      | `Blob _
       | `List _
-      | `Bot -> symb_value, []
+      | `Bot ->
+        symb_value, []
+      in
+      let symb_value = get a g fun_st symb None in
+      get_concrete_value_and_new_blocks_from_value symb_value
 
   let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: address) (fun_st: store): address =
     let ts = typeSig @@ AD.get_type concrete in
@@ -1229,45 +1236,45 @@ struct
 
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
-    List.iter (fun a -> M.trace "update" "Args: %a\n" AD.pretty a) args;
-    let reachable_vars = reachable_vars ask args gs st in
-    let reachable_written_vars = (match lvals with
-      | All -> reachable_vars
-      | Set s ->
-        let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.S.to_list s) in
-        let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> typeSig v.vtype | _ -> failwith "Should never happen!") lvals in
-        List.filter (fun v -> Set.mem (typeSig (AD.get_type v)) typeSigs) reachable_vars
-    )
-    in
-    List.iter (fun addr -> M.tracel "update" "reachable is: %a\n" AD.pretty addr ) reachable_vars;
-    let f (st, addr_list) (addr: address) =
-      let sa = get_symbolic_address ask gs addr fun_st in
-      let typ = AD.get_type addr in
-      let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st in
-      M.trace "update" "Setting %a to the value %a.\n" AD.pretty addr VD.pretty concrete_value;
-      (set ask gs st addr typ concrete_value, new_addresses::addr_list)
-    in
-    let (st, new_addresses) = List.fold f (st, []) reachable_written_vars in
-    let empty = AD.empty () in
-    let visited = ref empty in
-    let workset = ref (AD.of_list (List.flatten new_addresses)) in
-    let st = ref st in
-    while not (AD.is_empty !workset) do
-      visited := AD.union !visited !workset;
-      (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
-      let visit_and_collect var (acc, st) =
-        let sa = AD.singleton var in
-        let (concrete_value, new_addresses) =  get_concrete_value_and_new_blocks ask gs sa st fun_st in
-        let st = set ask gs st sa (AD.get_type sa) concrete_value in
-        let addrs = AD.union (reachable_from_address ask gs st sa) acc in
-        (addrs, st)
+    let update_reachable_written_var (ask: Q.ask) (arg: address) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
+      let reachable_vars = reachable_vars ask [arg] gs st in
+      let reachable_written_vars = (match lvals with
+        | All -> reachable_vars
+        | Set s ->
+          let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.S.to_list s) in
+          let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> typeSig v.vtype | _ -> failwith "Should never happen!") lvals in
+          List.filter (fun v -> Set.mem (typeSig (AD.get_type v)) typeSigs) reachable_vars
+      )
       in
-      let collected, state = AD.fold visit_and_collect !workset (empty, !st) in
-      (* Update workset with not yet visited addresses *)
-      workset := AD.diff collected !visited;
-      st := state;
-    done;
-    !st
+      let f (st, addr_list) (addr: address) =
+        let sa = get_symbolic_address ask gs addr fun_st in
+        let typ = AD.get_type addr in
+        let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st in
+        (set ask gs st addr typ concrete_value, new_addresses::addr_list)
+      in
+      let (st, new_addresses) = List.fold f (st, []) reachable_written_vars in
+      let empty = AD.empty () in
+      let visited = ref empty in
+      let workset = ref (AD.of_list (List.flatten new_addresses)) in
+      let st = ref st in
+      while not (AD.is_empty !workset) do
+        visited := AD.union !visited !workset;
+        (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
+        let visit_and_collect var (acc, st) =
+          let sa = AD.singleton var in
+          let (concrete_value, new_addresses) =  get_concrete_value_and_new_blocks ask gs sa st fun_st in
+          let st = set ask gs st sa (AD.get_type sa) concrete_value in
+          let addrs = AD.union (AD.of_list new_addresses) acc in
+          (addrs, st)
+        in
+        let collected, state = AD.fold visit_and_collect !workset (empty, !st) in
+        (* Update workset with not yet visited addresses *)
+        workset := AD.diff collected !visited;
+        st := state;
+      done;
+      !st
+    in
+    List.fold (fun st (v: address) -> update_reachable_written_var ask v gs st fun_st lvals) st args
 
   let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
@@ -2227,9 +2234,14 @@ struct
             then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
             else AD.from_var (heap_var ctx)
           in
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx ctx.ask gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int ctx.ask gs st size, true));
-                                  (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
+          if get_bool "ana.library" then
+            let typ = AD.get_type heap_var in
+            set_many ~ctx ctx.ask gs st [(heap_var, typ, `Blob (VD.top_value typ, eval_int ctx.ask gs st size, true));
+                                    (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
+          else
+            (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
+            set_many ~ctx ctx.ask gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int ctx.ask gs st size, true));
+                                    (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
         | _ -> st
       end
     | `Calloc (n, size) ->

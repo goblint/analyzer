@@ -45,13 +45,14 @@ struct
   let arg_vars = Hashtbl.create 113
 
 
-  let get_heap_var (ts : typsig) (fn : varinfo) =
+  let get_heap_var (t : typ) (fn : varinfo) =
+    let ts = typeSig t in
     try Hashtbl.find heap_hash (ts, fn)
     with Not_found ->
       let tsname = Pretty.sprint ~width:80 (d_typsig () ts) in
       (* "nd" for "not definite" - this does not refer to one particular memory block *)
       let name = prefix_non_definite_mem ^ "@" ^ fn.vname ^ ":" ^ tsname ^ ")" in
-      let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
+      let newvar = Goblintutil.create_var (makeGlobalVar name t) in
       Hashtbl.add heap_hash (ts, fn) newvar;
       Hashtbl.add heap_vars newvar.vid ();
       newvar
@@ -84,11 +85,14 @@ struct
             | _ -> None)
           | _ -> None
       in
-      let ts = (match rval with
-        | Some e -> typeSig (typeOf e)
-        | _ -> typeSig (TVoid []))
+      let typ = (match rval with
+        | Some e -> (match typeOf e with
+         | TPtr (t,_) -> t
+         | t -> TVoid [])
+        | _ -> TVoid [])
       in
-      `Varinfo (`Lifted (get_heap_var ts fn))
+      M.tracel "malloc" "Malloc: Got typesig %a\n" Cil.d_type typ;
+      `Varinfo (`Lifted (get_heap_var typ fn))
     | Q.IsAllocatedVar v ->
       `MustBool (Hashtbl.mem heap_vars v.vid)
     | Q.IsHeapVar v ->
