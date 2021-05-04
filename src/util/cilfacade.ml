@@ -348,8 +348,10 @@ class countFnVisitor = object (* puts every instruction into its own basic block
     method! vtype _ = SkipChildren
 end
 
+let fnvis = new countFnVisitor
+
 let countLoc fn =
-  let _ = visitCilFunction (new countFnVisitor) fn in
+  let _ = visitCilFunction fnvis  fn in
   let res = Hashtbl.length locs in
   Hashtbl.clear locs;
   res
