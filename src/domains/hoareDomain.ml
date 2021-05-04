@@ -167,7 +167,7 @@ sig
   val apply_list: (elt list -> elt list) -> t -> t
 end
 
-(* Copy of Hoare without ToppedSet. *)
+(** Set of [Lattice] elements with Hoare ordering. *)
 module Set (B : Lattice.S): SetS with type elt = B.t =
 struct
   include SetDomain.Make (B)

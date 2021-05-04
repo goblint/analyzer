@@ -9,8 +9,8 @@ exception Unsupported of string
 
 let unsupported s = raise (Unsupported s)
 
-(** A set domain must support all the standard library set operations, which
-  * thanks to ocaml's inflexible module system have been copy-pasted. *)
+(** A set domain must support all the standard library set operations.
+    They have been copied instead of included since our [empty] has a different signature. *)
 module type S =
 sig
   include Lattice.S
@@ -146,6 +146,7 @@ end
 (** A functor for creating a path sensitive set domain, that joins the base
   * analysis whenever the user elements coincide. Just as above there is no top
   * element, and calling [top ()] will raise an exception *)
+(* TODO: unused *)
 module SensitiveConf (C: Printable.ProdConfiguration) (Base: Lattice.S) (User: Printable.S) =
 struct
   module Elt = Printable.ProdConf (C) (Base) (User)
@@ -194,6 +195,7 @@ struct
     snd (fold f s2 (s1, empty ()))
 end
 
+(* TODO: unused *)
 module Sensitive = SensitiveConf (struct
     let expand_fst = true
     let expand_snd = true
@@ -374,7 +376,7 @@ struct
     iter (Base.printXml f) xs
 end
 
-
+(** Reverses lattice order of a set domain while keeping the set operations same. *)
 module Reverse (Base: S) =
 struct
   include Base
