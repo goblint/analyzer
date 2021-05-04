@@ -612,6 +612,45 @@ struct
     ] (* S TODO: decide frequencies *)
 end
 
+(* Copy of Hoare without ToppedSet. *)
+module Hoare_NoTop (B : Lattice.S) =
+struct
+  include Make (B)
+
+  let mem x s = exists (B.leq x) s
+  let leq a b = for_all (fun x -> mem x b) a (* mem uses B.leq! *)
+  let eq a b = leq a b && leq b a
+  let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
+  let reduce s = filter (fun x -> not (exists (le x) s) && not (B.is_bot x)) s
+  let product_bot op a b =
+    let a,b = elements a, elements b in
+    List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (of_list x)
+  let product_widen op a b = (* assumes b to be bigger than a *)
+    let xs,ys = elements a, elements b in
+    List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (union b (of_list x))
+  let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
+  let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
+
+  let add x a = if mem x a then a else add x a (* special mem! *)
+  let remove x a = failwith "Hoare_NoTop: unsupported remove"
+  let union a b = union a b |> reduce
+  let join = union
+  let inter = product_bot B.meet
+  let meet = inter
+  let subset = leq
+  let map' = map (* HACK: for PathSensitive morphstate *)
+  let map f a = map f a |> reduce
+  let min_elt a = B.bot ()
+  let split x a = failwith "Hoare_NoTop: unsupported split"
+  let apply_list f s = elements s |> f |> of_list
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let of_list xs = List.fold_right add xs (empty ()) |> reduce
+  let is_element e s = cardinal s = 1 && choose s = e
+
+  (* Copied from Make *)
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (B.arbitrary ())
+end
+
 module Reverse (Base: S) =
 struct
   include Base
