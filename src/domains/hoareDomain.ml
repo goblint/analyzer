@@ -184,11 +184,11 @@ struct
 
   let add x a = if mem x a then a else add x a (* special mem! *)
   let remove x a = failwith "Hoare_NoTop: unsupported remove"
-  let union a b = union a b |> reduce
-  let join = union
-  let inter = product_bot B.meet
-  let meet = inter
-  let subset = leq
+  let join a b = union a b |> reduce
+  let union _ _ = raise (SetDomain.Unsupported "Set.union")
+  let inter _ _ = raise (SetDomain.Unsupported "Set.inter")
+  let meet = product_bot B.meet
+  let subset _ _ = raise (SetDomain.Unsupported "Set.subset")
   let map' = map
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
