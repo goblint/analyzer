@@ -99,28 +99,6 @@ struct
 end
 
 
-(* TODO: remove unused *)
-module VarStatus =
-struct
-  include Printable.Std
-  type status = Local | Context
-  type t = varinfo * status
-  let copy x = x
-  let equal (x,sx) (y,sy) = x.vid = y.vid && sx = sy
-  let compare (x,sx) (y,sy) = compare (x.vid,sx) (y.vid,sy)
-  let hash (x,s) = Hashtbl.hash (x.vid,s)
-  let show (x,s) = x.vname
-  let pretty () x = Pretty.text (show x)
-  let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
-  let get_location (x,s) = x.vdecl
-  let to_group (x,sx) = Option.some @@ match sx with Context -> Some Variables.Context | _ -> Variables.to_group x
-  let name () = "variables"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
-
-  let arbitrary () = failwith "VarStatus: no arb"
-end
-
 module RawStrings: Printable.S with type t = string =
 struct
   include Printable.StdPolyCompare
