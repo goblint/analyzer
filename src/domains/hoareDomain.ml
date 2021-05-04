@@ -2,6 +2,9 @@
 
 open Pretty
 
+exception Unsupported of string
+let unsupported s = raise (Unsupported s)
+
 (* Hoare hash set for partial orders: keeps incomparable elements separate
    - All comparable elements must have the same hash so that they land in the same bucket!
    - Pairwise operations like join then only need to be done per bucket.
@@ -108,7 +111,7 @@ struct
   (* Lattice *)
   let bot () = Map.empty
   let is_bot = Map.is_empty
-  let top () = raise (SetDomain.Unsupported "HoarePO.top")
+  let top () = unsupported "HoarePO.top"
   let is_top _ = false
   let leq x y = (* all elements in x must be leq than the ones in y *)
     for_all (flip mem y) x
@@ -183,16 +186,16 @@ struct
   let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
-  let remove x a = failwith "Hoare_NoTop: unsupported remove"
+  let remove x a = unsupported "Set.remove"
   let join a b = union a b |> reduce
-  let union _ _ = raise (SetDomain.Unsupported "Set.union")
-  let inter _ _ = raise (SetDomain.Unsupported "Set.inter")
+  let union _ _ = unsupported "Set.union"
+  let inter _ _ = unsupported "Set.inter"
   let meet = product_bot B.meet
-  let subset _ _ = raise (SetDomain.Unsupported "Set.subset")
+  let subset _ _ = unsupported "Set.subset"
   let map' = map
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
-  let split x a = failwith "Hoare_NoTop: unsupported split"
+  let split x a = unsupported "Set.split"
   let apply_list f s = elements s |> f |> of_list
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
