@@ -162,7 +162,7 @@ end
 module type SetS =
 sig
   include SetDomain.S
-  val map': (elt -> elt) -> t -> t (** HACK: for PathSensitive morphstate *)
+  val map_noreduce: (elt -> elt) -> t -> t (** HACK: for PathSensitive morphstate *)
 
   val apply_list: (elt list -> elt list) -> t -> t
 end
@@ -192,7 +192,7 @@ struct
   let inter _ _ = unsupported "Set.inter"
   let meet = product_bot B.meet
   let subset _ _ = unsupported "Set.subset"
-  let map' = map
+  let map_noreduce = map
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
   let split x a = unsupported "Set.split"
@@ -243,10 +243,10 @@ struct
     | x, `Top -> x
     | `Lifted x, `Lifted y -> `Lifted (S.narrow x y)
 
-  let map' f x =
+  let map_noreduce f x =
     match x with
     | `Top -> `Top
-    | `Lifted t -> `Lifted (S.map' f t)
+    | `Lifted t -> `Lifted (S.map_noreduce f t)
   let min_elt a = B.bot ()
   let apply_list f = function
     | `Top -> `Top
@@ -279,7 +279,7 @@ struct
   let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
   let add (x: key) (r: R.t) (s: t): t = add x (R.join r (find x s)) s
   let map (f: key -> key) (s: t): t = fold' (fun x v acc -> add (f x) v acc) s (empty ())
-  let map' = map (* HACK: for PathSensitive morphstate *)
+  let map_noreduce = map (* HACK: for PathSensitive morphstate *)
   (* TODO: reducing map, like HoareSet *)
 
   let elements (s: t): (key * R.t) list = bindings s

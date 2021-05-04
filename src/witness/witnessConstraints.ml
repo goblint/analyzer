@@ -168,7 +168,7 @@ struct
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
-  let morphstate v (d, _) = (Dom.map' (Spec.morphstate v) d, Sync.bot ())
+  let morphstate v (d, _) = (Dom.map_noreduce (Spec.morphstate v) d, Sync.bot ())
 
   let call_descr = Spec.call_descr
 
