@@ -27,9 +27,9 @@ struct
   type value = M.value
 
   (** Short summary for structs *)
-  let short mapping =
+  let show mapping =
     let assoclist = M.fold (fun x y rest -> (x,y)::rest) mapping [] in
-    let f (key, st) = Val.short st in
+    let f (key, st) = Val.show st in
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "<" ">" whole_str_list
 

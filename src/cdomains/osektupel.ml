@@ -30,18 +30,18 @@ let is_top x = (x = top())
 let bot () = (Bot, Bot, Bot, Bot)
 let is_bot x = (x = bot())
 
-let short (a,b,c,d) =
+let show (a,b,c,d) =
   let a' = match a with Bot -> "bot" | Val a'' -> string_of_int a'' in
   let b' = match b with Bot -> "bot" | Val b'' -> string_of_int b'' in
   let c' = match c with Bot -> "bot" | Val c'' -> string_of_int c'' in
   let d' = match d with Bot -> "bot" | Val d'' -> string_of_int d'' in
   "("^a'^", "^b'^", "^c'^", "^d'^")"
 
-let pretty () x = Pretty.text (short x)
+let pretty () x = Pretty.text (show x)
 
 let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-(* include Printable.PrintSimple (struct type t' = t let short = short let name = name end) *)
+(* include Printable.PrintSimple (struct type t' = t let show = show let name = name end) *)
 (* let pretty () x = Pretty.nil *)
 
 let min_t' a b = match (a,b) with

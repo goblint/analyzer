@@ -13,7 +13,7 @@ struct
   let name () = "Cil expressions"
 
   let pretty = d_exp
-  let short s = sprint ~width:max_int (d_exp () s)
+  let show s = sprint ~width:max_int (d_exp () s)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let rec interesting x =
@@ -241,7 +241,7 @@ struct
     | CastE (t,e) -> one_unknown_array_index e
     | _ -> None
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module LockingPattern =
@@ -264,7 +264,7 @@ struct
   let name () = "Per-Element locking triple"
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
-  let short (x,y,z) = sprint ~width:max_int (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
+  let show (x,y,z) = sprint ~width:max_int (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   type ee = EVar of varinfo

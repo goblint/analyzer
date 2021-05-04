@@ -35,14 +35,14 @@ struct
     module  L = Printable.Prod (Addr) (RW)
     include L
 
-    let short (a,write) =
-      let addr_str = Addr.short a in
+    let show (a,write) =
+      let addr_str = Addr.show a in
       if write then
         addr_str
       else
         "read lock " ^ addr_str
 
-    let pretty () x = text (short x)
+    let pretty () x = text (show x)
   end
 
   (* TODO: use SetDomain.Reverse *)

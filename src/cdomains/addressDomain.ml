@@ -72,8 +72,8 @@ struct
   (* add an & in front of real addresses *)
   let short_addr a =
     match Addr.to_var a with
-    | [_] -> "&" ^ Addr.short a
-    | _ -> Addr.short a
+    | [_] -> "&" ^ Addr.show a
+    | _ -> Addr.show a
 
   let pretty () x =
     try
@@ -89,11 +89,11 @@ struct
       (text "{") ++ content ++ (text "}")
     with SetDomain.Unsupported _ -> pretty () x
 
-  let short x : string =
+  let show x : string =
     try
       let all_elems : string list = List.map short_addr (elements x) in
       Printable.get_short_list "{" "}" all_elems
-    with SetDomain.Unsupported _ -> short x
+    with SetDomain.Unsupported _ -> show x
 
   (*
   let leq = if not fast_addr_sets then leq else fun x y ->

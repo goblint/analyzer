@@ -103,7 +103,7 @@ struct
   let get_alias (x,y) = (May.choose y).key
 
   (* Printing *)
-  let string_of_key k = Lval.CilLval.short k
+  let string_of_key k = Lval.CilLval.show k
   let string_of_loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs)
   let string_of_record r = Impl.string_of_state r.state^" ("^string_of_loc r.loc^")"
   let string_of (x,y) =
@@ -114,11 +114,11 @@ struct
       let z = Set.diff y x in
       "{ "^String.concat ", " (List.map string_of_record (Set.elements x))^" }, "^
       "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
-  let short x = string_of x
+  let show x = string_of x
   include Printable.PrintSimple (struct
       type t' = t
       let name () = Impl.name
-      let short = short
+      let show = show
     end)
   (* constructing & manipulation *)
   let make_record k l s = { key=k; loc=l; state=s }

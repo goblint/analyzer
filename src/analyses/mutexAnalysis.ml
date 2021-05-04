@@ -89,7 +89,7 @@ struct
     let open Access in
     let ps = LSSSet.singleton (LSSet.empty ()) in
     let add_lock l =
-      let ls = Lockset.Lock.short l in
+      let ls = Lockset.Lock.show l in
       LSSet.add ("lock",ls)
     in
     let locks =

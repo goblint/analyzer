@@ -175,7 +175,7 @@ struct
       match m with
       | AddrOf (Var v,o) ->
         let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
-        LSSet.add ("i-lock",ValueDomain.Addr.short lock) xs
+        LSSet.add ("i-lock",ValueDomain.Addr.show lock) xs
       | _ ->
         Messages.warn "Internal error: found a strange lockstep pattern.";
         xs

@@ -169,18 +169,18 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let short state =
+  let show state =
     match state with
-    | `Int n ->  ID.short n
+    | `Int n ->  ID.show n
     | `Str s ->  s
-    | `LvalSet n ->  LS.short n
-    | `ExprSet n ->  ES.short n
-    | `ExpTriples n ->  PS.short n
-    | `TypeSet n -> TS.short n
-    | `Varinfo n -> VI.short n
+    | `LvalSet n ->  LS.show n
+    | `ExprSet n ->  ES.show n
+    | `ExpTriples n ->  PS.show n
+    | `TypeSet n -> TS.show n
+    | `Varinfo n -> VI.show n
     | `MustBool n -> string_of_bool n
     | `MayBool n -> string_of_bool n
-    | `PartAccessResult n -> PartAccessResult.short n
+    | `PartAccessResult n -> PartAccessResult.show n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -271,5 +271,5 @@ struct
     | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.narrow x y)
     | (x,_) -> x
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end

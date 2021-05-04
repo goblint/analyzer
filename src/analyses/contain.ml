@@ -24,7 +24,7 @@ struct
   module D =
   struct
     include ContainDomain.Dom
-    let short (_,x,_:t) = Danger.short x
+    let show (_,x,_:t) = Danger.show x
   end
   module C = D
   module G = ContainDomain.Globals

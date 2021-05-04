@@ -7,11 +7,11 @@ module F = Lval.Fields
 module EquAddr =
 struct
   include Printable.ProdSimple (V) (F)
-  let short (v,fd) =
-    let v_str = V.short v in
-    let fd_str = F.short fd in
+  let show (v,fd) =
+    let v_str = V.show v in
+    let fd_str = F.show fd in
     v_str ^ fd_str
-  let pretty () x = text (short x)
+  let pretty () x = text (show x)
 
   let prefix (v1,fd1: t) (v2,fd2: t): F.t option =
     if V.equal v1 v2 then F.prefix fd1 fd2 else None

@@ -13,18 +13,18 @@ struct
   struct
     include Printable.Prod (CLval) (Offs)
 
-    let short = function
-      | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short l
-      | (l,o) -> "&"^Lval.CilLval.short l^"->"^Offs.short o
+    let show = function
+      | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.show l
+      | (l,o) -> "&"^Lval.CilLval.show l^"->"^Offs.show o
 
-    let pretty () x = Pretty.text (short x)
+    let pretty () x = Pretty.text (show x)
   end
 
   include Printable.Either (Var) (AdrPair)
-  let short = function
-    | `Left  v -> Var.short v
-    | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short l
-    | `Right (l,o) -> "&"^Lval.CilLval.short l^"->"^Offs.short o
+  let show = function
+    | `Left  v -> Var.show v
+    | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.show l
+    | `Right (l,o) -> "&"^Lval.CilLval.show l^"->"^Offs.show o
 
   let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
 
@@ -47,10 +47,10 @@ struct
       (struct let top_name = "Unknown edge"
         let bot_name = "Impossible edge" end)
 
-  let short : t -> string = function
-    | `Lifted1 v -> "N "^ListPtrSet.short v
-    | `Lifted2 v -> "S "^ListPtrSet.short v
-    | x -> short x
+  let show : t -> string = function
+    | `Lifted1 v -> "N "^ListPtrSet.show v
+    | `Lifted2 v -> "S "^ListPtrSet.show v
+    | x -> show x
 end
 
 module Rhs =

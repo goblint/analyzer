@@ -92,10 +92,10 @@ struct
       else PrivD.compare r1.priv r2.priv
 
 
-  let short r =
-    let first  = CPA.short r.cpa in
-    let second  = PartDeps.short r.deps in
-    let third  = PrivD.short r.priv in
+  let show r =
+    let first  = CPA.show r.cpa in
+    let second  = PartDeps.show r.deps in
+    let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ")"
 
   let pretty () r =

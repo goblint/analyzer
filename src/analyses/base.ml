@@ -416,11 +416,11 @@ struct
       match value with
       | `Top ->
         let typ = AD.get_type adr in
-        let warning = "Unknown value in " ^ AD.short adr ^ " could be an escaped pointer address!" in
+        let warning = "Unknown value in " ^ AD.show adr ^ " could be an escaped pointer address!" in
         if VD.is_immediate_type typ then () else M.warn_each warning; empty
       | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
       | `Address adrs when AD.is_top adrs ->
-        let warning = "Unknown address in " ^ AD.short adr ^ " has escaped." in
+        let warning = "Unknown address in " ^ AD.show adr ^ " has escaped." in
         M.warn_each warning; adrs (* return known addresses still to be a bit more sane (but still unsound) *)
       (* The main thing is to track where pointers go: *)
       | `Address adrs -> adrs
@@ -828,7 +828,7 @@ struct
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Int i when ID.is_int i -> `Int (to_int (Option.get (ID.to_int i)))
         | `Bot   -> `Bot
-        | v      -> M.warn ("Query function answered " ^ (VD.short v)); `Top
+        | v      -> M.warn ("Query function answered " ^ (VD.show v)); `Top
       end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
@@ -897,7 +897,7 @@ struct
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
-          M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.short a;
+          M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.show a;
           `Top
         | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
@@ -2175,8 +2175,8 @@ struct
           && not (VD.is_immediate_type t)
         ->
         let cv = List.hd (AD.to_var_may a) in
-        "ref " ^ VD.short (CPA.find cv st.cpa)
-      | _, v -> VD.short v
+        "ref " ^ VD.show (CPA.find cv st.cpa)
+      | _, v -> VD.show v
     in
     let args_short = List.map short_fun f.sformals in
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" args_short

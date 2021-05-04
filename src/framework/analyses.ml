@@ -545,7 +545,7 @@ module ResultType2 (S:Spec) =
 struct
   open S
   include Printable.Prod3 (C) (D) (Basetype.CilFundec)
-  let short (es,x,f:t) = call_descr f es
+  let show (es,x,f:t) = call_descr f es
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d

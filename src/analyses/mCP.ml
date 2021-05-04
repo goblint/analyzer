@@ -88,10 +88,10 @@ struct
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
       text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
-  let short x =
+  let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
         let analysis_name = assoc n !analyses_table in
-        (analysis_name ^ ":(" ^ S.short (obj x) ^ ")") :: a) [] x
+        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
