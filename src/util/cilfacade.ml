@@ -324,3 +324,41 @@ and typeOffset basetyp =
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
     | _ -> raise Not_found
+
+let locs = Hashtbl.create 200
+class countFnVisitor = object (* puts every instruction into its own basic block *)
+    inherit nopCilVisitor
+    method! vstmt s =
+      match s.skind with
+      | Return (_, loc)
+      | Goto (_, loc)
+      | ComputedGoto (_, loc)
+      | Break loc
+      | Continue loc
+      | If (_,_,_,loc)
+      | Switch (_,_,_,loc)
+      | Loop (_,loc,_,_)
+      | TryFinally (_,_,loc)
+      | TryExcept (_,_,_,loc)
+        -> Hashtbl.replace locs loc.line (); DoChildren
+      | _ ->
+        DoChildren
+
+    method! vinst = function
+      | Set (_,_,loc)
+      | Call (_,_,_,loc)
+      | Asm (_,_,_,_,_,loc)
+        -> Hashtbl.replace locs loc.line (); SkipChildren
+      | _ -> SkipChildren
+
+    method! vvdec _ = SkipChildren
+    method! vexpr _ = SkipChildren
+    method! vlval _ = SkipChildren
+    method! vtype _ = SkipChildren
+end
+
+let countLoc fn =
+  let _ = visitCilFunction (new countFnVisitor) fn in
+  let res = Hashtbl.length locs in
+  Hashtbl.clear locs;
+  res
