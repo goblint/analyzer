@@ -221,11 +221,6 @@ struct
 end
 
 
-(* module Hoare (B : Lattice.S) (N: ToppedSetNames) : sig *)
-(*   include S with type elt = B.t *)
-(*   val apply_list : (elt list -> elt list) -> t -> t *)
-(*   val product_top : (elt -> elt -> elt) -> t -> t -> t *)
-(* end = *)
 module Set_LiftTop (B : Lattice.S) (N: SetDomain.ToppedSetNames): SetS with type elt = B.t =
 struct
   module S = Set (B)
