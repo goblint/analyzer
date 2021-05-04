@@ -454,28 +454,28 @@ struct
         Stats.time "reachability" (Reach.prune lh gh) startvars'
       );
 
-      if get_bool "dbg.uncalled" then (
-        let out = M.get_out "uncalled" Legacy.stdout in
-        let insrt k _ s = match k with
-          | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-          | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-          | _ -> s
-        in
-        (* set of ids of called functions *)
-        let calledFuns = LHT.fold insrt lh Set.Int.empty in
-        let is_bad_uncalled fn loc =
-          not (Set.Int.mem fn.vid calledFuns) &&
-          not (Str.last_chars loc.file 2 = ".h") &&
-          not (LibraryFunctions.is_safe_uncalled fn.vname)
-        in
-        let print_uncalled = function
-          | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
-              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+      let out = M.get_out "uncalled" Legacy.stdout in
+      let insrt k _ s = match k with
+        | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+        | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+        | _ -> s
+      in
+      (* set of ids of called functions *)
+      let calledFuns = LHT.fold insrt lh Set.Int.empty in
+      let is_bad_uncalled fn loc =
+        not (Set.Int.mem fn.vid calledFuns) &&
+        not (Str.last_chars loc.file 2 = ".h") &&
+        not (LibraryFunctions.is_safe_uncalled fn.vname)
+      in
+      let print_and_calculate_uncalled = function
+        | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+            if get_bool "dbg.uncalled" then (
+              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int (Cilfacade.countLoc fn) ^ "LoC" in
               ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
-          | _ -> ()
-        in
-        List.iter print_uncalled file.globals
-      );
+            )
+        | _ -> ()
+      in
+      List.iter print_and_calculate_uncalled file.globals;
 
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
