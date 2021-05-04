@@ -226,18 +226,6 @@ struct
   module S = Set (B)
   include SetDomain.LiftTop (S) (N)
 
-  (* TODO: why aren't these in SetDomain.LiftTop already? *)
-  let widen x y = (* assumes y to be bigger than x *)
-    match x, y with
-    | `Top, _
-    | _, `Top -> `Top
-    | `Lifted x, `Lifted y -> `Lifted (S.widen x y)
-  let narrow x y =
-    match x, y with
-    | `Top, y -> y
-    | x, `Top -> x
-    | `Lifted x, `Lifted y -> `Lifted (S.narrow x y)
-
   let map_noreduce f x =
     match x with
     | `Top -> `Top

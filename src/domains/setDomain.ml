@@ -322,13 +322,21 @@ struct
     | `Top, _ -> `Top
     | _, `Top -> `Top
     | `Lifted x, `Lifted y -> `Lifted (S.join x y)
-  let widen = join (* TODO: why doesn't use S.widen? *)
+  let widen x y = (* assumes y to be bigger than x *)
+    match x, y with
+    | `Top, _
+    | _, `Top -> `Top
+    | `Lifted x, `Lifted y -> `Lifted (S.widen x y)
   let meet x y =
     match x, y with
     | `Top, y -> y
     | x, `Top -> x
     | `Lifted x, `Lifted y -> `Lifted (S.meet x y)
-  let narrow = meet (* TODO: why doesn't use S.narrow? *)
+  let narrow x y =
+    match x, y with
+    | `Top, y -> y
+    | x, `Top -> x
+    | `Lifted x, `Lifted y -> `Lifted (S.narrow x y)
 
   let invariant c = function
     | `Top -> Invariant.none
