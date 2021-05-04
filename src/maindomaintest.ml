@@ -23,7 +23,7 @@ module PrintableChar =
 struct
   type t = char [@@deriving to_yojson]
   let name () = "char"
-  let short _ x = String.make 1 x
+  let short x = String.make 1 x
 
   module P =
   struct
