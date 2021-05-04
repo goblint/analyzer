@@ -65,7 +65,7 @@ struct
     let module WResult = Witness.Result (Cfg) (Spec) (EQSys) (LHT) (GHT) in
 
     (* print out information about dead code *)
-    let print_dead_code (xs:Result.t) =
+    let print_dead_code (xs:Result.t) uncalled =
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
       let module NH = Hashtbl.Make (MyCFG.Node) in
       let live_nodes : unit NH.t = NH.create 10 in
@@ -127,7 +127,7 @@ struct
           printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
         )
       );
-      printf "Total lines (logical LoC): %d\n" (live_count + !count);
+      printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled);
       let str = function true -> "then" | false -> "else" in
       let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
@@ -378,6 +378,8 @@ struct
     let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
     let entrystates_global = GHT.to_list gh in
 
+    let uncalled_dead = ref 0 in
+
     let solve_and_postprocess () =
       (* handle save_run/load_run *)
       let append_opt opt file = let o = get_string opt in if o = "" then "" else o ^ Filename.dir_sep ^ file in
@@ -469,8 +471,10 @@ struct
       in
       let print_and_calculate_uncalled = function
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+            let cnt = Cilfacade.countLoc fn in
+            uncalled_dead := !uncalled_dead + cnt;
             if get_bool "dbg.uncalled" then (
-              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int (Cilfacade.countLoc fn) ^ "LoC" in
+              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int cnt  ^ "LoC" in
               ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
             )
         | _ -> ()
@@ -544,7 +548,7 @@ struct
 
     let liveness =
       if get_bool "dbg.print_dead_code" then
-        print_dead_code local_xml
+        print_dead_code local_xml !uncalled_dead
       else
         fun _ -> true (* TODO: warn about conflicting options *)
     in
