@@ -9,10 +9,18 @@ open Option.Infix
 
 class uniqueVarPrinterClass =
   object (self)
-    inherit defaultCilPrinterClass
+    inherit defaultCilPrinterClass as super
 
     method! pVar (v : varinfo) =
       text v.vname ++ chr '_' ++ text (string_of_int v.vid)
+
+    method! pExp () =
+      function
+      | Const (CInt64 (i, _, _)) ->
+          (* Fix the constants with long/unsigned suffixes, e.g. 1LL *)
+          text @@ string_of_int @@ Int64.to_int i
+      | x ->
+          super#pExp () x
   end
 
 let printer = new uniqueVarPrinterClass
@@ -718,7 +726,7 @@ module Codegen = struct
               Action.to_pml action ^ " " ^ goto_str target_label
         in
         let walk_edges (node, out_edges) =
-          let edges = Set.elements out_edges |> List.map str_edge in
+          let edges = Set.map str_edge out_edges |> Set.elements in
           let body = if List.length edges > 1 then if_clause edges else edges in
           (label node ^ ":") :: body
         in
@@ -1164,7 +1172,7 @@ module Spec : Analyses.Spec = struct
       let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
 
       let add_actions (actions : Action.t list) =
-        let failed_action =
+        let add_failed_assign_action () =
           lval
           >>= Variable.make_from_lval
           >>= fun var ->
@@ -1177,7 +1185,7 @@ module Spec : Analyses.Spec = struct
         List.iter (Edges.add env) actions ;
 
         if not @@ Flags.eval Flags.AssumeSuccess
-        then Option.may (Edges.add env) failed_action ;
+        then Option.may (Edges.add env) @@ add_failed_assign_action () ;
 
         if List.is_empty actions
         then d
@@ -1206,7 +1214,7 @@ module Spec : Analyses.Spec = struct
             funs_ls
             |> Queries.LS.elements
             |> List.map fst
-            |> List.unique
+            |> List.unique ~eq:(fun a b -> a.vid = b.vid)
             |> List.hd
           in
 

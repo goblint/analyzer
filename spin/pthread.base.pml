@@ -106,7 +106,6 @@ byte ___rand_num;
 inline ThreadCreate(thread_id) {
   atomic {
     printf("ThreadCreate: id %d\n", thread_id);
-    assert(threads[thread_id].state == NOTCREATED);
 
     setReady(thread_id);
   }
@@ -116,7 +115,6 @@ inline ThreadCreate(thread_id) {
 inline ThreadWait(thread_id) {
   atomic {
     printf("ThreadWait: id %d\n", thread_id);
-    assert(threads[thread_id].state != NOTCREATED);
 
     if
     :: threads[thread_id].state != DONE ->
