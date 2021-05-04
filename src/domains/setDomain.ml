@@ -7,6 +7,8 @@ module GU = Goblintutil
  * This will be raised, when trying to iterate a set that has been set to Top *)
 exception Unsupported of string
 
+let unsupported s = raise (Unsupported s)
+
 (** A set domain must support all the standard library set operations, which
   * thanks to ocaml's inflexible module system have been copy-pasted. *)
 module type S =
@@ -43,30 +45,30 @@ end
   * calling [top ()] will raise an exception *)
 module Blank =
 struct
-  let empty _ = raise (Unsupported "empty")
-  let is_empty _ = raise (Unsupported "is_empty")
-  let mem _ _ = raise (Unsupported "mem")
-  let add _ _ = raise (Unsupported "add")
-  let singleton _ = raise (Unsupported "singleton")
-  let remove _ _ = raise (Unsupported "remove")
-  let union _ _ = raise (Unsupported "union")
-  let inter _ _ = raise (Unsupported "inter")
-  let diff _ _ = raise (Unsupported "diff")
-  let subset _ _ = raise (Unsupported "subset")
-  let iter _ _ = raise (Unsupported "iter")
-  let map _ _ = raise (Unsupported "map")
-  let fold _ _ _ = raise (Unsupported "fold")
-  let for_all _ _ = raise (Unsupported "for_all")
-  let exists _ _ = raise (Unsupported "exists")
-  let filter _ _ = raise (Unsupported "filter")
-  let partition _ _ = raise (Unsupported "partition")
-  let cardinal _ = raise (Unsupported "cardinal")
-  let elements _ = raise (Unsupported "elements")
-  let of_list _ = raise (Unsupported "of_list")
-  let min_elt _ = raise (Unsupported "min_elt")
-  let max_elt _ = raise (Unsupported "max_elt")
-  let choose _ = raise (Unsupported "choose")
-  let split _ _ = raise (Unsupported "split")
+  let empty _ = unsupported "empty"
+  let is_empty _ = unsupported "is_empty"
+  let mem _ _ = unsupported "mem"
+  let add _ _ = unsupported "add"
+  let singleton _ = unsupported "singleton"
+  let remove _ _ = unsupported "remove"
+  let union _ _ = unsupported "union"
+  let inter _ _ = unsupported "inter"
+  let diff _ _ = unsupported "diff"
+  let subset _ _ = unsupported "subset"
+  let iter _ _ = unsupported "iter"
+  let map _ _ = unsupported "map"
+  let fold _ _ _ = unsupported "fold"
+  let for_all _ _ = unsupported "for_all"
+  let exists _ _ = unsupported "exists"
+  let filter _ _ = unsupported "filter"
+  let partition _ _ = unsupported "partition"
+  let cardinal _ = unsupported "cardinal"
+  let elements _ = unsupported "elements"
+  let of_list _ = unsupported "of_list"
+  let min_elt _ = unsupported "min_elt"
+  let max_elt _ = unsupported "max_elt"
+  let choose _ = unsupported "choose"
+  let split _ _ = unsupported "split"
 end
 
 (** A functor for creating a simple set domain, there is no top element, and
@@ -86,7 +88,7 @@ struct
   let narrow = meet
   let bot = empty
   let is_bot = is_empty
-  let top () = raise (Lattice.Unsupported "Set has no top")
+  let top () = unsupported "Make.top"
   let is_top _ = false
 
   let map f s =
@@ -254,7 +256,7 @@ struct
 
   let schema normal abnormal x =
     match x with
-    | `Top -> raise (Unsupported abnormal)
+    | `Top -> unsupported abnormal
     | `Lifted t -> normal t
   let schema_default v f = function
     | `Top -> v
