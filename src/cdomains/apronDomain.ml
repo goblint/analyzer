@@ -80,11 +80,11 @@ struct
 
   let hash (x:t) = Hashtbl.hash x
   let compare (x:t) y = Stdlib.compare x y
-  let short n x =
+  let show x =
     A.print Legacy.Format.str_formatter x;
     Legacy.Format.flush_str_formatter ()
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
-  let pretty () (x:t) = text (short 10 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
 
   (* Apron expressions of level 1 *)

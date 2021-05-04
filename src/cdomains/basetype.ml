@@ -99,6 +99,7 @@ struct
 end
 
 
+(* TODO: remove unused *)
 module VarStatus =
 struct
   include Printable.Std
@@ -108,14 +109,14 @@ struct
   let equal (x,sx) (y,sy) = x.vid = y.vid && sx = sy
   let compare (x,sx) (y,sy) = compare (x.vid,sx) (y.vid,sy)
   let hash (x,s) = Hashtbl.hash (x.vid,s)
-  let short _ (x,s) = x.vname
-  let pretty () x = Pretty.text (short max_int x)
+  let show (x,s) = x.vname
+  let pretty () x = Pretty.text (show x)
   let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location (x,s) = x.vdecl
   let to_group (x,sx) = Option.some @@ match sx with Context -> Some Variables.Context | _ -> Variables.to_group x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 
   let arbitrary () = failwith "VarStatus: no arb"
 end
@@ -471,7 +472,7 @@ struct
   let copy x = x
   let equal x y = (get_var x).vid = (get_var y).vid && (apply_field (fun v->v.fname) "" x)=(apply_field (fun v->v.fname) "" y)
 
-  let short _ x = GU.demangle (get_var x).vname^
+  let show x = GU.demangle (get_var x).vname^
                   (*"("^string_of_int (get_var x).vid ^")"^*)
                   (apply_field (fun x->"::"^x.fname) "" x)
 
@@ -483,8 +484,8 @@ struct
 
   let hash x = Hashtbl.hash ((get_var x).vid,(apply_field (fun x->"::"^x.fname) "" x))
 
-  let pretty () x = Pretty.text (short max_int x)
-  let pretty_trace () x = let name = short 0 x in
+  let pretty () x = Pretty.text (show x)
+  let pretty_trace () x = let name = show x in
     Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
 
   let get_location x = (get_var x).vdecl
@@ -492,7 +493,7 @@ struct
 
   let name () = "variables and fields"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 
 end
 

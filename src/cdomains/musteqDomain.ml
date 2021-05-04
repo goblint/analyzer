@@ -19,18 +19,19 @@ end
 
 module P = Printable.ProdSimple (V) (V)
 
+(* TODO: unused, but should be used by something? region? *)
 module Equ =
 struct
   include MapDomain.MapTop (P) (F)
 
   let name () = "musteq"
 
-  let short _ _ = "Equalities"
+  let show _ = "Equalities"
   let pretty () mapping =
     let f (v1,v2) st dok: doc =
       dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 F.pretty st in
     let content () = fold f mapping nil in
-    dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
 
   let add_old = add
   let rec add (x,y) fd d =
