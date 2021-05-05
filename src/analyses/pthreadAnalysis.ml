@@ -1244,6 +1244,23 @@ module Spec : Analyses.Spec = struct
                 @@ Tbls.ThreadTidTbl.get_key tid
               in
               let edges = Edges.get @@ resource_from_tid existing_tid in
+
+              let launches_child_thread =
+                let is_thread_create = function
+                  | _, Action.ThreadCreate _, _ ->
+                      true
+                  | _ ->
+                      false
+                in
+                Set.exists is_thread_create edges
+              in
+
+              if launches_child_thread
+              then
+                failwith
+                  "Unsupported use case! Thread is not allowed to launch a \
+                   child thread" ;
+
               Hashtbl.add Edges.table (resource_from_tid tid) edges
             in
 
