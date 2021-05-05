@@ -69,7 +69,7 @@ struct
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
       let module NH = Hashtbl.Make (MyCFG.Node) in
       let live_nodes : unit NH.t = NH.create 10 in
-      let count = ref 0 in
+      let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
       let module StringMap = BatMap.Make (String) in
       let open BatPrintf in
       let live_lines = ref StringMap.empty in
@@ -119,16 +119,16 @@ struct
         printf "File '%s':\n" f;
         StringMap.iter print_func
       in
-      let total_dead = !count + uncalled_fn_loc in
       if get_bool "dbg.print_dead_code" then (
         if StringMap.is_empty !dead_lines
         then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
         else (
-          StringMap.iter print_file !dead_lines;
+          StringMap.iter print_file !dead_lines; (* populates count by side-effect *)
+          let total_dead = !count + uncalled_fn_loc in
           printf "Found dead code on %d line%s%s!\n" total_dead (if total_dead>1 then "s" else "") (if uncalled_fn_loc > 0 then Printf.sprintf " (including %d in uncalled functions)" uncalled_fn_loc else "")
-        )
+        );
+        printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled_fn_loc); (* We can only give total LoC if we counted dead code *)
       );
-      printf "Total lines (logical LoC): %d\n" (live_count + total_dead);
       let str = function true -> "then" | false -> "else" in
       let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
