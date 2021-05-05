@@ -22,12 +22,13 @@ struct
       | Some f -> ctx.sideg f.svar side
       | None -> ()
 
-  let is_heap_var ctx (v: varinfo) =
-    match ctx.ask (Q.IsHeapVar v) with
-      | `MustBool true -> true
+
+  let is_arg_var ctx (v: varinfo) =
+    match ctx.ask (Q.IsHeapVar v), ctx.ask (Q.IsAllocatedVar v) with
+      | `MustBool true,`MustBool false -> true
       | _ -> false
 
-  let filter_heap_vars ctx (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_heap_var ctx v) s
+  let filter_arg_vars ctx (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_arg_var ctx v) s
 
   (* transfer functions *)
   let add_written_lval ctx (lval:lval): unit =
@@ -36,12 +37,12 @@ struct
       | Mem e, NoOffset
       | Mem e, Index _ ->
         (match query e with
-          | `LvalSet s -> filter_heap_vars ctx s
+          | `LvalSet s -> filter_arg_vars ctx s
           | _ -> G.bot ()
         )
       | Mem e, Field (finfo, offs) ->
         (match query e with
-          | `LvalSet s -> filter_heap_vars ctx s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
+          | `LvalSet s -> filter_arg_vars ctx s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
           | _ -> G.bot ()
         )
       | _, _ -> G.bot ()
@@ -81,7 +82,7 @@ struct
         | `Bot | _ -> Q.LS.bot ()
       in
       List.fold (fun acc exp -> Q.LS.join (reachable_exp exp) acc) (Q.LS.bot ()) args
-        |> filter_heap_vars ctx
+        |> filter_arg_vars ctx
     in
     let reachable_heap_var_typesigs = match reachable_heap_vars with
       | Set s -> (Q.LS.S.to_list s) |> List.map (fun (v,o) -> Cil.typeSig v.vtype) |> Set.of_list
