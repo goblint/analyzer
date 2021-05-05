@@ -479,19 +479,19 @@ struct
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
 
-  let get_concretes (symb: varinfo) (st: store) =
+  let get_concretes (symb: varinfo) (st: store) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let ts = typeSig symb.vtype in
-    let concretes = CPA.filter (fun k v -> ts = (typeSig k.vtype)) st.cpa in
-    CPA.fold (fun k v acc -> k::acc) concretes []
+    let concretes = List.filter (fun a -> ts = (typeSig (AD.get_type a))) reachable_vars in
+    List.fold AD.join (AD.bot ()) concretes
 
-  let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) =
+  let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let sym_address_to_conretes (addr: Addr.t) = (* Returns a list of concrete addresses and a list of addresses of memory blocks that are added to the heap *)
       match addr with
       | Addr  (v, ofs) ->
         if is_allocated_var a v then (* Address has been allocated within the function, we add it to our heap *)
           [addr], Some addr
         else if is_heap_var a v then
-          List.map (fun v -> AD.Addr.Addr (v, ofs)) (get_concretes v st), None
+          List.map (fun v -> AD.Addr.Addr (v, ofs)) (AD.to_var_may (get_concretes v st reachable_vars)), None
         else
           [addr],None
       | StrPtr _
@@ -504,10 +504,10 @@ struct
     let new_addrs = List.filter_map Tuple2.second concrete_and_new_addresses in
     (concrete_addrs, new_addrs)
 
-  let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store)  =
+  let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let rec get_concrete_value_and_new_blocks_from_value symb_value = match symb_value with
       | `Address addr ->
-        let (concrete_addrs, new_addrs) = symb_address_set_to_concretes a g symb st fun_st addr in
+        let (concrete_addrs, new_addrs) = symb_address_set_to_concretes a g symb st fun_st addr reachable_vars in
         (`Address concrete_addrs, new_addrs)
       | `Struct s ->
         let (s', na) = ValueDomain.Structs.fold (fun field field_val (s', naddrs) ->
@@ -1236,6 +1236,7 @@ struct
 
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
+    let all_reachable_vars = List.fold (fun acc a -> reachable_vars ask [a] gs st) [] args in
     let update_reachable_written_var (ask: Q.ask) (arg: address) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
       let reachable_vars = reachable_vars ask [arg] gs st in
       let reachable_written_vars = (match lvals with
@@ -1249,7 +1250,7 @@ struct
       let f (st, addr_list) (addr: address) =
         let sa = get_symbolic_address ask gs addr fun_st in
         let typ = AD.get_type addr in
-        let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st in
+        let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
         (set ask gs st addr typ concrete_value, new_addresses::addr_list)
       in
       let (st, new_addresses) = List.fold f (st, []) reachable_written_vars in
@@ -1262,7 +1263,7 @@ struct
         (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
         let visit_and_collect var (acc, st) =
           let sa = AD.singleton var in
-          let (concrete_value, new_addresses) =  get_concrete_value_and_new_blocks ask gs sa st fun_st in
+          let (concrete_value, new_addresses) =  get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
           let st = set ask gs st sa (AD.get_type sa) concrete_value in
           let addrs = AD.union (AD.of_list new_addresses) acc in
           (addrs, st)
