@@ -3,6 +3,7 @@ set -e # exit immediately if a command fails
 set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
 TARGET=src/goblint
+EXCLUDE="_build|goblint.ml|apronDomain|poly|violationZ3"
 
 gen() { # generate configuration files and goblint.ml which opens all modules in src/ such that they will be linked and executed without the need to be referenced somewhere else
   scripts/set_version.sh # generate the version file
@@ -73,14 +74,19 @@ rule() {
       # gprof & ocamlprof (run also generates ocamlprof.dump). use: ocamlprof src/goblint.ml
       ocb -ocamlopt ocamloptp $TARGET.p.native &&
       cp _build/$TARGET.p.native goblint
-    # ;; docs)
-    #   rm -rf doc;
-    #   ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
-    #   ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
-    #   rm doclist.odocl;
-    #   ln -sf _build/doclist.docdir doc
-    # ;; tag*)
-    #   otags -vi `find src/ -iregex [^.]*\.mli?`
+    ;; docs)
+      rm -rf doc;
+      ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
+      ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
+      rm doclist.odocl;
+      ln -sf _build/doclist.docdir doc
+    ;; tag*)
+      otags -vi `find src/ -iregex [^.]*\.mli?`
+    ;; poly)
+      echo "open ApronDomain" >> $TARGET.ml
+      echo "open Poly" >> $TARGET.ml
+      ocb -no-plugin -package apron -package apron.polkaMPQ -package apron.octD $TARGET.native &&
+      cp _build/$TARGET.native goblint
     ;; arinc)
       ocb src/mainarinc.native &&
       cp _build/src/mainarinc.native arinc
@@ -148,7 +154,7 @@ rule() {
       ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
 
     ;; *)
-      echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
+      echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or docs.";;
   esac;
 }
 
