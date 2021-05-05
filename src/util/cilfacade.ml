@@ -316,8 +316,11 @@ and typeOffset basetyp =
       blendAttributes baseAttrs fieldType
     | _ -> raise Not_found
 
+(** HashSet of line numbers *)
 let locs = Hashtbl.create 200
-class countFnVisitor = object (* puts every instruction into its own basic block *)
+
+(** Visitor to count locs appearing inside a fundec. *)
+class countFnVisitor = object
     inherit nopCilVisitor
     method! vstmt s =
       match s.skind with
@@ -350,8 +353,11 @@ end
 
 let fnvis = new countFnVisitor
 
+(** Count the number of unique locations appearing in fundec [fn].
+    Uses {!Cilfacade.locs} hashtable for intermediate computations
+*)
 let countLoc fn =
-  let _ = visitCilFunction fnvis  fn in
+  let _ = visitCilFunction fnvis fn in
   let res = Hashtbl.length locs in
   Hashtbl.clear locs;
   res
