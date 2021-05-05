@@ -76,16 +76,6 @@ struct
     | _ -> v, Offs.from_offset (conv_offset o)
 
   let part_access ctx e v w =
-    (*privatization*)
-    begin match v with
-      | Some v ->
-        if not (Lockset.is_bot ctx.local) then
-          let ls = Lockset.filter snd ctx.local in
-          let el = P.effect_fun ~write:w ls in
-          ctx.sideg v el
-      | None -> M.warn "Write to unknown address: privatization is unsound."
-    end;
-    (*partitions & locks*)
     let open Access in
     let ps = LSSSet.singleton (LSSet.empty ()) in
     let add_lock l =
@@ -151,6 +141,17 @@ struct
   let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
+      (*privatization*)
+      begin match vo with
+        | Some v ->
+          if not (Lockset.is_bot ctx.local) then
+            let ls = Lockset.filter snd ctx.local in
+            let el = P.effect_fun ~write:w ls in
+            ctx.sideg v el
+        | None -> M.warn "Write to unknown address: privatization is unsound."
+      end;
+      
+      (*partitions & locks*)
       let open Access in
       match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
       | `PartAccessResult (po, pd) -> (po, pd)
