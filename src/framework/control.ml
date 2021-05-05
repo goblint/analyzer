@@ -214,7 +214,7 @@ struct
     (* analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
-        { ask     = (fun _ -> Queries.Result.top ())
+        { ask     = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top () }
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -304,7 +304,7 @@ struct
     let enter_with st fd =
       let st = st fd.svar in
       let ctx =
-        { ask     = (fun _ -> Queries.Result.top ())
+        { ask     = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top () }
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -339,7 +339,7 @@ struct
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
     let otherstate st v =
       let ctx =
-        { ask     = (fun _ -> Queries.Result.top ())
+        { ask     = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top () }
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -502,7 +502,9 @@ struct
         let ask loc =
           (* build a ctx for using the query system *)
           let rec ctx =
-            { ask    = query
+            { ask    = { Queries.f = fun (type a) (q: a Queries.t) ->
+              (Spec.query ctx).f q
+            }
             ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
             ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
             ; prev_node = MyCFG.dummy_node
@@ -518,7 +520,7 @@ struct
             ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
             ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
             }
-          and query x = Spec.query ctx x in
+          in
           Spec.query ctx
         in
         List.iter (fun name -> Transform.run name ask file) active_transformations

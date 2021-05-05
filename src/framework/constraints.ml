@@ -549,7 +549,9 @@ struct
     let spawns = ref [] in
     (* now watch this ... *)
     let rec ctx =
-      { ask     = query
+      { ask     = { Queries.f = fun (type a) (q: a Queries.t) ->
+          (S.query ctx).f q
+        }
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
@@ -565,7 +567,6 @@ struct
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
-    and query x = S.query ctx x
     and spawn lval f args =
       (* TODO: adjust ctx node/edge? *)
       (* TODO: don't repeat for all paths that spawn same *)
@@ -592,19 +593,21 @@ struct
     else
       let rec ctx' =
         { ctx with
-          ask = query'
+          ask = { Queries.f = fun (type a) (q: a Queries.t) ->
+            (S.query ctx').f q
+          }
         ; local = d
         }
-      and query' x = S.query ctx' x
       in
       (* TODO: don't forget path dependencies *)
       let one_spawn (lval, f, args, fd) =
         let rec fctx =
           { ctx with
-            ask = fquery
+            ask = { Queries.f = fun (type a) (q: a Queries.t) ->
+              (S.query fctx).f q
+            }
           ; local = fd
           }
-        and fquery x = S.query fctx x
         in
         S.threadspawn ctx' lval f args fctx
       in
@@ -669,11 +672,12 @@ struct
       let fd =
         (* TODO: more accurate ctx? *)
         let rec sync_ctx = { ctx with
-            ask = query;
+            ask = { Queries.f = fun (type a) (q: a Queries.t) ->
+              (S.query sync_ctx).f q
+            };
             local = fd;
             prev_node = Function f
           }
-        and query x = S.query sync_ctx x
         in
         sync sync_ctx
       in
@@ -1041,10 +1045,12 @@ struct
       Spec.context @@ D.choose l
 
   let conv ctx x =
-    let rec ctx' = { ctx with ask   = query
+    let rec ctx' = { ctx with ask   = { Queries.f = fun (type a) (q: a Queries.t) ->
+      (Spec.query ctx').f q
+    }
                             ; local = x
                             ; split = (ctx.split % D.singleton) }
-    and query x = Spec.query ctx' x in
+    in
     ctx'
 
   let map ctx f g =
@@ -1090,9 +1096,10 @@ struct
   let sync ctx reason =
     fold' ctx Spec.sync (fun h -> h reason) (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
 
-  let query ctx q =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     (* join results so that they are sound for all paths *)
-    fold' ctx Spec.query identity (fun x f -> Queries.Result.join x (f q)) `Bot
+    fold' ctx Spec.query identity (fun x f -> Queries.Result.join x (f.f q)) `Bot
+    }
 
   let enter ctx l f a =
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in

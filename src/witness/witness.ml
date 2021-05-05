@@ -308,7 +308,9 @@ struct
     let ask_local (lvar:EQSys.LVar.t) local =
       (* build a ctx for using the query system *)
       let rec ctx =
-        { ask    = query
+        { ask    = { Queries.f = fun (type a) (q: a Queries.t) ->
+          (Spec.query ctx).f q
+        }
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = fst lvar
         ; prev_node = MyCFG.dummy_node
@@ -324,13 +326,13 @@ struct
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }
-      and query x = Spec.query ctx x in
+      in
       Spec.query ctx
     in
     let ask_indices lvar =
       let local = get lvar in
       let indices = ref [] in
-      ignore (ask_local lvar local (Queries.IterVars (fun i ->
+      ignore ((ask_local lvar local).f (Queries.IterVars (fun i ->
           indices := i :: !indices
         )));
       !indices
@@ -377,7 +379,7 @@ struct
       let prev = NHT.create 100 in
       let next = NHT.create 100 in
       LHT.iter (fun lvar local ->
-          ignore (ask_local lvar local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
+          ignore ((ask_local lvar local).f (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
               let lvar' = (fst lvar, snd lvar, i) in
               let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
               NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;

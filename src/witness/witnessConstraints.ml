@@ -272,10 +272,12 @@ struct
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)
-    let rec ctx' = { ctx with ask   = query
+    let rec ctx' = { ctx with ask   = { Queries.f = fun (type a) (q: a Queries.t) ->
+      (Spec.query ctx').f q
+    }
                             ; local = x
                             ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }
-    and query x = Spec.query ctx' x in
+    in
     ctx'
 
   let step n c i e = R.singleton (`Lifted ((n, c, i), e))
@@ -352,7 +354,7 @@ struct
         (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async), b'@b
       ) ((Dom.empty (), Sync.bot ()), [])
 
-  let query ctx q =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     match q with
     | Queries.IterPrevVars f ->
       Dom.iter' (fun x r ->
@@ -376,7 +378,8 @@ struct
       `Bot
     | _ ->
       (* join results so that they are sound for all paths *)
-      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) `Bot
+      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f.f q)) `Bot
+    }
 
   let should_inline f =
     (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
