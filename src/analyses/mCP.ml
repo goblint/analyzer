@@ -541,6 +541,8 @@ struct
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
+        (* sideg is forbidden in query, because they would bypass sides grouping in other transfer functions.
+           See https://github.com/goblint/analyzer/pull/214. *)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
