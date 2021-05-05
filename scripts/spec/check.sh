@@ -15,7 +15,7 @@ else
     ana="spec"
     opt="--sets ana.spec.file $spec"
 fi
-cmd="./goblint --sets ana.activated[0][+] $ana $opt --sets result html --enable colors --enable dbg.showtemps --set dbg.debug $debug $file"
+cmd="./goblint --sets ana.activated[0][+] $ana $opt --html --enable dbg.showtemps --set dbg.debug $debug $file"
 echo -e "$(tput setaf 6)$cmd$(tput sgr 0)"
 $cmd
 
@@ -28,4 +28,3 @@ $cmd
 #   # reload is done by add-on Auto Reload (reload result/* on change of report.html)
 #   # https://addons.mozilla.org/en-US/firefox/addon/auto-reload/?src=api
 # fi
-

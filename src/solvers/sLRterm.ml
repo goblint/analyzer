@@ -49,7 +49,7 @@ module SLR3term =
       let count  = ref 0 in
       let count_side  = ref (max_int - 1) in
 
-      let () = print_stats := fun () ->
+      let () = print_solver_stats := fun () ->
         Printf.printf "wpoint: %d, rho: %d, rho': %d, q: %d, count: %d, count_side: %d\n" (HM.length wpoint) (HM.length rho) (HPM.length rho') (H.size !q) (Int.neg !count) (max_int - !count_side);
         let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
         HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k, S.Var.line_nr k) ((+)1) histo) rho;

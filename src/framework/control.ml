@@ -407,7 +407,7 @@ struct
           | _ -> failwith "Currently only two runs can be compared!";
         ) else (
           if get_bool "dbg.verbose" then
-            print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Show stats with ctrl+c, quit with ctrl+\\.");
+            print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s.");
           if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
@@ -530,8 +530,16 @@ struct
     MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
 
     (* Use "normal" constraint solving *)
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> M.print_msg "Timeout reached!" (!Tracing.current_loc); raise GU.Timeout) in
+    let timeout_reached () =
+      M.print_msg "Timeout reached!" (!Tracing.current_loc);
+      (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
+      (* Can't call Generic.SolverStats...print_stats :(
+         print_stats is triggered by dbg.solver-signal, so we send that signal to ourself.
+         The alternative would be to catch the below Timeout, print_stats and re-raise in each solver (or include it in some functor above them). *)
+      Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
+      raise GU.Timeout
+    in
+    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout")) timeout_reached in
     let local_xml = solver2source_result lh in
 
     let liveness =
