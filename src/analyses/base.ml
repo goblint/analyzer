@@ -1139,7 +1139,7 @@ struct
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
 
         (* If we do library analysis, we always have to do non-destructive updates for globals, so join with value here. *)
-        let value = if get_bool "ana.library" && x.vglob && not force_update then VD.join value @@ eval_rv a gs st (Lval (Var x, cil_offset)) else value in
+        let value = if get_bool "ana.library" && x.vglob && not force_update then VD.join value @@ eval_rv_keep_bot a gs st (Lval (Var x, cil_offset)) else value in
         (* Normal update of the local state *)
         let new_value = VD.update_offset a (CPA.find x st.cpa) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
@@ -2236,7 +2236,7 @@ struct
           in
           if get_bool "ana.library" then
             let typ = AD.get_type heap_var in
-            set_many ~ctx ctx.ask gs st [(heap_var, typ, `Blob (VD.top_value typ, eval_int ctx.ask gs st size, true));
+            set_many ~ctx ctx.ask gs st [(heap_var, typ, `Blob (VD.bot_value typ, eval_int ctx.ask gs st size, true));
                                     (eval_lv ctx.ask gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
           else
             (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
