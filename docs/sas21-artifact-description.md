@@ -1,6 +1,7 @@
 # SAS21 Artifact Description
 
-The artifact is a Virtual Box Image based on Ubuntu 20.04.1. The login is goblint:goblint.
+The artifact is a VirtualBox Image based on Ubuntu 20.04.1. The login is `goblint:goblint`.
+
 ## Validation
 
 ### Step by Step Instructions
@@ -28,7 +29,7 @@ Navigate to the folder `~/analyzer`. All paths are given relative to it.
 
 
 ### Notes
-* The source code for benchmarks can be found in `./../bench/pthread/` and `./../bench/svcomp/`.
+* The source code for benchmarks can be found in `../bench/pthread/` and `../bench/svcomp/`.
 * Although it takes ~25 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish.
 * If you get messages such as `dune: command not found` run `eval $(opam env)`
 
@@ -38,7 +39,8 @@ Navigate to the folder `~/analyzer`. All paths are given relative to it.
 **Goblint is a general framework for Abstract Interpretation and has been used to implement a wide variety of analyses. For extending Goblint with some entirely different analysis,
 one can use `./src/analyses/constants.ml` as a jumping-off point showing how to specify an analysis in the framework.**
 
-The following description is about how to more specifically extend one of the analyses presented in the paper at hand.
+The following description is specifically about extending one of the thread-modular analyses presented in the paper at hand.
+
 ### Implementation of Analyses in the Paper
 The OCaml source code for the core of the analyses is found in `./src/analyses/basePriv.ml`.
 Each one is an appropriately-named module, e.g. `ProtectionBasedPriv`, with the following members:
@@ -61,7 +63,7 @@ presented in the paper quickly.
 
 ### Step by Step Instructions to Extending these Analyses
 
-1. Modify or add thread-modular analyses in `./src/analyses/basePriv.ml`. (In case of adding also add to case distinction in `priv_module`)
+1. Modify or add thread-modular analyses in `./src/analyses/basePriv.ml`. (In case of addition also add to a case distinction in `priv_module` at the end of this file.)
 2. Run `make` and `make privPrecCompare`.
 3. Observe updated behavior, either:
     * Re-run the benchmarking as described above under Validation.
@@ -73,7 +75,7 @@ presented in the paper quickly.
         or
 
     * Run some of the regression tests in `tests/regression/13-privatized` by calling `./regtest.sh 13 xx` where `xx` is the number of the test. Especially `xx > 16` are interesting, these were added with the paper and highlight
-      differences between different approaches. If you added a new analysis make sure to pass `--sets exp.privatization chosenname` to the script.
+      differences between different approaches. Use the `--sets exp.privatization chosenname` option to choose which thread-modular analysis to use.
 
 ### Outline of how the code is structured
 Lastly, we give a general outline of how code in the Goblint framework is organized:
