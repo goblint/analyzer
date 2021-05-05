@@ -52,18 +52,18 @@ struct
     in
     D.fold add_perel st (Queries.PS.empty ())
 
-  let get_all_locks ask e st : Queries.PS.t =
+  let get_all_locks (ask: Queries.ask) e st : Queries.PS.t =
     let exps =
-      match ask (Queries.EqualSet e) with
+      match ask.f (Queries.EqualSet e) with
       | `ExprSet a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
       | _ -> Queries.ES.singleton e
     in
     let add_locks x xs = Queries.PS.union (get_locks x st) xs in
     Queries.ES.fold add_locks exps (Queries.PS.empty ())
 
-  let same_unknown_index ask exp slocks =
+  let same_unknown_index (ask: Queries.ask) exp slocks =
     let uk_index_equal i1 i2 =
-      match ask (Queries.MustBeEqual (i1, i2)) with
+      match ask.f (Queries.MustBeEqual (i1, i2)) with
       | `Bot | `MustBool true -> true
       | _ -> false
     in
@@ -196,11 +196,11 @@ struct
     in
     let matching_exps =
       Queries.ES.meet
-        (match ctx.ask (Queries.EqualSet e) with
+        (match ctx.ask.f (Queries.EqualSet e) with
          | `ExprSet es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
            -> Queries.ES.add e es
          | _ -> Queries.ES.singleton e)
-        (match ctx.ask (Queries.Regions e) with
+        (match ctx.ask.f (Queries.Regions e) with
          | `LvalSet ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
                 try Queries.ES.add (Lval.CilLval.to_exp x) xs
@@ -219,11 +219,12 @@ struct
     (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
     (LSSSet.singleton (LSSet.empty ()), ls)
 
-  let query ctx (q:Queries.t) =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     match q with
     | Queries.PartAccess {exp; var_opt; write} ->
       `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
+    }
 end
 
 let _ =

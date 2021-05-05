@@ -75,7 +75,7 @@ struct
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
   let heap_var ctx =
-    let info = match (ctx.ask Q.HeapVar) with
+    let info = match (ctx.ask.f Q.HeapVar) with
       | `Varinfo (`Lifted vinfo) -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
@@ -278,7 +278,7 @@ struct
   let eval_rv_pre (ask: Q.ask) exp pr =
     let binop op e1 e2 =
       let equality () =
-        match ask (Q.MustBeEqual (e1,e2)) with
+        match ask.f (Q.MustBeEqual (e1,e2)) with
         | `MustBool true ->
           if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
           Some true
@@ -795,7 +795,7 @@ struct
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
   let eval_exp x (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
-    let knownothing = fun _ -> `Top in (* our version of ask *)
+    let knownothing = { Queries.f = fun (type a) (q: a Queries.t) -> `Top } in (* our version of ask *)
     let gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
     match (eval_rv knownothing gs x exp) with
     | `Int x -> ValueDomain.ID.to_int x
@@ -815,7 +815,7 @@ struct
 
   (* interpreter end *)
 
-  let query ctx (q:Q.t) =
+  let query ctx = { Q.f = fun (type a) (q: a Q.t) ->
     let to_int = BI.to_int64 in
     match q with
     | Q.EvalFunvar e ->
@@ -966,6 +966,7 @@ struct
         | _ -> `MayBool true
       end
     | _ -> Q.Result.top ()
+    }
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
@@ -996,7 +997,7 @@ struct
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
-  let set a ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
+  let set (a: Q.ask) ?(ctx=None) ?(effect=true) ?(change_array=true) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x t y z in (* refers to defintion that is outside of set *)
@@ -1013,7 +1014,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          let is_heap_var = match a (Q.IsHeapVar x) with `MayBool(true) -> true | _ -> false in
+          let is_heap_var = match a.f (Q.IsHeapVar x) with `MayBool(true) -> true | _ -> false in
           if is_heap_var then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
@@ -1051,14 +1052,14 @@ struct
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
-        let effect_on_arrays a (st: store) =
+        let effect_on_arrays (a: Q.ask) (st: store) =
           let affected_arrays =
             let set = Dep.find_opt x st.deps |? Dep.VarSet.empty () in
             Dep.VarSet.elements set
           in
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
-              match a (Q.MustBeEqual (e1, e2)) with
+              match a.f (Q.MustBeEqual (e1, e2)) with
               | `MustBool true -> true
               | _ -> false
             in
@@ -1644,10 +1645,10 @@ struct
     let valu = eval_rv ctx.ask ctx.global ctx.local exp in
     let refine () =
       let res = invariant ctx ctx.ask ctx.global ctx.local exp tv in
-      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.EqualSet exp));
-      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.CondVars exp));
+      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask.f (Queries.EqualSet exp));
+      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask.f (Queries.CondVars exp));
       if M.tracing then M.traceu "branch" "Invariant enforced!\n";
-      match ctx.ask (Queries.CondVars exp) with
+      match ctx.ask.f (Queries.CondVars exp) with
       | `ExprSet s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
         M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint d_exp e;

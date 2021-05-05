@@ -51,13 +51,13 @@ struct
     with SetDomain.Unsupported _ -> ()
 
   (* Warn null-lval dereferences, but not normal (null-) lvals*)
-  let rec warn_deref_exp a (st:D.t) (e:exp): unit =
+  let rec warn_deref_exp (a: Queries.ask) (st:D.t) (e:exp): unit =
     let warn_lval_mem e offs =
       (*      begin try List.iter (warn_lval st) (AD.to_var_offset (BS.eval_lv gl s (Mem e, offs)))
               with SetDomain.Unsupported _ -> () end;*)
       match e with
       | Lval (Var v, offs) ->
-        begin match a (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
+        begin match a.f (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
           | `LvalSet a when not (Queries.LS.is_top a)
                          && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
             Queries.LS.iter (fun (v,o) -> warn_lval st (v, conv_offset o)) a
@@ -103,10 +103,10 @@ struct
     | _ -> [Addr.from_var v]
 
   (* Remove null values from state that are unreachable from exp.*)
-  let remove_unreachable ask (args: exp list) (st: D.t) : D.t =
+  let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
       let do_exp e =
-        match ask (Queries.ReachableFrom e) with
+        match ask.f (Queries.ReachableFrom e) with
         | `LvalSet a when not (Queries.LS.is_top a)  ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra a []
@@ -124,8 +124,8 @@ struct
     then D.top ()
     else D.filter (fun x -> AD.mem x vars) st
 
-  let get_concrete_lval ask (lval:lval) =
-    match ask (Queries.MayPointTo (mkAddrOf lval)) with
+  let get_concrete_lval (ask: Queries.ask) (lval:lval) =
+    match ask.f (Queries.MayPointTo (mkAddrOf lval)) with
     | `LvalSet a when Queries.LS.cardinal a = 1
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let v, o = Queries.LS.choose a in
@@ -138,8 +138,8 @@ struct
     | Lval (Var v, offs) -> Some (Var v,offs)
     | _ -> None
 
-  let might_be_null ask lv gl st =
-    match ask (Queries.MayPointTo (mkAddrOf lv)) with
+  let might_be_null (ask: Queries.ask) lv gl st =
+    match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
     | `LvalSet a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let one_addr_might (v,o) =
         D.exists (fun x -> List.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st

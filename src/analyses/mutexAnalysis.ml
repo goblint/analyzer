@@ -93,9 +93,9 @@ struct
     let ls = D.fold add_lock locks (LSSet.empty ()) in
     (ps, ls)
 
-  let eval_exp_addr a exp =
+  let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a (Queries.MayPointTo exp) with
+    match a.f (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a)
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
@@ -150,10 +150,10 @@ struct
             ctx.sideg v el
         | None -> M.warn "Write to unknown address: privatization is unsound."
       end;
-      
+
       (*partitions & locks*)
       let open Access in
-      match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
+      match ctx.ask.f (PartAccess {exp=e; var_opt=vo; write=w}) with
       | `PartAccessResult (po, pd) -> (po, pd)
       | `Top -> PartAccessResult.top ()
       | _ -> failwith "MutexAnalysis.part_access"
@@ -167,7 +167,7 @@ struct
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g =
-      match ctx.ask (Queries.MayEscape g) with
+      match ctx.ask.f (Queries.MayEscape g) with
       | `MayBool false -> false
       | _ -> true
     in
@@ -187,7 +187,7 @@ struct
       LS.iter f ls
     in
     let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
-    match ctx.ask reach_or_mpt with
+    match ctx.ask.f reach_or_mpt with
     | `Bot -> ()
     | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
       (* the case where the points-to set is non top and does not contain unknown values *)
@@ -196,7 +196,7 @@ struct
       (* the case where the points-to set is non top and contains unknown values *)
       let includes_uk = ref false in
       (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes e) with
+      begin match ctx.ask.f (ReachableUkTypes e) with
         | `Bot -> ()
         | `TypeSet ts when Queries.TS.is_top ts ->
           includes_uk := true
@@ -229,7 +229,7 @@ struct
   let threadenter ctx lval f args = [Lockset.empty ()]
   let exitstate  v = Lockset.empty ()
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     let non_overlapping locks1 locks2 =
       let intersect = G.join locks1 locks2 in
       let tv = G.is_top intersect in
@@ -266,6 +266,7 @@ struct
     | Queries.PartAccess {exp; var_opt; write} ->
       `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
+    }
 
 
   (** Transfer functions: *)

@@ -269,9 +269,10 @@ struct
     List.iter (fun (x,y,z) -> ctx.split (x,s2) [Events.SplitBranch (y, z)]) s1;
     raise Analyses.Deadcode
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     let st, re = ctx.local in
-    Re.query (re_context ctx re) q
+    (Re.query (re_context ctx re)).f q
+    }
 
   let startstate v = LD.singleton (SHMap.top ()), Re.startstate v
   let exitstate  v = LD.singleton (SHMap.top ()), Re.exitstate v

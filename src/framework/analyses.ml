@@ -377,7 +377,7 @@ end
    It is not clear if we need pre-states, post-states or both on foreign analyses.
 *)
 type ('d,'g,'c) ctx =
-  { ask      : Queries.t -> Queries.Result.t
+  { ask      : Queries.ask
   ; emit     : Events.t -> unit
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
@@ -429,7 +429,7 @@ sig
   val call_descr : fundec -> C.t -> string
 
   val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t * (varinfo * G.t) list
-  val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
+  val query : (D.t, G.t, C.t) ctx -> Queries.ask
   val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
   val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
   val branch: (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
@@ -581,7 +581,7 @@ struct
 
   let skip x = x.local (* Just ignore. *)
 
-  let query _ (q:Queries.t) = Queries.Result.top ()
+  let query _ = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top () }
   (* Don't know anything --- most will want to redefine this. *)
 
   let event ctx _ _ = ctx.local

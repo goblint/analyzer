@@ -2,7 +2,7 @@ open Prelude
 open Cil
 
 module type S = sig
-  val transform : (Cil.location -> Queries.t -> Queries.Result.t) -> file -> unit (* modifications are done in-place by CIL :( *)
+  val transform : (Cil.location -> Queries.ask) -> file -> unit (* modifications are done in-place by CIL :( *)
 end
 
 let h = Hashtbl.create 13
@@ -21,7 +21,7 @@ module PartialEval = struct
       (* ignore @@ Pretty.printf "Set loc at stmt %a to %a\n" d_stmt s d_loc !loc; *)
       DoChildren
     method! vexpr e =
-      let eval e = match ask !loc (Queries.EvalInt e) with
+      let eval e = match (ask !loc).Queries.f (Queries.EvalInt e) with
         | `Int i ->
           let e' = integer @@ i64_to_int i in
           ignore @@ Pretty.printf "Replacing non-constant expression %a with %a at %a\n" d_exp e d_exp e' d_loc !loc;

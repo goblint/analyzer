@@ -195,10 +195,10 @@ struct
     then true
     else Queries.LS.exists (lval_may_change_pt a) bls
 
-  let may_change ask (b:exp) (a:exp) : bool =
+  let may_change (ask: Queries.ask) (b:exp) (a:exp) : bool =
     (*b should be an address of something that changes*)
     let pt e =
-      match ask (Queries.MayPointTo e) with
+      match ask.f (Queries.MayPointTo e) with
       | `LvalSet ls -> ls
       | _ -> Queries.LS.top ()
     in
@@ -366,7 +366,7 @@ struct
     | Const _ -> Some false
     | Lval (Var v,_) -> Some v.vglob
     | Lval (Mem e, _) ->
-      begin match ask (Queries.MayPointTo e) with
+      begin match ask.f (Queries.MayPointTo e) with
         | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
           Some (Queries.LS.exists (fun (v, _) -> is_global_var ask (Lval (var v)) = Some true) ls)
         | _ -> Some true
@@ -405,12 +405,12 @@ struct
         | _ -> st
   *)
   (* Give the set of reachables from argument. *)
-  let reachables ask es =
+  let reachables (ask: Queries.ask) es =
     let reachable e st =
       match st with
       | None -> None
       | Some st ->
-        match ask (Queries.ReachableFrom e) with
+        match ask.f (Queries.ReachableFrom e) with
         | `LvalSet vs -> Some (Queries.LS.join vs st)
         | _ -> None
     in
@@ -581,7 +581,7 @@ struct
     | _ -> failwith "Unmatched pattern."
 
 
-  let query ctx x =
+  let query ctx = { Queries.f = fun (type a) (x: a Queries.t) ->
     match x with
     | Queries.MustBeEqual (e1,e2) when query_exp_equal ctx.ask e1 e2 ctx.global ctx.local ->
       `MustBool true
@@ -590,6 +590,7 @@ struct
       (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
       `ExprSet r
     | _ -> `Top
+    }
 
 end
 

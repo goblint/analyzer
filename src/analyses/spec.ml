@@ -67,19 +67,19 @@ struct
       | `String a, Const(CStr b) -> M.debug_each @@ "EQUAL String Const: "^a^" = "^b; a=b
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
       (* CWStr is done in base.ml, query only returns `Str if it's safe *)
-      | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
+      | `String a, e -> (match ctx.ask.f (Queries.EvalStr e) with
           | `Str b -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
           | _      -> M.debug_each "EQUAL String Query: no result!"; false
         )
-      | `Regex a, e -> (match ctx.ask (Queries.EvalStr e) with
+      | `Regex a, e -> (match ctx.ask.f (Queries.EvalStr e) with
           | `Str b -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
           | _      -> M.debug_each "EQUAL Regex String Query: no result!"; false
         )
-      | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
+      | `Bool a, e -> (match ctx.ask.f (Queries.EvalInt e) with
           | `Int b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
           | _      -> M.debug_each "EQUAL Bool Query: no result!"; false
         )
-      | `Int a, e  -> (match ctx.ask (Queries.EvalInt e) with
+      | `Int a, e  -> (match ctx.ask.f (Queries.EvalInt e) with
           | `Int b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
           | _      -> M.debug_each "EQUAL Int Query: no result!"; false
         )
@@ -198,9 +198,10 @@ struct
   end
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     match q with
     | _ -> Queries.Result.top ()
+    }
 
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
@@ -305,7 +306,7 @@ struct
     (* try to evaluate the expression using query
        -> if the result is the same as tv, do the corresponding transition, otherwise remove the entry from the domain
        for pointers this won't help since it always returns `Top *)
-    (match ctx.ask (Queries.EvalInt exp) with
+    (match ctx.ask.f (Queries.EvalInt exp) with
      | `Int i (* when (Queries.ID.is_bool i) *) ->
        (match Queries.ID.to_bool i with
         | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)

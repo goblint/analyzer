@@ -29,9 +29,9 @@ struct
     | `Field (f,o) -> `Field (f, conv_offset o)
 
   (* Query the value (of the locking argument) to a list of locks. *)
-  let eval_exp_addr a exp =
+  let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a (Queries.MayPointTo exp) with
+    match a.f (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | `Bot -> []

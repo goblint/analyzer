@@ -20,13 +20,14 @@ struct
   let warned_unclosed = ref Set.empty
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     match q with
     | Queries.MayPointTo exp -> M.debug_each @@ "query MayPointTo: "^sprint d_plainexp exp; Queries.Result.top ()
     | _ -> Queries.Result.top ()
+    }
 
-  let query_lv ask exp =
-    match ask (Queries.MayPointTo exp) with
+  let query_lv (ask: Queries.ask) exp =
+    match ask.f (Queries.MayPointTo exp) with
     | `LvalSet l when not (Queries.LS.is_top l) ->
       Queries.LS.elements l
     | _ -> []
@@ -40,8 +41,8 @@ struct
     | [(v,_)] -> Some v
     | _ -> None
 
-  let query_eq ask exp =
-    match ask (Queries.EqualSet exp) with
+  let query_eq (ask: Queries.ask) exp =
+    match ask.f (Queries.EqualSet exp) with
     | `ExprSet l when not (Queries.ES.is_top l) ->
       Queries.ES.elements l
     | _ -> []
@@ -254,7 +255,7 @@ struct
            D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
          | e::Const(CStr(mode))::[] ->
            (* ignore(printf "CIL: %a\n" d_plainexp e); *)
-           (match ctx.ask (Queries.EvalStr e) with
+           (match ctx.ask.f (Queries.EvalStr e) with
             | `Str filename -> D.fopen k loc filename mode m
             | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
            )

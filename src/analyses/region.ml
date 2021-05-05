@@ -70,7 +70,7 @@ struct
       (ps, es)
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     let regpart = get_regpart ctx in
     match q with
     | Queries.Regions e ->
@@ -80,6 +80,7 @@ struct
     | Queries.PartAccess {exp; var_opt; write} ->
       `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
+    }
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

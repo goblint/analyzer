@@ -684,7 +684,7 @@ struct
       end
     | _ -> None, None
 
-  let determine_offset ask left offset exp v =
+  let determine_offset (ask: Q.ask) left offset exp v =
     let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
       match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
@@ -710,7 +710,7 @@ struct
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin
-        match ask (Q.MayPointTo (Lval lval)) with
+        match ask.f (Q.MayPointTo (Lval lval)) with
         | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with

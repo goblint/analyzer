@@ -4,7 +4,7 @@ open Prelude.Ana
 open Analyses
 
 let is_current (ask: Queries.ask): bool =
-  match ask Queries.MayBeThreadReturn with
+  match ask.f Queries.MayBeThreadReturn with
   | `MayBool b -> b
   | `Top -> true
   | _ -> failwith "ThreadReturn.is_current"
@@ -46,10 +46,11 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  let query ctx x =
+  let query ctx = { Queries.f = fun (type a) (x: a Queries.t) ->
     match x with
     | Queries.MayBeThreadReturn -> `MayBool ctx.local
     | _ -> `Top
+    }
 end
 
 let _ =

@@ -17,8 +17,8 @@ struct
 
   let init () = flag_list := List.map Json.string @@ get_list "ana.osek.flags"
 
-  let eval_int ask exp =
-    match ask (Queries.EvalInt exp) with
+  let eval_int (ask: Queries.ask) exp =
+    match ask.f (Queries.EvalInt exp) with
     | `Int l -> Some l
     | _      -> None
 

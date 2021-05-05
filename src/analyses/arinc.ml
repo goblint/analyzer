@@ -149,7 +149,7 @@ struct
       if GobConfig.get_bool "ana.arinc.merge_globals" then dummy_global_dlval else dlval
     ) else dlval
   let mayPointTo ctx exp =
-    match ctx.ask (Queries.MayPointTo exp) with
+    match ctx.ask.f (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
@@ -333,12 +333,12 @@ struct
       );
       let is_error_handler = env.pname = pname_ErrorHandler in
       let eval_int exp =
-        match ctx.ask (Queries.EvalInt exp) with
+        match ctx.ask.f (Queries.EvalInt exp) with
         | `Int i -> i
         | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "^f.vname
       in
       let eval_str exp =
-        match ctx.ask (Queries.EvalStr exp) with
+        match ctx.ask.f (Queries.EvalStr exp) with
         | `Str s -> s
         | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "^f.vname
       in
@@ -397,7 +397,7 @@ struct
         |> D.pre (PrE.sub (PrE.of_int 1L))
       (* Partition *)
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
-          match ctx.ask (Queries.EvalInt mode) with
+          match ctx.ask.f (Queries.EvalInt mode) with
           | `Int i ->
             let pm = partition_mode_of_enum @@ Int64.to_int i in
             if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (show_partition_mode_opt pm);
@@ -493,11 +493,11 @@ struct
           try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
           with Not_found -> struct_fail failwith (`Field ofs)
         in
-        let name = ctx.ask (Queries.EvalStr (field Goblintutil.arinc_name)) in
-        let entry_point = ctx.ask (Queries.ReachableFrom (AddrOf attr)) in
-        let pri  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_base_priority)) in
-        let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
-        let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
+        let name = ctx.ask.f (Queries.EvalStr (field Goblintutil.arinc_name)) in
+        let entry_point = ctx.ask.f (Queries.ReachableFrom (AddrOf attr)) in
+        let pri  = ctx.ask.f (Queries.EvalInt (field Goblintutil.arinc_base_priority)) in
+        let per  = ctx.ask.f (Queries.EvalInt (field Goblintutil.arinc_period)) in
+        let cap  = ctx.ask.f (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
         begin match name, entry_point, pri, per, cap with
           | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
                                                                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
@@ -610,7 +610,7 @@ struct
         add_action PeriodicWait
       (* Errors *)
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] ->
-        begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
+        begin match ctx.ask.f (Queries.ReachableFrom (entry_point)) with
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let pid = get_pid pname_ErrorHandler in
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in
@@ -630,7 +630,7 @@ struct
       | _ when is_arinc_fun -> failwith @@ "Function "^f.vname^" not handled!"
       | _ -> d
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     let d = ctx.local in
     match q with
     | Queries.Priority _ ->
@@ -640,6 +640,7 @@ struct
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)
     | _ -> Queries.Result.top ()
+    }
 
   let finalize () =
     ArincUtil.print_actions ();

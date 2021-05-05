@@ -524,7 +524,7 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  and query (ctx:(D.t, G.t, C.t) ctx) q =
+  and query (ctx:(D.t, G.t, C.t) ctx): Queries.ask = { f = fun (type a) (q: a Queries.t): Queries.result ->
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
@@ -547,7 +547,7 @@ struct
         }
       in
       (* meet results so that precision from all analyses is combined *)
-      Queries.Result.meet a @@ S.query ctx' q
+      Queries.Result.meet a @@ (S.query ctx').f q
     in
     match q with
     | Queries.PrintFullState ->
@@ -555,6 +555,7 @@ struct
       `Bot
     | _ ->
       fold_left f `Top @@ spec_list ctx.local
+    }
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in

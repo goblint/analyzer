@@ -40,8 +40,8 @@ struct
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
-  let access_address ask write lv =
-    match ask (Queries.MayPointTo (AddrOf lv)) with
+  let access_address (ask: Queries.ask) write lv =
+    match ask.f (Queries.MayPointTo (AddrOf lv)) with
     | `LvalSet a when not (Queries.LS.is_top a) ->
       let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
       Queries.LS.fold to_extra a []
@@ -194,11 +194,11 @@ struct
 
 
   (* Call to [init_lval lv st] results in state [st] where the variable evaluated form [lv] is initialized. *)
-  let init_lval a (lv: lval) (st: D.t) : D.t =
+  let init_lval (a: Queries.ask) (lv: lval) (st: D.t) : D.t =
     let init_vo (v: varinfo) (ofs: lval_offs) : D.t =
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
-    match a (Queries.MayPointTo (AddrOf lv)) with
+    match a.f (Queries.MayPointTo (AddrOf lv)) with
     | `LvalSet a when Queries.LS.cardinal a = 1 ->  begin
         let var, ofs = Queries.LS.choose a in
         init_vo var (conv_offset ofs)
@@ -221,10 +221,10 @@ struct
     | _ -> [Addr.from_var v]
 
 
-  let remove_unreachable ask (args: exp list) (st: D.t) : D.t =
+  let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
       let do_exp e =
-        match ask (Queries.ReachableFrom e) with
+        match ask.f (Queries.ReachableFrom e) with
         | `LvalSet a when not (Queries.LS.is_top a) ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra a []

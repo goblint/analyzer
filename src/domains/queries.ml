@@ -28,46 +28,48 @@ module VI = Lattice.Flat (Basetype.Variables) (struct
   let bot_name = "Unreachable line"
 end)
 
+module PartAccessResult = Access.PartAccessResult
+
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 let iterprevvar_to_yojson _ = `Null
 type itervar = int -> unit
 let itervar_to_yojson _ = `Null
 
-type t = EqualSet of exp
-       | MayPointTo of exp
-       | ReachableFrom of exp
-       | ReachableUkTypes of exp
-       | Regions of exp
-       | MayEscape of varinfo
-       | Priority of string
-       | MayBePublic of {global: varinfo; write: bool} (* old behavior with write=false *)
-       | MayBePublicWithout of {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t}
-       | MustBeProtectedBy of {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool}
-       | CurrentLockset
-       | MustBeAtomic
-       | MustBeSingleThreaded
-       | MustBeUniqueThread
-       | CurrentThreadId
-       | MayBeThreadReturn
-       | EvalFunvar of exp
-       | EvalInt of exp
-       | EvalStr of exp
-       | EvalLength of exp (* length of an array or string *)
-       | BlobSize of exp (* size of a dynamically allocated `Blob pointed to by exp *)
-       | PrintFullState
-       | CondVars of exp
-       | PartAccess of {exp: exp; var_opt: varinfo option; write: bool}
-       | IterPrevVars of iterprevvar
-       | IterVars of itervar
-       | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
-       | MayBeEqual of exp * exp (* may two expressions be equal? *)
-       | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
-       | TheAnswerToLifeUniverseAndEverything
-       | HeapVar
-       | IsHeapVar of varinfo
-[@@deriving to_yojson]
+type _ t =
+  | EqualSet: exp -> ES.t t
+  | MayPointTo: exp -> LS.t t
+  | ReachableFrom: exp -> LS.t t
+  | ReachableUkTypes: exp -> TS.t t
+  | Regions: exp -> LS.t t
+  | MayEscape: varinfo -> bool t
+  | Priority: string -> ID.t t
+  | MayBePublic: {global: varinfo; write: bool} -> bool t (* old behavior with write=false *)
+  | MayBePublicWithout: {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t} -> bool t
+  | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool} -> bool t
+  | CurrentLockset: LS.t t
+  | MustBeAtomic: bool t
+  | MustBeSingleThreaded: bool t
+  | MustBeUniqueThread: bool t
+  | CurrentThreadId: VI.t t
+  | MayBeThreadReturn: bool t
+  | EvalFunvar: exp -> LS.t t
+  | EvalInt: exp -> ID.t t
+  | EvalStr: exp -> string t
+  | EvalLength: exp -> ID.t t (* length of an array or string *)
+  | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
+  | PrintFullState: unit t
+  | CondVars: exp -> ES.t t
+  | PartAccess: {exp: exp; var_opt: varinfo option; write: bool} -> PartAccessResult.t t
+  | IterPrevVars: iterprevvar -> unit t
+  | IterVars: itervar -> unit t
+  | MustBeEqual: exp * exp -> bool t (* are two expression known to must-equal ? *)
+  | MayBeEqual: exp * exp -> bool t (* may two expressions be equal? *)
+  | MayBeLess: exp * exp -> bool t (* may exp1 < exp2 ? *)
+  | TheAnswerToLifeUniverseAndEverything: unit t (* TODO: unused, remove? *)
+  | HeapVar: VI.t t
+  | IsHeapVar: varinfo -> bool t
+(* [@@deriving to_yojson] *)
 
-module PartAccessResult = Access.PartAccessResult
 
 type result = [
   | `Top
@@ -84,7 +86,7 @@ type result = [
   | `Bot
 ] [@@deriving to_yojson]
 
-type ask = t -> result
+type ask = { f: 'a. 'a t -> result }
 
 module Result: Lattice.S with type t = result =
 struct

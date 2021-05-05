@@ -398,8 +398,8 @@ struct
     Flags.fold helper flagstate min_int
 
   (* from thread*)
-  let query_lv ask exp =
-    match ask (Queries.MayPointTo exp) with
+  let query_lv (ask: Queries.ask) exp =
+    match ask.f (Queries.MayPointTo exp) with
     | `LvalSet l when not (Queries.LS.is_top l) ->
       Queries.LS.elements l
     | _ -> []
@@ -491,7 +491,7 @@ struct
       invariant if that fails then give up and become unsound. *)
   let add_type_access ctx fl loc ust flagstate (e,rw:exp * bool) =
     let eqset =
-      match ctx.ask (Queries.EqualSet e) with
+      match ctx.ask.f (Queries.EqualSet e) with
       | `ExprSet es
         when not (Queries.ES.is_bot es)
         -> Queries.ES.elements es
@@ -565,7 +565,7 @@ struct
       in
       List.iter dispatch accessed
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     match q with
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
@@ -589,8 +589,9 @@ struct
         in `MayBool (off > pry)
     | Queries.CurrentLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
-      M.query ctx q
+      (M.query ctx).f q
     | _ -> Queries.Result.top ()
+    }
 
   let rec conv_offset x =
     match x with
@@ -615,13 +616,13 @@ struct
     | _ -> v, Offs.from_offset (conv_offset o)
 
 
-  let access_address ask regs write lv : accesses =
+  let access_address (ask: Queries.ask) regs write lv : accesses =
     if is_ignorable lv then [] else
       let add_reg (v,o) =
         (*       Messages.report ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
         Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
       in
-      match ask (Queries.MayPointTo (mkAddrOf lv)) with
+      match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
       | `LvalSet a when not (Queries.LS.is_top a) ->
         let to_accs (v,o) xs =
           Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs
@@ -662,7 +663,7 @@ struct
       | _ -> []
     in
     (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
-    match a (Queries.Regions exp) with
+    match a.f (Queries.Regions exp) with
     | `Bot ->
       (*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local"); *)
       [] (*List.filter is_unknown (accs [])*)

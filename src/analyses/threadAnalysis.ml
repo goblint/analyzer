@@ -39,9 +39,9 @@ struct
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
-  let eval_exp_addr a exp =
+  let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a (Queries.MayPointTo exp) with
+    match a.f (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a)
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
@@ -73,7 +73,7 @@ struct
       List.fold_left join_thread ctx.local threads
     | _ -> ctx.local
 
-  let query ctx (q: Queries.t) =
+  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
     match q with
     | Queries.MustBeUniqueThread -> begin
         let tid = ThreadId.get_current ctx.ask in
@@ -88,6 +88,7 @@ struct
         | _ -> `MustBool false
       end
     | _ -> Queries.Result.top ()
+    }
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
