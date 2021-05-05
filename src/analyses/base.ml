@@ -1251,7 +1251,10 @@ struct
         let sa = get_symbolic_address ask gs addr fun_st in
         let typ = AD.get_type addr in
         let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
-        (set ask gs st addr typ concrete_value, new_addresses::addr_list)
+        (* For the existing memory blocks, we have join the old and the new value *)
+        let old_value = get ask gs st addr None in
+        let value = VD.join old_value concrete_value in
+        (set ask gs st addr typ value, new_addresses::addr_list)
       in
       let (st, new_addresses) = List.fold f (st, []) reachable_written_vars in
       let empty = AD.empty () in
