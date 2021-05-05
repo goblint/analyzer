@@ -104,8 +104,8 @@ struct
     )
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (st: BaseComponents (D).t) =
+    (* For each global variable, we create the side effect *)
+    let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ask v then begin
@@ -118,8 +118,8 @@ struct
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
-    (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var st.cpa st
+    (* We fold over the local state, and side effect the globals *)
+    CPA.fold side_var st.cpa st
 end
 
 (** Protection-Based Reading old implementation.
@@ -160,8 +160,8 @@ struct
     let privates = sync_privates reason ask in
     let module BaseComponents = BaseComponents (D) in
     if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
-    (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (st: BaseComponents.t) =
+    (* For each global variable, we create the side effect *)
+    let side_var (v: varinfo) (value) (st: BaseComponents.t) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ask v && ((privates && not (is_precious_glob v)) || not (is_private ask v)) then begin
@@ -174,8 +174,8 @@ struct
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
-    (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var st.cpa st
+    (* We fold over the local state, and side effect the globals *)
+    CPA.fold side_var st.cpa st
 end
 
 module Protection =
@@ -505,8 +505,8 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     let privates = sync_privates reason ask in
-    (* For each global variable, we create the diff *)
-    let add_var (v: varinfo) (value) (st: BaseComponents (D).t) =
+    (* For each global variable, we create the side effect *)
+    let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ask v then
@@ -528,8 +528,8 @@ struct
       if M.tracing then M.traceu "globalize" "Done!\n";
       res
     in
-    (* We fold over the local state, and collect the globals *)
-    CPA.fold add_var st.cpa st
+    (* We fold over the local state, and side effect the globals *)
+    CPA.fold side_var st.cpa st
 
   let threadenter = old_threadenter
 end
