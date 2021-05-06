@@ -4,7 +4,7 @@ open Deriving.Cil
 open Pretty
 
 module GU = Goblintutil
-module ID = IntDomain.FlatPureIntegers
+module ID = IntDomain.Flattened
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
 module PS = SetDomain.ToppedSet (Exp.LockingPattern) (struct let topname = "All" end)

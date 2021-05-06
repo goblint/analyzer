@@ -333,7 +333,7 @@ struct
       let is_error_handler = env.pname = pname_ErrorHandler in
       let eval_int exp =
         match ctx.ask (Queries.EvalInt exp) with
-        | Int i -> i
+        | Int (`Lifted i) -> i
         | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "^f.vname
       in
       let eval_str exp =
@@ -397,7 +397,7 @@ struct
       (* Partition *)
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
           match ctx.ask (Queries.EvalInt mode) with
-          | Int i ->
+          | Int (`Lifted i) ->
             let pm = partition_mode_of_enum @@ Int64.to_int i in
             if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (show_partition_mode_opt pm);
             if mode_is_multi (Pmo.of_int i) then (
@@ -497,7 +497,7 @@ struct
         let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
         let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
         begin match name, entry_point, pri, per, cap with
-          | Str name, LvalSet ls, Int pri, Int per, Int cap when not (Queries.LS.is_top ls)
+          | Str name, LvalSet ls, Int (`Lifted pri), Int (`Lifted per), Int (`Lifted cap) when not (Queries.LS.is_top ls)
                                                                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
@@ -633,7 +633,7 @@ struct
     match q with
     | Queries.Priority _ ->
       if Pri.is_int d.pri then
-        Int (Option.get @@ Pri.to_int d.pri)
+        Int (Queries.ID.of_int @@ Option.get @@ Pri.to_int d.pri)
       else if Pri.is_top d.pri then Queries.Result.top q else Queries.Result.bot q (* TODO: remove bot *)
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)

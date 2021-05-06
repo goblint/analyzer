@@ -19,7 +19,7 @@ struct
 
   let eval_int (ask: Queries.ask) exp =
     match ask.f (Queries.EvalInt exp) with
-    | Int l -> Some l
+    | Int (`Lifted l) -> Some l
     | _      -> None
 
   (* transfer functions *)

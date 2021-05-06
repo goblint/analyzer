@@ -368,7 +368,7 @@ struct
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then Int(INV.to_int inv |> Option.get |> BI.to_int64)
+      then Int(INV.to_int inv |> Option.get |> BI.to_int64 |> Queries.ID.of_int)
       else Queries.Result.top q
     | _ -> Queries.Result.top q
 

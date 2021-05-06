@@ -826,7 +826,7 @@ struct
       end
     | Q.EvalInt e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | `Int i when ID.is_int i -> Int (to_int (Option.get (ID.to_int i)))
+        | `Int i when ID.is_int i -> Int (Queries.ID.of_int (to_int (Option.get (ID.to_int i))))
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
         | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); Queries.Result.top q
       end
@@ -841,7 +841,7 @@ struct
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          (match ID.to_int d with Some i -> Int (to_int i) | None -> Queries.Result.top q)
+          (match ID.to_int d with Some i -> Int (Queries.ID.of_int (to_int i)) | None -> Queries.Result.top q)
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -853,7 +853,7 @@ struct
           let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> Int (to_int i) | None -> Queries.Result.top q)
+           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> Int (Queries.ID.of_int (to_int i)) | None -> Queries.Result.top q)
            | _ -> Queries.Result.top q)
         | _ -> Queries.Result.top q
       end
