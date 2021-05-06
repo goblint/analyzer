@@ -303,7 +303,7 @@ struct
   let threadenter ctx lval f args = [D.top ()]
   let exitstate  v = D.top ()
 
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let rec getSumAndDiffForVars exp1 exp2 =
       let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int oct_ik (BI.of_int64 c))) x in
       match exp1, exp2 with
@@ -327,6 +327,7 @@ struct
           sum, BatOption.map (OctagonDomain.INV.mul (INV.of_int oct_ik (BI.of_int64 Int64.minus_one))) diff
       | _ -> None, None
     in
+    let open Queries in
     match q with
     | Queries.MustBeEqual (exp1,exp2) ->
       begin
@@ -334,10 +335,10 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
-            | (Some i) -> `MustBool (BI.equal BI.zero i)
-            | _ -> `MustBool false
+            | (Some i) -> MustBool (BI.equal BI.zero i)
+            | _ -> MustBool false
           end
-        | _ -> `MustBool false
+        | _ -> MustBool false
       end
     | Queries.MayBeEqual (exp1,exp2) ->
       begin
@@ -345,11 +346,11 @@ struct
         | _, Some(x) ->
           begin
             if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)) then
-              `MayBool false
+              MayBool false
             else
-              `MayBool true
+              MayBool true
           end
-        | _ -> `MayBool true
+        | _ -> MayBool true
       end
     | Queries.MayBeLess (exp1, exp2) ->
       (* TODO: Here the order of arguments actually matters, be careful *)
@@ -359,16 +360,16 @@ struct
           begin
             match OctagonDomain.INV.minimal x with
             | Some i when BI.compare i BI.zero >= 0 ->
-              `MayBool false
-            | _ -> `MayBool true
+              MayBool false
+            | _ -> MayBool true
           end
-        | _ -> `MayBool true
+        | _ -> MayBool true
       end
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then `Int(INV.to_int inv |> Option.get |> BI.to_int64)
-      else `Top
+      then Int(INV.to_int inv |> Option.get |> BI.to_int64)
+      else Top
     | _ -> Queries.Result.top ()
 
   let threadspawn ctx lval f args fctx = ctx.local

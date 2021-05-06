@@ -400,7 +400,7 @@ struct
   (* from thread*)
   let query_lv (ask: Queries.ask) exp =
     match ask.f (Queries.MayPointTo exp) with
-    | `LvalSet l when not (Queries.LS.is_top l) ->
+    | LvalSet l when not (Queries.LS.is_top l) ->
       Queries.LS.elements l
     | _ -> []
 
@@ -492,7 +492,7 @@ struct
   let add_type_access ctx fl loc ust flagstate (e,rw:exp * bool) =
     let eqset =
       match ctx.ask (Queries.EqualSet e) with
-      | `ExprSet es
+      | ExprSet es
         when not (Queries.ES.is_bot es)
         -> Queries.ES.elements es
       | _ -> [e]
@@ -565,16 +565,16 @@ struct
       in
       List.iter dispatch accessed
 
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-      `Int (Int64.of_int pry)
-    | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
+      Int (Int64.of_int pry)
+    | Queries.Priority vname -> begin try Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
-        `MayBool false
+        MayBool false
       else
         let off =
           (*         if !FlagModes.Spec.flag_list = [] then begin *)
@@ -586,7 +586,7 @@ struct
           (*             let flagstate = get_flags ctx.presub in *)
           (*             offpry_flags flagstate v *)
           (*           end *)
-        in `MayBool (off > pry)
+        in MayBool (off > pry)
     | Queries.CurrentLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
       M.query ctx q
@@ -622,7 +622,7 @@ struct
         Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
       in
       match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
-      | `LvalSet a when not (Queries.LS.is_top a) ->
+      | LvalSet a when not (Queries.LS.is_top a) ->
         let to_accs (v,o) xs =
           Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs
         in
@@ -663,10 +663,10 @@ struct
     in
     (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
     match a.f (Queries.Regions exp) with
-    | `Bot ->
+    | Bot ->
       (*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local"); *)
       [] (*List.filter is_unknown (accs [])*)
-    | `LvalSet regs ->
+    | LvalSet regs ->
       (*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
       accs (Queries.LS.elements regs)
     | _ -> accs []
@@ -693,18 +693,19 @@ struct
   let access_byval a (rw: bool) (exps: exp list): accesses =
     List.concat (List.map (access_one_top a rw) exps)
 
+  (* TODO: unused? remove? *)
   let access_reachable ask (exps: exp list) =
     (* Find the addresses reachable from some expression, and assume that these
      * can all be written to. *)
     let do_exp e =
       match ask (Queries.ReachableFrom e) with
-      | `LvalSet a when not (Queries.LS.is_top a)
+      | Queries.LvalSet a when not (Queries.LS.is_top a)
                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
         let to_extra (v,o) xs =
           if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
             Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
         Queries.LS.fold to_extra a []
-      | `Bot -> []
+      | Bot -> []
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> [Unknown (e,true)]
     in

@@ -9,8 +9,8 @@ open Analyses
 let is_multi (ask: Queries.ask): bool =
   if !GU.global_initialization then false else
   match ask.f Queries.MustBeSingleThreaded with
-  | `MustBool x -> not x
-  | `Top -> true
+  | MustBool x -> not x
+  | Top -> true
   | _ -> failwith "ThreadFlag.is_multi"
 
 
@@ -69,15 +69,15 @@ struct
       (* kill access when single threaded *)
       (Access.LSSSet.empty (), es)
 
-  let query ctx (type a) (x: a Queries.t) =
+  let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeSingleThreaded -> `MustBool (not (Flag.is_multi ctx.local))
-    | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
+    | Queries.MustBeSingleThreaded -> MustBool (not (Flag.is_multi ctx.local))
+    | Queries.MustBeUniqueThread -> MustBool (not (Flag.is_bad ctx.local))
     (* This used to be in base but also commented out. *)
-    (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
+    (* | Queries.MayBePublic _ -> MayBool (Flag.is_multi ctx.local) *)
     | Queries.PartAccess {exp; var_opt; write} ->
-      `PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> `Top
+      PartAccessResult (part_access ctx exp var_opt write)
+    | _ -> Top
 
   let threadenter ctx lval f args =
     if not (is_multi (Analyses.ask_of_ctx ctx)) then

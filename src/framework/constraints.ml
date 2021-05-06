@@ -120,7 +120,7 @@ struct
     let d, diff = S.sync (conv ctx) reason in
     d, diff
 
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
       let g i (n, c, j) e = f i (n, Obj.repr (C.lift (Obj.obj c)), j) e in
@@ -227,7 +227,7 @@ struct
   let lift ctx d = (d, snd ctx.local)
   let lift_start_level d = (d, !start_level)
 
-  let query' ctx (type a) (q: a Queries.t) =
+  let query' ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity   S.query  (fun x -> x q)
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
@@ -272,12 +272,12 @@ struct
       let d',_ = combine' ctx r fe f args fc es in
       (d', l)
 
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.EvalFunvar e ->
       let (d,l) = ctx.local in
       if leq0 l then
-        `LvalSet (Queries.LS.empty ())
+        LvalSet (Queries.LS.empty ())
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
@@ -485,8 +485,8 @@ struct
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
 
-  let query ctx (type a) (q: a Queries.t) =
-    lift_fun ctx identity S.query  (fun (x) -> x q)            `Bot
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    lift_fun ctx identity S.query  (fun (x) -> x q)            Bot
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
   let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
@@ -690,8 +690,8 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
       match ctx.ask (Queries.EvalFunvar e) with
-      | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
-      | `Bot -> []
+      | LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
+      | Bot -> []
       | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
     in
     let one_function f =
@@ -1082,9 +1082,9 @@ struct
   let sync ctx reason =
     fold' ctx Spec.sync (fun h -> h reason) (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
 
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* join results so that they are sound for all paths *)
-    fold' ctx Spec.query identity (fun x f -> Queries.Result.join x (f q)) `Bot
+    fold' ctx Spec.query identity (fun x f -> Queries.Result.join x (f q)) Bot
 
   let enter ctx l f a =
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in

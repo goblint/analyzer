@@ -250,18 +250,18 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | `Int x -> [Int64.to_string x]
+          | Int x -> [Int64.to_string x]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
           match ctx.ask (Queries.EvalStr exp) with
-          | `Str x -> [x]
+          | Str x -> [x]
           | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
         in
         let eval_id exp =
           let module LS = Queries.LS in
           match ctx.ask (Queries.MayPointTo exp) with
-          | `LvalSet x when not (LS.is_top x) ->
+          | LvalSet x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
             if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
             let xs = LS.remove top_elt x |> LS.elements in
@@ -323,7 +323,7 @@ struct
           let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
           let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
           begin match name, entry_point, pri, per, cap with
-            | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
+            | Str name, LvalSet ls, Int pri, Int per, Int cap when not (Queries.LS.is_top ls)
                                                                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
               if M.tracing then M.tracel "extract_arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
@@ -336,7 +336,7 @@ struct
               let v,i = Res.get ("process", name) in
               assign_id pid' v;
               List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
-            | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local
+            | _ -> let f (type a) (x: a Queries.result) = Queries.Result.short 30 x in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local
           end
         | _ -> match Pml.special_fun fname with
           | None -> M.debug_each ("extract_arinc: unhandled function "^fname); ctx.local

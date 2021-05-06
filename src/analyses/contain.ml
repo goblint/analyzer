@@ -562,9 +562,10 @@ struct
     (*D.report ("is_bad "^(sprint 160 (d_exp () e))^" "^string_of_bool res);*)
     res
 
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    let open Queries in
     match q with
-    | Queries.EvalFunvar e -> `LvalSet (List.fold_left (fun xs x -> Queries.LS.add (x,`NoOffset) xs) (Queries.LS.empty ()) (eval_funvar ctx e))
+    | Queries.EvalFunvar e -> LvalSet (List.fold_left (fun xs x -> Queries.LS.add (x,`NoOffset) xs) (Queries.LS.empty ()) (eval_funvar ctx e))
     | _ -> Queries.Result.top ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

@@ -42,7 +42,7 @@ struct
 
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
-    | `LvalSet a when not (Queries.LS.is_top a) ->
+    | LvalSet a when not (Queries.LS.is_top a) ->
       let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
       Queries.LS.fold to_extra a []
     | _ ->
@@ -82,12 +82,13 @@ struct
   let access_byval a (rw: bool) (exps: exp list) =
     List.concat (List.map (access_one_byval a rw) exps)
 
+  (* TODO: unused? remove? *)
   let access_byref ask (exps: exp list) =
     (* Find the addresses reachable from some expression, and assume that these
      * can all be written to. *)
     let do_exp e =
       match ask (Queries.ReachableFrom e) with
-      | `LvalSet a when not (Queries.LS.is_top a) ->
+      | Queries.LvalSet a when not (Queries.LS.is_top a) ->
         let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
         Queries.LS.fold to_extra a []
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
@@ -199,7 +200,7 @@ struct
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
     match a.f (Queries.MayPointTo (AddrOf lv)) with
-    | `LvalSet a when Queries.LS.cardinal a = 1 ->  begin
+    | LvalSet a when Queries.LS.cardinal a = 1 ->  begin
         let var, ofs = Queries.LS.choose a in
         init_vo var (conv_offset ofs)
       end
@@ -225,7 +226,7 @@ struct
     let reachable =
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
-        | `LvalSet a when not (Queries.LS.is_top a) ->
+        | LvalSet a when not (Queries.LS.is_top a) ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra a []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)

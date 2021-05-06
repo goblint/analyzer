@@ -352,7 +352,7 @@ struct
         (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async), b'@b
       ) ((Dom.empty (), Sync.bot ()), [])
 
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
       Dom.iter' (fun x r ->
@@ -368,15 +368,15 @@ struct
         | Function _ -> () (* returns post-sync in FromSpec *)
         | _ -> assert (Sync.is_bot (snd ctx.local));
       end;
-      `Bot
+      Bot
     | Queries.IterVars f ->
       Dom.iter' (fun x r ->
           f (I.to_int x)
         ) (fst ctx.local);
-      `Bot
+      Bot
     | _ ->
       (* join results so that they are sound for all paths *)
-      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) `Bot
+      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) Bot
 
   let should_inline f =
     (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)

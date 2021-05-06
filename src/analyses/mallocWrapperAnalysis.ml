@@ -67,16 +67,17 @@ struct
       Hashtbl.add heap_vars newvar.vid ();
       newvar
 
-  let query ctx (type a) (q: a Q.t) =
+  let query ctx (type a) (q: a Q.t): a Queries.result =
+    let open Queries in
     match q with
     | Q.HeapVar ->
       let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
       | _ -> MyCFG.getLoc ctx.node in
-      `Varinfo (`Lifted (get_heap_var loc))
+      Varinfo (`Lifted (get_heap_var loc))
     | Q.IsHeapVar v ->
-      `MayBool (Hashtbl.mem heap_vars v.vid)
-    | _ -> `Top
+      MayBool (Hashtbl.mem heap_vars v.vid)
+    | _ -> Top
 
     let init () =
       List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");

@@ -129,11 +129,11 @@ module ExpEval : Transform.S =
         method private try_ask location expression =
           match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
             (* Evaluable: Definite *)
-          | Some `Int value -> Some (Some (value <> Int64.zero))
+          | Some (Int value) -> Some (Some (value <> Int64.zero))
             (* Evaluable: Inconclusive *)
-          | Some `Top -> Some None
+          | Some Top -> Some None
             (* Inapplicable: Unreachable *)
-          | Some `Bot -> None
+          | Some Bot -> None
             (* Inapplicable: Unlisted *)
           | None -> None
             (* Unexpected result *)

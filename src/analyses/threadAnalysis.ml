@@ -42,7 +42,7 @@ struct
   let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a.f (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a)
+    | LvalSet a when not (Queries.LS.is_top a)
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
@@ -73,19 +73,19 @@ struct
       List.fold_left join_thread ctx.local threads
     | _ -> ctx.local
 
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustBeUniqueThread -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
-        | `Lifted tid -> `MustBool (not (is_not_unique ctx tid))
-        | _ -> `MustBool false
+        | `Lifted tid -> MustBool (not (is_not_unique ctx tid))
+        | _ -> MustBool false
       end
     | Queries.MustBeSingleThreaded -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
-        | `Lifted {vname="main"; _} -> `MustBool (D.is_empty ctx.local)
-        | _ -> `MustBool false
+        | `Lifted {vname="main"; _} -> MustBool (D.is_empty ctx.local)
+        | _ -> MustBool false
       end
     | _ -> Queries.Result.top ()
 

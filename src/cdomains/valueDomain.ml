@@ -711,7 +711,7 @@ struct
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin
         match ask.f (Q.MayPointTo (Lval lval)) with
-        | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
+        | LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with
           | (var,`Index (i,`NoOffset)) when Basetype.CilExp.compareExp i Cil.zero = 0 && var.vid = arr_start_var.vid ->

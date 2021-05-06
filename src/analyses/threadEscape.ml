@@ -11,8 +11,8 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
     false (* Cannot have escaped without taking address. Override provides extra precision for degenerate ask in base eval_exp used for partitioned arrays. *)
   else
     match ask.f (Queries.MayEscape v) with
-    | `MayBool b -> b
-    | `Top ->
+    | MayBool b -> b
+    | Top ->
       M.warn @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
       true
     | _ -> failwith "ThreadEscape.has_escaped"
@@ -28,9 +28,10 @@ struct
   module G = Lattice.Unit
 
   (* queries *)
-  let query ctx (type a) (q: a Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    let open Queries in
     match q with
-    | Queries.MayEscape v -> `MayBool (D.mem v ctx.local)
+    | Queries.MayEscape v -> MayBool (D.mem v ctx.local)
     | _ -> Queries.Result.top ()
 
   (* transfer functions *)
@@ -60,7 +61,7 @@ struct
 
   let reachable (ask: Queries.ask) e: D.t =
     match ask.f (Queries.ReachableFrom e) with
-    | `LvalSet a when not (Queries.LS.is_top a) ->
+    | LvalSet a when not (Queries.LS.is_top a) ->
       (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
       let to_extra (v,o) set = D.add v set in
       Queries.LS.fold to_extra a (D.empty ())

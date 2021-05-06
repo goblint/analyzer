@@ -70,10 +70,10 @@ end
 let is_private (ask: Queries.ask) (lp:ListPtr.t) =
   let check v =
     match ask.f Queries.MustBeSingleThreaded with
-    | `Bot | `MustBool true -> true
+    | Bot | MustBool true -> true
     | _ ->
       match ask.f (Queries.MayBePublic {global=v; write=false})  with
-      | `Bot | `MayBool false -> true
+      | Bot | MayBool false -> true
       | _ -> false
   in
   match lp with

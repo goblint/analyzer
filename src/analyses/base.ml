@@ -76,7 +76,7 @@ struct
 
   let heap_var ctx =
     let info = match (ctx.ask Q.HeapVar) with
-      | `Varinfo (`Lifted vinfo) -> vinfo
+      | Varinfo (`Lifted vinfo) -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
 
@@ -279,7 +279,7 @@ struct
     let binop op e1 e2 =
       let equality () =
         match ask.f (Q.MustBeEqual (e1,e2)) with
-        | `MustBool true ->
+        | MustBool true ->
           if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
           Some true
         | _ -> None
@@ -795,7 +795,7 @@ struct
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
   let eval_exp x (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
-    let knownothing = { Queries.f = fun (type a) (q: a Queries.t) -> `Top } in (* our version of ask *)
+    let knownothing = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Top } in (* our version of ask *)
     let gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
     match (eval_rv knownothing gs x exp) with
     | `Int x -> ValueDomain.ID.to_int x
@@ -815,20 +815,20 @@ struct
 
   (* interpreter end *)
 
-  let query ctx (type a) (q: a Q.t) =
+  let query ctx (type a) (q: a Q.t): a Q.result =
     let to_int = BI.to_int64 in
     match q with
     | Q.EvalFunvar e ->
       begin
         let fs = eval_funvar ctx e in
         (*          Messages.report ("Base: I should know it! "^string_of_int (List.length fs));*)
-        `LvalSet (List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs)
+        LvalSet (List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs)
       end
     | Q.EvalInt e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | `Int i when ID.is_int i -> `Int (to_int (Option.get (ID.to_int i)))
-        | `Bot   -> `Bot
-        | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); `Top
+        | `Int i when ID.is_int i -> Int (to_int (Option.get (ID.to_int i)))
+        | `Bot   -> Bot
+        | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); Top
       end
     | Q.EvalLength e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
@@ -841,9 +841,9 @@ struct
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          (match ID.to_int d with Some i -> `Int (to_int i) | None -> `Top)
-        | `Bot -> `Bot
-        | _ -> `Top
+          (match ID.to_int d with Some i -> Int (to_int i) | None -> Top)
+        | `Bot -> Bot
+        | _ -> Top
       end
     | Q.BlobSize e -> begin
         let p = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
@@ -853,52 +853,52 @@ struct
           let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> `Int (to_int i) | None -> `Top)
-           | _ -> `Top)
-        | _ -> `Top
+           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> Int (to_int i) | None -> Top)
+           | _ -> Top)
+        | _ -> Top
       end
     | Q.MayPointTo e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
           let s = addrToLvalSet a in
           if AD.mem Addr.UnknownPtr a
-          then `LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
-          else `LvalSet s
-        | `Bot -> `Bot
-        | _ -> `Top
+          then LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
+          else LvalSet s
+        | `Bot -> Bot
+        | _ -> Top
       end
     | Q.ReachableFrom e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | `Top -> `Top
-        | `Bot -> `Bot
+        | `Top -> Top
+        | `Bot -> Bot
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
-          `LvalSet (Q.LS.top ())
+          LvalSet (Q.LS.top ())
         | `Address a ->
           let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a] ctx.global ctx.local) in
           let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
-          `LvalSet addrs
-        | _ -> `LvalSet (Q.LS.empty ())
+          LvalSet addrs
+        | _ -> LvalSet (Q.LS.empty ())
       end
     | Q.ReachableUkTypes e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | `Top -> `Top
-        | `Bot -> `Bot
+        | `Top -> Top
+        | `Bot -> Bot
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
-          `TypeSet (Q.TS.top ())
+          TypeSet (Q.TS.top ())
         | `Address a ->
-          `TypeSet (reachable_top_pointers_types ctx a)
-        | _ -> `TypeSet (Q.TS.empty ())
+          TypeSet (reachable_top_pointers_types ctx a)
+        | _ -> TypeSet (Q.TS.empty ())
       end
     | Q.EvalStr e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         (* exactly one string in the set (works for assignments of string constants) *)
         | `Address a when List.length (AD.to_string a) = 1 -> (* exactly one string *)
-          `Str (List.hd (AD.to_string a))
+          Str (List.hd (AD.to_string a))
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
           M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.short 80 a;
-          `Top
+          Top
         | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
           (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
@@ -907,15 +907,15 @@ struct
               let v, offs = Q.LS.choose @@ addrToLvalSet a in
               let ciloffs = Lval.CilLval.to_ciloffs offs in
               let lval = Var v, ciloffs in
-              (try `Str (Bytes.to_string (Hashtbl.find char_array lval))
-               with Not_found -> `Top)
+              (try Str (Bytes.to_string (Hashtbl.find char_array lval))
+               with Not_found -> Top)
             | _ -> (* what about ISChar and IUChar? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
-              `Top
+              Top
           end
         | x ->
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
-          `Top
+          Top
       end
     | Q.MustBeEqual (e1, e2) -> begin
         let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
@@ -923,10 +923,10 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match ID.to_int i1, ID.to_int i2 with
-            | Some i1', Some i2' when i1' = i2' -> `MustBool true
-            | _ -> `MustBool false
+            | Some i1', Some i2' when i1' = i2' -> MustBool true
+            | _ -> MustBool false
             end
-        | _ -> `MustBool false
+        | _ -> MustBool false
       end
     | Q.MayBeEqual (e1, e2) -> begin
         (* Printf.printf "---------------------->  may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
@@ -941,11 +941,11 @@ struct
             if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
               begin
                 (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
-                `MayBool false
+                MayBool false
               end
-            else `MayBool true
+            else MayBool true
           end
-        | _ -> `MayBool true
+        | _ -> MayBool true
       end
     | Q.MayBeLess (e1, e2) -> begin
         (* Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
@@ -958,12 +958,12 @@ struct
               if i1' >= i2' then
                 begin
                   (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
-                  `MayBool false
+                  MayBool false
                 end
-              else `MayBool true
-            | _ -> `MayBool true
+              else MayBool true
+            | _ -> MayBool true
           end
-        | _ -> `MayBool true
+        | _ -> MayBool true
       end
     | _ -> Q.Result.top ()
 
@@ -1013,7 +1013,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          let is_heap_var = match a.f (Q.IsHeapVar x) with `MayBool(true) -> true | _ -> false in
+          let is_heap_var = match a.f (Q.IsHeapVar x) with MayBool(true) -> true | _ -> false in
           if is_heap_var then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
@@ -1059,7 +1059,7 @@ struct
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
               match a.f (Q.MustBeEqual (e1, e2)) with
-              | `MustBool true -> true
+              | MustBool true -> true
               | _ -> false
             in
             let ik = Cilfacade.get_ikind (typeOf currentE') in
@@ -1648,7 +1648,7 @@ struct
       if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.CondVars exp));
       if M.tracing then M.traceu "branch" "Invariant enforced!\n";
       match ctx.ask (Queries.CondVars exp) with
-      | `ExprSet s when Queries.ES.cardinal s = 1 ->
+      | ExprSet s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
         M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint d_exp e;
         invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv

@@ -138,7 +138,7 @@ struct
 
   let is_private (a: Q.ask) (v: varinfo): bool =
     not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
-    || match a.f (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
+    || match a.f (Q.MayBePublic {global=v; write=false}) with MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     if invariant && not (is_private ask x) then (
@@ -184,30 +184,30 @@ struct
     (
       multi &&
       match ask.f (Q.MayBePublic {global=x; write=true}) with
-      | `MayBool x -> x
-      | `Top -> true
+      | MayBool x -> x
+      | Top -> true
       | _ -> failwith "Protection.is_unprotected"
     )
 
   let is_unprotected_without ask ?(write=true) x m: bool =
     ThreadFlag.is_multi ask &&
     match ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m}) with
-    | `MayBool x -> x
-    | `Top -> true
+    | MayBool x -> x
+    | Top -> true
     | _ -> failwith "Protection.is_unprotected_without"
 
   let is_protected_by ask m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
     match ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
-    | `MustBool x -> x
-    | `Top -> false
+    | MustBool x -> x
+    | Top -> false
     | _ -> failwith "Protection.is_protected_by"
 
   let is_atomic ask: bool =
     match ask Q.MustBeAtomic with
-    | `MustBool x -> x
-    | `Top -> false
+    | Q.MustBool x -> x
+    | Top -> false
     | _ -> failwith "Protection.is_atomic"
 end
 
@@ -479,7 +479,7 @@ struct
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
     not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
-    || match a.f (Q.MayBePublic {global=v; write=false}) with `MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
+    || match a.f (Q.MayBePublic {global=v; write=false}) with MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
   let is_private = is_invisible
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
@@ -499,7 +499,7 @@ struct
 
   let is_protected (a: Q.ask) (v: varinfo): bool =
     not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
-    || match a.f (Q.MayBePublic {global=v; write=true}) with `MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
+    || match a.f (Q.MayBePublic {global=v; write=true}) with MayBool tv -> not tv | _ -> false (* usual case where MayBePublic answers *)
 
   let sync ask getg (st: BaseComponents (D).t) reason =
     let privates = sync_privates reason ask in
@@ -682,7 +682,7 @@ struct
       Lockset.empty ()
     else
       match ask.f Queries.CurrentLockset with
-      | `LvalSet ls ->
+      | LvalSet ls ->
         Q.LS.fold (fun (var, offs) acc ->
             Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
           ) ls (Lockset.empty ())

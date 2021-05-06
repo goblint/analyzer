@@ -71,20 +71,20 @@ type _ t =
 (* [@@deriving to_yojson] *)
 
 
-type 'a result = [
-  | `Top
-  | `Int of ID.t
-  | `Str of string
-  | `LvalSet of LS.t
-  | `ExprSet of ES.t
-  | `ExpTriples of PS.t
-  | `TypeSet of TS.t
-  | `Varinfo of VI.t
-  | `MustBool of bool  (* true \leq false *)
-  | `MayBool of bool   (* false \leq true *)
-  | `PartAccessResult of PartAccessResult.t
-  | `Bot
-] [@@deriving to_yojson]
+type _ result =
+  | Top: 'a result
+  | Int: ID.t -> ID.t result
+  | Str: string -> string result
+  | LvalSet: LS.t -> LS.t result
+  | ExprSet: ES.t -> ES.t result
+  | ExpTriples: PS.t -> PS.t result
+  | TypeSet: TS.t -> TS.t result
+  | Varinfo: VI.t -> VI.t result
+  | MustBool: bool -> bool result  (* true \leq false *)
+  | MayBool: bool -> bool result   (* false \leq true *)
+  | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
+  | Bot: 'a result
+(* [@@deriving to_yojson] *)
 
 type ask = { f: 'a. 'a t -> 'a result }
 
@@ -96,195 +96,195 @@ struct
 
   let name () = "query result domain"
 
-  let bot () = `Bot
-  let is_bot x = x = `Bot
+  let bot () = Bot
+  let is_bot x = x = Bot
   let bot_name = "Bottom"
-  let top () = `Top
-  let is_top x = x = `Top
+  let top () = Top
+  let is_top x = x = Top
   let top_name = "Unknown"
 
-  let equal x y =
+  let equal (type a) (x: a result) (y: a result) =
     match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> ID.equal x y
-    | (`LvalSet x, `LvalSet y) -> LS.equal x y
-    | (`ExprSet x, `ExprSet y) -> ES.equal x y
-    | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
-    | (`TypeSet x, `TypeSet y) -> TS.equal x y
-    | (`Varinfo x, `Varinfo y) -> VI.equal x y
-    | (`MustBool x, `MustBool y) -> Bool.equal x y
-    | (`MayBool x, `MayBool y) -> Bool.equal x y
-    | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.equal x y
+    | (Top, Top) -> true
+    | (Bot, Bot) -> true
+    | (Int x, Int y) -> ID.equal x y
+    | (LvalSet x, LvalSet y) -> LS.equal x y
+    | (ExprSet x, ExprSet y) -> ES.equal x y
+    | (ExpTriples x, ExpTriples y) -> PS.equal x y
+    | (TypeSet x, TypeSet y) -> TS.equal x y
+    | (Varinfo x, Varinfo y) -> VI.equal x y
+    | (MustBool x, MustBool y) -> Bool.equal x y
+    | (MayBool x, MayBool y) -> Bool.equal x y
+    | (PartAccessResult x, PartAccessResult y) -> PartAccessResult.equal x y
     | _ -> false
 
-  let hash x =
+  let hash (type a) (x: a result) =
     match x with
-    | `Int n -> ID.hash n
-    | `LvalSet n -> LS.hash n
-    | `ExprSet n -> ES.hash n
-    | `ExpTriples n -> PS.hash n
-    | `TypeSet n -> TS.hash n
-    | `Varinfo n -> VI.hash n
-    | `PartAccessResult n -> PartAccessResult.hash n
-    (* `MustBool and `MayBool should work by the following *)
+    | Int n -> ID.hash n
+    | LvalSet n -> LS.hash n
+    | ExprSet n -> ES.hash n
+    | ExpTriples n -> PS.hash n
+    | TypeSet n -> TS.hash n
+    | Varinfo n -> VI.hash n
+    | PartAccessResult n -> PartAccessResult.hash n
+    (* MustBool and MayBool should work by the following *)
     | _ -> Hashtbl.hash x
 
-  let compare x y =
-    let constr_to_int x = match x with
-      | `Bot -> 0
-      | `Int _ -> 1
-      | `LvalSet _ -> 2
-      | `ExprSet _ -> 3
-      | `ExpTriples _ -> 4
-      | `Str _ -> 5
-      | `IntSet _ -> 6
-      | `TypeSet _ -> 7
-      | `Varinfo _ -> 8
-      | `MustBool _ -> 9
-      | `MayBool _ -> 10
-      | `PartAccessResult _ -> 11
-      | `Top -> 100
+  let compare (type a) (x: a result) (y: a result) =
+    let constr_to_int (x: a result) = match x with
+      | Bot -> 0
+      | Int _ -> 1
+      | LvalSet _ -> 2
+      | ExprSet _ -> 3
+      | ExpTriples _ -> 4
+      | Str _ -> 5
+      (* | `IntSet _ -> 6 *)
+      | TypeSet _ -> 7
+      | Varinfo _ -> 8
+      | MustBool _ -> 9
+      | MayBool _ -> 10
+      | PartAccessResult _ -> 11
+      | Top -> 100
     in match x,y with
-    | `Int x, `Int y -> ID.compare x y
-    | `LvalSet x, `LvalSet y -> LS.compare x y
-    | `ExprSet x, `ExprSet y -> ES.compare x y
-    | `ExpTriples x, `ExpTriples y -> PS.compare x y
-    | `TypeSet x, `TypeSet y -> TS.compare x y
-    | `Varinfo x, `Varinfo y -> VI.compare x y
-    | `MustBool x, `MustBool y -> Bool.compare x y
-    | `MayBool x, `MayBool y -> Bool.compare x y
-    | `PartAccessResult x, `PartAccessResult y -> PartAccessResult.compare x y
+    | Int x, Int y -> ID.compare x y
+    | LvalSet x, LvalSet y -> LS.compare x y
+    | ExprSet x, ExprSet y -> ES.compare x y
+    | ExpTriples x, ExpTriples y -> PS.compare x y
+    | TypeSet x, TypeSet y -> TS.compare x y
+    | Varinfo x, Varinfo y -> VI.compare x y
+    | MustBool x, MustBool y -> Bool.compare x y
+    | MayBool x, MayBool y -> Bool.compare x y
+    | PartAccessResult x, PartAccessResult y -> PartAccessResult.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
-  let pretty_f s () state =
+  let pretty_f s () (type a) (state: a result) =
     match state with
-    | `Int n ->  ID.pretty () n
-    | `Str s ->  text s
-    | `LvalSet n ->  LS.pretty () n
-    | `ExprSet n ->  ES.pretty () n
-    | `ExpTriples n ->  PS.pretty () n
-    | `TypeSet n -> TS.pretty () n
-    | `Varinfo n -> VI.pretty () n
-    | `MustBool n -> text (string_of_bool n)
-    | `MayBool n -> text (string_of_bool n)
-    | `PartAccessResult n -> PartAccessResult.pretty () n
-    | `Bot -> text bot_name
-    | `Top -> text top_name
+    | Int n ->  ID.pretty () n
+    | Str s ->  text s
+    | LvalSet n ->  LS.pretty () n
+    | ExprSet n ->  ES.pretty () n
+    | ExpTriples n ->  PS.pretty () n
+    | TypeSet n -> TS.pretty () n
+    | Varinfo n -> VI.pretty () n
+    | MustBool n -> text (string_of_bool n)
+    | MayBool n -> text (string_of_bool n)
+    | PartAccessResult n -> PartAccessResult.pretty () n
+    | Bot -> text bot_name
+    | Top -> text top_name
 
-  let short w state =
+  let short w (type a) (state: a result) =
     match state with
-    | `Int n ->  ID.short w n
-    | `Str s ->  s
-    | `LvalSet n ->  LS.short w n
-    | `ExprSet n ->  ES.short w n
-    | `ExpTriples n ->  PS.short w n
-    | `TypeSet n -> TS.short w n
-    | `Varinfo n -> VI.short w n
-    | `MustBool n -> string_of_bool n
-    | `MayBool n -> string_of_bool n
-    | `PartAccessResult n -> PartAccessResult.short w n
-    | `Bot -> bot_name
-    | `Top -> top_name
+    | Int n ->  ID.short w n
+    | Str s ->  s
+    | LvalSet n ->  LS.short w n
+    | ExprSet n ->  ES.short w n
+    | ExpTriples n ->  PS.short w n
+    | TypeSet n -> TS.short w n
+    | Varinfo n -> VI.short w n
+    | MustBool n -> string_of_bool n
+    | MayBool n -> string_of_bool n
+    | PartAccessResult n -> PartAccessResult.short w n
+    | Bot -> bot_name
+    | Top -> top_name
 
-  let isSimple x =
+  let isSimple (type a) (x: a result) =
     match x with
-    | `Int n ->  ID.isSimple n
-    | `LvalSet n ->  LS.isSimple n
-    | `ExprSet n ->  ES.isSimple n
-    | `ExpTriples n ->  PS.isSimple n
-    | `TypeSet n -> TS.isSimple n
-    | `Varinfo n -> VI.isSimple n
-    | `PartAccessResult n -> PartAccessResult.isSimple n
-    (* `MustBool and `MayBool should work by the following *)
+    | Int n ->  ID.isSimple n
+    | LvalSet n ->  LS.isSimple n
+    | ExprSet n ->  ES.isSimple n
+    | ExpTriples n ->  PS.isSimple n
+    | TypeSet n -> TS.isSimple n
+    | Varinfo n -> VI.isSimple n
+    | PartAccessResult n -> PartAccessResult.isSimple n
+    (* MustBool and MayBool should work by the following *)
     | _ -> true
 
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let leq x y =
+  let leq (type a) (x: a result) (y: a result) =
     match (x,y) with
-    | (_, `Top) -> true
-    | (`Top, _) -> false
-    | (`Bot, _) -> true
-    | (_, `Bot) -> false
-    | (`Int x, `Int y) -> ID.leq x y
-    | (`LvalSet x, `LvalSet y) -> LS.leq x y
-    | (`ExprSet x, `ExprSet y) -> ES.leq x y
-    | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
-    | (`TypeSet x, `TypeSet y) -> TS.leq x y
-    | (`Varinfo x, `Varinfo y) -> VI.leq x y
+    | (_, Top) -> true
+    | (Top, _) -> false
+    | (Bot, _) -> true
+    | (_, Bot) -> false
+    | (Int x, Int y) -> ID.leq x y
+    | (LvalSet x, LvalSet y) -> LS.leq x y
+    | (ExprSet x, ExprSet y) -> ES.leq x y
+    | (ExpTriples x, ExpTriples y) -> PS.leq x y
+    | (TypeSet x, TypeSet y) -> TS.leq x y
+    | (Varinfo x, Varinfo y) -> VI.leq x y
     (* TODO: should these be more like IntDomain.Booleans? *)
-    | (`MustBool x, `MustBool y) -> x == y || x
-    | (`MayBool x, `MayBool y) -> x == y || y
-    | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.leq x y
+    | (MustBool x, MustBool y) -> x == y || x
+    | (MayBool x, MayBool y) -> x == y || y
+    | (PartAccessResult x, PartAccessResult y) -> PartAccessResult.leq x y
     | _ -> false
 
-  let join x y =
+  let join (type a) (x: a result) (y: a result) =
     try match (x,y) with
-      | (`Top, _)
-      | (_, `Top) -> `Top
-      | (`Bot, x)
-      | (x, `Bot) -> x
-      | (`Int x, `Int y) -> `Int (ID.join x y)
-      | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.join x y)
-      | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.join x y)
-      | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
-      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.join x y)
-      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.join x y)
-      | (`MustBool x, `MustBool y) -> `MustBool (x && y)
-      | (`MayBool x, `MayBool y) -> `MayBool (x || y)
-      | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.join x y)
-      | _ -> `Top
-    with IntDomain.Unknown -> `Top
+      | (Top, _)
+      | (_, Top) -> Top
+      | (Bot, x)
+      | (x, Bot) -> x
+      | (Int x, Int y) -> Int (ID.join x y)
+      | (LvalSet x, LvalSet y) -> LvalSet (LS.join x y)
+      | (ExprSet x, ExprSet y) -> ExprSet (ES.join x y)
+      | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.join x y)
+      | (TypeSet x, TypeSet y) -> TypeSet (TS.join x y)
+      | (Varinfo x, Varinfo y) -> Varinfo (VI.join x y)
+      | (MustBool x, MustBool y) -> MustBool (x && y)
+      | (MayBool x, MayBool y) -> MayBool (x || y)
+      | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.join x y)
+      | _ -> Top
+    with IntDomain.Unknown -> Top
 
-  let meet x y =
+  let meet (type a) (x: a result) (y: a result) =
     try match (x,y) with
-      | (`Bot, _)
-      | (_, `Bot) -> `Bot
-      | (`Top, x)
-      | (x, `Top) -> x
-      | (`Int x, `Int y) -> `Int (ID.meet x y)
-      | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.meet x y)
-      | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.meet x y)
-      | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.meet x y)
-      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)
-      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.meet x y)
-      | (`MustBool x, `MustBool y) -> `MustBool (x || y)
-      | (`MayBool x, `MayBool y) -> `MayBool (x && y)
-      | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.meet x y)
-      | _ -> `Bot
-    with IntDomain.Error -> `Bot
+      | (Bot, _)
+      | (_, Bot) -> Bot
+      | (Top, x)
+      | (x, Top) -> x
+      | (Int x, Int y) -> Int (ID.meet x y)
+      | (LvalSet x, LvalSet y) -> LvalSet (LS.meet x y)
+      | (ExprSet x, ExprSet y) -> ExprSet (ES.meet x y)
+      | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.meet x y)
+      | (TypeSet x, TypeSet y) -> TypeSet (TS.meet x y)
+      | (Varinfo x, Varinfo y) -> Varinfo (VI.meet x y)
+      | (MustBool x, MustBool y) -> MustBool (x || y)
+      | (MayBool x, MayBool y) -> MayBool (x && y)
+      | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.meet x y)
+      | _ -> Bot
+    with IntDomain.Error -> Bot
 
-  let widen x y =
+  let widen (type a) (x: a result) (y: a result) =
     try match (x,y) with
-      | (`Top, _)
-      | (_, `Top) -> `Top
-      | (`Bot, x)
-      | (x, `Bot) -> x
-      | (`Int x, `Int y) -> `Int (ID.widen x y)
-      | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.widen x y)
-      | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
-      | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
-      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)
-      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.widen x y)
-      | (`MustBool x, `MustBool y) -> `MustBool (x && y)
-      | (`MayBool x, `MayBool y) -> `MustBool (x || y)
-      | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.widen x y)
-      | _ -> `Top
-    with IntDomain.Unknown -> `Top
+      | (Top, _)
+      | (_, Top) -> Top
+      | (Bot, x)
+      | (x, Bot) -> x
+      | (Int x, Int y) -> Int (ID.widen x y)
+      | (LvalSet x, LvalSet y) -> LvalSet (LS.widen x y)
+      | (ExprSet x, ExprSet y) -> ExprSet (ES.widen x y)
+      | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.widen x y)
+      | (TypeSet x, TypeSet y) -> TypeSet (TS.widen x y)
+      | (Varinfo x, Varinfo y) -> Varinfo (VI.widen x y)
+      | (MustBool x, MustBool y) -> MustBool (x && y)
+      | (MayBool x, MayBool y) -> MustBool (x || y)
+      | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.widen x y)
+      | _ -> Top
+    with IntDomain.Unknown -> Top
 
-  let narrow x y =
+  let narrow (type a) (x: a result) (y: a result): a result =
     match (x,y) with
-    | (`Int x, `Int y) -> `Int (ID.narrow x y)
-    | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.narrow x y)
-    | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)
-    | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
-    | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
-    | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.narrow x y)
-    | (`MustBool x, `MustBool y) -> `MustBool (x || y)
-    | (`MayBool x, `MayBool y) -> `MayBool (x && y)
-    | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.narrow x y)
+    | (Int x, Int y) -> Int (ID.narrow x y)
+    | (LvalSet x, LvalSet y) -> LvalSet (LS.narrow x y)
+    | (ExprSet x, ExprSet y) -> ExprSet (ES.narrow x y)
+    | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.narrow x y)
+    | (TypeSet x, TypeSet y) -> TypeSet (TS.narrow x y)
+    | (Varinfo x, Varinfo y) -> Varinfo (VI.narrow x y)
+    | (MustBool x, MustBool y) -> MustBool (x || y)
+    | (MayBool x, MayBool y) -> MayBool (x && y)
+    | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.narrow x y)
     | (x,_) -> x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
