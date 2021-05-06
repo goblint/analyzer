@@ -446,8 +446,7 @@ struct
             ; control_context = ctx.control_context
             ; context = (fun () -> ctx.context () |> assoc n |> obj)
             ; edge   = ctx.edge
-            (* ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q) *)
-            ; ask    = (fun (type a) (q: a Queries.t) -> failwith "ask")
+            ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
             ; emit   = (fun e -> emits := e :: !emits)
             ; presub = filter_presubs n ctx.local
             ; postsub= filter_presubs n post_all
@@ -465,8 +464,7 @@ struct
             ; control_context = octx.control_context
             ; context = (fun () -> octx.context () |> assoc n |> obj)
             ; edge   = octx.edge
-            (* ; ask    = (fun (type a) (q: a Queries.t) -> query octx q) *)
-            ; ask    = (fun (type a) (q: a Queries.t) -> failwith "ask")
+            ; ask    = (fun (type a) (q: a Queries.t) -> query octx q)
             ; emit   = (fun e -> emits := e :: !emits)
             ; presub = filter_presubs n octx.local
             ; postsub= filter_presubs n post_all
@@ -505,8 +503,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        (* ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q) *)
-        ; ask    = (fun (type a) (q: a Queries.t) -> failwith "ask")
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -527,7 +524,7 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  and query (ctx:(D.t, G.t, C.t) ctx) (type a) (q: a Queries.t): Queries.result =
+  and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> Queries.result = fun ctx q ->
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
