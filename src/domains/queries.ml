@@ -71,7 +71,7 @@ type _ t =
 (* [@@deriving to_yojson] *)
 
 
-type result = [
+type 'a result = [
   | `Top
   | `Int of ID.t
   | `Str of string
@@ -86,12 +86,13 @@ type result = [
   | `Bot
 ] [@@deriving to_yojson]
 
-type ask = { f: 'a. 'a t -> result }
+type ask = { f: 'a. 'a t -> 'a result }
 
-module Result: Lattice.S with type t = result =
+(* module Result: Lattice.S with type t = result = *)
+module Result =
 struct
   include Printable.Std
-  type t = result [@@deriving to_yojson]
+  (* type t = result [@@deriving to_yojson] *)
 
   let name () = "query result domain"
 
@@ -117,7 +118,7 @@ struct
     | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.equal x y
     | _ -> false
 
-  let hash (x:t) =
+  let hash x =
     match x with
     | `Int n -> ID.hash n
     | `LvalSet n -> LS.hash n

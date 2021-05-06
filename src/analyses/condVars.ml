@@ -77,7 +77,7 @@ struct
     | _ -> None
 
   (* queries *)
-  let query ctx (type a) (q: a Queries.t): Queries.result =
+  let query ctx (type a) (q: a Queries.t) =
     let d = ctx.local in
     let of_q: 'a. 'a Queries.t -> exp option = fun (type a) (q: a Queries.t) -> match q with Queries.CondVars e -> Some e | _ -> None in
     let rec of_expr tv = function

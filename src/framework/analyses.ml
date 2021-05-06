@@ -377,7 +377,7 @@ end
    It is not clear if we need pre-states, post-states or both on foreign analyses.
 *)
 type ('d,'g,'c) ctx =
-  { ask      : 'a. 'a Queries.t -> Queries.result
+  { ask      : 'a. 'a Queries.t -> 'a Queries.result
   ; emit     : Events.t -> unit
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
@@ -431,7 +431,7 @@ sig
   val call_descr : fundec -> C.t -> string
 
   val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t * (varinfo * G.t) list
-  val query : (D.t, G.t, C.t) ctx -> 'a Queries.t -> Queries.result
+  val query : (D.t, G.t, C.t) ctx -> 'a Queries.t -> 'a Queries.result
   val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
   val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
   val branch: (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
