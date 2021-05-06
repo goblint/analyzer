@@ -1247,6 +1247,7 @@ struct
           List.filter (fun v -> Set.mem (typeSig (AD.get_type v)) typeSigs) reachable_vars
       )
       in
+      M.trace "update" "Reachabel vars have cardinality >= %s \n" (string_of_int @@ List.length reachable_written_vars);
       let f (st, addr_list) (addr: address) =
         let sa = get_symbolic_address ask gs addr fun_st in
         let typ = AD.get_type addr in
@@ -1278,6 +1279,7 @@ struct
       done;
       !st
     in
+    M.tracel "update" "Updating with %d args.\n" (List.length args);
     List.fold (fun st (v: address) -> update_reachable_written_var ask v gs st fun_st lvals) st args
 
   let rem_many a (st: store) (v_list: varinfo list): store =
@@ -1938,16 +1940,17 @@ struct
 
   (* Variation of the above for yet another purpose, uhm, code reuse? *)
   let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) =
-    let do_exp e =
-      match eval_rv ask gs st e with
+    let rec do_value = function
       | `Address a when AD.equal a AD.null_ptr -> []
       | `Address a when not (AD.is_top a) ->
         let rble = reachable_vars ask [a] gs st in
         if M.tracing then
           M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
         rble
-      | _-> []
+      | `Struct s -> ValueDomain.Structs.fold (fun f v acc -> List.append (do_value v) acc) s []
+      | _ -> []
     in
+    let do_exp e = do_value (eval_rv ask gs st e) in
     List.concat (List.map do_exp exps)
 
   (** Library analysis: Initialization of a variable value with a symbolic memory block representation. *)
