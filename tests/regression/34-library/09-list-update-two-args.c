@@ -7,6 +7,8 @@ typedef struct list {
 
 int update_list(list_t *list){
     list_t *new_node = malloc(sizeof(list_t));
+    new_node->val = 5;
+    new_node->next = new_node;
     list->val = 3;
     list->next = new_node;
     return 0;

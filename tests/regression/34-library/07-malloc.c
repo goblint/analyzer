@@ -5,6 +5,7 @@
 
 void foo(int **ptr){
     int *p = malloc(sizeof(int));
+    *p = 23;
     *ptr = p;
 }
 
