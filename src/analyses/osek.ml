@@ -663,7 +663,7 @@ struct
     in
     (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
     match a.f (Queries.Regions exp) with
-    | LvalSet regs ->
+    | LvalSet regs when not (Queries.LS.is_top regs) ->
       (*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
       accs (Queries.LS.elements regs)
     | _ -> accs []
