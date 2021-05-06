@@ -114,12 +114,12 @@ struct
     | MayBeThreadReturn -> MayBool false
     | MayBeEqual _ -> MayBool false
     | MayBeLess _ -> MayBool false
+    | IsHeapVar _ -> MayBool false (* TODO: is must? *)
     | MustBeProtectedBy _ -> MustBool true
     | MustBeAtomic -> MustBool true
     | MustBeSingleThreaded -> MustBool true
     | MustBeUniqueThread -> MustBool true
     | MustBeEqual _ -> MustBool true
-    | IsHeapVar _ -> MustBool true (* TODO: is must? *)
     | Priority _ -> Int (ID.bot ())
     | EvalInt _ -> Int (ID.bot ())
     | EvalLength _ -> Int (ID.bot ())
@@ -151,12 +151,12 @@ struct
     | MayBeThreadReturn -> MayBool true
     | MayBeEqual _ -> MayBool true
     | MayBeLess _ -> MayBool true
+    | IsHeapVar _ -> MayBool true (* TODO: is must? *)
     | MustBeProtectedBy _ -> MustBool false
     | MustBeAtomic -> MustBool false
     | MustBeSingleThreaded -> MustBool false
     | MustBeUniqueThread -> MustBool false
     | MustBeEqual _ -> MustBool false
-    | IsHeapVar _ -> MustBool false (* TODO: is must? *)
     | Priority _ -> Int (ID.top ())
     | EvalInt _ -> Int (ID.top ())
     | EvalLength _ -> Int (ID.top ())
@@ -329,7 +329,25 @@ struct
       | (MayBool x, MayBool y) -> MayBool (x && y)
       | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.meet x y)
       | Unit, Unit -> Unit
-      | _ -> failwith "Result.bot"
+
+      | Str x, Str y -> failwith "Result.meet Str"
+      | MustBool _, MayBool _
+      | MayBool _, MustBool _ -> failwith "Result.meet Bool"
+      (* ocaml cannot refute these because all sets (although with different type)... *)
+      | LvalSet _, TypeSet _
+      | TypeSet _, LvalSet _
+      | LvalSet _, ExprSet _
+      | ExprSet _, LvalSet _
+      | LvalSet _, ExpTriples _
+      | ExpTriples _, LvalSet _
+      | ExprSet _, TypeSet _
+      | TypeSet _, ExprSet _
+      | ExpTriples _, TypeSet _
+      | TypeSet _, ExpTriples _
+      | ExprSet _, ExpTriples _
+      | ExpTriples _, ExprSet _ -> failwith "Result.meet Set"
+      | _, _ -> .
+      (* | _ -> failwith "Result.bot" *)
     with IntDomain.Error -> failwith "Result.bot"
 
   let widen (type a) (x: a result) (y: a result): a result =
