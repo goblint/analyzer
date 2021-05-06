@@ -6,6 +6,8 @@ To build a Goblint executable with debug information, run the following command 
 
 `make debug`
 
+This will create a file called `goblint.byte`.
+
 ## Debugging Goblint with VS Code
 
 To debug OCaml programs, you can use the command line interface of `ocamldebug` or make use of the Visual Studio Code
@@ -49,10 +51,9 @@ Note that the individual strings in `arguments` cannot contain spaces.
 To make sure that VS Code can find `ocamlearlybird`, run the following commands in the `analyzer` directory:
 
 ```
-eval $(opam env) // Setups envrionment variables
+eval $(opam env) // Sets up envrionment variables
 code .           // Starts VS Code in the current directory
 ```
 
-After VS Code has started, you can set breakpoints in the code. You can start debugging using the VS Code command palette with the command `"Debug: Start Debugging"`,
-or alternatively by pressing `F5`. Note that the Goblint execution is considerably slowed down in the debugger, so you have to be somewhat patient.
+After VS Code has started, you can set breakpoints in the Goblint code. You can start debugging using the VS Code command palette with the command `"Debug: Start Debugging"`, or alternatively by pressing `F5`. Note that the Goblint execution is considerably slowed down in the debugger, so you have to be somewhat patient.
 Of course, don't forget to rebuild the debuggable executable if you make changes to the code!
