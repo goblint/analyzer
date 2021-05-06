@@ -244,7 +244,6 @@ struct
                       (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
                     | _ -> default
                   end
-                | _ -> default
               end
             | _ -> default
           else
@@ -307,7 +306,6 @@ struct
             begin
               match ask.f (Q.EvalInt e') with
               | Int n -> Option.map BI.of_int64 (Q.ID.to_int n)
-              | _ -> None
             end
         |_ -> None
       in

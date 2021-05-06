@@ -136,8 +136,6 @@ module ExpEval : Transform.S =
           | Some (Int `Bot) -> None
             (* Inapplicable: Unlisted *)
           | None -> None
-            (* Unexpected result *)
-          | Some _ -> raise Exit
 
       end
 

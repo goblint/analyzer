@@ -152,10 +152,8 @@ struct
       end;
 
       (*partitions & locks*)
-      let open Access in
       match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
       | PartAccessResult (po, pd) -> (po, pd)
-      | _ -> failwith "MutexAnalysis.part_access"
     in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in

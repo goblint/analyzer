@@ -77,11 +77,9 @@ struct
         )
       | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
           | Int b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
-          | _      -> M.debug_each "EQUAL Bool Query: no result!"; false
         )
       | `Int a, e  -> (match ctx.ask (Queries.EvalInt e) with
           | Int b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
-          | _      -> M.debug_each "EQUAL Int Query: no result!"; false
         )
       | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
       | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false
@@ -310,7 +308,6 @@ struct
        (match Queries.ID.to_bool i with
         | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
         | _ -> M.debug_each "EvalInt: `Int no bool")
-     | x -> M.debug_each @@ "OTHER RESULT: "^dump_query_result x
     );
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
