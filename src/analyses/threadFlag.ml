@@ -63,13 +63,13 @@ struct
 
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
-    if is_multi ctx.ask then
+    if is_multi (Analyses.ask_of_ctx ctx) then
       (Access.LSSSet.singleton es, es)
     else
       (* kill access when single threaded *)
       (Access.LSSSet.empty (), es)
 
-  let query ctx = { Queries.f = fun (type a) (x: a Queries.t) ->
+  let query ctx (type a) (x: a Queries.t) =
     match x with
     | Queries.MustBeSingleThreaded -> `MustBool (not (Flag.is_multi ctx.local))
     | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
@@ -78,15 +78,14 @@ struct
     | Queries.PartAccess {exp; var_opt; write} ->
       `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> `Top
-    }
 
   let threadenter ctx lval f args =
-    if not (is_multi ctx.ask) then
+    if not (is_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     [create_tid f]
 
   let threadspawn ctx lval f args fctx =
-    if not (is_multi ctx.ask) then
+    if not (is_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     D.join ctx.local (Flag.get_main ())
 end

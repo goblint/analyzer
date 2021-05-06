@@ -108,9 +108,9 @@ struct
         List.fold_left (fun d lockAddr ->
           addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
           D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
-        ) ctx.local (eval_exp_addr ctx.ask (List.hd arglist))
+        ) ctx.local (eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist))
       | `Unlock ->
-        let lockAddrs = eval_exp_addr ctx.ask (List.hd arglist) in
+        let lockAddrs = eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist) in
         if List.length lockAddrs = 1 then
           let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
           D.filter (neg inLockAddrs) ctx.local

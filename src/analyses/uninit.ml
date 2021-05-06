@@ -246,11 +246,11 @@ struct
     Transfer functions
   *)
   let assign ctx (lval:lval) (rval:exp) : trans_out =
-    ignore (is_expr_initd ctx.ask rval ctx.local);
-    init_lval ctx.ask lval ctx.local
+    ignore (is_expr_initd (Analyses.ask_of_ctx ctx) rval ctx.local);
+    init_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : trans_out =
-    ignore (is_expr_initd ctx.ask exp ctx.local);
+    ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local);
     ctx.local
 
   let body ctx (f:fundec) : trans_out =
@@ -262,26 +262,26 @@ struct
       List.fold_right D.remove (to_addrs v) x in
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
-    | Some exp -> ignore (is_expr_initd ctx.ask exp ctx.local); nst
+    | Some exp -> ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local); nst
     | _ -> nst
 
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let nst = remove_unreachable ctx.ask args ctx.local in
+    let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     [ctx.local, nst]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : trans_out =
-    ignore (List.map (fun x -> is_expr_initd ctx.ask x ctx.local) args);
-    let cal_st = remove_unreachable ctx.ask args ctx.local in
+    ignore (List.map (fun x -> is_expr_initd (Analyses.ask_of_ctx ctx) x ctx.local) args);
+    let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in
     match lval with
     | None -> ret_st
-    | Some lv -> init_lval ctx.ask lv ret_st
+    | Some lv -> init_lval (Analyses.ask_of_ctx ctx) lv ret_st
 
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match lval with
-    | Some lv -> init_lval ctx.ask lv ctx.local
+    | Some lv -> init_lval (Analyses.ask_of_ctx ctx) lv ctx.local
     | _ -> ctx.local
 
   (*  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * D.t) list =

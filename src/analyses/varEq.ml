@@ -459,13 +459,13 @@ struct
 
   (* Just remove things that go out of scope. *)
   let return ctx exp fundec  =
-    let rm v = remove ctx.ask (Var v,NoOffset) in
+    let rm v = remove (Analyses.ask_of_ctx ctx) (Var v,NoOffset) in
     List.fold_right rm (fundec.sformals@fundec.slocals) ctx.local
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
   let assign ctx (lval:lval) (rval:exp) : D.t  =
     let rval = constFold true (stripCasts rval) in
-    add_eq ctx.ask lval rval ctx.local
+    add_eq (Analyses.ask_of_ctx ctx) lval rval ctx.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
@@ -476,8 +476,8 @@ struct
       | _ -> r
     in
     let assign_one_param st lv exp =
-      let rm = remove ctx.ask (Var lv, NoOffset) st in
-      add_eq ctx.ask (Var lv, NoOffset) exp rm
+      let rm = remove (Analyses.ask_of_ctx ctx) (Var lv, NoOffset) st in
+      add_eq (Analyses.ask_of_ctx ctx) (Var lv, NoOffset) exp rm
     in
     let f = Cilfacade.getdec f in
     let nst =
@@ -493,16 +493,16 @@ struct
     | true -> raise Analyses.Deadcode
     | false ->
       match lval with
-      | Some lval -> remove ctx.ask lval st2
+      | Some lval -> remove (Analyses.ask_of_ctx ctx) lval st2
       | None -> st2
 
   let remove_reachable ctx es =
-    match reachables ctx.ask es with
+    match reachables (Analyses.ask_of_ctx ctx) es with
     | None -> D.top ()
     | Some rs ->
       let remove_reachable1 es st =
         let remove_reachable2 e st =
-          if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
+          if reachable_from rs e && not (isConstant e) then remove_exp (Analyses.ask_of_ctx ctx) e st else st
         in
         D.B.fold remove_reachable2 es st
       in
@@ -581,16 +581,15 @@ struct
     | _ -> failwith "Unmatched pattern."
 
 
-  let query ctx = { Queries.f = fun (type a) (x: a Queries.t) ->
+  let query ctx (type a) (x: a Queries.t) =
     match x with
-    | Queries.MustBeEqual (e1,e2) when query_exp_equal ctx.ask e1 e2 ctx.global ctx.local ->
+    | Queries.MustBeEqual (e1,e2) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
       `MustBool true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
       (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
       `ExprSet r
     | _ -> `Top
-    }
 
 end
 

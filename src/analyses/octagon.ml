@@ -303,7 +303,7 @@ struct
   let threadenter ctx lval f args = [D.top ()]
   let exitstate  v = D.top ()
 
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     let rec getSumAndDiffForVars exp1 exp2 =
       let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int oct_ik (BI.of_int64 c))) x in
       match exp1, exp2 with
@@ -370,7 +370,6 @@ struct
       then `Int(INV.to_int inv |> Option.get |> BI.to_int64)
       else `Top
     | _ -> Queries.Result.top ()
-    }
 
   let threadspawn ctx lval f args fctx = ctx.local
 end

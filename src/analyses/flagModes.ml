@@ -31,12 +31,12 @@ struct
             if ((D.find f ctx.local) = `Bot) then begin
               ctx.local
             end else begin
-              match eval_int ctx.ask rval with
+              match eval_int (Analyses.ask_of_ctx ctx) rval with
               | Some ex -> D.add f (`Lifted (false,true,ex)) ctx.local
               | _ -> D.remove f ctx.local
             end
           end else begin
-            match eval_int ctx.ask rval with
+            match eval_int (Analyses.ask_of_ctx ctx) rval with
             | Some ex -> D.add f (`Lifted (false,true,ex)) ctx.local
             | _ -> D.remove f ctx.local
           end
@@ -57,7 +57,7 @@ struct
       | false, BinOp(Ne,Lval (Var f, NoOffset), ex,_) (*not neq*)
       | true, BinOp(Eq,ex,Lval (Var f, NoOffset),_)
       | true, BinOp(Eq,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> begin
-          let temp = eval_int ctx.ask ex in
+          let temp = eval_int (Analyses.ask_of_ctx ctx) ex in
           match temp with
           | Some value -> begin (*guard == value = (true true value*)
               try
@@ -97,7 +97,7 @@ struct
       | false, BinOp(Eq,Lval (Var f, NoOffset), ex,_) (*not eq*)
       | true, BinOp(Ne,ex,Lval (Var f, NoOffset),_)
       | true, BinOp(Ne,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> begin
-          let temp = eval_int ctx.ask ex in
+          let temp = eval_int (Analyses.ask_of_ctx ctx) ex in
           match temp with
           | Some value -> begin
               try

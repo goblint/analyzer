@@ -153,15 +153,15 @@ struct
 
   (* One step tf-s *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    warn_deref_exp ctx.ask ctx.local (Lval lval) ;
-    warn_deref_exp ctx.ask ctx.local rval;
-    match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval ctx.ask lval with
-    | Some rv , Some (Var vt,ot) when might_be_null ctx.ask rv ctx.global ctx.local ->
+    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval lval) ;
+    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local rval;
+    match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval (Analyses.ask_of_ctx ctx) lval with
+    | Some rv , Some (Var vt,ot) when might_be_null (Analyses.ask_of_ctx ctx) rv ctx.global ctx.local ->
       D.add (Addr.from_var_offset (vt,ot)) ctx.local
     | _ -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    warn_deref_exp ctx.ask ctx.local exp;
+    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local exp;
     ctx.local
 
   let body ctx (f:fundec) : D.t =
@@ -175,9 +175,9 @@ struct
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
     | Some ret ->
-      warn_deref_exp ctx.ask ctx.local ret;
+      warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local ret;
       begin match get_concrete_exp ret ctx.global ctx.local with
-        | Some ev when might_be_null ctx.ask ev ctx.global ctx.local ->
+        | Some ev when might_be_null (Analyses.ask_of_ctx ctx) ev ctx.global ctx.local ->
           D.add (return_addr ()) nst
         | _ -> nst  end
     | None -> nst
@@ -185,22 +185,22 @@ struct
   (* Function calls *)
 
   let eval_funvar ctx (fv:exp) : varinfo list =
-    warn_deref_exp ctx.ask ctx.local fv;
+    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local fv;
     []
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let nst = remove_unreachable ctx.ask args ctx.local in
-    may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
-    List.iter (warn_deref_exp ctx.ask ctx.local) args;
+    let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
+    may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
+    List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) args;
     [ctx.local,nst]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    let cal_st = remove_unreachable ctx.ask args ctx.local in
+    let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in
     let new_u =
       match lval, D.mem (return_addr ()) ret_st with
       | Some lv, true ->
-        begin match get_concrete_lval ctx.ask lv with
+        begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
           | Some (Var v,ofs) -> D.remove (return_addr ()) (D.add (Addr.from_var_offset (v,ofs)) ret_st)
           | _ -> ret_st end
       | _ -> ret_st
@@ -208,12 +208,12 @@ struct
     new_u
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
-    List.iter (warn_deref_exp ctx.ask ctx.local) arglist;
+    may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
+    List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) arglist;
     match f.vname, lval with
     | "malloc", Some lv ->
       begin
-        match get_concrete_lval ctx.ask lv with
+        match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
         | Some (Var v, offs) ->
           ctx.split ctx.local [Events.SplitBranch ((Lval lv), true)];
           ctx.split (D.add (Addr.from_var_offset (v,offs)) ctx.local) [Events.SplitBranch ((Lval lv), false)];

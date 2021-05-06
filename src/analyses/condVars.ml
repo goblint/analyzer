@@ -60,7 +60,7 @@ struct
   let (>?) = Option.bind
 
   let mayPointTo ctx exp =
-    match ctx.ask.f (Queries.MayPointTo exp) with
+    match ctx.ask (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
@@ -77,7 +77,7 @@ struct
     | _ -> None
 
   (* queries *)
-  let query ctx : Queries.ask = { f = fun (type a) (q: a Queries.t): Queries.result ->
+  let query ctx (type a) (q: a Queries.t): Queries.result =
     let d = ctx.local in
     let of_q: 'a. 'a Queries.t -> exp option = fun (type a) (q: a Queries.t) -> match q with Queries.CondVars e -> Some e | _ -> None in
     let rec of_expr tv = function
@@ -93,7 +93,6 @@ struct
     let f tv v = D.V.map (t tv) v |> fun v -> Some (`ExprSet v) in
     let of_clval (tv,k) = D.get k d >? f tv in
     of_q q >? of_expr true >? of_lval >? of_clval |? Queries.Result.top ()
-    }
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

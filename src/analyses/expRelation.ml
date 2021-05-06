@@ -51,7 +51,7 @@ struct
     | TFloat _ -> true
     | _ -> false
 
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     let lvalsEq l1 l2 = Basetype.CilExp.compareExp (Lval l1) (Lval l2) = 0 in (* == would be wrong here *)
     match q with
     | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
@@ -86,7 +86,6 @@ struct
         | _ -> `MayBool true
       end
     | _ -> Queries.Result.top ()
-    }
 
 
   (* below here is all the usual stuff an analysis requires, we don't do anything here *)

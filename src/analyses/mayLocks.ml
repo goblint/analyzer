@@ -54,7 +54,7 @@ struct
     (* unlocking logic *)
     let unlock remove_fn =
       match arglist with
-      | x::xs -> begin match  (eval_exp_addr ctx.ask x) with
+      | x::xs -> begin match  (eval_exp_addr (Analyses.ask_of_ctx ctx) x) with
           | [x] -> remove_fn x ctx.local
           | _ -> ctx.local
         end
@@ -62,7 +62,7 @@ struct
     in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
     | `Lock (failing, rw, return_value_on_success), _
-      -> lock ctx rw failing return_value_on_success ctx.ask lv arglist ctx.local
+      -> lock ctx rw failing return_value_on_success (Analyses.ask_of_ctx ctx) lv arglist ctx.local
     | `Unlock, _
       -> unlock remove_rw
 

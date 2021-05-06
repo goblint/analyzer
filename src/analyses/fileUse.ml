@@ -20,11 +20,10 @@ struct
   let warned_unclosed = ref Set.empty
 
   (* queries *)
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     match q with
     | Queries.MayPointTo exp -> M.debug_each @@ "query MayPointTo: "^sprint d_plainexp exp; Queries.Result.top ()
     | _ -> Queries.Result.top ()
-    }
 
   let query_lv (ask: Queries.ask) exp =
     match ask.f (Queries.MayPointTo exp) with
@@ -207,7 +206,7 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* is f a pointer to a function we look out for? *)
-    let f = eval_fv ctx.ask (Lval (Var f, NoOffset)) |? f in
+    let f = eval_fv (Analyses.ask_of_ctx ctx) (Lval (Var f, NoOffset)) |? f in
     let m = ctx.local in
     let loc = !Tracing.current_loc::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
@@ -219,7 +218,7 @@ struct
     in
     (* fold possible keys on domain *)
     let ret_all f lval =
-      let xs = D.keys_from_lval lval ctx.ask in (* get all possible keys for a given lval *)
+      let xs = D.keys_from_lval lval (Analyses.ask_of_ctx ctx) in (* get all possible keys for a given lval *)
       if List.length xs = 0 then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
       else if List.length xs = 1 then f (List.hd xs) m true
       (* else List.fold_left (fun m k -> D.join m (f k m)) m xs *)
@@ -255,7 +254,7 @@ struct
            D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
          | e::Const(CStr(mode))::[] ->
            (* ignore(printf "CIL: %a\n" d_plainexp e); *)
-           (match ctx.ask.f (Queries.EvalStr e) with
+           (match ctx.ask (Queries.EvalStr e) with
             | `Str filename -> D.fopen k loc filename mode m
             | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
            )
@@ -289,7 +288,7 @@ struct
       in ret_all f fp
     | _, "fprintf", fp::_::_ ->
       (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
-      print_query_lv ~msg:"fprintf(?, ...): " ctx.ask fp;
+      print_query_lv ~msg:"fprintf(?, ...): " (Analyses.ask_of_ctx ctx) fp;
       D.warn "first argument to printf must be a Lval"; m
     | _, "fprintf", _ ->
       D.warn "fprintf needs at least two arguments"; m

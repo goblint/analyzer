@@ -412,7 +412,7 @@ struct
   let eval_arg ctx (arg:exp) =
     match arg with
     | Lval (Var vinfo,_) -> vinfo
-    | _ -> (match eval_fv ctx.ask arg with
+    | _ -> (match eval_fv (Analyses.ask_of_ctx ctx) arg with
         | Some v -> v
         | None   -> failwith "cannot extract arg")
 
@@ -423,7 +423,7 @@ struct
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
     let ign_flag_filter acc tuple = not (AccLoc.equal acc (proj2_1 tuple)) in
     let remove_acc acc set = AccValSet.filter (ign_flag_filter acc) set in
-    if (BaseUtil.is_global ctx.ask v) then begin
+    if (BaseUtil.is_global (Analyses.ask_of_ctx ctx) v) then begin
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if !GU.should_warn then begin
           let new_acc = ((loc,fl,rv),ust,o) in
@@ -491,7 +491,7 @@ struct
       invariant if that fails then give up and become unsound. *)
   let add_type_access ctx fl loc ust flagstate (e,rw:exp * bool) =
     let eqset =
-      match ctx.ask.f (Queries.EqualSet e) with
+      match ctx.ask (Queries.EqualSet e) with
       | `ExprSet es
         when not (Queries.ES.is_bot es)
         -> Queries.ES.elements es
@@ -565,7 +565,7 @@ struct
       in
       List.iter dispatch accessed
 
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     match q with
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
@@ -589,9 +589,8 @@ struct
         in `MayBool (off > pry)
     | Queries.CurrentLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
-      (M.query ctx).f q
+      M.query ctx q
     | _ -> Queries.Result.top ()
-    }
 
   let rec conv_offset x =
     match x with
@@ -730,13 +729,13 @@ struct
     if !GU.global_initialization then
       ctx.local
     else
-      let b1 = access_one_byval ctx.ask true (Lval lval) in
-      let b2 = access_one_byval ctx.ask false rval in
+      let b1 = access_one_byval (Analyses.ask_of_ctx ctx) true (Lval lval) in
+      let b2 = access_one_byval (Analyses.ask_of_ctx ctx) false rval in
       add_accesses ctx (b1@b2) (get_flags ctx.presub) ctx.local;
       ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    let accessed = access_one_top ctx.ask false exp in
+    let accessed = access_one_top (Analyses.ask_of_ctx ctx) false exp in
     add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
     ctx.local
 
@@ -753,7 +752,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let m_st = match exp with
       | Some exp -> begin
-          let accessed = access_one_top ctx.ask false exp in
+          let accessed = access_one_top (Analyses.ask_of_ctx ctx) false exp in
           add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
           ctx.local
         end
@@ -774,7 +773,7 @@ struct
       m_st
 
   let eval_funvar ctx exp =
-    let read = access_one_top ctx.ask false exp in
+    let read = access_one_top (Analyses.ask_of_ctx ctx) false exp in
     add_accesses ctx read ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =

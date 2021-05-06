@@ -28,11 +28,10 @@ struct
   module G = Lattice.Unit
 
   (* queries *)
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     match q with
     | Queries.MayEscape v -> `MayBool (D.mem v ctx.local)
     | _ -> Queries.Result.top ()
-    }
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -77,7 +76,7 @@ struct
   let threadenter ctx lval f args =
     match args with
     | [ptc_arg] ->
-      let escaped = reachable ctx.ask ptc_arg in
+      let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
       [escaped]

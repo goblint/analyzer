@@ -22,7 +22,7 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
   let body ctx (f:fundec) : D.t =  ctx.local
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    let tid = ThreadId.get_current ctx.ask in
+    let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     begin match tid with
       | `Lifted tid -> ctx.sideg tid (false, TS.bot (), not (D.is_empty ctx.local))
       | _ -> ()
@@ -61,7 +61,7 @@ struct
     match LibraryFunctions.classify f.vname arglist with
     | `ThreadJoin (id, ret_var) ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
-      let ids = eval_exp_addr ctx.ask id in
+      let ids = eval_exp_addr (Analyses.ask_of_ctx ctx) id in
       let threads = List.concat (List.map ValueDomain.Addr.to_var_may ids) in
       let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
       let join_thread s tid =
@@ -73,28 +73,27 @@ struct
       List.fold_left join_thread ctx.local threads
     | _ -> ctx.local
 
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     match q with
     | Queries.MustBeUniqueThread -> begin
-        let tid = ThreadId.get_current ctx.ask in
+        let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
         | `Lifted tid -> `MustBool (not (is_not_unique ctx tid))
         | _ -> `MustBool false
       end
     | Queries.MustBeSingleThreaded -> begin
-        let tid = ThreadId.get_current ctx.ask in
+        let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
         | `Lifted {vname="main"; _} -> `MustBool (D.is_empty ctx.local)
         | _ -> `MustBool false
       end
     | _ -> Queries.Result.top ()
-    }
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
   let threadspawn ctx lval f args fctx =
-    let creator = ThreadId.get_current ctx.ask in
-    let tid = ThreadId.get_current_unlift fctx.ask in
+    let creator = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
+    let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx fctx) in
     let repeated = D.mem tid ctx.local in
     let eff =
       match creator with

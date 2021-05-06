@@ -36,7 +36,7 @@ struct
   let invalidate_lval ask lv st =
     invalidate_exp ask (mkAddrOf lv) st
 
-  let assign ctx lval rval = invalidate_lval ctx.ask lval ctx.local
+  let assign ctx lval rval = invalidate_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
   let return ctx exp fundec =
     List.fold_right D.remove_var (fundec.sformals@fundec.slocals) ctx.local
@@ -80,16 +80,16 @@ struct
   let special ctx lval f arglist =
     match LF.classify f.vname arglist with
     | `Lock _ ->
-      D.add ctx.ask (List.hd arglist) ctx.local
+      D.add (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
     | `Unlock ->
-      D.remove ctx.ask (List.hd arglist) ctx.local
+      D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
     | `Unknown fn when VarEq.safe_fn fn ->
       Messages.warn ("Assume that "^fn^" does not change lockset.");
       ctx.local
     | `Unknown x -> begin
         let st =
           match lval with
-          | Some lv -> invalidate_lval ctx.ask lv ctx.local
+          | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
           | None -> ctx.local
         in
         let write_args =
@@ -97,7 +97,7 @@ struct
           | Some fnc -> fnc `Write arglist
           | _ -> arglist
         in
-        List.fold_left (fun st e -> invalidate_exp ctx.ask e st) st write_args
+        List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
       end
     | _ ->
       ctx.local
@@ -181,14 +181,14 @@ struct
         xs
     in
     let do_perel e xs =
-      match get_all_locks ctx.ask e ctx.local with
+      match get_all_locks (Analyses.ask_of_ctx ctx) e ctx.local with
       | a
         when not (Queries.PS.is_top a || Queries.PS.is_empty a)
         -> Queries.PS.fold one_perelem a xs
       | _ -> xs
     in
     let do_lockstep e xs =
-      match same_unknown_index ctx.ask e ctx.local with
+      match same_unknown_index (Analyses.ask_of_ctx ctx) e ctx.local with
       | a
         when not (Queries.PS.is_top a || Queries.PS.is_empty a)
         -> Queries.PS.fold one_lockstep a xs
@@ -196,11 +196,11 @@ struct
     in
     let matching_exps =
       Queries.ES.meet
-        (match ctx.ask.f (Queries.EqualSet e) with
+        (match ctx.ask (Queries.EqualSet e) with
          | `ExprSet es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
            -> Queries.ES.add e es
          | _ -> Queries.ES.singleton e)
-        (match ctx.ask.f (Queries.Regions e) with
+        (match ctx.ask (Queries.Regions e) with
          | `LvalSet ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
                 try Queries.ES.add (Lval.CilLval.to_exp x) xs
@@ -219,12 +219,11 @@ struct
     (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
     (LSSSet.singleton (LSSet.empty ()), ls)
 
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     match q with
     | Queries.PartAccess {exp; var_opt; write} ->
       `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
-    }
 end
 
 let _ =

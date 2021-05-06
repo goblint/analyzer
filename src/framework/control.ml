@@ -214,7 +214,7 @@ struct
     (* analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
-        { ask     = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top () }
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top ())
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -304,7 +304,7 @@ struct
     let enter_with st fd =
       let st = st fd.svar in
       let ctx =
-        { ask     = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top () }
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top ())
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -339,7 +339,7 @@ struct
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
     let otherstate st v =
       let ctx =
-        { ask     = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top () }
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top ())
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -502,9 +502,7 @@ struct
         let ask loc =
           (* build a ctx for using the query system *)
           let rec ctx =
-            { ask    = { Queries.f = fun (type a) (q: a Queries.t) ->
-              (Spec.query ctx).f q
-            }
+            { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
             ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
             ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
             ; prev_node = MyCFG.dummy_node
@@ -523,6 +521,7 @@ struct
           in
           Spec.query ctx
         in
+        let ask loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask loc q } in
         List.iter (fun name -> Transform.run name ask file) active_transformations
       );
 

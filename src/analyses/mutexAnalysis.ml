@@ -153,7 +153,7 @@ struct
 
       (*partitions & locks*)
       let open Access in
-      match ctx.ask.f (PartAccess {exp=e; var_opt=vo; write=w}) with
+      match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
       | `PartAccessResult (po, pd) -> (po, pd)
       | `Top -> PartAccessResult.top ()
       | _ -> failwith "MutexAnalysis.part_access"
@@ -167,7 +167,7 @@ struct
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g =
-      match ctx.ask.f (Queries.MayEscape g) with
+      match ctx.ask (Queries.MayEscape g) with
       | `MayBool false -> false
       | _ -> true
     in
@@ -187,7 +187,7 @@ struct
       LS.iter f ls
     in
     let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
-    match ctx.ask.f reach_or_mpt with
+    match ctx.ask reach_or_mpt with
     | `Bot -> ()
     | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
       (* the case where the points-to set is non top and does not contain unknown values *)
@@ -196,7 +196,7 @@ struct
       (* the case where the points-to set is non top and contains unknown values *)
       let includes_uk = ref false in
       (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask.f (ReachableUkTypes e) with
+      begin match ctx.ask (ReachableUkTypes e) with
         | `Bot -> ()
         | `TypeSet ts when Queries.TS.is_top ts ->
           includes_uk := true
@@ -218,7 +218,7 @@ struct
 
   let access_one_top ?(force=false) ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    if force || ThreadFlag.is_multi ctx.ask then (
+    if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
       if reach || write then do_access ctx write reach conf exp;
       Access.distribute_access_exp (do_access ctx) false false conf exp;
@@ -229,7 +229,7 @@ struct
   let threadenter ctx lval f args = [Lockset.empty ()]
   let exitstate  v = Lockset.empty ()
 
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     let non_overlapping locks1 locks2 =
       let intersect = G.join locks1 locks2 in
       let tv = G.is_top intersect in
@@ -266,7 +266,6 @@ struct
     | Queries.PartAccess {exp; var_opt; write} ->
       `PartAccessResult (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top ()
-    }
 
 
   (** Transfer functions: *)
@@ -319,7 +318,7 @@ struct
             ) x
       in
       match arglist with
-      | x::xs -> begin match  (eval_exp_addr ctx.ask x) with
+      | x::xs -> begin match  (eval_exp_addr (Analyses.ask_of_ctx ctx) x) with
           | [] -> remove_nonspecial ctx.local
           | es -> List.fold_right remove_fn es ctx.local
         end
@@ -335,7 +334,7 @@ struct
     | `Lock (failing, rw, nonzero_return_when_aquired), _
       -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
       (*print_endline @@ "Mutex `Lock "^f.vname;*)
-      lock ctx rw failing nonzero_return_when_aquired ctx.ask lv arglist ctx.local
+      lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arglist ctx.local
     | `Unlock, "__raw_read_unlock"
     | `Unlock, "__raw_write_unlock"  ->
       let drop_raw_lock x =

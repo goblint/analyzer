@@ -193,10 +193,9 @@ struct
     proc_defs
 
   (* queries *)
-  let query ctx = { Queries.f = fun (type a) (q: a Queries.t) ->
+  let query ctx (type a) (q: a Queries.t) =
     match q with
     | _ -> Queries.Result.top ()
-    }
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -244,18 +243,18 @@ struct
         let pname = Pid.to_int pid |> Option.get |> Int64.to_int |> Pids.inv |> Option.get in
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
-          match ctx.ask.f (Queries.EvalInt exp) with
+          match ctx.ask (Queries.EvalInt exp) with
           | `Int x -> [Int64.to_string x]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
-          match ctx.ask.f (Queries.EvalStr exp) with
+          match ctx.ask (Queries.EvalStr exp) with
           | `Str x -> [x]
           | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
         in
         let eval_id exp =
           let module LS = Queries.LS in
-          match ctx.ask.f (Queries.MayPointTo exp) with
+          match ctx.ask (Queries.MayPointTo exp) with
           | `LvalSet x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
             if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";

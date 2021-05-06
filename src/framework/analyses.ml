@@ -399,6 +399,8 @@ exception Ctx_failure of string
 
 let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 
+let ask_of_ctx ctx: Queries.ask = { Queries.f = fun (type a) (q: a Queries.t) -> ctx.ask q }
+
 let swap_st ctx st =
   {ctx with local=st}
 
@@ -581,7 +583,7 @@ struct
 
   let skip x = x.local (* Just ignore. *)
 
-  let query _ = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top () }
+  let query _ (type a) (q: a Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)
 
   let event ctx _ _ = ctx.local
