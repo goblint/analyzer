@@ -338,7 +338,7 @@ struct
       in
       let eval_str exp =
         match ctx.ask (Queries.EvalStr exp) with
-        | Str s -> s
+        | Str (`Lifted s) -> s
         | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "^f.vname
       in
       let eval_id exp = mayPointTo ctx exp |> List.map (Option.get % get_by_id % fst) in
@@ -497,7 +497,7 @@ struct
         let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
         let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
         begin match name, entry_point, pri, per, cap with
-          | Str name, LvalSet ls, Int (`Lifted pri), Int (`Lifted per), Int (`Lifted cap) when not (Queries.LS.is_top ls)
+          | Str (`Lifted name), LvalSet ls, Int (`Lifted pri), Int (`Lifted per), Int (`Lifted cap) when not (Queries.LS.is_top ls)
                                                                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;

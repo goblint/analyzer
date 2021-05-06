@@ -255,7 +255,7 @@ struct
          | e::Const(CStr(mode))::[] ->
            (* ignore(printf "CIL: %a\n" d_plainexp e); *)
            (match ctx.ask (Queries.EvalStr e) with
-            | Str filename -> D.fopen k loc filename mode m
+            | Str (`Lifted filename) -> D.fopen k loc filename mode m
             | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
            )
          | xs ->

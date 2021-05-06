@@ -35,6 +35,8 @@ let iterprevvar_to_yojson _ = `Null
 type itervar = int -> unit
 let itervar_to_yojson _ = `Null
 
+module SD = Basetype.Strings
+
 type _ t =
   | EqualSet: exp -> ES.t t
   | MayPointTo: exp -> LS.t t
@@ -54,7 +56,7 @@ type _ t =
   | MayBeThreadReturn: bool t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
-  | EvalStr: exp -> string t
+  | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | PrintFullState: unit t
@@ -74,7 +76,7 @@ type _ t =
 type _ result =
   (* | Top: 'a result *)
   | Int: ID.t -> ID.t result
-  | Str: string -> string result
+  | Str: SD.t -> SD.t result
   | LvalSet: LS.t -> LS.t result
   | ExprSet: ES.t -> ES.t result
   | ExpTriples: PS.t -> PS.t result
@@ -126,7 +128,7 @@ struct
     | BlobSize _ -> Int (ID.bot ())
     | CurrentThreadId -> Varinfo (VI.bot ())
     | HeapVar -> Varinfo (VI.bot ())
-    | EvalStr _ -> Str (failwith "Result.bot Str")
+    | EvalStr _ -> Str (SD.bot ())
     | PrintFullState -> Unit
     | IterPrevVars _ -> Unit
     | IterVars _ -> Unit
@@ -163,7 +165,7 @@ struct
     | BlobSize _ -> Int (ID.top ())
     | CurrentThreadId -> Varinfo (VI.top ())
     | HeapVar -> Varinfo (VI.top ())
-    | EvalStr _ -> Str (failwith "Result.top Str")
+    | EvalStr _ -> Str (SD.top ())
     | PrintFullState -> Unit
     | IterPrevVars _ -> Unit
     | IterVars _ -> Unit
@@ -231,7 +233,7 @@ struct
   let pretty_f s () (type a) (state: a result) =
     match state with
     | Int n ->  ID.pretty () n
-    | Str s ->  text s
+    | Str s ->  SD.pretty () s
     | LvalSet n ->  LS.pretty () n
     | ExprSet n ->  ES.pretty () n
     | ExpTriples n ->  PS.pretty () n
@@ -247,7 +249,7 @@ struct
   let short w (type a) (state: a result) =
     match state with
     | Int n ->  ID.short w n
-    | Str s ->  s
+    | Str s ->  SD.short w s
     | LvalSet n ->  LS.short w n
     | ExprSet n ->  ES.short w n
     | ExpTriples n ->  PS.short w n
@@ -330,7 +332,7 @@ struct
       | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.meet x y)
       | Unit, Unit -> Unit
 
-      | Str x, Str y -> failwith "Result.meet Str"
+      | Str x, Str y -> Str (SD.meet x y)
       | MustBool _, MayBool _
       | MayBool _, MustBool _ -> failwith "Result.meet Bool"
       (* ocaml cannot refute these because all sets (although with different type)... *)

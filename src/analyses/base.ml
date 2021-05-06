@@ -893,7 +893,7 @@ struct
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         (* exactly one string in the set (works for assignments of string constants) *)
         | `Address a when List.length (AD.to_string a) = 1 -> (* exactly one string *)
-          Str (List.hd (AD.to_string a))
+          Str (`Lifted (List.hd (AD.to_string a)))
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
@@ -907,7 +907,7 @@ struct
               let v, offs = Q.LS.choose @@ addrToLvalSet a in
               let ciloffs = Lval.CilLval.to_ciloffs offs in
               let lval = Var v, ciloffs in
-              (try Str (Bytes.to_string (Hashtbl.find char_array lval))
+              (try Str (`Lifted (Bytes.to_string (Hashtbl.find char_array lval)))
                with Not_found -> Queries.Result.top q)
             | _ -> (* what about ISChar and IUChar? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)

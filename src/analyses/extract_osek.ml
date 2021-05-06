@@ -249,7 +249,7 @@ struct
         in
         let eval_str exp =
           match ctx.ask (Queries.EvalStr exp) with
-          | Str x -> [x]
+          | Str (`Lifted x) -> [x]
           | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
         in
         let eval_id exp =
