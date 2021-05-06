@@ -182,12 +182,11 @@ struct
           (match Hashtbl.find type_to_symbolic_address pointed_to_t with
             | v -> `Address v, l
             | exception Not_found ->
-                let heap_var = heap_var pointed_to_t  in
-                Hashtbl.add type_to_symbolic_address pointed_to_t heap_var;
+                let heap_var = heap_var pointed_to_t in
+                let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
+                Hashtbl.add type_to_symbolic_address pointed_to_t heap_var_or_NULL;
                 let (tval, l2) = arg_val pointed_to_t l  in
-                `Address (if (get_bool "exp.malloc.fail")
-                          then AD.join (heap_var) AD.null_ptr
-                          else heap_var), (heap_var, pointed_to_t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::l2)
+                `Address (heap_var_or_NULL), (heap_var, pointed_to_t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::l2)
         | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
         | TComp ({cstruct=false; _},_) -> `Union (Unions.top ()), l
         | TArray (ai, None, _) -> let v, adrs = arg_val ai l in
