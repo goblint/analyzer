@@ -188,7 +188,6 @@ struct
     in
     let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
     match ctx.ask reach_or_mpt with
-    | Bot -> ()
     | LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
       (* the case where the points-to set is non top and does not contain unknown values *)
       on_lvals ls false
@@ -197,7 +196,6 @@ struct
       let includes_uk = ref false in
       (* now we need to access all fields that might be pointed to: is this correct? *)
       begin match ctx.ask (ReachableUkTypes e) with
-        | Bot -> ()
         | TypeSet ts when Queries.TS.is_top ts ->
           includes_uk := true
         | TypeSet ts ->

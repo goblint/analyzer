@@ -13,8 +13,7 @@ let get_current (ask: Queries.ask): ThreadLifted.t =
   match ask.f Queries.CurrentThreadId with
   | Varinfo v -> v
   | Top -> `Top
-  | Bot -> `Bot
-  | _ -> failwith "ThreadId.get_current"
+  | _ -> .
 
 let get_current_unlift ask: Thread.t =
   match get_current ask with

@@ -158,7 +158,6 @@ struct
         ) else a
       in
       Queries.LS.elements a'
-    | Bot -> []
     | v ->
       M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty v;
       (*failwith "mayPointTo"*)
@@ -408,7 +407,6 @@ struct
             );
             add_action (SetPartitionMode pm)
             |> D.pmo (const @@ Pmo.of_int i)
-          | Bot -> failwith "DEAD"
           | _ -> D.top ()
         end
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
@@ -636,7 +634,7 @@ struct
     | Queries.Priority _ ->
       if Pri.is_int d.pri then
         Int (Option.get @@ Pri.to_int d.pri)
-      else if Pri.is_top d.pri then Top else Bot
+      else if Pri.is_top d.pri then Top else Queries.Result.bot q (* TODO: remove bot *)
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)
     | _ -> Queries.Result.top ()

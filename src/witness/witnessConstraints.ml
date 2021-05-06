@@ -368,15 +368,15 @@ struct
         | Function _ -> () (* returns post-sync in FromSpec *)
         | _ -> assert (Sync.is_bot (snd ctx.local));
       end;
-      Bot
+      Top
     | Queries.IterVars f ->
       Dom.iter' (fun x r ->
           f (I.to_int x)
         ) (fst ctx.local);
-      Bot
+      Top
     | _ ->
       (* join results so that they are sound for all paths *)
-      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) Bot
+      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) (Queries.Result.bot q)
 
   let should_inline f =
     (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)

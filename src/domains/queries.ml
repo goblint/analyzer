@@ -83,7 +83,7 @@ type _ result =
   | MustBool: bool -> bool result  (* true \leq false *)
   | MayBool: bool -> bool result   (* false \leq true *)
   | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
-  | Bot: 'a result
+  (* | Bot: 'a result *)
 (* [@@deriving to_yojson] *)
 
 type ask = { f: 'a. 'a t -> 'a result }
@@ -96,8 +96,42 @@ struct
 
   let name () = "query result domain"
 
-  let bot () = Bot
-  let is_bot x = x = Bot
+  let bot (type a) (q: a t): a result =
+    match q with
+    (* Cannot group these GADTs... *)
+    | EqualSet _ -> ExprSet (ES.bot ())
+    | CondVars _ -> ExprSet (ES.bot ())
+    | MayPointTo _ -> LvalSet (LS.bot ())
+    | ReachableFrom _ -> LvalSet (LS.bot ())
+    | Regions _ -> LvalSet (LS.bot ())
+    | CurrentLockset -> LvalSet (LS.bot ())
+    | EvalFunvar _ -> LvalSet (LS.bot ())
+    | ReachableUkTypes _ -> TypeSet (TS.bot ())
+    | MayEscape _ -> MayBool false
+    | MayBePublic _ -> MayBool false
+    | MayBePublicWithout _ -> MayBool false
+    | MayBeThreadReturn -> MayBool false
+    | MayBeEqual _ -> MayBool false
+    | MayBeLess _ -> MayBool false
+    | MustBeProtectedBy _ -> MustBool true
+    | MustBeAtomic -> MustBool true
+    | MustBeSingleThreaded -> MustBool true
+    | MustBeUniqueThread -> MustBool true
+    | MustBeEqual _ -> MustBool true
+    | IsHeapVar _ -> failwith "Result.bot IsHeapVar"
+    | Priority _ -> Int (ID.bot ())
+    | EvalInt _ -> Int (ID.bot ())
+    | EvalLength _ -> Int (ID.bot ())
+    | BlobSize _ -> Int (ID.bot ())
+    | CurrentThreadId -> Varinfo (VI.bot ())
+    | HeapVar -> Varinfo (VI.bot ())
+    | EvalStr _ -> Str (failwith "Result.bot Str")
+    | PrintFullState -> failwith "Result.bot unit"
+    | IterPrevVars _ -> failwith "Result.bot unit"
+    | IterVars _ -> failwith "Result.bot unit"
+    | TheAnswerToLifeUniverseAndEverything -> failwith "Result.bot unit"
+    | PartAccess _ -> PartAccessResult (PartAccessResult.bot ())
+  (* let is_bot x = x = Bot *)
   let bot_name = "Bottom"
   let top () = Top
   let is_top x = x = Top
@@ -106,7 +140,7 @@ struct
   let equal (type a) (x: a result) (y: a result) =
     match (x, y) with
     | (Top, Top) -> true
-    | (Bot, Bot) -> true
+    (* | (Bot, Bot) -> true *)
     | (Int x, Int y) -> ID.equal x y
     | (LvalSet x, LvalSet y) -> LS.equal x y
     | (ExprSet x, ExprSet y) -> ES.equal x y
@@ -132,7 +166,7 @@ struct
 
   let compare (type a) (x: a result) (y: a result) =
     let constr_to_int (x: a result) = match x with
-      | Bot -> 0
+      (* | Bot -> 0 *)
       | Int _ -> 1
       | LvalSet _ -> 2
       | ExprSet _ -> 3
@@ -169,7 +203,7 @@ struct
     | MustBool n -> text (string_of_bool n)
     | MayBool n -> text (string_of_bool n)
     | PartAccessResult n -> PartAccessResult.pretty () n
-    | Bot -> text bot_name
+    (* | Bot -> text bot_name *)
     | Top -> text top_name
 
   let short w (type a) (state: a result) =
@@ -184,7 +218,7 @@ struct
     | MustBool n -> string_of_bool n
     | MayBool n -> string_of_bool n
     | PartAccessResult n -> PartAccessResult.short w n
-    | Bot -> bot_name
+    (* | Bot -> bot_name *)
     | Top -> top_name
 
   let isSimple (type a) (x: a result) =
@@ -206,8 +240,8 @@ struct
     match (x,y) with
     | (_, Top) -> true
     | (Top, _) -> false
-    | (Bot, _) -> true
-    | (_, Bot) -> false
+    (* | (Bot, _) -> true *)
+    (* | (_, Bot) -> false *)
     | (Int x, Int y) -> ID.leq x y
     | (LvalSet x, LvalSet y) -> LS.leq x y
     | (ExprSet x, ExprSet y) -> ES.leq x y
@@ -220,12 +254,12 @@ struct
     | (PartAccessResult x, PartAccessResult y) -> PartAccessResult.leq x y
     | _ -> false
 
-  let join (type a) (x: a result) (y: a result) =
+  let join (type a) (x: a result) (y: a result): a result =
     try match (x,y) with
       | (Top, _)
       | (_, Top) -> Top
-      | (Bot, x)
-      | (x, Bot) -> x
+      (* | (Bot, x) *)
+      (* | (x, Bot) -> x *)
       | (Int x, Int y) -> Int (ID.join x y)
       | (LvalSet x, LvalSet y) -> LvalSet (LS.join x y)
       | (ExprSet x, ExprSet y) -> ExprSet (ES.join x y)
@@ -240,8 +274,8 @@ struct
 
   let meet (type a) (x: a result) (y: a result) =
     try match (x,y) with
-      | (Bot, _)
-      | (_, Bot) -> Bot
+      (* | (Bot, _) *)
+      (* | (_, Bot) -> Bot *)
       | (Top, x)
       | (x, Top) -> x
       | (Int x, Int y) -> Int (ID.meet x y)
@@ -253,15 +287,15 @@ struct
       | (MustBool x, MustBool y) -> MustBool (x || y)
       | (MayBool x, MayBool y) -> MayBool (x && y)
       | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.meet x y)
-      | _ -> Bot
-    with IntDomain.Error -> Bot
+      | _ -> failwith "Result.bot"
+    with IntDomain.Error -> failwith "Result.bot"
 
-  let widen (type a) (x: a result) (y: a result) =
+  let widen (type a) (x: a result) (y: a result): a result =
     try match (x,y) with
       | (Top, _)
       | (_, Top) -> Top
-      | (Bot, x)
-      | (x, Bot) -> x
+      (* | (Bot, x) *)
+      (* | (x, Bot) -> x *)
       | (Int x, Int y) -> Int (ID.widen x y)
       | (LvalSet x, LvalSet y) -> LvalSet (LS.widen x y)
       | (ExprSet x, ExprSet y) -> ExprSet (ES.widen x y)

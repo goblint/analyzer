@@ -34,7 +34,6 @@ struct
     match a.f (Queries.MayPointTo exp) with
     | LvalSet a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | Bot -> []
     | b -> Messages.warn ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
 
   (* locking logic -- add all locks we can add *)

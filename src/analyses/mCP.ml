@@ -552,7 +552,7 @@ struct
     match q with
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-      Bot
+      Top
     | _ ->
       fold_left f Top @@ spec_list ctx.local
 

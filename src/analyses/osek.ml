@@ -663,9 +663,6 @@ struct
     in
     (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
     match a.f (Queries.Regions exp) with
-    | Bot ->
-      (*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local"); *)
-      [] (*List.filter is_unknown (accs [])*)
     | LvalSet regs ->
       (*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
       accs (Queries.LS.elements regs)
@@ -705,7 +702,6 @@ struct
           if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
             Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
         Queries.LS.fold to_extra a []
-      | Bot -> []
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> [Unknown (e,true)]
     in

@@ -827,7 +827,7 @@ struct
     | Q.EvalInt e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Int i when ID.is_int i -> Int (to_int (Option.get (ID.to_int i)))
-        | `Bot   -> Bot
+        | `Bot   -> Queries.Result.bot q (* TODO: remove *)
         | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); Top
       end
     | Q.EvalLength e -> begin
@@ -842,7 +842,7 @@ struct
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           (match ID.to_int d with Some i -> Int (to_int i) | None -> Top)
-        | `Bot -> Bot
+        | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Top
       end
     | Q.BlobSize e -> begin
@@ -864,13 +864,13 @@ struct
           if AD.mem Addr.UnknownPtr a
           then LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
           else LvalSet s
-        | `Bot -> Bot
+        | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Top
       end
     | Q.ReachableFrom e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Top
-        | `Bot -> Bot
+        | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
           LvalSet (Q.LS.top ())
         | `Address a ->
@@ -882,7 +882,7 @@ struct
     | Q.ReachableUkTypes e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Top
-        | `Bot -> Bot
+        | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
           TypeSet (Q.TS.top ())
         | `Address a ->

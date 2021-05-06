@@ -132,8 +132,6 @@ module ExpEval : Transform.S =
           | Some (Int value) -> Some (Some (value <> Int64.zero))
             (* Evaluable: Inconclusive *)
           | Some Top -> Some None
-            (* Inapplicable: Unreachable *)
-          | Some Bot -> None
             (* Inapplicable: Unlisted *)
           | None -> None
             (* Unexpected result *)
