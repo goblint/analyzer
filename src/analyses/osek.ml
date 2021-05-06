@@ -570,7 +570,7 @@ struct
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       Int (Int64.of_int pry)
-    | Queries.Priority vname -> begin try Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
+    | Queries.Priority vname -> begin try Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top q end
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
@@ -590,7 +590,7 @@ struct
     | Queries.CurrentLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
       M.query ctx q
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   let rec conv_offset x =
     match x with

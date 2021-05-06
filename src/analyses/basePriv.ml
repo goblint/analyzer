@@ -185,7 +185,6 @@ struct
       multi &&
       match ask.f (Q.MayBePublic {global=x; write=true}) with
       | MayBool x -> x
-      | Top -> true
       | _ -> failwith "Protection.is_unprotected"
     )
 
@@ -193,7 +192,6 @@ struct
     ThreadFlag.is_multi ask &&
     match ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m}) with
     | MayBool x -> x
-    | Top -> true
     | _ -> failwith "Protection.is_unprotected_without"
 
   let is_protected_by ask m x: bool =
@@ -201,13 +199,11 @@ struct
     not (VD.is_immediate_type x.vtype) &&
     match ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
     | MustBool x -> x
-    | Top -> false
     | _ -> failwith "Protection.is_protected_by"
 
   let is_atomic ask: bool =
     match ask Q.MustBeAtomic with
     | Q.MustBool x -> x
-    | Top -> false
     | _ -> failwith "Protection.is_atomic"
 end
 

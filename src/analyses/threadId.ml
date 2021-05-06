@@ -12,7 +12,6 @@ module ThreadLifted = ConcDomain.ThreadLifted
 let get_current (ask: Queries.ask): ThreadLifted.t =
   match ask.f Queries.CurrentThreadId with
   | Varinfo v -> v
-  | Top -> `Top
   | _ -> .
 
 let get_current_unlift ask: Thread.t =
@@ -82,7 +81,7 @@ struct
     | Queries.CurrentThreadId -> Varinfo ctx.local
     | Queries.PartAccess {exp; var_opt; write} ->
       PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> Top
+    | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
     [create_tid f]

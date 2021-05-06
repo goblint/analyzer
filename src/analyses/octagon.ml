@@ -369,8 +369,8 @@ struct
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
       then Int(INV.to_int inv |> Option.get |> BI.to_int64)
-      else Top
-    | _ -> Queries.Result.top ()
+      else Queries.Result.top q
+    | _ -> Queries.Result.top q
 
   let threadspawn ctx lval f args fctx = ctx.local
 end

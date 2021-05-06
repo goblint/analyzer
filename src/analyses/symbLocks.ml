@@ -223,7 +223,7 @@ struct
     match q with
     | Queries.PartAccess {exp; var_opt; write} ->
       PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 end
 
 let _ =

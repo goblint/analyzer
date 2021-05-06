@@ -195,7 +195,7 @@ struct
   (* queries *)
   let query ctx (type a) (q: a Queries.t) =
     match q with
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

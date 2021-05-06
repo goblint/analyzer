@@ -87,7 +87,7 @@ struct
         | `Lifted {vname="main"; _} -> MustBool (D.is_empty ctx.local)
         | _ -> MustBool false
       end
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]

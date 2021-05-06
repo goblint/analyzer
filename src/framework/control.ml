@@ -214,7 +214,7 @@ struct
     (* analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
-        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top ())
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -304,7 +304,7 @@ struct
     let enter_with st fd =
       let st = st fd.svar in
       let ctx =
-        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top ())
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -339,7 +339,7 @@ struct
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
     let otherstate st v =
       let ctx =
-        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top ())
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node

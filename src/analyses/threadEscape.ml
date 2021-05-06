@@ -12,9 +12,9 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
   else
     match ask.f (Queries.MayEscape v) with
     | MayBool b -> b
-    | Top ->
+    (* | Top ->
       M.warn @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
-      true
+      true *)
     | _ -> failwith "ThreadEscape.has_escaped"
 
 
@@ -32,7 +32,7 @@ struct
     let open Queries in
     match q with
     | Queries.MayEscape v -> MayBool (D.mem v ctx.local)
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

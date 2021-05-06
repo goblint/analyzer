@@ -795,7 +795,7 @@ struct
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
   let eval_exp x (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
-    let knownothing = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Top } in (* our version of ask *)
+    let knownothing = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top q } in (* our version of ask *)
     let gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
     match (eval_rv knownothing gs x exp) with
     | `Int x -> ValueDomain.ID.to_int x
@@ -828,7 +828,7 @@ struct
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Int i when ID.is_int i -> Int (to_int (Option.get (ID.to_int i)))
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
-        | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); Top
+        | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); Queries.Result.top q
       end
     | Q.EvalLength e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
@@ -841,9 +841,9 @@ struct
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          (match ID.to_int d with Some i -> Int (to_int i) | None -> Top)
+          (match ID.to_int d with Some i -> Int (to_int i) | None -> Queries.Result.top q)
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
-        | _ -> Top
+        | _ -> Queries.Result.top q
       end
     | Q.BlobSize e -> begin
         let p = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
@@ -853,9 +853,9 @@ struct
           let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> Int (to_int i) | None -> Top)
-           | _ -> Top)
-        | _ -> Top
+           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> Int (to_int i) | None -> Queries.Result.top q)
+           | _ -> Queries.Result.top q)
+        | _ -> Queries.Result.top q
       end
     | Q.MayPointTo e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
@@ -865,11 +865,11 @@ struct
           then LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
           else LvalSet s
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
-        | _ -> Top
+        | _ -> Queries.Result.top q
       end
     | Q.ReachableFrom e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | `Top -> Top
+        | `Top -> Queries.Result.top q
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
           LvalSet (Q.LS.top ())
@@ -881,7 +881,7 @@ struct
       end
     | Q.ReachableUkTypes e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | `Top -> Top
+        | `Top -> Queries.Result.top q
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
           TypeSet (Q.TS.top ())
@@ -898,7 +898,7 @@ struct
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
           M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.short 80 a;
-          Top
+          Queries.Result.top q
         | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
           (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
@@ -908,14 +908,14 @@ struct
               let ciloffs = Lval.CilLval.to_ciloffs offs in
               let lval = Var v, ciloffs in
               (try Str (Bytes.to_string (Hashtbl.find char_array lval))
-               with Not_found -> Top)
+               with Not_found -> Queries.Result.top q)
             | _ -> (* what about ISChar and IUChar? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
-              Top
+              Queries.Result.top q
           end
         | x ->
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
-          Top
+          Queries.Result.top q
       end
     | Q.MustBeEqual (e1, e2) -> begin
         let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
@@ -965,7 +965,7 @@ struct
           end
         | _ -> MayBool true
       end
-    | _ -> Q.Result.top ()
+    | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then

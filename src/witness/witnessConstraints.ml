@@ -368,12 +368,12 @@ struct
         | Function _ -> () (* returns post-sync in FromSpec *)
         | _ -> assert (Sync.is_bot (snd ctx.local));
       end;
-      Top
+      Unit
     | Queries.IterVars f ->
       Dom.iter' (fun x r ->
           f (I.to_int x)
         ) (fst ctx.local);
-      Top
+      Unit
     | _ ->
       (* join results so that they are sound for all paths *)
       fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) (Queries.Result.bot q)

@@ -589,7 +589,7 @@ struct
       let r = eq_set_clos e ctx.local in
       (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
       ExprSet r
-    | _ -> Top
+    | _ -> Queries.Result.top x
 
 end
 

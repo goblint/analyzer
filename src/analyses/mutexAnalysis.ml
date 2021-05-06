@@ -155,7 +155,6 @@ struct
       let open Access in
       match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
       | PartAccessResult (po, pd) -> (po, pd)
-      | Top -> PartAccessResult.top ()
       | _ -> failwith "MutexAnalysis.part_access"
     in
     let add_access conf vo oo =
@@ -263,7 +262,7 @@ struct
       MustBool (Mutexes.mem verifier_atomic held_locks)
     | Queries.PartAccess {exp; var_opt; write} ->
       PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
 
   (** Transfer functions: *)

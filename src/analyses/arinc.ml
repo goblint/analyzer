@@ -634,10 +634,10 @@ struct
     | Queries.Priority _ ->
       if Pri.is_int d.pri then
         Int (Option.get @@ Pri.to_int d.pri)
-      else if Pri.is_top d.pri then Top else Queries.Result.bot q (* TODO: remove bot *)
+      else if Pri.is_top d.pri then Queries.Result.top q else Queries.Result.bot q (* TODO: remove bot *)
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   let finalize () =
     ArincUtil.print_actions ();

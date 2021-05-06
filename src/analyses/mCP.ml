@@ -552,9 +552,9 @@ struct
     match q with
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-      Top
+      Unit
     | _ ->
-      fold_left f Top @@ spec_list ctx.local
+      fold_left f (Queries.Result.top q) @@ spec_list ctx.local
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in

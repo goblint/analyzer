@@ -95,8 +95,8 @@ struct
       let t tv e = if tv then e else UnOp (LNot, e, intType) in
       let f tv v = D.V.map (t tv) v |> fun v -> Some (Queries.ExprSet v) in
       let of_clval (tv,k) = D.get k d >? f tv in
-      of_q q >? of_expr true >? of_lval >? of_clval |? Queries.Result.top ()
-    | _ -> Queries.Result.top ()
+      of_q q >? of_expr true >? of_lval >? of_clval |? Queries.Result.top q
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

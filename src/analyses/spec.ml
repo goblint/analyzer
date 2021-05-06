@@ -200,7 +200,7 @@ struct
   (* queries *)
   let query ctx (type a) (q: a Queries.t) =
     match q with
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
@@ -216,7 +216,6 @@ struct
   let dump_query_result (type a) (result: a Queries.result) =
     let open Queries in
     match result with
-    | Top -> "Top"
     | Int x -> "Int"
     (* | `Interval x -> "`Interval" *)
     (* | `IntSet x -> "`IntSet" *)
@@ -229,6 +228,7 @@ struct
     | MustBool x -> "MustBool"
     | MayBool x -> "MayBool"
     | PartAccessResult x -> "PartAccessResult"
+    | Unit -> "Unit"
 
 
   (* transfer functions *)

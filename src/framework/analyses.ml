@@ -583,7 +583,7 @@ struct
 
   let skip x = x.local (* Just ignore. *)
 
-  let query _ (type a) (q: a Queries.t) = Queries.Result.top ()
+  let query _ (type a) (q: a Queries.t) = Queries.Result.top q
   (* Don't know anything --- most will want to redefine this. *)
 
   let event ctx _ _ = ctx.local

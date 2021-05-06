@@ -77,7 +77,7 @@ struct
       Varinfo (`Lifted (get_heap_var loc))
     | Q.IsHeapVar v ->
       MayBool (Hashtbl.mem heap_vars v.vid)
-    | _ -> Top
+    | _ -> Queries.Result.top q
 
     let init () =
       List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");

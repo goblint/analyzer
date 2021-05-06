@@ -86,7 +86,7 @@ struct
             MayBool false
         | _ -> MayBool true
       end
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
 
   (* below here is all the usual stuff an analysis requires, we don't do anything here *)

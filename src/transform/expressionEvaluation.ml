@@ -130,8 +130,6 @@ module ExpEval : Transform.S =
           match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
             (* Evaluable: Definite *)
           | Some (Int value) -> Some (Some (value <> Int64.zero))
-            (* Evaluable: Inconclusive *)
-          | Some Top -> Some None
             (* Inapplicable: Unlisted *)
           | None -> None
             (* Unexpected result *)

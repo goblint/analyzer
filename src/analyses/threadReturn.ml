@@ -6,7 +6,6 @@ open Analyses
 let is_current (ask: Queries.ask): bool =
   match ask.f Queries.MayBeThreadReturn with
   | MayBool b -> b
-  | Top -> true
   | _ -> failwith "ThreadReturn.is_current"
 
 
@@ -49,7 +48,7 @@ struct
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.MayBeThreadReturn -> MayBool ctx.local
-    | _ -> Top
+    | _ -> Queries.Result.top x
 end
 
 let _ =
