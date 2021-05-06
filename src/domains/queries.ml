@@ -119,7 +119,7 @@ struct
     | MustBeSingleThreaded -> MustBool true
     | MustBeUniqueThread -> MustBool true
     | MustBeEqual _ -> MustBool true
-    | IsHeapVar _ -> failwith "Result.bot IsHeapVar"
+    | IsHeapVar _ -> MustBool true (* TODO: is must? *)
     | Priority _ -> Int (ID.bot ())
     | EvalInt _ -> Int (ID.bot ())
     | EvalLength _ -> Int (ID.bot ())
@@ -156,7 +156,7 @@ struct
     | MustBeSingleThreaded -> MustBool false
     | MustBeUniqueThread -> MustBool false
     | MustBeEqual _ -> MustBool false
-    | IsHeapVar _ -> failwith "Result.top IsHeapVar"
+    | IsHeapVar _ -> MustBool false (* TODO: is must? *)
     | Priority _ -> Int (ID.top ())
     | EvalInt _ -> Int (ID.top ())
     | EvalLength _ -> Int (ID.top ())
