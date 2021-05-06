@@ -37,23 +37,51 @@ let itervar_to_yojson _ = `Null
 
 module SD = Basetype.Strings
 
+module MayBool =
+struct
+  type t = bool
+  let bot () = false
+  let top () = true
+  let equal = Bool.equal
+  let compare = Bool.compare
+  let leq x y = x == y || y
+  let join = (||)
+  let widen = (||)
+  let meet = (&&)
+  let narrow = (&&)
+end
+
+module MustBool =
+struct
+  type t = bool
+  let bot () = true
+  let top () = false
+  let equal = Bool.equal
+  let compare = Bool.compare
+  let leq x y = x == y || x
+  let join = (&&)
+  let widen = (&&)
+  let meet = (||)
+  let narrow = (||)
+end
+
 type _ t =
   | EqualSet: exp -> ES.t t
   | MayPointTo: exp -> LS.t t
   | ReachableFrom: exp -> LS.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
-  | MayEscape: varinfo -> bool t
+  | MayEscape: varinfo -> MayBool.t t
   | Priority: string -> ID.t t
-  | MayBePublic: {global: varinfo; write: bool} -> bool t (* old behavior with write=false *)
-  | MayBePublicWithout: {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t} -> bool t
-  | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool} -> bool t
+  | MayBePublic: {global: varinfo; write: bool} -> MayBool.t t (* old behavior with write=false *)
+  | MayBePublicWithout: {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t} -> MayBool.t t
+  | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool} -> MustBool.t t
   | CurrentLockset: LS.t t
-  | MustBeAtomic: bool t
-  | MustBeSingleThreaded: bool t
-  | MustBeUniqueThread: bool t
+  | MustBeAtomic: MustBool.t t
+  | MustBeSingleThreaded: MustBool.t t
+  | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: VI.t t
-  | MayBeThreadReturn: bool t
+  | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
@@ -64,12 +92,12 @@ type _ t =
   | PartAccess: {exp: exp; var_opt: varinfo option; write: bool} -> PartAccessResult.t t
   | IterPrevVars: iterprevvar -> unit t
   | IterVars: itervar -> unit t
-  | MustBeEqual: exp * exp -> bool t (* are two expression known to must-equal ? *)
-  | MayBeEqual: exp * exp -> bool t (* may two expressions be equal? *)
-  | MayBeLess: exp * exp -> bool t (* may exp1 < exp2 ? *)
+  | MustBeEqual: exp * exp -> MustBool.t t (* are two expression known to must-equal ? *)
+  | MayBeEqual: exp * exp -> MayBool.t t (* may two expressions be equal? *)
+  | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | TheAnswerToLifeUniverseAndEverything: unit t (* TODO: unused, remove? *)
   | HeapVar: VI.t t
-  | IsHeapVar: varinfo -> bool t
+  | IsHeapVar: varinfo -> MayBool.t t
 (* [@@deriving to_yojson] *)
 
 
@@ -82,8 +110,8 @@ type _ result =
   | ExpTriples: PS.t -> PS.t result
   | TypeSet: TS.t -> TS.t result
   | Varinfo: VI.t -> VI.t result
-  | MustBool: bool -> bool result  (* true \leq false *)
-  | MayBool: bool -> bool result   (* false \leq true *)
+  | MustBool: MustBool.t -> MustBool.t result  (* true \leq false *)
+  | MayBool: MayBool.t -> MayBool.t result   (* false \leq true *)
   | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
   | Unit: unit result
   (* | Bot: 'a result *)
@@ -110,18 +138,18 @@ struct
     | CurrentLockset -> LvalSet (LS.bot ())
     | EvalFunvar _ -> LvalSet (LS.bot ())
     | ReachableUkTypes _ -> TypeSet (TS.bot ())
-    | MayEscape _ -> MayBool false
-    | MayBePublic _ -> MayBool false
-    | MayBePublicWithout _ -> MayBool false
-    | MayBeThreadReturn -> MayBool false
-    | MayBeEqual _ -> MayBool false
-    | MayBeLess _ -> MayBool false
-    | IsHeapVar _ -> MayBool false (* TODO: is must? *)
-    | MustBeProtectedBy _ -> MustBool true
-    | MustBeAtomic -> MustBool true
-    | MustBeSingleThreaded -> MustBool true
-    | MustBeUniqueThread -> MustBool true
-    | MustBeEqual _ -> MustBool true
+    | MayEscape _ -> MayBool (MayBool.bot ())
+    | MayBePublic _ -> MayBool (MayBool.bot ())
+    | MayBePublicWithout _ -> MayBool (MayBool.bot ())
+    | MayBeThreadReturn -> MayBool (MayBool.bot ())
+    | MayBeEqual _ -> MayBool (MayBool.bot ())
+    | MayBeLess _ -> MayBool (MayBool.bot ())
+    | IsHeapVar _ -> MayBool (MayBool.bot ()) (* TODO: is must? *)
+    | MustBeProtectedBy _ -> MustBool (MustBool.bot ())
+    | MustBeAtomic -> MustBool (MustBool.bot ())
+    | MustBeSingleThreaded -> MustBool (MustBool.bot ())
+    | MustBeUniqueThread -> MustBool (MustBool.bot ())
+    | MustBeEqual _ -> MustBool (MustBool.bot ())
     | Priority _ -> Int (ID.bot ())
     | EvalInt _ -> Int (ID.bot ())
     | EvalLength _ -> Int (ID.bot ())
@@ -147,18 +175,18 @@ struct
     | CurrentLockset -> LvalSet (LS.top ())
     | EvalFunvar _ -> LvalSet (LS.top ())
     | ReachableUkTypes _ -> TypeSet (TS.top ())
-    | MayEscape _ -> MayBool true
-    | MayBePublic _ -> MayBool true
-    | MayBePublicWithout _ -> MayBool true
-    | MayBeThreadReturn -> MayBool true
-    | MayBeEqual _ -> MayBool true
-    | MayBeLess _ -> MayBool true
-    | IsHeapVar _ -> MayBool true (* TODO: is must? *)
-    | MustBeProtectedBy _ -> MustBool false
-    | MustBeAtomic -> MustBool false
-    | MustBeSingleThreaded -> MustBool false
-    | MustBeUniqueThread -> MustBool false
-    | MustBeEqual _ -> MustBool false
+    | MayEscape _ -> MayBool (MayBool.top ())
+    | MayBePublic _ -> MayBool (MayBool.top ())
+    | MayBePublicWithout _ -> MayBool (MayBool.top ())
+    | MayBeThreadReturn -> MayBool (MayBool.top ())
+    | MayBeEqual _ -> MayBool (MayBool.top ())
+    | MayBeLess _ -> MayBool (MayBool.top ())
+    | IsHeapVar _ -> MayBool (MayBool.top ()) (* TODO: is must? *)
+    | MustBeProtectedBy _ -> MustBool (MustBool.top ())
+    | MustBeAtomic -> MustBool (MustBool.top ())
+    | MustBeSingleThreaded -> MustBool (MustBool.top ())
+    | MustBeUniqueThread -> MustBool (MustBool.top ())
+    | MustBeEqual _ -> MustBool (MustBool.top ())
     | Priority _ -> Int (ID.top ())
     | EvalInt _ -> Int (ID.top ())
     | EvalLength _ -> Int (ID.top ())
@@ -184,8 +212,8 @@ struct
     | (ExpTriples x, ExpTriples y) -> PS.equal x y
     | (TypeSet x, TypeSet y) -> TS.equal x y
     | (Varinfo x, Varinfo y) -> VI.equal x y
-    | (MustBool x, MustBool y) -> Bool.equal x y
-    | (MayBool x, MayBool y) -> Bool.equal x y
+    | (MustBool x, MustBool y) -> MustBool.equal x y
+    | (MayBool x, MayBool y) -> MayBool.equal x y
     | (PartAccessResult x, PartAccessResult y) -> PartAccessResult.equal x y
     | Unit, Unit -> true
     | _ -> false
@@ -225,8 +253,8 @@ struct
     | ExpTriples x, ExpTriples y -> PS.compare x y
     | TypeSet x, TypeSet y -> TS.compare x y
     | Varinfo x, Varinfo y -> VI.compare x y
-    | MustBool x, MustBool y -> Bool.compare x y
-    | MayBool x, MayBool y -> Bool.compare x y
+    | MustBool x, MustBool y -> MustBool.compare x y
+    | MayBool x, MayBool y -> MayBool.compare x y
     | PartAccessResult x, PartAccessResult y -> PartAccessResult.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
@@ -290,8 +318,8 @@ struct
     | (TypeSet x, TypeSet y) -> TS.leq x y
     | (Varinfo x, Varinfo y) -> VI.leq x y
     (* TODO: should these be more like IntDomain.Booleans? *)
-    | (MustBool x, MustBool y) -> x == y || x
-    | (MayBool x, MayBool y) -> x == y || y
+    | (MustBool x, MustBool y) -> MustBool.leq x y
+    | (MayBool x, MayBool y) -> MayBool.leq x y
     | (PartAccessResult x, PartAccessResult y) -> PartAccessResult.leq x y
     | Unit, Unit -> true
     | _ -> false
@@ -308,8 +336,8 @@ struct
       | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.join x y)
       | (TypeSet x, TypeSet y) -> TypeSet (TS.join x y)
       | (Varinfo x, Varinfo y) -> Varinfo (VI.join x y)
-      | (MustBool x, MustBool y) -> MustBool (x && y)
-      | (MayBool x, MayBool y) -> MayBool (x || y)
+      | (MustBool x, MustBool y) -> MustBool (MustBool.join x y)
+      | (MayBool x, MayBool y) -> MayBool (MayBool.join x y)
       | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.join x y)
       | Unit, Unit -> Unit
       | _ -> failwith "Result.top"
@@ -327,8 +355,8 @@ struct
       | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.meet x y)
       | (TypeSet x, TypeSet y) -> TypeSet (TS.meet x y)
       | (Varinfo x, Varinfo y) -> Varinfo (VI.meet x y)
-      | (MustBool x, MustBool y) -> MustBool (x || y)
-      | (MayBool x, MayBool y) -> MayBool (x && y)
+      | (MustBool x, MustBool y) -> MustBool (MustBool.meet x y)
+      | (MayBool x, MayBool y) -> MayBool (MayBool.meet x y)
       | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.meet x y)
       | Unit, Unit -> Unit
 
@@ -364,8 +392,8 @@ struct
       | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.widen x y)
       | (TypeSet x, TypeSet y) -> TypeSet (TS.widen x y)
       | (Varinfo x, Varinfo y) -> Varinfo (VI.widen x y)
-      | (MustBool x, MustBool y) -> MustBool (x && y)
-      | (MayBool x, MayBool y) -> MustBool (x || y)
+      | (MustBool x, MustBool y) -> MustBool (MustBool.widen x y)
+      | (MayBool x, MayBool y) -> MayBool (MayBool.widen x y)
       | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.widen x y)
       | Unit, Unit -> Unit
       | _ -> failwith "Result.top"
@@ -379,8 +407,8 @@ struct
     | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.narrow x y)
     | (TypeSet x, TypeSet y) -> TypeSet (TS.narrow x y)
     | (Varinfo x, Varinfo y) -> Varinfo (VI.narrow x y)
-    | (MustBool x, MustBool y) -> MustBool (x || y)
-    | (MayBool x, MayBool y) -> MayBool (x && y)
+    | (MustBool x, MustBool y) -> MustBool (MustBool.narrow x y)
+    | (MayBool x, MayBool y) -> MayBool (MayBool.narrow x y)
     | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.narrow x y)
     | Unit, Unit -> Unit
     | (x,_) -> x
