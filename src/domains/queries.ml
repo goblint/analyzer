@@ -201,7 +201,7 @@ struct
     | TheAnswerToLifeUniverseAndEverything -> Unit
     | PartAccess _ -> PartAccessResult (PartAccessResult.top ())
 
-  let pretty_f s () (type a) (state: a result) =
+  let pretty () (type a) (state: a result) =
     match state with
     | Int n ->  ID.pretty () n
     | Str s ->  SD.pretty () s
@@ -227,35 +227,29 @@ struct
     | PartAccessResult n -> PartAccessResult.short w n
     | Unit -> "()"
 
-  let pretty () x = pretty_f short () x
-
   let join (type a) (x: a result) (y: a result): a result =
-    try match (x,y) with
-      | (Int x, Int y) -> Int (ID.join x y)
-      | (LvalSet x, LvalSet y) -> LvalSet (LS.join x y)
-      | (ExprSet x, ExprSet y) -> ExprSet (ES.join x y)
-      | (TypeSet x, TypeSet y) -> TypeSet (TS.join x y)
-      | (Varinfo x, Varinfo y) -> Varinfo (VI.join x y)
-      | (MustBool x, MustBool y) -> MustBool (MustBool.join x y)
-      | (MayBool x, MayBool y) -> MayBool (MayBool.join x y)
-      | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.join x y)
-      | Unit, Unit -> Unit
-      | _ -> failwith "Result.top"
-    with IntDomain.Unknown -> failwith "Result.top"
+    match x, y with
+    | Int x, Int y -> Int (ID.join x y)
+    | LvalSet x, LvalSet y -> LvalSet (LS.join x y)
+    | ExprSet x, ExprSet y -> ExprSet (ES.join x y)
+    | TypeSet x, TypeSet y -> TypeSet (TS.join x y)
+    | Varinfo x, Varinfo y -> Varinfo (VI.join x y)
+    | MustBool x, MustBool y -> MustBool (MustBool.join x y)
+    | MayBool x, MayBool y -> MayBool (MayBool.join x y)
+    | PartAccessResult x, PartAccessResult y -> PartAccessResult (PartAccessResult.join x y)
+    | Unit, Unit -> Unit
+    | Str x, Str y -> Str (SD.join x y)
 
   let meet (type a) (x: a result) (y: a result): a result =
-    try match (x,y) with
-      | (Int x, Int y) -> Int (ID.meet x y)
-      | (LvalSet x, LvalSet y) -> LvalSet (LS.meet x y)
-      | (ExprSet x, ExprSet y) -> ExprSet (ES.meet x y)
-      | (TypeSet x, TypeSet y) -> TypeSet (TS.meet x y)
-      | (Varinfo x, Varinfo y) -> Varinfo (VI.meet x y)
-      | (MustBool x, MustBool y) -> MustBool (MustBool.meet x y)
-      | (MayBool x, MayBool y) -> MayBool (MayBool.meet x y)
-      | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.meet x y)
-      | Unit, Unit -> Unit
-
-      | Str x, Str y -> Str (SD.meet x y)
-      | _, _ -> .
-    with IntDomain.Error -> failwith "Result.bot"
+    match x, y with
+    | Int x, Int y -> Int (ID.meet x y)
+    | LvalSet x, LvalSet y -> LvalSet (LS.meet x y)
+    | ExprSet x, ExprSet y -> ExprSet (ES.meet x y)
+    | TypeSet x, TypeSet y -> TypeSet (TS.meet x y)
+    | Varinfo x, Varinfo y -> Varinfo (VI.meet x y)
+    | MustBool x, MustBool y -> MustBool (MustBool.meet x y)
+    | MayBool x, MayBool y -> MayBool (MayBool.meet x y)
+    | PartAccessResult x, PartAccessResult y -> PartAccessResult (PartAccessResult.meet x y)
+    | Unit, Unit -> Unit
+    | Str x, Str y -> Str (SD.meet x y)
 end
