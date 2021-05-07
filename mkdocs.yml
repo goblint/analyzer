@@ -19,4 +19,5 @@ nav:
   # - 'User guide':
   - 'Developer guide':
     - developer-guide/testing.md
+    - developer-guide/debugging.md
     - developer-guide/documenting.md
