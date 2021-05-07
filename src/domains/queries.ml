@@ -127,14 +127,8 @@ type _ result =
 
 type ask = { f: 'a. 'a t -> 'a result }
 
-(* module Result: Lattice.S with type t = result = *)
 module Result =
 struct
-  include Printable.Std
-  (* type t = result [@@deriving to_yojson] *)
-
-  let name () = "query result domain"
-
   let bot (type a) (q: a t): a result =
     match q with
     (* Cannot group these GADTs... *)
@@ -170,8 +164,7 @@ struct
     | IterVars _ -> Unit
     | TheAnswerToLifeUniverseAndEverything -> Unit
     | PartAccess _ -> PartAccessResult (PartAccessResult.bot ())
-  (* let is_bot x = x = Bot *)
-  let bot_name = "Bottom"
+
   let top (type a) (q: a t): a result =
     match q with
     (* Cannot group these GADTs... *)
@@ -207,60 +200,6 @@ struct
     | IterVars _ -> Unit
     | TheAnswerToLifeUniverseAndEverything -> Unit
     | PartAccess _ -> PartAccessResult (PartAccessResult.top ())
-  (* let is_top x = x = Top *)
-  let top_name = "Unknown"
-
-  let equal (type a) (x: a result) (y: a result) =
-    match (x, y) with
-    (* | (Top, Top) -> true *)
-    (* | (Bot, Bot) -> true *)
-    | (Int x, Int y) -> ID.equal x y
-    | (LvalSet x, LvalSet y) -> LS.equal x y
-    | (ExprSet x, ExprSet y) -> ES.equal x y
-    | (TypeSet x, TypeSet y) -> TS.equal x y
-    | (Varinfo x, Varinfo y) -> VI.equal x y
-    | (MustBool x, MustBool y) -> MustBool.equal x y
-    | (MayBool x, MayBool y) -> MayBool.equal x y
-    | (PartAccessResult x, PartAccessResult y) -> PartAccessResult.equal x y
-    | Unit, Unit -> true
-    | _ -> false
-
-  let hash (type a) (x: a result) =
-    match x with
-    | Int n -> ID.hash n
-    | LvalSet n -> LS.hash n
-    | ExprSet n -> ES.hash n
-    | TypeSet n -> TS.hash n
-    | Varinfo n -> VI.hash n
-    | PartAccessResult n -> PartAccessResult.hash n
-    (* MustBool and MayBool should work by the following *)
-    | _ -> Hashtbl.hash x
-
-  let compare (type a) (x: a result) (y: a result) =
-    let constr_to_int (x: a result) = match x with
-      (* | Bot -> 0 *)
-      | Int _ -> 1
-      | LvalSet _ -> 2
-      | ExprSet _ -> 3
-      | Str _ -> 5
-      (* | `IntSet _ -> 6 *)
-      | TypeSet _ -> 7
-      | Varinfo _ -> 8
-      | MustBool _ -> 9
-      | MayBool _ -> 10
-      | PartAccessResult _ -> 11
-      (* | Top -> 100 *)
-      | Unit -> 12
-    in match x,y with
-    | Int x, Int y -> ID.compare x y
-    | LvalSet x, LvalSet y -> LS.compare x y
-    | ExprSet x, ExprSet y -> ES.compare x y
-    | TypeSet x, TypeSet y -> TS.compare x y
-    | Varinfo x, Varinfo y -> VI.compare x y
-    | MustBool x, MustBool y -> MustBool.compare x y
-    | MayBool x, MayBool y -> MayBool.compare x y
-    | PartAccessResult x, PartAccessResult y -> PartAccessResult.compare x y
-    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () (type a) (state: a result) =
     match state with
@@ -274,8 +213,6 @@ struct
     | MayBool n -> text (string_of_bool n)
     | PartAccessResult n -> PartAccessResult.pretty () n
     | Unit -> text "()"
-    (* | Bot -> text bot_name *)
-    (* | Top -> text top_name *)
 
   let short w (type a) (state: a result) =
     match state with
@@ -289,47 +226,11 @@ struct
     | MayBool n -> string_of_bool n
     | PartAccessResult n -> PartAccessResult.short w n
     | Unit -> "()"
-    (* | Bot -> bot_name *)
-    (* | Top -> top_name *)
-
-  let isSimple (type a) (x: a result) =
-    match x with
-    | Int n ->  ID.isSimple n
-    | LvalSet n ->  LS.isSimple n
-    | ExprSet n ->  ES.isSimple n
-    | TypeSet n -> TS.isSimple n
-    | Varinfo n -> VI.isSimple n
-    | PartAccessResult n -> PartAccessResult.isSimple n
-    (* MustBool and MayBool should work by the following *)
-    | _ -> true
 
   let pretty () x = pretty_f short () x
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let leq (type a) (x: a result) (y: a result) =
-    match (x,y) with
-    (* | (_, Top) -> true *)
-    (* | (Top, _) -> false *)
-    (* | (Bot, _) -> true *)
-    (* | (_, Bot) -> false *)
-    | (Int x, Int y) -> ID.leq x y
-    | (LvalSet x, LvalSet y) -> LS.leq x y
-    | (ExprSet x, ExprSet y) -> ES.leq x y
-    | (TypeSet x, TypeSet y) -> TS.leq x y
-    | (Varinfo x, Varinfo y) -> VI.leq x y
-    (* TODO: should these be more like IntDomain.Booleans? *)
-    | (MustBool x, MustBool y) -> MustBool.leq x y
-    | (MayBool x, MayBool y) -> MayBool.leq x y
-    | (PartAccessResult x, PartAccessResult y) -> PartAccessResult.leq x y
-    | Unit, Unit -> true
-    | _ -> false
 
   let join (type a) (x: a result) (y: a result): a result =
     try match (x,y) with
-      (* | (Top, _) *)
-      (* | (_, Top) -> Top *)
-      (* | (Bot, x) *)
-      (* | (x, Bot) -> x *)
       | (Int x, Int y) -> Int (ID.join x y)
       | (LvalSet x, LvalSet y) -> LvalSet (LS.join x y)
       | (ExprSet x, ExprSet y) -> ExprSet (ES.join x y)
@@ -344,10 +245,6 @@ struct
 
   let meet (type a) (x: a result) (y: a result): a result =
     try match (x,y) with
-      (* | (Bot, _) *)
-      (* | (_, Bot) -> Bot *)
-      (* | (Top, x) *)
-      (* | (x, Top) -> x *)
       | (Int x, Int y) -> Int (ID.meet x y)
       | (LvalSet x, LvalSet y) -> LvalSet (LS.meet x y)
       | (ExprSet x, ExprSet y) -> ExprSet (ES.meet x y)
@@ -360,39 +257,5 @@ struct
 
       | Str x, Str y -> Str (SD.meet x y)
       | _, _ -> .
-      (* | _ -> failwith "Result.bot" *)
     with IntDomain.Error -> failwith "Result.bot"
-
-  let widen (type a) (x: a result) (y: a result): a result =
-    try match (x,y) with
-      (* | (Top, _) *)
-      (* | (_, Top) -> Top *)
-      (* | (Bot, x) *)
-      (* | (x, Bot) -> x *)
-      | (Int x, Int y) -> Int (ID.widen x y)
-      | (LvalSet x, LvalSet y) -> LvalSet (LS.widen x y)
-      | (ExprSet x, ExprSet y) -> ExprSet (ES.widen x y)
-      | (TypeSet x, TypeSet y) -> TypeSet (TS.widen x y)
-      | (Varinfo x, Varinfo y) -> Varinfo (VI.widen x y)
-      | (MustBool x, MustBool y) -> MustBool (MustBool.widen x y)
-      | (MayBool x, MayBool y) -> MayBool (MayBool.widen x y)
-      | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.widen x y)
-      | Unit, Unit -> Unit
-      | _ -> failwith "Result.top"
-    with IntDomain.Unknown -> failwith "Result.top"
-
-  let narrow (type a) (x: a result) (y: a result): a result =
-    match (x,y) with
-    | (Int x, Int y) -> Int (ID.narrow x y)
-    | (LvalSet x, LvalSet y) -> LvalSet (LS.narrow x y)
-    | (ExprSet x, ExprSet y) -> ExprSet (ES.narrow x y)
-    | (TypeSet x, TypeSet y) -> TypeSet (TS.narrow x y)
-    | (Varinfo x, Varinfo y) -> Varinfo (VI.narrow x y)
-    | (MustBool x, MustBool y) -> MustBool (MustBool.narrow x y)
-    | (MayBool x, MayBool y) -> MayBool (MayBool.narrow x y)
-    | (PartAccessResult x, PartAccessResult y) -> PartAccessResult (PartAccessResult.narrow x y)
-    | Unit, Unit -> Unit
-    | (x,_) -> x
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
