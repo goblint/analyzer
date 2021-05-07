@@ -7,3 +7,5 @@
 4. Inspect results at <http://localhost:8080>.
 
 Modern browsers' security settings forbid some file access which is necessary for g2html to work, hence the need for serving the results via Python's `http.server` (or similar).
+
+If you are on macOS, instead of steps 3 and 4, you can also run `open result/index.xml -a Safari`.
