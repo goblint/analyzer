@@ -16,7 +16,8 @@ dev_addr: '127.0.0.1:8010' # different port from default python http.server for 
 
 nav:
   - Home: index.md
-  # - 'User guide':
+  - 'User guide':
+    - user-guide/inspecting.md
   - 'Developer guide':
     - developer-guide/testing.md
     - developer-guide/debugging.md
