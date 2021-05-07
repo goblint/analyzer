@@ -3,7 +3,7 @@
 # ./scripts/privPrecCompare.sh ../goblint-bench/pthread/pfscan_comb.c --enable custom_libc
 
 PRIVS=(protection protection-read write mine-W lock write+lock)
-OUTDIR="privPrecCompare"
+OUTDIR="privPrecCompareRes"
 
 mkdir -p $OUTDIR
 
@@ -14,4 +14,4 @@ for PRIV in "${PRIVS[@]}"; do
 done
 
 PRIVDUMPS=("${PRIVS[*]/#/$OUTDIR/}") # why [*] here?
-./_build/default/src/privPrecCompare.exe $PRIVDUMPS 2>&1 | tee "$OUTDIR/compare.txt"
+./privPrecCompare $PRIVDUMPS 2>&1 | tee "$OUTDIR/compare.txt"

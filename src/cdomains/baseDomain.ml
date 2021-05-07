@@ -92,13 +92,13 @@ struct
       else PrivD.compare r1.priv r2.priv
 
 
-  let short w r =
-    let first  = CPA.short (w-18) r.cpa in
-    let second  = PartDeps.short (w-12- String.length first) r.deps in
-    let third  = PrivD.short (w-6- String.length first - String.length second) r.priv in
+  let show r =
+    let first  = CPA.show r.cpa in
+    let second  = PartDeps.show r.deps in
+    let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ")"
 
-  let pretty_f _ () r =
+  let pretty () r =
     text "(" ++
     CPA.pretty () r.cpa
     ++ text ", " ++
@@ -107,12 +107,9 @@ struct
     PrivD.pretty () r.priv
     ++ text ")"
 
-  let isSimple r  = CPA.isSimple r.cpa && PartDeps.isSimple r.deps && PrivD.isSimple r.priv
-
   let printXml f r =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (CPA.name ())) CPA.printXml r.cpa (Goblintutil.escape (PartDeps.name ())) PartDeps.printXml r.deps (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-  let pretty () x = pretty_f short () x
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ PrivD.name ()
 
   let invariant c {cpa; deps; priv} =

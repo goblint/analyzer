@@ -1117,17 +1117,17 @@ struct
 
       let report_race offset acc_list =
         let f  (((loc, fl, write), dom_elem,o),flagstate) =
-          let lock_str = Lockset.short 80 dom_elem in
+          let lock_str = Lockset.show dom_elem in
           let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully2) never happens!" ) (Lockset.ReverseAddrSet.elements dom_elem) in
           let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
           let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
           let action = if write then "write" else "read" in
-          let thread = "\"" ^ Flag.short 80 fl ^ "\"" in
+          let thread = "\"" ^ Flag.show fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in
           (warn,loc)
         in (*/f*)
         let warnings =  List.map f acc_list in
-        let var_str = gl.vname ^ ValueDomain.Offs.short 80 offset in
+        let var_str = gl.vname ^ ValueDomain.Offs.show offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
         let handle_race def_warn = begin
           if (List.mem gl.vname  (List.map Json.string @@ get_list "ana.osek.safe_vars")) then begin
@@ -1160,7 +1160,7 @@ struct
                   print_group warn warnings
                 end
               | Guarded locks ->
-                let lock_str = Mutex.Lockset.short 80 locks in
+                let lock_str = Mutex.Lockset.show locks in
                 if (get_bool "allglobs") then
                   print_group (safe_str "common mutex after filtering") warnings
                 else
@@ -1209,7 +1209,7 @@ struct
           | LowRead -> handle_race "Low read datarace"
           | LowWrite -> handle_race "Low write datarace"
           | Guarded locks ->
-            let lock_str = Mutex.Lockset.short 80 locks in
+            let lock_str = Mutex.Lockset.show locks in
             if (get_bool "allglobs") then
               print_group (safe_str "common mutex") warnings
             else
