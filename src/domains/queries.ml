@@ -72,7 +72,6 @@ type mustbool = MustBool
 
 type lvalset = LvalSet
 type exprset = ExprSet
-type exptriples = ExpTriples
 type typeset = TypeSet
 
 (* TODO: add phantom types for all variants *)
@@ -119,7 +118,6 @@ type _ result =
   | Str: SD.t -> SD.t result
   | LvalSet: LS.t -> lvalset result
   | ExprSet: ES.t -> exprset result
-  | ExpTriples: PS.t -> exptriples result (* TODO: remove unused? *)
   | TypeSet: TS.t -> typeset result
   | Varinfo: VI.t -> VI.t result
   | MustBool: MustBool.t -> mustbool result  (* true \leq false *)
@@ -221,7 +219,6 @@ struct
     | (Int x, Int y) -> ID.equal x y
     | (LvalSet x, LvalSet y) -> LS.equal x y
     | (ExprSet x, ExprSet y) -> ES.equal x y
-    | (ExpTriples x, ExpTriples y) -> PS.equal x y
     | (TypeSet x, TypeSet y) -> TS.equal x y
     | (Varinfo x, Varinfo y) -> VI.equal x y
     | (MustBool x, MustBool y) -> MustBool.equal x y
@@ -235,7 +232,6 @@ struct
     | Int n -> ID.hash n
     | LvalSet n -> LS.hash n
     | ExprSet n -> ES.hash n
-    | ExpTriples n -> PS.hash n
     | TypeSet n -> TS.hash n
     | Varinfo n -> VI.hash n
     | PartAccessResult n -> PartAccessResult.hash n
@@ -248,7 +244,6 @@ struct
       | Int _ -> 1
       | LvalSet _ -> 2
       | ExprSet _ -> 3
-      | ExpTriples _ -> 4
       | Str _ -> 5
       (* | `IntSet _ -> 6 *)
       | TypeSet _ -> 7
@@ -262,7 +257,6 @@ struct
     | Int x, Int y -> ID.compare x y
     | LvalSet x, LvalSet y -> LS.compare x y
     | ExprSet x, ExprSet y -> ES.compare x y
-    | ExpTriples x, ExpTriples y -> PS.compare x y
     | TypeSet x, TypeSet y -> TS.compare x y
     | Varinfo x, Varinfo y -> VI.compare x y
     | MustBool x, MustBool y -> MustBool.compare x y
@@ -276,7 +270,6 @@ struct
     | Str s ->  SD.pretty () s
     | LvalSet n ->  LS.pretty () n
     | ExprSet n ->  ES.pretty () n
-    | ExpTriples n ->  PS.pretty () n
     | TypeSet n -> TS.pretty () n
     | Varinfo n -> VI.pretty () n
     | MustBool n -> text (string_of_bool n)
@@ -292,7 +285,6 @@ struct
     | Str s ->  SD.short w s
     | LvalSet n ->  LS.short w n
     | ExprSet n ->  ES.short w n
-    | ExpTriples n ->  PS.short w n
     | TypeSet n -> TS.short w n
     | Varinfo n -> VI.short w n
     | MustBool n -> string_of_bool n
@@ -307,7 +299,6 @@ struct
     | Int n ->  ID.isSimple n
     | LvalSet n ->  LS.isSimple n
     | ExprSet n ->  ES.isSimple n
-    | ExpTriples n ->  PS.isSimple n
     | TypeSet n -> TS.isSimple n
     | Varinfo n -> VI.isSimple n
     | PartAccessResult n -> PartAccessResult.isSimple n
@@ -326,7 +317,6 @@ struct
     | (Int x, Int y) -> ID.leq x y
     | (LvalSet x, LvalSet y) -> LS.leq x y
     | (ExprSet x, ExprSet y) -> ES.leq x y
-    | (ExpTriples x, ExpTriples y) -> PS.leq x y
     | (TypeSet x, TypeSet y) -> TS.leq x y
     | (Varinfo x, Varinfo y) -> VI.leq x y
     (* TODO: should these be more like IntDomain.Booleans? *)
@@ -345,7 +335,6 @@ struct
       | (Int x, Int y) -> Int (ID.join x y)
       | (LvalSet x, LvalSet y) -> LvalSet (LS.join x y)
       | (ExprSet x, ExprSet y) -> ExprSet (ES.join x y)
-      | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.join x y)
       | (TypeSet x, TypeSet y) -> TypeSet (TS.join x y)
       | (Varinfo x, Varinfo y) -> Varinfo (VI.join x y)
       | (MustBool x, MustBool y) -> MustBool (MustBool.join x y)
@@ -364,7 +353,6 @@ struct
       | (Int x, Int y) -> Int (ID.meet x y)
       | (LvalSet x, LvalSet y) -> LvalSet (LS.meet x y)
       | (ExprSet x, ExprSet y) -> ExprSet (ES.meet x y)
-      | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.meet x y)
       | (TypeSet x, TypeSet y) -> TypeSet (TS.meet x y)
       | (Varinfo x, Varinfo y) -> Varinfo (VI.meet x y)
       | (MustBool x, MustBool y) -> MustBool (MustBool.meet x y)
@@ -386,7 +374,6 @@ struct
       | (Int x, Int y) -> Int (ID.widen x y)
       | (LvalSet x, LvalSet y) -> LvalSet (LS.widen x y)
       | (ExprSet x, ExprSet y) -> ExprSet (ES.widen x y)
-      | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.widen x y)
       | (TypeSet x, TypeSet y) -> TypeSet (TS.widen x y)
       | (Varinfo x, Varinfo y) -> Varinfo (VI.widen x y)
       | (MustBool x, MustBool y) -> MustBool (MustBool.widen x y)
@@ -401,7 +388,6 @@ struct
     | (Int x, Int y) -> Int (ID.narrow x y)
     | (LvalSet x, LvalSet y) -> LvalSet (LS.narrow x y)
     | (ExprSet x, ExprSet y) -> ExprSet (ES.narrow x y)
-    | (ExpTriples x, ExpTriples y) -> ExpTriples (PS.narrow x y)
     | (TypeSet x, TypeSet y) -> TypeSet (TS.narrow x y)
     | (Varinfo x, Varinfo y) -> Varinfo (VI.narrow x y)
     | (MustBool x, MustBool y) -> MustBool (MustBool.narrow x y)

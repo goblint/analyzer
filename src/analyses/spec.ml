@@ -220,7 +220,6 @@ struct
     | Str x -> "Str"
     | LvalSet x -> "LvalSet"
     | ExprSet x -> "ExprSet"
-    | ExpTriples x -> "ExpTriples"
     | TypeSet x -> "TypeSet"
     | Varinfo x -> "Varinfo"
     | MustBool x -> "MustBool"
