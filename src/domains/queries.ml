@@ -81,7 +81,6 @@ type _ t =
   | MustBeEqual: exp * exp -> mustbool t (* are two expression known to must-equal ? *)
   | MayBeEqual: exp * exp -> maybool t (* may two expressions be equal? *)
   | MayBeLess: exp * exp -> maybool t (* may exp1 < exp2 ? *)
-  | TheAnswerToLifeUniverseAndEverything: Unit.t t (* TODO: unused, remove? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> maybool t
 (* [@@deriving to_yojson] *)
@@ -139,7 +138,6 @@ struct
     | PrintFullState -> Unit (Unit.bot ())
     | IterPrevVars _ -> Unit (Unit.bot ())
     | IterVars _ -> Unit (Unit.bot ())
-    | TheAnswerToLifeUniverseAndEverything -> Unit (Unit.bot ())
     | PartAccess _ -> PartAccessResult (PartAccessResult.bot ())
 
   let top (type a) (q: a t): a result =
@@ -175,7 +173,6 @@ struct
     | PrintFullState -> Unit (Unit.top ())
     | IterPrevVars _ -> Unit (Unit.top ())
     | IterVars _ -> Unit (Unit.top ())
-    | TheAnswerToLifeUniverseAndEverything -> Unit (Unit.top ())
     | PartAccess _ -> PartAccessResult (PartAccessResult.top ())
 
   let pretty () (type a) (state: a result) =
