@@ -87,7 +87,6 @@ type _ t =
 
 
 type _ result =
-  (* | Top: 'a result *)
   | Int: ID.t -> ID.t result
   | Str: SD.t -> SD.t result
   | LvalSet: LS.t -> lvalset result
@@ -98,7 +97,6 @@ type _ result =
   | MayBool: MayBool.t -> maybool result   (* false \leq true *)
   | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
   | Unit: Unit.t -> Unit.t result
-  (* | Bot: 'a result *)
 (* [@@deriving to_yojson] *)
 
 type ask = { f: 'a. 'a t -> 'a result }
