@@ -445,9 +445,9 @@ struct
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
       );
 
-      if (get_bool "verify" || get_bool "warnings" && compare_runs = [] then (
+      if (get_bool "verify" || get_string "warn" <> "never") && compare_runs = [] then (
         if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
-        Goblintutil.should_warn := true;
+        Goblintutil.should_warn := get_string "warn" <> "never";
         Stats.time "verify" (Vrfyr.verify lh) gh;
       );
 
