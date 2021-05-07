@@ -87,14 +87,13 @@ let _ = ()
       ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
-      ; reg Std "warn"            "'default'"      "Output warnings: 'default'. 'never': Do not produce warnings, 'early'. For debugging. Outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
+      ; reg Std "warn"            "'default'"    "Output warnings: 'default'. 'never': Do not produce warnings, 'early'. For debugging. Outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
 
 (* {4 category [Analyses]} *)
 let _ = ()
       ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','escape','mutex', 'mallocWrapper']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
-      ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
       ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
       ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
       ; reg Analyses "ana.osek.oil"        "''"    "Oil file for the analyzed program"
