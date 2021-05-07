@@ -160,7 +160,6 @@ struct
     let pt e =
       match ask (Queries.MayPointTo e) with
       | Queries.LvalSet ls -> ls
-      | _ -> Queries.LS.top ()
     in
     let rec lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
@@ -200,7 +199,6 @@ struct
     let pt e =
       match ask.f (Queries.MayPointTo e) with
       | LvalSet ls -> ls
-      | _ -> Queries.LS.top ()
     in
     let bls = pt b in
     let bt =
@@ -412,7 +410,6 @@ struct
       | Some st ->
         match ask.f (Queries.ReachableFrom e) with
         | LvalSet vs -> Some (Queries.LS.join vs st)
-        | _ -> None
     in
     List.fold_right reachable es (Some (Queries.LS.empty ()))
 

@@ -678,7 +678,6 @@ struct
         Q.LS.fold (fun (var, offs) acc ->
             Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
           ) ls (Lockset.empty ())
-      | _ -> failwith "Locksets.current_lockset"
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)

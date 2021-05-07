@@ -691,7 +691,6 @@ struct
     let functions =
       match ctx.ask (Queries.EvalFunvar e) with
       | LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
-      | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
     in
     let one_function f =
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in

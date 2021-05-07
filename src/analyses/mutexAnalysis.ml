@@ -204,8 +204,6 @@ struct
             | _ -> ()
           in
           Queries.TS.iter f ts
-        | _ ->
-          includes_uk := true
       end;
       on_lvals ls !includes_uk
     | _ ->
