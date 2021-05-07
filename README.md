@@ -3,6 +3,8 @@
 [![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
 [![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
 
+Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/en/latest/) or [GitHub](./docs/).
+
 ## Setup
 ### Linux / MacOS
 **For an up-to-date-version, clone this repository, use `make setup` to install OCaml and all dependencies, and `make` to build.**
