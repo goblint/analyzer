@@ -101,7 +101,7 @@ rule() {
       opam_setup
     ;; dev)
       echo "Installing opam packages for development..."
-      opam install utop ocaml-lsp-server ocp-indent ocamlformat ounit2
+      opam install utop ocaml-lsp-server ocp-indent ocamlformat ounit2 earlybird
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
