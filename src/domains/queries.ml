@@ -29,9 +29,7 @@ end)
 module PartAccessResult = Access.PartAccessResult
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
-let iterprevvar_to_yojson _ = `Null
 type itervar = int -> unit
-let itervar_to_yojson _ = `Null
 
 module SD = Basetype.Strings
 
@@ -83,7 +81,6 @@ type _ t =
   | MayBeLess: exp * exp -> maybool t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> maybool t
-(* [@@deriving to_yojson] *)
 
 
 type _ result =
@@ -97,7 +94,6 @@ type _ result =
   | MayBool: MayBool.t -> maybool result   (* false \leq true *)
   | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
   | Unit: Unit.t -> Unit.t result
-(* [@@deriving to_yojson] *)
 
 type ask = { f: 'a. 'a t -> 'a result }
 
