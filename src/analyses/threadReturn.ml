@@ -6,7 +6,6 @@ open Analyses
 let is_current (ask: Queries.ask): bool =
   match ask.f Queries.MayBeThreadReturn with
   | MayBool b -> b
-  | _ -> failwith "ThreadReturn.is_current"
 
 
 module Spec : Analyses.MCPSpec =

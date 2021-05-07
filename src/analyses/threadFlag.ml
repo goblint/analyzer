@@ -10,7 +10,7 @@ let is_multi (ask: Queries.ask): bool =
   if !GU.global_initialization then false else
   match ask.f Queries.MustBeSingleThreaded with
   | MustBool x -> not x
-  | _ -> failwith "ThreadFlag.is_multi"
+  | _ -> .
 
 
 module Spec =

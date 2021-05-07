@@ -15,7 +15,6 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
     (* | Top ->
       M.warn @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
       true *)
-    | _ -> failwith "ThreadEscape.has_escaped"
 
 
 module Spec =
