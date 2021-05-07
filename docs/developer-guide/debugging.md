@@ -26,3 +26,22 @@ ignore (Pretty.printf "An int and a string: %d %s\n" 42 "magic");
 ```ocaml
 ignore (Pretty.printf "Some expressions: %a\n" (d_list ", " d_exp) exps);
 ```
+
+
+## Tracing
+Tracing is a nicer alternative to debug printing, because it can be disabled for best performance and it can be used to only see relevant tracing output.
+
+Recompile with tracing enabled: `./scripts/trace_on.sh`.
+
+Instead of debug printing use a tracing function from the `Messages` module, which is often aliased to just `M` (and pick a relevant name instead of `mything`):
+```ocaml
+if M.tracing then M.trace "mything" "A domain element: %a\n" D.pretty d;
+```
+
+Then run Goblint with the additional argument `--trace mything`.
+If the traced code runs often, it's best to pipe Goblint's output to a file.
+
+Other tracing functions are available:
+
+* `M.tracel` also includes the analysed program location.
+* `M.tracei` and `M.traceu` can be used to indend and unindent tracing output.
