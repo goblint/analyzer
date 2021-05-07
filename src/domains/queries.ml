@@ -38,6 +38,8 @@ module SD = Basetype.Strings
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
 
+module Unit = Lattice.Unit
+
 (* phantom types for matching queries with results *)
 (* TODO: why do these require constructors for refutation to work? *)
 type maybool = MayBool
@@ -71,15 +73,15 @@ type _ t =
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
-  | PrintFullState: unit t
+  | PrintFullState: Unit.t t
   | CondVars: exp -> exprset t
   | PartAccess: {exp: exp; var_opt: varinfo option; write: bool} -> PartAccessResult.t t
-  | IterPrevVars: iterprevvar -> unit t
-  | IterVars: itervar -> unit t
+  | IterPrevVars: iterprevvar -> Unit.t t
+  | IterVars: itervar -> Unit.t t
   | MustBeEqual: exp * exp -> mustbool t (* are two expression known to must-equal ? *)
   | MayBeEqual: exp * exp -> maybool t (* may two expressions be equal? *)
   | MayBeLess: exp * exp -> maybool t (* may exp1 < exp2 ? *)
-  | TheAnswerToLifeUniverseAndEverything: unit t (* TODO: unused, remove? *)
+  | TheAnswerToLifeUniverseAndEverything: Unit.t t (* TODO: unused, remove? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> maybool t
 (* [@@deriving to_yojson] *)
@@ -96,7 +98,7 @@ type _ result =
   | MustBool: MustBool.t -> mustbool result  (* true \leq false *)
   | MayBool: MayBool.t -> maybool result   (* false \leq true *)
   | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
-  | Unit: unit result
+  | Unit: Unit.t -> Unit.t result
   (* | Bot: 'a result *)
 (* [@@deriving to_yojson] *)
 
@@ -134,10 +136,10 @@ struct
     | CurrentThreadId -> Varinfo (VI.bot ())
     | HeapVar -> Varinfo (VI.bot ())
     | EvalStr _ -> Str (SD.bot ())
-    | PrintFullState -> Unit
-    | IterPrevVars _ -> Unit
-    | IterVars _ -> Unit
-    | TheAnswerToLifeUniverseAndEverything -> Unit
+    | PrintFullState -> Unit (Unit.bot ())
+    | IterPrevVars _ -> Unit (Unit.bot ())
+    | IterVars _ -> Unit (Unit.bot ())
+    | TheAnswerToLifeUniverseAndEverything -> Unit (Unit.bot ())
     | PartAccess _ -> PartAccessResult (PartAccessResult.bot ())
 
   let top (type a) (q: a t): a result =
@@ -170,10 +172,10 @@ struct
     | CurrentThreadId -> Varinfo (VI.top ())
     | HeapVar -> Varinfo (VI.top ())
     | EvalStr _ -> Str (SD.top ())
-    | PrintFullState -> Unit
-    | IterPrevVars _ -> Unit
-    | IterVars _ -> Unit
-    | TheAnswerToLifeUniverseAndEverything -> Unit
+    | PrintFullState -> Unit (Unit.top ())
+    | IterPrevVars _ -> Unit (Unit.top ())
+    | IterVars _ -> Unit (Unit.top ())
+    | TheAnswerToLifeUniverseAndEverything -> Unit (Unit.top ())
     | PartAccess _ -> PartAccessResult (PartAccessResult.top ())
 
   let pretty () (type a) (state: a result) =
@@ -187,7 +189,7 @@ struct
     | MustBool n -> text (string_of_bool n)
     | MayBool n -> text (string_of_bool n)
     | PartAccessResult n -> PartAccessResult.pretty () n
-    | Unit -> text "()"
+    | Unit n -> Unit.pretty () n
 
   let short w (type a) (state: a result) =
     match state with
@@ -200,7 +202,7 @@ struct
     | MustBool n -> string_of_bool n
     | MayBool n -> string_of_bool n
     | PartAccessResult n -> PartAccessResult.short w n
-    | Unit -> "()"
+    | Unit n -> Unit.short w n
 
   let join (type a) (x: a result) (y: a result): a result =
     match x, y with
@@ -212,7 +214,7 @@ struct
     | MustBool x, MustBool y -> MustBool (MustBool.join x y)
     | MayBool x, MayBool y -> MayBool (MayBool.join x y)
     | PartAccessResult x, PartAccessResult y -> PartAccessResult (PartAccessResult.join x y)
-    | Unit, Unit -> Unit
+    | Unit x, Unit y -> Unit (Unit.join x y)
     | Str x, Str y -> Str (SD.join x y)
 
   let meet (type a) (x: a result) (y: a result): a result =
@@ -225,6 +227,6 @@ struct
     | MustBool x, MustBool y -> MustBool (MustBool.meet x y)
     | MayBool x, MayBool y -> MayBool (MayBool.meet x y)
     | PartAccessResult x, PartAccessResult y -> PartAccessResult (PartAccessResult.meet x y)
-    | Unit, Unit -> Unit
+    | Unit x, Unit y -> Unit (Unit.meet x y)
     | Str x, Str y -> Str (SD.meet x y)
 end

@@ -225,7 +225,7 @@ struct
     | MustBool x -> "MustBool"
     | MayBool x -> "MayBool"
     | PartAccessResult x -> "PartAccessResult"
-    | Unit -> "Unit"
+    | Unit x -> "Unit"
 
 
   (* transfer functions *)
