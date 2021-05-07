@@ -18,4 +18,5 @@ nav:
   - Home: index.md
   # - 'User guide':
   - 'Developer guide':
+    - developer-guide/testing.md
     - developer-guide/documenting.md
