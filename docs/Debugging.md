@@ -11,13 +11,20 @@ This will create a file called `goblint.byte`.
 ## Debugging Goblint with VS Code
 
 To debug OCaml programs, you can use the command line interface of `ocamldebug` or make use of the Visual Studio Code
-integration provided by `hackwaly.ocamlearlybird`. In the following, we describe the steps necessary to set up this VS Code extension to
+integration provided by `hackwaly.ocamlearlybird`.
+In the following, we describe the steps necessary to set up this VS Code extension to
 debug Goblint.
 
 ### Setting-up Earlybird
 
 Install the [`hackwaly.ocamlearlybird` extension](https://marketplace.visualstudio.com/items?itemName=hackwaly.ocamlearlybird) in your installation of Visual Studio Code.
-To be able to use this extension, you additionally need to install `ocamlearlybird` on the opam switch you use for Goblint. To do this, run the following command in the `analyzer` directory:
+To be able to use this extension, you additionally need to install `ocamlearlybird` on the opam switch you use for Goblint.
+Running:
+
+`make dev`
+
+will install `ocamlearlybird` along with some other useful development tools.
+In case you do not want to install all of these and only want to install `ocamlearlybird` by itself, run the following command in the `analyzer` directory:
 
 `opam install earlybird`
 
@@ -44,7 +51,7 @@ The configuration file has to be named `launch.json` and must reside in the `./.
     ]
 }
 ```
-Note that the individual strings in `arguments` cannot contain spaces.
+Note that the individual arguments to Goblint should be passed here as separate strings that do not contain spaces.
 
 ### Running Goblint in the VS Code Debugger
 
