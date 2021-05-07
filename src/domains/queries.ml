@@ -65,23 +65,28 @@ struct
   let narrow = (||)
 end
 
+(* phantom types for matching queries with results *)
+(* TODO: why do these require constructors for refutation to work? *)
+type maybool = MayBool
+type mustbool = MustBool
+
 type _ t =
   | EqualSet: exp -> ES.t t
   | MayPointTo: exp -> LS.t t
   | ReachableFrom: exp -> LS.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
-  | MayEscape: varinfo -> MayBool.t t
+  | MayEscape: varinfo -> maybool t
   | Priority: string -> ID.t t
-  | MayBePublic: {global: varinfo; write: bool} -> MayBool.t t (* old behavior with write=false *)
-  | MayBePublicWithout: {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t} -> MayBool.t t
-  | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool} -> MustBool.t t
+  | MayBePublic: {global: varinfo; write: bool} -> maybool t (* old behavior with write=false *)
+  | MayBePublicWithout: {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t} -> maybool t
+  | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool} -> mustbool t
   | CurrentLockset: LS.t t
-  | MustBeAtomic: MustBool.t t
-  | MustBeSingleThreaded: MustBool.t t
-  | MustBeUniqueThread: MustBool.t t
+  | MustBeAtomic: mustbool t
+  | MustBeSingleThreaded: mustbool t
+  | MustBeUniqueThread: mustbool t
   | CurrentThreadId: VI.t t
-  | MayBeThreadReturn: MayBool.t t
+  | MayBeThreadReturn: maybool t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
@@ -92,12 +97,12 @@ type _ t =
   | PartAccess: {exp: exp; var_opt: varinfo option; write: bool} -> PartAccessResult.t t
   | IterPrevVars: iterprevvar -> unit t
   | IterVars: itervar -> unit t
-  | MustBeEqual: exp * exp -> MustBool.t t (* are two expression known to must-equal ? *)
-  | MayBeEqual: exp * exp -> MayBool.t t (* may two expressions be equal? *)
-  | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
+  | MustBeEqual: exp * exp -> mustbool t (* are two expression known to must-equal ? *)
+  | MayBeEqual: exp * exp -> maybool t (* may two expressions be equal? *)
+  | MayBeLess: exp * exp -> maybool t (* may exp1 < exp2 ? *)
   | TheAnswerToLifeUniverseAndEverything: unit t (* TODO: unused, remove? *)
   | HeapVar: VI.t t
-  | IsHeapVar: varinfo -> MayBool.t t
+  | IsHeapVar: varinfo -> maybool t
 (* [@@deriving to_yojson] *)
 
 
@@ -110,8 +115,8 @@ type _ result =
   | ExpTriples: PS.t -> PS.t result
   | TypeSet: TS.t -> TS.t result
   | Varinfo: VI.t -> VI.t result
-  | MustBool: MustBool.t -> MustBool.t result  (* true \leq false *)
-  | MayBool: MayBool.t -> MayBool.t result   (* false \leq true *)
+  | MustBool: MustBool.t -> mustbool result  (* true \leq false *)
+  | MayBool: MayBool.t -> maybool result   (* false \leq true *)
   | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
   | Unit: unit result
   (* | Bot: 'a result *)
@@ -361,8 +366,6 @@ struct
       | Unit, Unit -> Unit
 
       | Str x, Str y -> Str (SD.meet x y)
-      | MustBool _, MayBool _
-      | MayBool _, MustBool _ -> failwith "Result.meet Bool"
       (* ocaml cannot refute these because all sets (although with different type)... *)
       | LvalSet _, TypeSet _
       | TypeSet _, LvalSet _
