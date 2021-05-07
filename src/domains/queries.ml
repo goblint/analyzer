@@ -70,30 +70,35 @@ end
 type maybool = MayBool
 type mustbool = MustBool
 
+type lvalset = LvalSet
+type exprset = ExprSet
+type exptriples = ExpTriples
+type typeset = TypeSet
+
 type _ t =
-  | EqualSet: exp -> ES.t t
-  | MayPointTo: exp -> LS.t t
-  | ReachableFrom: exp -> LS.t t
-  | ReachableUkTypes: exp -> TS.t t
-  | Regions: exp -> LS.t t
+  | EqualSet: exp -> exprset t
+  | MayPointTo: exp -> lvalset t
+  | ReachableFrom: exp -> lvalset t
+  | ReachableUkTypes: exp -> typeset t
+  | Regions: exp -> lvalset t
   | MayEscape: varinfo -> maybool t
   | Priority: string -> ID.t t
   | MayBePublic: {global: varinfo; write: bool} -> maybool t (* old behavior with write=false *)
   | MayBePublicWithout: {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t} -> maybool t
   | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool} -> mustbool t
-  | CurrentLockset: LS.t t
+  | CurrentLockset: lvalset t
   | MustBeAtomic: mustbool t
   | MustBeSingleThreaded: mustbool t
   | MustBeUniqueThread: mustbool t
   | CurrentThreadId: VI.t t
   | MayBeThreadReturn: maybool t
-  | EvalFunvar: exp -> LS.t t
+  | EvalFunvar: exp -> lvalset t
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | PrintFullState: unit t
-  | CondVars: exp -> ES.t t
+  | CondVars: exp -> exprset t
   | PartAccess: {exp: exp; var_opt: varinfo option; write: bool} -> PartAccessResult.t t
   | IterPrevVars: iterprevvar -> unit t
   | IterVars: itervar -> unit t
@@ -110,10 +115,10 @@ type _ result =
   (* | Top: 'a result *)
   | Int: ID.t -> ID.t result
   | Str: SD.t -> SD.t result
-  | LvalSet: LS.t -> LS.t result
-  | ExprSet: ES.t -> ES.t result
-  | ExpTriples: PS.t -> PS.t result
-  | TypeSet: TS.t -> TS.t result
+  | LvalSet: LS.t -> lvalset result
+  | ExprSet: ES.t -> exprset result
+  | ExpTriples: PS.t -> exptriples result (* TODO: remove unused? *)
+  | TypeSet: TS.t -> typeset result
   | Varinfo: VI.t -> VI.t result
   | MustBool: MustBool.t -> mustbool result  (* true \leq false *)
   | MayBool: MayBool.t -> maybool result   (* false \leq true *)
@@ -366,19 +371,6 @@ struct
       | Unit, Unit -> Unit
 
       | Str x, Str y -> Str (SD.meet x y)
-      (* ocaml cannot refute these because all sets (although with different type)... *)
-      | LvalSet _, TypeSet _
-      | TypeSet _, LvalSet _
-      | LvalSet _, ExprSet _
-      | ExprSet _, LvalSet _
-      | LvalSet _, ExpTriples _
-      | ExpTriples _, LvalSet _
-      | ExprSet _, TypeSet _
-      | TypeSet _, ExprSet _
-      | ExpTriples _, TypeSet _
-      | TypeSet _, ExpTriples _
-      | ExprSet _, ExpTriples _
-      | ExpTriples _, ExprSet _ -> failwith "Result.meet Set"
       | _, _ -> .
       (* | _ -> failwith "Result.bot" *)
     with IntDomain.Error -> failwith "Result.bot"
