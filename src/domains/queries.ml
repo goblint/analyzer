@@ -75,6 +75,8 @@ type exprset = ExprSet
 type exptriples = ExpTriples
 type typeset = TypeSet
 
+(* TODO: add phantom types for all variants *)
+
 type _ t =
   | EqualSet: exp -> exprset t
   | MayPointTo: exp -> lvalset t
