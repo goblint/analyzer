@@ -78,7 +78,7 @@ struct
     in
     fold_left (fun a (n,d) -> f a n d) a x
 
-  let pretty_f _ () x =
+  let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
@@ -88,20 +88,16 @@ struct
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
       text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
-  let short w x =
-    let w2 = let n = List.length x in if n=0 then w else w / n in
-    (* width violated anyway? *)
+  let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
         let analysis_name = assoc n !analyses_table in
-        (analysis_name ^ ":(" ^ S.short w2 (obj x) ^ ")") :: a) [] x
+        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
   let to_yojson x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
     [%to_yojson: Printable.json list] xs
-
-  let pretty = pretty_f short
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
@@ -121,7 +117,6 @@ struct
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
 
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
-  let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
 
   let name () =
     let domain_name (n, (module D: Printable.S)) =

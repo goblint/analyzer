@@ -154,7 +154,7 @@ struct
     | `PartAccessResult x, `PartAccessResult y -> PartAccessResult.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
-  let pretty_f s () state =
+  let pretty () state =
     match state with
     | `Int n ->  ID.pretty () n
     | `Str s ->  text s
@@ -169,34 +169,21 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let short w state =
+  let show state =
     match state with
-    | `Int n ->  ID.short w n
+    | `Int n ->  ID.show n
     | `Str s ->  s
-    | `LvalSet n ->  LS.short w n
-    | `ExprSet n ->  ES.short w n
-    | `ExpTriples n ->  PS.short w n
-    | `TypeSet n -> TS.short w n
-    | `Varinfo n -> VI.short w n
+    | `LvalSet n ->  LS.show n
+    | `ExprSet n ->  ES.show n
+    | `ExpTriples n ->  PS.show n
+    | `TypeSet n -> TS.show n
+    | `Varinfo n -> VI.show n
     | `MustBool n -> string_of_bool n
     | `MayBool n -> string_of_bool n
-    | `PartAccessResult n -> PartAccessResult.short w n
+    | `PartAccessResult n -> PartAccessResult.show n
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let isSimple x =
-    match x with
-    | `Int n ->  ID.isSimple n
-    | `LvalSet n ->  LS.isSimple n
-    | `ExprSet n ->  ES.isSimple n
-    | `ExpTriples n ->  PS.isSimple n
-    | `TypeSet n -> TS.isSimple n
-    | `Varinfo n -> VI.isSimple n
-    | `PartAccessResult n -> PartAccessResult.isSimple n
-    (* `MustBool and `MayBool should work by the following *)
-    | _ -> true
-
-  let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let leq x y =
@@ -284,5 +271,5 @@ struct
     | (`PartAccessResult x, `PartAccessResult y) -> `PartAccessResult (PartAccessResult.narrow x y)
     | (x,_) -> x
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end

@@ -91,7 +91,7 @@ struct
     let add_to_it x s = add (f x) s in
     fold add_to_it s (empty ())
 
-  let pretty_f _ () x =
+  let pretty () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
@@ -105,21 +105,15 @@ struct
     (text "{") ++ content ++ (text "}")
 
   (** Short summary for sets. *)
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (Base.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let show x : string =
+    let all_elems : string list = List.map Base.show (elements x) in
+    Printable.get_short_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
-
-  let pretty () x = pretty_f short () x
 
   let equal x y =
     cardinal x = cardinal y
     && for_all (fun e -> exists (Base.equal e) y) x
-
-  let isSimple x =
-    (List.length (elements x)) < 3
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 
@@ -298,22 +292,15 @@ struct
 
   (* The printable implementation *)
 
-  let pretty_f _ () x =
+  let pretty () x =
     match x with
     | All -> text N.topname
     | Set t -> S.pretty () t
 
-  let short w x : string =
+  let show x : string =
     match x with
     | All -> N.topname
-    | Set t -> S.short w t
-
-  let isSimple x =
-    match x with
-    | All -> true
-    | Set t -> S.isSimple t
-
-  let pretty () x = pretty_f short () x
+    | Set t -> S.show t
 
 
   (* Lattice implementation *)
@@ -350,7 +337,7 @@ struct
       | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
       | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:show [
       20, QCheck.map set (S.arbitrary ());
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)
@@ -363,10 +350,8 @@ module HeadlessSet (Base: Printable.S) =
 struct
   include Make(Base)
 
-  let isSimple _ = false
-
   let name () = "Headless " ^ name ()
-  let pretty_f _ () x =
+  let pretty () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
@@ -379,7 +364,6 @@ struct
     let content = List.fold_left (++) nil separated in
     content
 
-  let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f xs =
@@ -510,15 +494,13 @@ struct
         if caridnality_comp <> 0
           then caridnality_comp
           else Map.compare (List.compare E.compare) x y
-  let isSimple _ = false
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (E.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let show x : string =
+    let all_elems : string list = List.map E.show (elements x) in
+    Printable.get_short_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let pretty_f _ () x =
+  let pretty () x =
     let content = List.map (E.pretty ()) (elements x) in
     let rec separate x =
       match x with
@@ -529,7 +511,6 @@ struct
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
     (text "{") ++ content ++ (text "}")
-  let pretty () x = pretty_f short () x
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y
@@ -606,7 +587,7 @@ struct
       | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
       | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:show [
       20, QCheck.map set (S.arbitrary ());
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)
