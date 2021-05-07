@@ -5,6 +5,8 @@ module LP = Exp.LockingPattern
 module Exp = Exp.Exp
 module VarEq = VarEq.Spec
 
+module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
+
 open Prelude.Ana
 open Analyses
 
@@ -47,19 +49,19 @@ struct
   let get_locks e st =
     let add_perel x xs =
       match LP.from_exps e x with
-      | Some x -> Queries.PS.add x xs
+      | Some x -> PS.add x xs
       | None -> xs
     in
-    D.fold add_perel st (Queries.PS.empty ())
+    D.fold add_perel st (PS.empty ())
 
-  let get_all_locks (ask: Queries.ask) e st : Queries.PS.t =
+  let get_all_locks (ask: Queries.ask) e st : PS.t =
     let exps =
       match ask.f (Queries.EqualSet e) with
       | ExprSet a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
       | _ -> Queries.ES.singleton e
     in
-    let add_locks x xs = Queries.PS.union (get_locks x st) xs in
-    Queries.ES.fold add_locks exps (Queries.PS.empty ())
+    let add_locks x xs = PS.union (get_locks x st) xs in
+    Queries.ES.fold add_locks exps (PS.empty ())
 
   let same_unknown_index (ask: Queries.ask) exp slocks =
     let uk_index_equal i1 i2 =
@@ -70,12 +72,12 @@ struct
     let lock_index ei ee x xs =
       match Exp.one_unknown_array_index x with
       | Some (true, i, e) when uk_index_equal ei i ->
-        Queries.PS.add (zero, ee, e) xs
+        PS.add (zero, ee, e) xs
       | _ -> xs
     in
     match Exp.one_unknown_array_index exp with
-    | Some (_, i, e) -> D.fold (lock_index i e) slocks (Queries.PS.empty ())
-    | _ -> Queries.PS.empty ()
+    | Some (_, i, e) -> D.fold (lock_index i e) slocks (PS.empty ())
+    | _ -> PS.empty ()
 
   let special ctx lval f arglist =
     match LF.classify f.vname arglist with
@@ -183,15 +185,15 @@ struct
     let do_perel e xs =
       match get_all_locks (Analyses.ask_of_ctx ctx) e ctx.local with
       | a
-        when not (Queries.PS.is_top a || Queries.PS.is_empty a)
-        -> Queries.PS.fold one_perelem a xs
+        when not (PS.is_top a || PS.is_empty a)
+        -> PS.fold one_perelem a xs
       | _ -> xs
     in
     let do_lockstep e xs =
       match same_unknown_index (Analyses.ask_of_ctx ctx) e ctx.local with
       | a
-        when not (Queries.PS.is_top a || Queries.PS.is_empty a)
-        -> Queries.PS.fold one_lockstep a xs
+        when not (PS.is_top a || PS.is_empty a)
+        -> PS.fold one_lockstep a xs
       | _ -> xs
     in
     let matching_exps =

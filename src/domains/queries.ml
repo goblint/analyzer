@@ -7,8 +7,6 @@ module GU = Goblintutil
 module ID = IntDomain.Flattened
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
-module PS = SetDomain.ToppedSet (Exp.LockingPattern) (struct let topname = "All" end)
-module LPS = SetDomain.ToppedSet (Printable.Prod (Lval.CilLval) (Lval.CilLval)) (struct let topname = "All" end)
 
 (* who uses this? hopefully it's not in the domain *)
 module ES_r = SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end)
