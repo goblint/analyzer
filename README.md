@@ -17,8 +17,7 @@ Goblint relies on GNU `cpp` to preprocess source files - the default clang `cpp`
 You can install it with `brew install gcc` (first do `xcode-select --install` if you don't want to build from source). You can check src/config.ml to see what command is used to call `cpp`.
 
 ### Windows
-For Windows 10 we recommend using [WSL](https://docs.microsoft.com/de-de/windows/wsl/install-win10).
-For older versions you can try to build using [these scripts](https://github.com/goblint/analyzer/tree/master/scripts/old/cygwin) for Cygwin, or use a virtual machine.
+For Windows, we recommend using [WSL](https://docs.microsoft.com/de-de/windows/wsl/install-win10).
 
 ### Docker / Virtual machine
 You can run Goblint in a [Docker container](https://hub.docker.com/r/voglerr/goblint/) using: `docker run -it voglerr/goblint ./goblint --help`.
