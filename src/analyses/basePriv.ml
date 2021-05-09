@@ -673,11 +673,10 @@ struct
     if !GU.global_initialization then
       Lockset.empty ()
     else
-      match ask.f Queries.CurrentLockset with
-      | LvalSet ls ->
-        Q.LS.fold (fun (var, offs) acc ->
-            Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
-          ) ls (Lockset.empty ())
+      let LvalSet ls = ask.f Queries.CurrentLockset in
+      Q.LS.fold (fun (var, offs) acc ->
+          Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
+        ) ls (Lockset.empty ())
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)

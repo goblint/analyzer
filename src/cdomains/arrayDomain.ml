@@ -143,6 +143,7 @@ struct
     | `Lifted e', `Lifted i' ->
       begin
         let isEqual = match ask.f (Q.MustBeEqual (e',i')) with
+          (* TODO: simplify *)
           | MustBool true -> true
           | _ -> false in
         if isEqual then xm
@@ -236,14 +237,11 @@ struct
             match e with
             | `Lifted e' ->
               begin
-                match ask.f (Q.EvalInt e') with
-                | Int n ->
-                  begin
-                    match Q.ID.to_int n with
-                    | Some i ->
-                      (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
-                    | _ -> default
-                  end
+                let Int n = ask.f (Q.EvalInt e') in
+                match Q.ID.to_int n with
+                | Some i ->
+                  (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
+                | _ -> default
               end
             | _ -> default
           else
@@ -266,6 +264,7 @@ struct
                   | Some i ->
                     begin
                       match ask.f (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) with
+                      (* TODO: simplify *)
                       | MayBool false -> true (* !(e <_{may} length) => e >=_{must} length *)
                       | _ -> false
                     end
@@ -275,6 +274,7 @@ struct
             in
             let e_must_less_zero =
               match ask.f (Q.MayBeLess (Cil.mone, exp)) with
+              (* TODO: simplify *)
               | MayBool false -> true (* !(-1 <_{may} e) => e <=_{must} -1 *)
               | _ -> false
             in
@@ -303,10 +303,8 @@ struct
       let exp_value e =
         match e with
         | `Lifted e' ->
-            begin
-              match ask.f (Q.EvalInt e') with
-              | Int n -> Option.map BI.of_int64 (Q.ID.to_int n)
-            end
+          let Int n = ask.f (Q.EvalInt e') in
+          Option.map BI.of_int64 (Q.ID.to_int n)
         |_ -> None
       in
       let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
@@ -331,6 +329,7 @@ struct
           (i, (l, a, r))
       else
         let isEqual e' i' = match ask.f (Q.MustBeEqual (e',i')) with
+          (* TODO: simplify *)
           | MustBool true -> true
           | _ -> false
         in

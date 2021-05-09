@@ -1013,6 +1013,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
+          (* TODO: simplify *)
           let is_heap_var = match a.f (Q.IsHeapVar x) with MayBool(true) -> true | _ -> false in
           if is_heap_var then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
@@ -1058,6 +1059,7 @@ struct
           in
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
+              (* TODO: simplify *)
               match a.f (Q.MustBeEqual (e1, e2)) with
               | MustBool true -> true
               | _ -> false

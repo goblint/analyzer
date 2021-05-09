@@ -152,8 +152,8 @@ struct
       end;
 
       (*partitions & locks*)
-      match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
-      | PartAccessResult (po, pd) -> (po, pd)
+      let PartAccessResult (po, pd) = ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) in
+      (po, pd)
     in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
@@ -164,6 +164,7 @@ struct
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g =
+      (* TODO: simplify *)
       match ctx.ask (Queries.MayEscape g) with
       | MayBool false -> false
       | _ -> true

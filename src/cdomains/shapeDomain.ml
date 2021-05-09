@@ -73,6 +73,7 @@ let is_private (ask: Queries.ask) (lp:ListPtr.t) =
     | MustBool true -> true
     | _ ->
       match ask.f (Queries.MayBePublic {global=v; write=false})  with
+      (* TODO: simplify *)
       | MayBool false -> true
       | _ -> false
   in

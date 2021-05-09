@@ -197,8 +197,8 @@ struct
   let may_change (ask: Queries.ask) (b:exp) (a:exp) : bool =
     (*b should be an address of something that changes*)
     let pt e =
-      match ask.f (Queries.MayPointTo e) with
-      | LvalSet ls -> ls
+      let LvalSet ls = ask.f (Queries.MayPointTo e) in
+      ls
     in
     let bls = pt b in
     let bt =
@@ -408,8 +408,8 @@ struct
       match st with
       | None -> None
       | Some st ->
-        match ask.f (Queries.ReachableFrom e) with
-        | LvalSet vs -> Some (Queries.LS.join vs st)
+        let LvalSet vs = ask.f (Queries.ReachableFrom e) in
+        Some (Queries.LS.join vs st)
     in
     List.fold_right reachable es (Some (Queries.LS.empty ()))
 

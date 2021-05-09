@@ -8,8 +8,8 @@ open Analyses
 
 let is_multi (ask: Queries.ask): bool =
   if !GU.global_initialization then false else
-  match ask.f Queries.MustBeSingleThreaded with
-  | MustBool x -> not x
+  let MustBool x = ask.f Queries.MustBeSingleThreaded in
+  not x
 
 
 module Spec =

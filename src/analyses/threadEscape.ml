@@ -10,8 +10,8 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
   if not v.vaddrof then
     false (* Cannot have escaped without taking address. Override provides extra precision for degenerate ask in base eval_exp used for partitioned arrays. *)
   else
-    match ask.f (Queries.MayEscape v) with
-    | MayBool b -> b
+    let MayBool b = ask.f (Queries.MayEscape v) in
+    b
     (* | Top ->
       M.warn @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
       true *)
