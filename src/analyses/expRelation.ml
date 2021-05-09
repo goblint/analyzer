@@ -56,12 +56,7 @@ struct
     let open Queries in
     match q with
     | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
-      begin
-        if Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0 then
-          MustBool true
-        else
-          MustBool false
-      end
+      MustBool (Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0)
     | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
       begin
         match e1, e2 with
