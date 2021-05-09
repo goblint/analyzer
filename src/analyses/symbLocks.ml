@@ -65,10 +65,8 @@ struct
 
   let same_unknown_index (ask: Queries.ask) exp slocks =
     let uk_index_equal i1 i2 =
-      (* TODO: simplify *)
-      match ask.f (Queries.MustBeEqual (i1, i2)) with
-      | MustBool true -> true
-      | _ -> false
+      let MustBool b = ask.f (Queries.MustBeEqual (i1, i2)) in
+      b
     in
     let lock_index ei ee x xs =
       match Exp.one_unknown_array_index x with

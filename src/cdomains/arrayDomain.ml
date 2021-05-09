@@ -142,10 +142,10 @@ struct
     match e, i with
     | `Lifted e', `Lifted i' ->
       begin
-        let isEqual = match ask.f (Q.MustBeEqual (e',i')) with
-          (* TODO: simplify *)
-          | MustBool true -> true
-          | _ -> false in
+        let isEqual =
+          let MustBool b = ask.f (Q.MustBeEqual (e',i')) in
+          b
+        in
         if isEqual then xm
         else
           begin
@@ -262,21 +262,15 @@ struct
                 begin
                   match Idx.to_int l with
                   | Some i ->
-                    begin
-                      match ask.f (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) with
-                      (* TODO: simplify *)
-                      | MayBool false -> true (* !(e <_{may} length) => e >=_{must} length *)
-                      | _ -> false
-                    end
+                    let MayBool b = ask.f (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) in
+                    not b (* !(e <_{may} length) => e >=_{must} length *)
                   | None -> false
                 end
               | _ -> false
             in
             let e_must_less_zero =
-              match ask.f (Q.MayBeLess (Cil.mone, exp)) with
-              (* TODO: simplify *)
-              | MayBool false -> true (* !(-1 <_{may} e) => e <=_{must} -1 *)
-              | _ -> false
+              let MayBool b = ask.f (Q.MayBeLess (Cil.mone, exp)) in
+              not b (* !(-1 <_{may} e) => e <=_{must} -1 *)
             in
             if e_must_bigger_max_index then
               (* Entire array is covered by left part, dropping partitioning. *)
@@ -328,10 +322,9 @@ struct
           let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
           (i, (l, a, r))
       else
-        let isEqual e' i' = match ask.f (Q.MustBeEqual (e',i')) with
-          (* TODO: simplify *)
-          | MustBool true -> true
-          | _ -> false
+        let isEqual e' i' =
+          let MustBool b = ask.f (Q.MustBeEqual (e',i')) in
+          b
         in
         match e, i with
         | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin

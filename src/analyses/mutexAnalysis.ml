@@ -164,10 +164,8 @@ struct
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g =
-      (* TODO: simplify *)
-      match ctx.ask (Queries.MayEscape g) with
-      | MayBool false -> false
-      | _ -> true
+      let MayBool b = ctx.ask (Queries.MayEscape g) in
+      b
     in
     (* The following function adds accesses to the lval-set ls
        -- this is the common case if we have a sound points-to set. *)

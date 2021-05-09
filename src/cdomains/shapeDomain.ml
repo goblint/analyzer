@@ -72,10 +72,8 @@ let is_private (ask: Queries.ask) (lp:ListPtr.t) =
     match ask.f Queries.MustBeSingleThreaded with
     | MustBool true -> true
     | _ ->
-      match ask.f (Queries.MayBePublic {global=v; write=false})  with
-      (* TODO: simplify *)
-      | MayBool false -> true
-      | _ -> false
+      let MayBool b = ask.f (Queries.MayBePublic {global=v; write=false}) in
+      not b
   in
   match lp with
   | `Right ((v,_),_) when v.vname.[0] = '{' -> true

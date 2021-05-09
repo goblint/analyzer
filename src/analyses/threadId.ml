@@ -62,10 +62,8 @@ struct
     ctx.local
 
   let is_unique ctx =
-    match ctx.ask Queries.MustBeUniqueThread with
-    (* TODO: simplify *)
-    | MustBool true -> true
-    | _ -> false
+    let MustBool b = ctx.ask Queries.MustBeUniqueThread in
+    b
 
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
