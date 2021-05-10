@@ -35,7 +35,7 @@ sig
    * the state when following conditional guards. *)
   val write_global: (BaseComponents (D).t, G.t, 'c) ctx -> ?invariant:bool -> varinfo -> VD.t -> BaseComponents (D).t
 
-  val lock: Q.ask -> (varinfo -> G.t) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
+  val lock: (BaseComponents (D).t, G.t, 'c) ctx -> LockDomain.Addr.t -> BaseComponents (D).t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
 
   val sync: Q.ask -> (varinfo -> G.t) -> BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t * (varinfo * G.t) list
@@ -71,7 +71,7 @@ struct
 
   let startstate () = ()
 
-  let lock ask getg st m = st
+  let lock ctx m = ctx.local
   let unlock ask getg sideg st m = st
 
   let escape ask getg sideg st escaped = st
@@ -333,8 +333,10 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let get_m = get_m_with_mutex_inits ask getg m in
+  let lock ctx m =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
+    let get_m = get_m_with_mutex_inits ask ctx.global m in
     let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
     let cpa' = CPA.filter is_in_V get_m in
     if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
@@ -410,8 +412,10 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let get_m = get_m_with_mutex_inits ask getg m in
+  let lock ctx m =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
+    let get_m = get_m_with_mutex_inits ask ctx.global m in
     (* Additionally filter get_m in case it contains variables it no longer protects. *)
     let is_in_Gm x _ = is_protected_by ask m x in
     let get_m = CPA.filter is_in_Gm get_m in
@@ -600,7 +604,7 @@ struct
     else
       {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
 
-  let lock ask getg st m = st
+  let lock ctx m = ctx.local
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
@@ -793,14 +797,15 @@ struct
       ctx.sideg (mutex_global x) (GWeak.add s (ThreadMap.add t v (ThreadMap.bot ())) (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let s = current_lockset ask in
+  let lock ctx m =
+    let st = ctx.local in
+    let s = current_lockset (ask_of_ctx ctx) in
     let cpa' = GSync.fold (fun s' cpa' acc ->
         if Lockset.disjoint s s' then
           CPA.join cpa' acc
         else
           acc
-      ) (snd (getg (mutex_addr_to_varinfo m))) st.cpa
+      ) (snd (ctx.global (mutex_addr_to_varinfo m))) st.cpa
     in
     {st with cpa = cpa'}
 
@@ -858,14 +863,15 @@ struct
       ctx.sideg (mutex_global x) (GWeak.add s v (GWeak.bot ()), GSync.bot ());
     {st with cpa = cpa'}
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let s = current_lockset ask in
+  let lock ctx m =
+    let st = ctx.local in
+    let s = current_lockset (ask_of_ctx ctx) in
     let cpa' = GSync.fold (fun s' cpa' acc ->
         if Lockset.disjoint s s' then
           CPA.join cpa' acc
         else
           acc
-      ) (snd (getg (mutex_addr_to_varinfo m))) st.cpa
+      ) (snd (ctx.global (mutex_addr_to_varinfo m))) st.cpa
     in
     {st with cpa = cpa'}
 
@@ -936,14 +942,15 @@ struct
       ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton s v));
     {st with cpa = cpa'; priv = W.add x st.priv}
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let s = current_lockset ask in
+  let lock ctx m =
+    let st = ctx.local in
+    let s = current_lockset (ask_of_ctx ctx) in
     let cpa' = GSync.fold (fun s' cpa' acc ->
         if Lockset.disjoint s s' then
           CPA.join cpa' acc
         else
           acc
-      ) (G.sync (getg (mutex_addr_to_varinfo m))) st.cpa
+      ) (G.sync (ctx.global (mutex_addr_to_varinfo m))) st.cpa
     in
     {st with cpa = cpa'}
 
@@ -1088,8 +1095,9 @@ struct
     );
     {st with cpa = cpa'; priv = (v', l)}
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let s = current_lockset ask in
+  let lock ctx m =
+    let st = ctx.local in
+    let s = current_lockset (ask_of_ctx ctx) in
     let (v, l) = st.priv in
     let v' = V.add m (MustVars.empty ()) v in
     let l' = L.add m (MinLocksets.singleton s) l in
@@ -1264,7 +1272,7 @@ struct
     (* TODO: publish all g under M_g? *)
     {st with cpa = cpa'; priv = (w', p')}
 
-  let lock ask getg (st: BaseComponents (D).t) m = st
+  let lock ctx m = ctx.local
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = Lockset.remove m (current_lockset ask) in
@@ -1435,8 +1443,9 @@ struct
     (* TODO: publish all g under M_g? *)
     {st with cpa = cpa'; priv = ((w', p'), (v', l))}
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let s = current_lockset ask in
+  let lock ctx m =
+    let st = ctx.local in
+    let s = current_lockset (ask_of_ctx ctx) in
     let (wp, (v, l)) = st.priv in
     let v' = V.add m (MustVars.empty ()) v in
     let l' = L.add m (MinLocksets.singleton s) l in
@@ -1512,7 +1521,7 @@ struct
   let startstate = Priv.startstate
   let read_global ctx x = time "read_global" (Priv.read_global ctx) x
   let write_global ctx ?invariant x v = time "write_global" (Priv.write_global ctx ?invariant x) v
-  let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
+  let lock ctx m = time "lock" (Priv.lock ctx) m
   let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m
   let sync reason ctx = time "sync" (Priv.sync reason) ctx
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
@@ -1593,15 +1602,16 @@ struct
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
-  let lock ask getg st m =
+  let lock ctx m =
     if M.tracing then M.traceli "priv" "lock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty ctx.local;
     let getg x =
-      let r = getg x in
+      let r = ctx.global x in
       if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
       r
     in
-    let r = lock ask getg st m in
+    let ctx' = {ctx with global = getg} in
+    let r = lock ctx' m in
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 

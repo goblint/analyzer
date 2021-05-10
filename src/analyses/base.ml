@@ -2202,12 +2202,12 @@ struct
     (* D.join ctx.local @@ *)
     ctx.local
 
-  let event ctx e octx =
+  let event ctx e (octx: _ ctx) =
     let st: store = ctx.local in
     match e with
     | Events.Lock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
-      Priv.lock (Analyses.ask_of_ctx octx) octx.global st addr
+      Priv.lock BasePriv.{local = st; global = octx.global; sideg = (fun _ -> failwith "BasePriv.ctx.sideg"); ask = octx.ask} addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       Priv.unlock (Analyses.ask_of_ctx octx) octx.global octx.sideg st addr
     | Events.Escape escaped ->
