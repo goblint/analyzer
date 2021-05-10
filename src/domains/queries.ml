@@ -182,18 +182,18 @@ struct
     | PartAccessResult n -> PartAccessResult.pretty () n
     | Unit n -> Unit.pretty () n
 
-  let short w (type a) (state: a result) =
+  let show (type a) (state: a result) =
     match state with
-    | Int n ->  ID.short w n
-    | Str s ->  SD.short w s
-    | LvalSet n ->  LS.short w n
-    | ExprSet n ->  ES.short w n
-    | TypeSet n -> TS.short w n
-    | Varinfo n -> VI.short w n
+    | Int n ->  ID.show n
+    | Str s ->  SD.show s
+    | LvalSet n ->  LS.show n
+    | ExprSet n ->  ES.show n
+    | TypeSet n -> TS.show n
+    | Varinfo n -> VI.show n
     | MustBool n -> string_of_bool n
     | MayBool n -> string_of_bool n
-    | PartAccessResult n -> PartAccessResult.short w n
-    | Unit n -> Unit.short w n
+    | PartAccessResult n -> PartAccessResult.show n
+    | Unit n -> Unit.show n
 
   let join (type a) (x: a result) (y: a result): a result =
     match x, y with
