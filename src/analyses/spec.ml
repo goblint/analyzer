@@ -211,22 +211,6 @@ struct
     | [(v,_)] -> Some v
     | _ -> None
 
-  let dump_query_result (type a) (result: a Queries.result) =
-    let open Queries in
-    match result with
-    | Int x -> "Int"
-    (* | `Interval x -> "`Interval" *)
-    (* | `IntSet x -> "`IntSet" *)
-    | Str x -> "Str"
-    | LvalSet x -> "LvalSet"
-    | ExprSet x -> "ExprSet"
-    | TypeSet x -> "TypeSet"
-    | Varinfo x -> "Varinfo"
-    | MustBool x -> "MustBool"
-    | MayBool x -> "MayBool"
-    | PartAccessResult x -> "PartAccessResult"
-    | Unit x -> "Unit"
-
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
