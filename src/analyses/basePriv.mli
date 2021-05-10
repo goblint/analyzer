@@ -20,7 +20,7 @@ sig
   val write_global: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> ?invariant:bool -> varinfo -> BaseDomain.VD.t -> BaseDomain.BaseComponents (D).t
 
   val lock: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> LockDomain.Addr.t -> BaseDomain.BaseComponents (D).t
-  val unlock: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> LockDomain.Addr.t -> BaseDomain.BaseComponents (D).t
+  val unlock: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> LockDomain.Addr.t -> BaseDomain.BaseComponents (D).t
 
   val sync: Queries.ask -> (varinfo -> G.t) -> BaseDomain.BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseDomain.BaseComponents (D).t * (varinfo * G.t) list
 

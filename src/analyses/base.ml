@@ -2209,7 +2209,7 @@ struct
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       Priv.lock BasePriv.{local = st; global = octx.global; sideg = (fun _ -> failwith "BasePriv.ctx.sideg"); ask = octx.ask} addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.unlock (Analyses.ask_of_ctx octx) octx.global octx.sideg st addr
+      Priv.unlock BasePriv.{local = st; global = octx.global; sideg = octx.sideg; ask = octx.ask} addr
     | Events.Escape escaped ->
       Priv.escape (Analyses.ask_of_ctx octx) octx.global octx.sideg st escaped
     | Events.EnterMultiThreaded ->
