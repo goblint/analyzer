@@ -30,7 +30,7 @@ sig
   val is_immediate_type: typ -> bool
   val bot_value: typ -> t
   val init_value: typ -> t
-  val top_value: typ -> t
+  (* val top_value: typ -> t *)
   val zero_init_value: typ -> t
 end
 
@@ -68,7 +68,9 @@ struct
   let invariant c (v, _, _) = Value.invariant c v
 end
 
-module rec Compound: S with type t = [
+module rec Compound:
+sig
+  include S with type t = [
     | `Top
     | `Int of ID.t
     | `Address of AD.t
@@ -78,7 +80,19 @@ module rec Compound: S with type t = [
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
+  ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs
+
+  val top_value: typ -> [
+    | `Top
+    | `Int of ID.t
+    | `Address of AD.t
+    | `Struct of Structs.t
+    | `Union of Unions.t
+    | `Array of CArrays.t
+    | `Blob of Blobs.t
+    | `List of Lists.t
+  ]
+end =
 struct
   type t = [
     | `Top
@@ -138,10 +152,19 @@ struct
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
 
-  let rec top_value (t: typ): t =
+  let rec top_value (t: typ): [
+    | `Top
+    | `Int of ID.t
+    | `Address of AD.t
+    | `Struct of Structs.t
+    | `Union of Unions.t
+    | `Array of CArrays.t
+    | `Blob of Blobs.t
+    | `List of Lists.t
+  ] =
     let top_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
-      let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype) in
+      let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype :> t) in
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
@@ -150,10 +173,10 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+      `Array (CArrays.make (IndexDomain.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value ai :> t) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if get_bool "exp.partition-arrays.enabled" then (top_value ai :> t) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
@@ -653,7 +676,7 @@ struct
       `Array (CArrays.set ask n (array_idx_top) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
-    |                 t , _             -> top_value t
+    |                 t , _             -> (top_value t :> t)
 
 
   (* take the last offset in offset and move it over to left *)
@@ -903,7 +926,7 @@ struct
                 else begin
                   match offs with
                   | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value fld.ftype), offs
+                    (top_value fld.ftype :> t), offs
                   | `Field (fldi, _) -> `Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
                   | `Index (idx, _) when Cil.isArrayType fld.ftype ->

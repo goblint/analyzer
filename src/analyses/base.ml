@@ -782,11 +782,22 @@ struct
 
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
-  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): [
+  | `Top
+  | `Int of ValueDomain.ID.t
+  | `Address of AD.t
+  | `Struct of ValueDomain.Structs.t
+  | `Union of ValueDomain.Unions.t
+  | `Array of CArrays.t
+  | `Blob of ValueDomain.Blobs.t
+  | `List of ValueDomain.Lists.t
+] =
     try
       let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
-      if VD.is_bot r then VD.top_value (typeOf exp) else r
+      match r with
+      | `Bot -> VD.top_value (typeOf exp)
+      | (`Top | `Int _ | `Address _ | `Struct _ | `Union _ | `Array _ | `Blob _ | `List _) as r -> r
     with IntDomain.ArithmeticOnIntegerBot _ ->
     ValueDomain.Compound.top_value (typeOf exp)
 
@@ -827,8 +838,7 @@ struct
     | Q.EvalInt e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Int i when ID.is_int i -> `Int (to_int (Option.get (ID.to_int i)))
-        | `Bot   -> `Bot
-        | v      -> M.warn ("Query function answered " ^ (VD.show v)); `Top
+        | v      -> M.warn ("Query function answered " ^ (VD.show (v :> VD.t))); `Top
       end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
@@ -842,7 +852,6 @@ struct
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           (match ID.to_int d with Some i -> `Int (to_int i) | None -> `Top)
-        | `Bot -> `Bot
         | _ -> `Top
       end
     | Q.BlobSize e -> begin
@@ -864,13 +873,11 @@ struct
           if AD.mem Addr.UnknownPtr a
           then `LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
           else `LvalSet s
-        | `Bot -> `Bot
         | _ -> `Top
       end
     | Q.ReachableFrom e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Top -> `Top
-        | `Bot -> `Bot
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
           `LvalSet (Q.LS.top ())
         | `Address a ->
@@ -882,7 +889,6 @@ struct
     | Q.ReachableUkTypes e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Top -> `Top
-        | `Bot -> `Bot
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
           `TypeSet (Q.TS.top ())
         | `Address a ->
@@ -969,7 +975,7 @@ struct
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top_value typ) cpa
+      CPA.add variable (VD.top_value typ :> VD.t) cpa
     else
       CPA.add variable value cpa
 
@@ -1209,7 +1215,7 @@ struct
               | `Top when AD.is_null n ->
                 Some (x, `Address AD.not_null)
               | v ->
-                if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a\n" VD.pretty v AD.pretty n;
+                if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a\n" VD.pretty (v :> VD.t) AD.pretty n;
                 None
             end
           (* | `Address a -> Some (x, value) *)
@@ -1267,7 +1273,7 @@ struct
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
-      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (typeOfLval x) (eval_rv a gs st rval)) tv
+      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (typeOfLval x) (eval_rv a gs st rval :> VD.t)) tv
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
@@ -1445,7 +1451,7 @@ struct
         if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
         a, b
     in
-    let eval e st = eval_rv a gs st e in
+    let eval e st = (eval_rv a gs st e :> VD.t) in
     let eval_bool e st = match eval e st with `Int i -> ID.to_bool i | _ -> None in
     let set' lval v st = set a gs st (eval_lv a gs st lval) (Cil.typeOfLval lval) v ~effect:false ~change_array:false ~ctx:(Some ctx) in
     let rec inv_exp c exp (st:store): store =
@@ -1531,7 +1537,7 @@ struct
   let set_savetop ?ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
     match v with
-    | `Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
+    | `Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.get_type adr) :> VD.t) ?lval_raw ?rval_raw
     | v -> set ~ctx ask gs st adr lval_t v ?lval_raw ?rval_raw
 
 
@@ -1587,7 +1593,7 @@ struct
     | Some a when (get_bool "exp.list-type") ->
         set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local (AD.singleton (Addr.from_var a)) lval_t (`List (ValueDomain.Lists.bot ()))
     | _ ->
-      let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
+      let rval_val = (eval_rv ctx.ask ctx.global ctx.local rval :> VD.t) in
       let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
       (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
       (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
@@ -1641,7 +1647,7 @@ struct
 
   let branch ctx (exp:exp) (tv:bool) : store =
     Locmap.replace Deadcode.dead_branches_cond !Tracing.next_loc exp;
-    let valu = eval_rv ctx.ask ctx.global ctx.local exp in
+    let valu = (eval_rv ctx.ask ctx.global ctx.local exp :> VD.t) in
     let refine () =
       let res = invariant ctx ctx.ask ctx.global ctx.local exp tv in
       if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.EqualSet exp));
@@ -1717,7 +1723,7 @@ struct
           | TFun(ret, _, _, _) -> ret
           | _ -> assert false
         in
-        let rv = eval_rv ctx.ask ctx.global ctx.local exp in
+        let rv = (eval_rv ctx.ask ctx.global ctx.local exp :> VD.t) in
         let nst: store =
           match ThreadId.get_current ctx.ask with
           | `Lifted tid when ThreadReturn.is_current ctx.ask -> { nst with cpa = CPA.add tid rv nst.cpa}
@@ -1731,8 +1737,8 @@ struct
       ctx.local
     else
       let lval = eval_lv ctx.ask ctx.global ctx.local (Var v, NoOffset) in
-      let current_value = eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) in
-      let new_value = VD.update_array_lengths (eval_rv ctx.ask ctx.global ctx.local) current_value v.vtype in
+      let current_value = (eval_rv ctx.ask ctx.global ctx.local (Lval (Var v, NoOffset)) :> VD.t) in
+      let new_value = VD.update_array_lengths (fun e -> (eval_rv ctx.ask ctx.global ctx.local e :> VD.t)) current_value v.vtype in
       set ~ctx:(Some ctx) ctx.ask ctx.global ctx.local lval v.vtype new_value
 
   (**************************************************************************
@@ -1791,7 +1797,7 @@ struct
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+    let vals = List.map (fun e -> (eval_rv ctx.ask ctx.global st e :> VD.t)) args in
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
@@ -1878,7 +1884,6 @@ struct
           | Some true  ->  `True
           | _ -> `Top
         end
-      | `Bot -> `Bot
       | _ -> `Top
     in
     let expr = sprint d_exp e in
@@ -2011,7 +2016,7 @@ struct
         | [exp] ->
           begin match ThreadId.get_current ctx.ask with
             | `Lifted tid ->
-              let rv = eval_rv ctx.ask ctx.global ctx.local exp in
+              let rv = (eval_rv ctx.ask ctx.global ctx.local exp :> VD.t) in
               let nst = {st with cpa=CPA.add tid rv st.cpa} in
               (* TODO: emit thread return event so other analyses are aware? *)
               publish_all {ctx with local=nst} `Return (* like normal return *)
