@@ -25,7 +25,7 @@ sig
   val sync: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseDomain.BaseComponents (D).t
 
   val escape: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> EscapeDomain.EscapedVars.t -> BaseDomain.BaseComponents (D).t
-  val enter_multithreaded: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
+  val enter_multithreaded: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> BaseDomain.BaseComponents (D).t
   val threadenter: Queries.ask -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
 
   val init: unit -> unit

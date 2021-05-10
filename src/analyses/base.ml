@@ -1704,7 +1704,7 @@ struct
       publish_all ctx `Init;
       (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
       (* TODO: move into sync `Init *)
-      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
+      Priv.enter_multithreaded BasePriv.{local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask}
     | _ ->
       let locals = (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_paritioning (Analyses.ask_of_ctx ctx) ctx.local locals in
@@ -1803,7 +1803,7 @@ struct
            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
            EnterMultithreaded events only execute after threadenter and threadspawn. *)
         if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
-          ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
+          ignore (Priv.enter_multithreaded BasePriv.{local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask});
         Priv.threadenter (Analyses.ask_of_ctx ctx) st
       ) else
         let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
@@ -2213,7 +2213,7 @@ struct
     | Events.Escape escaped ->
       Priv.escape BasePriv.{local = st; global = octx.global; sideg = octx.sideg; ask = octx.ask} escaped
     | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded (Analyses.ask_of_ctx octx) octx.global octx.sideg st
+      Priv.enter_multithreaded BasePriv.{local = st; global = octx.global; sideg = octx.sideg; ask = octx.ask}
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cil.typeOfLval lval) (`Address (AD.from_var tid))

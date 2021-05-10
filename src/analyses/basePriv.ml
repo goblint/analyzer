@@ -41,7 +41,7 @@ sig
   val sync: (BaseComponents (D).t, G.t, 'c) ctx -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t
 
   val escape: (BaseComponents (D).t, G.t, 'c) ctx -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
-  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
+  val enter_multithreaded: (BaseComponents (D).t, G.t, 'c) ctx -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
 
   val init: unit -> unit
@@ -75,7 +75,7 @@ struct
   let unlock ctx m = ctx.local
 
   let escape ctx escaped = ctx.local
-  let enter_multithreaded ask getg sideg st = st
+  let enter_multithreaded ctx = ctx.local
   let threadenter = old_threadenter
 
   let sync_privates reason ask =
@@ -296,15 +296,17 @@ struct
     in
     {st with cpa = cpa'}
 
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+  let enter_multithreaded ctx =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
-    sideg (mutex_inits ()) global_cpa;
+    ctx.sideg (mutex_inits ()) global_cpa;
 
     let cpa' = CPA.fold (fun x v acc ->
         if is_global ask x (* && is_unprotected ask x *) then (
           if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" d_varinfo x;
           if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a\n" d_varinfo x VD.pretty v;
-          sideg (mutex_global x) (CPA.singleton x v);
+          ctx.sideg (mutex_global x) (CPA.singleton x v);
           CPA.remove x acc
         )
         else
@@ -687,10 +689,12 @@ struct
     in
     {st with cpa = cpa'}
 
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+  let enter_multithreaded ctx =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg x (G.create_init v);
+          ctx.sideg x (G.create_init v);
           {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
         )
         else
@@ -779,7 +783,7 @@ struct
 
   let startstate () = ()
   let escape ctx escaped = ctx.local
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
+  let enter_multithreaded ctx = ctx.local
   let threadenter = old_threadenter
 end
 
@@ -1015,11 +1019,13 @@ struct
       st
 
   let escape ctx escaped = ctx.local (* TODO: do something here when side_effect_global_init? *)
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+  let enter_multithreaded ctx =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     if Param.side_effect_global_init then (
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
           if is_global ask x then (
-            sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
+            ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
             {st with priv = W.add x st.priv} (* TODO: is this add necessary? *)
           )
           else
@@ -1186,10 +1192,12 @@ struct
     in
     {st with cpa = cpa'}
 
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+  let enter_multithreaded ctx =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton lockset_init v));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton lockset_init v));
           {st with cpa = CPA.remove x st.cpa}
         )
         else
@@ -1371,10 +1379,12 @@ struct
           st
       ) st.cpa st
 
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+  let enter_multithreaded ctx =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa}
         )
         else
@@ -1550,10 +1560,12 @@ struct
           st
       ) st.cpa st
 
-  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+  let enter_multithreaded ctx =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa}
         )
         else
@@ -1577,7 +1589,7 @@ struct
   let unlock ctx m = time "unlock" (Priv.unlock ctx) m
   let sync reason ctx = time "sync" (Priv.sync reason) ctx
   let escape ctx escaped = time "escape" (Priv.escape ctx) escaped
-  let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
+  let enter_multithreaded ctx = time "enter_multithreaded" Priv.enter_multithreaded ctx
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
 
   let init () = time "init" (Priv.init) ()
@@ -1684,19 +1696,20 @@ struct
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
-  let enter_multithreaded ask getg sideg st =
+  let enter_multithreaded ctx =
     if M.tracing then M.traceli "priv" "enter_multithreaded\n";
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty ctx.local;
     let getg x =
-      let r = getg x in
+      let r = ctx.global x in
       if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
       r
     in
     let sideg x v =
       if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
-      sideg x v
+      ctx.sideg x v
     in
-    let r = enter_multithreaded ask getg sideg st in
+    let ctx' = {ctx with global = getg; sideg} in
+    let r = enter_multithreaded ctx' in
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
