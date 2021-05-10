@@ -17,7 +17,7 @@ sig
   val startstate: unit -> D.t
 
   val read_global: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> varinfo -> BaseDomain.VD.t
-  val write_global: ?invariant:bool -> Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> varinfo -> BaseDomain.VD.t -> BaseDomain.BaseComponents (D).t
+  val write_global: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> ?invariant:bool -> varinfo -> BaseDomain.VD.t -> BaseDomain.BaseComponents (D).t
 
   val lock: Queries.ask -> (varinfo -> G.t) -> BaseDomain.BaseComponents (D).t -> LockDomain.Addr.t -> BaseDomain.BaseComponents (D).t
   val unlock: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> LockDomain.Addr.t -> BaseDomain.BaseComponents (D).t
