@@ -1738,8 +1738,9 @@ struct
   (**************************************************************************
    * Function calls
    **************************************************************************)
-  (* Variation of the above for yet another purpose, uhm, code reuse? *)
-  let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+
+    (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
+    let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
     let rec do_value v e =
       match v with
       | `Address a when AD.equal a AD.null_ptr -> []
@@ -1749,6 +1750,7 @@ struct
           M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
         rble
       | `Struct s -> ValueDomain.Structs.fold (fun f v a -> List.append (do_value v None) a) s []
+      | `Union (f, v) -> do_value v None
       | `Int _ -> []
       | _ ->
         if warn then begin
