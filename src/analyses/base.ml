@@ -1740,17 +1740,28 @@ struct
    **************************************************************************)
   (* Variation of the above for yet another purpose, uhm, code reuse? *)
   let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
-    let do_exp e =
-      match eval_rv ask gs st e with
+    let rec do_value v e =
+      match v with
       | `Address a when AD.equal a AD.null_ptr -> []
       | `Address a when not (AD.is_top a) ->
         let rble = reachable_vars ask [a] gs st in
         if M.tracing then
           M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
         rble
+      | `Struct s -> ValueDomain.Structs.fold (fun f v a -> List.append (do_value v None) a) s []
       | `Int _ -> []
-      | _ -> if warn then (M.warn_each ("Failed to invalidate unknown address: " ^ sprint d_exp e)); []
+      | _ ->
+        if warn then begin
+          let warning = "Failed to invalidate unknown address" ^
+            (match e with
+              | Some e -> ": " ^ sprint d_exp e
+              | None -> "." ^ sprint VD.pretty v)
+          in
+          M.warn_each warning
+        end;
+        []
     in
+    let do_exp e = do_value (eval_rv ask gs st e) (Some e) in
     List.concat (List.map do_exp exps)
 
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
