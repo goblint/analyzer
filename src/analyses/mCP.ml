@@ -519,6 +519,7 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
+  (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
