@@ -12,6 +12,7 @@ module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" e
 module ES_r = SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end)
 module ES =
 struct
+  (* TODO: use Reverse? *)
   include ES_r
   include Printable.Std
   let bot = ES_r.top
@@ -38,17 +39,22 @@ module MustBool = BoolDomain.MustBool
 
 module Unit = Lattice.Unit
 
-(* phantom types for matching queries with results *)
-(* TODO: why do these require constructors for refutation to work? *)
+(* Phantom types for matching queries with results. *)
+(* Distinct constructors are required to allow refutation in other modules.
+   When left abstract (without definition), the compiler cannot prove distinctness.
+   See: https://github.com/ocaml/ocaml/issues/7360#issuecomment-473063226. *)
+(* Phantom types for distinguishing bool results. *)
 type maybool = MayBool
 type mustbool = MustBool
-
+(* Phantom types for distinguishing ToppedSet results. *)
 type lvalset = LvalSet
 type exprset = ExprSet
 type typeset = TypeSet
+(* TODO: add phantom types for all variants?
+   Not really necessary unless two result variants use same type.
+   Also naming would be weird: int? string? unit? *)
 
-(* TODO: add phantom types for all variants *)
-
+(** GADT for queries with specific result (phantom) type. *)
 type _ t =
   | EqualSet: exp -> exprset t
   | MayPointTo: exp -> lvalset t
@@ -80,9 +86,9 @@ type _ t =
   | MayBeEqual: exp * exp -> maybool t (* may two expressions be equal? *)
   | MayBeLess: exp * exp -> maybool t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
-  | IsHeapVar: varinfo -> maybool t
+  | IsHeapVar: varinfo -> maybool t (* TODO: is may or must? *)
 
-
+(** GADT for query results with specific (phantom) type. *)
 type _ result =
   | Int: ID.t -> ID.t result
   | Str: SD.t -> SD.t result
@@ -95,10 +101,17 @@ type _ result =
   | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
   | Unit: Unit.t -> Unit.t result
 
+(** Container for explicitly polymorphic [ctx.ask] function out of [ctx].
+    To be used when passing entire [ctx] around seems inappropriate.
+    Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
+(* Must be in a singleton record due to second-order polymorphism.
+   See https://ocaml.org/releases/4.12/htmlman/polymorphism.html#s%3Ahigher-rank-poly. *)
 type ask = { f: 'a. 'a t -> 'a result }
 
+(* Result cannot implement Lattice.S because the function types are different due to GADT. *)
 module Result =
 struct
+  (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
     match q with
     (* Cannot group these GADTs... *)
@@ -116,7 +129,7 @@ struct
     | MayBeThreadReturn -> MayBool (MayBool.bot ())
     | MayBeEqual _ -> MayBool (MayBool.bot ())
     | MayBeLess _ -> MayBool (MayBool.bot ())
-    | IsHeapVar _ -> MayBool (MayBool.bot ()) (* TODO: is must? *)
+    | IsHeapVar _ -> MayBool (MayBool.bot ())
     | MustBeProtectedBy _ -> MustBool (MustBool.bot ())
     | MustBeAtomic -> MustBool (MustBool.bot ())
     | MustBeSingleThreaded -> MustBool (MustBool.bot ())
@@ -134,6 +147,7 @@ struct
     | IterVars _ -> Unit (Unit.bot ())
     | PartAccess _ -> PartAccessResult (PartAccessResult.bot ())
 
+  (** Get top result for query. *)
   let top (type a) (q: a t): a result =
     match q with
     (* Cannot group these GADTs... *)
@@ -151,7 +165,7 @@ struct
     | MayBeThreadReturn -> MayBool (MayBool.top ())
     | MayBeEqual _ -> MayBool (MayBool.top ())
     | MayBeLess _ -> MayBool (MayBool.top ())
-    | IsHeapVar _ -> MayBool (MayBool.top ()) (* TODO: is must? *)
+    | IsHeapVar _ -> MayBool (MayBool.top ())
     | MustBeProtectedBy _ -> MustBool (MustBool.top ())
     | MustBeAtomic -> MustBool (MustBool.top ())
     | MustBeSingleThreaded -> MustBool (MustBool.top ())
