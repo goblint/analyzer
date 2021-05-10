@@ -318,7 +318,7 @@ struct
    * State functions
    **************************************************************************)
 
-  let sync' reason ctx: D.t * glob_diff =
+  let sync' reason ctx: D.t =
     let multi =
       match reason with
       | `Init
@@ -328,12 +328,12 @@ struct
         ThreadFlag.is_multi ctx.ask
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
-    if !GU.earlyglobs || multi then Priv.sync ctx.ask ctx.global ctx.local reason else (ctx.local,[])
+    if !GU.earlyglobs || multi then Priv.sync ctx.ask ctx.global ctx.sideg ctx.local reason else ctx.local
 
   let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
 
   let publish_all ctx reason =
-    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' reason ctx))
+    ignore (sync' reason ctx)
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
     if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then

@@ -428,7 +428,7 @@ sig
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
-  val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t * (varinfo * G.t) list
+  val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
   val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
   val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
@@ -588,7 +588,7 @@ struct
   let morphstate v d = d
   (* Only for those who track thread IDs. *)
 
-  let sync ctx _ = (ctx.local,[])
+  let sync ctx _ = ctx.local
   (* Most domains do not have a global part. *)
 
   let context x = x
