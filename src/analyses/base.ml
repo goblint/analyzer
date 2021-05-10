@@ -1750,7 +1750,9 @@ struct
           M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
         rble
       | `Struct s -> ValueDomain.Structs.fold (fun f v a -> List.append (do_value v None) a) s []
-      | `Union (f, v) -> do_value v None
+      | `Union (_, v)
+      | `Blob (v, _,_ ) -> do_value v None
+      | `Array a -> CArrays.fold_left (fun a v -> List.append (do_value v None) a) [] a
       | `Int _ -> []
       | _ ->
         if warn then begin
