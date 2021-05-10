@@ -78,15 +78,15 @@ struct
     let reachable_heap_vars =
       let reachable_exp exp = match ctx.ask (Q.ReachableFrom exp) with
         | `LvalSet s -> s
-        | `Top -> All
+        | `Top -> `Top
         | `Bot | _ -> Q.LS.bot ()
       in
       List.fold (fun acc exp -> Q.LS.join (reachable_exp exp) acc) (Q.LS.bot ()) args
         |> filter_arg_vars ctx
     in
-    let reachable_heap_var_typesigs = match reachable_heap_vars with
-      | Set s -> (Q.LS.S.to_list s) |> List.map (fun (v,o) -> Cil.typeSig v.vtype) |> Set.of_list
-      | All -> failwith "This should not happen!"
+    let reachable_heap_var_typesigs = match  reachable_heap_vars with
+      | `Lifted s -> (Q.LS.elements reachable_heap_vars) |> List.map (fun (v,o) -> Cil.typeSig v.vtype) |> Set.of_list
+      | `Top -> failwith "This should not happen!"
     in
     (* Filter the written lvals by f to passed heapvars *)
     let written_by_f = ctx.global f in
