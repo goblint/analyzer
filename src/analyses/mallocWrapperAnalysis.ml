@@ -55,30 +55,31 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
+  type id_type = Sid of int | Vid of int
   let heap_hash = Hashtbl.create 113
-  (* This hashtable is not marshaled, which is a problem.
-     But since Goblintutil.create_var is deterministic w.r.t the name containing location,
-     then it gets identically reconstructed when unmarshaling and verifying. *)
 
-  let get_heap_var sideg loc =
+  let get_heap_var sideg nodeId =
     (* Use existing varinfo instead of allocating a duplicate,
        which would be equal by determinism of create_var though. *)
     (* TODO: is this poor man's hashconsing? *)
-    try Hashtbl.find heap_hash loc
+    try Hashtbl.find heap_hash nodeId
     with Not_found ->
-      let name = "(alloc@" ^ CilType.Location.show loc ^ ")" in
+      let name = match nodeId with
+        | Sid i -> "(alloc@" ^ "sid" ^ ":" ^ string_of_int i ^ ")"
+        | Vid i -> "(alloc@" ^ "vid" ^ ":" ^ string_of_int i ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      Hashtbl.add heap_hash loc newvar;
+      Hashtbl.add heap_hash nodeId newvar;
       sideg newvar true;
       newvar
 
   let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
     match q with
     | Q.HeapVar ->
-      let loc = match ctx.local with
-      | `Lifted vinfo -> vinfo
-      | _ -> Node.location ctx.node in
-      `Lifted (get_heap_var ctx.sideg loc)
+      let nodeId = (match ctx.node with
+          | Statement s -> Sid s.sid
+          | Function f -> Vid f.svar.vid
+          | _ -> raise (Failure "A function entry node can never be the node after a malloc")) in
+      `Lifted (get_heap_var ctx.sideg nodeId)
     | Q.IsHeapVar v ->
       ctx.global v
     | Q.IsMultiple v ->
