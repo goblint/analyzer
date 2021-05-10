@@ -25,7 +25,7 @@ struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   module Addr = Lval.NormalLat (Idx)
-  include SetDomain.HoarePO (Addr)
+  include HoareDomain.HoarePO (Addr)
 
   type field = Addr.field
   type idx = Idx.t

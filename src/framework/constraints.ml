@@ -41,8 +41,7 @@ struct
     }
 
   let sync ctx reason =
-    let d, diff = S.sync (conv ctx) reason in
-    D.lift d, diff
+    D.lift @@ S.sync (conv ctx) reason
 
   let query ctx =
     S.query (conv ctx)
@@ -117,8 +116,7 @@ struct
     { ctx with context = (fun () -> C.unlift (ctx.context ())) }
 
   let sync ctx reason =
-    let d, diff = S.sync (conv ctx) reason in
-    d, diff
+    S.sync (conv ctx) reason
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -216,10 +214,6 @@ struct
   let lift_fun ctx f g h =
     f @@ h (g (conv ctx))
 
-  let sync ctx reason =
-    let liftpair (x, y) = (x, snd ctx.local), y in
-    lift_fun ctx liftpair S.sync ((|>) reason)
-
   let enter' ctx r f args =
     let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (y, snd ctx.local)) in
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
@@ -227,6 +221,7 @@ struct
   let lift ctx d = (d, snd ctx.local)
   let lift_start_level d = (d, !start_level)
 
+  let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
   let query' ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity   S.query  (fun x -> x q)
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
@@ -356,7 +351,7 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx reason = let d, ds = S.sync (conv ctx) reason in (d, snd ctx.local), ds
+  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
@@ -408,7 +403,7 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx reason = let d, ds = S.sync (conv ctx) reason in (d, snd ctx.local), ds
+  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
@@ -477,9 +472,7 @@ struct
     try f @@ h (g (conv ctx))
     with Deadcode -> b
 
-  let sync ctx reason =
-    let liftpair (x,y) = D.lift x, y in
-    lift_fun ctx liftpair S.sync ((|>) reason) (`Bot, [])
+  let sync ctx reason = lift_fun ctx D.lift   S.sync   ((|>) reason)      `Bot
 
   let enter ctx r f args =
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
@@ -532,13 +525,9 @@ struct
   let increment = I.increment
 
   let sync ctx =
-    let (d', diff) =
-      match Cfg.prev ctx.prev_node with
-      | _ :: _ :: _ -> S.sync ctx `Join
-      | _ -> S.sync ctx `Normal
-    in
-    List.iter (uncurry ctx.sideg) diff;
-    d'
+    match Cfg.prev ctx.prev_node with
+    | _ :: _ :: _ -> S.sync ctx `Join
+    | _ -> S.sync ctx `Normal
 
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
@@ -622,15 +611,13 @@ struct
 
   let normal_return r fd ctx sideg =
     let spawning_return = S.return ctx r fd in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } `Return in
-    List.iter (fun (x,y) -> sideg x y) ndiff;
+    let nval = S.sync { ctx with local = spawning_return } `Return in
     nval
 
   let toplevel_kernel_return r fd ctx sideg =
     let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local else S.return ctx r fd in
     let spawning_return = S.return {ctx with local = st} None MyCFG.dummy_func in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } `Return in
-    List.iter (fun (x,y) -> sideg x y) ndiff;
+    let nval = S.sync { ctx with local = spawning_return } `Return in
     nval
 
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
@@ -949,31 +936,15 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = SetDomain.Hoare_NoTop(Spec.D).t
+    with type D.t = HoareDomain.Set(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
 =
 struct
   module D =
   struct
-    include SetDomain.Hoare_NoTop (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
     let name () = "PathSensitive (" ^ name () ^ ")"
-
-    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
-        try
-          let p t = not (mem t s2) in
-          let evil = choose (filter p s1) in
-          dprintf "%a:\n" Spec.D.pretty evil
-          ++
-          fold (fun other acc ->
-              (dprintf "not leq %a because %a\n" Spec.D.pretty other Spec.D.pretty_diff (evil, other)) ++ acc
-            ) s2 nil
-        with _ ->
-          dprintf "choose failed b/c of empty set s1: %d s2: %d"
-          (cardinal s1)
-          (cardinal s2)
-      end
 
     let printXml f x =
       let print_one x =
@@ -1019,7 +990,7 @@ struct
 
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
-  let morphstate v d = D.map' (Spec.morphstate v) d
+  let morphstate v d = D.map_noreduce (Spec.morphstate v) d
 
   let call_descr = Spec.call_descr
 
@@ -1077,8 +1048,7 @@ struct
     let fd1 = D.choose fctx.local in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
-  let sync ctx reason =
-    fold' ctx Spec.sync (fun h -> h reason) (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
+    let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* join results so that they are sound for all paths *)
@@ -1231,8 +1201,9 @@ struct
   open S
 
   let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
+    let should_verify = get_bool "verify" in
     Goblintutil.in_verifying_stage := true;
-    Goblintutil.verified := Some true;
+    (if should_verify then Goblintutil.verified := Some true);
     let complain_l (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
@@ -1262,12 +1233,12 @@ struct
          * invariant. *)
         let check_local l lv =
           let lv' = sigma' l in
-          if not (D.leq lv lv') then
+          if should_verify && not (D.leq lv lv') then
             complain_sidel v l lv' lv
         in
         let check_glob g gv =
           let gv' = theta' g in
-          if not (G.leq gv gv') then
+          if should_verify && not (G.leq gv gv') then
             complain_sideg v g gv' gv
         in
         let d = rhs sigma' check_local theta' check_glob in

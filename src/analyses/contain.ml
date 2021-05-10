@@ -207,7 +207,10 @@ struct
 
 
   let sync ctx reason =
-    let (x,y,z:D.t) = ctx.local in (x, y, ContainDomain.Diff.empty ()), ContainDomain.Diff.elements z
+    let (x,y,z:D.t) = ctx.local in
+    (* TODO: sideg immediately? *)
+    List.iter (uncurry ctx.sideg) (ContainDomain.Diff.elements z);
+    (x, y, ContainDomain.Diff.empty ())
 
   let time_transfer n f =
     if true || (get_bool "dbg.verbose") then Stats.time n f 0

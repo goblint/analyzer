@@ -106,12 +106,12 @@ struct
 
 
 
-  let sync ctx reason : D.t * (varinfo*G.t) list =
+  let sync ctx reason : D.t =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     let nst, dst, rm, part = tryReallyHard (Analyses.ask_of_ctx ctx) gl upd (sync_ld (Analyses.ask_of_ctx ctx) gl upd) st in
-    let nre, dre = Re.sync (re_context ctx re) reason in
+    let nre = Re.sync (re_context ctx re) reason in
     let update k v m =
       let old = try RegMap.find k m with Not_found -> RS.empty () in
       if (not (RS.is_top old)) && RS.for_all (function  (`Left (v,_)) -> not (gl v) |  `Right _ -> true)  old
@@ -135,10 +135,9 @@ struct
       | x -> ()
     in
     ctx.sideg (Re.partition_varinfo ()) (false, part);
-    let is_public (v,_) = gl v in
-    (nst,nre),
-    (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre)
-     @ List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst)
+    (* let is_public (v,_) = gl v in *)
+    List.iter (uncurry ctx.sideg) (List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst);
+    (nst,nre)
 
   (* transfer functions *)
   let assign_ld ask gl dup (lval:lval) (rval:exp) st : LD.t =

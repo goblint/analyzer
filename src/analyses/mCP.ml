@@ -834,7 +834,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let f (n,(module S:MCPSpec),d) (dl,cs) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -845,7 +845,7 @@ struct
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
-        ; postsub= []
+        ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -853,15 +853,14 @@ struct
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in sync context.")
         }
       in
-      let d, ds = S.sync ctx' reason in
-      (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::(remove_assoc n @@ G.bot ())) ds) @ cs
+      n, repr @@ S.sync ctx' reason
     in
-    let d,cs = fold_right f (spec_list ctx.local) ([],[]) in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_emits ctx !emits d in
-    d, cs
+    if q then raise Deadcode else d
 
   let enter (ctx:(D.t, G.t, C.t) ctx) r f a =
     let spawns = ref [] in
