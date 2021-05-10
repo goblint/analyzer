@@ -14,8 +14,8 @@ struct
   (* Allocate a new manager to manipulate polyhedra *)
   (* let mgr = Oct.manager_alloc () *)
   let mgr = Polka.manager_alloc_strict ()
-  (* Making an environment from a set of integer and real variables. 
-  Raise Failure in case of name conflict. 
+  (* Making an environment from a set of integer and real variables.
+  Raise Failure in case of name conflict.
   In this case the environment is empty to begin with. *)
   let eenv = Environment.make [||] [||]
 end
@@ -80,13 +80,11 @@ struct
 
   let hash (x:t) = Hashtbl.hash x
   let compare (x:t) y = Stdlib.compare x y
-  let isSimple x = true
-  let short n x =
+  let show x =
     A.print Legacy.Format.str_formatter x;
     Legacy.Format.flush_str_formatter ()
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
-  let pretty_f s () (x:t) = text (s 10 x)
-  let pretty = pretty_f short
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
 
   (* Apron expressions of level 1 *)
@@ -237,7 +235,7 @@ struct
     | Some linexpr1, Some comparator -> Some (Lincons1.make linexpr1 comparator)
     | _ -> None
 
-  (* Gives the result of the meet operation of the given polyhedron 
+  (* Gives the result of the meet operation of the given polyhedron
   with the linear constraints coming from the given expression *)
   let assert_inv d x b =
     try
@@ -251,15 +249,15 @@ struct
       (* Linear constraints are optional, so we check if there are any. *)
       match linecons with
       | Some linecons ->
-        (* Get the underlying linear constraint of level 0. 
-        Modifying the constraint of level 0 (not advisable) 
-        modifies correspondingly the linear constraint and conversely, 
+        (* Get the underlying linear constraint of level 0.
+        Modifying the constraint of level 0 (not advisable)
+        modifies correspondingly the linear constraint and conversely,
         except for changes of environments *)
         let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
                  ; array_env = A.env d
                  }
         in
-        (* We perform a meet of the current polyhedron with the linear constraints 
+        (* We perform a meet of the current polyhedron with the linear constraints
         that come from the expression we wish to assert. *)
         A.meet_lincons_array Man.mgr d ea
       | None -> d

@@ -44,8 +44,8 @@ struct
   type idx = Idx.t
   type value = Val.t
 
-  let short w x = "Array: " ^ Val.short (w - 7) x
-  let pretty () x = text "Array: " ++ pretty_f short () x
+  let show x = "Array: " ^ Val.show x
+  let pretty () x = text "Array: " ++ pretty () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v
@@ -114,16 +114,16 @@ struct
     else
       x
 
-  let short w ((e,(xl, xm, xr)) as x) =
+  let show ((e,(xl, xm, xr)) as x) =
     if is_not_partitioned x then
-      "Array (no part.): " ^ Val.short (w - 18) xl
+      "Array (no part.): " ^ Val.show xl
     else
-      "Array (part. by " ^ Expp.short (w-7) e ^ "): (" ^
-        Val.short ((w - 7)/3) xl ^ " -- " ^
-        Val.short ((w - 7)/3) xm ^ " -- " ^
-        Val.short ((w - 7)/3) xr ^ ")"
+      "Array (part. by " ^ Expp.show e ^ "): (" ^
+        Val.show xl ^ " -- " ^
+        Val.show xm ^ " -- " ^
+        Val.show xr ^ ")"
 
-  let pretty () x = text "Array: " ++ pretty_f short () x
+  let pretty () x = text "Array: " ++ text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f ((e, (xl, xm, xr)) as x) =
@@ -686,8 +686,7 @@ struct
   let equal = binop P.equal T.equal
   let hash = unop P.hash T.hash
   let compare = binop P.compare T.compare
-  let short l = unop (P.short l) (T.short l)
-  let isSimple = unop P.isSimple T.isSimple
+  let show = unop P.show T.show
   let pretty () = unop (P.pretty ()) (T.pretty ())
   let leq = binop P.leq T.leq
   let join = binop_to_t P.join T.join
@@ -715,7 +714,6 @@ struct
   let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
 
   let printXml f = unop (P.printXml f) (T.printXml f)
-  let pretty_f _ = pretty
 
   let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 

@@ -6,7 +6,7 @@ void main(){
   }
   int i;
   if(i-1){
-    assert(i==2); // UNKNOWN
+    assert(i==2); // UNKNOWN!
   }
   return;
 }

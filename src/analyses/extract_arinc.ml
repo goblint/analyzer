@@ -26,7 +26,7 @@ struct
     include SetDomain.Make (Basetype.ProgLocation)
     let of_node = singleton % MyCFG.getLoc
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.short 99
+    let string_of_elt = Basetype.ProgLocation.show
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D
@@ -337,7 +337,7 @@ struct
               let v,i = Res.get ("process", name) in
               assign_id pid' v;
               List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
-            | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local
+            | _ -> let f = Queries.Result.show in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local
           end
         | _ -> match Pml.special_fun fname with
           | None -> M.debug_each ("extract_arinc: unhandled function "^fname); ctx.local

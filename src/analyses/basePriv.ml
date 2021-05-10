@@ -666,6 +666,7 @@ struct
 
   module Lockset =
   struct
+    include Printable.Std (* To make it Groupable *)
     include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
     let disjoint s t = is_empty (inter s t)
   end
@@ -689,7 +690,7 @@ struct
       | _ -> failwith "Locksets.current_lockset"
 
   (* TODO: reversed SetDomain.Hoare *)
-  module MinLocksets = SetDomain.Hoare (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
+  module MinLocksets = HoareDomain.Set_LiftTop (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -1008,7 +1009,7 @@ struct
 
   let startstate () = (V.bot (), L.bot ())
 
-  let lockset_init = Lockset.All
+  let lockset_init = Lockset.top ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
@@ -1181,7 +1182,7 @@ struct
 
   let startstate () = (W.bot (), P.top ())
 
-  let lockset_init = Lockset.All
+  let lockset_init = Lockset.top ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then
@@ -1325,7 +1326,7 @@ struct
 
   let startstate () = ((W.bot (), P.top ()), (V.bot (), L.bot ()))
 
-  let lockset_init = Lockset.All
+  let lockset_init = Lockset.top ()
 
   let distr_init getg x v =
     if get_bool "exp.priv-distr-init" then

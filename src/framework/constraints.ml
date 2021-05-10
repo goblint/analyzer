@@ -948,36 +948,19 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
         (l', g')
     end
 
-module N = struct let topname = "Top" end
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = SetDomain.Hoare(Spec.D)(N).t
+    with type D.t = HoareDomain.Set(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
 =
 struct
   module D =
   struct
-    include SetDomain.Hoare (Spec.D) (N) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
     let name () = "PathSensitive (" ^ name () ^ ")"
-
-    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
-        try
-          let p t = not (mem t s2) in
-          let evil = choose (filter p s1) in
-          dprintf "%a:\n" Spec.D.pretty evil
-          ++
-          fold (fun other acc ->
-              (dprintf "not leq %a because %a\n" Spec.D.pretty other Spec.D.pretty_diff (evil, other)) ++ acc
-            ) s2 nil
-        with _ ->
-          dprintf "choose failed b/c of empty set s1: %d s2: %d"
-          (cardinal s1)
-          (cardinal s2)
-      end
 
     let printXml f x =
       let print_one x =
@@ -1023,7 +1006,7 @@ struct
 
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
-  let morphstate v d = D.map' (Spec.morphstate v) d
+  let morphstate v d = D.map_noreduce (Spec.morphstate v) d
 
   let call_descr = Spec.call_descr
 
@@ -1235,8 +1218,9 @@ struct
   open S
 
   let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
+    let should_verify = get_bool "verify" in
     Goblintutil.in_verifying_stage := true;
-    Goblintutil.verified := Some true;
+    (if should_verify then Goblintutil.verified := Some true);
     let complain_l (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
@@ -1266,12 +1250,12 @@ struct
          * invariant. *)
         let check_local l lv =
           let lv' = sigma' l in
-          if not (D.leq lv lv') then
+          if should_verify && not (D.leq lv lv') then
             complain_sidel v l lv' lv
         in
         let check_glob g gv =
           let gv' = theta' g in
-          if not (G.leq gv gv') then
+          if should_verify && not (G.leq gv gv') then
             complain_sideg v g gv' gv
         in
         let d = rhs sigma' check_local theta' check_glob in

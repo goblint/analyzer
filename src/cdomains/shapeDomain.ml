@@ -13,28 +13,25 @@ struct
   struct
     include Printable.Prod (CLval) (Offs)
 
-    let short w  = function
-      | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short w l
-      | (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
+    let show = function
+      | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.show l
+      | (l,o) -> "&"^Lval.CilLval.show l^"->"^Offs.show o
 
-    let pretty = pretty_f short
+    let pretty () x = Pretty.text (show x)
   end
 
   include Printable.Either (Var) (AdrPair)
-  let short w = function
-    | `Left  v -> Var.short w v
-    | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short w l
-    | `Right (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
+  let show = function
+    | `Left  v -> Var.show v
+    | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.show l
+    | `Right (l,o) -> "&"^Lval.CilLval.show l^"->"^Offs.show o
 
   let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
-
-  let pretty = pretty_f short
 
   type group = Variables | Values [@@deriving show { with_path = false }]
   let to_group = function
     | `Left  v -> Some Variables
     | `Right v -> Some Values
-  let isSimple _ = true
 end
 
 (* TODO: use SetDomain.Reverse? *)
@@ -50,12 +47,10 @@ struct
       (struct let top_name = "Unknown edge"
         let bot_name = "Impossible edge" end)
 
-  let short w : t -> string = function
-    | `Lifted1 v -> "N "^ListPtrSet.short w v
-    | `Lifted2 v -> "S "^ListPtrSet.short w v
-    | x -> short w x
-
-  let pretty = pretty_f short
+  let show : t -> string = function
+    | `Lifted1 v -> "N "^ListPtrSet.show v
+    | `Lifted2 v -> "S "^ListPtrSet.show v
+    | x -> show x
 end
 
 module Rhs =
@@ -566,13 +561,13 @@ struct
 
   let join m1 m2 =
     match m1, m2 with
-    | Set _, Set _ when (cardinal m1 = 1 && SHMap.is_top (choose m1)) -> m1
-    | Set _, Set _ when (cardinal m2 = 1 && SHMap.is_top (choose m2)) -> m2
+    | `Lifted _, `Lifted _ when (cardinal m1 = 1 && SHMap.is_top (choose m1)) -> m1
+    | `Lifted _, `Lifted _ when (cardinal m2 = 1 && SHMap.is_top (choose m2)) -> m2
     | _ -> join m1 m2
 
   let leq m1 m2 =
     match m1, m2 with
-    | _ , Set s when cardinal m2 = 1 && SHMap.is_top (choose m2) -> true
+    | _ , `Lifted s when cardinal m2 = 1 && SHMap.is_top (choose m2) -> true
     |  _ -> leq m1 m2
 
   let widen = join

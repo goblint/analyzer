@@ -136,10 +136,9 @@ struct
     in
     M.merge f
 
-  let short _ x = "mapping"
-  let isSimple _ = false
+  let show x = "mapping"
 
-  let pretty_f short () mapping =
+  let pretty () mapping =
     let groups =
       let h = Hashtbl.create 13 in
       iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
@@ -149,11 +148,10 @@ struct
     in
     let f key st dok =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
-         not (List.mem (Domain.short 80 key) !ME.tracevars) then
+         not (List.mem (Domain.show key) !ME.tracevars) then
         dok
       else
-        dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else
-                  dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
+        dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
     in
     let group_name a () = text (Domain.show_group a) in
     let pretty_group map () = fold f map nil in
@@ -162,9 +160,7 @@ struct
       | None ->  rest ++ pretty_group map ()
       | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
     let content () = List.fold_left pretty_groups nil groups in
-    dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
-
-  let pretty () x = pretty_f short () x
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
 
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
@@ -173,7 +169,7 @@ struct
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.short 800 k)) Range.printXml v
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.show k)) Range.printXml v
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;
@@ -297,9 +293,7 @@ struct
   (* TODO: time these also? *)
   let name = M.name
   let to_yojson = M.to_yojson
-  let isSimple = M.isSimple
-  let short = M.short
-  let pretty_f = M.pretty_f
+  let show = M.show
   let pretty = M.pretty
   let pretty_diff = M.pretty_diff
   let printXml = M.printXml

@@ -78,7 +78,7 @@ struct
     in
     fold_left (fun a (n,d) -> f a n d) a x
 
-  let pretty_f _ () x =
+  let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
@@ -88,20 +88,16 @@ struct
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
       text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
-  let short w x =
-    let w2 = let n = List.length x in if n=0 then w else w / n in
-    (* width violated anyway? *)
+  let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
         let analysis_name = assoc n !analyses_table in
-        (analysis_name ^ ":(" ^ S.short w2 (obj x) ^ ")") :: a) [] x
+        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
   let to_yojson x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
     [%to_yojson: Printable.json list] xs
-
-  let pretty = pretty_f short
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
@@ -121,7 +117,6 @@ struct
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
 
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
-  let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
 
   let name () =
     let domain_name (n, (module D: Printable.S)) =
@@ -336,10 +331,10 @@ struct
     | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs
 
   (** [assoc_split_eq (=) 1 [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
-  let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
+  let assoc_split_eq eq (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
     let rec f a b = function
       | [] -> a, b
-      | (k',v)::xs when k=k' -> f (v::a) b xs
+      | (k',v)::xs when eq k k' -> f (v::a) b xs
       | x::xs -> f a (x::b) xs
     in
     f [] [] xs
@@ -525,7 +520,6 @@ struct
     if q then raise Deadcode else d
 
   and query (ctx:(D.t, G.t, C.t) ctx) q =
-    let sides  = ref [] in
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
@@ -541,7 +535,9 @@ struct
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
+        (* sideg is forbidden in query, because they would bypass sides grouping in other transfer functions.
+           See https://github.com/goblint/analyzer/pull/214. *)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
@@ -553,9 +549,7 @@ struct
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
     | _ ->
-      let x = fold_left f `Top @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      x
+      fold_left f `Top @@ spec_list ctx.local
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in

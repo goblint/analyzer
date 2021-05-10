@@ -23,13 +23,13 @@ module PrintableChar =
 struct
   type t = char [@@deriving to_yojson]
   let name () = "char"
-  let short _ x = String.make 1 x
+  let show x = String.make 1 x
 
   module P =
   struct
     type t' = t
     let name = name
-    let short = short
+    let show = show
   end
   include Printable.StdPolyCompare
   include Printable.PrintSimple (P)
@@ -45,7 +45,8 @@ module ArbitraryLattice = FiniteSet (PrintableChar) (
   end
 )
 
-module HoareArbitrary = SetDomain.Hoare (ArbitraryLattice) (struct let topname = "Top" end)
+module HoareArbitrary = HoareDomain.Set_LiftTop (ArbitraryLattice) (struct let topname = "Top" end)
+module HoareArbitrary_NoTop = HoareDomain.Set (ArbitraryLattice)
 
 let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
@@ -60,8 +61,9 @@ let domains: (module Lattice.S) list = [
 
   (module ArbitraryLattice);
   (module HoareArbitrary);
-  (* TODO: fix after traces *)
-  (* (module WitnessConstraints.HoareMap (ArbitraryLattice) (HoareArbitrary)) *)
+  (module HoareArbitrary_NoTop);
+  (module HoareDomain.MapBot (ArbitraryLattice) (HoareArbitrary));
+  (module HoareDomain.MapBot (ArbitraryLattice) (HoareArbitrary_NoTop));
 ]
 
 let nonAssocDomains: (module Lattice.S) list = []
