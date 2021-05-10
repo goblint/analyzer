@@ -35,5 +35,5 @@
   "printstats": true,
   "result": "none",
   "solver": "td3",
-  "noverify": true
+  "verify": true
 }
