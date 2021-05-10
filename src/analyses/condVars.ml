@@ -81,8 +81,6 @@ struct
     match q with
     | Queries.CondVars e ->
       let d = ctx.local in
-      (* TODO: remove of_q *)
-      let of_q: 'a. 'a Queries.t -> exp option = fun (type a) (q: a Queries.t) -> match q with Queries.CondVars e -> Some e | _ -> None in
       let rec of_expr tv = function
         | UnOp (LNot, e, t) when isIntegralType t -> of_expr (not tv) e
         | BinOp (Ne, e1, e2, t) when isIntegralType t -> of_expr (not tv) (BinOp (Eq, e1, e2, t))
@@ -95,7 +93,7 @@ struct
       let t tv e = if tv then e else UnOp (LNot, e, intType) in
       let f tv v = D.V.map (t tv) v |> fun v -> Some (Queries.ExprSet v) in
       let of_clval (tv,k) = D.get k d >? f tv in
-      of_q q >? of_expr true >? of_lval >? of_clval |? Queries.Result.top q
+      of_expr true e >? of_lval >? of_clval |? Queries.Result.top q
     | _ -> Queries.Result.top q
 
   (* transfer functions *)
