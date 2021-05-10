@@ -1741,10 +1741,20 @@ struct
 
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+    let warn v e = if warn then begin
+      let warning = "Failed to invalidate unknown address: " ^
+        (match e with
+          | Some e -> sprint d_exp e
+          | None -> sprint VD.pretty v)
+      in
+      M.warn_each warning
+      end;
+    in
     let rec do_value v e =
       match v with
       | `Address a when AD.equal a AD.null_ptr -> []
-      | `Address a when not (AD.is_top a) ->
+      | `Address a ->
+        if AD.is_top a then warn v e;
         let rble = reachable_vars ask [a] gs st in
         if M.tracing then
           M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
@@ -1753,16 +1763,10 @@ struct
       | `Union (_, v)
       | `Blob (v, _,_ ) -> do_value v None
       | `Array a -> CArrays.fold_left (fun a v -> List.append (do_value v None) a) [] a
+      | `List e -> reachable_vars ask [ValueDomain.Lists.entry_rand e] gs st
       | `Int _ -> []
-      | _ ->
-        if warn then begin
-          let warning = "Failed to invalidate unknown address: " ^
-            (match e with
-              | Some e -> sprint d_exp e
-              | None -> sprint VD.pretty v)
-          in
-          M.warn_each warning
-        end;
+      | `Top | `Bot ->
+        warn v e;
         []
     in
     let do_exp e = do_value (eval_rv ask gs st e) (Some e) in
