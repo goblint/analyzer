@@ -337,7 +337,7 @@ struct
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
     if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-      Priv.read_global a gs st x
+      Priv.read_global BasePriv.{local = st; global = gs; sideg = (fun _ -> failwith "BasePriv.ctx.sideg"); ask = a.f} x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
       CPA.find x st.cpa
@@ -1040,7 +1040,7 @@ struct
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-        let var = Priv.read_global a gs st x in
+        let var = Priv.read_global BasePriv.{local = st; global = gs; sideg = (fun _ -> failwith "BasePriv.ctx.sideg"); ask = a.f} x in
         let r = Priv.write_global ~invariant:(not effect) a gs (Option.get ctx).sideg st x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t) in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r

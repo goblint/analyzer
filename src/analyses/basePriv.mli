@@ -1,5 +1,13 @@
 open Cil
+open Analyses
 (* Cannot use local module substitutions because ppx_import is still stuck at 4.07 AST: https://github.com/ocaml-ppx/ppx_import/issues/50#issuecomment-775817579. *)
+
+type ('d, 'g, 'c) ctx = {
+  local: 'd;
+  global: varinfo -> 'g;
+  sideg: varinfo -> 'g -> unit;
+  ask: 'a. 'a Queries.t -> 'a Queries.result;
+}
 
 module type S =
 sig
@@ -8,7 +16,7 @@ sig
 
   val startstate: unit -> D.t
 
-  val read_global: Queries.ask -> (varinfo -> G.t) -> BaseDomain.BaseComponents (D).t -> varinfo -> BaseDomain.VD.t
+  val read_global: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> varinfo -> BaseDomain.VD.t
   val write_global: ?invariant:bool -> Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> varinfo -> BaseDomain.VD.t -> BaseDomain.BaseComponents (D).t
 
   val lock: Queries.ask -> (varinfo -> G.t) -> BaseDomain.BaseComponents (D).t -> LockDomain.Addr.t -> BaseDomain.BaseComponents (D).t
