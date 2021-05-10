@@ -328,7 +328,7 @@ struct
         ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
-    if !GU.earlyglobs || multi then Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local reason else ctx.local
+    if !GU.earlyglobs || multi then Priv.sync BasePriv.{local = ctx.local; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask} reason else ctx.local
 
   let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
 

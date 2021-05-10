@@ -38,7 +38,7 @@ sig
   val lock: (BaseComponents (D).t, G.t, 'c) ctx -> LockDomain.Addr.t -> BaseComponents (D).t
   val unlock: (BaseComponents (D).t, G.t, 'c) ctx -> LockDomain.Addr.t -> BaseComponents (D).t
 
-  val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t
+  val sync: (BaseComponents (D).t, G.t, 'c) ctx -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t
 
   val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
@@ -115,14 +115,16 @@ struct
         {st with cpa = CPA.add x v st.cpa}
     )
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     (* For each global variable, we create the side effect *)
     let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ask v then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          sideg v value;
+          ctx.sideg v value;
           {st with cpa = CPA.remove v st.cpa}
         end else
           st
@@ -169,7 +171,9 @@ struct
         {st with cpa = CPA.add x v st.cpa}
     )
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     let privates = sync_privates reason ask in
     let module BaseComponents = BaseComponents (D) in
     if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
@@ -179,7 +183,7 @@ struct
       let res =
         if is_global ask v && ((privates && not (is_precious_glob v)) || not (is_private ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          sideg v value;
+          ctx.sideg v value;
           {st with cpa = CPA.remove v st.cpa}
         end else
           st
@@ -351,20 +355,22 @@ struct
     ctx.sideg (mutex_addr_to_varinfo m) side_m_cpa;
     st
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     match reason with
     | `Join -> (* required for branched thread creation *)
       CPA.iter (fun x v ->
           (* TODO: is_unprotected - why breaks 02/11 init_mainfun? *)
           if is_global ask x && is_unprotected ask x then
-            sideg (mutex_global x) (CPA.singleton x v)
+            ctx.sideg (mutex_global x) (CPA.singleton x v)
         ) st.cpa;
       st
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg (mutex_global x) (CPA.singleton x v);
+          ctx.sideg (mutex_global x) (CPA.singleton x v);
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
@@ -439,13 +445,15 @@ struct
     in
     {st with cpa = cpa'}
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     match reason with
     | `Join -> (* required for branched thread creation *)
       let cpa' = CPA.fold (fun x v cpa ->
           if is_global ask x && is_unprotected ask x (* && not (VD.is_top v) *) then (
             if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
-            sideg (mutex_global x) (CPA.singleton x v);
+            ctx.sideg (mutex_global x) (CPA.singleton x v);
             CPA.remove x cpa
           )
           else (
@@ -459,7 +467,7 @@ struct
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg (mutex_global x) (CPA.singleton x v);
+          ctx.sideg (mutex_global x) (CPA.singleton x v);
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
@@ -519,7 +527,9 @@ struct
     not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
     || match a.f (Q.MayBePublic {global=v; write=true}) with MayBool tv -> not tv (* usual case where MayBePublic answers *)
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     let privates = sync_privates reason ask in
     (* For each global variable, we create the side effect *)
     let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
@@ -529,14 +539,14 @@ struct
           let protected = is_protected ask v in
           if privates && not (is_precious_glob v) || not protected then begin
             if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-            sideg v value;
+            ctx.sideg v value;
             { st with cpa = CPA.remove v st.cpa; priv = MustVars.remove v st.priv}
           end else (* protected == true *)
             let invisible = is_invisible ask v in
             if not invisible then
-              sideg v value;
+              ctx.sideg v value;
             if not (MustVars.mem v st.priv) then
-              let joined = VD.join (CPA.find v st.cpa) (getg v) in
+              let joined = VD.join (CPA.find v st.cpa) (ctx.global v) in
               {st with cpa = CPA.add v joined st.cpa}
             else st
         else st
@@ -633,13 +643,15 @@ struct
           st
       ) st.cpa st
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
+    let ask = ask_of_ctx ctx in
     match reason with
     | `Join -> (* required for branched thread creation *)
       let st' =
         CPA.fold (fun x v (st: BaseComponents (D).t) ->
             if is_global ask x && is_unprotected ask x then (
-              sideg x (G.create_unprotected v);
+              ctx.sideg x (G.create_unprotected v);
               {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
             )
             else
@@ -651,7 +663,7 @@ struct
       begin match ThreadId.get_current ask with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg x (G.create_unprotected v);
+          ctx.sideg x (G.create_unprotected v);
           {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
         | _ ->
           st
@@ -837,13 +849,14 @@ struct
     ctx.sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.singleton s side_cpa);
     st
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
     match reason with
     | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
+      begin match ThreadId.get_current (ask_of_ctx ctx) with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg (mutex_global x) ((GWeak.singleton (Lockset.empty ()) (ThreadMap.singleton x v), GSync.bot ()));
+          ctx.sideg (mutex_global x) ((GWeak.singleton (Lockset.empty ()) (ThreadMap.singleton x v), GSync.bot ()));
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
@@ -903,13 +916,14 @@ struct
     ctx.sideg (mutex_addr_to_varinfo m) (GWeak.bot (), GSync.singleton s side_cpa);
     st
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
     match reason with
     | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
+      begin match ThreadId.get_current (ask_of_ctx ctx) with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg (mutex_global x) ((GWeak.singleton (Lockset.empty ()) v, GSync.bot ()));
+          ctx.sideg (mutex_global x) ((GWeak.singleton (Lockset.empty ()) v, GSync.bot ()));
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
@@ -980,13 +994,14 @@ struct
     ctx.sideg (mutex_addr_to_varinfo m) (G.create_sync (GSync.singleton s side_cpa));
     st
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
     match reason with
     | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
+      begin match ThreadId.get_current (ask_of_ctx ctx) with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
@@ -1138,13 +1153,14 @@ struct
     (* m stays in v, l *)
     st
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
     match reason with
     | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
+      begin match ThreadId.get_current (ask_of_ctx ctx) with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
@@ -1320,13 +1336,14 @@ struct
     ctx.sideg (mutex_addr_to_varinfo m) (G.create_sync (GSync.singleton s side_gsyncw));
     {st with priv = (w, p')}
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
     match reason with
     | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
+      begin match ThreadId.get_current (ask_of_ctx ctx) with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton (Lockset.empty ()) v)));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton (Lockset.empty ()) v)));
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
@@ -1497,13 +1514,14 @@ struct
     (* m stays in v, l *)
     {st with priv = ((w, p'), vl)}
 
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+  let sync ctx reason =
+    let st = ctx.local in
     match reason with
     | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
+      begin match ThreadId.get_current (ask_of_ctx ctx) with
         | `Lifted x when CPA.mem x st.cpa ->
           let v = CPA.find x st.cpa in
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton (Lockset.empty ()) v)));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton (Lockset.empty ()) v)));
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
@@ -1684,19 +1702,20 @@ struct
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
-  let sync ask getg sideg st reason =
+  let sync ctx reason =
     if M.tracing then M.traceli "priv" "sync\n";
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty ctx.local;
     let getg x =
-      let r = getg x in
+      let r = ctx.global x in
       if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
       r
     in
     let sideg x v =
       if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
-      sideg x v
+      ctx.sideg x v
     in
-    let r = sync ask getg sideg st reason in
+    let ctx' = {ctx with global = getg; sideg} in
+    let r = sync ctx' reason in
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
