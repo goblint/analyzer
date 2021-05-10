@@ -1739,8 +1739,8 @@ struct
    * Function calls
    **************************************************************************)
 
-    (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
-    let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+  (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
+  let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
     let rec do_value v e =
       match v with
       | `Address a when AD.equal a AD.null_ptr -> []
