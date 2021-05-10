@@ -782,16 +782,7 @@ struct
 
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
-  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): [
-  | `Top
-  | `Int of ValueDomain.ID.t
-  | `Address of AD.t
-  | `Struct of ValueDomain.Structs.t
-  | `Union of ValueDomain.Unions.t
-  | `Array of CArrays.t
-  | `Blob of ValueDomain.Blobs.t
-  | `List of ValueDomain.Lists.t
-] =
+  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): VD.t_no_bot =
     try
       let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;

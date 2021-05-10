@@ -30,7 +30,8 @@ sig
   val is_immediate_type: typ -> bool
   val bot_value: typ -> t
   val init_value: typ -> t
-  (* val top_value: typ -> t *)
+  type t_no_bot
+  val top_value: typ -> t_no_bot
   val zero_init_value: typ -> t
 end
 
@@ -68,9 +69,16 @@ struct
   let invariant c (v, _, _) = Value.invariant c v
 end
 
-module rec Compound:
-sig
-  include S with type t = [
+module rec Compound: S with type t_no_bot = [
+    | `Top
+    | `Int of ID.t
+    | `Address of AD.t
+    | `Struct of Structs.t
+    | `Union of Unions.t
+    | `Array of CArrays.t
+    | `Blob of Blobs.t
+    | `List of Lists.t
+  ] and type t = [
     | `Top
     | `Int of ID.t
     | `Address of AD.t
@@ -80,21 +88,9 @@ sig
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs
-
-  val top_value: typ -> [
-    | `Top
-    | `Int of ID.t
-    | `Address of AD.t
-    | `Struct of Structs.t
-    | `Union of Unions.t
-    | `Array of CArrays.t
-    | `Blob of Blobs.t
-    | `List of Lists.t
-  ]
-end =
+  ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
 struct
-  type t = [
+  type t_no_bot = [
     | `Top
     | `Int of ID.t
     | `Address of AD.t
@@ -103,6 +99,9 @@ struct
     | `Array of CArrays.t
     | `Blob of Blobs.t
     | `List of Lists.t
+  ] [@@deriving to_yojson]
+  type t = [
+    | t_no_bot
     | `Bot
   ] [@@deriving to_yojson]
 
@@ -152,16 +151,7 @@ struct
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
 
-  let rec top_value (t: typ): [
-    | `Top
-    | `Int of ID.t
-    | `Address of AD.t
-    | `Struct of Structs.t
-    | `Union of Unions.t
-    | `Array of CArrays.t
-    | `Blob of Blobs.t
-    | `List of Lists.t
-  ] =
+  let rec top_value (t: typ): t_no_bot =
     let top_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
       let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype :> t) in
