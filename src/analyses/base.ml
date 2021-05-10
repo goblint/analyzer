@@ -1752,10 +1752,10 @@ struct
       | `Int _ -> []
       | _ ->
         if warn then begin
-          let warning = "Failed to invalidate unknown address" ^
+          let warning = "Failed to invalidate unknown address: " ^
             (match e with
-              | Some e -> ": " ^ sprint d_exp e
-              | None -> "." ^ sprint VD.pretty v)
+              | Some e -> sprint d_exp e
+              | None -> sprint VD.pretty v)
           in
           M.warn_each warning
         end;
