@@ -2211,7 +2211,7 @@ struct
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       Priv.unlock BasePriv.{local = st; global = octx.global; sideg = octx.sideg; ask = octx.ask} addr
     | Events.Escape escaped ->
-      Priv.escape (Analyses.ask_of_ctx octx) octx.global octx.sideg st escaped
+      Priv.escape BasePriv.{local = st; global = octx.global; sideg = octx.sideg; ask = octx.ask} escaped
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx octx) octx.global octx.sideg st
     | Events.AssignSpawnedThread (lval, tid) ->

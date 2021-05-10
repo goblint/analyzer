@@ -40,7 +40,7 @@ sig
 
   val sync: (BaseComponents (D).t, G.t, 'c) ctx -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t
 
-  val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
+  val escape: (BaseComponents (D).t, G.t, 'c) ctx -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
 
@@ -74,7 +74,7 @@ struct
   let lock ctx m = ctx.local
   let unlock ctx m = ctx.local
 
-  let escape ask getg sideg st escaped = st
+  let escape ctx escaped = ctx.local
   let enter_multithreaded ask getg sideg st = st
   let threadenter = old_threadenter
 
@@ -279,14 +279,15 @@ struct
       | None, Some v -> Some v
       | None, None -> None
 
-  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+  let escape ctx escaped =
+    let st = ctx.local in
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
-    sideg (mutex_inits ()) escaped_cpa;
+    ctx.sideg (mutex_inits ()) escaped_cpa;
 
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
           if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" d_varinfo x VD.pretty v;
-          sideg (mutex_global x) (CPA.singleton x v);
+          ctx.sideg (mutex_global x) (CPA.singleton x v);
           CPA.remove x acc
         )
         else
@@ -673,10 +674,11 @@ struct
     | `Thread ->
       st
 
-  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+  let escape ctx escaped =
+    let st = ctx.local in
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
-          sideg x (G.create_init v);
+          ctx.sideg x (G.create_init v);
           CPA.remove x acc
         )
         else
@@ -776,7 +778,7 @@ struct
   module D = Lattice.Unit
 
   let startstate () = ()
-  let escape ask getg sideg st escaped = st
+  let escape ctx escaped = ctx.local
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) = st
   let threadenter = old_threadenter
 end
@@ -1012,7 +1014,7 @@ struct
     | `Thread ->
       st
 
-  let escape ask getg sideg st escaped = st (* TODO: do something here when side_effect_global_init? *)
+  let escape ctx escaped = ctx.local (* TODO: do something here when side_effect_global_init? *)
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     if Param.side_effect_global_init then (
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
@@ -1171,10 +1173,11 @@ struct
     | `Thread ->
       st
 
-  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+  let escape ctx escaped =
+    let st = ctx.local in
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton lockset_init v));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton lockset_init v));
           CPA.remove x acc
         )
         else
@@ -1354,13 +1357,14 @@ struct
     | `Thread ->
       st
 
-  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    let s = current_lockset ask in
+  let escape ctx escaped =
+    let st = ctx.local in
+    let s = current_lockset (ask_of_ctx ctx) in
     CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
           let (w, p) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa; priv = (w, p')}
         )
         else
@@ -1532,13 +1536,14 @@ struct
     | `Thread ->
       st
 
-  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    let s = current_lockset ask in
+  let escape ctx escaped =
+    let st = ctx.local in
+    let s = current_lockset (ask_of_ctx ctx) in
     CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
           let ((w, p), (vv, l)) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
-          sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
+          ctx.sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton lockset_init v)));
           {st with cpa = CPA.remove x st.cpa; priv = ((w, p'), (vv, l))}
         )
         else
@@ -1571,7 +1576,7 @@ struct
   let lock ctx m = time "lock" (Priv.lock ctx) m
   let unlock ctx m = time "unlock" (Priv.unlock ctx) m
   let sync reason ctx = time "sync" (Priv.sync reason) ctx
-  let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
+  let escape ctx escaped = time "escape" (Priv.escape ctx) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
 
