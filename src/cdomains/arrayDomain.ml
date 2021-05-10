@@ -577,7 +577,17 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
+  let get (ask: Q.ask) (x ,(l: idx)) ((e,v)) =
+    let c = Idx.lt v l in
+    let bool_c = Idx.to_bool c in
+    let () = match bool_c with 
+      | Some(true) -> ();
+      | _ -> M.warn "Array out of bound";
+    in
+    M.trace "mything" "c: %a c_bool: %b v: %a l: %a\n" Idx.pretty c (Option.get bool_c) Idx.pretty v Idx.pretty l;
+    (*if c >= 0 then M.warn "Array out of bound"; *)
+    Base.get ask x (e,v)
+    (*TODO check if in-bounds *)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
