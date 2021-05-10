@@ -344,12 +344,7 @@ struct
       begin
         match getSumAndDiffForVars exp1 exp2 with
         | _, Some(x) ->
-          begin
-            if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)) then
-              MayBool false
-            else
-              MayBool true
-          end
+          MayBool (not (OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero))))
         | _ -> MayBool true
       end
     | Queries.MayBeLess (exp1, exp2) ->
