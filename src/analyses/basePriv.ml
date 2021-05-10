@@ -42,7 +42,7 @@ sig
 
   val escape: (BaseComponents (D).t, G.t, 'c) ctx -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: (BaseComponents (D).t, G.t, 'c) ctx -> BaseComponents (D).t
-  val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
+  val threadenter: (BaseComponents (D).t, G.t, 'c) ctx -> BaseComponents (D).t
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -54,15 +54,16 @@ struct
   let finalize () = ()
 end
 
-let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
+let old_threadenter (type d) ctx =
+  let st = ctx.local in
   (* Copy-paste from Base make_entry *)
   let globals = CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
   (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
   let new_cpa = globals in
   {st with cpa = new_cpa}
 
-let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomain.basecomponents_t) =
-  {st with cpa = CPA.bot (); priv = startstate ()}
+let startstate_threadenter (type d) (startstate: unit -> d) ctx =
+  {ctx.local with cpa = CPA.bot (); priv = startstate ()}
 
 module OldPrivBase =
 struct
@@ -701,7 +702,7 @@ struct
           st
       ) st.cpa st
 
-  let threadenter = startstate_threadenter startstate
+  let threadenter ctx = startstate_threadenter startstate ctx
 end
 
 module Locksets =
@@ -1035,11 +1036,11 @@ struct
     else
       st
 
-  let threadenter =
+  let threadenter ctx =
     if Param.side_effect_global_init then
-      startstate_threadenter startstate
+      startstate_threadenter startstate ctx
     else
-      old_threadenter
+      old_threadenter ctx
 end
 
 module LockCenteredD =
@@ -1204,7 +1205,7 @@ struct
           st
       ) st.cpa st
 
-  let threadenter = startstate_threadenter startstate
+  let threadenter ctx = startstate_threadenter startstate ctx
 end
 
 module WriteCenteredGBase =
@@ -1391,7 +1392,7 @@ struct
           st
       ) st.cpa st
 
-  let threadenter = startstate_threadenter startstate
+  let threadenter ctx = startstate_threadenter startstate ctx
 end
 
 (** Write-Centered Reading and Lock-Centered Reading combined. *)
@@ -1572,7 +1573,7 @@ struct
           st
       ) st.cpa st
 
-  let threadenter = startstate_threadenter startstate
+  let threadenter ctx = startstate_threadenter startstate ctx
 end
 
 module TimedPriv (Priv: S): S with module D = Priv.D =
@@ -1590,7 +1591,7 @@ struct
   let sync reason ctx = time "sync" (Priv.sync reason) ctx
   let escape ctx escaped = time "escape" (Priv.escape ctx) escaped
   let enter_multithreaded ctx = time "enter_multithreaded" Priv.enter_multithreaded ctx
-  let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
+  let threadenter ctx = time "threadenter" Priv.threadenter ctx
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()
@@ -1713,10 +1714,10 @@ struct
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 
-  let threadenter ask st =
+  let threadenter ctx =
     if M.tracing then M.traceli "priv" "threadenter\n";
-    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
-    let r = threadenter ask st in
+    if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty ctx.local;
+    let r = threadenter ctx in
     if M.tracing then M.traceu "priv" "-> %a\n" BaseComponents.pretty r;
     r
 

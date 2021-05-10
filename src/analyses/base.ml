@@ -1802,9 +1802,10 @@ struct
            Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
            EnterMultithreaded events only execute after threadenter and threadspawn. *)
+        let priv_ctx = BasePriv.{local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask} in
         if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
-          ignore (Priv.enter_multithreaded BasePriv.{local = st; global = ctx.global; sideg = ctx.sideg; ask = ctx.ask});
-        Priv.threadenter (Analyses.ask_of_ctx ctx) st
+          ignore (Priv.enter_multithreaded priv_ctx);
+        Priv.threadenter priv_ctx
       ) else
         let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
         (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)

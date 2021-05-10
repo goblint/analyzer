@@ -26,7 +26,7 @@ sig
 
   val escape: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> EscapeDomain.EscapedVars.t -> BaseDomain.BaseComponents (D).t
   val enter_multithreaded: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> BaseDomain.BaseComponents (D).t
-  val threadenter: Queries.ask -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
+  val threadenter: (BaseDomain.BaseComponents (D).t, G.t, 'c) ctx -> BaseDomain.BaseComponents (D).t
 
   val init: unit -> unit
   val finalize: unit -> unit
