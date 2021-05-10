@@ -28,4 +28,5 @@ int main(){
     // Passing a pointer to the struct here.
     mutate_list2(&first);
     assert(second.val == 2); //UNKNOWN!
+    return 0;
 }
