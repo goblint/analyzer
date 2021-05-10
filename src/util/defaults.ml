@@ -23,6 +23,10 @@ let catDescription = function
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
 
+(** All categories used for [printAllCategories]. *)
+(* Moved up here to not forget to change, when adding new categories. *)
+let all_categories = [Std;Analyses;Semantics;Transformations;Experimental;Debugging] (* TODO: use deriving enum? *)
+
 (** A place to store registered variables *)
 let registrar = ref []
 
@@ -47,7 +51,7 @@ let printCategory ch k =
 
 (** Prints out all registered options. *)
 let printAllCategories ch =
-  iter (printCategory ch) [Std;Analyses;Experimental;Debugging]
+  iter (printCategory ch) all_categories
 
 (* {4 category [Std]} *)
 let _ = ()
