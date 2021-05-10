@@ -377,7 +377,7 @@ end
    It is not clear if we need pre-states, post-states or both on foreign analyses.
 *)
 type ('d,'g,'c) ctx =
-  { ask      : 'a. 'a Queries.t -> 'a Queries.result
+  { ask      : 'a. 'a Queries.t -> 'a Queries.result (* Inlined Queries.ask *)
   ; emit     : Events.t -> unit
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
@@ -399,6 +399,7 @@ exception Ctx_failure of string
 
 let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 
+(** Convert [ctx] to [Queries.ask]. *)
 let ask_of_ctx ctx: Queries.ask = { Queries.f = fun (type a) (q: a Queries.t) -> ctx.ask q }
 
 let swap_st ctx st =
