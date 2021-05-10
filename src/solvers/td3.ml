@@ -68,7 +68,7 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
-      let () = print_stats := fun () ->
+      let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
         print_context_stats rho

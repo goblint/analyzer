@@ -948,8 +948,6 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
         (l', g')
     end
 
-(* TODO: remove unnecessary *)
-module N = struct let topname = "Top" end
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
@@ -1220,8 +1218,9 @@ struct
   open S
 
   let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
+    let should_verify = get_bool "verify" in
     Goblintutil.in_verifying_stage := true;
-    Goblintutil.verified := Some true;
+    (if should_verify then Goblintutil.verified := Some true);
     let complain_l (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
@@ -1251,12 +1250,12 @@ struct
          * invariant. *)
         let check_local l lv =
           let lv' = sigma' l in
-          if not (D.leq lv lv') then
+          if should_verify && not (D.leq lv lv') then
             complain_sidel v l lv' lv
         in
         let check_glob g gv =
           let gv' = theta' g in
-          if not (G.leq gv gv') then
+          if should_verify && not (G.leq gv gv') then
             complain_sideg v g gv' gv
         in
         let d = rhs sigma' check_local theta' check_glob in

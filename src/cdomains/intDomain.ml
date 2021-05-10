@@ -274,11 +274,9 @@ struct
     if ik_c <> 0
       then ik_c
       else I.compare x.v y.v
-  let short l x = I.short l x.v  (* TODO add ikind to output *)
-  let isSimple x = I.isSimple x.v
+  let show x = I.show x.v  (* TODO add ikind to output *)
   let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
-  let pretty_f f () x = pretty () x (* TODO add ikind to output *)
   let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
@@ -435,24 +433,22 @@ module Std (B: sig
     val name: unit -> string
     val top_of: Cil.ikind -> t
     val bot_of: Cil.ikind -> t
-    val short: int -> t -> string
+    val show: t -> string
     val equal: t -> t -> bool
   end) = struct
   include Printable.StdPolyCompare
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let isSimple _ = true
   let hash = Hashtbl.hash
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
   let is_top_of ik x = B.equal x (top_of ik)
 
-  (* all output is based on B.short *)
-  let pretty_f sh () x = text (sh Goblintutil.summary_length x)
-  let pretty = pretty_f short
+  (* all output is based on B.show *)
+  let pretty () x = text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   include StdTop (B)
 end
@@ -475,14 +471,14 @@ struct
 
   let is_bot x  = failwith "is_bot not implemented for intervals"
 
-  let short _ = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
+  let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
   let equal a b = match a, b with
     | None, None -> true
     | Some (a, b), Some (c, d) -> Ints_t.equal a c && Ints_t.equal b d
     | _, _ -> false
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let equal_to i = function
     | None -> failwith "unsupported: equal_to with bottom"
@@ -583,7 +579,7 @@ struct
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
     | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_bool i1, to_bool i2 with
       | Some x, Some y -> of_bool ik (f x y)
@@ -606,7 +602,7 @@ struct
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
     | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero -> top_of ik)
@@ -616,7 +612,7 @@ struct
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
     | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 i1) (short 80 i2)))
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
@@ -642,17 +638,17 @@ struct
 
   let add ik x y = match x, y with
   | None, None -> None
-  | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+  | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
   | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2)
 
   let sub ik x y = match x, y with
   | None, None -> None
-  | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+  | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
   | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.sub x1 y2, Ints_t.sub x2 y1) (* y1, y2 are in different order here than in add *)
 
   let rem ik x y = match x, y with
     | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (xl, xu), Some (yl, yu) ->
       if is_top_of ik x && is_top_of ik y then
         (* This is needed to preserve soundness also on things bigger than int32 e.g.  *)
@@ -675,7 +671,7 @@ struct
   let mul ik x y =
     match x, y with
     | None, None -> bot ()
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       let x1y1 = (Ints_t.mul x1 y1) in let x1y2 = (Ints_t.mul x1 y2) in
       let x2y1 = (Ints_t.mul x2 y1) in let x2y2 = (Ints_t.mul x2 y2) in
@@ -685,7 +681,7 @@ struct
   let rec div ik x y =
     match x, y with
     | None, None -> bot ()
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       begin
         let is_zero v = Ints_t.compare v Ints_t.zero = 0 in
@@ -709,7 +705,7 @@ struct
   let ge ik x y =
     match x, y with
     | None, None -> bot_of ik
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 then of_bool ik true
       else if Ints_t.compare x2 y1 < 0 then of_bool ik false
@@ -718,7 +714,7 @@ struct
   let le ik x y =
     match x, y with
     | None, None -> bot_of ik
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare x2 y1 <= 0 then of_bool ik true
       else if Ints_t.compare  y2 x1 < 0 then of_bool ik false
@@ -727,7 +723,7 @@ struct
   let gt ik x y =
     match x, y with
     | None, None -> bot_of ik
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 then of_bool ik true
       else if Ints_t.compare x2 y1 <= 0 then of_bool ik false
@@ -736,7 +732,7 @@ struct
   let lt ik x y =
     match x, y with
     | None, None -> bot_of ik
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare x2 y1 < 0 then of_bool ik true
       else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
@@ -773,7 +769,7 @@ struct
       | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval ik)
       | None -> empty
     in
-    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
+    QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
   let relift x = x
 end
 
@@ -792,11 +788,11 @@ struct
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let short _ x = if x = GU.inthack then "*" else Int64.to_string x
+  let show x = if x = GU.inthack then "*" else Int64.to_string x
 
   let equal = Int64.equal
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
@@ -1018,11 +1014,10 @@ module BigInt = struct
   let to_bool x = Some (not (BI.equal (BI.zero) x))
 
   let hash x = (BI.to_int x) * 2147483647
-  let short l x = BI.to_string x
-  let isSimple _ = true
+  let show x = BI.to_string x
   let pretty _ x = Pretty.text (BI.to_string x)
   let to_yojson x = failwith "to_yojson not implemented for BigIntPrintable"
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
@@ -1064,15 +1059,15 @@ struct
 
 
 
-  let short w x =
-    let short_size x = "("^R.short 2 x^")" in
+  let show x =
+    let short_size x = "("^R.show x^")" in
     match x with
     | `Bot -> "Error int"
-    | `Definite x -> BigInt.short w x
+    | `Definite x -> BigInt.show x
     (* Print the empty exclusion as if it was a distinct top element: *)
     | `Excluded (s,l) when S.is_empty s -> "Unknown int" ^ short_size l
     (* Prepend the exclusion sets with something: *)
-    | `Excluded (s,l) -> "Not " ^ S.short w s ^ short_size l
+    | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
   let hash (x:t) =
     match x with
     | `Excluded (s,r) -> S.hash s + R.hash r
@@ -1085,7 +1080,7 @@ struct
     | `Excluded (xs,xw), `Excluded (ys,yw) -> S.equal xs ys && R.equal xw yw
     | _ -> false
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let is_top x = x = top ()
 
@@ -1310,7 +1305,7 @@ struct
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y))))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
   let lift_comp f ik x y = norm ik (match x,y with
     (* We don't bother with exclusion sets: *)
@@ -1323,7 +1318,7 @@ struct
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y))))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
@@ -1342,7 +1337,7 @@ struct
       | `Bot, `Bot -> `Bot
       | _ ->
         (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
   (* The equality check: *)
   let eq ik x y = match x,y with
@@ -1357,7 +1352,7 @@ struct
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
   (* The inequality check: *)
   let ne ik x y = match x,y with
@@ -1372,7 +1367,7 @@ struct
     | `Bot, `Bot -> `Bot
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
   let neg ik (x :t) = norm ik @@ lift1 BigInt.neg ik x
   let add ik x y = norm ik @@ lift2_inj BigInt.add ik x y
@@ -1441,7 +1436,7 @@ struct
       | `Definite x -> (return `Bot) <+> (MyCheck.shrink (BigInt.arbitrary ()) x >|= definite)
       | `Bot -> empty
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [
+    QCheck.frequency ~shrink ~print:show [
       20, QCheck.map excluded (S.arbitrary ());
       10, QCheck.map definite (BigInt.arbitrary ());
       1, QCheck.always `Bot
@@ -1495,9 +1490,9 @@ struct
   let bot () = false
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let short _ x = if x then N.truename else N.falsename
+  let show x = if x then N.truename else N.falsename
   let equal = Bool.equal
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   let hash = function true -> 51534333 | _ -> 561123444
   let is_top x = x (* override Std *)
 
@@ -1575,12 +1570,12 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc x, Inc y -> ISet.equal x y
     | Exc (x, r), Exc (y, s) -> ISet.equal x y && R.equal r s
     | _, _ -> false
-  let short _ = function
+  let show = function
     | Inc xs when ISet.is_empty xs -> "bot"
-    | Inc xs -> "{" ^ (String.concat ", " (List.map (I.short 30) (ISet.elements  xs))) ^ "}"
-    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) (ISet.elements xs))) ^ "} " ^ "("^R.short 2 r^")"
+    | Inc xs -> "{" ^ (String.concat ", " (List.map I.show (ISet.elements  xs))) ^ "}"
+    | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map I.show (ISet.elements xs))) ^ "} " ^ "("^R.show r^")"
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let short = short let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let compare a b =
     let value c =
@@ -1781,7 +1776,7 @@ module Enums : S with type int_t = BigInt.t = struct
       | Exc (s, _) -> MyCheck.shrink (ISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
       | Inc s -> MyCheck.shrink (ISet.arbitrary ()) s >|= pos
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [
+    QCheck.frequency ~shrink ~print:show [
       20, QCheck.map neg (ISet.arbitrary ());
       10, QCheck.map pos (ISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
@@ -1880,7 +1875,7 @@ module IntDomTupleImpl = struct
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
   (* others *)
-  let short w = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.name () ^ ":" ^ (I.short (w / 4) x) }
+  let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.name () ^ ":" ^ (I.show x) }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   (* f2: binary ops *)
@@ -1912,14 +1907,10 @@ module IntDomTupleImpl = struct
   let leq = for_all %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.leq }
   let equal = for_all %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.equal }
   let compare = List.fold_left (fun a x -> if x<>0 then x else a) 0 % to_list %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.compare } (* idea? same impl. as above... *)
-  (* val pretty_f: (int -> t -> string) -> unit -> t -> doc *)
-  let pretty_f sf () : t -> doc = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty_f I.short () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
-
+  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
   (* printing boilerplate *)
-  let isSimple _ = true
-  let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let invariant _ _ = failwith "invariant not implemented for IntDomTupleImpl. Use invariant_ikind instead"
 
@@ -1935,7 +1926,7 @@ module IntDomTupleImpl = struct
           Invariant.(a && i)
         ) Invariant.none is
 
-  let arbitrary () = QCheck.(set_print (short 10000) @@ triple (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())))
+  let arbitrary () = QCheck.(set_print show @@ triple (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())))
 end
 
 module IntDomTuple =

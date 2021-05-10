@@ -18,7 +18,7 @@ let jsonFiles : string list ref = ref []
 let has_otherfuns = ref false
 
 (** If this is true we output messages and collect accesses.
-    This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
+    This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
 
 let did_overflow = ref false
@@ -410,3 +410,22 @@ let command = String.concat " " (Array.to_list Sys.argv)
 let opt_predicate (f : 'a -> bool) = function
   | Some x -> f x
   | None -> false
+
+(* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
+(* https://ocaml.github.io/ocamlunix/signals.html *)
+let signal_of_string = let open Sys in function
+  | "sigint"  -> sigint  (* Ctrl+C Interactive interrupt *)
+  | "sigtstp" -> sigtstp (* Ctrl+Z Interactive stop *)
+  | "sigquit" -> sigquit (* Ctrl+\ Interactive termination *)
+  | "sigalrm" -> sigalrm (* Timeout *)
+  | "sigkill" -> sigkill (* Termination (cannot be ignored) *)
+  | "sigsegv" -> sigsegv (* Invalid memory reference, https://github.com/goblint/analyzer/issues/206 *)
+  | "sigterm" -> sigterm (* Termination *)
+  | "sigusr1" -> sigusr1 (* Application-defined signal 1 *)
+  | "sigusr2" -> sigusr2 (* Application-defined signal 2 *)
+  | "sigstop" -> sigstop (* Stop *)
+  | "sigprof" -> sigprof (* Profiling interrupt *)
+  | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
+  | s -> failwith ("Unhandled signal " ^ s)
+
+let self_signal signal = Unix.kill (Unix.getpid ()) signal

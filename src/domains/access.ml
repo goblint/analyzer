@@ -28,25 +28,22 @@ struct
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let compare (x:t) (y:t) = compare x y
-  let isSimple _ = true
-  let short _ x = x
-  let pretty_f sf () x = text (sf 80 x)
-  let pretty () x = pretty_f short () x
+  let show x = x
+  let pretty () x = text (show x)
   let name () = "strings"
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
-      (Goblintutil.escape (short 80 x))
+      (Goblintutil.escape (show x))
 end
 
 module LabeledString =
 struct
   include Printable.Prod (Ident) (Ident)
-  let pretty_f sf () (x,y) =
-    Pretty.text (sf Goblintutil.summary_length (x,y))
-  let short _ (x,y) = x^":"^y
-  let pretty () x = pretty_f short () x
+  let show (x,y) = x^":"^y
+  let pretty () (x,y) =
+    Pretty.text (show (x,y))
 end
 module LSSet = SetDomain.Make (LabeledString)
 module LSSSet =
@@ -620,7 +617,7 @@ let print_accesses_xml () =
     let h (conf,w,loc,e,lp) =
       let atyp = if w then "write" else "read" in
       BatPrintf.printf "  <access type=\"%s\" loc=\"%s\" conf=\"%d\">\n"
-        atyp (Basetype.ProgLines.short 0 loc) conf;
+        atyp (Basetype.ProgLines.show loc) conf;
 
       let d_lp f (t,id) = BatPrintf.fprintf f "type=\"%s\" id=\"%s\"" t id in
 

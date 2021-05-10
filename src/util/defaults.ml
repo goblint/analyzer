@@ -23,6 +23,10 @@ let catDescription = function
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
 
+(** All categories used for [printAllCategories]. *)
+(* Moved up here to not forget to change, when adding new categories. *)
+let all_categories = [Std;Analyses;Semantics;Transformations;Experimental;Debugging] (* TODO: use deriving enum? *)
+
 (** A place to store registered variables *)
 let registrar = ref []
 
@@ -47,7 +51,7 @@ let printCategory ch k =
 
 (** Prints out all registered options. *)
 let printAllCategories ch =
-  iter (printCategory ch) [Std;Analyses;Experimental;Debugging]
+  iter (printCategory ch) all_categories
 
 (* {4 category [Std]} *)
 let _ = ()
@@ -78,7 +82,7 @@ let _ = ()
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
       ; reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main). This requires exp.earlyglobs!"
       ; reg Std "nonstatic"       "false"        "Analyzes all non-static functions."
-      ; reg Std "colors"          "false"        "Colored output."
+      ; reg Std "colors"          "'auto'"       "Colored output (via ANSI escape codes). 'auto': enabled if stdout is a terminal (instead of a pipe); 'always', 'never'."
       ; reg Std "g2html"          "false"        "Run g2html.jar on the generated xml."
       ; reg Std "interact.out"    "'result'"     "The result directory in interactive mode."
       ; reg Std "interact.enabled" "false"       "Is interactive mode enabled."
@@ -87,13 +91,13 @@ let _ = ()
       ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
+      ; reg Std "warn"            "'post'"       "Output warnings: 'post'. Output warnings after solving. Best results. 'never': Do not produce warnings, 'early'. For debugging. Outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
 
 (* {4 category [Analyses]} *)
 let _ = ()
       ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','escape','mutex', 'mallocWrapper']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
-      ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
       ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
       ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
       ; reg Analyses "ana.osek.oil"        "''"    "Oil file for the analyzed program"
@@ -213,13 +217,14 @@ let _ = ()
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
       ; reg Debugging "dbg.timeout"         "0"     "Maximal time for analysis. (0 -- no timeout)"
-      ; reg Debugging "dbg.solver-signal"   "'sigint'" "Signal to interrupt the solver to print statistics. Can be sigint (Ctrl+C, default), sigtstp (Ctrl+Z), or sigquit (Ctrl+\\)."
+      ; reg Debugging "dbg.solver-stats-interval"   "10" "Interval in seconds to print statistics while solving."
+      ; reg Debugging "dbg.solver-signal"   "'sigusr1'" "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml)."
+      ; reg Debugging "dbg.backtrace-signal" "'sigusr2'" "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml)."
       ; reg Debugging "dbg.solver-progress" "false" "Used for debugging. Prints out a symbol on solving a rhs."
       ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
       ; reg Debugging "dbg.limit.widen"     "0"     "Limit for number of widenings per node (0 = no limit)."
-      ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
       ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
@@ -290,6 +295,7 @@ let default_schema = "\
   , 'save_run'        : {}
   , 'load_run'        : {}
   , 'compare_runs'    : {}
+  , 'warn'            : {}
   }
 }"
 

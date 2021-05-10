@@ -23,13 +23,13 @@ module PrintableChar =
 struct
   type t = char [@@deriving to_yojson]
   let name () = "char"
-  let short _ x = String.make 1 x
+  let show x = String.make 1 x
 
   module P =
   struct
     type t' = t
     let name = name
-    let short = short
+    let show = show
   end
   include Printable.StdPolyCompare
   include Printable.PrintSimple (P)

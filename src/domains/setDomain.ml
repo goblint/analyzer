@@ -95,7 +95,7 @@ struct
     let add_to_it x s = add (f x) s in
     fold add_to_it s (empty ())
 
-  let pretty_f _ () x =
+  let pretty () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
@@ -109,21 +109,15 @@ struct
     (text "{") ++ content ++ (text "}")
 
   (** Short summary for sets. *)
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (Base.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let show x : string =
+    let all_elems : string list = List.map Base.show (elements x) in
+    Printable.get_short_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
-
-  let pretty () x = pretty_f short () x
 
   let equal x y =
     cardinal x = cardinal y
     && for_all (fun e -> exists (Base.equal e) y) x
-
-  let isSimple x =
-    (List.length (elements x)) < 3
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 
@@ -290,17 +284,15 @@ struct
   (* The printable implementation *)
   (* Overrides `Top text *)
 
-  let pretty_f _ () x =
+  let pretty () x =
     match x with
     | `Top -> text N.topname
     | `Lifted t -> S.pretty () t
 
-  let short w x : string =
+  let show x : string =
     match x with
     | `Top -> N.topname
-    | `Lifted t -> S.short w t
-
-  let pretty () x = pretty_f short () x
+    | `Lifted t -> S.show t
 
 
   (* Lattice implementation *)
@@ -342,7 +334,7 @@ struct
     | `Top -> Invariant.none
     | `Lifted s -> S.invariant c s
 
-  let arbitrary () = QCheck.set_print (short 10000) (arbitrary ())
+  let arbitrary () = QCheck.set_print show (arbitrary ())
 end
 
 (** Functor for creating artificially topped set domains. *)
@@ -361,10 +353,8 @@ module HeadlessSet (Base: Printable.S) =
 struct
   include Make(Base)
 
-  let isSimple _ = false
-
   let name () = "Headless " ^ name ()
-  let pretty_f _ () x =
+  let pretty () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
@@ -377,7 +367,6 @@ struct
     let content = List.fold_left (++) nil separated in
     content
 
-  let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f xs =

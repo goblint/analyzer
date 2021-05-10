@@ -1,14 +1,10 @@
 module Unix = struct
-  let set_timer tsecs =
-    ignore (Unix.setitimer Unix.ITIMER_REAL
-              { Unix.it_interval = 0.0; Unix.it_value = tsecs })
-
   let timeout f arg tsecs timeout_fn =
-    let oldsig = Sys.signal Sys.sigalrm (Sys.Signal_handle (fun _ -> timeout_fn ())) in
-    set_timer tsecs;
+    let oldsig = Sys.signal Sys.sigprof (Sys.Signal_handle (fun _ -> timeout_fn ())) in
+    (* https://ocaml.org/api/Unix.html#TYPEinterval_timer ITIMER_PROF is user (ITIMER_VIRTUAL) + system time; sends sigprof *)
+    ignore Unix.(setitimer ITIMER_PROF { it_interval = 0.0; it_value = tsecs });
     let res = f arg in
-    set_timer 0.0;
-    Sys.set_signal Sys.sigalrm oldsig;
+    Sys.set_signal Sys.sigprof oldsig;
     res
 end
 

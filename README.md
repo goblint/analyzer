@@ -1,6 +1,9 @@
 # goblint
 ![Build status](https://github.com/goblint/analyzer/workflows/build%20and%20run%20tests/badge.svg)
 [![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
+[![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
+
+Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/en/latest/) or [GitHub](./docs/).
 
 ## Setup
 ### Linux / MacOS

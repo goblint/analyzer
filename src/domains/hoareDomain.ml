@@ -129,15 +129,13 @@ struct
         if caridnality_comp <> 0
           then caridnality_comp
           else Map.compare (List.compare E.compare) x y
-  let isSimple _ = false
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (E.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let show x : string =
+    let all_elems : string list = List.map E.show (elements x) in
+    Printable.get_short_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let pretty_f _ () x =
+  let pretty () x =
     let content = List.map (E.pretty ()) (elements x) in
     let rec separate x =
       match x with
@@ -148,7 +146,6 @@ struct
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
     (text "{") ++ content ++ (text "}")
-  let pretty () x = pretty_f short () x
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y
