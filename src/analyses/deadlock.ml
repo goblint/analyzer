@@ -28,9 +28,9 @@ struct
     if !Goblintutil.in_verifying_stage then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.short () e.addr) (ValueDomain.Addr.short () newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
+            let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.show e.addr) (ValueDomain.Addr.show newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
             Messages.report msg;
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.short () newLock.addr) (ValueDomain.Addr.short () e.addr) b.loc.line a.loc.line e.loc.line newLock.loc.line) in
+            let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.show newLock.addr) (ValueDomain.Addr.show e.addr) b.loc.line a.loc.line e.loc.line newLock.loc.line) in
             Messages.report ~loc:a.loc msg;
           )
           else () ) !forbiddenList ) lockList;
@@ -52,8 +52,8 @@ struct
 
   (* Some required states *)
   let startstate _ : D.t = D.empty ()
-  let threadenter ctx lval f args : D.t = D.empty ()
-  let threadspawn ctx lval f args fctx = D.empty ()
+  let threadenter ctx lval f args = [D.empty ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  _ : D.t = D.empty ()
 
   (* ======== Transfer functions ======== *)
@@ -98,7 +98,7 @@ struct
     | `LvalSet a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | `Bot -> []
-    | b -> Messages.warn ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
+    | b -> Messages.warn ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.Result.show b^"'."); []
 
   (* Called when calling a special/unknown function *)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -120,4 +120,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

@@ -108,21 +108,17 @@ struct
       fold ch y true
     in length x = length y && forall2 Range.equal x y
   let hash xs = fold (fun k v xs -> xs lxor (Domain.hash k) lxor (Range.hash v)) xs 0
-  let short _ x = "mapping"
-  let isSimple _ = false
+  let show x = "mapping"
 
 
   open Pretty
-  let pretty_f _ () mapping =
+  let pretty () mapping =
     let f key st dok =
-      dok ++ (if Range.isSimple st then dprintf "%a -> @[%a@]\n" else
-                dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
+      dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
     in
     let content () = fold f mapping nil in
     let defline () = dprintf "OTHERS -> Not available\n" in
     dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
-
-  let pretty () x = pretty_f short () x
 
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

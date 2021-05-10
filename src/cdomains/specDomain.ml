@@ -16,6 +16,7 @@ struct
   (* let records = function Must x -> (Set.singleton x) | May xs -> xs *)
   (* let list_of_records = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs) *)
   (* let vnames x = String.concat ", " (List.map (fun r -> string_of_key r.var) (list_of_records x)) *)
+  let compare = compare
 end
 
 

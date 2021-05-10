@@ -27,7 +27,7 @@ let current_commit_dir () = match current_commit () with
         Some (Goblintutil.create_dir dir)
       with e -> let error_message = (Printexc.to_string e) in
         print_newline ();
-        print_string "The following error occured while creating a directory: ";
+        print_string "The following error occurred while creating a directory: ";
         print_endline error_message;
         None)
   | None -> None (* git-directory not clean *)

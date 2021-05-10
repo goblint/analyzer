@@ -61,7 +61,7 @@ module Thread = struct
       let name =
         match loc with
         | None -> f.vname
-        | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.short 80 l
+        | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.show l
       in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       Hashtbl.add thread_hash (f,loc) newvar;
@@ -98,10 +98,10 @@ module SimpleThreadDomain = struct
   let switch (x,z) (y,_) = (Simple.switch x y, z)
 
 
-  let short w (x,y) =
-    let tid = ThreadLifted.short w y in
+  let show (x,y) =
+    let tid = ThreadLifted.show y in
     if x > 1 then tid else tid ^ "!" (* ! means unique *)
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (show x)
   let same_tid x y =
     match x,y with
     | (_, `Lifted x), (_, `Lifted y) -> Thread.equal x y

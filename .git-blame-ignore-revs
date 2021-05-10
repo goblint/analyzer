@@ -19,3 +19,6 @@ dd220cf089efd7dfb022e6dbc9a00749a5f72cb2
 
 # begin/end has no highlighting and end is shared with struct
 823626143828e0612687dffd3c93df69904a97b6
+
+# Reorder so correct query function is used
+78eb0601b5f680d8789366b725cfc6df48137a31

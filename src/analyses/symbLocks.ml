@@ -23,8 +23,8 @@ struct
   let name () = "symb_locks"
 
   let startstate v = D.top ()
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let branch ctx exp tv = ctx.local
@@ -145,27 +145,6 @@ struct
     | _ ->
       ust
 
-  let may_race (ctx1,ac1) (ctx,ac2) =
-    match ac1, ac2 with
-    | `Lval (l1,r1), `Lval (l2,r2) ->
-      let ls1 = get_all_locks ctx1.ask (Lval l1) ctx1.local in
-      let ls1 = Queries.PS.fold (one_perelem ctx1.ask) ls1 (ExpSet.empty) in
-      let ls2 = get_all_locks ctx.ask (Lval l2) ctx.local in
-      let ls2 = Queries.PS.fold (one_perelem ctx.ask) ls2 (ExpSet.empty) in
-      (*ignore (Pretty.printf "{%a} inter {%a} = {%a}\n" (Pretty.d_list ", " Exp.pretty) (ExpSet.elements ls1) (Pretty.d_list ", " Exp.pretty) (ExpSet.elements ls2) (Pretty.d_list ", " Exp.pretty) (ExpSet.elements (ExpSet.inter ls1 ls2)));*)
-      ExpSet.is_empty (ExpSet.inter ls1 ls2) &&
-      let ls1 = same_unknown_index ctx1.ask (Lval l1) ctx1.local in
-      let ls1 = Queries.PS.fold one_lockstep ls1 (LockDomain.Lockset.empty ()) in
-      let ls2 = same_unknown_index ctx.ask (Lval l2) ctx.local in
-      let ls2 = Queries.PS.fold one_lockstep ls2 (LockDomain.Lockset.empty ()) in
-      LockDomain.Lockset.is_empty (LockDomain.Lockset.ReverseAddrSet.inter ls1 ls2)
-
-    | _ -> true
-
-  let query ctx (q:Queries.t) =
-    match q with
-    | _ -> Queries.Result.top ()
-
   let add_per_element_access ctx e rw =
     let module LSSet = Access.LSSet in
     (* Per-element returns a triple of exps, first are the "element" pointers,
@@ -196,7 +175,7 @@ struct
       match m with
       | AddrOf (Var v,o) ->
         let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
-        LSSet.add ("i-lock",ValueDomain.Addr.short 80 lock) xs
+        LSSet.add ("i-lock",ValueDomain.Addr.show lock) xs
       | _ ->
         Messages.warn "Internal error: found a strange lockstep pattern.";
         xs
@@ -239,7 +218,13 @@ struct
     let ls = add_per_element_access ctx e false in
     (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
     (LSSSet.singleton (LSSet.empty ()), ls)
+
+  let query ctx (q:Queries.t) =
+    match q with
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
+    | _ -> Queries.Result.top ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

@@ -64,11 +64,6 @@ struct
   let special ctx lval f args =
     ctx.local
 
-  let query ctx x =
-    match x with
-    | Queries.CurrentThreadId -> `Varinfo ctx.local
-    | _ -> `Top
-
   let is_unique ctx =
     match ctx.ask Queries.MustBeUniqueThread with
     | `MustBool true -> true
@@ -78,17 +73,24 @@ struct
     let es = Access.LSSet.empty () in
     if is_unique ctx then
       let tid = ctx.local in
-      let tid = ThreadLifted.short 20 tid in
+      let tid = ThreadLifted.show tid in
       (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
     else
       (Access.LSSSet.singleton es, es)
 
+  let query ctx x =
+    match x with
+    | Queries.CurrentThreadId -> `Varinfo ctx.local
+    | Queries.PartAccess {exp; var_opt; write} ->
+      `PartAccessResult (part_access ctx exp var_opt write)
+    | _ -> `Top
+
   let threadenter ctx lval f args =
-    create_tid f
+    [create_tid f]
 
   let threadspawn ctx lval f args fctx =
-    ThreadLifted.bot ()
+    ctx.local
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

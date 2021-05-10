@@ -199,7 +199,7 @@ struct
           (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
           D.alias k vvar m
         else (* returned variable was a local *)
-          let v = D.V.set_key k v in (* ajust var-field to lval *)
+          let v = D.V.set_key k v in (* adjust var-field to lval *)
           (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
           D.add' k v m
     | _ -> m
@@ -213,7 +213,7 @@ struct
     let split_err_branch lval dom =
       (* type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType -> no difference *)
       if not (GobConfig.get_bool "ana.file.optimistic") then
-        ctx.split dom (Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType)) true;
+        ctx.split dom [Events.SplitBranch ((Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType)), true)];
       dom
     in
     (* fold possible keys on domain *)
@@ -237,7 +237,7 @@ struct
         let k' = D.key_from_lval lval in
         (* add joined value for that key *)
         let m' = Option.map_default (fun v -> D.add' k' v m) m v in
-        (* check for warnigns *)
+        (* check for warnings *)
         ignore(f k' m' true);
         (* and join the old domain without issuing warnings *)
         List.fold_left (fun m k -> D.join m (f k m false)) m xs
@@ -296,10 +296,10 @@ struct
     | _ -> m
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

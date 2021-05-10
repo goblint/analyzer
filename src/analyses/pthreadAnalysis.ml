@@ -914,7 +914,7 @@ module Codegen = struct
        pthread.pml && cc -o pan pan.c && ./pan"
 end
 
-module Spec : Analyses.Spec = struct
+module Spec : Analyses.MCPSpec = struct
   module M = Messages
   module List = BatList
 
@@ -1096,9 +1096,10 @@ module Spec : Analyses.Spec = struct
 
   let body ctx (f : fundec) : D.t =
     (* enter is not called for spawned threads -> initialize them here *)
+    let module BaseMain = (val Base.get_main ()) in
     let context_hash =
       let base_context =
-        Base.Main.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub
+        BaseMain.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub
       in
       Int64.of_int @@ Hashtbl.hash (base_context, ctx.local.tid)
     in
@@ -1345,7 +1346,7 @@ module Spec : Analyses.Spec = struct
         tasks
     in
     let f_d = snd (Tasks.choose tasks_f) in
-    { f_d with pred = d.pred }
+    [{ f_d with pred = d.pred }]
 
 
   let threadspawn ctx lval f args fctx = D.bot ()
@@ -1355,4 +1356,4 @@ module Spec : Analyses.Spec = struct
   let finalize = Codegen.save_promela_model
 end
 
-let _ = MCP.register_analysis ~dep:[ "base" ] (module Spec : Spec)
+let _ = MCP.register_analysis ~dep:[ "base" ] (module Spec : MCPSpec)

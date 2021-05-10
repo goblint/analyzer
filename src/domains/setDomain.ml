@@ -91,7 +91,7 @@ struct
     let add_to_it x s = add (f x) s in
     fold add_to_it s (empty ())
 
-  let pretty_f _ () x =
+  let pretty () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
@@ -105,21 +105,15 @@ struct
     (text "{") ++ content ++ (text "}")
 
   (** Short summary for sets. *)
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (Base.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let show x : string =
+    let all_elems : string list = List.map Base.show (elements x) in
+    Printable.get_short_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: Base.t list] (elements x)
-
-  let pretty () x = pretty_f short () x
 
   let equal x y =
     cardinal x = cardinal y
     && for_all (fun e -> exists (Base.equal e) y) x
-
-  let isSimple x =
-    (List.length (elements x)) < 3
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 
@@ -298,22 +292,15 @@ struct
 
   (* The printable implementation *)
 
-  let pretty_f _ () x =
+  let pretty () x =
     match x with
     | All -> text N.topname
     | Set t -> S.pretty () t
 
-  let short w x : string =
+  let show x : string =
     match x with
     | All -> N.topname
-    | Set t -> S.short w t
-
-  let isSimple x =
-    match x with
-    | All -> true
-    | Set t -> S.isSimple t
-
-  let pretty () x = pretty_f short () x
+    | Set t -> S.show t
 
 
   (* Lattice implementation *)
@@ -350,38 +337,11 @@ struct
       | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
       | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:show [
       20, QCheck.map set (S.arbitrary ());
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)
 end
-
-(* superseded by Hoare *)
-(*
-module MacroSet (B: Lattice.S) (N: ToppedSetNames)=
-struct
-  include ToppedSet (B) (N)
-
-  let leq x y =
-    match x, y with
-    | Set x, Set y -> S.for_all (fun x -> S.exists (B.leq x) y) x
-    | _, All -> true
-    | All, _ -> false
-
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    match x,y with
-    | Set x, Set y -> S.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let meet x y =
-    let f y r =
-      (* assume that only one  *)
-      let yay, nay = partition (fun x -> B.leq x y) x in
-      if is_empty yay then r else add (fold B.join yay (B.bot ())) r
-    in
-    if is_top y then y else if is_top x then x else fold f y (empty ())
-end
-*)
 
 (* This one just removes the extra "{" notation and also by always returning
  * false for the isSimple, the answer looks better, but this is essentially a
@@ -390,10 +350,8 @@ module HeadlessSet (Base: Printable.S) =
 struct
   include Make(Base)
 
-  let isSimple _ = false
-
   let name () = "Headless " ^ name ()
-  let pretty_f _ () x =
+  let pretty () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
@@ -406,7 +364,6 @@ struct
     let content = List.fold_left (++) nil separated in
     content
 
-  let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f xs =
@@ -537,15 +494,13 @@ struct
         if caridnality_comp <> 0
           then caridnality_comp
           else Map.compare (List.compare E.compare) x y
-  let isSimple _ = false
-  let short w x : string =
-    let usable_length = w - 5 in
-    let all_elems : string list = List.map (E.short usable_length) (elements x) in
-    Printable.get_short_list "{" "}" usable_length all_elems
+  let show x : string =
+    let all_elems : string list = List.map E.show (elements x) in
+    Printable.get_short_list "{" "}" all_elems
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let pretty_f _ () x =
+  let pretty () x =
     let content = List.map (E.pretty ()) (elements x) in
     let rec separate x =
       match x with
@@ -556,7 +511,6 @@ struct
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
     (text "{") ++ content ++ (text "}")
-  let pretty () x = pretty_f short () x
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y
@@ -633,8 +587,53 @@ struct
       | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
       | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
-    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:show [
       20, QCheck.map set (S.arbitrary ());
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)
+end
+
+(* Copy of Hoare without ToppedSet. *)
+module Hoare_NoTop (B : Lattice.S) =
+struct
+  include Make (B)
+
+  let mem x s = exists (B.leq x) s
+  let leq a b = for_all (fun x -> mem x b) a (* mem uses B.leq! *)
+  let eq a b = leq a b && leq b a
+  let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
+  let reduce s = filter (fun x -> not (exists (le x) s) && not (B.is_bot x)) s
+  let product_bot op a b =
+    let a,b = elements a, elements b in
+    List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (of_list x)
+  let product_widen op a b = (* assumes b to be bigger than a *)
+    let xs,ys = elements a, elements b in
+    List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (union b (of_list x))
+  let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
+  let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
+
+  let add x a = if mem x a then a else add x a (* special mem! *)
+  let remove x a = failwith "Hoare_NoTop: unsupported remove"
+  let union a b = union a b |> reduce
+  let join = union
+  let inter = product_bot B.meet
+  let meet = inter
+  let subset = leq
+  let map' = map (* HACK: for PathSensitive morphstate *)
+  let map f a = map f a |> reduce
+  let min_elt a = B.bot ()
+  let split x a = failwith "Hoare_NoTop: unsupported split"
+  let apply_list f s = elements s |> f |> of_list
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let of_list xs = List.fold_right add xs (empty ()) |> reduce
+  let is_element e s = cardinal s = 1 && choose s = e
+
+  (* Copied from Make *)
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (B.arbitrary ())
+end
+
+module Reverse (Base: S) =
+struct
+  include Base
+  include Lattice.Reverse (Base)
 end

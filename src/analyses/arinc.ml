@@ -32,16 +32,16 @@ module Functions = struct
     else
       match List.last args with
       | AddrOf lv ->
-        Some (fun set ->
+        Some (
             let ret = if GobConfig.get_bool "ana.arinc.assume_success" then ret_success else if List.mem fname with_timeout then ret_any else ret_no_timeout in
             let v = vd ret in
             debug_doc @@ Pretty.dprintf "effect of %s: set %a to %a" fname d_lval lv ValueDomain.Compound.pretty v;
-            set lv v
+            [(lv, v)]
           )
       | _ -> None
 end
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -118,7 +118,7 @@ struct
     let node = Option.get !MyCFG.current_node in
     (* determine if we are at the root of a process or in some called function *)
     let fundec = MyCFG.getFun node in
-    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname^". State: " ^ D.short 100 d in
+    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname^". State: " ^ D.show d in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
     let procid = Process, pname in
     let pfuns = funs_for_process (Process,pname) in
@@ -260,7 +260,8 @@ struct
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
-    let base_context = Base.Main.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub in
+    let module BaseMain = (val Base.get_main ()) in
+    let base_context = BaseMain.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub in
     let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
     { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
 
@@ -509,7 +510,7 @@ struct
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
-          | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d
+          | _ -> let f = Queries.Result.show in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d
         end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
         assign_id_by_name Process name pid; d
@@ -662,10 +663,10 @@ struct
       ) tasks
     in
     let f_d = snd (Tasks.choose tasks_f) in
-    { f_d with pre = d.pre }
+    [{ f_d with pre = d.pre }]
 
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 end
 
 let _ =
-  MCP.register_analysis ~dep:["base"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["base"] (module Spec : MCPSpec)

@@ -31,7 +31,7 @@ let exp_replace_original_name e =
 
 let var_fundecs: fundec option VM.t Lazy.t =
   lazy (
-    foldGlobals !Cilfacade.ugglyImperativeHack (fun acc global ->
+    foldGlobals !Cilfacade.current_file (fun acc global ->
         match global with
         | GFun (fd, _) ->
           let acc = VM.add fd.svar None acc in (* function itself can be used as a variable (function pointer) *)

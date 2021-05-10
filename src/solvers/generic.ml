@@ -307,31 +307,52 @@ struct
       if tracing then traceu "sol_max" "%a\n\n" Dom.pretty_diff (n, o)
     end
 
-  let print_stats = ref (fun () -> ())
+  (* solvers can assign this to print solver specific statistics using their data structures *)
+  let print_solver_stats = ref (fun () -> ())
+
+  (* this can be used in print_solver_stats *)
+  let print_context_stats rho =
+    let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
+    let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
+    let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
+    HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 1 (str k) ((+)1) histo) rho;
+    (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
+    (* ignore @@ Pretty.printf "max #contexts: %d for %s\n" n max_k; *)
+    let ncontexts = Hashtbl.fold (fun _ -> (+)) histo 0 in
+    let topn = 5 in
+    Printf.printf "Found %d contexts for %d functions. Top %d functions:\n" ncontexts (Hashtbl.length histo) topn;
+    Hashtbl.to_list histo
+    |> List.sort (fun (_,n1) (_,n2) -> compare n2 n1)
+    |> List.take topn
+    |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k
+
+  (* print generic and specific stats *)
+  let print_stats _ =
+    print_newline ();
+    (* print_endline "# Generic solver stats"; *)
+    Printf.printf "runtime: %s\n" (string_of_time ());
+    Printf.printf "vars: %d, evals %d\n" !Goblintutil.vars !Goblintutil.evals;
+    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
+    print_newline ();
+    (* print_endline "# Solver specific stats"; *)
+    !print_solver_stats ();
+    print_newline ();
+    (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
+    (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
+    Goblintutil.print_gc_quick_stat Legacy.stdout;
+    print_newline ();
+    (* print_string "Do you want to continue? [Y/n]"; *)
+    flush stdout
+    (* if read_line () = "n" then raise Break *)
+
   let () =
-    let open Sys in
-    let handler i =
-      print_newline ();
-      print_newline ();
-      (* print_endline "# Generic solver stats"; *)
-      Printf.printf "runtime: %s\n" (string_of_time ());
-      Printf.printf "vars: %d, evals %d\n" !Goblintutil.vars !Goblintutil.evals;
-      Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
-      (* print_endline "# Solver specific stats"; *)
-      !print_stats ();
-      (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
-      (* Gc.print_stat stdout;       *)
-      (* print_string "Do you want to continue? [Y/n]"; *)
-      flush stdout;
-      (* if read_line () = "n" then raise Break *)
-    in
-    let signal = match get_string "dbg.solver-signal" with
-      | "sigint" -> sigint
-      | "sigtstp" -> sigtstp
-      | "sigquit" -> sigquit
-      | _ -> failwith "Invalid value for dbg.solver-signal!"
-    in
-    set_signal signal (Signal_handle handler);
+    (* call print_stats on dbg.solver-signal *)
+    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
+    (* call print_stats every dbg.solver-stats-interval *)
+    Sys.set_signal Sys.sigvtalrm (Signal_handle print_stats);
+    (* https://ocaml.org/api/Unix.html#TYPEinterval_timer ITIMER_VIRTUAL is user time; sends sigvtalarm; ITIMER_PROF/sigprof is already used in Timeout.Unix.timeout *)
+    let it = float_of_int (get_int "dbg.solver-stats-interval") in
+    ignore Unix.(setitimer ITIMER_VIRTUAL { it_interval = it; it_value = it });
 end
 
 (** use this if your [box] is [join] --- the simple solver *)

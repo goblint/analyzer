@@ -9,7 +9,7 @@ open Constraints
 
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
-let get_spec () : (module SpecHC) =
+let get_spec () : (module Spec) =
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -26,15 +26,16 @@ let get_spec () : (module SpecHC) =
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
+            |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
           ) in
-  (module (val if get_bool "ana.opt.hashcons" then (module HashconsLifter (S1)) else (module NoHashconsLifter (S1)) : SpecHC))
+  (module S1)
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : SpecHC) (increment: increment_data) =
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) (increment: increment_data) =
 
     let module Inc = struct let increment = increment end in
 
@@ -64,11 +65,11 @@ struct
     let module WResult = Witness.Result (Cfg) (Spec) (EQSys) (LHT) (GHT) in
 
     (* print out information about dead code *)
-    let print_dead_code (xs:Result.t) =
+    let print_dead_code (xs:Result.t) uncalled_fn_loc =
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
       let module NH = Hashtbl.Make (MyCFG.Node) in
       let live_nodes : unit NH.t = NH.create 10 in
-      let count = ref 0 in
+      let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
       let module StringMap = BatMap.Make (String) in
       let open BatPrintf in
       let live_lines = ref StringMap.empty in
@@ -86,6 +87,13 @@ struct
         );
       in
       Result.iter add_one xs;
+      let live_count = StringMap.fold (fun _ file_lines acc ->
+          StringMap.fold (fun _ fun_lines acc ->
+              acc + ISet.cardinal fun_lines
+            ) file_lines acc
+        ) !live_lines 0
+      in
+      printf "Live lines: %d\n" live_count;
       let live file fn =
         try StringMap.find fn (StringMap.find file !live_lines)
         with Not_found -> BatISet.empty
@@ -115,9 +123,11 @@ struct
         if StringMap.is_empty !dead_lines
         then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
         else (
-          StringMap.iter print_file !dead_lines;
-          printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
-        )
+          StringMap.iter print_file !dead_lines; (* populates count by side-effect *)
+          let total_dead = !count + uncalled_fn_loc in
+          printf "Found dead code on %d line%s%s!\n" total_dead (if total_dead>1 then "s" else "") (if uncalled_fn_loc > 0 then Printf.sprintf " (including %d in uncalled functions)" uncalled_fn_loc else "")
+        );
+        printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled_fn_loc); (* We can only give total LoC if we counted dead code *)
       );
       let str = function true -> "then" | false -> "else" in
       let report tv (loc, dead) =
@@ -167,7 +177,7 @@ struct
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
-        fprintf f "\n<glob><key>%s</key>%a</glob>" (Goblintutil.escape (Basetype.Variables.short 800 k)) Spec.G.printXml v;
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (Goblintutil.escape (Basetype.Variables.show k)) Spec.G.printXml v;
       in
       GHT.iter print_globals g
     in
@@ -190,18 +200,23 @@ struct
       foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
     in
 
+    (* Simulate globals before analysis. *)
+    (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
+    let gh = GHT.create 13 in
+    let getg v = GHT.find_default gh v (Spec.G.bot ()) in
+    let sideg v d =
+      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Prelude.Ana.d_varinfo v Spec.G.pretty d;
+      GHT.replace gh v (Spec.G.join (getg v) d)
+    in
+    (* Old-style global function for context.
+     * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
+    let getg v = Spec.G.bot () in
+
     (* analyze cil's global-inits function to get a starting state *)
-    let do_global_inits (file: file) : Spec.D.t * fundec list * (varinfo * Spec.G.t) list =
-      (* Simulate globals before analysis. *)
-      (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
-      let gh = GHT.create 13 in
-      let getg v = GHT.find_default gh v (Spec.G.bot ()) in
-      let sideg v d = GHT.replace gh v (Spec.G.join (getg v) d) in
-      (* Old-style global function for context.
-       * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
-      let getg v = Spec.G.bot () in
+    let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
@@ -244,7 +259,8 @@ struct
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      result, !funs, GHT.to_list gh
+      if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pretty result;
+      result, !funs
     in
 
     let print_globals glob =
@@ -260,14 +276,14 @@ struct
       WResult.init file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
-    GU.earlyglobs := false;
+    GU.earlyglobs := get_bool "exp.earlyglobs";
     Spec.init ();
     Access.init file;
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
       ignore (Pretty.printf "domain testing...: %s\n" (D.name ()));
-      let errcode = QCheck_runner.run_tests DP.tests in
+      let errcode = QCheck_base_runner.run_tests DP.tests in
       if (errcode <> 0) then
         failwith "domain tests failed"
     in
@@ -279,7 +295,7 @@ struct
       )
     in
 
-    let startstate, more_funs, entrystates_global =
+    let startstate, more_funs =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
       Stats.time "global_inits" do_global_inits file
     in
@@ -290,18 +306,19 @@ struct
       let st = st fd.svar in
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
-        ; global  = (fun _ -> Spec.G.bot ())
+        ; global  = getg
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = sideg
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
@@ -324,22 +341,24 @@ struct
     let otherstate st v =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
         ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
-        ; global  = (fun _ -> Spec.G.bot ())
+        ; global  = getg
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = sideg
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
-      Spec.threadenter ctx None v []
+      (* TODO: don't hd *)
+      List.hd (Spec.threadenter ctx None v [])
       (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
@@ -348,7 +367,6 @@ struct
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
-    GU.earlyglobs := get_bool "exp.earlyglobs";
     GU.global_initialization := false;
 
     let startvars' =
@@ -359,6 +377,9 @@ struct
     in
 
     let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
+    let entrystates_global = GHT.to_list gh in
+
+    let uncalled_dead = ref 0 in
 
     let solve_and_postprocess () =
       (* handle save_run/load_run *)
@@ -371,7 +392,14 @@ struct
       let lh, gh = if load_run <> "" then (
           if get_bool "dbg.verbose" then
             print_endline ("Loading the solver result of a saved run from " ^ load_run);
-          Serialize.unmarshal load_run
+            let lh,gh = Serialize.unmarshal load_run in
+            if get_bool "ana.opt.hashcons" then (
+              let lh' = LHT.create (LHT.length lh) in
+              let gh' = GHT.create (GHT.length gh) in
+              LHT.iter (fun k v -> let k' = EQSys.LVar.relift k in let v' = EQSys.D.join (EQSys.D.bot ()) v in LHT.replace lh' k' v') lh;
+              GHT.iter (fun k v -> let k' = EQSys.GVar.relift k in let v' = EQSys.G.join (EQSys.G.bot ()) v in GHT.replace gh' k' v') gh;
+              lh', gh'
+            ) else lh,gh
         ) else if compare_runs <> [] then (
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
@@ -382,17 +410,19 @@ struct
           | _ -> failwith "Currently only two runs can be compared!";
         ) else (
           if get_bool "dbg.verbose" then
-            print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Show stats with ctrl+c, quit with ctrl+\\.");
+            print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s.");
           if get_bool "dbg.earlywarn" then Goblintutil.should_warn := true;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
+            let analyses = append_opt "save_run" "analyses.marshalled" in
             let config = append_opt "save_run" "config.json" in
             let meta = append_opt "save_run" "meta.json" in
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ save_run ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
+              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
             );
             ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
             Serialize.marshal (lh, gh) save_run;
+            Serialize.marshal !MCP.analyses_table analyses;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
@@ -427,28 +457,30 @@ struct
         Stats.time "reachability" (Reach.prune lh gh) startvars'
       );
 
-      if get_bool "dbg.uncalled" then (
-        let out = M.get_out "uncalled" Legacy.stdout in
-        let insrt k _ s = match k with
-          | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-          | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-          | _ -> s
-        in
-        (* set of ids of called functions *)
-        let calledFuns = LHT.fold insrt lh Set.Int.empty in
-        let is_bad_uncalled fn loc =
-          not (Set.Int.mem fn.vid calledFuns) &&
-          not (Str.last_chars loc.file 2 = ".h") &&
-          not (LibraryFunctions.is_safe_uncalled fn.vname)
-        in
-        let print_uncalled = function
-          | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
-              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+      let out = M.get_out "uncalled" Legacy.stdout in
+      let insrt k _ s = match k with
+        | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+        | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+        | _ -> s
+      in
+      (* set of ids of called functions *)
+      let calledFuns = LHT.fold insrt lh Set.Int.empty in
+      let is_bad_uncalled fn loc =
+        not (Set.Int.mem fn.vid calledFuns) &&
+        not (Str.last_chars loc.file 2 = ".h") &&
+        not (LibraryFunctions.is_safe_uncalled fn.vname)
+      in
+      let print_and_calculate_uncalled = function
+        | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+            let cnt = Cilfacade.countLoc fn in
+            uncalled_dead := !uncalled_dead + cnt;
+            if get_bool "dbg.uncalled" then (
+              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int cnt  ^ "LoC" in
               ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
-          | _ -> ()
-        in
-        List.iter print_uncalled file.globals
-      );
+            )
+        | _ -> ()
+      in
+      List.iter print_and_calculate_uncalled file.globals;
 
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
@@ -476,6 +508,7 @@ struct
           (* build a ctx for using the query system *)
           let rec ctx =
             { ask    = query
+            ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
             ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
             ; prev_node = MyCFG.dummy_node
             ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
@@ -486,7 +519,7 @@ struct
             ; presub = []
             ; postsub= []
             ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-            ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
+            ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
             ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
             ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
             }
@@ -502,13 +535,21 @@ struct
     MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
 
     (* Use "normal" constraint solving *)
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> Messages.waitWhat "Timeout reached!") in
+    let timeout_reached () =
+      M.print_msg "Timeout reached!" (!Tracing.current_loc);
+      (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
+      (* Can't call Generic.SolverStats...print_stats :(
+         print_stats is triggered by dbg.solver-signal, so we send that signal to ourself.
+         The alternative would be to catch the below Timeout, print_stats and re-raise in each solver (or include it in some functor above them). *)
+      Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
+      raise GU.Timeout
+    in
+    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout")) timeout_reached in
     let local_xml = solver2source_result lh in
 
     let liveness =
       if get_bool "dbg.print_dead_code" then
-        print_dead_code local_xml
+        print_dead_code local_xml !uncalled_dead
       else
         fun _ -> true (* TODO: warn about conflicting options *)
     in
@@ -531,19 +572,27 @@ struct
   let rec analyze_loop file fs change_info =
     try
       analyze file fs change_info
-    with Witness.RestartAnalysis ->
+    with Refinement.RestartAnalysis ->
+      (* Tail-recursively restart the analysis again, when requested.
+         All solving starts from scratch.
+         Whoever raised the exception should've modified some global state
+         to do a more precise analysis next time. *)
+      (* TODO: do some more incremental refinement and reuse parts of solution *)
       analyze_loop file fs change_info
 end
 
-(** The main function to perform the selected analyses. *)
-let analyze change_info (file: file) fs =
-  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+let compute_cfg file =
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
     | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
-  let module CFG = struct let prev = cfgB let next = cfgF end in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir)
+
+(** The main function to perform the selected analyses. *)
+let analyze change_info (file: file) fs =
+  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+  let (module CFG) = compute_cfg file in
   let module A = AnalyzeCFG (CFG) in
   A.analyze_loop file fs change_info

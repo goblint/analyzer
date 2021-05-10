@@ -2,10 +2,7 @@ open Cil
 open Pretty
 open GobConfig
 
-module ID = IntDomain.IntDomTuple
-module IndexDomain = IntDomain.IntDomWithDefaultIkind (ID) (IntDomain.PtrDiffIkind)
-module AD = AddressDomain.AddressSet (IndexDomain)
-module Addr = Lval.NormalLat (IndexDomain)
+include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil
@@ -248,7 +245,7 @@ struct
     | `Blob x, `Blob y -> Blobs.compare x y
     | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
-  let pretty_f _ () state =
+  let pretty () state =
     match state with
     | `Int n ->  ID.pretty () n
     | `Address n ->  AD.pretty () n
@@ -260,30 +257,18 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let short w state =
+  let show state =
     match state with
-    | `Int n ->  ID.short w n
-    | `Address n ->  AD.short w n
-    | `Struct n ->  Structs.short w n
-    | `Union n ->  Unions.short w n
-    | `Array n ->  CArrays.short w n
-    | `Blob n ->  Blobs.short w n
-    | `List n ->  Lists.short w n
+    | `Int n ->  ID.show n
+    | `Address n ->  AD.show n
+    | `Struct n ->  Structs.show n
+    | `Union n ->  Unions.show n
+    | `Array n ->  CArrays.show n
+    | `Blob n ->  Blobs.show n
+    | `List n ->  Lists.show n
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let isSimple x =
-    match x with
-    | `Int n ->  ID.isSimple n
-    | `Address n ->  AD.isSimple n
-    | `Struct n ->  Structs.isSimple n
-    | `Union n ->  Unions.isSimple n
-    | `Array n ->  CArrays.isSimple n
-    | `List n ->  Lists.isSimple n
-    | `Blob n ->  Blobs.isSimple n
-    | _ -> true
-
-  let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) =
     match (x,y) with
     | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
@@ -717,7 +702,7 @@ struct
         | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with
-          | (var,`Index (i,`NoOffset)) when Expcompare.compareExp i Cil.zero && var.vid = arr_start_var.vid ->
+          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.compareExp i Cil.zero = 0 && var.vid = arr_start_var.vid ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
@@ -843,7 +828,7 @@ struct
               end
             | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
+            | _ -> M.warn ("Trying to read an index, but was not given an array ("^show x^")"); top ()
           end
     in
     let l, o = match exp with
@@ -964,7 +949,7 @@ struct
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
+            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^show x^")"); top ()
           end
       in mu result
     in

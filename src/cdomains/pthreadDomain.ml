@@ -15,7 +15,7 @@ module Pred = struct
 
   let of_current_node () = of_node @@ Option.get !MyCFG.current_node
 
-  let string_of_elt = Basetype.ProgLocation.short 99
+  let string_of_elt = Basetype.ProgLocation.show
 end
 
 type domain =
@@ -31,12 +31,12 @@ module D = struct
   type t = domain [@@deriving to_yojson]
 
   (** printing *)
-  let short w x =
+  let show x =
     Printf.sprintf
       "{ Tid=%s; pred=%s; ctx=%s }"
-      (Tid.short 3 x.tid)
+      (Tid.show x.tid)
       (Pretty.sprint 200 (Pred.pretty () x.pred))
-      (Ctx.short 50 x.ctx)
+      (Ctx.show x.ctx)
 
 
   include Printable.PrintSimple (struct
@@ -44,7 +44,7 @@ module D = struct
 
     let name () = "pthread state"
 
-    let short = short
+    let show = show
   end)
 
   (** let equal = Util.equals *)
