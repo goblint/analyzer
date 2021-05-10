@@ -1738,6 +1738,21 @@ struct
   (**************************************************************************
    * Function calls
    **************************************************************************)
+  (* Variation of the above for yet another purpose, uhm, code reuse? *)
+  let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+    let do_exp e =
+      match eval_rv ask gs st e with
+      | `Address a when AD.equal a AD.null_ptr -> []
+      | `Address a when not (AD.is_top a) ->
+        let rble = reachable_vars ask [a] gs st in
+        if M.tracing then
+          M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
+        rble
+      | `Int _ -> []
+      | _ -> if warn then (M.warn_each ("Failed to invalidate unknown address: " ^ sprint d_exp e)); []
+    in
+    List.concat (List.map do_exp exps)
+
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.warn_each ("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps);
@@ -1751,17 +1766,11 @@ struct
     in
     (* We define the function that invalidates all the values that an address
      * expression e may point to *)
-    let invalidate_exp e =
-      match eval_rv ask gs st e with
-      (*a null pointer is invalid by nature*)
-      | `Address a when AD.is_null a -> []
-      | `Address a when not (AD.is_top a) ->
-        List.map (invalidate_address st) (reachable_vars ask [a] gs st)
-      | `Int _ -> []
-      | _ -> M.warn_each ("Failed to invalidate unknown address: " ^ sprint d_exp e); []
+    let invalidate_exp exps =
+      let args = collect_funargs ~warn:true ask gs st exps in
+      List.map (invalidate_address st) args
     in
-    (* We concatMap the previous function on the list of expressions. *)
-    let invalids = List.concat (List.map invalidate_exp exps) in
+    let invalids = invalidate_exp exps in
     let is_fav_addr x =
       List.exists BaseUtil.is_precious_glob (AD.to_var_may x)
     in
@@ -1772,20 +1781,6 @@ struct
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
     set_many ?ctx ask gs st invalids'
-
-  (* Variation of the above for yet another purpose, uhm, code reuse? *)
-  let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) =
-    let do_exp e =
-      match eval_rv ask gs st e with
-      | `Address a when AD.equal a AD.null_ptr -> []
-      | `Address a when not (AD.is_top a) ->
-        let rble = reachable_vars ask [a] gs st in
-        if M.tracing then
-          M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
-        rble
-      | _-> []
-    in
-    List.concat (List.map do_exp exps)
 
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
