@@ -1,9 +1,8 @@
 // Variant of nested.c with a counter.
-
-void main() 
+void main()
 {
    int z = 0;
-   for (int i=0; i<10 ; i++) 
+   for (int i=0; i<10 ; i++)
      {
 	z = z+1;
 	for (int j = 0; j < 10 ; j++) ;
@@ -11,5 +10,3 @@ void main()
      }
    return ;
 }
-
-	
