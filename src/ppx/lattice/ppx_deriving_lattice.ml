@@ -93,38 +93,33 @@ struct
       ) (fun ~loc body ->
         [%expr fun x -> [%e body [%expr x]]]
       ) lds
+
+  let expr ~loc lattice_fun lds = match lattice_fun with
+    | IsTop | IsBot ->
+      fold1_impl ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds
+    | Leq ->
+      fold2_impl ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds
+    | Join | Widen | Meet | Narrow ->
+      map2_impl ~loc lattice_fun lds
+    | Top | Bot ->
+      create_impl ~loc lattice_fun lds
 end
 
-let fold1_impl ~loc lattice_fun base_expr reduce_expr (lds : label_declaration list) =
-  let expr = Record.fold1_impl ~loc lattice_fun base_expr reduce_expr lds in
-  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
-  [%stri let [%p pat] = [%e expr]]
-
-let fold2_impl ~loc lattice_fun base_expr reduce_expr (lds : label_declaration list) =
-  let expr = Record.fold2_impl ~loc lattice_fun base_expr reduce_expr lds in
-  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
-  [%stri let [%p pat] = [%e expr]]
-
-let map2_impl ~loc lattice_fun (lds : label_declaration list) =
-  let expr = Record.map2_impl ~loc lattice_fun lds in
-  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
-  [%stri let [%p pat] = [%e expr]]
-
-let create_impl ~loc lattice_fun (lds : label_declaration list) =
-  let expr = Record.create_impl ~loc lattice_fun lds in
+let make_str ~loc lattice_fun lds =
+  let expr = Record.expr ~loc lattice_fun lds in
   let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
   [%stri let [%p pat] = [%e expr]]
 
 let leq_impl ~loc lds = [
-    fold1_impl ~loc IsTop [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
-    fold1_impl ~loc IsBot [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
-    fold2_impl ~loc Leq [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
-    map2_impl ~loc Join lds;
-    map2_impl ~loc Widen lds;
-    map2_impl ~loc Meet lds;
-    map2_impl ~loc Narrow lds;
-    create_impl ~loc Top lds;
-    create_impl ~loc Bot lds;
+    make_str ~loc IsTop lds;
+    make_str ~loc IsBot lds;
+    make_str ~loc Leq lds;
+    make_str ~loc Join lds;
+    make_str ~loc Widen lds;
+    make_str ~loc Meet lds;
+    make_str ~loc Narrow lds;
+    make_str ~loc Top lds;
+    make_str ~loc Bot lds;
   ]
 
 let rec unzip3 = function
