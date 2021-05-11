@@ -1,30 +1,53 @@
 open Ppxlib
 open Ast_builder.Default
 
+type lattice_fun =
+  | IsTop
+  | IsBot
+  | Leq
+  | Join
+  | Widen
+  | Meet
+  | Narrow
+  | Top
+  | Bot
+
+let lattice_fun_name = function
+  | IsTop -> "is_top"
+  | IsBot -> "is_bot"
+  | Leq -> "leq"
+  | Join -> "join"
+  | Widen -> "widen"
+  | Meet -> "meet"
+  | Narrow -> "narrow"
+  | Top -> "top"
+  | Bot -> "bot"
+
+
 module Forward =
 struct
-  let fold2_impl ~loc fun_name ct = match ct with
+  let expr ~loc lattice_fun ct = match ct with
     | {ptyp_desc = Ptyp_constr ({txt = Ldot (forward_module, "t"); loc}, _); _} ->
-      pexp_ident ~loc {loc; txt = Ldot (forward_module, fun_name)}
+      pexp_ident ~loc {loc; txt = Ldot (forward_module, lattice_fun_name lattice_fun)}
     | _ ->
       Location.raise_errorf ~loc "other"
 end
 
 module Record =
 struct
-  let impl ~loc fun_name (lds: label_declaration list) =
+  let impl ~loc lattice_fun (lds: label_declaration list) =
     lds
     |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-        (label, Forward.fold2_impl ~loc fun_name pld_type)
+        (label, Forward.expr ~loc lattice_fun pld_type)
       )
 
   let label_field ~loc record_expr label =
     pexp_field ~loc record_expr {loc; txt = Lident label}
 
-  let fold_impl ~loc fun_name base_expr reduce_expr f_label f (lds : label_declaration list) =
+  let fold_impl ~loc lattice_fun base_expr reduce_expr f_label f (lds : label_declaration list) =
     let body x_expr =
       lds
-      |> impl ~loc fun_name
+      |> impl ~loc lattice_fun
       |> List.map (fun (label, label_fun) ->
           f_label ~loc label_fun x_expr label
         )
@@ -32,24 +55,24 @@ struct
     in
     f ~loc body
 
-  let fold1_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
-    fold_impl ~loc fun_name base_expr reduce_expr (fun ~loc label_fun x_expr label ->
+  let fold1_impl ~loc lattice_fun base_expr reduce_expr (lds : label_declaration list) =
+    fold_impl ~loc lattice_fun base_expr reduce_expr (fun ~loc label_fun x_expr label ->
         [%expr [%e label_fun] [%e label_field ~loc x_expr label]]
       ) (fun ~loc body ->
         [%expr fun x -> [%e body [%expr x]]]
       ) lds
 
-  let fold2_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
-    fold_impl ~loc fun_name base_expr reduce_expr (fun ~loc label_fun (x_expr, y_expr) label ->
+  let fold2_impl ~loc lattice_fun base_expr reduce_expr (lds : label_declaration list) =
+    fold_impl ~loc lattice_fun base_expr reduce_expr (fun ~loc label_fun (x_expr, y_expr) label ->
         [%expr [%e label_fun] [%e label_field ~loc x_expr label] [%e label_field ~loc y_expr label]]
       ) (fun ~loc body ->
         [%expr fun x y -> [%e body ([%expr x], [%expr y])]]
       ) lds
 
-  let map_impl ~loc fun_name f_label f (lds : label_declaration list) =
+  let map_impl ~loc lattice_fun f_label f (lds : label_declaration list) =
     let body x_expr =
       lds
-      |> impl ~loc fun_name
+      |> impl ~loc lattice_fun
       |> List.map (fun (label, label_fun) ->
           ({loc; txt = Lident label}, f_label ~loc label_fun x_expr label)
         )
@@ -57,51 +80,51 @@ struct
     in
     f ~loc body
 
-  let map2_impl ~loc fun_name (lds : label_declaration list) =
-    map_impl ~loc fun_name (fun ~loc label_fun (x_expr, y_expr) label ->
+  let map2_impl ~loc lattice_fun (lds : label_declaration list) =
+    map_impl ~loc lattice_fun (fun ~loc label_fun (x_expr, y_expr) label ->
         [%expr [%e label_fun] [%e label_field ~loc x_expr label] [%e label_field ~loc y_expr label]]
       ) (fun ~loc body ->
         [%expr fun x y -> [%e body ([%expr x], [%expr y])]]
       ) lds
 
-  let create_impl ~loc fun_name (lds : label_declaration list) =
-    map_impl ~loc fun_name (fun ~loc label_fun x_expr label ->
+  let create_impl ~loc lattice_fun (lds : label_declaration list) =
+    map_impl ~loc lattice_fun (fun ~loc label_fun x_expr label ->
         [%expr [%e label_fun] [%e x_expr]]
       ) (fun ~loc body ->
         [%expr fun x -> [%e body [%expr x]]]
       ) lds
 end
 
-let fold1_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
-  let expr = Record.fold1_impl ~loc fun_name base_expr reduce_expr lds in
-  let pat = ppat_var ~loc {loc; txt = fun_name} in
+let fold1_impl ~loc lattice_fun base_expr reduce_expr (lds : label_declaration list) =
+  let expr = Record.fold1_impl ~loc lattice_fun base_expr reduce_expr lds in
+  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
   [%stri let [%p pat] = [%e expr]]
 
-let fold2_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
-  let expr = Record.fold2_impl ~loc fun_name base_expr reduce_expr lds in
-  let pat = ppat_var ~loc {loc; txt = fun_name} in
+let fold2_impl ~loc lattice_fun base_expr reduce_expr (lds : label_declaration list) =
+  let expr = Record.fold2_impl ~loc lattice_fun base_expr reduce_expr lds in
+  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
   [%stri let [%p pat] = [%e expr]]
 
-let map2_impl ~loc fun_name (lds : label_declaration list) =
-  let expr = Record.map2_impl ~loc fun_name lds in
-  let pat = ppat_var ~loc {loc; txt = fun_name} in
+let map2_impl ~loc lattice_fun (lds : label_declaration list) =
+  let expr = Record.map2_impl ~loc lattice_fun lds in
+  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
   [%stri let [%p pat] = [%e expr]]
 
-let create_impl ~loc fun_name (lds : label_declaration list) =
-  let expr = Record.create_impl ~loc fun_name lds in
-  let pat = ppat_var ~loc {loc; txt = fun_name} in
+let create_impl ~loc lattice_fun (lds : label_declaration list) =
+  let expr = Record.create_impl ~loc lattice_fun lds in
+  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
   [%stri let [%p pat] = [%e expr]]
 
 let leq_impl ~loc lds = [
-    fold1_impl ~loc "is_top" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
-    fold1_impl ~loc "is_bot" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
-    fold2_impl ~loc "leq" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
-    map2_impl ~loc "join" lds;
-    map2_impl ~loc "widen" lds;
-    map2_impl ~loc "meet" lds;
-    map2_impl ~loc "narrow" lds;
-    create_impl ~loc "top" lds;
-    create_impl ~loc "bot" lds;
+    fold1_impl ~loc IsTop [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
+    fold1_impl ~loc IsBot [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
+    fold2_impl ~loc Leq [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
+    map2_impl ~loc Join lds;
+    map2_impl ~loc Widen lds;
+    map2_impl ~loc Meet lds;
+    map2_impl ~loc Narrow lds;
+    create_impl ~loc Top lds;
+    create_impl ~loc Bot lds;
   ]
 
 let rec unzip3 = function
