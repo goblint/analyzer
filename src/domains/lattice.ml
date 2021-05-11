@@ -615,3 +615,12 @@ struct
   let meet x y = min x y
   let narrow = meet
 end
+
+
+module Foo (A: S) (B: S) =
+struct
+  type t = {foo: A.t; bar: B.t} [@@deriving lattice]
+
+  (* let asd2 = asd *)
+  let foo = leq
+end
