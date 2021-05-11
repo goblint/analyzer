@@ -7,20 +7,7 @@ module GU = Goblintutil
 module ID = IntDomain.Flattened
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
-
-(* who uses this? hopefully it's not in the domain *)
-module ES_r = SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end)
-module ES =
-struct
-  (* TODO: use Reverse? *)
-  include ES_r
-  include Printable.Std
-  let bot = ES_r.top
-  let top = ES_r.bot
-  let leq x y = ES_r.leq y x
-  let join = ES_r.meet
-  let meet x y = ES_r.join x y
-end
+module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
