@@ -12,15 +12,21 @@ end
 
 module Record =
 struct
+  let impl ~loc fun_name (lds: label_declaration list) =
+    lds
+    |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
+        (label, Forward.fold2_impl ~loc fun_name pld_type)
+      )
+
+  let label_field ~loc record_expr label =
+    pexp_field ~loc record_expr {loc; txt = Lident label}
+
   let fold1_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
     let body x_expr =
       lds
-      |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-          let label_fun = Forward.fold2_impl ~loc fun_name pld_type in
-          let label_field record_expr =
-            pexp_field ~loc record_expr {loc; txt = Lident label}
-          in
-          [%expr [%e label_fun] [%e label_field x_expr]]
+      |> impl ~loc fun_name
+      |> List.map (fun (label, label_fun) ->
+          [%expr [%e label_fun] [%e label_field ~loc x_expr label]]
         )
       |> List.fold_left reduce_expr base_expr
     in
@@ -29,12 +35,9 @@ struct
   let fold2_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
     let body x_expr y_expr =
       lds
-      |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-          let label_fun = Forward.fold2_impl ~loc fun_name pld_type in
-          let label_field record_expr =
-            pexp_field ~loc record_expr {loc; txt = Lident label}
-          in
-          [%expr [%e label_fun] [%e label_field x_expr] [%e label_field y_expr]]
+      |> impl ~loc fun_name
+      |> List.map (fun (label, label_fun) ->
+          [%expr [%e label_fun] [%e label_field ~loc x_expr label] [%e label_field ~loc y_expr label]]
         )
       |> List.fold_left reduce_expr base_expr
     in
@@ -43,12 +46,9 @@ struct
   let map2_impl ~loc fun_name (lds : label_declaration list) =
     let body x_expr y_expr =
       lds
-      |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-          let label_fun = Forward.fold2_impl ~loc fun_name pld_type in
-          let label_field record_expr =
-            pexp_field ~loc record_expr {loc; txt = Lident label}
-          in
-          ({loc; txt = Lident label}, [%expr [%e label_fun] [%e label_field x_expr] [%e label_field y_expr]])
+      |> impl ~loc fun_name
+      |> List.map (fun (label, label_fun) ->
+          ({loc; txt = Lident label}, [%expr [%e label_fun] [%e label_field ~loc x_expr label] [%e label_field ~loc y_expr label]])
         )
       |> fun fields -> pexp_record ~loc fields None
     in
@@ -57,8 +57,8 @@ struct
   let create_impl ~loc fun_name (lds : label_declaration list) =
     let body x_expr =
       lds
-      |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-          let label_fun = Forward.fold2_impl ~loc fun_name pld_type in
+      |> impl ~loc fun_name
+      |> List.map (fun (label, label_fun) ->
           ({loc; txt = Lident label}, [%expr [%e label_fun] [%e x_expr]])
         )
       |> fun fields -> pexp_record ~loc fields None
