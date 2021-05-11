@@ -73,9 +73,9 @@ struct
       let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
       | _ -> MyCFG.getLoc ctx.node in
-      (`Lifted (get_heap_var loc))
+      `Lifted (get_heap_var loc)
     | Q.IsHeapVar v ->
-      (Hashtbl.mem heap_vars v.vid)
+      Hashtbl.mem heap_vars v.vid
     | _ -> Queries.Result.top q
 
     let init () =

@@ -139,6 +139,7 @@ struct
 
   let is_private (a: Q.ask) (v: varinfo): bool =
     not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    (* TODO: inline *)
     || match a.f (Q.MayBePublic {global=v; write=false}) with tv -> not tv (* usual case where MayBePublic answers *)
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
@@ -185,22 +186,26 @@ struct
     (!GU.earlyglobs && not multi && not (is_precious_glob x)) ||
     (
       multi &&
+      (* TODO: inline *)
       match ask.f (Q.MayBePublic {global=x; write=true}) with
       | x -> x
     )
 
   let is_unprotected_without ask ?(write=true) x m: bool =
     ThreadFlag.is_multi ask &&
+    (* TODO: inline *)
     match ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m}) with
     | x -> x
 
   let is_protected_by ask m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
+    (* TODO: inline *)
     match ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true}) with
     | x -> x
 
   let is_atomic ask: bool =
+    (* TODO: inline *)
     match ask Q.MustBeAtomic with
     | x -> x
 end
@@ -473,6 +478,7 @@ struct
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
     not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    (* TODO: inline *)
     || match a.f (Q.MayBePublic {global=v; write=false}) with tv -> not tv (* usual case where MayBePublic answers *)
   let is_private = is_invisible
 
@@ -493,6 +499,7 @@ struct
 
   let is_protected (a: Q.ask) (v: varinfo): bool =
     not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    (* TODO: inline *)
     || match a.f (Q.MayBePublic {global=v; write=true}) with tv -> not tv (* usual case where MayBePublic answers *)
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =

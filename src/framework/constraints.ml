@@ -272,7 +272,7 @@ struct
     | Queries.EvalFunvar e ->
       let (d,l) = ctx.local in
       if leq0 l then
-        (Queries.LS.empty ())
+        Queries.LS.empty ()
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q

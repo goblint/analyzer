@@ -244,12 +244,12 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | (`Lifted x) -> [Int64.to_string x]
+          | `Lifted x -> [Int64.to_string x]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
           match ctx.ask (Queries.EvalStr exp) with
-          | (`Lifted x) -> [x]
+          | `Lifted x -> [x]
           | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
         in
         let eval_id exp =

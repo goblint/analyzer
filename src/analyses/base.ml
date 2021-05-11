@@ -76,7 +76,7 @@ struct
 
   let heap_var ctx =
     let info = match (ctx.ask Q.HeapVar) with
-      | (`Lifted vinfo) -> vinfo
+      | `Lifted vinfo -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
 
@@ -278,6 +278,7 @@ struct
   let eval_rv_pre (ask: Q.ask) exp pr =
     let binop op e1 e2 =
       let equality () =
+        (* TODO: if *)
         match ask.f (Q.MustBeEqual (e1,e2)) with
         | true ->
           if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
@@ -822,11 +823,11 @@ struct
       begin
         let fs = eval_funvar ctx e in
         (*          Messages.report ("Base: I should know it! "^string_of_int (List.length fs));*)
-        (List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs)
+        List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalInt e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | `Int i when ID.is_int i -> (Queries.ID.of_int (to_int (Option.get (ID.to_int i))))
+        | `Int i when ID.is_int i -> Queries.ID.of_int (to_int (Option.get (ID.to_int i)))
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
         | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q
       end
@@ -841,7 +842,7 @@ struct
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          (match ID.to_int d with Some i -> (Queries.ID.of_int (to_int i)) | None -> Queries.Result.top q)
+          (match ID.to_int d with Some i -> Queries.ID.of_int (to_int i) | None -> Queries.Result.top q)
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -853,7 +854,7 @@ struct
           let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> (Queries.ID.of_int (to_int i)) | None -> Queries.Result.top q)
+           | `Blob (_,s,_) -> (match ID.to_int s with Some i -> Queries.ID.of_int (to_int i) | None -> Queries.Result.top q)
            | _ -> Queries.Result.top q)
         | _ -> Queries.Result.top q
       end
@@ -862,7 +863,7 @@ struct
         | `Address a ->
           let s = addrToLvalSet a in
           if AD.mem Addr.UnknownPtr a
-          then (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
+          then Q.LS.add (dummyFunDec.svar, `NoOffset) s
           else s
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
@@ -872,28 +873,28 @@ struct
         | `Top -> Queries.Result.top q
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
-          (Q.LS.top ())
+          Q.LS.top ()
         | `Address a ->
           let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a] ctx.global ctx.local) in
           let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
           addrs
-        | _ -> (Q.LS.empty ())
+        | _ -> Q.LS.empty ()
       end
     | Q.ReachableUkTypes e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Queries.Result.top q
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
-          (Q.TS.top ())
+          Q.TS.top ()
         | `Address a ->
-          (reachable_top_pointers_types ctx a)
-        | _ -> (Q.TS.empty ())
+          reachable_top_pointers_types ctx a
+        | _ -> Q.TS.empty ()
       end
     | Q.EvalStr e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         (* exactly one string in the set (works for assignments of string constants) *)
         | `Address a when List.length (AD.to_string a) = 1 -> (* exactly one string *)
-          (`Lifted (List.hd (AD.to_string a)))
+          `Lifted (List.hd (AD.to_string a))
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
@@ -907,7 +908,7 @@ struct
               let v, offs = Q.LS.choose @@ addrToLvalSet a in
               let ciloffs = Lval.CilLval.to_ciloffs offs in
               let lval = Var v, ciloffs in
-              (try (`Lifted (Bytes.to_string (Hashtbl.find char_array lval)))
+              (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
                with Not_found -> Queries.Result.top q)
             | _ -> (* what about ISChar and IUChar? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
@@ -1013,6 +1014,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
+          (* TODO: inline *)
           let is_heap_var = a.f (Q.IsHeapVar x) in
           if is_heap_var then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
@@ -1058,6 +1060,7 @@ struct
           in
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 =
+              (* TODO: inline *)
               let b = a.f (Q.MustBeEqual (e1, e2)) in
               b
             in

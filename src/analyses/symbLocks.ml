@@ -65,6 +65,7 @@ struct
 
   let same_unknown_index (ask: Queries.ask) exp slocks =
     let uk_index_equal i1 i2 =
+      (* TODO: inline *)
       let b = ask.f (Queries.MustBeEqual (i1, i2)) in
       b
     in
@@ -223,7 +224,7 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.PartAccess {exp; var_opt; write} ->
-      (part_access ctx exp var_opt write)
+      part_access ctx exp var_opt write
     | _ -> Queries.Result.top q
 end
 

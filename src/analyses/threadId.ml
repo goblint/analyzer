@@ -10,6 +10,7 @@ module Thread = ConcDomain.Thread
 module ThreadLifted = ConcDomain.ThreadLifted
 
 let get_current (ask: Queries.ask): ThreadLifted.t =
+  (* TODO: inline *)
   let v = ask.f Queries.CurrentThreadId in
   v
 
@@ -62,6 +63,7 @@ struct
     ctx.local
 
   let is_unique ctx =
+    (* TODO: inline *)
     let b = ctx.ask Queries.MustBeUniqueThread in
     b
 
@@ -78,7 +80,7 @@ struct
     match x with
     | Queries.CurrentThreadId -> ctx.local
     | Queries.PartAccess {exp; var_opt; write} ->
-      (part_access ctx exp var_opt write)
+      part_access ctx exp var_opt write
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =

@@ -569,8 +569,8 @@ struct
     match q with
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-      (Queries.ID.of_int @@ Int64.of_int pry)
-    | Queries.Priority vname -> begin try (Queries.ID.of_int @@ Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top q end
+      Queries.ID.of_int @@ Int64.of_int pry
+    | Queries.Priority vname -> begin try Queries.ID.of_int @@ Int64.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
@@ -586,7 +586,7 @@ struct
           (*             let flagstate = get_flags ctx.presub in *)
           (*             offpry_flags flagstate v *)
           (*           end *)
-        in (off > pry)
+        in off > pry
     | Queries.CurrentLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
       M.query ctx q

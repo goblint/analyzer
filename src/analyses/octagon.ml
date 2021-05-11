@@ -334,7 +334,7 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
-            | (Some i) -> (BI.equal BI.zero i)
+            | (Some i) -> BI.equal BI.zero i
             | _ -> false
           end
         | _ -> false
@@ -343,7 +343,7 @@ struct
       begin
         match getSumAndDiffForVars exp1 exp2 with
         | _, Some(x) ->
-          (not (OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero))))
+          not (OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)))
         | _ -> true
       end
     | Queries.MayBeLess (exp1, exp2) ->
@@ -362,7 +362,7 @@ struct
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then (INV.to_int inv |> Option.get |> BI.to_int64 |> Queries.ID.of_int)
+      then INV.to_int inv |> Option.get |> BI.to_int64 |> Queries.ID.of_int
       else Queries.Result.top q
     | _ -> Queries.Result.top q
 

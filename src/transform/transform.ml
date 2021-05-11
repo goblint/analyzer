@@ -22,7 +22,7 @@ module PartialEval = struct
       DoChildren
     method! vexpr e =
       let eval e = match (ask !loc).Queries.f (Queries.EvalInt e) with
-        | (`Lifted i) ->
+        | `Lifted i ->
           let e' = integer @@ i64_to_int i in
           ignore @@ Pretty.printf "Replacing non-constant expression %a with %a at %a\n" d_exp e d_exp e' d_loc !loc;
           e'

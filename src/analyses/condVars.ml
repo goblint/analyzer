@@ -91,7 +91,8 @@ struct
       in
       let of_lval (tv,lval) = Option.map (fun k -> tv, k) @@ mustPointTo ctx (AddrOf lval) in
       let t tv e = if tv then e else UnOp (LNot, e, intType) in
-      let f tv v = D.V.map (t tv) v |> fun v -> Some (v) in
+      (* TODO: remove option? *)
+      let f tv v = D.V.map (t tv) v |> fun v -> Some v in
       let of_clval (tv,k) = D.get k d >? f tv in
       of_expr true e >? of_lval >? of_clval |? Queries.Result.top q
     | _ -> Queries.Result.top q

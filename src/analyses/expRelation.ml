@@ -55,7 +55,7 @@ struct
     let lvalsEq l1 l2 = Basetype.CilExp.compareExp (Lval l1) (Lval l2) = 0 in (* == would be wrong here *)
     match q with
     | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
-      (Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0)
+      Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0
     | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
       begin
         match e1, e2 with

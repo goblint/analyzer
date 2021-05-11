@@ -68,11 +68,11 @@ struct
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
       (* CWStr is done in base.ml, query only returns `Str if it's safe *)
       | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | (`Lifted b) -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
+          | `Lifted b -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
           | _      -> M.debug_each "EQUAL String Query: no result!"; false
         )
       | `Regex a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | (`Lifted b) -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
+          | `Lifted b -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
           | _      -> M.debug_each "EQUAL Regex String Query: no result!"; false
         )
       | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
@@ -286,6 +286,7 @@ struct
     (* try to evaluate the expression using query
        -> if the result is the same as tv, do the corresponding transition, otherwise remove the entry from the domain
        for pointers this won't help since it always returns `Top *)
+    (* TODO: inline *)
     (match ctx.ask (Queries.EvalInt exp) with
      | i (* when (Queries.ID.is_bool i) *) ->
        (match Queries.ID.to_bool i with

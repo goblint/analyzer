@@ -158,6 +158,7 @@ struct
 
   let may_change_pt ask (b:exp) (a:exp) : bool =
     let pt e =
+      (* TODO: inline *)
       match ask (Queries.MayPointTo e) with
       | ls -> ls
     in
@@ -197,6 +198,7 @@ struct
   let may_change (ask: Queries.ask) (b:exp) (a:exp) : bool =
     (*b should be an address of something that changes*)
     let pt e =
+      (* TODO: inline *)
       let ls = ask.f (Queries.MayPointTo e) in
       ls
     in

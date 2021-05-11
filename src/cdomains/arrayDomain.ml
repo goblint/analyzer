@@ -143,6 +143,7 @@ struct
     | `Lifted e', `Lifted i' ->
       begin
         let isEqual =
+          (* TODO: inline *)
           let b = ask.f (Q.MustBeEqual (e',i')) in
           b
         in
@@ -323,6 +324,7 @@ struct
           (i, (l, a, r))
       else
         let isEqual e' i' =
+          (* TODO: inline *)
           let b = ask.f (Q.MustBeEqual (e',i')) in
           b
         in

@@ -78,7 +78,7 @@ struct
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
         ls
     | Queries.PartAccess {exp; var_opt; write} ->
-      (part_access ctx exp var_opt write)
+      part_access ctx exp var_opt write
     | _ -> Queries.Result.top q
 
   (* transfer functions *)

@@ -152,6 +152,7 @@ struct
       end;
 
       (*partitions & locks*)
+      (* TODO: inline *)
       let (po, pd) = ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) in
       (po, pd)
     in
@@ -164,6 +165,7 @@ struct
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g =
+      (* TODO: inline *)
       let b = ctx.ask (Queries.MayEscape g) in
       b
     in
@@ -224,6 +226,7 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let non_overlapping locks1 locks2 =
       let intersect = G.join locks1 locks2 in
+      (* TODO: inline *)
       let tv = G.is_top intersect in
       tv
     in
@@ -242,7 +245,7 @@ struct
       let mutex_lockset = Lockset.singleton (mutex, true) in
       let held_locks: G.t = P.check_fun ~write mutex_lockset in
       if LockDomain.Addr.equal mutex verifier_atomic then true
-      else (G.leq (ctx.global global) held_locks)
+      else G.leq (ctx.global global) held_locks
     | Queries.CurrentLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
@@ -254,9 +257,9 @@ struct
       ls
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      (Mutexes.mem verifier_atomic held_locks)
+      Mutexes.mem verifier_atomic held_locks
     | Queries.PartAccess {exp; var_opt; write} ->
-      (part_access ctx exp var_opt write)
+      part_access ctx exp var_opt write
     | _ -> Queries.Result.top q
 
 

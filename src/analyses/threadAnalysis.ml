@@ -78,13 +78,13 @@ struct
     | Queries.MustBeUniqueThread -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
-        | `Lifted tid -> (not (is_not_unique ctx tid))
+        | `Lifted tid -> not (is_not_unique ctx tid)
         | _ -> false
       end
     | Queries.MustBeSingleThreaded -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
-        | `Lifted {vname="main"; _} -> (D.is_empty ctx.local)
+        | `Lifted {vname="main"; _} -> D.is_empty ctx.local
         | _ -> false
       end
     | _ -> Queries.Result.top q
