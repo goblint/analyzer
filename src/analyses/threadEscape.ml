@@ -28,7 +28,6 @@ struct
 
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let open Queries in
     match q with
     | Queries.MayEscape v -> (D.mem v ctx.local)
     | _ -> Queries.Result.top q

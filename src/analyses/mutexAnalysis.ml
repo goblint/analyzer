@@ -225,7 +225,7 @@ struct
     let non_overlapping locks1 locks2 =
       let intersect = G.join locks1 locks2 in
       let tv = G.is_top intersect in
-      Queries.(tv)
+      tv
     in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false

@@ -68,7 +68,6 @@ struct
       newvar
 
   let query ctx (type a) (q: a Q.t): a Queries.result =
-    let open Queries in
     match q with
     | Q.HeapVar ->
       let loc = match ctx.local with

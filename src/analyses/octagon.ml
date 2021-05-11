@@ -327,7 +327,6 @@ struct
           sum, BatOption.map (OctagonDomain.INV.mul (INV.of_int oct_ik (BI.of_int64 Int64.minus_one))) diff
       | _ -> None, None
     in
-    let open Queries in
     match q with
     | Queries.MustBeEqual (exp1,exp2) ->
       begin
