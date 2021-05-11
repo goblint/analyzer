@@ -105,23 +105,6 @@ struct
       create_impl ~loc lattice_fun lds
 end
 
-let make_str ~loc lattice_fun lds =
-  let expr = Record.expr ~loc lattice_fun lds in
-  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
-  [%stri let [%p pat] = [%e expr]]
-
-let leq_impl ~loc lds = [
-    make_str ~loc IsTop lds;
-    make_str ~loc IsBot lds;
-    make_str ~loc Leq lds;
-    make_str ~loc Join lds;
-    make_str ~loc Widen lds;
-    make_str ~loc Meet lds;
-    make_str ~loc Narrow lds;
-    make_str ~loc Top lds;
-    make_str ~loc Bot lds;
-  ]
-
 module Tuple =
 struct
   let rec unzip3 = function
@@ -154,15 +137,6 @@ struct
     | Leq -> fold2_impl_tuple ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
     | _ -> [%expr fun _ -> failwith "TODO"]
 end
-
-let make_str ~loc lattice_fun lds =
-  let expr = Tuple.expr ~loc lattice_fun lds in
-  let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
-  [%stri let [%p pat] = [%e expr]]
-
-let leq_impl_tuple ~loc comps = [
-    make_str ~loc Leq comps;
-  ]
 
 module TypeDeclaration =
 struct
