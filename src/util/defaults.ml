@@ -212,7 +212,7 @@ let _ = ()
       ; reg Debugging "dbg.uncalled"        "false" "Display uncalled functions."
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
-      ; reg Debugging "dbg.timeout"         "0"     "Maximal time for analysis. (0 -- no timeout)"
+      ; reg Debugging "dbg.timeout"         "'0'"   "Stop solver after this time. 0 means no timeout. Supports optional units h, m, s. E.g. 1m6s = 01m06s = 66; 6h = 6*60*60."
       ; reg Debugging "dbg.solver-stats-interval"   "10" "Interval in seconds to print statistics while solving."
       ; reg Debugging "dbg.solver-signal"   "'sigusr1'" "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml)."
       ; reg Debugging "dbg.backtrace-signal" "'sigusr2'" "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml)."

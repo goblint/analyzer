@@ -366,6 +366,21 @@ exception Timeout
 
 let timeout = Timeout.timeout
 
+let seconds_of_duration_string =
+  let unit = function
+    | "" | "s" -> 1
+    | "m" -> 60
+    | "h" -> 60 * 60
+    | s -> failwith ("Unkown duration unit " ^ s ^ ". Supported units are h, m, s.")
+  in
+  let int_rest f s = Scanf.sscanf s "%u%s" f in
+  let split s = BatString.(head s 1, tail s 1) in
+  let rec f i s =
+    let u, r = split s in (* unit, rest *)
+    i * (unit u) + if r = "" then 0 else int_rest f r
+  in
+  int_rest f
+
 let vars = ref 0
 let evals = ref 0
 

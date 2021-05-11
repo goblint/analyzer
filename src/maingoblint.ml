@@ -470,7 +470,7 @@ let main =
         | Timeout ->
           do_stats ();
           print_newline ();
-          eprintf "%s\n" (Messages.colorize "{RED}Analysis was aborted because it reached the set timeout!");
+          eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ "!"));
           exit 124
     )
 

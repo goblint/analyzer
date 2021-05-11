@@ -544,7 +544,8 @@ struct
       Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
       raise GU.Timeout
     in
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout")) timeout_reached in
+    let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
+    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let local_xml = solver2source_result lh in
 
     let liveness =
