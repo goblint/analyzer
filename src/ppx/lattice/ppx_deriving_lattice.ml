@@ -115,12 +115,49 @@ let leq_impl ~loc lds = [
     create_impl ~loc "bot" lds;
   ]
 
+let rec unzip3 = function
+  | [] -> ([], [], [])
+  | (a, b, c) :: tl ->
+    let (a', b', c') = unzip3 tl in
+    (a :: a', b :: b', c :: c')
+
+let fold2_impl_tuple ~loc fun_name base_expr reduce_expr (comps : core_type list) =
+  let (x_pats, y_pats, bodys) =
+    comps
+    |> List.mapi (fun i comp_type ->
+        match comp_type with
+        | {ptyp_desc = Ptyp_constr ({txt = Ldot (label_module, "t"); loc}, _); _} ->
+          let label_fun = pexp_ident ~loc {loc; txt = Ldot (label_module, fun_name)} in
+          let label_field prefix =
+            let name = prefix ^ string_of_int i in
+            (ppat_var ~loc {loc; txt = name}, pexp_ident ~loc {loc; txt = Lident name})
+          in
+          let (x_pat, x_expr) = label_field "x" in
+          let (y_pat, y_expr) = label_field "y" in
+          (x_pat, y_pat, [%expr [%e label_fun] [%e x_expr] [%e y_expr]])
+        | _ ->
+          Location.raise_errorf ~loc "other"
+      )
+    |> unzip3
+  in
+  let x_pat = ppat_tuple ~loc x_pats in
+  let y_pat = ppat_tuple ~loc y_pats in
+  let body = List.fold_left reduce_expr base_expr bodys in
+  let pat = ppat_var ~loc {loc; txt = fun_name} in
+  [%stri let [%p pat] = fun [%p x_pat] [%p y_pat] -> [%e body]]
+
+let leq_impl_tuple ~loc comps = [
+    fold2_impl_tuple ~loc "leq" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps;
+  ]
+
 let generate_impl ~ctxt (_rec_flag, type_declarations) =
   let loc = Expansion_context.Deriver.derived_item_loc ctxt in
   type_declarations
   |> List.map
     (fun (td : type_declaration) ->
       match td with
+      | {ptype_kind = Ptype_abstract; ptype_manifest = Some {ptyp_desc = Ptyp_tuple comps; _}; _} ->
+        leq_impl_tuple ~loc comps
       | {ptype_kind = Ptype_abstract; _} ->
         Location.raise_errorf ~loc "Cannot derive accessors for abstract types"
       | {ptype_kind = Ptype_variant _; _} ->
