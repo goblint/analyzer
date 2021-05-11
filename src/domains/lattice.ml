@@ -620,6 +620,8 @@ end
 module Foo (A: S) (B: S):
 sig
   type t
+  val is_top: t -> bool
+  val is_bot: t -> bool
   val leq: t -> t -> bool
   val join: t -> t -> t
   val widen: t -> t -> t

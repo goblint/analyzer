@@ -30,6 +30,25 @@ let accessor_intf ~ptype_name (ld : label_declaration) =
     ; pval_prim = []
     } *)
 
+let fold1_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
+  let body x_expr =
+    lds
+    |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
+        match pld_type with
+        | {ptyp_desc = Ptyp_constr ({txt = Ldot (label_module, "t"); loc}, _); _} ->
+          let label_fun = pexp_ident ~loc {loc; txt = Ldot (label_module, fun_name)} in
+          let label_field record_expr =
+            pexp_field ~loc record_expr {loc; txt = Lident label}
+          in
+          [%expr [%e label_fun] [%e label_field x_expr]]
+        | _ ->
+          Location.raise_errorf ~loc "other"
+      )
+    |> List.fold_left reduce_expr base_expr
+  in
+  let pat = ppat_var ~loc {loc; txt = fun_name} in
+  [%stri let [%p pat] = fun x -> [%e body [%expr x]]]
+
 let fold2_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
   let body x_expr y_expr =
     lds
@@ -69,6 +88,8 @@ let map2_impl ~loc fun_name (lds : label_declaration list) =
   [%stri let [%p pat] = fun x y -> [%e body [%expr x] [%expr y]]]
 
 let leq_impl ~loc lds = [
+    fold1_impl ~loc "is_top" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
+    fold1_impl ~loc "is_bot" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
     fold2_impl ~loc "leq" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
     map2_impl ~loc "join" lds;
     map2_impl ~loc "widen" lds;
