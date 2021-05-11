@@ -437,46 +437,43 @@ let () = (* signal for printing backtrace; other signals in Generic.SolverStats 
   set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
 
 (** the main function *)
-let main =
-  let main_running = ref false in fun () ->
-    if not !main_running then (
-      main_running := true;
-      try
-        Stats.reset Stats.SoftwareTimer;
-        parse_arguments ();
-        check_arguments ();
-        AfterConfig.run ();
+let main () =
+  try
+    Stats.reset Stats.SoftwareTimer;
+    parse_arguments ();
+    check_arguments ();
+    AfterConfig.run ();
 
-        (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
-          for overflows, as this will replace potential overflows with constants after wrap-around *)
-        (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
-          set_bool "exp.lower-constants" false);
-        Cilfacade.init ();
+    (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
+      for overflows, as this will replace potential overflows with constants after wrap-around *)
+    (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
+      set_bool "exp.lower-constants" false);
+    Cilfacade.init ();
 
-        handle_extraspecials ();
-        create_temp_dir ();
-        handle_flags ();
-        if get_bool "dbg.verbose" then (
-          print_endline (localtime ());
-          print_endline command;
-        );
-        let file = preprocess_files () |> merge_preprocessed in
-        let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
-        file|> do_analyze changeInfo;
-        do_stats ();
-        do_html_output ();
-        if !verified = Some false then exit 3;  (* verifier failed! *)
-      with
-        | Exit ->
-          exit 1
-        | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
-          (* Printexc.print_backtrace BatInnerIO.stderr *)
-          eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
-          exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
-        | Timeout ->
-          eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
-          exit 124
-    )
+    handle_extraspecials ();
+    create_temp_dir ();
+    handle_flags ();
+    if get_bool "dbg.verbose" then (
+      print_endline (localtime ());
+      print_endline command;
+    );
+    let file = preprocess_files () |> merge_preprocessed in
+    let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
+    file|> do_analyze changeInfo;
+    do_stats ();
+    do_html_output ();
+    if !verified = Some false then exit 3;  (* verifier failed! *)
+  with
+    | Exit ->
+      exit 1
+    | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
+      (* Printexc.print_backtrace BatInnerIO.stderr *)
+      eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+      exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
+    | Timeout ->
+      eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+      exit 124
 
-(* The actual entry point is in the auto-generated goblint.ml module, and it is defined as: *)
+(* The actual entry point is in the auto-generated goblint.ml module, and is defined as: *)
 (* let _ = at_exit main *)
+(* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)
