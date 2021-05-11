@@ -401,7 +401,8 @@ let print_gc_quick_stat chn =
     (printM gc.Gc.promoted_words)
     gc.Gc.minor_collections
     gc.Gc.major_collections
-    gc.Gc.compactions
+    gc.Gc.compactions;
+  gc
 
 let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
 (* typedef struct {

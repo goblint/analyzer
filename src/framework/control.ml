@@ -417,8 +417,9 @@ struct
             let analyses = append_opt "save_run" "analyses.marshalled" in
             let config = append_opt "save_run" "config.json" in
             let meta = append_opt "save_run" "meta.json" in
+            let solver_stats = append_opt "save_run" "solver_stats.csv" in (* see Generic.SolverStats... *)
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
+              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
             ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
             Serialize.marshal (lh, gh) save_run;
@@ -430,7 +431,8 @@ struct
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
-            Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json (* the above is compact, this is pretty-printed *)
+            Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json; (* the above is compact, this is pretty-printed *)
+            Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval) *)
           );
           lh, gh
         )
