@@ -87,6 +87,22 @@ let map2_impl ~loc fun_name (lds : label_declaration list) =
   let pat = ppat_var ~loc {loc; txt = fun_name} in
   [%stri let [%p pat] = fun x y -> [%e body [%expr x] [%expr y]]]
 
+let create_impl ~loc fun_name (lds : label_declaration list) =
+  let body x_expr =
+    lds
+    |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
+        match pld_type with
+        | {ptyp_desc = Ptyp_constr ({txt = Ldot (label_module, "t"); loc}, _); _} ->
+          let label_fun = pexp_ident ~loc {loc; txt = Ldot (label_module, fun_name)} in
+          ({loc; txt = Lident label}, [%expr [%e label_fun] [%e x_expr]])
+        | _ ->
+          Location.raise_errorf ~loc "other"
+      )
+    |> fun fields -> pexp_record ~loc fields None
+  in
+  let pat = ppat_var ~loc {loc; txt = fun_name} in
+  [%stri let [%p pat] = fun x -> [%e body [%expr x]]]
+
 let leq_impl ~loc lds = [
     fold1_impl ~loc "is_top" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
     fold1_impl ~loc "is_bot" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
@@ -95,6 +111,8 @@ let leq_impl ~loc lds = [
     map2_impl ~loc "widen" lds;
     map2_impl ~loc "meet" lds;
     map2_impl ~loc "narrow" lds;
+    create_impl ~loc "top" lds;
+    create_impl ~loc "bot" lds;
   ]
 
 let generate_impl ~ctxt (_rec_flag, type_declarations) =
