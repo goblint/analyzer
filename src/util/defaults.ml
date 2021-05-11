@@ -13,6 +13,9 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
+              [@@deriving enum]
+
+let all_categories = min_category -- max_category |> of_enum |> map (Option.get % category_of_enum)
 
 (** Description strings for categories. *)
 let catDescription = function
@@ -22,10 +25,6 @@ let catDescription = function
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
-
-(** All categories used for [printAllCategories]. *)
-(* Moved up here to not forget to change, when adding new categories. *)
-let all_categories = [Std;Analyses;Semantics;Transformations;Experimental;Debugging] (* TODO: use deriving enum? *)
 
 (** A place to store registered variables *)
 let registrar = ref []
