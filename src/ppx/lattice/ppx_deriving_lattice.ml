@@ -1,5 +1,5 @@
 open Ppxlib
-module List = ListLabels
+(* module List = ListLabels *)
 open Ast_builder.Default
 
 (* let accessor_impl (ld : label_declaration) =
@@ -30,36 +30,34 @@ let accessor_intf ~ptype_name (ld : label_declaration) =
     ; pval_prim = []
     } *)
 
-let leq_impl (lds : label_declaration list) =
-  let loc = (List.hd lds).pld_loc in
-  let rec leq_expr = function
-    | [] ->
-      [%expr true]
-    | {pld_name = {txt = label; loc}; pld_type; _} :: lds' ->
-      let label_leq = match pld_type with
-        | {ptyp_desc = Ptyp_constr ({txt = Ldot (Lident label_module, "t"); loc}, _); _} ->
-          let thing2 = pexp_ident ~loc {loc; txt = Ldot (Lident label_module, "leq")} in
-          let thing3 x =
-            let asd = pexp_ident ~loc {loc; txt = Lident x} in
-            pexp_field ~loc asd {loc; txt = Lident label}
+let fold2_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
+  let body x_expr y_expr =
+    lds
+    |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
+        match pld_type with
+        | {ptyp_desc = Ptyp_constr ({txt = Ldot (label_module, "t"); loc}, _); _} ->
+          let label_fun = pexp_ident ~loc {loc; txt = Ldot (label_module, fun_name)} in
+          let label_field record_expr =
+            pexp_field ~loc record_expr {loc; txt = Lident label}
           in
-          let thing4 = thing3 "x" in
-          let thing5 = thing3 "y" in
-          [%expr [%e thing2] [%e thing4] [%e thing5]]
+          [%expr [%e label_fun] [%e label_field x_expr] [%e label_field y_expr]]
         | _ ->
           Location.raise_errorf ~loc "other"
-      in
-      (* Location.raise_errorf ~loc "other"; *)
-      (* let label_leq = [%expr true] in *)
-      let asd = leq_expr lds' in
-      [%expr [%e label_leq] && [%e asd]]
+      )
+    |> List.fold_left reduce_expr base_expr
   in
-  [[%stri let leq x y = [%e leq_expr lds]]]
+  let pat = ppat_var ~loc {loc; txt = fun_name} in
+  [%stri let [%p pat] = fun x y -> [%e body [%expr x] [%expr y]]]
+
+let leq_impl ~loc lds = [
+    fold2_impl ~loc "leq" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds
+  ]
 
 let generate_impl ~ctxt (_rec_flag, type_declarations) =
   let loc = Expansion_context.Deriver.derived_item_loc ctxt in
-  List.map type_declarations
-    ~f:(fun (td : type_declaration) ->
+  type_declarations
+  |> List.map
+    (fun (td : type_declaration) ->
       match td with
       | {ptype_kind = Ptype_abstract; _} ->
         Location.raise_errorf ~loc "Cannot derive accessors for abstract types"
@@ -68,7 +66,7 @@ let generate_impl ~ctxt (_rec_flag, type_declarations) =
       | {ptype_kind = Ptype_open; _} ->
         Location.raise_errorf ~loc "Cannot derive accessors for open types"
       | {ptype_kind = Ptype_record fields; _} ->
-        leq_impl fields)
+        leq_impl ~loc fields)
   |> List.concat
 
 (* let generate_intf ~ctxt (_rec_flag, type_declarations) =
