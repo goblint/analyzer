@@ -638,9 +638,9 @@ module Foo2 (A: S) (B: S):
 sig
   type t
   (* val top: unit -> t *)
-  (* val is_top: t -> bool *)
+  val is_top: t -> bool
   (* val bot: unit -> t *)
-  (* val is_bot: t -> bool *)
+  val is_bot: t -> bool
   val leq: t -> t -> bool
   (* val join: t -> t -> t *)
   (* val widen: t -> t -> t *)

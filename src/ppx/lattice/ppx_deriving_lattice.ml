@@ -120,28 +120,54 @@ struct
       let (a', b', c') = unzip3 tl in
       (a :: a', b :: b', c :: c')
 
-  let fold2_impl_tuple ~loc lattice_fun base_expr reduce_expr (comps : core_type list) =
-    let (x_pats, y_pats, bodys) =
+  let impl ~loc lattice_fun (comps : core_type list) =
+    comps
+    |> List.mapi (fun i comp_type ->
+        (i, CoreType.expr ~loc lattice_fun comp_type)
+      )
+
+  let label_field ~loc prefix i =
+    let name = prefix ^ string_of_int i in
+    pexp_ident ~loc {loc; txt = Lident name}
+
+  let fold_impl ~loc lattice_fun base_expr reduce_expr f_label f (comps : core_type list) =
+    let body =
+      comps
+      |> impl ~loc lattice_fun
+      |> List.map (fun (i, label_fun) ->
+          f_label ~loc label_fun i
+        )
+      |> List.fold_left reduce_expr base_expr
+    in
+    let pat prefix =
       comps
       |> List.mapi (fun i comp_type ->
-          let label_fun = CoreType.expr ~loc lattice_fun comp_type in
-          let label_field prefix =
-            let name = prefix ^ string_of_int i in
-            (ppat_var ~loc {loc; txt = name}, pexp_ident ~loc {loc; txt = Lident name})
-          in
-          let (x_pat, x_expr) = label_field "x" in
-          let (y_pat, y_expr) = label_field "y" in
-          (x_pat, y_pat, [%expr [%e label_fun] [%e x_expr] [%e y_expr]])
+          let name = prefix ^ string_of_int i in
+          ppat_var ~loc {loc; txt = name}
         )
-      |> unzip3
+      |> ppat_tuple ~loc
     in
-    let x_pat = ppat_tuple ~loc x_pats in
-    let y_pat = ppat_tuple ~loc y_pats in
-    let body = List.fold_left reduce_expr base_expr bodys in
-    [%expr fun [%p x_pat] [%p y_pat] -> [%e body]]
+    f ~loc pat body
+
+  let fold1_impl ~loc lattice_fun base_expr reduce_expr (comps : core_type list) =
+    fold_impl ~loc lattice_fun base_expr reduce_expr (fun ~loc label_fun i ->
+        [%expr [%e label_fun] [%e label_field ~loc "x" i]]
+      ) (fun ~loc pat body ->
+        [%expr fun [%p pat "x"] -> [%e body]]
+      ) comps
+
+  let fold2_impl ~loc lattice_fun base_expr reduce_expr (comps : core_type list) =
+    fold_impl ~loc lattice_fun base_expr reduce_expr (fun ~loc label_fun i ->
+        [%expr [%e label_fun] [%e label_field ~loc "x" i] [%e label_field ~loc "y" i]]
+      ) (fun ~loc pat body ->
+        [%expr fun [%p pat "x"] [%p pat "y"] -> [%e body]]
+      ) comps
 
   let expr ~loc lattice_fun comps = match lattice_fun with
-    | Leq -> fold2_impl_tuple ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
+    | IsTop | IsBot ->
+      fold1_impl ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
+    | Leq ->
+      fold2_impl ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
     | _ -> [%expr fun _ -> failwith "TODO"]
 end
 
