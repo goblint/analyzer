@@ -617,10 +617,11 @@ struct
 end
 
 
-module Foo (A: S) (B: S) =
+module Foo (A: S) (B: S):
+sig
+  type t
+  val leq: t -> t -> bool
+end =
 struct
   type t = {foo: A.t; bar: B.t} [@@deriving lattice]
-
-  (* let asd2 = asd *)
-  let foo = leq
 end
