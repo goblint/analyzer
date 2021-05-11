@@ -425,8 +425,8 @@ struct
             Serialize.marshal !MCP.analyses_table analyses;
             GobConfig.write_file config;
             let module Meta = struct
-                type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command; timestamp = Unix.time (); localtime = localtime () }
+                type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
+                let json = to_yojson { command = GU.command; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
