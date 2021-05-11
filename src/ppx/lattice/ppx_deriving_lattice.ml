@@ -23,22 +23,29 @@ let lattice_fun_name = function
   | Top -> "top"
   | Bot -> "bot"
 
+module type S =
+sig
+  type t
+  val expr: loc:location -> lattice_fun -> t -> expression
+end
 
-module Forward =
+module rec CoreType: S with type t := core_type =
 struct
   let expr ~loc lattice_fun ct = match ct with
     | {ptyp_desc = Ptyp_constr ({txt = Ldot (forward_module, "t"); loc}, _); _} ->
       pexp_ident ~loc {loc; txt = Ldot (forward_module, lattice_fun_name lattice_fun)}
+    | {ptyp_desc = Ptyp_tuple comps; _} ->
+      Tuple.expr ~loc lattice_fun comps
     | _ ->
       Location.raise_errorf ~loc "other"
 end
 
-module Record =
+and Record: S with type t := label_declaration list =
 struct
   let impl ~loc lattice_fun (lds: label_declaration list) =
     lds
     |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-        (label, Forward.expr ~loc lattice_fun pld_type)
+        (label, CoreType.expr ~loc lattice_fun pld_type)
       )
 
   let label_field ~loc record_expr label =
@@ -105,7 +112,7 @@ struct
       create_impl ~loc lattice_fun lds
 end
 
-module Tuple =
+and Tuple: S with type t := core_type list =
 struct
   let rec unzip3 = function
     | [] -> ([], [], [])
@@ -117,7 +124,7 @@ struct
     let (x_pats, y_pats, bodys) =
       comps
       |> List.mapi (fun i comp_type ->
-          let label_fun = Forward.expr ~loc lattice_fun comp_type in
+          let label_fun = CoreType.expr ~loc lattice_fun comp_type in
           let label_field prefix =
             let name = prefix ^ string_of_int i in
             (ppat_var ~loc {loc; txt = name}, pexp_ident ~loc {loc; txt = Lident name})
@@ -141,8 +148,8 @@ end
 module TypeDeclaration =
 struct
   let expr ~loc lattice_fun td = match td with
-    | {ptype_kind = Ptype_abstract; ptype_manifest = Some {ptyp_desc = Ptyp_tuple comps; _}; _} ->
-      Tuple.expr ~loc lattice_fun comps
+    | {ptype_kind = Ptype_abstract; ptype_manifest = Some ct; _} ->
+      CoreType.expr ~loc lattice_fun ct
     | {ptype_kind = Ptype_abstract; _} ->
       Location.raise_errorf ~loc "Cannot derive accessors for abstract types"
     | {ptype_kind = Ptype_variant _; _} ->

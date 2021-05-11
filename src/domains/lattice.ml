@@ -650,3 +650,20 @@ end =
 struct
   type t = A.t * B.t [@@deriving lattice]
 end
+
+module Foo3 (A: S):
+sig
+  type t
+  val top: unit -> t
+  val is_top: t -> bool
+  val bot: unit -> t
+  val is_bot: t -> bool
+  val leq: t -> t -> bool
+  val join: t -> t -> t
+  val widen: t -> t -> t
+  val meet: t -> t -> t
+  val narrow: t -> t -> t
+end =
+struct
+  type t = A.t [@@deriving lattice]
+end
