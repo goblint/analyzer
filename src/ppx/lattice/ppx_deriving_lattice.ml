@@ -152,7 +152,7 @@ struct
 
   let expr ~loc lattice_fun comps = match lattice_fun with
     | Leq -> fold2_impl_tuple ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
-    | _ -> assert false
+    | _ -> [%expr fun _ -> failwith "TODO"]
 end
 
 let make_str ~loc lattice_fun lds =
@@ -164,22 +164,32 @@ let leq_impl_tuple ~loc comps = [
     make_str ~loc Leq comps;
   ]
 
+module TypeDeclaration =
+struct
+  let expr ~loc lattice_fun td = match td with
+    | {ptype_kind = Ptype_abstract; ptype_manifest = Some {ptyp_desc = Ptyp_tuple comps; _}; _} ->
+      Tuple.expr ~loc lattice_fun comps
+    | {ptype_kind = Ptype_abstract; _} ->
+      Location.raise_errorf ~loc "Cannot derive accessors for abstract types"
+    | {ptype_kind = Ptype_variant _; _} ->
+      Location.raise_errorf ~loc "Cannot derive accessors for variant types"
+    | {ptype_kind = Ptype_open; _} ->
+      Location.raise_errorf ~loc "Cannot derive accessors for open types"
+    | {ptype_kind = Ptype_record fields; _} ->
+      Record.expr ~loc lattice_fun fields
+end
+
 let generate_impl ~ctxt (_rec_flag, type_declarations) =
   let loc = Expansion_context.Deriver.derived_item_loc ctxt in
   type_declarations
-  |> List.map
-    (fun (td : type_declaration) ->
-      match td with
-      | {ptype_kind = Ptype_abstract; ptype_manifest = Some {ptyp_desc = Ptyp_tuple comps; _}; _} ->
-        leq_impl_tuple ~loc comps
-      | {ptype_kind = Ptype_abstract; _} ->
-        Location.raise_errorf ~loc "Cannot derive accessors for abstract types"
-      | {ptype_kind = Ptype_variant _; _} ->
-        Location.raise_errorf ~loc "Cannot derive accessors for variant types"
-      | {ptype_kind = Ptype_open; _} ->
-        Location.raise_errorf ~loc "Cannot derive accessors for open types"
-      | {ptype_kind = Ptype_record fields; _} ->
-        leq_impl ~loc fields)
+  |> List.map (fun td ->
+      [IsTop; IsBot; Leq; Join; Widen; Meet; Narrow; Top; Bot]
+      |> List.map (fun lattice_fun ->
+          let expr = TypeDeclaration.expr ~loc lattice_fun td in
+          let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
+          [%stri let [%p pat] = [%e expr]]
+        )
+    )
   |> List.concat
 
 let impl_generator = Deriving.Generator.V2.make_noarg generate_impl
