@@ -142,12 +142,7 @@ struct
     match e, i with
     | `Lifted e', `Lifted i' ->
       begin
-        let isEqual =
-          (* TODO: inline *)
-          let b = ask.f (Q.MustBeEqual (e',i')) in
-          b
-        in
-        if isEqual then xm
+        if ask.f (Q.MustBeEqual (e',i')) then xm
         else
           begin
             let contributionLess = match ask.f (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
@@ -323,11 +318,7 @@ struct
           let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
           (i, (l, a, r))
       else
-        let isEqual e' i' =
-          (* TODO: inline *)
-          let b = ask.f (Q.MustBeEqual (e',i')) in
-          b
-        in
+        let isEqual e' i' = ask.f (Q.MustBeEqual (e',i')) in
         match e, i with
         | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
             let default =

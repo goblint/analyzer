@@ -157,11 +157,7 @@ struct
     type_may_change_t a bt
 
   let may_change_pt ask (b:exp) (a:exp) : bool =
-    let pt e =
-      (* TODO: inline *)
-      match ask (Queries.MayPointTo e) with
-      | ls -> ls
-    in
+    let pt e = ask (Queries.MayPointTo e) in
     let rec lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
         match o with
@@ -197,11 +193,7 @@ struct
 
   let may_change (ask: Queries.ask) (b:exp) (a:exp) : bool =
     (*b should be an address of something that changes*)
-    let pt e =
-      (* TODO: inline *)
-      let ls = ask.f (Queries.MayPointTo e) in
-      ls
-    in
+    let pt e = ask.f (Queries.MayPointTo e) in
     let bls = pt b in
     let bt =
       match unrollTypeDeep (typeOf b) with

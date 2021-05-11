@@ -8,9 +8,7 @@ open Analyses
 
 let is_multi (ask: Queries.ask): bool =
   if !GU.global_initialization then false else
-  (* TODO: inline *)
-  let x = ask.f Queries.MustBeSingleThreaded in
-  not x
+  not (ask.f Queries.MustBeSingleThreaded)
 
 
 module Spec =

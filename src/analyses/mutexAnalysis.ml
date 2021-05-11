@@ -152,9 +152,7 @@ struct
       end;
 
       (*partitions & locks*)
-      (* TODO: inline *)
-      let (po, pd) = ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) in
-      (po, pd)
+      ctx.ask (PartAccess {exp=e; var_opt=vo; write=w})
     in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
@@ -164,11 +162,7 @@ struct
       let (po,pd) = part_access ctx e None w in
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
-    let has_escaped g =
-      (* TODO: inline *)
-      let b = ctx.ask (Queries.MayEscape g) in
-      b
-    in
+    let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls
        -- this is the common case if we have a sound points-to set. *)
     let on_lvals ls includes_uk =
@@ -226,9 +220,7 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let non_overlapping locks1 locks2 =
       let intersect = G.join locks1 locks2 in
-      (* TODO: inline *)
-      let tv = G.is_top intersect in
-      tv
+      G.is_top intersect
     in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false

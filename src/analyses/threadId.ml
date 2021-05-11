@@ -10,9 +10,7 @@ module Thread = ConcDomain.Thread
 module ThreadLifted = ConcDomain.ThreadLifted
 
 let get_current (ask: Queries.ask): ThreadLifted.t =
-  (* TODO: inline *)
-  let v = ask.f Queries.CurrentThreadId in
-  v
+  ask.f Queries.CurrentThreadId
 
 let get_current_unlift ask: Thread.t =
   match get_current ask with
@@ -63,9 +61,7 @@ struct
     ctx.local
 
   let is_unique ctx =
-    (* TODO: inline *)
-    let b = ctx.ask Queries.MustBeUniqueThread in
-    b
+    ctx.ask Queries.MustBeUniqueThread
 
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in

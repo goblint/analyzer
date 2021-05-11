@@ -286,12 +286,10 @@ struct
     (* try to evaluate the expression using query
        -> if the result is the same as tv, do the corresponding transition, otherwise remove the entry from the domain
        for pointers this won't help since it always returns `Top *)
-    (* TODO: inline *)
-    (match ctx.ask (Queries.EvalInt exp) with
-     | i (* when (Queries.ID.is_bool i) *) ->
-       (match Queries.ID.to_bool i with
-        | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
-        | _ -> M.debug_each "EvalInt: `Int no bool")
+    ( let i = ctx.ask (Queries.EvalInt exp) in (* when (Queries.ID.is_bool i) *)
+      (match Queries.ID.to_bool i with
+      | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
+      | _ -> M.debug_each "EvalInt: `Int no bool")
     );
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)

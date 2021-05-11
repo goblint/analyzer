@@ -4,9 +4,7 @@ open Prelude.Ana
 open Analyses
 
 let is_current (ask: Queries.ask): bool =
-  (* TODO: inline *)
-  let b = ask.f Queries.MayBeThreadReturn in
-  b
+  ask.f Queries.MayBeThreadReturn
 
 
 module Spec : Analyses.MCPSpec =

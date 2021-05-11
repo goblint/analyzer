@@ -64,11 +64,7 @@ struct
     Queries.ES.fold add_locks exps (PS.empty ())
 
   let same_unknown_index (ask: Queries.ask) exp slocks =
-    let uk_index_equal i1 i2 =
-      (* TODO: inline *)
-      let b = ask.f (Queries.MustBeEqual (i1, i2)) in
-      b
-    in
+    let uk_index_equal i1 i2 = ask.f (Queries.MustBeEqual (i1, i2)) in
     let lock_index ei ee x xs =
       match Exp.one_unknown_array_index x with
       | Some (true, i, e) when uk_index_equal ei i ->

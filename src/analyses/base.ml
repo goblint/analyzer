@@ -278,12 +278,13 @@ struct
   let eval_rv_pre (ask: Q.ask) exp pr =
     let binop op e1 e2 =
       let equality () =
-        (* TODO: if *)
-        match ask.f (Q.MustBeEqual (e1,e2)) with
-        | true ->
+        (* TODO: just return bool? *)
+        if ask.f (Q.MustBeEqual (e1,e2)) then (
           if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
           Some true
-        | _ -> None
+        )
+        else
+          None
       in
       let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
       match op with
@@ -1014,9 +1015,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          (* TODO: inline *)
-          let is_heap_var = a.f (Q.IsHeapVar x) in
-          if is_heap_var then
+          if a.f (Q.IsHeapVar x) then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
             lval_type
@@ -1059,11 +1058,7 @@ struct
             Dep.VarSet.elements set
           in
           let movement_for_expr l' r' currentE' =
-            let are_equal e1 e2 =
-              (* TODO: inline *)
-              let b = a.f (Q.MustBeEqual (e1, e2)) in
-              b
-            in
+            let are_equal e1 e2 = a.f (Q.MustBeEqual (e1, e2)) in
             let ik = Cilfacade.get_ikind (typeOf currentE') in
             let newE = Basetype.CilExp.replace l' r' currentE' in
             let currentEPlusOne = BinOp (PlusA, currentE', Cil.kinteger ik 1, typeOf currentE') in
