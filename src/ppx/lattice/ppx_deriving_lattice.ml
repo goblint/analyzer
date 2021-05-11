@@ -1,78 +1,90 @@
 open Ppxlib
 open Ast_builder.Default
 
-let fold1_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
-  let body x_expr =
-    lds
-    |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-        match pld_type with
-        | {ptyp_desc = Ptyp_constr ({txt = Ldot (label_module, "t"); loc}, _); _} ->
-          let label_fun = pexp_ident ~loc {loc; txt = Ldot (label_module, fun_name)} in
+module Forward =
+struct
+  let fold2_impl ~loc fun_name ct = match ct with
+    | {ptyp_desc = Ptyp_constr ({txt = Ldot (forward_module, "t"); loc}, _); _} ->
+      pexp_ident ~loc {loc; txt = Ldot (forward_module, fun_name)}
+    | _ ->
+      Location.raise_errorf ~loc "other"
+end
+
+module Record =
+struct
+  let fold1_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
+    let body x_expr =
+      lds
+      |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
+          let label_fun = Forward.fold2_impl ~loc fun_name pld_type in
           let label_field record_expr =
             pexp_field ~loc record_expr {loc; txt = Lident label}
           in
           [%expr [%e label_fun] [%e label_field x_expr]]
-        | _ ->
-          Location.raise_errorf ~loc "other"
-      )
-    |> List.fold_left reduce_expr base_expr
-  in
-  let pat = ppat_var ~loc {loc; txt = fun_name} in
-  [%stri let [%p pat] = fun x -> [%e body [%expr x]]]
+        )
+      |> List.fold_left reduce_expr base_expr
+    in
+    [%expr fun x -> [%e body [%expr x]]]
 
-let fold2_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
-  let body x_expr y_expr =
-    lds
-    |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-        match pld_type with
-        | {ptyp_desc = Ptyp_constr ({txt = Ldot (label_module, "t"); loc}, _); _} ->
-          let label_fun = pexp_ident ~loc {loc; txt = Ldot (label_module, fun_name)} in
+  let fold2_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
+    let body x_expr y_expr =
+      lds
+      |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
+          let label_fun = Forward.fold2_impl ~loc fun_name pld_type in
           let label_field record_expr =
             pexp_field ~loc record_expr {loc; txt = Lident label}
           in
           [%expr [%e label_fun] [%e label_field x_expr] [%e label_field y_expr]]
-        | _ ->
-          Location.raise_errorf ~loc "other"
-      )
-    |> List.fold_left reduce_expr base_expr
-  in
-  let pat = ppat_var ~loc {loc; txt = fun_name} in
-  [%stri let [%p pat] = fun x y -> [%e body [%expr x] [%expr y]]]
+        )
+      |> List.fold_left reduce_expr base_expr
+    in
+    [%expr fun x y -> [%e body [%expr x] [%expr y]]]
 
-let map2_impl ~loc fun_name (lds : label_declaration list) =
-  let body x_expr y_expr =
-    lds
-    |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-        match pld_type with
-        | {ptyp_desc = Ptyp_constr ({txt = Ldot (label_module, "t"); loc}, _); _} ->
-          let label_fun = pexp_ident ~loc {loc; txt = Ldot (label_module, fun_name)} in
+  let map2_impl ~loc fun_name (lds : label_declaration list) =
+    let body x_expr y_expr =
+      lds
+      |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
+          let label_fun = Forward.fold2_impl ~loc fun_name pld_type in
           let label_field record_expr =
             pexp_field ~loc record_expr {loc; txt = Lident label}
           in
           ({loc; txt = Lident label}, [%expr [%e label_fun] [%e label_field x_expr] [%e label_field y_expr]])
-        | _ ->
-          Location.raise_errorf ~loc "other"
-      )
-    |> fun fields -> pexp_record ~loc fields None
-  in
+        )
+      |> fun fields -> pexp_record ~loc fields None
+    in
+    [%expr fun x y -> [%e body [%expr x] [%expr y]]]
+
+  let create_impl ~loc fun_name (lds : label_declaration list) =
+    let body x_expr =
+      lds
+      |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
+          let label_fun = Forward.fold2_impl ~loc fun_name pld_type in
+          ({loc; txt = Lident label}, [%expr [%e label_fun] [%e x_expr]])
+        )
+      |> fun fields -> pexp_record ~loc fields None
+    in
+    [%expr fun x -> [%e body [%expr x]]]
+end
+
+let fold1_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
+  let expr = Record.fold1_impl ~loc fun_name base_expr reduce_expr lds in
   let pat = ppat_var ~loc {loc; txt = fun_name} in
-  [%stri let [%p pat] = fun x y -> [%e body [%expr x] [%expr y]]]
+  [%stri let [%p pat] = [%e expr]]
+
+let fold2_impl ~loc fun_name base_expr reduce_expr (lds : label_declaration list) =
+  let expr = Record.fold2_impl ~loc fun_name base_expr reduce_expr lds in
+  let pat = ppat_var ~loc {loc; txt = fun_name} in
+  [%stri let [%p pat] = [%e expr]]
+
+let map2_impl ~loc fun_name (lds : label_declaration list) =
+  let expr = Record.map2_impl ~loc fun_name lds in
+  let pat = ppat_var ~loc {loc; txt = fun_name} in
+  [%stri let [%p pat] = [%e expr]]
 
 let create_impl ~loc fun_name (lds : label_declaration list) =
-  let body x_expr =
-    lds
-    |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-        match pld_type with
-        | {ptyp_desc = Ptyp_constr ({txt = Ldot (label_module, "t"); loc}, _); _} ->
-          let label_fun = pexp_ident ~loc {loc; txt = Ldot (label_module, fun_name)} in
-          ({loc; txt = Lident label}, [%expr [%e label_fun] [%e x_expr]])
-        | _ ->
-          Location.raise_errorf ~loc "other"
-      )
-    |> fun fields -> pexp_record ~loc fields None
-  in
+  let expr = Record.create_impl ~loc fun_name lds in
   let pat = ppat_var ~loc {loc; txt = fun_name} in
-  [%stri let [%p pat] = fun x -> [%e body [%expr x]]]
+  [%stri let [%p pat] = [%e expr]]
 
 let leq_impl ~loc lds = [
     fold1_impl ~loc "is_top" [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds;
