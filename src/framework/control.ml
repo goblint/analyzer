@@ -539,9 +539,8 @@ struct
       M.print_msg "Timeout reached!" (!Tracing.current_loc);
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
-         print_stats is triggered by dbg.solver-signal, so we send that signal to ourself.
+         print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.
          The alternative would be to catch the below Timeout, print_stats and re-raise in each solver (or include it in some functor above them). *)
-      Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
       raise GU.Timeout
     in
     let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in

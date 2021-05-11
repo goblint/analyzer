@@ -281,6 +281,14 @@ let merge_preprocessed cpp_file_names =
   Cilfacade.current_file := merged_AST;
   merged_AST
 
+let do_stats () =
+  if get_bool "printstats" then
+    print_newline ();
+    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
+    print_newline ();
+    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
+    flush_all ()
+
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   let module L = Printable.Liszt (Basetype.CilFundec) in
@@ -310,6 +318,10 @@ let do_analyze change_info merged_AST =
         with x ->
           let loc = !Tracing.current_loc in
           Messages.print_msg "{RED}About to crash!" loc;
+          (* trigger Generic.SolverStats...print_stats *)
+          Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
+          do_stats ();
+          print_newline ();
           raise x
           (* Cilfacade.current_file := ast'; *)
       in
@@ -418,14 +430,6 @@ let diff_and_rename file =
       | None -> failwith "Failure! Working directory is not clean")
   in change_info
 
-let do_stats () =
-  if get_bool "printstats" then
-    print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
-    print_newline ();
-    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
-    flush_all ()
-
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
@@ -468,9 +472,7 @@ let main =
         | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
           Printexc.print_backtrace BatInnerIO.stderr
         | Timeout ->
-          do_stats ();
-          print_newline ();
-          eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ "!"));
+          eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
           exit 124
     )
 
