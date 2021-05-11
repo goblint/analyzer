@@ -96,7 +96,7 @@ struct
   let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a.f (Queries.MayPointTo exp) with
-    | LvalSet a when not (Queries.LS.is_top a)
+    | a when not (Queries.LS.is_top a)
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
@@ -152,7 +152,7 @@ struct
       end;
 
       (*partitions & locks*)
-      let PartAccessResult (po, pd) = ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) in
+      let (po, pd) = ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) in
       (po, pd)
     in
     let add_access conf vo oo =
@@ -164,7 +164,7 @@ struct
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g =
-      let MayBool b = ctx.ask (Queries.MayEscape g) in
+      let b = ctx.ask (Queries.MayEscape g) in
       b
     in
     (* The following function adds accesses to the lval-set ls
@@ -184,17 +184,17 @@ struct
     in
     let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
     match ctx.ask reach_or_mpt with
-    | LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+    | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
       (* the case where the points-to set is non top and does not contain unknown values *)
       on_lvals ls false
-    | LvalSet ls when not (LS.is_top ls) ->
+    | ls when not (LS.is_top ls) ->
       (* the case where the points-to set is non top and contains unknown values *)
       let includes_uk = ref false in
       (* now we need to access all fields that might be pointed to: is this correct? *)
       begin match ctx.ask (ReachableUkTypes e) with
-        | TypeSet ts when Queries.TS.is_top ts ->
+        | ts when Queries.TS.is_top ts ->
           includes_uk := true
-        | TypeSet ts ->
+        | ts ->
           if Queries.TS.is_empty ts = false then
             includes_uk := true;
           let f = function
@@ -225,24 +225,24 @@ struct
     let non_overlapping locks1 locks2 =
       let intersect = G.join locks1 locks2 in
       let tv = G.is_top intersect in
-      Queries.MayBool (tv)
+      Queries.(tv)
     in
     match q with
-    | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> MayBool false
+    | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublic {global=v; write} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.filter snd ctx.local) in
-      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then MayBool false
+      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then false
       else non_overlapping held_locks (ctx.global v)
-    | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> MayBool false
+    | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
-      if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then MayBool false
+      if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then false
       else non_overlapping held_locks (ctx.global v)
     | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
       let held_locks: G.t = P.check_fun ~write mutex_lockset in
-      if LockDomain.Addr.equal mutex verifier_atomic then MustBool true
-      else MustBool (G.leq (ctx.global global) held_locks)
+      if LockDomain.Addr.equal mutex verifier_atomic then true
+      else (G.leq (ctx.global global) held_locks)
     | Queries.CurrentLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
@@ -251,12 +251,12 @@ struct
           | _ -> ls
         ) held_locks (Queries.LS.empty ())
       in
-      LvalSet ls
+      ls
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      MustBool (Mutexes.mem verifier_atomic held_locks)
+      (Mutexes.mem verifier_atomic held_locks)
     | Queries.PartAccess {exp; var_opt; write} ->
-      PartAccessResult (part_access ctx exp var_opt write)
+      (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top q
 
 

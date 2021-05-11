@@ -114,7 +114,7 @@ struct
   let rec eq_set (ask: Queries.ask) e =
     S.union
       (match ask.f (Queries.EqualSet e) with
-       | ExprSet es when not (Queries.ES.is_bot es) ->
+       | es when not (Queries.ES.is_bot es) ->
          Queries.ES.fold S.add es (S.empty ())
        | _ -> S.empty ())
       (match e with

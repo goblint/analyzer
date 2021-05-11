@@ -31,12 +31,12 @@ module Unit = Lattice.Unit
    When left abstract (without definition), the compiler cannot prove distinctness.
    See: https://github.com/ocaml/ocaml/issues/7360#issuecomment-473063226. *)
 (* Phantom types for distinguishing bool results. *)
-type maybool = MayBool
-type mustbool = MustBool
+type maybool = MayBool.t
+type mustbool = MustBool.t
 (* Phantom types for distinguishing ToppedSet results. *)
-type lvalset = LvalSet
-type exprset = ExprSet
-type typeset = TypeSet
+type lvalset = LS.t
+type exprset = ES.t
+type typeset = TS.t
 (* TODO: add phantom types for all variants?
    Not really necessary unless two result variants use same type.
    Also naming would be weird: int? string? unit? *)
@@ -76,7 +76,7 @@ type _ t =
   | IsHeapVar: varinfo -> maybool t (* TODO: is may or must? *)
 
 (** GADT for query results with specific (phantom) type. *)
-type _ result =
+(* type _ result =
   | Int: ID.t -> ID.t result
   | Str: SD.t -> SD.t result
   | LvalSet: LS.t -> lvalset result
@@ -86,7 +86,8 @@ type _ result =
   | MustBool: MustBool.t -> mustbool result  (* true \leq false *)
   | MayBool: MayBool.t -> maybool result   (* false \leq true *)
   | PartAccessResult: PartAccessResult.t -> PartAccessResult.t result
-  | Unit: Unit.t -> Unit.t result
+  | Unit: Unit.t -> Unit.t result *)
+type 'a result = 'a
 
 (** Container for explicitly polymorphic [ctx.ask] function out of [ctx].
     To be used when passing entire [ctx] around seems inappropriate.
@@ -98,9 +99,46 @@ type ask = { f: 'a. 'a t -> 'a result }
 (* Result cannot implement Lattice.S because the function types are different due to GADT. *)
 module Result =
 struct
+  let lattice (type a) (q: a t): (module Lattice.S with type t = a) =
+    match q with
+    (* Cannot group these GADTs... *)
+    | EqualSet _ -> (module ES)
+    | CondVars _ -> (module ES)
+    | MayPointTo _ -> (module LS)
+    | ReachableFrom _ -> (module LS)
+    | Regions _ -> (module LS)
+    | CurrentLockset -> (module LS)
+    | EvalFunvar _ -> (module LS)
+    | ReachableUkTypes _ -> (module TS)
+    | MayEscape _ -> (module MayBool)
+    | MayBePublic _ -> (module MayBool)
+    | MayBePublicWithout _ -> (module MayBool)
+    | MayBeThreadReturn -> (module MayBool)
+    | MayBeEqual _ -> (module MayBool)
+    | MayBeLess _ -> (module MayBool)
+    | IsHeapVar _ -> (module MayBool)
+    | MustBeProtectedBy _ -> (module MustBool)
+    | MustBeAtomic -> (module MustBool)
+    | MustBeSingleThreaded -> (module MustBool)
+    | MustBeUniqueThread -> (module MustBool)
+    | MustBeEqual _ -> (module MustBool)
+    | Priority _ -> (module ID)
+    | EvalInt _ -> (module ID)
+    | EvalLength _ -> (module ID)
+    | BlobSize _ -> (module ID)
+    | CurrentThreadId -> (module VI)
+    | HeapVar -> (module VI)
+    | EvalStr _ -> (module SD)
+    | PrintFullState -> (module Unit)
+    | IterPrevVars _ -> (module Unit)
+    | IterVars _ -> (module Unit)
+    | PartAccess _ -> (module PartAccessResult)
+
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
-    match q with
+    let module Result = (val lattice q) in
+    Result.bot ()
+    (* match q with
     (* Cannot group these GADTs... *)
     | EqualSet _ -> ExprSet (ES.bot ())
     | CondVars _ -> ExprSet (ES.bot ())
@@ -132,11 +170,13 @@ struct
     | PrintFullState -> Unit (Unit.bot ())
     | IterPrevVars _ -> Unit (Unit.bot ())
     | IterVars _ -> Unit (Unit.bot ())
-    | PartAccess _ -> PartAccessResult (PartAccessResult.bot ())
+    | PartAccess _ -> PartAccessResult (PartAccessResult.bot ()) *)
 
   (** Get top result for query. *)
   let top (type a) (q: a t): a result =
-    match q with
+    let module Result = (val lattice q) in
+    Result.top ()
+    (* match q with
     (* Cannot group these GADTs... *)
     | EqualSet _ -> ExprSet (ES.top ())
     | CondVars _ -> ExprSet (ES.top ())
@@ -168,9 +208,9 @@ struct
     | PrintFullState -> Unit (Unit.top ())
     | IterPrevVars _ -> Unit (Unit.top ())
     | IterVars _ -> Unit (Unit.top ())
-    | PartAccess _ -> PartAccessResult (PartAccessResult.top ())
+    | PartAccess _ -> PartAccessResult (PartAccessResult.top ()) *)
 
-  let pretty () (type a) (state: a result) =
+  (* let pretty () (type a) (state: a result) =
     match state with
     | Int n ->  ID.pretty () n
     | Str s ->  SD.pretty () s
@@ -220,5 +260,5 @@ struct
     | MayBool x, MayBool y -> MayBool (MayBool.meet x y)
     | PartAccessResult x, PartAccessResult y -> PartAccessResult (PartAccessResult.meet x y)
     | Unit x, Unit y -> Unit (Unit.meet x y)
-    | Str x, Str y -> Str (SD.meet x y)
+    | Str x, Str y -> Str (SD.meet x y) *)
 end

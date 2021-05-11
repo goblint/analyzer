@@ -568,7 +568,7 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
-    | Queries.EvalFunvar e -> LvalSet (List.fold_left (fun xs x -> Queries.LS.add (x,`NoOffset) xs) (Queries.LS.empty ()) (eval_funvar ctx e))
+    | Queries.EvalFunvar e -> (List.fold_left (fun xs x -> Queries.LS.add (x,`NoOffset) xs) (Queries.LS.empty ()) (eval_funvar ctx e))
     | _ -> Queries.Result.top q
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

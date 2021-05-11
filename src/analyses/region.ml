@@ -76,9 +76,9 @@ struct
     | Queries.Regions e ->
       if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
-        LvalSet ls
+        ls
     | Queries.PartAccess {exp; var_opt; write} ->
-      PartAccessResult (part_access ctx exp var_opt write)
+      (part_access ctx exp var_opt write)
     | _ -> Queries.Result.top q
 
   (* transfer functions *)

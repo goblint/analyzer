@@ -335,17 +335,17 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
-            | (Some i) -> MustBool (BI.equal BI.zero i)
-            | _ -> MustBool false
+            | (Some i) -> (BI.equal BI.zero i)
+            | _ -> false
           end
-        | _ -> MustBool false
+        | _ -> false
       end
     | Queries.MayBeEqual (exp1,exp2) ->
       begin
         match getSumAndDiffForVars exp1 exp2 with
         | _, Some(x) ->
-          MayBool (not (OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero))))
-        | _ -> MayBool true
+          (not (OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero))))
+        | _ -> true
       end
     | Queries.MayBeLess (exp1, exp2) ->
       (* TODO: Here the order of arguments actually matters, be careful *)
@@ -355,15 +355,15 @@ struct
           begin
             match OctagonDomain.INV.minimal x with
             | Some i when BI.compare i BI.zero >= 0 ->
-              MayBool false
-            | _ -> MayBool true
+              false
+            | _ -> true
           end
-        | _ -> MayBool true
+        | _ -> true
       end
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then Int(INV.to_int inv |> Option.get |> BI.to_int64 |> Queries.ID.of_int)
+      then (INV.to_int inv |> Option.get |> BI.to_int64 |> Queries.ID.of_int)
       else Queries.Result.top q
     | _ -> Queries.Result.top q
 

@@ -272,7 +272,7 @@ struct
     | Queries.EvalFunvar e ->
       let (d,l) = ctx.local in
       if leq0 l then
-        LvalSet (Queries.LS.empty ())
+        (Queries.LS.empty ())
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
@@ -676,7 +676,7 @@ struct
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
-      let LvalSet ls = ctx.ask (Queries.EvalFunvar e) in
+      let ls = ctx.ask (Queries.EvalFunvar e) in
       Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
@@ -1052,7 +1052,8 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* join results so that they are sound for all paths *)
-    fold' ctx Spec.query identity (fun x f -> Queries.Result.join x (f q)) (Queries.Result.bot q)
+    let module Result = (val Queries.Result.lattice q) in
+    fold' ctx Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
 
   let enter ctx l f a =
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in

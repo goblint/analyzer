@@ -68,18 +68,18 @@ struct
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
       (* CWStr is done in base.ml, query only returns `Str if it's safe *)
       | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | Str (`Lifted b) -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
+          | (`Lifted b) -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
           | _      -> M.debug_each "EQUAL String Query: no result!"; false
         )
       | `Regex a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | Str (`Lifted b) -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
+          | (`Lifted b) -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
           | _      -> M.debug_each "EQUAL Regex String Query: no result!"; false
         )
       | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
-          | Int b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
+          | b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
         )
       | `Int a, e  -> (match ctx.ask (Queries.EvalInt e) with
-          | Int b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
+          | b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
         )
       | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
       | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false
@@ -202,7 +202,7 @@ struct
 
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
-    | Queries.LvalSet l when not (Queries.LS.is_top l) ->
+    | l when not (Queries.LS.is_top l) ->
       Queries.LS.elements l
     | _ -> []
 
@@ -287,7 +287,7 @@ struct
        -> if the result is the same as tv, do the corresponding transition, otherwise remove the entry from the domain
        for pointers this won't help since it always returns `Top *)
     (match ctx.ask (Queries.EvalInt exp) with
-     | Int i (* when (Queries.ID.is_bool i) *) ->
+     | i (* when (Queries.ID.is_bool i) *) ->
        (match Queries.ID.to_bool i with
         | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
         | _ -> M.debug_each "EvalInt: `Int no bool")
