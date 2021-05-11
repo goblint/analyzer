@@ -621,6 +621,10 @@ module Foo (A: S) (B: S):
 sig
   type t
   val leq: t -> t -> bool
+  val join: t -> t -> t
+  val widen: t -> t -> t
+  val meet: t -> t -> t
+  val narrow: t -> t -> t
 end =
 struct
   type t = {foo: A.t; bar: B.t} [@@deriving lattice]
