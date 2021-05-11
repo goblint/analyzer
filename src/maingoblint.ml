@@ -433,7 +433,7 @@ let diff_and_rename file =
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
-  (* catch_break true; *)
+  catch_break true;
   set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
 
 (** the main function *)
@@ -470,7 +470,9 @@ let main =
         | Exit ->
           exit 1
         | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
-          Printexc.print_backtrace BatInnerIO.stderr
+          (* Printexc.print_backtrace BatInnerIO.stderr *)
+          eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+          exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
         | Timeout ->
           eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
           exit 124
