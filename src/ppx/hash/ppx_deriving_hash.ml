@@ -1,60 +1,40 @@
 open Ppxlib
 open Ast_builder.Default
 
-type lattice_fun =
-  | IsTop
-  | IsBot
-  | Leq
-  | Join
-  | Widen
-  | Meet
-  | Narrow
-  | Top
-  | Bot
-
-let lattice_fun_name = function
-  | IsTop -> "is_top"
-  | IsBot -> "is_bot"
-  | Leq -> "leq"
-  | Join -> "join"
-  | Widen -> "widen"
-  | Meet -> "meet"
-  | Narrow -> "narrow"
-  | Top -> "top"
-  | Bot -> "bot"
-
 module type S =
 sig
   type t
-  val expr: loc:location -> lattice_fun -> t -> expression
+  val expr: loc:location -> t -> expression
 end
 
 module rec CoreType: S with type t := core_type =
 struct
-  let expr ~loc lattice_fun ct = match ct with
+  let expr ~loc ct = match ct with
+    | [%type: string] ->
+      [%expr Hashtbl.hash]
     | {ptyp_desc = Ptyp_constr ({txt = Ldot (forward_module, "t"); loc}, _); _} ->
-      pexp_ident ~loc {loc; txt = Ldot (forward_module, lattice_fun_name lattice_fun)}
+      pexp_ident ~loc {loc; txt = Ldot (forward_module, "hash")}
     | {ptyp_desc = Ptyp_tuple comps; _} ->
-      Tuple.expr ~loc lattice_fun comps
+      Tuple.expr ~loc comps
     | _ ->
       Location.raise_errorf ~loc "other"
 end
 
 and Record: S with type t := label_declaration list =
 struct
-  let impl ~loc lattice_fun (lds: label_declaration list) =
+  let impl ~loc (lds: label_declaration list) =
     lds
     |> List.map (fun {pld_name = {txt = label; loc}; pld_type; _} ->
-        (label, CoreType.expr ~loc lattice_fun pld_type)
+        (label, CoreType.expr ~loc pld_type)
       )
 
   let label_field ~loc record_expr label =
     pexp_field ~loc record_expr {loc; txt = Lident label}
 
-  let fold_impl ~loc lattice_fun base_expr reduce_expr f_label f (lds : label_declaration list) =
+  let fold_impl ~loc base_expr reduce_expr f_label f (lds : label_declaration list) =
     let body x_expr =
       lds
-      |> impl ~loc lattice_fun
+      |> impl ~loc
       |> List.map (fun (label, label_fun) ->
           f_label ~loc label_fun x_expr label
         )
@@ -62,24 +42,24 @@ struct
     in
     f ~loc body
 
-  let fold1_impl ~loc lattice_fun base_expr reduce_expr (lds : label_declaration list) =
-    fold_impl ~loc lattice_fun base_expr reduce_expr (fun ~loc label_fun x_expr label ->
+  let fold1_impl ~loc base_expr reduce_expr (lds : label_declaration list) =
+    fold_impl ~loc base_expr reduce_expr (fun ~loc label_fun x_expr label ->
         [%expr [%e label_fun] [%e label_field ~loc x_expr label]]
       ) (fun ~loc body ->
         [%expr fun x -> [%e body [%expr x]]]
       ) lds
 
-  let fold2_impl ~loc lattice_fun base_expr reduce_expr (lds : label_declaration list) =
-    fold_impl ~loc lattice_fun base_expr reduce_expr (fun ~loc label_fun (x_expr, y_expr) label ->
+  let fold2_impl ~loc base_expr reduce_expr (lds : label_declaration list) =
+    fold_impl ~loc base_expr reduce_expr (fun ~loc label_fun (x_expr, y_expr) label ->
         [%expr [%e label_fun] [%e label_field ~loc x_expr label] [%e label_field ~loc y_expr label]]
       ) (fun ~loc body ->
         [%expr fun x y -> [%e body ([%expr x], [%expr y])]]
       ) lds
 
-  let map_impl ~loc lattice_fun f_label f (lds : label_declaration list) =
+  let map_impl ~loc f_label f (lds : label_declaration list) =
     let body x_expr =
       lds
-      |> impl ~loc lattice_fun
+      |> impl ~loc
       |> List.map (fun (label, label_fun) ->
           ({loc; txt = Lident label}, f_label ~loc label_fun x_expr label)
         )
@@ -87,29 +67,22 @@ struct
     in
     f ~loc body
 
-  let map2_impl ~loc lattice_fun (lds : label_declaration list) =
-    map_impl ~loc lattice_fun (fun ~loc label_fun (x_expr, y_expr) label ->
+  let map2_impl ~loc (lds : label_declaration list) =
+    map_impl ~loc (fun ~loc label_fun (x_expr, y_expr) label ->
         [%expr [%e label_fun] [%e label_field ~loc x_expr label] [%e label_field ~loc y_expr label]]
       ) (fun ~loc body ->
         [%expr fun x y -> [%e body ([%expr x], [%expr y])]]
       ) lds
 
-  let create_impl ~loc lattice_fun (lds : label_declaration list) =
-    map_impl ~loc lattice_fun (fun ~loc label_fun x_expr label ->
+  let create_impl ~loc (lds : label_declaration list) =
+    map_impl ~loc (fun ~loc label_fun x_expr label ->
         [%expr [%e label_fun] [%e x_expr]]
       ) (fun ~loc body ->
         [%expr fun x -> [%e body [%expr x]]]
       ) lds
 
-  let expr ~loc lattice_fun lds = match lattice_fun with
-    | IsTop | IsBot ->
-      fold1_impl ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds
-    | Leq ->
-      fold2_impl ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds
-    | Join | Widen | Meet | Narrow ->
-      map2_impl ~loc lattice_fun lds
-    | Top | Bot ->
-      create_impl ~loc lattice_fun lds
+  let expr ~loc lds =
+    fold1_impl ~loc [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds
 end
 
 and Tuple: S with type t := core_type list =
@@ -120,20 +93,20 @@ struct
       let (a', b', c') = unzip3 tl in
       (a :: a', b :: b', c :: c')
 
-  let impl ~loc lattice_fun (comps : core_type list) =
+  let impl ~loc (comps : core_type list) =
     comps
     |> List.mapi (fun i comp_type ->
-        (i, CoreType.expr ~loc lattice_fun comp_type)
+        (i, CoreType.expr ~loc comp_type)
       )
 
   let label_field ~loc prefix i =
     let name = prefix ^ string_of_int i in
     pexp_ident ~loc {loc; txt = Lident name}
 
-  let fold_impl ~loc lattice_fun base_expr reduce_expr f_label f (comps : core_type list) =
+  let fold_impl ~loc base_expr reduce_expr f_label f (comps : core_type list) =
     let body =
       comps
-      |> impl ~loc lattice_fun
+      |> impl ~loc
       |> List.map (fun (i, label_fun) ->
           f_label ~loc label_fun i
         )
@@ -149,24 +122,24 @@ struct
     in
     f ~loc pat body
 
-  let fold1_impl ~loc lattice_fun base_expr reduce_expr (comps : core_type list) =
-    fold_impl ~loc lattice_fun base_expr reduce_expr (fun ~loc label_fun i ->
+  let fold1_impl ~loc base_expr reduce_expr (comps : core_type list) =
+    fold_impl ~loc base_expr reduce_expr (fun ~loc label_fun i ->
         [%expr [%e label_fun] [%e label_field ~loc "x" i]]
       ) (fun ~loc pat body ->
         [%expr fun [%p pat "x"] -> [%e body]]
       ) comps
 
-  let fold2_impl ~loc lattice_fun base_expr reduce_expr (comps : core_type list) =
-    fold_impl ~loc lattice_fun base_expr reduce_expr (fun ~loc label_fun i ->
+  let fold2_impl ~loc base_expr reduce_expr (comps : core_type list) =
+    fold_impl ~loc base_expr reduce_expr (fun ~loc label_fun i ->
         [%expr [%e label_fun] [%e label_field ~loc "x" i] [%e label_field ~loc "y" i]]
       ) (fun ~loc pat body ->
         [%expr fun [%p pat "x"] [%p pat "y"] -> [%e body]]
       ) comps
 
-  let map_impl ~loc lattice_fun f_label f (comps : core_type list) =
+  let map_impl ~loc f_label f (comps : core_type list) =
     let body x_expr =
       comps
-      |> impl ~loc lattice_fun
+      |> impl ~loc
       |> List.map (fun (i, label_fun) ->
           f_label ~loc label_fun x_expr i
         )
@@ -182,36 +155,29 @@ struct
     in
     f ~loc pat body
 
-  let map2_impl ~loc lattice_fun (comps : core_type list) =
-    map_impl ~loc lattice_fun (fun ~loc label_fun _ i ->
+  let map2_impl ~loc (comps : core_type list) =
+    map_impl ~loc (fun ~loc label_fun _ i ->
         [%expr [%e label_fun] [%e label_field ~loc "x" i] [%e label_field ~loc "y" i]]
       ) (fun ~loc pat body ->
         [%expr fun [%p pat "x"] [%p pat "y"] -> [%e body ()]]
       ) comps
 
-  let create_impl ~loc lattice_fun (comps : core_type list) =
-    map_impl ~loc lattice_fun (fun ~loc label_fun x_expr i ->
+  let create_impl ~loc (comps : core_type list) =
+    map_impl ~loc (fun ~loc label_fun x_expr i ->
         [%expr [%e label_fun] [%e x_expr]]
       ) (fun ~loc pat body ->
         [%expr fun x -> [%e body [%expr x]]]
       ) comps
 
-  let expr ~loc lattice_fun comps = match lattice_fun with
-    | IsTop | IsBot ->
-      fold1_impl ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
-    | Leq ->
-      fold2_impl ~loc lattice_fun [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
-    | Join | Widen | Meet | Narrow ->
-      map2_impl ~loc lattice_fun comps
-    | Top | Bot ->
-      create_impl ~loc lattice_fun comps
+  let expr ~loc comps =
+    fold1_impl ~loc [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
 end
 
 module TypeDeclaration =
 struct
-  let expr ~loc lattice_fun td = match td with
+  let expr ~loc td = match td with
     | {ptype_kind = Ptype_abstract; ptype_manifest = Some ct; _} ->
-      CoreType.expr ~loc lattice_fun ct
+      CoreType.expr ~loc ct
     | {ptype_kind = Ptype_abstract; _} ->
       Location.raise_errorf ~loc "Cannot derive accessors for abstract types"
     | {ptype_kind = Ptype_variant _; _} ->
@@ -219,21 +185,17 @@ struct
     | {ptype_kind = Ptype_open; _} ->
       Location.raise_errorf ~loc "Cannot derive accessors for open types"
     | {ptype_kind = Ptype_record fields; _} ->
-      Record.expr ~loc lattice_fun fields
+      Record.expr ~loc fields
 end
 
 let generate_impl ~ctxt (_rec_flag, type_declarations) =
   let loc = Expansion_context.Deriver.derived_item_loc ctxt in
   type_declarations
   |> List.map (fun td ->
-      [IsTop; IsBot; Leq; Join; Widen; Meet; Narrow; Top; Bot]
-      |> List.map (fun lattice_fun ->
-          let expr = TypeDeclaration.expr ~loc lattice_fun td in
-          let pat = ppat_var ~loc {loc; txt = lattice_fun_name lattice_fun} in
-          [%stri let [%p pat] = [%e expr]]
-        )
+      let expr = TypeDeclaration.expr ~loc td in
+      let pat = ppat_var ~loc {loc; txt = "hash"} in
+      [%stri let [%p pat] = [%e expr]]
     )
-  |> List.concat
 
 let impl_generator = Deriving.Generator.V2.make_noarg generate_impl
 
