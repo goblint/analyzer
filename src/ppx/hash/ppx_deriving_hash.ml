@@ -14,6 +14,8 @@ struct
       [%expr Hashtbl.hash]
     | [%type: char] ->
       [%expr Char.code]
+    | [%type: bool] ->
+      [%expr Bool.to_int]
     | {ptyp_desc = Ptyp_constr ({txt = Ldot (forward_module, "t"); loc}, _); _} ->
       pexp_ident ~loc {loc; txt = Ldot (forward_module, "hash")}
     | {ptyp_desc = Ptyp_tuple comps; _} ->
