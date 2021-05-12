@@ -53,40 +53,8 @@ struct
         [%expr fun x -> [%e body [%expr x]]]
       ) lds
 
-  let fold2_impl ~loc base_expr reduce_expr (lds : label_declaration list) =
-    fold_impl ~loc base_expr reduce_expr (fun ~loc label_fun (x_expr, y_expr) label ->
-        [%expr [%e label_fun] [%e label_field ~loc x_expr label] [%e label_field ~loc y_expr label]]
-      ) (fun ~loc body ->
-        [%expr fun x y -> [%e body ([%expr x], [%expr y])]]
-      ) lds
-
-  let map_impl ~loc f_label f (lds : label_declaration list) =
-    let body x_expr =
-      lds
-      |> impl ~loc
-      |> List.map (fun (label, label_fun) ->
-          ({loc; txt = Lident label}, f_label ~loc label_fun x_expr label)
-        )
-      |> fun fields -> pexp_record ~loc fields None
-    in
-    f ~loc body
-
-  let map2_impl ~loc (lds : label_declaration list) =
-    map_impl ~loc (fun ~loc label_fun (x_expr, y_expr) label ->
-        [%expr [%e label_fun] [%e label_field ~loc x_expr label] [%e label_field ~loc y_expr label]]
-      ) (fun ~loc body ->
-        [%expr fun x y -> [%e body ([%expr x], [%expr y])]]
-      ) lds
-
-  let create_impl ~loc (lds : label_declaration list) =
-    map_impl ~loc (fun ~loc label_fun x_expr label ->
-        [%expr [%e label_fun] [%e x_expr]]
-      ) (fun ~loc body ->
-        [%expr fun x -> [%e body [%expr x]]]
-      ) lds
-
   let expr ~loc lds =
-    fold1_impl ~loc [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) lds
+    fold1_impl ~loc [%expr 0] (fun a b -> [%expr 31 * [%e a] + [%e b]]) lds
 end
 
 and Tuple: S with type t := core_type list =
@@ -133,48 +101,8 @@ struct
         [%expr fun [%p pat "x"] -> [%e body]]
       ) comps
 
-  let fold2_impl ~loc base_expr reduce_expr (comps : core_type list) =
-    fold_impl ~loc base_expr reduce_expr (fun ~loc label_fun i ->
-        [%expr [%e label_fun] [%e label_field ~loc "x" i] [%e label_field ~loc "y" i]]
-      ) (fun ~loc pat body ->
-        [%expr fun [%p pat "x"] [%p pat "y"] -> [%e body]]
-      ) comps
-
-  let map_impl ~loc f_label f (comps : core_type list) =
-    let body x_expr =
-      comps
-      |> impl ~loc
-      |> List.map (fun (i, label_fun) ->
-          f_label ~loc label_fun x_expr i
-        )
-      |> pexp_tuple ~loc
-    in
-    let pat prefix =
-      comps
-      |> List.mapi (fun i comp_type ->
-          let name = prefix ^ string_of_int i in
-          ppat_var ~loc {loc; txt = name}
-        )
-      |> ppat_tuple ~loc
-    in
-    f ~loc pat body
-
-  let map2_impl ~loc (comps : core_type list) =
-    map_impl ~loc (fun ~loc label_fun _ i ->
-        [%expr [%e label_fun] [%e label_field ~loc "x" i] [%e label_field ~loc "y" i]]
-      ) (fun ~loc pat body ->
-        [%expr fun [%p pat "x"] [%p pat "y"] -> [%e body ()]]
-      ) comps
-
-  let create_impl ~loc (comps : core_type list) =
-    map_impl ~loc (fun ~loc label_fun x_expr i ->
-        [%expr [%e label_fun] [%e x_expr]]
-      ) (fun ~loc pat body ->
-        [%expr fun x -> [%e body [%expr x]]]
-      ) comps
-
   let expr ~loc comps =
-    fold1_impl ~loc [%expr true] (fun a b -> [%expr [%e a] && [%e b]]) comps
+    fold1_impl ~loc [%expr 0] (fun a b -> [%expr 31 * [%e a] + [%e b]]) comps
 end
 
 module TypeDeclaration =
