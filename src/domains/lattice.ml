@@ -366,27 +366,15 @@ end
 
 module ProdConf (C: Printable.ProdConfiguration) (Base1: S) (Base2: S) =
 struct
-  include Printable.ProdConf (C) (Base1) (Base2)
-
-  let bot () = (Base1.bot (), Base2.bot ())
-  let is_bot (x1,x2) = Base1.is_bot x1 && Base2.is_bot x2
-  let top () = (Base1.top (), Base2.top ())
-  let is_top (x1,x2) = Base1.is_top x1 && Base2.is_top x2
-
-  let leq (x1,x2) (y1,y2) = Base1.leq x1 y1 && Base2.leq x2 y2
+  module P = Printable.ProdConf (C) (Base1) (Base2)
+  type t = Base1.t * Base2.t [@@deriving lattice]
+  include (P: module type of P with type t := t)
 
   let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc =
     if Base1.leq x1 y1 then
       Base2.pretty_diff () (x2,y2)
     else
       Base1.pretty_diff () (x1,y1)
-
-  let op_scheme op1 op2 (x1,x2) (y1,y2): t = (op1 x1 y1, op2 x2 y2)
-  let join = op_scheme Base1.join Base2.join
-  let meet = op_scheme Base1.meet Base2.meet
-  let narrow = op_scheme Base1.narrow Base2.narrow
-  let widen = op_scheme Base1.widen Base2.widen
-
 end
 
 
