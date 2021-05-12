@@ -14,7 +14,7 @@ type t =
   (** *)
   | Function of CilType.Fundec.t
   (** The variable information associated with the function declaration. *)
-[@@deriving eq, ord, to_yojson]
+[@@deriving eq, ord, hash, to_yojson]
 
 let name () = "node"
 
@@ -59,11 +59,6 @@ let show_cfg = function
   | Function fd      -> "return of " ^ fd.svar.vname ^ "()"
   | FunctionEntry fd -> fd.svar.vname ^ "()"
 
-
-let hash = function
-  | Statement   stmt -> Hashtbl.hash (CilType.Stmt.hash stmt, 0)
-  | Function      fd -> Hashtbl.hash (CilType.Fundec.hash fd, 1)
-  | FunctionEntry fd -> Hashtbl.hash (CilType.Fundec.hash fd, 2)
 
 let location (node: t) =
   match node with

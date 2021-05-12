@@ -1274,7 +1274,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of BigInt.t
     | `Bot
-  ] [@@deriving eq, ord]
+  ] [@@deriving eq, ord, hash]
   type int_t = BigInt.t
   let name () = "def_exc"
 
@@ -1296,11 +1296,6 @@ struct
     | `Excluded (s,l) when S.is_empty s -> "Unknown int" ^ short_size l
     (* Prepend the exclusion sets with something: *)
     | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
-  let hash (x:t) =
-    match x with
-    | `Excluded (s,r) -> S.hash s + R.hash r
-    | `Definite i -> 83*BigInt.hash i
-    | `Bot -> 61426164
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* FIXME: poly compare? *)
@@ -1730,7 +1725,7 @@ end
 module MakeBooleans (N: BooleansNames) =
 struct
   type int_t = IntOps.Int64Ops.t
-  type t = bool [@@deriving eq, ord, to_yojson]
+  type t = bool [@@deriving eq, ord, hash, to_yojson]
   let name () = "booleans"
   let top () = true
   let bot () = false
@@ -1738,7 +1733,6 @@ struct
   let bot_of ik = bot ()
   let show x = if x then N.truename else N.falsename
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash = function true -> 51534333 | _ -> 561123444
   let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
@@ -1796,7 +1790,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
 
-  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord] (* inclusion/exclusion set *)
+  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord, hash] (* inclusion/exclusion set *)
 
   type int_t = BI.t
   let name () = "enums"
@@ -1820,10 +1814,6 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map I.show (BISet.elements xs))) ^ "} " ^ "("^R.show r^")"
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-
-  let hash = function
-    | Inc x -> BISet.hash x
-    | Exc (x, r) -> 31 * R.hash r + 37  * BISet.hash x
 
   (* Normalization function for enums, that handles overflows for Inc.
      As we do not compute on Excl, we do not have to perform any overflow handling for it. *)
