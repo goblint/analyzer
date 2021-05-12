@@ -1,4 +1,5 @@
 (** Terminating top down solver that only keeps values at widening points and restores other values afterwards. *)
+(* This is superseded by td3 but kept as a simpler version without the incremental parts. *)
 
 open Prelude
 open Analyses
@@ -215,4 +216,4 @@ module WP =
 
 let _ =
   let module WP = GlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
-  Selector.add_solver ("space_cache_term", (module WP : GenericGlobSolver));
+  Selector.add_solver ("topdown_space_cache_term", (module WP : GenericGlobSolver));

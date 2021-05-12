@@ -6,6 +6,7 @@
  * - space (false) ? only keep values at widening points (TDspace + side) in rho : keep all values in rho
  * - space_cache (true) ? local cache l for eval calls in each solve (TDcombined) : no cache
  * - space_restore (true) ? eval each rhs and store all in rho : do not restore missing values
+ * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml.
  *)
 
 open Prelude
