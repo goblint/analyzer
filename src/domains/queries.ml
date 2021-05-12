@@ -82,14 +82,14 @@ type result = [
   | `MayBool of bool   (* false \leq true *)
   | `PartAccessResult of PartAccessResult.t
   | `Bot
-] [@@deriving to_yojson]
+] [@@deriving eq, ord, to_yojson]
 
 type ask = t -> result
 
 module Result: Lattice.S with type t = result =
 struct
   include Printable.Std
-  type t = result [@@deriving to_yojson]
+  type t = result [@@deriving eq, ord, to_yojson]
 
   let name () = "query result domain"
 
@@ -99,21 +99,6 @@ struct
   let top () = `Top
   let is_top x = x = `Top
   let top_name = "Unknown"
-
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> ID.equal x y
-    | (`LvalSet x, `LvalSet y) -> LS.equal x y
-    | (`ExprSet x, `ExprSet y) -> ES.equal x y
-    | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
-    | (`TypeSet x, `TypeSet y) -> TS.equal x y
-    | (`Varinfo x, `Varinfo y) -> VI.equal x y
-    | (`MustBool x, `MustBool y) -> Bool.equal x y
-    | (`MayBool x, `MayBool y) -> Bool.equal x y
-    | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.equal x y
-    | _ -> false
 
   let hash (x:t) =
     match x with
@@ -126,33 +111,6 @@ struct
     | `PartAccessResult n -> PartAccessResult.hash n
     (* `MustBool and `MayBool should work by the following *)
     | _ -> Hashtbl.hash x
-
-  let compare x y =
-    let constr_to_int x = match x with
-      | `Bot -> 0
-      | `Int _ -> 1
-      | `LvalSet _ -> 2
-      | `ExprSet _ -> 3
-      | `ExpTriples _ -> 4
-      | `Str _ -> 5
-      | `IntSet _ -> 6
-      | `TypeSet _ -> 7
-      | `Varinfo _ -> 8
-      | `MustBool _ -> 9
-      | `MayBool _ -> 10
-      | `PartAccessResult _ -> 11
-      | `Top -> 100
-    in match x,y with
-    | `Int x, `Int y -> ID.compare x y
-    | `LvalSet x, `LvalSet y -> LS.compare x y
-    | `ExprSet x, `ExprSet y -> ES.compare x y
-    | `ExpTriples x, `ExpTriples y -> PS.compare x y
-    | `TypeSet x, `TypeSet y -> TS.compare x y
-    | `Varinfo x, `Varinfo y -> VI.compare x y
-    | `MustBool x, `MustBool y -> Bool.compare x y
-    | `MayBool x, `MayBool y -> Bool.compare x y
-    | `PartAccessResult x, `PartAccessResult y -> PartAccessResult.compare x y
-    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty () state =
     match state with

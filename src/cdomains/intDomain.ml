@@ -457,7 +457,7 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 struct
   let name () = "intervals"
   type int_t = Ints_t.t
-  type t = (Ints_t.t * Ints_t.t) option
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq]
   let to_yojson t = failwith "to yojson unimplemented"
 
   let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
@@ -472,11 +472,6 @@ struct
   let is_bot x  = failwith "is_bot not implemented for intervals"
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
-
-  let equal a b = match a, b with
-    | None, None -> true
-    | Some (a, b), Some (c, d) -> Ints_t.equal a c && Ints_t.equal b d
-    | _, _ -> false
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -782,7 +777,7 @@ module Integers : IkindUnawareS with type t = int64 and type int_t = int64 = (* 
 struct
   include Printable.Std
   let name () = "integers"
-  type t = int64 [@@deriving to_yojson]
+  type t = int64 [@@deriving eq, to_yojson]
   type int_t = int64
   let top () = raise Unknown
   let bot () = raise Error
@@ -790,9 +785,8 @@ struct
   let bot_of ik = bot ()
   let show x = if x = GU.inthack then "*" else Int64.to_string x
 
-  let equal = Int64.equal
-
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  (* FIXME: poly compare *)
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
@@ -1046,7 +1040,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of BigInt.t
     | `Bot
-  ] [@@deriving to_yojson]
+  ] [@@deriving eq, to_yojson]
   type int_t = BigInt.t
   let name () = "def_exc"
 
@@ -1073,14 +1067,9 @@ struct
     | `Excluded (s,r) -> S.hash s + R.hash r
     | `Definite i -> 83*BigInt.hash i
     | `Bot -> 61426164
-  let equal x y =
-    match x, y with
-    | `Bot, `Bot -> true
-    | `Definite x, `Definite y -> BigInt.equal x y
-    | `Excluded (xs,xw), `Excluded (ys,yw) -> S.equal xs ys && R.equal xw yw
-    | _ -> false
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  (* FIXME: poly compare? *)
 
   let is_top x = x = top ()
 
@@ -1484,14 +1473,13 @@ end
 module MakeBooleans (N: BooleansNames) =
 struct
   type int_t = IntOps.Int64Ops.t
-  type t = bool [@@deriving to_yojson]
+  type t = bool [@@deriving eq, to_yojson]
   let name () = "booleans"
   let top () = true
   let bot () = false
   let top_of ik = top ()
   let bot_of ik = bot ()
   let show x = if x then N.truename else N.falsename
-  let equal = Bool.equal
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   let hash = function true -> 51534333 | _ -> 561123444
   let is_top x = x (* override Std *)
@@ -1554,7 +1542,7 @@ module Enums : S with type int_t = BigInt.t = struct
     include SetDomain.Make(I)
     let is_singleton s = cardinal s = 1
   end
-  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving to_yojson] (* inclusion/exclusion set *)
+  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving eq, to_yojson] (* inclusion/exclusion set *)
 
   type int_t = BI.t
   let name () = "enums"
@@ -1566,10 +1554,6 @@ module Enums : S with type int_t = BigInt.t = struct
   let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
 
-  let equal u v = match u, v with
-    | Inc x, Inc y -> ISet.equal x y
-    | Exc (x, r), Exc (y, s) -> ISet.equal x y && R.equal r s
-    | _, _ -> false
   let show = function
     | Inc xs when ISet.is_empty xs -> "bot"
     | Inc xs -> "{" ^ (String.concat ", " (List.map I.show (ISet.elements  xs))) ^ "}"

@@ -18,8 +18,7 @@ module SLR3 =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t
-      let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
+      type t = S.Var.t * S.Var.t [@@deriving eq]
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
@@ -235,8 +234,7 @@ module Make =
     struct
       module P =
       struct
-        type t = S.Var.t * S.Var.t
-        let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
+        type t = S.Var.t * S.Var.t [@@deriving eq]
         let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2
       end
       module HPM = Hashtbl.Make (P)
@@ -411,7 +409,7 @@ module Make =
 
           let tmp = do_side x (eq x (eval x) (side x)) in
           let use_box = (not (V.ver>1)) || HM.mem wpoint x in
-          let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "ana.restart_count") in
+          let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "exp.solver.slr4.restart_count") in
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
