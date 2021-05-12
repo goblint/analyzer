@@ -777,7 +777,7 @@ module Integers : IkindUnawareS with type t = int64 and type int_t = int64 = (* 
 struct
   include Printable.Std
   let name () = "integers"
-  type t = int64 [@@deriving eq, to_yojson]
+  type t = int64 [@@deriving eq, hash, to_yojson]
   type int_t = int64
   let top () = raise Unknown
   let bot () = raise Error
@@ -787,7 +787,6 @@ struct
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* FIXME: poly compare *)
-  let hash (x:t) = ((Int64.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
   let is_bot _ = false
@@ -1473,7 +1472,7 @@ end
 module MakeBooleans (N: BooleansNames) =
 struct
   type int_t = IntOps.Int64Ops.t
-  type t = bool [@@deriving eq, to_yojson]
+  type t = bool [@@deriving eq, hash, to_yojson]
   let name () = "booleans"
   let top () = true
   let bot () = false
@@ -1481,7 +1480,6 @@ struct
   let bot_of ik = bot ()
   let show x = if x then N.truename else N.falsename
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash = function true -> 51534333 | _ -> 561123444
   let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"

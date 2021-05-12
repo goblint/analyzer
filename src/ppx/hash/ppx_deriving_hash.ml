@@ -16,6 +16,8 @@ struct
       [%expr Char.code]
     | [%type: bool] ->
       [%expr Bool.to_int]
+    | [%type: int64] ->
+      [%expr Int64.to_int]
     | [%type: [%t? a] option] ->
       [%expr function
         | Some x -> [%e CoreType.expr ~loc a] x
