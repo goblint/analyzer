@@ -1,0 +1,8 @@
+(library
+ (name ppx_deriving_hash)
+ (public_name goblint.ppx_deriving_hash)
+ (kind ppx_deriver)
+ (libraries ppxlib)
+ (preprocess (pps ppxlib.metaquot)))
+
+(include_subdirs no)

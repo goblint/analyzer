@@ -13,7 +13,7 @@
     qcheck-core.runner)
   (preprocess
     (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson
-      ppx_distr_guards ocaml-monadic ppx_deriving_lattice))
+      ppx_distr_guards ocaml-monadic ppx_deriving_lattice ppx_deriving_hash))
 )
 
 (executables
