@@ -26,8 +26,7 @@ module TD2 =
 
     module P =
     struct
-      type t = S.Var.t * int * S.Var.t [@@deriving eq]
-      let hash (x1,x2,x3) = (S.Var.hash x1 - 800) * (x2+1) * S.Var.hash x3
+      type t = S.Var.t * int * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -216,8 +215,7 @@ module TD3 =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)

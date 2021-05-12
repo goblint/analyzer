@@ -522,9 +522,8 @@ end
 
 module Strings =
 struct
-  type t = string [@@deriving eq, to_yojson]
+  type t = string [@@deriving eq, hash, to_yojson]
   include StdPolyCompare
-  let hash (x:t) = Hashtbl.hash x
   let pretty () n = text n
   let show n = n
   let name () = "String"

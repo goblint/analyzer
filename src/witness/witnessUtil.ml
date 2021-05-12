@@ -48,15 +48,11 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
 module HashedPair (M1: Hashtbl.HashedType) (M2: Hashtbl.HashedType):
   Hashtbl.HashedType with type t = M1.t * M2.t =
 struct
-  type t = M1.t * M2.t [@@deriving eq]
-  (* copied from Printable.Prod *)
-  let hash (x,y) = M1.hash x + M2.hash y * 17
+  type t = M1.t * M2.t [@@deriving eq, hash]
 end
 
 module HashedList (M: Hashtbl.HashedType):
   Hashtbl.HashedType with type t = M.t list =
 struct
-  type t = M.t list [@@deriving eq]
-  (* copied from Printable.Liszt *)
-  let hash = List.fold_left (fun xs x -> xs + M.hash x) 996699
+  type t = M.t list [@@deriving eq, hash]
 end

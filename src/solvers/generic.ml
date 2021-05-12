@@ -32,10 +32,9 @@ end
 (* move this to some other place! *)
 module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
 struct
-  type t = B.t * int [@@deriving eq, ord]
+  type t = B.t * int [@@deriving eq, hash, ord]
   let relift x = x
   let category (u,_) = B.category u
-  let hash (u,v) = B.hash u + 131233 * v
   let pretty_trace () (u,v:t) =
     Pretty.dprintf "(%a,%d)" B.pretty_trace u v
 
