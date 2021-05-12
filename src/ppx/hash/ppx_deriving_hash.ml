@@ -25,6 +25,8 @@ struct
         | Some x -> [%e CoreType.expr ~loc a] x
         | None -> 31
       ]
+    | [%type: [%t? a] list] ->
+      [%expr List.fold_left (fun a b -> 31 * a + [%e CoreType.expr ~loc a] b) 0]
     | {ptyp_desc = Ptyp_constr ({txt = Ldot (forward_module, "t"); loc}, _); _} ->
       pexp_ident ~loc {loc; txt = Ldot (forward_module, "hash")}
     | {ptyp_desc = Ptyp_tuple comps; _} ->

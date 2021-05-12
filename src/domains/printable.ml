@@ -326,11 +326,9 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t [@@deriving eq, ord, to_yojson]
+  type t = Base1.t * Base2.t [@@deriving eq, ord, hash, to_yojson]
 
   include Std
-
-  let hash (x,y) = Base1.hash x + Base2.hash y * 17
 
   let show (x,y) =
     (* TODO: remove ref *)
@@ -372,9 +370,8 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, to_yojson]
+  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash, to_yojson]
   include Std
-  let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
 
   let show (x,y,z) =
     (* TODO: remove ref *)
@@ -407,9 +404,8 @@ end
 
 module Liszt (Base: S) =
 struct
-  type t = Base.t list [@@deriving eq, ord, to_yojson]
+  type t = Base.t list [@@deriving eq, ord, hash, to_yojson]
   include Std
-  let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
   let show x =
     let elems = List.map Base.show x in
