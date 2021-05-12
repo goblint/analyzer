@@ -1535,7 +1535,7 @@ module Enums : S with type int_t = BigInt.t = struct
     include SetDomain.Make(I)
     let is_singleton s = cardinal s = 1
   end
-  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving eq, to_yojson] (* inclusion/exclusion set *)
+  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving eq, hash, to_yojson] (* inclusion/exclusion set *)
 
   type int_t = BI.t
   let name () = "enums"
@@ -1564,10 +1564,6 @@ module Enums : S with type int_t = BigInt.t = struct
         let comp_sets = ISet.compare x y in
         if comp_sets = 0 then R.compare r s else comp_sets
     | _, _ -> compare (value a) (value b)
-
-  let hash = function
-    | Inc x -> ISet.hash x
-    | Exc (x, r) -> 31 * R.hash r + 37  * ISet.hash x
 
   let norm ikind v =
     let min, max = min_int ikind, max_int ikind in

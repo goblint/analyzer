@@ -27,11 +27,11 @@ let rec expr ~loc ct = match ct with
   | {ptyp_desc = Ptyp_tuple comps; _} ->
     expr_tuple ~loc comps
   | {ptyp_desc = Ptyp_variant (rows, Closed, None); _} ->
-    expr_variant ~loc rows
+    expr_poly_variant ~loc rows
   | _ ->
     Location.raise_errorf ~loc "other"
 
-and expr_variant ~loc rows =
+and expr_poly_variant ~loc rows =
   rows
   |> List.map (fun {prf_desc; _} ->
       match prf_desc with
@@ -44,6 +44,42 @@ and expr_variant ~loc rows =
         case ~lhs:(ppat_variant ~loc label (Some [%pat? x]))
           ~guard:None
           ~rhs:([%expr [%e label_fun] x])
+      | _ ->
+        Location.raise_errorf ~loc "other variant"
+    )
+  |> pexp_function ~loc
+
+and expr_variant ~loc constrs =
+  constrs
+  |> List.map (fun {pcd_name = {txt = label; loc}; pcd_args; pcd_res; _} ->
+      match pcd_res, pcd_args with
+      | None, Pcstr_tuple cts ->
+        let label_field ~loc prefix i =
+          let name = prefix ^ string_of_int i in
+          pexp_ident ~loc {loc; txt = Lident name}
+        in
+        let body =
+          cts
+          |> List.mapi (fun i comp_type ->
+              (i, expr ~loc comp_type)
+            )
+          |> List.map (fun (i, label_fun) ->
+              [%expr [%e label_fun] [%e label_field ~loc "x" i]]
+            )
+          |> List.fold_left (fun a b -> [%expr 31 * [%e a] + [%e b]]) [%expr 0]
+        in
+        let pat prefix =
+          cts
+          |> List.mapi (fun i comp_type ->
+              let name = prefix ^ string_of_int i in
+              ppat_var ~loc {loc; txt = name}
+            )
+          |> ppat_tuple ~loc
+          |> fun x -> ppat_construct ~loc {loc; txt = Lident label} (Some x)
+        in
+        case ~lhs:(pat "x")
+          ~guard:None
+          ~rhs:body
       | _ ->
         Location.raise_errorf ~loc "other variant"
     )
@@ -95,8 +131,8 @@ let expr_declaration ~loc td = match td with
     expr ~loc ct
   | {ptype_kind = Ptype_abstract; _} ->
     Location.raise_errorf ~loc "Cannot derive accessors for abstract types"
-  | {ptype_kind = Ptype_variant _; _} ->
-    Location.raise_errorf ~loc "Cannot derive accessors for variant types"
+  | {ptype_kind = Ptype_variant constrs; _} ->
+    expr_variant ~loc constrs
   | {ptype_kind = Ptype_open; _} ->
     Location.raise_errorf ~loc "Cannot derive accessors for open types"
   | {ptype_kind = Ptype_record fields; _} ->
