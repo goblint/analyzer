@@ -1039,7 +1039,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of BigInt.t
     | `Bot
-  ] [@@deriving eq, to_yojson]
+  ] [@@deriving eq, hash, to_yojson]
   type int_t = BigInt.t
   let name () = "def_exc"
 
@@ -1061,11 +1061,6 @@ struct
     | `Excluded (s,l) when S.is_empty s -> "Unknown int" ^ short_size l
     (* Prepend the exclusion sets with something: *)
     | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
-  let hash (x:t) =
-    match x with
-    | `Excluded (s,r) -> S.hash s + R.hash r
-    | `Definite i -> 83*BigInt.hash i
-    | `Bot -> 61426164
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* FIXME: poly compare? *)

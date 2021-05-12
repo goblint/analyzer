@@ -26,8 +26,28 @@ let rec expr ~loc ct = match ct with
     pexp_ident ~loc {loc; txt = Ldot (forward_module, "hash")}
   | {ptyp_desc = Ptyp_tuple comps; _} ->
     expr_tuple ~loc comps
+  | {ptyp_desc = Ptyp_variant (rows, Closed, None); _} ->
+    expr_variant ~loc rows
   | _ ->
     Location.raise_errorf ~loc "other"
+
+and expr_variant ~loc rows =
+  rows
+  |> List.map (fun {prf_desc; _} ->
+      match prf_desc with
+      | Rtag ({txt = label; loc}, true, []) ->
+        case ~lhs:(ppat_variant ~loc label None)
+          ~guard:None
+          ~rhs:([%expr 31])
+      | Rtag ({txt = label; loc}, false, [ct]) ->
+        let label_fun = expr ~loc ct in
+        case ~lhs:(ppat_variant ~loc label (Some [%pat? x]))
+          ~guard:None
+          ~rhs:([%expr [%e label_fun] x])
+      | _ ->
+        Location.raise_errorf ~loc "other variant"
+    )
+  |> pexp_function ~loc
 
 and expr_record ~loc lds =
   let label_field ~loc record_expr label =

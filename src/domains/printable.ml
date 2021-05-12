@@ -199,16 +199,11 @@ end
 
 module Lift (Base: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord, to_yojson]
+  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord, hash, to_yojson]
   include Std
   include N
 
   let lift x = `Lifted x
-
-  let hash = function
-    | `Top -> 4627833
-    | `Bot -> -30385673
-    | `Lifted x -> Base.hash x * 13
 
   let show state =
     match state with
@@ -249,13 +244,8 @@ end
 
 module Either (Base1: S) (Base2: S) =
 struct
-  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, to_yojson]
+  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, hash, to_yojson]
   include Std
-
-  let hash state =
-    match state with
-    | `Left n ->  Base1.hash n
-    | `Right n ->  133 * Base2.hash n
 
   let pretty () (state:t) =
     match state with
@@ -282,16 +272,9 @@ module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, to_yojson]
+  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, hash, to_yojson]
   include Std
   include N
-
-  let hash state =
-    match state with
-    | `Lifted1 n -> Base1.hash n
-    | `Lifted2 n -> 77 * Base2.hash n
-    | `Bot -> 13432255
-    | `Top -> -33434577
 
   let pretty () (state:t) =
     match state with
@@ -450,14 +433,10 @@ end
 
 module LiftBot (Base : S) =
 struct
-  type t = [`Bot | `Lifted of Base.t ] [@@deriving eq, ord, to_yojson]
+  type t = [`Bot | `Lifted of Base.t ] [@@deriving eq, ord, hash, to_yojson]
   include Std
 
   let lift x = `Lifted x
-
-  let hash = function
-    | `Bot -> 56613454
-    | `Lifted n -> Base.hash n
 
   let show state =
     match state with
@@ -478,14 +457,10 @@ end
 
 module LiftTop (Base : S) =
 struct
-  type t = [`Top | `Lifted of Base.t ] [@@deriving eq, ord, to_yojson]
+  type t = [`Top | `Lifted of Base.t ] [@@deriving eq, ord, hash, to_yojson]
   include Std
 
   let lift x = `Lifted x
-
-  let hash = function
-    | `Top -> 7890
-    | `Lifted n -> Base.hash n
 
   let show state =
     match state with
