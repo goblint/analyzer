@@ -3,7 +3,6 @@
 open Prelude
 open Cil
 open MyCFG
-open Pretty
 open Analyses
 open GobConfig
 
