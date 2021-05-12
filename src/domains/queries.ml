@@ -1,7 +1,6 @@
 (** Structures for the querying subsystem. *)
 
 open Deriving.Cil
-open Pretty
 
 module GU = Goblintutil
 module ID = IntDomain.Flattened
