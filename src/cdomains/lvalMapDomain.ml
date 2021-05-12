@@ -266,7 +266,7 @@ struct
   let keys_from_lval lval (ask: Queries.ask) = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)
     let query_lv (ask: Queries.ask) exp = match ask.f (Queries.MayPointTo exp) with
-      | LvalSet l when not (Queries.LS.is_top l) -> Queries.LS.elements l
+      | l when not (Queries.LS.is_top l) -> Queries.LS.elements l
       | _ -> []
     in
     let exp = AddrOf lval in

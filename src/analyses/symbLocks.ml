@@ -57,17 +57,14 @@ struct
   let get_all_locks (ask: Queries.ask) e st : PS.t =
     let exps =
       match ask.f (Queries.EqualSet e) with
-      | ExprSet a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
+      | a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
       | _ -> Queries.ES.singleton e
     in
     let add_locks x xs = PS.union (get_locks x st) xs in
     Queries.ES.fold add_locks exps (PS.empty ())
 
   let same_unknown_index (ask: Queries.ask) exp slocks =
-    let uk_index_equal i1 i2 =
-      let MustBool b = ask.f (Queries.MustBeEqual (i1, i2)) in
-      b
-    in
+    let uk_index_equal i1 i2 = ask.f (Queries.MustBeEqual (i1, i2)) in
     let lock_index ei ee x xs =
       match Exp.one_unknown_array_index x with
       | Some (true, i, e) when uk_index_equal ei i ->
@@ -198,11 +195,11 @@ struct
     let matching_exps =
       Queries.ES.meet
         (match ctx.ask (Queries.EqualSet e) with
-         | ExprSet es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
+         | es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
            -> Queries.ES.add e es
          | _ -> Queries.ES.singleton e)
         (match ctx.ask (Queries.Regions e) with
-         | LvalSet ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
+         | ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
                 try Queries.ES.add (Lval.CilLval.to_exp x) xs
                 with Lattice.BotValue -> xs
@@ -223,7 +220,7 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.PartAccess {exp; var_opt; write} ->
-      PartAccessResult (part_access ctx exp var_opt write)
+      part_access ctx exp var_opt write
     | _ -> Queries.Result.top q
 end
 

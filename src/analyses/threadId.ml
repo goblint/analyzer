@@ -10,8 +10,7 @@ module Thread = ConcDomain.Thread
 module ThreadLifted = ConcDomain.ThreadLifted
 
 let get_current (ask: Queries.ask): ThreadLifted.t =
-  let Varinfo v = ask.f Queries.CurrentThreadId in
-  v
+  ask.f Queries.CurrentThreadId
 
 let get_current_unlift ask: Thread.t =
   match get_current ask with
@@ -62,8 +61,7 @@ struct
     ctx.local
 
   let is_unique ctx =
-    let MustBool b = ctx.ask Queries.MustBeUniqueThread in
-    b
+    ctx.ask Queries.MustBeUniqueThread
 
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
@@ -74,11 +72,11 @@ struct
     else
       (Access.LSSSet.singleton es, es)
 
-  let query ctx (type a) (x: a Queries.t): a Queries.result =
+  let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.CurrentThreadId -> Varinfo ctx.local
+    | Queries.CurrentThreadId -> ctx.local
     | Queries.PartAccess {exp; var_opt; write} ->
-      PartAccessResult (part_access ctx exp var_opt write)
+      part_access ctx exp var_opt write
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =

@@ -10,8 +10,7 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
   if not v.vaddrof then
     false (* Cannot have escaped without taking address. Override provides extra precision for degenerate ask in base eval_exp used for partitioned arrays. *)
   else
-    let MayBool b = ask.f (Queries.MayEscape v) in
-    b
+    ask.f (Queries.MayEscape v)
     (* | Top ->
       M.warn @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
       true *)
@@ -28,9 +27,8 @@ struct
 
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let open Queries in
     match q with
-    | Queries.MayEscape v -> MayBool (D.mem v ctx.local)
+    | Queries.MayEscape v -> D.mem v ctx.local
     | _ -> Queries.Result.top q
 
   (* transfer functions *)
@@ -60,7 +58,7 @@ struct
 
   let reachable (ask: Queries.ask) e: D.t =
     match ask.f (Queries.ReachableFrom e) with
-    | LvalSet a when not (Queries.LS.is_top a) ->
+    | a when not (Queries.LS.is_top a) ->
       (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
       let to_extra (v,o) set = D.add v set in
       Queries.LS.fold to_extra a (D.empty ())

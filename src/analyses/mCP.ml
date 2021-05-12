@@ -521,6 +521,7 @@ struct
 
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+    let module Result = (val Queries.Result.lattice q) in
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
@@ -543,14 +544,14 @@ struct
         }
       in
       (* meet results so that precision from all analyses is combined *)
-      Queries.Result.meet a @@ S.query ctx' q
+      Result.meet a @@ S.query ctx' q
     in
     match q with
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-      Unit ()
+      ()
     | _ ->
-      fold_left f (Queries.Result.top q) @@ spec_list ctx.local
+      fold_left f (Result.top ()) @@ spec_list ctx.local
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in

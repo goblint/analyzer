@@ -68,15 +68,14 @@ struct
       newvar
 
   let query ctx (type a) (q: a Q.t): a Queries.result =
-    let open Queries in
     match q with
     | Q.HeapVar ->
       let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
       | _ -> MyCFG.getLoc ctx.node in
-      Varinfo (`Lifted (get_heap_var loc))
+      `Lifted (get_heap_var loc)
     | Q.IsHeapVar v ->
-      MayBool (Hashtbl.mem heap_vars v.vid)
+      Hashtbl.mem heap_vars v.vid
     | _ -> Queries.Result.top q
 
     let init () =

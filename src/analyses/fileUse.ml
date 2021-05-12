@@ -27,7 +27,7 @@ struct
 
   let query_lv (ask: Queries.ask) exp =
     match ask.f (Queries.MayPointTo exp) with
-    | LvalSet l when not (Queries.LS.is_top l) ->
+    | l when not (Queries.LS.is_top l) ->
       Queries.LS.elements l
     | _ -> []
   let print_query_lv ?msg:(msg="") ask exp =
@@ -42,7 +42,7 @@ struct
 
   let query_eq (ask: Queries.ask) exp =
     match ask.f (Queries.EqualSet exp) with
-    | ExprSet l when not (Queries.ES.is_top l) ->
+    | l when not (Queries.ES.is_top l) ->
       Queries.ES.elements l
     | _ -> []
   let print_query_eq ?msg:(msg="") ask exp =
@@ -255,7 +255,7 @@ struct
          | e::Const(CStr(mode))::[] ->
            (* ignore(printf "CIL: %a\n" d_plainexp e); *)
            (match ctx.ask (Queries.EvalStr e) with
-            | Str (`Lifted filename) -> D.fopen k loc filename mode m
+            | `Lifted filename -> D.fopen k loc filename mode m
             | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
            )
          | xs ->

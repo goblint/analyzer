@@ -1,11 +1,20 @@
-(* TODO: implement lattice *)
-module MayBool =
+module Bool =
 struct
-  type t = bool
-  let bot () = false
-  let top () = true
+  include Basetype.RawBools
+  (* type t = bool
   let equal = Bool.equal
   let compare = Bool.compare
+  let relift x = x
+  let arbitrary () = QCheck.bool *)
+end
+
+module MayBool: Lattice.S with type t = bool =
+struct
+  include Bool
+  let bot () = false
+  let is_bot x = x = false
+  let top () = true
+  let is_top x = x = true
   let leq x y = x == y || y
   let join = (||)
   let widen = (||)
@@ -13,14 +22,13 @@ struct
   let narrow = (&&)
 end
 
-(* TODO: implement lattice *)
-module MustBool =
+module MustBool: Lattice.S with type t = bool =
 struct
-  type t = bool
+  include Bool
   let bot () = true
+  let is_bot x = x = true
   let top () = false
-  let equal = Bool.equal
-  let compare = Bool.compare
+  let is_top x = x = false
   let leq x y = x == y || x
   let join = (&&)
   let widen = (&&)

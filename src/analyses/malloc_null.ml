@@ -58,7 +58,7 @@ struct
       match e with
       | Lval (Var v, offs) ->
         begin match a.f (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
-          | LvalSet a when not (Queries.LS.is_top a)
+          | a when not (Queries.LS.is_top a)
                          && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
             Queries.LS.iter (fun (v,o) -> warn_lval st (v, conv_offset o)) a
           | _ -> ()
@@ -107,7 +107,7 @@ struct
     let reachable =
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
-        | LvalSet a when not (Queries.LS.is_top a)  ->
+        | a when not (Queries.LS.is_top a)  ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra a []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
@@ -126,7 +126,7 @@ struct
 
   let get_concrete_lval (ask: Queries.ask) (lval:lval) =
     match ask.f (Queries.MayPointTo (mkAddrOf lval)) with
-    | LvalSet a when Queries.LS.cardinal a = 1
+    | a when Queries.LS.cardinal a = 1
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let v, o = Queries.LS.choose a in
       Some (Var v, conv_offset o)
@@ -140,7 +140,7 @@ struct
 
   let might_be_null (ask: Queries.ask) lv gl st =
     match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
-    | LvalSet a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let one_addr_might (v,o) =
         D.exists (fun x -> List.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
       in

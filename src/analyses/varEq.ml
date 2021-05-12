@@ -157,10 +157,7 @@ struct
     type_may_change_t a bt
 
   let may_change_pt ask (b:exp) (a:exp) : bool =
-    let pt e =
-      match ask (Queries.MayPointTo e) with
-      | Queries.LvalSet ls -> ls
-    in
+    let pt e = ask (Queries.MayPointTo e) in
     let rec lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
         match o with
@@ -196,10 +193,7 @@ struct
 
   let may_change (ask: Queries.ask) (b:exp) (a:exp) : bool =
     (*b should be an address of something that changes*)
-    let pt e =
-      let LvalSet ls = ask.f (Queries.MayPointTo e) in
-      ls
-    in
+    let pt e = ask.f (Queries.MayPointTo e) in
     let bls = pt b in
     let bt =
       match unrollTypeDeep (typeOf b) with
@@ -347,7 +341,7 @@ struct
       D.filter (not_in v) st
     in
     match ask (Queries.MayPointTo (mkAddrOf e)) with
-      | LvalSet rv when not (Queries.LS.is_top rv) ->
+      | rv when not (Queries.LS.is_top rv) ->
           Queries.LS.fold remove_simple rv st
       | _ -> D.top ()
     *)
@@ -365,7 +359,7 @@ struct
     | Lval (Var v,_) -> Some v.vglob
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointTo e) with
-        | LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
+        | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
           Some (Queries.LS.exists (fun (v, _) -> is_global_var ask (Lval (var v)) = Some true) ls)
         | _ -> Some true
       end
@@ -393,7 +387,7 @@ struct
         match rv with
         | Lval rlval -> begin
             match ask (Queries.MayPointTo (mkAddrOf rlval)) with
-              | LvalSet rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 ->
+              | rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 ->
                   let rv = Exp.of_clval (Queries.LS.choose rv) in
                   if is_local lv && Exp.is_global_var rv = Some false
                   then D.add_eq (rv,Lval lv) st
@@ -408,7 +402,7 @@ struct
       match st with
       | None -> None
       | Some st ->
-        let LvalSet vs = ask.f (Queries.ReachableFrom e) in
+        let vs = ask.f (Queries.ReachableFrom e) in
         Some (Queries.LS.join vs st)
     in
     List.fold_right reachable es (Some (Queries.LS.empty ()))
@@ -581,11 +575,11 @@ struct
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.MustBeEqual (e1,e2) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
-      MustBool true
+      true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
       (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
-      ExprSet r
+      r
     | _ -> Queries.Result.top x
 
 end

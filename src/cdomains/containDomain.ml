@@ -548,7 +548,7 @@ struct
       used_args st e
   (*
       match ask (Queries.MayPointTo e) with
-          | LvalSet s when not (Queries.LS.is_top s) ->
+          | s when not (Queries.LS.is_top s) ->
               Queries.LS.fold (fun (v,_) st -> ArgSet.add (FieldVars.gen v) st) s (ArgSet.empty ())
           | _ -> ArgSet.bot ()
 		*)

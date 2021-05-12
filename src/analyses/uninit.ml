@@ -42,7 +42,7 @@ struct
 
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
-    | LvalSet a when not (Queries.LS.is_top a) ->
+    | a when not (Queries.LS.is_top a) ->
       let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
       Queries.LS.fold to_extra a []
     | _ ->
@@ -88,7 +88,7 @@ struct
      * can all be written to. *)
     let do_exp e =
       match ask (Queries.ReachableFrom e) with
-      | Queries.LvalSet a when not (Queries.LS.is_top a) ->
+      | a when not (Queries.LS.is_top a) ->
         let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
         Queries.LS.fold to_extra a []
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
@@ -200,7 +200,7 @@ struct
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
     match a.f (Queries.MayPointTo (AddrOf lv)) with
-    | LvalSet a when Queries.LS.cardinal a = 1 ->  begin
+    | a when Queries.LS.cardinal a = 1 ->  begin
         let var, ofs = Queries.LS.choose a in
         init_vo var (conv_offset ofs)
       end
@@ -226,7 +226,7 @@ struct
     let reachable =
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
-        | LvalSet a when not (Queries.LS.is_top a) ->
+        | a when not (Queries.LS.is_top a) ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra a []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
