@@ -182,7 +182,7 @@ let _ = ()
       ; reg Experimental "exp.solver.td3.side_widen" "'cycle'" "When to widen in side. never: never widen, always: always widen, cycle: widen if any called var gets destabilzed, cycle_self: widen if side-effected var gets destabilized"
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
-      ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Needed for inspecting output!"
+      ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"
       ; reg Experimental "exp.solver.slr4.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
       ; reg Experimental "exp.fast_global_inits" "true" "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n]."
       ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null."
