@@ -435,12 +435,11 @@ end
 
 module Chain (P: ChainParams): S with type t = int =
 struct
-  type t = int [@@deriving eq, ord, yojson]
+  type t = int [@@deriving eq, ord, hash, yojson]
   include Std
 
   let show x = P.names x
   let pretty () x = text (show x)
-  let hash x = x-5284
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)

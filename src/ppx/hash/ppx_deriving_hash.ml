@@ -18,6 +18,8 @@ struct
       [%expr Bool.to_int]
     | [%type: int64] ->
       [%expr Int64.to_int]
+    | [%type: int] ->
+      [%expr fun x -> x]
     | [%type: unit] ->
       [%expr fun () -> 31]
     | [%type: [%t? a] option] ->
