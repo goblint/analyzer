@@ -414,14 +414,9 @@ end
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  include Printable.Prod3 (Base1) (Base2) (Base3)
-
-  let bot () = (Base1.bot (), Base2.bot (), Base3.bot ())
-  let is_bot (x1,x2,x3) = Base1.is_bot x1 && Base2.is_bot x2 && Base3.is_bot x3
-  let top () = (Base1.top (), Base2.top (), Base3.top ())
-  let is_top (x1,x2,x3) = Base1.is_top x1 && Base2.is_top x2 && Base3.is_top x3
-
-  let leq (x1,x2,x3) (y1,y2,y3) = Base1.leq x1 y1 && Base2.leq x2 y2 && Base3.leq x3 y3
+  module P = Printable.Prod3 (Base1) (Base2) (Base3)
+  type t = Base1.t * Base2.t * Base3.t [@@deriving lattice]
+  include (P: module type of P with type t := t)
 
   let pretty_diff () ((x1,x2,x3:t),(y1,y2,y3:t)): Pretty.doc =
     if not (Base1.leq x1 y1) then
@@ -430,12 +425,6 @@ struct
       Base2.pretty_diff () (x2,y2)
     else
       Base3.pretty_diff () (x3,y3)
-
-  let op_scheme op1 op2 op3 (x1,x2,x3) (y1,y2,y3): t = (op1 x1 y1, op2 x2 y2, op3 x3 y3)
-  let join = op_scheme Base1.join Base2.join Base3.join
-  let meet = op_scheme Base1.meet Base2.meet Base3.meet
-  let widen = op_scheme Base1.widen Base2.widen Base3.widen
-  let narrow = op_scheme Base1.narrow Base2.narrow Base3.narrow
 end
 
 module LiftBot (Base : S) =
