@@ -62,7 +62,6 @@ struct
   let hash    (x,_)             = Hashtbl.hash x
   let equal   (x1,_) (y1,_) = CPA.equal x1 y1
   let leq     (x1,_) (y1,_) = CPA.leq   x1 y1
-  let compare (x1,_) (y1,_) = CPA.compare x1 y1
 
 
   (**************************************************************************

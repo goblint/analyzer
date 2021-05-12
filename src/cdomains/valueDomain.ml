@@ -90,7 +90,7 @@ struct
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ] [@@deriving to_yojson]
+  ] [@@deriving ord, to_yojson]
 
   let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -223,27 +223,6 @@ struct
     | `Array n -> 31 * CArrays.hash n
     | `Blob n -> 37 * Blobs.hash n
     | _ -> Hashtbl.hash x
-
-  let compare x y =
-    let constr_to_int x = match x with
-      | `Bot -> 0
-      | `Int _ -> 1
-      | `Address _ -> 3
-      | `Struct _ -> 5
-      | `Union _ -> 6
-      | `Array _ -> 7
-      | `Blob _ -> 9
-      | `List _ -> 10
-      | `Top -> 100
-    in match x,y with
-    | `Int x, `Int y -> ID.compare x y
-    | `Address x, `Address y -> AD.compare x y
-    | `Struct x, `Struct y -> Structs.compare x y
-    | `Union x, `Union y -> Unions.compare x y
-    | `Array x, `Array y -> CArrays.compare x y
-    | `List x, `List y -> Lists.compare x y
-    | `Blob x, `Blob y -> Blobs.compare x y
-    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty () state =
     match state with

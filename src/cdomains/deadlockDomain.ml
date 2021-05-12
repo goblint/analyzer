@@ -13,7 +13,7 @@ struct
   let name () = "address with location"
   let equal x y = Ad.equal x.addr y.addr
   let hash x = Ad.hash x.addr
-  let compare x y = Ad.compare x.addr y.addr
+  let compare x y = Ad.compare x.addr y.addr (* ignores loc field *)
   let show x = (Ad.show x.addr) ^ "@" ^ (Basetype.ProgLines.show x.loc)
   let pretty () x = Ad.pretty () x.addr ++ text "@" ++ Basetype.ProgLines.pretty () x.loc
   let printXml c x = Ad.printXml c x.addr

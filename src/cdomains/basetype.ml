@@ -10,7 +10,7 @@ struct
   let copy x = x
   let equal x y =
     x.line = y.line && x.file = y.file
-  let compare x y = compare (x.file, x.line) (y.file, y.line)
+  let compare x y = compare (x.file, x.line) (y.file, y.line) (* ignores byte field *)
   let hash x = Hashtbl.hash (x.line, x.file)
   let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
   let pretty () x = text (show x)
@@ -45,7 +45,7 @@ struct
   type t = location * MyCFG.node * fundec [@@deriving to_yojson]
   let copy x = x
   let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b
-  let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x
+  let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x (* ignores fundec component *)
   let hash (x,a,f) = ProgLines.hash x * f.svar.vid * MyCFG.Node.hash a
   let pretty_node () (l,x) =
     match x with

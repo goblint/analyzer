@@ -78,7 +78,7 @@ struct
     let compare a b =
       let r = Lval.CilLval.compare a.key b.key in
       if r <> 0 then r else
-        let r = compare a.loc b.loc in
+        let r = compare a.loc b.loc in (* FIXME: polymorphic list compare! *)
         if r <> 0 then r else
           Impl.compare a.state b.state
 

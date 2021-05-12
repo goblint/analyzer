@@ -32,12 +32,8 @@ end
 (* move this to some other place! *)
 module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
 struct
-  type t = B.t * int
+  type t = B.t * int [@@deriving ord]
   let relift x = x
-  let compare ((u1,u2):t) (v1,v2) =
-    match Stdlib.compare u2 v2 with
-    | 0 -> B.compare u1 v1
-    | n -> n
   let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1
   let category (u,_) = B.category u
   let hash (u,v) = B.hash u + 131233 * v

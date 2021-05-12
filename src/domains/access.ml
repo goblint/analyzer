@@ -24,10 +24,9 @@ struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Pretty
-  type t = string [@@deriving to_yojson]
+  type t = string [@@deriving ord, to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
-  let compare (x:t) (y:t) = compare x y
   let show x = x
   let pretty () x = text (show x)
   let name () = "strings"

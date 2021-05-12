@@ -37,6 +37,8 @@ let node_compare n1 n2 =
   | Statement s, Statement l -> compare s.sid l.sid
   | Function  f, Function g  -> compare f.vid g.vid
 
+let compare_node = node_compare
+
 let print doc =
   print_string @@ Pretty.sprint max_int doc
 
@@ -51,7 +53,7 @@ sig
   include Set.OrderedType with type t := node
 end =
 struct
-  type t = node
+  type t = node [@@deriving ord]
   let equal x y =
     match x,y with
     | Statement s1, Statement s2 -> s1.sid = s2.sid
@@ -63,6 +65,4 @@ struct
     | Statement s     -> s.sid * 17
     | Function f      -> f.vid
     | FunctionEntry f -> -f.vid
-
-  let compare = node_compare
 end

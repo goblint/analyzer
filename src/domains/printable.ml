@@ -93,9 +93,8 @@ end
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
-  type t = unit [@@deriving yojson]
+  type t = unit [@@deriving ord, yojson]
   include Std
-  let compare _ _ = 0
   let hash () = 7134679
   let equal _ _ = true
   let pretty () _ = text N.name
@@ -202,7 +201,7 @@ end
 
 module Lift (Base: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving to_yojson]
+  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving ord, to_yojson]
   include Std
   include N
 
@@ -219,17 +218,6 @@ struct
     | (`Bot, `Bot) -> true
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
-
-  let compare x y =
-    match (x, y) with
-    | (`Top, `Top) -> 0
-    | (`Bot, `Bot) -> 0
-    | (`Top, _) -> 1
-    | (`Bot, _) -> -1
-    | (_, `Top) -> -1
-    | (_, `Bot) -> 1
-    | (`Lifted x, `Lifted y) -> Base.compare x y
-    | _ -> raise @@ invalid_arg "Invalid argument for Lift.compare"
 
   let show state =
     match state with
@@ -270,7 +258,7 @@ end
 
 module Either (Base1: S) (Base2: S) =
 struct
-  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving to_yojson]
+  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving ord, to_yojson]
   include Std
 
   let hash state =
@@ -283,14 +271,6 @@ struct
     | (`Left x, `Left y) -> Base1.equal x y
     | (`Right x, `Right y) -> Base2.equal x y
     | _ -> false
-
-  let compare x y = if equal x y then 0 else
-    match (x, y) with
-    | (`Left _), (`Right _) -> -1
-    | (`Right _), (`Left _) -> 1
-    | (`Right x), (`Right y) -> Base2.compare x y
-    | (`Left x), (`Left y) -> Base1.compare x y
-    | _, _ -> raise @@ Invalid_argument "Invalid argument for Either.compare"
 
   let pretty () (state:t) =
     match state with
@@ -317,7 +297,7 @@ module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving to_yojson]
+  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving ord, to_yojson]
   include Std
   include N
 
@@ -328,25 +308,6 @@ struct
     | (`Lifted1 x, `Lifted1 y) -> Base1.equal x y
     | (`Lifted2 x, `Lifted2 y) -> Base2.equal x y
     | _ -> false
-
-  let compare x y =
-    let order x = match x with
-      | `Top -> 0
-      | `Bot -> 1
-      | `Lifted1 _ -> 2
-      | `Lifted2 _ -> 3
-    in
-    if equal x y
-      then 0
-      else
-        let compareOrder = compare (order x) (order y) in
-        if compareOrder != 0
-          then compareOrder
-          else
-           match (x, y) with
-            | (`Lifted1 a, `Lifted1 b) -> Base1.compare a b
-            | (`Lifted2 x, `Lifted2 y) -> Base2.compare x y
-            | _, _ -> raise @@ Failure "compare Lift2 failed"
 
   let hash state =
     match state with
@@ -388,21 +349,12 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t [@@deriving to_yojson]
+  type t = Base1.t * Base2.t [@@deriving ord, to_yojson]
 
   include Std
 
   let hash (x,y) = Base1.hash x + Base2.hash y * 17
   let equal (x1,x2) (y1,y2) = Base1.equal x1 y1 && Base2.equal x2 y2
-
-  let compare (x1,x2) (y1,y2) =
-    match Base1.compare x1 y1, Base2.compare x2 y2 with
-    | (x, _) when x < 0 -> -1
-    | (x, _) when x > 0->  1
-    | ( 0, x) when x < 0 -> -1
-    | ( 0, x) when x > 0 ->  1
-    | ( 0, 0) ->  0
-    | _       -> failwith "is this possible?"
 
   let show (x,y) =
     (* TODO: remove ref *)
@@ -444,19 +396,11 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t [@@deriving to_yojson]
+  type t = Base1.t * Base2.t * Base3.t [@@deriving ord, to_yojson]
   include Std
   let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
   let equal (x1,x2,x3) (y1,y2,y3) =
     Base1.equal x1 y1 && Base2.equal x2 y2 && Base3.equal x3 y3
-  let compare (x1,x2,x3) (y1,y2,y3) =
-    let comp1 = Base1.compare x1 y1 in
-    if comp1 <> 0
-      then comp1
-      else let comp2 = Base2.compare x2 y2 in
-      if comp2 <> 0
-      then comp2
-      else Base3.compare x3 y3
 
   let show (x,y,z) =
     (* TODO: remove ref *)
@@ -489,10 +433,9 @@ end
 
 module Liszt (Base: S) =
 struct
-  type t = Base.t list [@@deriving to_yojson]
+  type t = Base.t list [@@deriving ord, to_yojson]
   include Std
   let equal x y = try List.for_all2 Base.equal x y with Invalid_argument _ -> false
-  let compare x y = BatList.compare Base.compare x y
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
   let show x =
@@ -523,9 +466,8 @@ end
 
 module Chain (P: ChainParams): S with type t = int =
 struct
-  type t = int [@@deriving yojson]
+  type t = int [@@deriving ord, yojson]
   include Std
-  let compare x y = x-y
 
   let show x = P.names x
   let pretty () x = text (show x)
@@ -541,7 +483,7 @@ end
 
 module LiftBot (Base : S) =
 struct
-  type t = [`Bot | `Lifted of Base.t ] [@@deriving to_yojson]
+  type t = [`Bot | `Lifted of Base.t ] [@@deriving ord, to_yojson]
   include Std
 
   let lift x = `Lifted x
@@ -551,13 +493,6 @@ struct
     | (`Bot, `Bot) -> true
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
-
-  let compare x y =
-    match x,y with
-    | `Bot,`Bot -> 0
-    | (`Bot, _) -> -1
-    | (_, `Bot) -> 1
-    | (`Lifted x, `Lifted y) -> Base.compare x y
 
   let hash = function
     | `Bot -> 56613454
@@ -582,7 +517,7 @@ end
 
 module LiftTop (Base : S) =
 struct
-  type t = [`Top | `Lifted of Base.t ] [@@deriving to_yojson]
+  type t = [`Top | `Lifted of Base.t ] [@@deriving ord, to_yojson]
   include Std
 
   let lift x = `Lifted x
@@ -592,13 +527,6 @@ struct
     | (`Top, `Top) -> true
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
-
-  let compare x y =
-    match (x, y) with
-    | `Top, `Top -> 0
-    | `Top, _ -> 1
-    | _, `Top -> -1
-    | `Lifted x, `Lifted y -> Base.compare x y
 
   let hash = function
     | `Top -> 7890

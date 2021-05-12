@@ -219,11 +219,7 @@ struct
 
   module StringPair =
   struct
-    type t = string * string
-    let compare (x1,x2) (y1,y2) =
-      match compare x1 y1 with
-      | 0 -> compare x2 y2
-      | x -> x
+    type t = string * string [@@deriving ord]
   end
   module InhRel = Set.Make(StringPair)
   let inc : InhRel.t ref = ref InhRel.empty
