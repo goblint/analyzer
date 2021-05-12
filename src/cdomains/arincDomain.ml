@@ -27,10 +27,10 @@ module Pred = struct
 end
 
 (* define record type here so that fields are accessable outside of D *)
-type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; pmo: Pmo.t; pre: PrE.t; pred: Pred.t; ctx: Ctx.t } [@@deriving ord, to_yojson]
+type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; pmo: Pmo.t; pre: PrE.t; pred: Pred.t; ctx: Ctx.t } [@@deriving eq, ord, to_yojson]
 module D =
 struct
-  type t = process [@@deriving ord, to_yojson]
+  type t = process [@@deriving eq, ord, to_yojson]
   include Printable.Std
 
   (* printing *)
@@ -41,8 +41,6 @@ struct
       let show = show
     end)
   (* Printable.S *)
-  (* let equal = Util.equals *)
-  let equal x y = Pid.equal x.pid y.pid && Pri.equal x.pri y.pri && Per.equal x.per y.per && Cap.equal x.cap y.cap && Pmo.equal x.pmo y.pmo && PrE.equal x.pre y.pre && Pred.equal x.pred y.pred && Ctx.equal x.ctx y.ctx
   (* let hash = Hashtbl.hash *)
   let hash x = Hashtbl.hash (Pid.hash x.pid, Pri.hash x.pri, Per.hash x.per, Cap.hash x.cap, Pmo.hash x.pmo, PrE.hash x.pre, Pred.hash x.pred, Ctx.hash x.ctx)
 

@@ -11,7 +11,7 @@ struct
   type t = myowntypeEntry [@@deriving to_yojson]
   module Ad = ValueDomain.Addr
   let name () = "address with location"
-  let equal x y = Ad.equal x.addr y.addr
+  let equal x y = Ad.equal x.addr y.addr (* ignores loc field *)
   let hash x = Ad.hash x.addr
   let compare x y = Ad.compare x.addr y.addr (* ignores loc field *)
   let show x = (Ad.show x.addr) ^ "@" ^ (Basetype.ProgLines.show x.loc)

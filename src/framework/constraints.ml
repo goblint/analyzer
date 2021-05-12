@@ -759,16 +759,10 @@ module Var2 (LV:VarType) (GV:VarType)
     with type t = [ `L of LV.t  | `G of GV.t ]
 =
 struct
-  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving ord]
+  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord]
   let relift = function
     | `L x -> `L (LV.relift x)
     | `G x -> `G (GV.relift x)
-
-  let equal x y =
-    match x, y with
-    | `L a, `L b -> LV.equal a b
-    | `G a, `G b -> GV.equal a b
-    | _ -> false
 
   let hash = function
     | `L a -> LV.hash a

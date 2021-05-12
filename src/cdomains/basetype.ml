@@ -9,7 +9,7 @@ struct
   type t = location [@@deriving to_yojson]
   let copy x = x
   let equal x y =
-    x.line = y.line && x.file = y.file
+    x.line = y.line && x.file = y.file (* ignores byte field *)
   let compare x y = compare (x.file, x.line) (y.file, y.line) (* ignores byte field *)
   let hash x = Hashtbl.hash (x.line, x.file)
   let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
@@ -44,7 +44,7 @@ struct
   include Printable.Std
   type t = location * MyCFG.node * fundec [@@deriving to_yojson]
   let copy x = x
-  let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b
+  let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b (* ignores fundec component *)
   let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x (* ignores fundec component *)
   let hash (x,a,f) = ProgLines.hash x * f.svar.vid * MyCFG.Node.hash a
   let pretty_node () (l,x) =
@@ -103,9 +103,8 @@ module RawStrings: Printable.S with type t = string =
 struct
   include Printable.StdPolyCompare
   open Pretty
-  type t = string [@@deriving to_yojson]
+  type t = string [@@deriving eq, to_yojson]
   let hash (x:t) = Hashtbl.hash x
-  let equal (x:t) (y:t) = x=y
   let show x = "\"" ^ x ^ "\""
   let pretty () x = text (show x)
   let name () = "raw strings"
@@ -123,9 +122,8 @@ module RawBools: Printable.S with type t = bool =
 struct
   include Printable.StdPolyCompare
   open Pretty
-  type t = bool [@@deriving to_yojson]
+  type t = bool [@@deriving eq, to_yojson]
   let hash (x:t) = Hashtbl.hash x
-  let equal (x:t) (y:t) = x=y
   let show (x:t) =  if x then "true" else "false"
   let pretty () x = text (show x)
   let name () = "raw bools"

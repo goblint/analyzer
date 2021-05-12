@@ -82,14 +82,14 @@ type result = [
   | `MayBool of bool   (* false \leq true *)
   | `PartAccessResult of PartAccessResult.t
   | `Bot
-] [@@deriving ord, to_yojson]
+] [@@deriving eq, ord, to_yojson]
 
 type ask = t -> result
 
 module Result: Lattice.S with type t = result =
 struct
   include Printable.Std
-  type t = result [@@deriving ord, to_yojson]
+  type t = result [@@deriving eq, ord, to_yojson]
 
   let name () = "query result domain"
 
@@ -99,21 +99,6 @@ struct
   let top () = `Top
   let is_top x = x = `Top
   let top_name = "Unknown"
-
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> ID.equal x y
-    | (`LvalSet x, `LvalSet y) -> LS.equal x y
-    | (`ExprSet x, `ExprSet y) -> ES.equal x y
-    | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
-    | (`TypeSet x, `TypeSet y) -> TS.equal x y
-    | (`Varinfo x, `Varinfo y) -> VI.equal x y
-    | (`MustBool x, `MustBool y) -> Bool.equal x y
-    | (`MayBool x, `MayBool y) -> Bool.equal x y
-    | (`PartAccessResult x, `PartAccessResult y) -> PartAccessResult.equal x y
-    | _ -> false
 
   let hash (x:t) =
     match x with

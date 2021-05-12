@@ -60,7 +60,6 @@ struct
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
   let hash    (x,_)             = Hashtbl.hash x
-  let equal   (x1,_) (y1,_) = CPA.equal x1 y1
   let leq     (x1,_) (y1,_) = CPA.leq   x1 y1
 
 

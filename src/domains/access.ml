@@ -24,9 +24,8 @@ struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Pretty
-  type t = string [@@deriving ord, to_yojson]
+  type t = string [@@deriving eq, ord, to_yojson]
   let hash (x:t) = Hashtbl.hash x
-  let equal (x:t) (y:t) = x=y
   let show x = x
   let pretty () x = text (show x)
   let name () = "strings"
@@ -272,12 +271,7 @@ module LvalOptHash = HtF (LvalOptHashable)
 module PartOptHashable
   : Hashtbl.HashedType with type t = LSSet.t option =
 struct
-  type t = LSSet.t option
-  let equal x y =
-    match x, y with
-    | Some x, Some y -> LSSet.equal x y
-    | None  , None   -> true
-    | _ -> false
+  type t = LSSet.t option [@@deriving eq]
 
   let hash = function
     | Some x -> LSSet.hash x

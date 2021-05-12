@@ -67,7 +67,7 @@ type 'a basecomponents_t = {
   cpa: CPA.t;
   deps: PartDeps.t;
   priv: 'a;
-} [@@deriving ord, to_yojson]
+} [@@deriving eq, ord, to_yojson]
 
 module BaseComponents (PrivD: Lattice.S):
 sig
@@ -75,13 +75,11 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving ord, to_yojson]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord, to_yojson]
 
   include Printable.Std
   open Pretty
   let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + PrivD.hash r.priv * 33
-  let equal r1 r2 =
-    CPA.equal r1.cpa r2.cpa && PartDeps.equal r1.deps r2.deps && PrivD.equal r1.priv r2.priv
 
 
   let show r =

@@ -93,10 +93,9 @@ end
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
-  type t = unit [@@deriving ord, yojson]
+  type t = unit [@@deriving eq, ord, yojson]
   include Std
   let hash () = 7134679
-  let equal _ _ = true
   let pretty () _ = text N.name
   let show _ = N.name
   let name () = "Unit"
@@ -201,7 +200,7 @@ end
 
 module Lift (Base: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving ord, to_yojson]
+  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord, to_yojson]
   include Std
   include N
 
@@ -211,13 +210,6 @@ struct
     | `Top -> 4627833
     | `Bot -> -30385673
     | `Lifted x -> Base.hash x * 13
-
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Lifted x, `Lifted y) -> Base.equal x y
-    | _ -> false
 
   let show state =
     match state with
@@ -258,19 +250,13 @@ end
 
 module Either (Base1: S) (Base2: S) =
 struct
-  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving ord, to_yojson]
+  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, to_yojson]
   include Std
 
   let hash state =
     match state with
     | `Left n ->  Base1.hash n
     | `Right n ->  133 * Base2.hash n
-
-  let equal x y =
-    match (x, y) with
-    | (`Left x, `Left y) -> Base1.equal x y
-    | (`Right x, `Right y) -> Base2.equal x y
-    | _ -> false
 
   let pretty () (state:t) =
     match state with
@@ -297,17 +283,9 @@ module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving ord, to_yojson]
+  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, to_yojson]
   include Std
   include N
-
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Lifted1 x, `Lifted1 y) -> Base1.equal x y
-    | (`Lifted2 x, `Lifted2 y) -> Base2.equal x y
-    | _ -> false
 
   let hash state =
     match state with
@@ -349,12 +327,11 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t [@@deriving ord, to_yojson]
+  type t = Base1.t * Base2.t [@@deriving eq, ord, to_yojson]
 
   include Std
 
   let hash (x,y) = Base1.hash x + Base2.hash y * 17
-  let equal (x1,x2) (y1,y2) = Base1.equal x1 y1 && Base2.equal x2 y2
 
   let show (x,y) =
     (* TODO: remove ref *)
@@ -396,11 +373,9 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t [@@deriving ord, to_yojson]
+  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, to_yojson]
   include Std
   let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
-  let equal (x1,x2,x3) (y1,y2,y3) =
-    Base1.equal x1 y1 && Base2.equal x2 y2 && Base3.equal x3 y3
 
   let show (x,y,z) =
     (* TODO: remove ref *)
@@ -433,9 +408,8 @@ end
 
 module Liszt (Base: S) =
 struct
-  type t = Base.t list [@@deriving ord, to_yojson]
+  type t = Base.t list [@@deriving eq, ord, to_yojson]
   include Std
-  let equal x y = try List.for_all2 Base.equal x y with Invalid_argument _ -> false
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
   let show x =
@@ -466,13 +440,12 @@ end
 
 module Chain (P: ChainParams): S with type t = int =
 struct
-  type t = int [@@deriving ord, yojson]
+  type t = int [@@deriving eq, ord, yojson]
   include Std
 
   let show x = P.names x
   let pretty () x = text (show x)
   let hash x = x-5284
-  let equal (x:int) (y:int) = x=y
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
@@ -483,16 +456,10 @@ end
 
 module LiftBot (Base : S) =
 struct
-  type t = [`Bot | `Lifted of Base.t ] [@@deriving ord, to_yojson]
+  type t = [`Bot | `Lifted of Base.t ] [@@deriving eq, ord, to_yojson]
   include Std
 
   let lift x = `Lifted x
-
-  let equal x y =
-    match (x, y) with
-    | (`Bot, `Bot) -> true
-    | (`Lifted x, `Lifted y) -> Base.equal x y
-    | _ -> false
 
   let hash = function
     | `Bot -> 56613454
@@ -517,16 +484,10 @@ end
 
 module LiftTop (Base : S) =
 struct
-  type t = [`Top | `Lifted of Base.t ] [@@deriving ord, to_yojson]
+  type t = [`Top | `Lifted of Base.t ] [@@deriving eq, ord, to_yojson]
   include Std
 
   let lift x = `Lifted x
-
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Lifted x, `Lifted y) -> Base.equal x y
-    | _ -> false
 
   let hash = function
     | `Top -> 7890
@@ -567,10 +528,9 @@ end
 
 module Strings =
 struct
-  type t = string [@@deriving to_yojson]
+  type t = string [@@deriving eq, to_yojson]
   include StdPolyCompare
   let hash (x:t) = Hashtbl.hash x
-  let equal (x:t) (y:t) = x=y
   let pretty () n = text n
   let show n = n
   let name () = "String"

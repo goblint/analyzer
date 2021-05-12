@@ -90,7 +90,7 @@ struct
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ] [@@deriving ord, to_yojson]
+  ] [@@deriving eq, ord, to_yojson]
 
   let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -201,18 +201,6 @@ struct
   let top () = `Top
   let is_top x = x = `Top
   let top_name = "Unknown"
-
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> ID.equal x y
-    | (`Address x, `Address y) -> AD.equal x y
-    | (`Struct x, `Struct y) -> Structs.equal x y
-    | (`Union x, `Union y) -> Unions.equal x y
-    | (`Array x, `Array y) -> CArrays.equal x y
-    | (`Blob x, `Blob y) -> Blobs.equal x y
-    | _ -> false
 
   let hash x =
     match x with
