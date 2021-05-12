@@ -16,6 +16,11 @@ struct
       [%expr Char.code]
     | [%type: bool] ->
       [%expr Bool.to_int]
+    | [%type: [%t? a] option] ->
+      [%expr function
+        | Some x -> [%e CoreType.expr ~loc a] x
+        | None -> 31
+      ]
     | {ptyp_desc = Ptyp_constr ({txt = Ldot (forward_module, "t"); loc}, _); _} ->
       pexp_ident ~loc {loc; txt = Ldot (forward_module, "hash")}
     | {ptyp_desc = Ptyp_tuple comps; _} ->
