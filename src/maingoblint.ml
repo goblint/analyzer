@@ -343,12 +343,10 @@ let do_analyze change_info merged_AST =
   )
 
 let do_html_output () =
-  (* if we are in Cygwin, we use the host's Java and GraphViz -> paths need to be converted from Cygwin to Windows style *)
-  let get_path path = if Sys.os_type = "Cygwin" then "$(cygpath -wa "^path^")" else path in
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
   if get_bool "g2html" then (
     if Sys.file_exists jar then (
-      let command = "java -jar "^get_path jar^" --result-dir "^get_path (get_string "outfile")^" "^get_path !Messages.xml_file_name in
+      let command = "java -jar "^ jar ^" --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
       try match Unix.system command with
         | Unix.WEXITED 0 -> ()
         | _ -> eprintf "HTML generation failed! Command: %s\n" command
