@@ -93,9 +93,8 @@ end
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
-  type t = unit [@@deriving eq, ord, yojson]
+  type t = unit [@@deriving eq, ord, hash, yojson]
   include Std
-  let hash () = 7134679
   let pretty () _ = text N.name
   let show _ = N.name
   let name () = "Unit"
