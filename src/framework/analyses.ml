@@ -28,7 +28,7 @@ end
 
 module Var =
 struct
-  type t = MyCFG.node [@@deriving ord]
+  type t = MyCFG.node [@@deriving eq, ord]
   let relift x = x
 
   let category = function
@@ -41,8 +41,6 @@ struct
     | MyCFG.Statement     s -> Hashtbl.hash (s.sid, 0)
     | MyCFG.Function      f -> Hashtbl.hash (f.vid, 1)
     | MyCFG.FunctionEntry f -> Hashtbl.hash (f.vid, 2)
-
-  let equal = MyCFG.Node.equal
 
   let getLocation n = MyCFG.getLoc n
 
@@ -85,7 +83,7 @@ end
 
 module VarF (LD: Printable.S) =
 struct
-  type t = MyCFG.node * LD.t [@@deriving ord]
+  type t = MyCFG.node * LD.t [@@deriving eq, ord]
   let relift (n,x) = n, LD.relift x
 
   let category = function
@@ -99,8 +97,6 @@ struct
     | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
     | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
     | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23)
-
-  let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
 
   let getLocation (n,d) = MyCFG.getLoc n
 

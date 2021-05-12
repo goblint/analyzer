@@ -39,6 +39,13 @@ let node_compare n1 n2 =
 
 let compare_node = node_compare
 
+let equal_node x y =
+  match x,y with
+  | Statement s1, Statement s2 -> s1.sid = s2.sid
+  | Function f1, Function f2 -> f1.vid = f2.vid
+  | FunctionEntry f1, FunctionEntry f2 -> f1.vid = f2.vid
+  | _ -> false
+
 let print doc =
   print_string @@ Pretty.sprint max_int doc
 
@@ -53,13 +60,7 @@ sig
   include Set.OrderedType with type t := node
 end =
 struct
-  type t = node [@@deriving ord]
-  let equal x y =
-    match x,y with
-    | Statement s1, Statement s2 -> s1.sid = s2.sid
-    | Function f1, Function f2 -> f1.vid = f2.vid
-    | FunctionEntry f1, FunctionEntry f2 -> f1.vid = f2.vid
-    | _ -> false
+  type t = node [@@deriving eq, ord]
   let hash x =
     match x with
     | Statement s     -> s.sid * 17
