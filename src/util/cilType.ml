@@ -55,3 +55,23 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
   let to_yojson x = `String (show x)
 end
+
+module Fundec: S with type t = fundec =
+struct
+  include Std
+
+  type t = fundec
+
+  let name () = "fundec"
+
+  (* Identity *)
+  let equal x y = x.svar.vid = y.svar.vid
+  let compare x y = compare x.svar.vid y.svar.vid
+  let hash x = x.svar.vid * 3
+
+  (* Output *)
+  let show x = x.svar.vname
+  let pretty () x = Pretty.text (show x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let to_yojson x = `String (show x)
+end

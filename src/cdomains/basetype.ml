@@ -379,18 +379,11 @@ end
 
 module CilFundec =
 struct
-  include Printable.Std
+  include CilType.Fundec
   let copy x = x
-  type t = fundec [@@deriving to_yojson]
-  let compare x y = compare x.svar.vid y.svar.vid
-  let equal x y = x.svar.vid = y.svar.vid
-  let hash x = x.svar.vid * 3
-  let show x = x.svar.vname
-  let pretty () x = CilFun.pretty () x.svar
   let name () = "function decs"
   let dummy = dummyFunDec
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module CilField =
