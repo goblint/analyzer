@@ -64,6 +64,10 @@ and expr_variant ~loc constrs =
   constrs
   |> List.map (fun {pcd_name = {txt = label; loc}; pcd_args; pcd_res; _} ->
       match pcd_res, pcd_args with
+      | None, Pcstr_tuple [] ->
+        case ~lhs:(ppat_construct ~loc {loc; txt = Lident label} None)
+          ~guard:None
+          ~rhs:([%expr 31])
       | None, Pcstr_tuple cts ->
         let label_field ~loc prefix i =
           let name = prefix ^ string_of_int i in
