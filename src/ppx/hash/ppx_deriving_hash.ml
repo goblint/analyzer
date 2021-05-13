@@ -2,6 +2,17 @@ open Ppxlib
 open Ast_builder.Default
 
 
+let mangle prefix name =
+  if name = "t" then
+    prefix
+  else
+    prefix ^ "_" ^ name
+
+let mangle_lid prefix lid = match lid with
+  | Lident s -> Lident (mangle prefix s)
+  | Ldot (p, s) -> Ldot (p, mangle prefix s)
+  | Lapply _ -> invalid_arg "mangle_lid"
+
 let rec expr ~loc ct = match ct with
   | [%type: string] ->
     [%expr Hashtbl.hash]
@@ -22,8 +33,8 @@ let rec expr ~loc ct = match ct with
     ]
   | [%type: [%t? a] list] ->
     [%expr List.fold_left (fun a b -> 31 * a + [%e expr ~loc a] b) 0]
-  | {ptyp_desc = Ptyp_constr ({txt = Ldot (forward_module, "t"); loc}, _); _} ->
-    pexp_ident ~loc {loc; txt = Ldot (forward_module, "hash")}
+  | {ptyp_desc = Ptyp_constr ({txt = lid; loc}, _); _} ->
+    pexp_ident ~loc {loc; txt = mangle_lid "hash" lid}
   | {ptyp_desc = Ptyp_tuple comps; _} ->
     expr_tuple ~loc comps
   | {ptyp_desc = Ptyp_variant (rows, Closed, None); _} ->
@@ -143,7 +154,7 @@ let generate_impl ~ctxt (_rec_flag, type_declarations) =
   type_declarations
   |> List.map (fun td ->
       let expr = expr_declaration ~loc td in
-      let pat = ppat_var ~loc {loc; txt = "hash"} in
+      let pat = ppat_var ~loc {loc; txt = mangle "hash" td.ptype_name.txt} in
       [%stri let [%p pat] = [%e expr]]
     )
 
