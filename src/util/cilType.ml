@@ -27,6 +27,7 @@ struct
   let equal x y = x.vid = y.vid
   let compare x y = compare x.vid y.vid
   let hash x = x.vid - 4773
+  (* let hash x = Hashtbl.hash x.vid *)
 
   (* Output *)
   let show x = x.vname

@@ -371,17 +371,10 @@ end
 
 module CilFun: Printable.S with type t = varinfo =
 struct
-  include Printable.Std
+  include CilType.Varinfo
   let copy x = x
-  type t = varinfo [@@deriving to_yojson]
-  let compare x y = compare x.vid y.vid
-  let equal x y = x.vid = y.vid
-  let hash x = Hashtbl.hash x.vid
-  let show x = x.vname
-  let pretty () x = Pretty.text (show x)
   let name () = "functions"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module CilFundec =
