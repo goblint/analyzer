@@ -39,6 +39,8 @@ let rec expr ~loc ct = match ct with
     expr_tuple ~loc comps
   | {ptyp_desc = Ptyp_variant (rows, Closed, None); _} ->
     expr_poly_variant ~loc rows
+  | {ptyp_desc = Ptyp_var name; _} ->
+    evar ~loc ("poly_" ^ name)
   | _ ->
     Location.raise_errorf ~loc "other"
 
@@ -158,6 +160,20 @@ let generate_impl ~ctxt (_rec_flag, type_declarations) =
   type_declarations
   |> List.map (fun td ->
       let expr = expr_declaration ~loc td in
+      let expr =
+        td.ptype_params
+        |> List.map (fun (param, _) ->
+            match param with
+            | {ptyp_desc = Ptyp_var name; _} ->
+              pvar ~loc ("poly_" ^ name)
+            | _ ->
+              Location.raise_errorf ~loc "other param"
+          )
+        |> List.rev
+        |> List.fold_left (fun acc pat ->
+            [%expr fun [%p pat] -> [%e acc]]
+          ) expr
+      in
       let pat = ppat_var ~loc {loc; txt = mangle "hash" td.ptype_name.txt} in
       [%stri let [%p pat] = [%e expr]]
     )

@@ -67,7 +67,10 @@ type 'a basecomponents_t = {
   cpa: CPA.t;
   deps: PartDeps.t;
   priv: 'a;
-} [@@deriving eq, ord, to_yojson]
+} [@@deriving eq, ord, hash, to_yojson]
+
+(* TODO: remove *)
+let foo: ('a -> int) -> 'a basecomponents_t -> int = hash_basecomponents_t
 
 module BaseComponents (PrivD: Lattice.S):
 sig
