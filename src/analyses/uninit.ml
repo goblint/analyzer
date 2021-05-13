@@ -156,7 +156,7 @@ struct
       match t, o with
       | x::xs, y::ys when x.fcomp.ckey = tf.fcomp.ckey && x.fname = tf.fname ->
         get_pfx v (`Field (y, cx)) no x.ftype y.ftype
-      | x::xs, y::ys when Basetype.CilExp.compareType x.ftype y.ftype = 0 ->
+      | x::xs, y::ys when CilType.Typ.equal x.ftype y.ftype ->
         bothstruct xs tf ys no
       | x::xs, y::ys ->
         [] (* found a mismatch *)

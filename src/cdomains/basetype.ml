@@ -201,7 +201,6 @@ struct
     | Lval (Mem e',_) -> (get_vars e')
 
   let compareExp = compare (* TODO: inline *)
-  let compareType a b = Stdlib.compare (typeSig a) (typeSig b) (* TODO: CilType.Typ *)
 
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
