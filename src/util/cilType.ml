@@ -237,3 +237,23 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
   let to_yojson x = `String (show x)
 end
+
+module Typ: S with type t = typ =
+struct
+  include Std
+
+  type t = typ
+
+  let name () = "typ"
+
+  (* Identity *)
+  let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
+  let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
+  let hash (x:typ) = Hashtbl.hash x
+
+  (* Output *)
+  let pretty () x = d_type () x
+  let show x = sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let to_yojson x = `String (show x)
+end

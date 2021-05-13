@@ -305,15 +305,8 @@ end
 
 module CilType =
 struct
-  include Printable.Std
-  type t = typ [@@deriving to_yojson]
-  let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
-  let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
-  let hash (x:typ) = Hashtbl.hash x
-  let show x = sprint ~width:max_int (d_type () x)
-  let pretty () x = d_type () x
+  include CilType.Typ
 
   let name () = "types"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
