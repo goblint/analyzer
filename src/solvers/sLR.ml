@@ -505,7 +505,7 @@ module PrintInfluence =
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
         let s = Pretty.sprint 80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
-        ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (Goblintutil.escape s) q);
+        ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (XmlUtil.escape s) q);
         let f y =
           if try HM.find S1.X.keys k > HM.find S1.X.keys y with Not_found -> false then
             ignore (Pretty.fprintf ch "%d -> %d [arrowhead=box style=dashed];\n" (S.Var.hash k) (S.Var.hash y))

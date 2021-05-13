@@ -77,14 +77,7 @@ let in_verifying_stage = ref false
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
 
-let escape (x:string):string =
-  (* Safe to escape all these everywhere in XML: https://stackoverflow.com/a/1091953/854540 *)
-  Str.global_replace (Str.regexp "&") "&amp;" x |>
-  Str.global_replace (Str.regexp "<") "&lt;" |>
-  Str.global_replace (Str.regexp ">") "&gt;" |>
-  Str.global_replace (Str.regexp "\"") "&quot;" |>
-  Str.global_replace (Str.regexp "'") "&apos;" |>
-  Str.global_replace (Str.regexp "[\x0b\001\x0c\x0f\x0e]") "" (* g2html just cannot handle from some kernel benchmarks, even when escaped... *)
+let escape = XmlUtil.escape (* TODO: inline everywhere *)
 
 let trim (x:string): string =
   let len = String.length x in

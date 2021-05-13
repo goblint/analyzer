@@ -58,7 +58,7 @@ struct
   type size = Size.t
   type origin = ZeroInit.t
   let printXml f (x, y, z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
   let make v s = v, s, true
   let value (a, b, c) = a

@@ -327,10 +327,10 @@ let print cfg  =
     | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
   in
   let dn_exp () e =
-    text (Goblintutil.escape (sprint 800 (dn_exp () e)))
+    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
   in
   let dn_lval () l =
-    text (Goblintutil.escape (sprint 800 (dn_lval () l)))
+    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
   in
   let p_edge () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
@@ -494,10 +494,10 @@ let printFun (module Cfg : CfgBidir) live fd out =
     | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
   in
   let dn_exp () e =
-    text (Goblintutil.escape (sprint 800 (dn_exp () e)))
+    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
   in
   let dn_lval () l =
-    text (Goblintutil.escape (sprint 800 (dn_lval () l)))
+    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
   in
   let p_edge () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp

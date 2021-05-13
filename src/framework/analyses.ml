@@ -148,7 +148,7 @@ struct
     | tb -> tb
 
   let printXml f = function
-    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (Goblintutil.escape top_name)
+    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape top_name)
     | `Bot -> ()
     | `Lifted x -> LD.printXml f x
 end

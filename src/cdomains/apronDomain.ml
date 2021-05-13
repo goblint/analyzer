@@ -83,7 +83,7 @@ struct
   let show x =
     A.print Legacy.Format.str_formatter x;
     Legacy.Format.flush_str_formatter ()
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
 

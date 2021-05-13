@@ -33,7 +33,7 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
-      (Goblintutil.escape (show x))
+      (XmlUtil.escape (show x))
 end
 
 module LabeledString =
