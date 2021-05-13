@@ -46,6 +46,12 @@ let equal_node x y =
   | FunctionEntry f1, FunctionEntry f2 -> f1.vid = f2.vid
   | _ -> false
 
+let hash_node x =
+  match x with
+  | Statement s     -> s.sid * 17
+  | Function f      -> f.vid
+  | FunctionEntry f -> -f.vid
+
 let print doc =
   print_string @@ Pretty.sprint max_int doc
 
@@ -60,10 +66,5 @@ sig
   include Set.OrderedType with type t := node
 end =
 struct
-  type t = node [@@deriving eq, ord]
-  let hash x =
-    match x with
-    | Statement s     -> s.sid * 17
-    | Function f      -> f.vid
-    | FunctionEntry f -> -f.vid
+  type t = node [@@deriving eq, ord, hash]
 end
