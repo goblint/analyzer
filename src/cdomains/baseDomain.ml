@@ -69,8 +69,6 @@ type 'a basecomponents_t = {
   priv: 'a;
 } [@@deriving eq, ord, hash, to_yojson]
 
-(* TODO: remove *)
-let foo: ('a -> int) -> 'a basecomponents_t -> int = hash_basecomponents_t
 
 module BaseComponents (PrivD: Lattice.S):
 sig
@@ -78,12 +76,10 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving eq, ord, to_yojson]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash, to_yojson]
 
   include Printable.Std
   open Pretty
-  let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + PrivD.hash r.priv * 33
-
 
   let show r =
     let first  = CPA.show r.cpa in

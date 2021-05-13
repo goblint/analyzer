@@ -33,8 +33,15 @@ let rec expr ~loc ct = match ct with
     ]
   | [%type: [%t? a] list] ->
     [%expr List.fold_left (fun a b -> 31 * a + [%e expr ~loc a] b) 0]
-  | {ptyp_desc = Ptyp_constr ({txt = lid; loc}, _); _} ->
-    pexp_ident ~loc {loc; txt = mangle_lid "hash" lid}
+  | {ptyp_desc = Ptyp_constr ({txt = lid; loc}, args); _} ->
+    let ident = pexp_ident ~loc {loc; txt = mangle_lid "hash" lid} in
+    let apply_args =
+      args
+      |> List.map (fun ct ->
+          (Nolabel, expr ~loc ct)
+        )
+    in
+    pexp_apply ~loc ident apply_args
   | {ptyp_desc = Ptyp_tuple comps; _} ->
     expr_tuple ~loc comps
   | {ptyp_desc = Ptyp_variant (rows, Closed, None); _} ->
