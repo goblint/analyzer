@@ -62,15 +62,10 @@ end
 
 module Variables =
 struct
-  include Printable.Std
-  type t = varinfo [@@deriving to_yojson]
-  let relift x = x
+  include CilType.Varinfo
   let trace_enabled = true
   let is_global v = v.vglob
   let copy x = x
-  let equal x y = x.vid = y.vid
-  let compare x y = compare x.vid y.vid
-  let hash x = x.vid - 4773
   let show x = GU.demangle x.vname
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
