@@ -34,3 +34,23 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
   let to_yojson x = `String x.vname
 end
+
+module Stmt: S with type t = stmt =
+struct
+  include Std
+
+  type t = stmt
+
+  let name () = "stmt"
+
+  (* Identity *)
+  let equal x y = x.sid = y.sid
+  let compare x y = compare x.sid y.sid
+  let hash x = Hashtbl.hash x.sid * 97
+
+  (* Output *)
+  let pretty () x = dn_stmt () x
+  let show x = Pretty.sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let to_yojson x = `String (show x)
+end

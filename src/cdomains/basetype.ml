@@ -355,12 +355,8 @@ end
 
 module CilStmt: Printable.S with type t = stmt =
 struct
-  include Printable.Std
-  type t = stmt [@@deriving to_yojson]
+  include CilType.Stmt
   let copy x = x
-  let compare x y = compare x.sid y.sid
-  let equal x y = x.sid = y.sid
-  let hash x = Hashtbl.hash (x.sid) * 97
   let show x = "<stmt>"
   let pretty () x =
     match x.skind with
