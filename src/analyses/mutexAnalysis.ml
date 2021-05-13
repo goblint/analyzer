@@ -69,9 +69,9 @@ struct
 
   let rec replace_elem (v,o) q ex =
     match ex with
-    | AddrOf  (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
-    | StartOf (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
-    | Lval    (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
+    | AddrOf  (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
+    | StartOf (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
+    | Lval    (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
     | CastE (_,e)           -> replace_elem (v,o) q e
     | _ -> v, Offs.from_offset (conv_offset o)
 
@@ -150,7 +150,7 @@ struct
             ctx.sideg v el
         | None -> M.warn "Write to unknown address: privatization is unsound."
       end;
-      
+
       (*partitions & locks*)
       let open Access in
       match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with

@@ -52,11 +52,12 @@ struct
     | _ -> false
 
   let query ctx (q:Queries.t) : Queries.Result.t =
-    let lvalsEq l1 l2 = Basetype.CilExp.compareExp (Lval l1) (Lval l2) = 0 in (* == would be wrong here *)
+    (* TODO: CilType.Lval.equal *)
+    let lvalsEq l1 l2 = Basetype.CilExp.equal (Lval l1) (Lval l2) in (* == would be wrong here *)
     match q with
     | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
       begin
-        if Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0 then
+        if Basetype.CilExp.equal (canonize e1) (canonize e2) then
           `MustBool true
         else
           `MustBool false

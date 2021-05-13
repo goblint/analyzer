@@ -4,11 +4,12 @@ open Deriving.Cil
 
 module Exp =
 struct
+  (* TODO: use CilType.Exp *)
   type t = exp [@@deriving to_yojson]
   include Printable.Std
 
-  let equal a b = Basetype.CilExp.compareExp a b = 0
-  let compare = Basetype.CilExp.compareExp
+  let equal = Basetype.CilExp.equal
+  let compare = Basetype.CilExp.compare
   let hash = Hashtbl.hash
   let name () = "Cil expressions"
 

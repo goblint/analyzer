@@ -200,8 +200,6 @@ struct
     | Lval (Var v, _) -> [v]
     | Lval (Mem e',_) -> (get_vars e')
 
-  let compareExp = compare (* TODO: inline *)
-
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
