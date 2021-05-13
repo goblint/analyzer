@@ -70,8 +70,8 @@ struct
   let remove (addr,rw) set =
     let collect_diff_varinfo_with (vi,os) (addr,rw) =
       match (Addr.to_var_offset addr) with
-      | [(v,o)] when vi.vid == v.vid -> not (may_be_same_offset o os)
-      | [(v,o)] when vi.vid != v.vid -> true
+      | [(v,o)] when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
+      | [(v,o)] -> true
       | _ -> false
     in
     match (Addr.to_var_offset addr) with

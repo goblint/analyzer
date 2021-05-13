@@ -236,7 +236,7 @@ struct
             in
             if AD.is_definite p1 && AD.is_definite p2 then
               match Addr.to_var_offset (AD.choose p1), Addr.to_var_offset (AD.choose p2) with
-              | [x, xo], [y, yo] when x.vid = y.vid ->
+              | [x, xo], [y, yo] when CilType.Varinfo.equal x y ->
                 calculateDiffFromOffset xo yo
               | _ ->
                 `Int (ID.top_of result_ik)
@@ -1576,7 +1576,7 @@ struct
     let is_list_init () =
       match lval, rval with
       | (Var a, Field (fi,NoOffset)), AddrOf((Var b, NoOffset))
-        when !GU.global_initialization && a.vid = b.vid
+        when !GU.global_initialization && CilType.Varinfo.equal a b
              && fi.fcomp.cname = "list_head"
              && (fi.fname = "prev" || fi.fname = "next") -> Some a
       | _ -> None

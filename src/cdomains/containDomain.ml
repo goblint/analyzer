@@ -341,11 +341,11 @@ struct
 *)
   let remove_formals sformals (fd, st,df) =
     let f k s st =
-      let p y = List.exists (fun x -> x.vid = y.vid) sformals in
+      let p y = List.exists (fun x -> CilType.Varinfo.equal x y) sformals in
       if p k
       then st
       else
-        let ns = ArgSet.filter (fun x ->  ( (k.vid=return_var.vid || not (FieldVars.has_field x)) && not (p (FieldVars.get_var x)))) s in
+        let ns = ArgSet.filter (fun x ->  ( (CilType.Varinfo.equal k return_var || not (FieldVars.has_field x)) && not (p (FieldVars.get_var x)))) s in
         if ArgSet.is_bot ns
         then st
         else Danger.add k ns st
@@ -886,7 +886,7 @@ struct
           (*dbg_report("danger.prop_non_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)
           ArgSet.fold (fun x y->if
                         (*dbg_report("check "^var.vname^" -> "^(FieldVars.get_var x).vname^" == "^(FieldVars.get_var fv).vname);*)
-                        not ((FieldVars.get_var x).vglob)&& not (var.vglob) &&not ((FieldVars.get_var x).vid=var.vid)
+                        not ((FieldVars.get_var x).vglob)&& not (var.vglob) &&not (CilType.Varinfo.equal (FieldVars.get_var x) var)
                         (*&&(FieldVars.get_var x).vid=(FieldVars.get_var fv).vid*)
                         && FieldVars.equal x fv
                         (*&& not (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))*)
@@ -944,7 +944,7 @@ struct
   let is_bad_reachable v st =
     let args = Danger.find v st in
     if not (ArgSet.is_bot args) then
-      ArgSet.fold (fun x y -> y || (FieldVars.get_var x).vid=v.vid) args false
+      ArgSet.fold (fun x y -> y || CilType.Varinfo.equal (FieldVars.get_var x) v) args false
     else false
 
   (*analog to may_be_.._global, prints warnings*)

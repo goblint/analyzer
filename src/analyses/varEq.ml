@@ -94,7 +94,7 @@ struct
     in
     offs_equal o1 o2
     && match l1, l2 with
-    | Var v1, Var v2 -> v1.vid = v2.vid && (match Cil.unrollTypeDeep v1.vtype with | TArray(TFloat _,_,_) | TFloat  _-> false | _ -> true)
+    | Var v1, Var v2 -> CilType.Varinfo.equal v1 v2 && (match Cil.unrollTypeDeep v1.vtype with | TArray(TFloat _,_,_) | TFloat  _-> false | _ -> true)
     | Mem m1, Mem m2 -> exp_equal m1 m2
     | _ -> false
 
@@ -288,7 +288,7 @@ struct
         in
         if Queries.LS.is_top als
         then false
-        else Queries.LS.exists (fun (u,s) ->  v.vid = u.vid && oleq o s) als
+        else Queries.LS.exists (fun (u,s) -> CilType.Varinfo.equal v u && oleq o s) als
       in
       let (als, test) =
         match addrOfExp a with
@@ -427,7 +427,7 @@ struct
       in
       let has_reachable_prefix v1 ofs =
         let suitable_prefix (v2,ofs2) =
-          v1.vid = v2.vid
+          CilType.Varinfo.equal v1 v2
           && is_prefix ofs ofs2
         in
         Queries.LS.exists suitable_prefix r

@@ -273,7 +273,7 @@ struct
 
   let is_global v = (get_var v).vglob
   let copy x = x
-  let equal x y = (get_var x).vid = (get_var y).vid && (apply_field (fun v->v.fname) "" x)=(apply_field (fun v->v.fname) "" y)
+  let equal x y = CilType.Varinfo.equal (get_var x) (get_var y) && (apply_field (fun v->v.fname) "" x)=(apply_field (fun v->v.fname) "" y)
 
   let show x = GU.demangle (get_var x).vname^
                   (*"("^string_of_int (get_var x).vid ^")"^*)

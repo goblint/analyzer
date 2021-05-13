@@ -21,7 +21,7 @@ struct
   module Var =
   struct
     type t = var
-    let equal x y = x.vid = y.vid
+    let equal x y = CilType.Varinfo.equal x y
     let compare x y = compare x.vid y.vid
   end
 

@@ -263,7 +263,7 @@ struct
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
   let equal x y = match x, y with
-    | Addr (v,o), Addr (u,p) -> v.vid = u.vid && Offs.equal o p
+    | Addr (v,o), Addr (u,p) -> CilType.Varinfo.equal v u && Offs.equal o p
     | StrPtr a  , StrPtr b -> a=b (* TODO problematic if the same literal appears more than once *)
     | UnknownPtr, UnknownPtr
     | SafePtr   , SafePtr
@@ -341,7 +341,7 @@ struct
   let leq x y = match x, y with
     | SafePtr, UnknownPtr    -> true
     | StrPtr a  , StrPtr b   -> a = b
-    | Addr (x,o), Addr (y,u) -> x.vid = y.vid && Offs.leq o u
+    | Addr (x,o), Addr (y,u) -> CilType.Varinfo.equal x y && Offs.leq o u
     | _                      -> x = y
 
   let drop_ints = function
@@ -356,7 +356,7 @@ struct
     | NullPtr   , NullPtr -> NullPtr
     | SafePtr   , SafePtr -> SafePtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x, Offs.merge cop o u)
+    | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable
 
   let join = merge `Join
@@ -517,7 +517,7 @@ struct
       | `Index (i1,o1), `Index (i2,o2) when Basetype.CilExp.equal i1 i2 -> eq o1 o2
       | _ -> false
     in
-    x1.vid=x2.vid && eq o1 o2
+    CilType.Varinfo.equal x1 x2 && eq o1 o2
 
   let hash    = Hashtbl.hash
   let name () = "simplified lval"

@@ -57,11 +57,11 @@ struct
       | StartOf (Mem e,o)
       | Lval    (Mem e,o) -> cv true e || offs_contains o
       | CastE (_,e)           -> cv deref e
-      | Lval    (Var v2,o) -> v.vid = v2.vid || offs_contains o
+      | Lval    (Var v2,o) -> CilType.Varinfo.equal v v2 || offs_contains o
       | AddrOf  (Var v2,o)
       | StartOf (Var v2,o) ->
         if deref
-        then v.vid = v2.vid || offs_contains o
+        then CilType.Varinfo.equal v v2 || offs_contains o
         else offs_contains o
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
       | _ -> failwith "Unmatched pattern."
@@ -138,7 +138,7 @@ struct
     | Lval (Var v1,o1)   , Lval (Var v2,o2)
     | AddrOf (Var v1,o1) , AddrOf (Var v2,o2)
     | StartOf (Var v1,o1), StartOf (Var v2,o2)
-      -> v1.vid = v2.vid && off_eq o1 o2
+      -> CilType.Varinfo.equal v1 v2 && off_eq o1 o2
     | Lval (Mem e1,o1)   , Lval (Mem e2,o2)
     | AddrOf (Mem e1,o1) , AddrOf (Mem e2,o2)
     | StartOf (Mem e1,o1), StartOf (Mem e2,o2)
@@ -264,7 +264,7 @@ struct
 
   let ee_equal x y =
     match x, y with
-    | EVar v1, EVar v2 -> v1.vid = v2.vid
+    | EVar v1, EVar v2 -> CilType.Varinfo.equal v1 v2
     | EAddr, EAddr -> true
     | EDeref, EDeref -> true
     | EField f1, EField f2 -> f1.fname = f2.fname

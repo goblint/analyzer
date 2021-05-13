@@ -259,7 +259,7 @@ struct
   type t = (varinfo * offs) option
   let equal (x:t) (y:t) =
     match x, y with
-    | Some (v1,o1), Some (v2,o2) -> v1.vid = v2.vid && offs_eq o1 o2
+    | Some (v1,o1), Some (v2,o2) -> CilType.Varinfo.equal v1 v2 && offs_eq o1 o2
     | None, None -> true
     | _ -> false
   let hash = function
