@@ -4,19 +4,13 @@ open Deriving.Cil
 
 module Exp =
 struct
-  (* TODO: use CilType.Exp *)
-  type t = exp [@@deriving to_yojson]
-  include Printable.Std
+  include CilType.Exp
 
-  let equal = Basetype.CilExp.equal
-  let compare = Basetype.CilExp.compare
-  let hash = Hashtbl.hash
   let name () = "Cil expressions"
 
-  let pretty = d_exp
-  let show s = sprint ~width:max_int (d_exp () s)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
+  (* TODO: what does interesting mean? *)
   let rec interesting x =
     match x with
     | SizeOf _
@@ -132,7 +126,7 @@ struct
     | Field (f1, o1), Field (f2, o2) -> CilType.Fieldinfo.equal f1 f2 && off_eq o1 o2
     | Index (e1, o1), Index (e2, o2) -> simple_eq e1 e2 && off_eq o1 o2
     | _ -> false
-  and simple_eq x y =
+  and simple_eq x y = (* TODO: is this necessary instead of equal? *)
     match x, y with
     | Const c1, Const c2 -> eq_const c1 c2
     | Lval (Var v1,o1)   , Lval (Var v2,o2)
@@ -241,8 +235,6 @@ struct
     | StartOf (Mem e, NoOffset) -> one_unknown_array_index e
     | CastE (t,e) -> one_unknown_array_index e
     | _ -> None
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
 module LockingPattern =
