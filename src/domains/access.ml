@@ -116,7 +116,7 @@ let rec offs_eq x y =
   match x, y with
   | `NoOffset, `NoOffset -> true
   | `Index x, `Index y -> offs_eq x y
-  | `Field (f,x), `Field (g,y) -> f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname && offs_eq x y
+  | `Field (f,x), `Field (g,y) -> CilType.Fieldinfo.equal f g && offs_eq x y
   | _ -> false
 
 let rec remove_idx : offset -> offs  = function

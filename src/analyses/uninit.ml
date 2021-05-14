@@ -107,7 +107,7 @@ struct
     let rec is_offs_prefix_of pr os =
       match (pr, os) with
       | (`NoOffset, _) -> true
-      | (`Field (f1, o1), `Field (f2,o2)) -> f1.fname = f2.fname && is_offs_prefix_of o1 o2
+      | (`Field (f1, o1), `Field (f2,o2)) -> CilType.Fieldinfo.equal f1 f2 && is_offs_prefix_of o1 o2
       | (_, _) -> false
     in
     CilType.Varinfo.equal v1 v2 && is_offs_prefix_of ofs1 ofs2

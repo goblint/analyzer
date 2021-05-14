@@ -72,7 +72,7 @@ struct
     let rec offs_contains o =
       match o with
       | NoOffset -> false
-      | Field (f',o) -> f.fname = f'.fname
+      | Field (f',o) -> CilType.Fieldinfo.equal f f'
       | Index (e,o) -> cv e || offs_contains o
     and cv e =
       match e with
@@ -129,7 +129,7 @@ struct
   let rec off_eq x y =
     match x, y with
     | NoOffset, NoOffset -> true
-    | Field (f1, o1), Field (f2, o2) -> f1.fname = f2.fname && off_eq o1 o2
+    | Field (f1, o1), Field (f2, o2) -> CilType.Fieldinfo.equal f1 f2 && off_eq o1 o2
     | Index (e1, o1), Index (e2, o2) -> simple_eq e1 e2 && off_eq o1 o2
     | _ -> false
   and simple_eq x y =

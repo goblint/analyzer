@@ -46,7 +46,7 @@ struct
     | `NoOffset , `NoOffset -> true
     | `NoOffset, x
     | x, `NoOffset -> cmp_zero_offset x = `MustZero
-    | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> equal o1 o2
+    | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> equal o1 o2
     | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
     | _ -> false
 
@@ -86,7 +86,7 @@ struct
     (* FIXME: forgets to check cmp_zero_offset like equal *)
     | `NoOffset, `NoOffset -> 0
     | `Field (f1,o1), `Field (f2,o2) ->
-      let c = Stdlib.compare f1.fname f2.fname in
+      let c = CilType.Fieldinfo.compare f1 f2 in
       if c=0 then compare o1 o2 else c
     | `Index (i1,o1), `Index (i2,o2) ->
       let c = Idx.compare i1 i2 in
@@ -102,7 +102,7 @@ struct
     | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero
     | x, `NoOffset -> cmp_zero_offset x = `MustZero
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
-    | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> leq o1 o2
+    | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
     | _ -> false
 
   let rec merge cop x y =
@@ -114,7 +114,7 @@ struct
       | (`Join | `Widen), (`MustZero | `MayZero) -> x
       | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset
       | _ -> raise Lattice.Uncomparable)
-    | `Field (x1,y1), `Field (x2,y2) when x1.fname = x2.fname -> `Field (x1, merge cop y1 y2)
+    | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
     | _ -> raise Lattice.Uncomparable
 
@@ -535,7 +535,7 @@ struct
       match a,b with
       | `NoOffset , `NoOffset -> 0
       | `Field (f1,o1), `Field (f2,o2) ->
-        let r = String.compare f1.fname f2.fname in
+        let r = CilType.Fieldinfo.compare f1 f2 in
         if r <>0 then r else
           compare o1 o2
       | `Index (i1,o1), `Index (i2,o2) ->

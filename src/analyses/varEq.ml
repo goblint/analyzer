@@ -88,7 +88,7 @@ struct
     let rec offs_equal o1 o2 =
       match o1, o2 with
       | NoOffset, NoOffset -> true
-      | Field (f1, o1), Field (f2,o2) -> f1.fcomp.ckey = f2.fcomp.ckey && f1.fname = f2.fname && (match Cil.unrollType f1.ftype with | TArray(TFloat _,_,_) | TFloat _ -> false | _ -> true)  &&offs_equal o1 o2
+      | Field (f1, o1), Field (f2,o2) -> CilType.Fieldinfo.equal f1 f2 && (match Cil.unrollType f1.ftype with | TArray(TFloat _,_,_) | TFloat _ -> false | _ -> true)  &&offs_equal o1 o2
       | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2
       | _ -> false
     in
@@ -282,7 +282,7 @@ struct
         let rec oleq o s =
           match o, s with
           | `NoOffset, _ -> true
-          | `Field (f1,o), `Field (f2,s) when f1.fname = f2.fname -> oleq o s
+          | `Field (f1,o), `Field (f2,s) when CilType.Fieldinfo.equal f1 f2 -> oleq o s
           | `Index (i1,o), `Index (i2,s) when exp_equal i1 i2     -> oleq o s
           | _ -> false
         in
@@ -421,7 +421,7 @@ struct
       let rec is_prefix x1 x2 =
         match x1, x2 with
         | _, `NoOffset -> true
-        | Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> is_prefix o1 o2
+        | Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> is_prefix o1 o2
         | Index (_,o1), `Index (_,o2) -> is_prefix o1 o2
         | _ -> false
       in
