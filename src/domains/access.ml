@@ -110,7 +110,7 @@ let rec d_offs () : offs -> doc = function
   | `Index o -> dprintf "[?]%a" d_offs o
   | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
 
-type acc_typ = [ `Type of typ | `Struct of compinfo * offs ]
+type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq]
 
 let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
@@ -216,12 +216,7 @@ end
 module Acc_typHashable
   : Hashtbl.HashedType with type t = acc_typ =
 struct
-  type t = acc_typ
-  let equal (x:t) y =
-    match x, y with
-    | `Type t, `Type v -> Basetype.CilType.equal t v
-    | `Struct (c1,o1), `Struct (c2,o2) -> CilType.Compinfo.equal c1 c2 && equal_offs o1 o2
-    | _ -> false
+  type t = acc_typ [@@deriving eq]
   let hash = function
     | `Type t -> Basetype.CilType.hash t
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
