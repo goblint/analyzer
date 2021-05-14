@@ -1568,6 +1568,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let top_of ik = Exc (ISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (ISet.empty ())
+  let top_bool = Inc (ISet.of_list [I.zero; I.one])
 
   let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
@@ -1704,12 +1705,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | x,y -> lift2 I.div ikind x y
 
   let rem = lift2 I.rem
-  let lt = lift2 I.lt
-  let gt = lift2 I.gt
-  let le = lift2 I.le
-  let ge = lift2 I.ge
-  let eq = lift2 (fun a b -> I.of_bool @@ I.equal a b) (* TODO: add more precise cases for Exc, like in DefExc? *)
-  let ne = lift2 (fun a b -> I.of_bool @@ not (I.equal a b)) (* TODO: add more precise cases for Exc, like in DefExc? *)
+
   let bitnot = lift1 BigInt.bitnot
   let bitand = lift2 BigInt.bitand
   let bitor  = lift2 BigInt.bitor
@@ -1762,9 +1758,26 @@ module Enums : S with type int_t = BigInt.t = struct
     | _ (* bottom case *) -> None
 
   let minimal = function
-  | Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs)
-  | Exc (_,r) -> Size.min_from_bit_range (R.minimal r)
-  | _ (* bottom case *) -> None
+    | Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs)
+    | Exc (_,r) -> Size.min_from_bit_range (R.minimal r)
+    | _ (* bottom case *) -> None
+
+  let lt ik x y =
+    match minimal x, maximal x, minimal y, maximal y with
+     | _, Some x2, Some y1, _ when I.compare x2 y1 < 0 -> of_bool ik true
+     | Some x1, _, _, Some y2 when I.compare x1 y2 >= 0 -> of_bool ik false
+     | _, _, _, _ -> top_bool
+
+  let gt ik x y = lt ik y x
+  let le ik x y =
+    match minimal x, maximal x, minimal y, maximal y with
+     | _, Some x2, Some y1, _ when I.compare x2 y1 <= 0 -> of_bool ik true
+     | Some x1, _, _, Some y2 when I.compare x1 y2 > 0 -> of_bool ik false
+     | _, _, _, _ -> top_bool
+
+  let ge ik x y = le ik y x
+  let eq = lift2 (fun a b -> I.of_bool @@ I.equal a b) (* TODO: add more precise cases for Exc, like in DefExc? *)
+  let ne = lift2 (fun a b -> I.of_bool @@ not (I.equal a b)) (* TODO: add more precise cases for Exc, like in DefExc? *)
 
   let invariant_ikind c ik x =
     let c = Cil.(Lval (Option.get c.Invariant.lval)) in
