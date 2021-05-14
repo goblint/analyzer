@@ -231,12 +231,7 @@ module TypeHash = HtF (Acc_typHashable)
 module LvalOptHashable
   : Hashtbl.HashedType with type t = (varinfo * offs) option =
 struct
-  type t = (varinfo * offs) option
-  let equal (x:t) (y:t) =
-    match x, y with
-    | Some (v1,o1), Some (v2,o2) -> CilType.Varinfo.equal v1 v2 && equal_offs o1 o2
-    | None, None -> true
-    | _ -> false
+  type t = (CilType.Varinfo.t * offs) option [@@deriving eq]
   let hash = function
     | None -> 435
     | Some (x,y) -> Hashtbl.hash (x.vid, Hashtbl.hash y)
