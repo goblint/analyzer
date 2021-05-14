@@ -128,7 +128,7 @@ struct
   let to_yojson x = `String (show x)
 end
 
-module Exp: S with type t = exp =
+module rec Exp: S with type t = exp =
 struct
   include Std
 
@@ -236,40 +236,15 @@ struct
       if r <> 0 then
         r
       else
-        compareOffset o1 o2
+        Offset.compare o1 o2
     | (Mem e1, o1), (Mem e2, o2) ->
       let r = compareExp e1 e2 in
       if r <> 0 then
         r
       else
-        compareOffset o1 o2
+        Offset.compare o1 o2
     | (Var _, _), (Mem _, _) -> -1
     | (Mem _, _), (Var _, _) -> 1
-  and compareOffset a b = (* TODO: Offset *)
-    let order x =
-      match x with
-      | NoOffset -> 0
-      | Field _ -> 1
-      | Index _ -> 2
-    in
-      if order a <> order b then
-        (order a) - (order b)
-      else
-        match a, b with
-        | NoOffset, NoOffset -> 0
-        | Field (f1, o1), Field(f2, o2) ->
-          let r = Fieldinfo.compare f1 f2 in
-          if r <> 0 then
-            r
-          else
-            compareOffset o1 o2
-        | Index (e1, o1), Index(e2, o2) ->
-          let r = compareExp e1 e2 in
-          if r <> 0 then
-            r
-          else
-            compareOffset o1 o2
-        | _ -> failwith "CilExp.compareOffset unknown type of expression"
 
   let compare = compareExp
   let equal a b = compare a b = 0
@@ -277,6 +252,50 @@ struct
 
   (* Output *)
   let pretty () x = dn_exp () x
+  let show x = Pretty.sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
+and Offset: S with type t = offset =
+struct
+  include Std
+
+  type t = offset
+
+  let name () = "offset"
+
+  (* Identity *)
+  let rec compare a b =
+    let order x =
+      match x with
+      | NoOffset -> 0
+      | Field _ -> 1
+      | Index _ -> 2
+    in
+    if order a <> order b then
+      (order a) - (order b)
+    else
+      match a, b with
+      | NoOffset, NoOffset -> 0
+      | Field (f1, o1), Field(f2, o2) ->
+        let r = Fieldinfo.compare f1 f2 in
+        if r <> 0 then
+          r
+        else
+          compare o1 o2
+      | Index (e1, o1), Index(e2, o2) ->
+        let r = Exp.compare e1 e2 in
+        if r <> 0 then
+          r
+        else
+          compare o1 o2
+      | _ -> failwith "CilExp.compareOffset unknown type of expression" (* FIXME: don't fail *)
+  let equal x y = compare x y = 0
+  let hash x = Hashtbl.hash x (* TODO: is this right? *)
+
+  (* Output *)
+  let pretty () x = d_offset nil () x
   let show x = Pretty.sprint ~width:max_int (pretty () x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
