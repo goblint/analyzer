@@ -97,6 +97,26 @@ struct
   let to_yojson x = `String (show x)
 end
 
+module Compinfo: S with type t = compinfo =
+struct
+  include Std
+
+  type t = compinfo
+
+  let name () = "compinfo"
+
+  (* Identity *)
+  let equal x y = x.ckey = y.ckey
+  let compare x y = compare x.ckey y.ckey
+  let hash x = Hashtbl.hash x.ckey
+
+  (* Output *)
+  let show x = compFullName x
+  let pretty () x = Pretty.text (show x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
 module Fieldinfo: S with type t = fieldinfo =
 struct
   include Std

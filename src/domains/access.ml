@@ -220,7 +220,7 @@ struct
   let equal (x:t) y =
     match x, y with
     | `Type t, `Type v -> Basetype.CilType.equal t v
-    | `Struct (c1,o1), `Struct (c2,o2) -> c1.ckey = c2.ckey && equal_offs o1 o2
+    | `Struct (c1,o1), `Struct (c2,o2) -> CilType.Compinfo.equal c1 c2 && equal_offs o1 o2
     | _ -> false
   let hash = function
     | `Type t -> Basetype.CilType.hash t
