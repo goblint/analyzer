@@ -154,9 +154,9 @@ struct
     in
     let rec bothstruct (t:fieldinfo list) (tf:fieldinfo) (o:fieldinfo list) (no:lval_offs)  : var_offs list =
       match t, o with
-      | x::xs, y::ys when x.fcomp.ckey = tf.fcomp.ckey && x.fname = tf.fname ->
+      | x::xs, y::ys when CilType.Fieldinfo.equal x tf ->
         get_pfx v (`Field (y, cx)) no x.ftype y.ftype
-      | x::xs, y::ys when CilType.Typ.equal x.ftype y.ftype ->
+      | x::xs, y::ys when CilType.Typ.equal x.ftype y.ftype -> (* different fields, same type? *)
         bothstruct xs tf ys no
       | x::xs, y::ys ->
         [] (* found a mismatch *)

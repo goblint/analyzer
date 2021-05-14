@@ -95,7 +95,7 @@ let init (f:file) =
 let rec compareOffset (off1: offset) (off2: offset) : bool =
   match off1, off2 with
   | Field (fld1, off1'), Field (fld2, off2') ->
-    fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname && compareOffset off1' off2'
+    CilType.Fieldinfo.equal fld1 fld2 && compareOffset off1' off2'
   | Index (e1, off1'), Index (e2, off2') ->
     Basetype.CilExp.equal e1 e2 && compareOffset off1' off2'
   | NoOffset, NoOffset -> true
@@ -106,7 +106,7 @@ type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
 let rec compareOffs (off1: offs) (off2: offs) : bool =
   match off1, off2 with
   | `Field (fld1, off1'), `Field (fld2, off2') ->
-    fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname && compareOffs off1' off2'
+    CilType.Fieldinfo.equal fld1 fld2 && compareOffs off1' off2'
   | `Index off1', `Index off2' ->
     compareOffs off1' off2'
   | `NoOffset, `NoOffset -> true

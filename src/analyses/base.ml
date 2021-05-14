@@ -220,7 +220,7 @@ struct
             let rec calculateDiffFromOffset x y =
               match x, y with
               | `Field ((xf:Cil.fieldinfo), xo), `Field((yf:Cil.fieldinfo), yo)
-                when  xf.floc = yf.floc && xf.fname = yf.fname && Cil.typeSig xf.ftype = Cil.typeSig yf.ftype && xf.fbitfield = yf.fbitfield && xf.fattr = yf.fattr ->
+                when CilType.Fieldinfo.equal xf yf ->
                 calculateDiffFromOffset xo yo
               | `Index (i, `NoOffset), `Index(j, `NoOffset) ->
                 begin
@@ -230,7 +230,7 @@ struct
                   | Some z -> `Int(ID.of_int ik z)
                   | _ -> `Int (ID.top_of ik)
                 end
-              | `Index (xi, xo), `Index(yi, yo) when xi = yi ->
+              | `Index (xi, xo), `Index(yi, yo) when xi = yi -> (* ID.equal? *)
                 calculateDiffFromOffset xo yo
               | _ -> `Int (ID.top_of result_ik)
             in

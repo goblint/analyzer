@@ -29,8 +29,7 @@ struct
   type t = (fieldinfo, Idx.t) offs [@@deriving to_yojson]
   include Printable.Std
 
-  let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname
-  let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false
+  let is_first_field x = try CilType.Fieldinfo.equal (List.hd x.fcomp.cfields) x with _ -> false
 
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
@@ -514,7 +513,7 @@ struct
     let rec eq a b =
       match a,b with
       | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> eq o1 o2
+      | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> eq o1 o2
       | `Index (i1,o1), `Index (i2,o2) when Basetype.CilExp.equal i1 i2 -> eq o1 o2
       | _ -> false
     in

@@ -267,7 +267,7 @@ struct
     | EVar v1, EVar v2 -> CilType.Varinfo.equal v1 v2
     | EAddr, EAddr -> true
     | EDeref, EDeref -> true
-    | EField f1, EField f2 -> f1.fname = f2.fname
+    | EField f1, EField f2 -> CilType.Fieldinfo.equal f1 f2
     | EIndex e1, EIndex e2 -> Exp.simple_eq e1 e2
     | _ -> false
 

@@ -269,6 +269,10 @@ struct
   (* Identity *)
   (* TODO: why compFullName, not ckey? *)
   let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
+  (* let equal f1 f2 = f1.fname = f2.fname *)
+  (* let equal x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname *)
+  (* let equal fld1 fld2 = fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname *) (* TODO: use this *)
+  (* let equal xf yf = xf.floc = yf.floc && xf.fname = yf.fname && Cil.typeSig xf.ftype = Cil.typeSig yf.ftype && xf.fbitfield = yf.fbitfield && xf.fattr = yf.fattr *)
   let compare x y = compare (x.fname, compFullName x.fcomp) (y.fname, compFullName y.fcomp)
   let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
 
