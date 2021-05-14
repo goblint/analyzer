@@ -179,7 +179,7 @@ struct
       let conf = if includes_uk then conf - 10 else conf in
       let f (var, offs) =
         let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
+        if CilType.Varinfo.equal var dummyFunDec.svar then
           add_access conf None (Some coffs)
         else
           add_access conf (Some var) (Some coffs)

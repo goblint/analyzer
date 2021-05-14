@@ -2089,8 +2089,8 @@ struct
           match LF.get_invalidate_action f.vname with
           | Some fnc -> invalidate ~ctx ctx.ask gs st (fnc `Write  args)
           | None -> (
-              (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
-              (if f.vid = dummyFunDec.svar.vid then M.warn_each ("Unknown function ptr called"));
+              (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
+              (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ("Unknown function ptr called"));
               let addrs =
                 if get_bool "sem.unknown_function.invalidate.globals" then (
                   M.warn_each "INVALIDATING ALL GLOBALS!";
