@@ -126,20 +126,26 @@ struct
   let name () = "fieldinfo"
 
   (* Identity *)
-  (* TODO: why compFullName, not ckey? *)
-  let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
+  let equal x y = x.fname = y.fname && Compinfo.equal x.fcomp y.fcomp
+  (* let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp *)
   (* let equal f1 f2 = f1.fname = f2.fname *)
   (* let equal x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname *)
-  (* let equal fld1 fld2 = fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname *) (* TODO: use this *)
+  (* let equal fld1 fld2 = fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname *)
   (* let equal xf yf = xf.floc = yf.floc && xf.fname = yf.fname && Cil.typeSig xf.ftype = Cil.typeSig yf.ftype && xf.fbitfield = yf.fbitfield && xf.fattr = yf.fattr *)
-  let compare x y = compare (x.fname, compFullName x.fcomp) (y.fname, compFullName y.fcomp)
+  let compare x y =
+    let r = String.compare x.fname y.fname in
+    if r <> 0 then
+      r
+    else
+      Compinfo.compare x.fcomp y.fcomp
+  (* let compare x y = compare (x.fname, compFullName x.fcomp) (y.fname, compFullName y.fcomp) *)
   (* let compare a b =
     let r = Typ.compare a.ftype b.ftype in
     if r <> 0 then
       r
     else
       compare (a.fname, a.fbitfield, a.fattr, a.floc) (b.fname, b.fbitfield, b.fattr, b.floc) *)
-  let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
+  let hash x = Hashtbl.hash (x.fname, Compinfo.hash x.fcomp)
 
   (* Output *)
   let show x = x.fname
