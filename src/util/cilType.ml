@@ -164,7 +164,7 @@ struct
       (order a) - (order b)
     else
       match a,b with
-      | Const c1, Const c2 -> compareConst c1 c2
+      | Const c1, Const c2 -> Constant.compare c1 c2
       | AddrOf l1, AddrOf l2
       | StartOf l1, StartOf l2
       | Lval l1, Lval l2 -> Lval.compare l1 l2
@@ -219,16 +219,6 @@ struct
             else
               compareExp e1c e2c
       | _ -> failwith "CilExp.compareExp unknown type of expression"
-  and compareConst a b = (* TODO: Constant *)
-    match a,b with
-    | CEnum (ea, sa, ia), CEnum (eb, sb, ib) ->
-      let r = compareExp ea eb in
-      if r <> 0 then
-        r
-      else
-        compare (sa, ia) (sb, ib)
-    | _ ->
-      compare a b
 
   let compare = compareExp
   let equal a b = compare a b = 0
@@ -315,6 +305,35 @@ struct
 
   (* Output *)
   let pretty () x = dn_lval () x
+  let show x = Pretty.sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
+and Constant: S with type t = constant =
+struct
+  include Std
+
+  type t = constant
+
+  let name () = "constant"
+
+  (* Identity *)
+  let compare a b =
+    match a,b with
+    | CEnum (ea, sa, ia), CEnum (eb, sb, ib) ->
+      let r = Exp.compare ea eb in
+      if r <> 0 then
+        r
+      else
+        compare (sa, ia) (sb, ib)
+    | _ ->
+      compare a b
+  let equal a b = compare a b = 0
+  let hash x = Hashtbl.hash x (* TODO: is this right? *)
+
+  (* Output *)
+  let pretty () x = d_const () x
   let show x = Pretty.sprint ~width:max_int (pretty () x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
