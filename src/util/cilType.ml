@@ -85,6 +85,7 @@ struct
   let name () = "typ"
 
   (* Identity *)
+  (* call to typeSig here is necessary, otherwise compare might not terminate *)
   let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
   let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
   let hash (x:typ) = Hashtbl.hash x
@@ -162,7 +163,7 @@ struct
       | StartOf l1, StartOf l2
       | Lval l1, Lval l2 -> compareLval l1 l2
       | AlignOf t1, AlignOf t2
-      | SizeOf t1, SizeOf t2 -> compareType t1 t2
+      | SizeOf t1, SizeOf t2 -> Typ.compare t1 t2
       | AlignOfE e1, AlignOfE e2
       | SizeOfE e1, SizeOfE e2 -> compareExp e1 e2
       | SizeOfStr s1, SizeOfStr s2 -> compare s1 s2
@@ -171,7 +172,7 @@ struct
         if r <> 0 then
           r
         else
-          let r = compareType t1 t2 in
+          let r = Typ.compare t1 t2 in
           if r <> 0 then
             r
           else
@@ -181,7 +182,7 @@ struct
         if r <> 0 then
           r
         else
-          let r = compareType t1 t2 in
+          let r = Typ.compare t1 t2 in
           if r <> 0 then
             r
           else
@@ -191,14 +192,14 @@ struct
             else
               compareExp e1b e2b
       | CastE (t1, e1), CastE (t2, e2) ->
-        let r = compareType t1 t2 in
+        let r = Typ.compare t1 t2 in
         if r <> 0 then
           r
         else
           compareExp e1 e2
       | AddrOfLabel s1, AddrOfLabel s2 -> compare s1 s2
       | Question (e1a, e1b, e1c, t1), Question (e2a, e2b, e2c, t2) ->
-        let r = compareType t1 t2 in
+        let r = Typ.compare t1 t2 in
         if r <> 0 then
           r
         else
@@ -264,13 +265,11 @@ struct
             compareOffset o1 o2
         | _ -> failwith "CilExp.compareOffset unknown type of expression"
   and compareFieldinfo a b = (* TODO: Fieldinfo *)
-    let r = compareType a.ftype b.ftype in
+    let r = Typ.compare a.ftype b.ftype in
     if r <> 0 then
       r
     else
       compare (a.fname, a.fbitfield, a.fattr, a.floc) (b.fname, b.fbitfield, b.fattr, b.floc)
-  and compareType a b = (* TODO: Typ *)
-    compare (typeSig a) (typeSig b) (* call to typeSig here is necessary, otherwise compare might not terminate *)
 
   let compare = compareExp
   let equal a b = compare a b = 0
