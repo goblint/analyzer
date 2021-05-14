@@ -412,6 +412,19 @@ module Size = struct (* size in bits as int, range as int64 *)
           a,b
       else
         a, b
+
+  (* From the number of bits used to represent a positive value, determines the maximal representable value *)
+  let max_from_bit_range pos_bits =
+    match pos_bits with
+    | Some i when i < 64L -> Some(BI.(pred @@ shift_left BI.one (to_int (BI.of_int64 i)))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
+    | _ -> None
+
+  (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
+  let min_from_bit_range neg_bits =
+    match neg_bits with
+    | Some i when i > -64L -> Some(BI.(if i = 0L then BI.zero else neg @@ shift_left BI.one (to_int (neg (BI.of_int64 i))))) (* things that are smaller than (-2^63)can not be represented as int64 *)
+    | _ -> None
+
 end
 
 
@@ -1146,15 +1159,8 @@ struct
         )
       | `Bot -> `Bot
 
-  let max_of_range r =
-    match R.maximal r with
-    | Some i when i < 64L -> Some(BI.(pred @@ shift_left BI.one (to_int (BI.of_int64 i)))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
-    | _ -> None
-
-  let min_of_range r =
-    match R.minimal r with
-    | Some i when i > -64L -> Some(BI.(if i = 0L then BI.zero else neg @@ shift_left BI.one (to_int (neg (BI.of_int64 i))))) (* things that are smaller than (-2^63) can not be represented as int64 *)
-    | _ -> None
+  let max_of_range r = Size.max_from_bit_range (R.maximal r)
+  let min_of_range r = Size.min_from_bit_range (R.minimal r)
 
   let maximal = function
     | `Definite x -> Some x
@@ -1750,8 +1756,15 @@ module Enums : S with type int_t = BigInt.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
-  let maximal = function Inc xs when not (ISet.is_empty xs) -> Some (ISet.max_elt xs) | _ -> None
-  let minimal = function Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs) | _ -> None
+  let maximal = function
+    | Inc xs when not (ISet.is_empty xs) -> Some (ISet.max_elt xs)
+    | Exc (_,r) -> Size.max_from_bit_range (R.maximal r)
+    | _ (* bottom case *) -> None
+
+  let minimal = function
+  | Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs)
+  | Exc (_,r) -> Size.min_from_bit_range (R.minimal r)
+  | _ (* bottom case *) -> None
 
   let invariant_ikind c ik x =
     let c = Cil.(Lval (Option.get c.Invariant.lval)) in
