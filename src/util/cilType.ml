@@ -217,7 +217,7 @@ struct
               r
             else
               compare e1c e2c
-      | _ -> failwith "CilExp.compareExp unknown type of expression"
+      | _ -> failwith "CilType.Exp.compare: mismatching exps"
   let equal a b = compare a b = 0
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
@@ -261,7 +261,7 @@ struct
           r
         else
           compare o1 o2
-      | _ -> failwith "CilExp.compareOffset unknown type of expression" (* FIXME: don't fail *)
+      | _ -> failwith "CilType.Offset.compare: mismatching offsets"
   let equal x y = compare x y = 0
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
