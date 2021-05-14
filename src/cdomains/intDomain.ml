@@ -1670,16 +1670,22 @@ module Enums : S with type int_t = BigInt.t = struct
   let narrow = meet
 
   let leq x y = equal (join_ignore_ikind x y) y
+  let handle_bot x y f = match is_bot x, is_bot y with
+    | false, false -> f ()
+    | true, false
+    | false, true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | true, true -> Inc (ISet.empty ())
 
   let lift1 f ikind v = norm ikind @@ match v with
+    | Inc x when ISet.is_empty x -> v (* Return bottom when value is bottom *)
     | Inc x when ISet.is_singleton x -> Inc (ISet.singleton (f (ISet.choose x)))
     | _ -> top_of ikind
 
-  let lift2 f (ikind: Cil.ikind) u v = norm ikind @@ match u, v with
-    | Inc e,_ when ISet.is_empty e -> u
-    | _,Inc e when ISet.is_empty e -> v
-    | Inc x,Inc y when ISet.is_singleton x && ISet.is_singleton y -> Inc (ISet.singleton (f (ISet.choose x) (ISet.choose y)))
-    | _,_ -> top_of ikind
+  let lift2 f (ikind: Cil.ikind) u v =
+    handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x,Inc y when ISet.is_singleton x && ISet.is_singleton y -> Inc (ISet.singleton (f (ISet.choose x) (ISet.choose y)))
+      | _,_ -> top_of ikind)
 
   let lift2 f ikind a b =
     try lift2 f ikind a b with Division_by_zero -> top_of ikind
@@ -1712,18 +1718,19 @@ module Enums : S with type int_t = BigInt.t = struct
   let bitxor = lift2 BigInt.bitxor
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
-    (* BigInt only accepts int as second argument for shifts; perform conversion here *)
-    let shift_op_big_int a (b: int_t) =
-      let (b : int) = BI.to_int b in
-      shift_op a b
-    in
-    (* If one of the parameters of the shift is negative, the result is undefined *)
-    let x_min = minimal x in
-    let y_min = minimal y in
-    if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then
-      top_of ik
-    else
-      lift2 shift_op_big_int ik x y
+    handle_bot x y (fun () ->
+      (* BigInt only accepts int as second argument for shifts; perform conversion here *)
+      let shift_op_big_int a (b: int_t) =
+        let (b : int) = BI.to_int b in
+        shift_op a b
+      in
+      (* If one of the parameters of the shift is negative, the result is undefined *)
+      let x_min = minimal x in
+      let y_min = minimal y in
+      if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then
+        top_of ik
+      else
+        lift2 shift_op_big_int ik x y)
 
   let shift_left =
     shift BigInt.shift_left
@@ -1751,11 +1758,11 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let lognot ik x =
     if is_bot x
-      then x
-      else
-        match to_bool x with
-         | Some b -> of_bool ik (not b)
-         | None -> top_bool
+    then x
+    else
+      match to_bool x with
+       | Some b -> of_bool ik (not b)
+       | None -> top_bool
 
   let logand = lift2 I.logand
   let logor  = lift2 I.logor
@@ -1770,28 +1777,33 @@ module Enums : S with type int_t = BigInt.t = struct
     | _ (* bottom case *) -> None
 
   let lt ik x y =
-    match minimal x, maximal x, minimal y, maximal y with
-     | _, Some x2, Some y1, _ when I.compare x2 y1 < 0 -> of_bool ik true
-     | Some x1, _, _, Some y2 when I.compare x1 y2 >= 0 -> of_bool ik false
-     | _, _, _, _ -> top_bool
+    handle_bot x y (fun () ->
+      match minimal x, maximal x, minimal y, maximal y with
+      | _, Some x2, Some y1, _ when I.compare x2 y1 < 0 -> of_bool ik true
+      | Some x1, _, _, Some y2 when I.compare x1 y2 >= 0 -> of_bool ik false
+      | _, _, _, _ -> top_bool)
 
   let gt ik x y = lt ik y x
+
   let le ik x y =
-    match minimal x, maximal x, minimal y, maximal y with
-     | _, Some x2, Some y1, _ when I.compare x2 y1 <= 0 -> of_bool ik true
-     | Some x1, _, _, Some y2 when I.compare x1 y2 > 0 -> of_bool ik false
-     | _, _, _, _ -> top_bool
+    handle_bot x y (fun () ->
+      match minimal x, maximal x, minimal y, maximal y with
+      | _, Some x2, Some y1, _ when I.compare x2 y1 <= 0 -> of_bool ik true
+      | Some x1, _, _, Some y2 when I.compare x1 y2 > 0 -> of_bool ik false
+      | _, _, _, _ -> top_bool)
 
   let ge ik x y = le ik y x
 
-  let eq ik x y = match x, y with
-    | Inc xs, Inc ys when ISet.is_singleton xs && ISet.is_singleton ys -> of_bool ik (I.equal (ISet.choose xs) (ISet.choose ys))
-    | _, _ ->
-      if is_bot (meet ik x y) then
-        (* If the meet is empty, there is no chance that concrete values are equal *)
-        of_bool ik false
-      else
-        top_bool
+  let eq ik x y =
+    handle_bot x y (fun () ->
+      match x, y with
+      | Inc xs, Inc ys when ISet.is_singleton xs && ISet.is_singleton ys -> of_bool ik (I.equal (ISet.choose xs) (ISet.choose ys))
+      | _, _ ->
+        if is_bot (meet ik x y) then
+          (* If the meet is empty, there is no chance that concrete values are equal *)
+          of_bool ik false
+        else
+          top_bool)
 
   let ne ik x y = lognot ik (eq ik x y)
 
