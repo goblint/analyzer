@@ -156,7 +156,7 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
   | Question (_,b,c,t) ->
     begin match get_type fb b, get_type fb c with
       | `Struct (s1,o1), `Struct (s2,o2)
-        when s1.ckey = s2.ckey && equal_offs o1 o2 ->
+        when CilType.Compinfo.equal s1 s2 && equal_offs o1 o2 ->
         `Struct (s1, o1)
       | _ -> `Type t
     end
