@@ -5,6 +5,7 @@ open Pretty
 module type S =
 sig
   include Printable.S
+  (* include MapDomain.Groupable *) (* FIXME: dependency cycle *)
 end
 
 module Std =
@@ -253,6 +254,27 @@ struct
   (* Output *)
   let pretty () x = d_type () x
   let show x = sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
+module Fieldinfo: S with type t = fieldinfo =
+struct
+  include Std
+
+  type t = fieldinfo
+
+  let name () = "fieldinfo"
+
+  (* Identity *)
+  (* TODO: why compFullName, not ckey? *)
+  let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
+  let compare x y = compare (x.fname, compFullName x.fcomp) (y.fname, compFullName y.fcomp)
+  let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
+
+  (* Output *)
+  let show x = x.fname
+  let pretty () x = Pretty.text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end

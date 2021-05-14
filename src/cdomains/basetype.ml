@@ -238,17 +238,12 @@ end
 
 module CilField =
 struct
-  include Printable.Std
+  include Printable.Std (* for default MapDomain.Groupable *)
+  include CilType.Fieldinfo
   let copy x = x
-  type t = fieldinfo [@@deriving to_yojson]
-  let compare x y = compare (x.fname, compFullName x.fcomp)  (y.fname, compFullName y.fcomp)
-  let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
-  let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
-  let show x = x.fname
-  let pretty () x = Pretty.text (show x)
+
   let name () = "field"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
 module FieldVariables =

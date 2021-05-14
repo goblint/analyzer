@@ -84,6 +84,7 @@ struct
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
 
   let rec compare o1 o2 = match o1, o2 with
+    (* FIXME: forgets to check cmp_zero_offset like equal *)
     | `NoOffset, `NoOffset -> 0
     | `Field (f1,o1), `Field (f2,o2) ->
       let c = Stdlib.compare f1.fname f2.fname in
