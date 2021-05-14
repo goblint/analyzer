@@ -1731,10 +1731,6 @@ module Enums : S with type int_t = BigInt.t = struct
   let shift_right =
     shift BigInt.shift_right
 
-  let lognot = lift1 I.lognot
-  let logand = lift2 I.logand
-  let logor  = lift2 I.logor
-
   let of_bool ikind x = Inc (ISet.singleton (if x then BI.one else BI.zero))
   let to_bool  = function
     | Inc e when ISet.is_empty e -> None
@@ -1752,6 +1748,17 @@ module Enums : S with type int_t = BigInt.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
+
+  let lognot ik x =
+    if is_bot x
+      then x
+      else
+        match to_bool x with
+         | Some b -> of_bool ik (not b)
+         | None -> top_bool
+
+  let logand = lift2 I.logand
+  let logor  = lift2 I.logor
   let maximal = function
     | Inc xs when not (ISet.is_empty xs) -> Some (ISet.max_elt xs)
     | Exc (_,r) -> Size.max_from_bit_range (R.maximal r)
@@ -1776,8 +1783,17 @@ module Enums : S with type int_t = BigInt.t = struct
      | _, _, _, _ -> top_bool
 
   let ge ik x y = le ik y x
-  let eq = lift2 (fun a b -> I.of_bool @@ I.equal a b) (* TODO: add more precise cases for Exc, like in DefExc? *)
-  let ne = lift2 (fun a b -> I.of_bool @@ not (I.equal a b)) (* TODO: add more precise cases for Exc, like in DefExc? *)
+
+  let eq ik x y = match x, y with
+    | Inc xs, Inc ys when ISet.is_singleton xs && ISet.is_singleton ys -> of_bool ik (I.equal (ISet.choose xs) (ISet.choose ys))
+    | _, _ ->
+      if is_bot (meet ik x y) then
+        (* If the meet is empty, there is no chance that concrete values are equal *)
+        of_bool ik false
+      else
+        top_bool
+
+  let ne ik x y = lognot ik (eq ik x y)
 
   let invariant_ikind c ik x =
     let c = Cil.(Lval (Option.get c.Invariant.lval)) in
