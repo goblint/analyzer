@@ -8,7 +8,7 @@ type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving to_yojson]
+] [@@deriving eq, ord, to_yojson]
 
 type ('a,'b) offs_uk = [
   | `NoOffset
@@ -507,45 +507,10 @@ end
 module CilLval =
 struct
   include Printable.Std
-  type t = varinfo * (fieldinfo, exp) offs [@@deriving to_yojson]
-
-  let equal  (x1,o1) (x2,o2) =
-    let rec eq a b =
-      match a,b with
-      | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Basetype.CilExp.equal i1 i2 -> eq o1 o2
-      | _ -> false
-    in
-    CilType.Varinfo.equal x1 x2 && eq o1 o2
+  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, to_yojson]
 
   let hash    = Hashtbl.hash
   let name () = "simplified lval"
-
-  let compare (x1,o1) (x2,o2) =
-    let tag = function
-      | `NoOffset -> 0
-      | `Field _ -> 1
-      | `Index _ -> 2
-      | _ -> 3
-    in
-    let rec compare a b =
-      let r = tag a - tag b in
-      if r <> 0 then r else
-      match a,b with
-      | `NoOffset , `NoOffset -> 0
-      | `Field (f1,o1), `Field (f2,o2) ->
-        let r = CilType.Fieldinfo.compare f1 f2 in
-        if r <>0 then r else
-          compare o1 o2
-      | `Index (i1,o1), `Index (i2,o2) ->
-        let r = Basetype.CilExp.compare i1 i2 in
-        if r <> 0 then r else
-          compare o1 o2
-      | _ -> failwith "unexpected tag"
-    in
-    let r = CilType.Varinfo.compare x1 x2 in
-    if r <> 0 then r else compare o1 o2
 
   let class_tag (v,o) =
     match v with
