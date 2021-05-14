@@ -172,10 +172,11 @@ module Normal (Idx: IntDomain.Z) =
 struct
   type field = fieldinfo [@@deriving to_yojson]
   type idx = Idx.t [@@deriving to_yojson]
+  module Offs = Offset (Idx)
   (* A SafePtr is a pointer that does not point to any variables of the analyzed program (assuming external functions don't return random pointers but only pointers to things they can reach).
    * UnknownPtr includes SafePtr *)
-  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving to_yojson]
-  module Offs = Offset (Idx)
+  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving eq, ord, to_yojson]
+  (* TODO: StrPtr equals problematic if the same literal appears more than once *)
   include Printable.Std
   let name () = "Normal Lvals"
 
@@ -261,38 +262,6 @@ struct
     | x -> Hashtbl.hash x
 
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
-
-  let equal x y = match x, y with
-    | Addr (v,o), Addr (u,p) -> CilType.Varinfo.equal v u && Offs.equal o p
-    | StrPtr a  , StrPtr b -> a=b (* TODO problematic if the same literal appears more than once *)
-    | UnknownPtr, UnknownPtr
-    | SafePtr   , SafePtr
-    | NullPtr   , NullPtr -> true
-    | _ -> false
-
-  let compare x y =
-    if equal x y
-      then 0
-      else
-        let order x = match x with
-          | Addr _ -> 0
-          | StrPtr _ -> 1
-          | UnknownPtr -> 2
-          | SafePtr -> 3
-          | NullPtr -> 4
-         in
-         let c = compare (order x) (order y) in
-         if c <> 0
-          then c
-          else
-            match (x, y) with
-            | Addr (v, o), Addr (u, p) ->
-              let vc = CilType.Varinfo.compare v u in
-              if vc <> 0
-                then vc
-                else Offs.compare o p
-            | StrPtr a, StrPtr b -> compare a b
-            | _, _ -> raise @@ Invalid_argument "Invalid argument for Normal.compare"
 
   let pretty () x = Pretty.text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
