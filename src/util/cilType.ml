@@ -138,8 +138,7 @@ struct
 
   (* Identity *)
   (* Need custom compare because normal compare on CIL Exp might not terminate *)
-  (* TODO: rename to compare *)
-  let rec compareExp a b =
+  let rec compare a b =
     let order x = match x with
       | Const _ -> 0
       | Lval _ -> 1
@@ -171,10 +170,10 @@ struct
       | AlignOf t1, AlignOf t2
       | SizeOf t1, SizeOf t2 -> Typ.compare t1 t2
       | AlignOfE e1, AlignOfE e2
-      | SizeOfE e1, SizeOfE e2 -> compareExp e1 e2
-      | SizeOfStr s1, SizeOfStr s2 -> compare s1 s2
+      | SizeOfE e1, SizeOfE e2 -> compare e1 e2
+      | SizeOfStr s1, SizeOfStr s2 -> String.compare s1 s2
       | UnOp (op1, e1, t1), UnOp (op2, e2, t2) ->
-        let r = compare op1 op2 in
+        let r = Stdlib.compare op1 op2 in
         if r <> 0 then
           r
         else
@@ -182,9 +181,9 @@ struct
           if r <> 0 then
             r
           else
-            compareExp e1 e2
+            compare e1 e2
       | BinOp (op1, e1a, e1b, t1), BinOp (op2, e2a, e2b, t2) ->
-        let r = compare op1 op2 in
+        let r = Stdlib.compare op1 op2 in
         if r <> 0 then
           r
         else
@@ -192,35 +191,33 @@ struct
           if r <> 0 then
             r
           else
-            let r = compareExp e1a e2a in
+            let r = compare e1a e2a in
             if r <> 0 then
               r
             else
-              compareExp e1b e2b
+              compare e1b e2b
       | CastE (t1, e1), CastE (t2, e2) ->
         let r = Typ.compare t1 t2 in
         if r <> 0 then
           r
         else
-          compareExp e1 e2
-      | AddrOfLabel s1, AddrOfLabel s2 -> compare s1 s2
+          compare e1 e2
+      | AddrOfLabel s1, AddrOfLabel s2 -> Stdlib.compare s1 s2 (* TODO: is this right? *)
       | Question (e1a, e1b, e1c, t1), Question (e2a, e2b, e2c, t2) ->
         let r = Typ.compare t1 t2 in
         if r <> 0 then
           r
         else
-          let r = compareExp e1a e2a in
+          let r = compare e1a e2a in
           if r <> 0 then
             r
           else
-            let r = compareExp e1b e2b in
+            let r = compare e1b e2b in
             if r <> 0 then
               r
             else
-              compareExp e1c e2c
+              compare e1c e2c
       | _ -> failwith "CilExp.compareExp unknown type of expression"
-
-  let compare = compareExp
   let equal a b = compare a b = 0
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
