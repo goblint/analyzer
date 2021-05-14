@@ -167,7 +167,7 @@ struct
       | Const c1, Const c2 -> compareConst c1 c2
       | AddrOf l1, AddrOf l2
       | StartOf l1, StartOf l2
-      | Lval l1, Lval l2 -> compareLval l1 l2
+      | Lval l1, Lval l2 -> Lval.compare l1 l2
       | AlignOf t1, AlignOf t2
       | SizeOf t1, SizeOf t2 -> Typ.compare t1 t2
       | AlignOfE e1, AlignOfE e2
@@ -229,22 +229,6 @@ struct
         compare (sa, ia) (sb, ib)
     | _ ->
       compare a b
-  and compareLval a b = (* TODO: Lval *)
-    match a, b with
-    | (Var v1, o1), (Var v2, o2) ->
-      let r = Varinfo.compare v1 v2 in
-      if r <> 0 then
-        r
-      else
-        Offset.compare o1 o2
-    | (Mem e1, o1), (Mem e2, o2) ->
-      let r = compareExp e1 e2 in
-      if r <> 0 then
-        r
-      else
-        Offset.compare o1 o2
-    | (Var _, _), (Mem _, _) -> -1
-    | (Mem _, _), (Var _, _) -> 1
 
   let compare = compareExp
   let equal a b = compare a b = 0
@@ -296,6 +280,41 @@ struct
 
   (* Output *)
   let pretty () x = d_offset nil () x
+  let show x = Pretty.sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
+and Lval: S with type t = lval =
+struct
+  include Std
+
+  type t = lval
+
+  let name () = "lval"
+
+  (* Identity *)
+  let compare a b =
+    match a, b with
+    | (Var v1, o1), (Var v2, o2) ->
+      let r = Varinfo.compare v1 v2 in
+      if r <> 0 then
+        r
+      else
+        Offset.compare o1 o2
+    | (Mem e1, o1), (Mem e2, o2) ->
+      let r = Exp.compare e1 e2 in
+      if r <> 0 then
+        r
+      else
+        Offset.compare o1 o2
+    | (Var _, _), (Mem _, _) -> -1
+    | (Mem _, _), (Var _, _) -> 1
+  let equal x y = compare x y = 0
+  let hash x = Hashtbl.hash x (* TODO: is this right? *)
+
+  (* Output *)
+  let pretty () x = dn_lval () x
   let show x = Pretty.sprint ~width:max_int (pretty () x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
