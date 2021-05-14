@@ -92,23 +92,7 @@ let init (f:file) =
   List.iter visit_glob f.globals
 
 
-type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
-
-let rec compareOffs (off1: offs) (off2: offs) : bool =
-  match off1, off2 with
-  | `Field (fld1, off1'), `Field (fld2, off2') ->
-    CilType.Fieldinfo.equal fld1 fld2 && compareOffs off1' off2'
-  | `Index off1', `Index off2' ->
-    compareOffs off1' off2'
-  | `NoOffset, `NoOffset -> true
-  | _ -> false
-
-let rec offs_eq x y =
-  match x, y with
-  | `NoOffset, `NoOffset -> true
-  | `Index x, `Index y -> offs_eq x y
-  | `Field (f,x), `Field (g,y) -> CilType.Fieldinfo.equal f g && offs_eq x y
-  | _ -> false
+type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq]
 
 let rec remove_idx : offset -> offs  = function
   | NoOffset    -> `NoOffset
@@ -172,7 +156,7 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
   | Question (_,b,c,t) ->
     begin match get_type fb b, get_type fb c with
       | `Struct (s1,o1), `Struct (s2,o2)
-        when s1.ckey = s2.ckey && compareOffs o1 o2 ->
+        when s1.ckey = s2.ckey && equal_offs o1 o2 ->
         `Struct (s1, o1)
       | _ -> `Type t
     end
@@ -236,7 +220,7 @@ struct
   let equal (x:t) y =
     match x, y with
     | `Type t, `Type v -> Basetype.CilType.equal t v
-    | `Struct (c1,o1), `Struct (c2,o2) -> c1.ckey = c2.ckey && compareOffs o1 o2
+    | `Struct (c1,o1), `Struct (c2,o2) -> c1.ckey = c2.ckey && equal_offs o1 o2
     | _ -> false
   let hash = function
     | `Type t -> Basetype.CilType.hash t
@@ -250,7 +234,7 @@ struct
   type t = (varinfo * offs) option
   let equal (x:t) (y:t) =
     match x, y with
-    | Some (v1,o1), Some (v2,o2) -> CilType.Varinfo.equal v1 v2 && offs_eq o1 o2
+    | Some (v1,o1), Some (v2,o2) -> CilType.Varinfo.equal v1 v2 && equal_offs o1 o2
     | None, None -> true
     | _ -> false
   let hash = function
