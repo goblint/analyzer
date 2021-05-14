@@ -64,8 +64,8 @@ struct
   let name () = "fundec"
 
   (* Identity *)
-  let equal x y = x.svar.vid = y.svar.vid
-  let compare x y = compare x.svar.vid y.svar.vid
+  let equal x y = Varinfo.equal x.svar y.svar
+  let compare x y = Varinfo.compare x.svar y.svar
   let hash x = x.svar.vid * 3
 
   (* Output *)
@@ -179,7 +179,7 @@ struct
   and compareLval a b = (* TODO: Lval *)
     match a, b with
     | (Var v1, o1), (Var v2, o2) ->
-      let r = compare v1.vid v2.vid in
+      let r = Varinfo.compare v1 v2 in
       if r <> 0 then
         r
       else

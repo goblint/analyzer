@@ -279,7 +279,7 @@ struct
                   (*"("^string_of_int (get_var x).vid ^")"^*)
                   (apply_field (fun x->"::"^x.fname) "" x)
 
-  let compare x y = let cmp = compare (get_var x).vid (get_var y).vid in
+  let compare x y = let cmp = CilType.Varinfo.compare (get_var x) (get_var y) in
     if cmp = 0 then
       compare (apply_field (fun v->v.fname) "" x) (apply_field (fun v->v.fname) "" y)
     else

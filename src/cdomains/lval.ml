@@ -287,7 +287,7 @@ struct
           else
             match (x, y) with
             | Addr (v, o), Addr (u, p) ->
-              let vc = compare v.vid u.vid in
+              let vc = CilType.Varinfo.compare v u in
               if vc <> 0
                 then vc
                 else Offs.compare o p
@@ -544,7 +544,7 @@ struct
           compare o1 o2
       | _ -> failwith "unexpected tag"
     in
-    let r = x1.vid - x2.vid in
+    let r = CilType.Varinfo.compare x1 x2 in
     if r <> 0 then r else compare o1 o2
 
   let class_tag (v,o) =

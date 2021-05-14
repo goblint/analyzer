@@ -1127,10 +1127,10 @@ struct
     let vars = get_vars exp in
     let res = List.fold_left
         (fun ags v->
-           let tmp = ArgSet.filter (fun x->(FieldVars.get_var x).vid!=v.vid) ags
+           let tmp = ArgSet.filter (fun x-> not (CilType.Varinfo.equal (FieldVars.get_var x) v)) ags
            in
            let args2 = Danger.find v st in
-           ArgSet.filter (fun x->ArgSet.fold (fun q v-> (FieldVars.get_var x).vid!=(FieldVars.get_var q).vid && v ) args2 true) tmp
+           ArgSet.filter (fun x->ArgSet.fold (fun q v-> not (CilType.Varinfo.equal (FieldVars.get_var x) (FieldVars.get_var q)) && v ) args2 true) tmp
         )
         args vars in
     (*    report ("filter "^(sprint 160 (d_exp () exp))^" , "^sprint 160 (ArgSet.pretty () (args))^" = "^sprint 160 (ArgSet.pretty () (res)));*)

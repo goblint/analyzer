@@ -22,7 +22,7 @@ struct
   struct
     type t = var
     let equal x y = CilType.Varinfo.equal x y
-    let compare x y = compare x.vid y.vid
+    let compare x y = CilType.Varinfo.compare x y
   end
 
   module type Env =
