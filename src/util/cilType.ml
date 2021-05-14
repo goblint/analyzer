@@ -113,6 +113,12 @@ struct
   (* let equal fld1 fld2 = fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname *) (* TODO: use this *)
   (* let equal xf yf = xf.floc = yf.floc && xf.fname = yf.fname && Cil.typeSig xf.ftype = Cil.typeSig yf.ftype && xf.fbitfield = yf.fbitfield && xf.fattr = yf.fattr *)
   let compare x y = compare (x.fname, compFullName x.fcomp) (y.fname, compFullName y.fcomp)
+  (* let compare a b =
+    let r = Typ.compare a.ftype b.ftype in
+    if r <> 0 then
+      r
+    else
+      compare (a.fname, a.fbitfield, a.fattr, a.floc) (b.fname, b.fbitfield, b.fattr, b.floc) *)
   let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
 
   (* Output *)
@@ -252,7 +258,7 @@ struct
         match a, b with
         | NoOffset, NoOffset -> 0
         | Field (f1, o1), Field(f2, o2) ->
-          let r = compareFieldinfo f1 f2 in
+          let r = Fieldinfo.compare f1 f2 in
           if r <> 0 then
             r
           else
@@ -264,12 +270,6 @@ struct
           else
             compareOffset o1 o2
         | _ -> failwith "CilExp.compareOffset unknown type of expression"
-  and compareFieldinfo a b = (* TODO: Fieldinfo *)
-    let r = Typ.compare a.ftype b.ftype in
-    if r <> 0 then
-      r
-    else
-      compare (a.fname, a.fbitfield, a.fattr, a.floc) (b.fname, b.fbitfield, b.fattr, b.floc)
 
   let compare = compareExp
   let equal a b = compare a b = 0
