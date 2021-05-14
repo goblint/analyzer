@@ -76,6 +76,51 @@ struct
   let to_yojson x = `String (show x)
 end
 
+module Typ: S with type t = typ =
+struct
+  include Std
+
+  type t = typ
+
+  let name () = "typ"
+
+  (* Identity *)
+  let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
+  let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
+  let hash (x:typ) = Hashtbl.hash x
+
+  (* Output *)
+  let pretty () x = d_type () x
+  let show x = sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
+module Fieldinfo: S with type t = fieldinfo =
+struct
+  include Std
+
+  type t = fieldinfo
+
+  let name () = "fieldinfo"
+
+  (* Identity *)
+  (* TODO: why compFullName, not ckey? *)
+  let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
+  (* let equal f1 f2 = f1.fname = f2.fname *)
+  (* let equal x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname *)
+  (* let equal fld1 fld2 = fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname *) (* TODO: use this *)
+  (* let equal xf yf = xf.floc = yf.floc && xf.fname = yf.fname && Cil.typeSig xf.ftype = Cil.typeSig yf.ftype && xf.fbitfield = yf.fbitfield && xf.fattr = yf.fattr *)
+  let compare x y = compare (x.fname, compFullName x.fcomp) (y.fname, compFullName y.fcomp)
+  let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
+
+  (* Output *)
+  let show x = x.fname
+  let pretty () x = Pretty.text (show x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
 module Exp: S with type t = exp =
 struct
   include Std
@@ -234,51 +279,6 @@ struct
   (* Output *)
   let pretty () x = dn_exp () x
   let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-end
-
-module Typ: S with type t = typ =
-struct
-  include Std
-
-  type t = typ
-
-  let name () = "typ"
-
-  (* Identity *)
-  let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
-  let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
-  let hash (x:typ) = Hashtbl.hash x
-
-  (* Output *)
-  let pretty () x = d_type () x
-  let show x = sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-end
-
-module Fieldinfo: S with type t = fieldinfo =
-struct
-  include Std
-
-  type t = fieldinfo
-
-  let name () = "fieldinfo"
-
-  (* Identity *)
-  (* TODO: why compFullName, not ckey? *)
-  let equal x y = x.fname = y.fname && compFullName x.fcomp = compFullName y.fcomp
-  (* let equal f1 f2 = f1.fname = f2.fname *)
-  (* let equal x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname *)
-  (* let equal fld1 fld2 = fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname *) (* TODO: use this *)
-  (* let equal xf yf = xf.floc = yf.floc && xf.fname = yf.fname && Cil.typeSig xf.ftype = Cil.typeSig yf.ftype && xf.fbitfield = yf.fbitfield && xf.fattr = yf.fattr *)
-  let compare x y = compare (x.fname, compFullName x.fcomp) (y.fname, compFullName y.fcomp)
-  let hash x = Hashtbl.hash (x.fname, compFullName x.fcomp)
-
-  (* Output *)
-  let show x = x.fname
-  let pretty () x = Pretty.text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
