@@ -91,15 +91,6 @@ let init (f:file) =
   in
   List.iter visit_glob f.globals
 
-(* from cil *)
-let rec compareOffset (off1: offset) (off2: offset) : bool =
-  match off1, off2 with
-  | Field (fld1, off1'), Field (fld2, off2') ->
-    CilType.Fieldinfo.equal fld1 fld2 && compareOffset off1' off2'
-  | Index (e1, off1'), Index (e2, off2') ->
-    Basetype.CilExp.equal e1 e2 && compareOffset off1' off2'
-  | NoOffset, NoOffset -> true
-  | _ -> false
 
 type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
 
