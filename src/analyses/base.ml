@@ -2013,7 +2013,7 @@ struct
         | [exp] ->
           begin match ThreadId.get_current ctx.ask with
             | `Lifted tid ->
-              let rv = eval_rv ctx.ask ctx.global ctx.local exp in
+              let rv = eval_rv ctx.ask ctx.global ctx.local exp |> VD.cast ~torg:(typeOf exp) Cil.voidPtrType in
               let nst = {st with cpa=CPA.add tid rv st.cpa} in
               (* TODO: emit thread return event so other analyses are aware? *)
               publish_all {ctx with local=nst} `Return (* like normal return *)
