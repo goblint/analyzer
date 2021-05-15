@@ -1,14 +1,13 @@
 // PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']" --set dbg.debug true
 #include <stdio.h>
 
-int test(int b){
-  return b;
-}
-
 int main()
 {
-  int arr[] = {1,2,3,4,5,6};      
-  arr[9] = 10; //WARN
-  arr[10] = 10; //WARN
+    int arr[] = {1, 2, 3, 4, 5, 6};
+    arr[6] = 10; //WARN
+    for (int i = 0; i < 10; ++i)
+    {
+        arr[i] = 5; //WARN
+    }
     return 0;
 }
