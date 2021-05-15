@@ -582,7 +582,7 @@ struct
     let bool_c = Idx.to_bool c in
     let () = match bool_c with 
       | Some(true) -> ();
-      | _ -> M.report "Array out of bound";
+      | _ -> M.warn_each "Array out of bound";
     in
     Base.get ask x (e,v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l

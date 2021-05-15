@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']" --set dbg.debug true
 #include <stdio.h>
 
 int test(int b){
