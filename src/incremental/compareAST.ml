@@ -2,7 +2,8 @@ open Cil
 
 type changed_global = {
   old: global;
-  current: global
+  current: global;
+  unchangedHeader: bool
 }
 
 type change_info = {
@@ -230,13 +231,19 @@ and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
   a.battrs = b.battrs && List.for_all (fun (x,y) -> eq_stmt (x, af) (y, bf)) (List.combine a.bstmts b.bstmts)
 
 let eqF (a: Cil.fundec) (b: Cil.fundec) =
-  try
-    eq_varinfo a.svar b.svar &&
-    List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals) &&
-    List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) &&
-    eq_block (a.sbody, a) (b.sbody, b)
-  with Invalid_argument _ -> (* One of the combines failed because the lists have differend length *)
-    false
+  let unchangedHeader =
+    try
+      eq_varinfo a.svar b.svar &&
+      List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals)
+    with Invalid_argument _ -> false in
+  let identical =
+    try
+      unchangedHeader &&
+      List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) &&
+      eq_block (a.sbody, a) (b.sbody, b)
+    with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
+      false in
+  identical, unchangedHeader
 
 let rec eq_init (a: init) (b: init) = match a, b with
   | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
@@ -250,9 +257,9 @@ let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
 
 let eq_glob (a: global) (b: global) = match a, b with
   | GFun (f,_), GFun (g,_) -> eqF f g
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y
-  | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> (eq_varinfo x y, false) (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> (eq_varinfo x y, false)
+  | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); (false, false)
 
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
@@ -270,10 +277,10 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
       (try
          let old_global = GlobalMap.find ident map in
          (* Do a (recursive) equal comparision ignoring location information *)
-         let identical = eq_glob old_global global in
+         let identical, unchangedHeader = eq_glob old_global global in
          if identical
          then changes.unchanged <- global :: changes.unchanged
-         else changes.changed <- {current = global; old = old_global} :: changes.changed
+         else changes.changed <- {current = global; old = old_global; unchangedHeader = unchangedHeader} :: changes.changed
        with Not_found -> ())
     with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)
   in

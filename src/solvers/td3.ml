@@ -328,7 +328,8 @@ module WP =
               destabilize x; HM.replace stable x ())
           ) old_ret;
 
-          if !numDest = 0 then print_endline "no actual destabilization needed!"
+          if !numDest = 0 then print_endline "no actual destabilization needed!";
+          print_endline "final solve"
           (* ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals) *)
         )
       );
