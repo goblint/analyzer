@@ -14,7 +14,7 @@ sig
   val lock: Queries.ask -> (varinfo -> G.t) -> BaseDomain.BaseComponents (D).t -> LockDomain.Addr.t -> BaseDomain.BaseComponents (D).t
   val unlock: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> LockDomain.Addr.t -> BaseDomain.BaseComponents (D).t
 
-  val sync: Queries.ask -> (varinfo -> G.t) -> BaseDomain.BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseDomain.BaseComponents (D).t * (varinfo * G.t) list
+  val sync: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseDomain.BaseComponents (D).t
 
   val escape: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseDomain.BaseComponents (D).t
   val enter_multithreaded: Queries.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
