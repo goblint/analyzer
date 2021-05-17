@@ -455,15 +455,15 @@ end) : sig
   val make : M.t -> t
   val force : t -> M.result
 end = struct
-  type t = { user_data : M.t; mutable value : M.result option }
+  type t = { mutable value : [ `Computed of M.result | `Closure of M.t ] }
 
-  let make user_data = { user_data; value = None }
+  let make arg = { value = `Closure arg }
 
   let force l =
     match l.value with
-    | None ->
-        let v = M.eval l.user_data in
-        l.value <- Some v;
+    | `Closure arg ->
+        let v = M.eval arg in
+        l.value <- `Computed v;
         v
-    | Some v -> v
+    | `Computed v -> v
 end
