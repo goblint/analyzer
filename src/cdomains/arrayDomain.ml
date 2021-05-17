@@ -577,7 +577,7 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  if GobConfig.get_bool "arrayoob" then
+  if GobConfig.get_bool "ana.arrayoob" then
   {let get (ask: Q.ask) (x ,(l: idx)) ((e,v)) =
     let c = Idx.lt v l in
     let bool_c = Idx.to_bool c in
