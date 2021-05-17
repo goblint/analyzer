@@ -1768,12 +1768,30 @@ module Enums : S with type int_t = BigInt.t = struct
   let logor  = lift2 I.logor
   let maximal = function
     | Inc xs when not (ISet.is_empty xs) -> Some (ISet.max_elt xs)
-    | Exc (_,r) -> Size.max_from_bit_range (R.maximal r)
+    | Exc (excl,r) ->
+      (match Size.max_from_bit_range (R.maximal r) with
+       | None -> None
+       | Some range_max ->
+         let rec decrement_while_contained v s =
+           if ISet.mem range_max s
+           then decrement_while_contained (BI.sub v (BI.one)) s
+           else v
+         in
+         Some (decrement_while_contained range_max excl))
     | _ (* bottom case *) -> None
 
   let minimal = function
     | Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs)
-    | Exc (_,r) -> Size.min_from_bit_range (R.minimal r)
+    | Exc (excl,r) ->
+      (match Size.min_from_bit_range (R.minimal r) with
+       | None -> None
+       | Some range_min ->
+         let rec increment_while_contained v s =
+           if ISet.mem range_min s
+           then increment_while_contained (BI.add v (BI.one)) s
+           else v
+         in
+         Some (increment_while_contained range_min excl))
     | _ (* bottom case *) -> None
 
   let lt ik x y =
