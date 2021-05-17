@@ -726,7 +726,9 @@ struct
                     else
                       false
                 end
-              | _ -> false
+              | NullPtr -> M.warn_each @@ "Possible NULL-pointer dereference in expression " ^ (Pretty.sprint ~width:200 (Cil.d_exp () exp)) ^
+                                          ". Program might crash! Following states assume only addresses different from NULL have been dereferenced."; true
+              | v -> false
             in
             if AD.for_all cast_ok p then
               get a gs st p (Some exp)  (* downcasts are safe *)
