@@ -577,14 +577,15 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (ask: Q.ask) (x ,(l: idx)) ((e,v)) =
+  if GobConfig.get_bool "arrayoob" then
+  {let get (ask: Q.ask) (x ,(l: idx)) ((e,v)) =
     let c = Idx.lt v l in
     let bool_c = Idx.to_bool c in
     let () = match bool_c with 
       | Some(true) -> ();
       | _ -> M.warn_each "Array out of bound";
     in
-    Base.get ask x (e,v)
+    Base.get ask x (e,v)}
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
