@@ -115,6 +115,9 @@ struct
   let top (type a) (q: a t): a result =
     (* let module Result = (val lattice q) in
     Result.top () *)
+    (* [lattice] and [top] manually inlined to avoid first-class module
+       for every unsupported [query] implementation.
+       See benchmarks at: https://github.com/goblint/analyzer/pull/221#issuecomment-842351621. *)
     match q with
     (* Cannot group these GADTs... *)
     | EqualSet _ -> ES.top ()
