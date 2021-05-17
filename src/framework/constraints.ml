@@ -844,6 +844,7 @@ end
 
 
 (** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
+(* TODO: unused *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->

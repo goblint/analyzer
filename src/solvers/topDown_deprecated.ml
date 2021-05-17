@@ -18,7 +18,11 @@ module TD2 =
 
     module VI =
     struct
-      type t = Var.t * int [@@deriving ord]
+      type t = Var.t * int
+      let compare (x,n) (y,m) =
+        match compare n m with (* cannot derive, compares snd first for efficiency *)
+        | 0 -> Var.compare x y
+        | n -> n
     end
     module VIS = Set.Make (VI)
 
