@@ -1970,7 +1970,7 @@ struct
       let fundec = Cilfacade.getdec fn in
       let st' = init_vars_with_symbolic_values ctx.ask ctx.global (D.bot ()) fundec.sformals in
       (* Inititalize globals with symbolic values *)
-      let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
+      let globals = CPA.filter (fun k v -> V.is_global k && not (is_heap_var ctx.ask k)) st.cpa in
       let global_list = CPA.fold (fun k v acc -> k::acc) globals [] in
       init_vars_with_symbolic_values ctx.ask ctx.global st' global_list
     end
