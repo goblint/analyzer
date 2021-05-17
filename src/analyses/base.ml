@@ -405,36 +405,35 @@ struct
     in
     List.fold_right f vals []
 
+  let rec reachable_from_value (ask: Q.ask) (gs:glob_fun) st (value: value) (t: typ) (description: string)  =
+    let empty = AD.empty () in
+    if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
+    match value with
+    | `Top ->
+      let warning = "Unknown value in " ^ description ^ " could be an escaped pointer address!" in
+      if VD.is_immediate_type t then () else M.warn_each warning; empty
+    | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
+    | `Address adrs when AD.is_top adrs ->
+      let warning = "Unknown address in " ^ description ^ " has escaped." in
+      M.warn_each warning; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+    (* The main thing is to track where pointers go: *)
+    | `Address adrs -> AD.remove Addr.NullPtr adrs
+    (* Unions are easy, I just ingore the type info. *)
+    | `Union (f,e) -> reachable_from_value ask gs st e t description
+    (* For arrays, we ask to read from an unknown index, this will cause it
+     * join all its values. *)
+    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ())) t description
+    | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
+    | `List e -> reachable_from_value ask gs st (`Address (ValueDomain.Lists.entry_rand e)) t description
+    | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
+    | `Int _ -> empty
+
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_address (ask: Q.ask) (gs:glob_fun) st (adr: address): address =
     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
-    let empty = AD.empty () in
-    let rec reachable_from_value (value: value) =
-      if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
-      match value with
-      | `Top ->
-        let typ = AD.get_type adr in
-        let warning = "Unknown value in " ^ AD.show adr ^ " could be an escaped pointer address!" in
-        if VD.is_immediate_type typ then () else M.warn_each warning; empty
-      | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
-      | `Address adrs when AD.is_top adrs ->
-        let warning = "Unknown address in " ^ AD.show adr ^ " has escaped." in
-        M.warn_each warning; adrs (* return known addresses still to be a bit more sane (but still unsound) *)
-      (* The main thing is to track where pointers go: *)
-      | `Address adrs -> adrs
-      (* Unions are easy, I just ingore the type info. *)
-      | `Union (t,e) -> reachable_from_value e
-      (* For arrays, we ask to read from an unknown index, this will cause it
-       * join all its values. *)
-      | `Array a -> reachable_from_value (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ()))
-      | `Blob (e,_,_) -> reachable_from_value e
-      | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
-      | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
-      | `Int _ -> empty
-    in
-    let res = reachable_from_value (get ask gs st adr None) in
+    let res = reachable_from_value ask gs st (get ask gs st adr None) (AD.get_type adr) (AD.show adr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -1740,6 +1739,15 @@ struct
   (**************************************************************************
    * Function calls
    **************************************************************************)
+
+  (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
+  let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+    let do_exp e =
+      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cil.typeOf e) (Pretty.sprint ~width:100 (Cil.d_exp () e)) in
+      reachable_vars ask [immediately_reachable] gs st
+    in
+    List.concat (List.map do_exp exps)
+
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.warn_each ("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps);
@@ -1753,17 +1761,11 @@ struct
     in
     (* We define the function that invalidates all the values that an address
      * expression e may point to *)
-    let invalidate_exp e =
-      match eval_rv ask gs st e with
-      (*a null pointer is invalid by nature*)
-      | `Address a when AD.is_null a -> []
-      | `Address a when not (AD.is_top a) ->
-        List.map (invalidate_address st) (reachable_vars ask [a] gs st)
-      | `Int _ -> []
-      | _ -> M.warn_each ("Failed to invalidate unknown address: " ^ sprint d_exp e); []
+    let invalidate_exp exps =
+      let args = collect_funargs ~warn:true ask gs st exps in
+      List.map (invalidate_address st) args
     in
-    (* We concatMap the previous function on the list of expressions. *)
-    let invalids = List.concat (List.map invalidate_exp exps) in
+    let invalids = invalidate_exp exps in
     let is_fav_addr x =
       List.exists BaseUtil.is_precious_glob (AD.to_var_may x)
     in
@@ -1774,20 +1776,6 @@ struct
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
     set_many ?ctx ask gs st invalids'
-
-  (* Variation of the above for yet another purpose, uhm, code reuse? *)
-  let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) =
-    let do_exp e =
-      match eval_rv ask gs st e with
-      | `Address a when AD.equal a AD.null_ptr -> []
-      | `Address a when not (AD.is_top a) ->
-        let rble = reachable_vars ask [a] gs st in
-        if M.tracing then
-          M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
-        rble
-      | _-> []
-    in
-    List.concat (List.map do_exp exps)
 
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
