@@ -417,20 +417,22 @@ struct
             let analyses = append_opt "save_run" "analyses.marshalled" in
             let config = append_opt "save_run" "config.json" in
             let meta = append_opt "save_run" "meta.json" in
+            let solver_stats = append_opt "save_run" "solver_stats.csv" in (* see Generic.SolverStats... *)
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
+              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
             ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
             Serialize.marshal (lh, gh) save_run;
             Serialize.marshal !MCP.analyses_table analyses;
             GobConfig.write_file config;
             let module Meta = struct
-                type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command; timestamp = Unix.time (); localtime = localtime () }
+                type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
+                let json = to_yojson { command = GU.command; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
-            Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json (* the above is compact, this is pretty-printed *)
+            Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json; (* the above is compact, this is pretty-printed *)
+            Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval) *)
           );
           lh, gh
         )
@@ -540,12 +542,12 @@ struct
       M.print_msg "Timeout reached!" (!Tracing.current_loc);
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
-         print_stats is triggered by dbg.solver-signal, so we send that signal to ourself.
+         print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.
          The alternative would be to catch the below Timeout, print_stats and re-raise in each solver (or include it in some functor above them). *)
-      Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
       raise GU.Timeout
     in
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout")) timeout_reached in
+    let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
+    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let local_xml = solver2source_result lh in
 
     let liveness =

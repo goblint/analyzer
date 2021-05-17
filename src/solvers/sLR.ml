@@ -411,7 +411,7 @@ module Make =
 
           let tmp = do_side x (eq x (eval x) (side x)) in
           let use_box = (not (V.ver>1)) || HM.mem wpoint x in
-          let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "ana.restart_count") in
+          let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "exp.solver.slr4.restart_count") in
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;

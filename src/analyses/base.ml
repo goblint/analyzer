@@ -1714,7 +1714,9 @@ struct
           | TFun(ret, _, _, _) -> ret
           | _ -> assert false
         in
-        let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+        (* Evaluate exp and cast the resulting value to the void-pointer-type.
+        Casting to the right type here avoids precision loss on joins. *)
+        let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp |> VD.cast ~torg:(typeOf exp) Cil.voidPtrType in
         let nst: store =
           match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
           | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add tid rv nst.cpa}
