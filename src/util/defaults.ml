@@ -92,6 +92,7 @@ let _ = ()
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
       ; reg Std "warn"            "'post'"       "Output warnings: 'post'. Output warnings after solving. Best results. 'never': Do not produce warnings, 'early'. For debugging. Outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
+      ; reg Std "arrayoob"        "false"        "Array out of bounds check"
 
 (* {4 category [Analyses]} *)
 let _ = ()
