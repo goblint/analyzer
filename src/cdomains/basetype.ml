@@ -235,34 +235,53 @@ struct
     in
     if a == b || Expcompare.compareExp a b then
       0
-    else if order a <> order b then
-      (order a) - (order b)
     else
-      match a,b with
-      | Const c1, Const c2 -> compareConst c1 c2
-      | AddrOf l1, AddrOf l2
-      | StartOf l1, StartOf l2
-      | Lval l1, Lval l2 -> compareLval l1 l2
-      | AlignOf t1, AlignOf t2
-      | SizeOf t1, SizeOf t2 -> compareType t1 t2
-      | AlignOfE e1, AlignOfE e2
-      | SizeOfE e1, SizeOfE e2 -> compareExp e1 e2
-      | SizeOfStr s1, SizeOfStr s2 -> compare s1 s2
-      | UnOp (op1, e1, t1), UnOp (op2, e2, t2) ->
-        let r = compare op1 op2 in
-        if r <> 0 then
-          r
-        else
+      let r = Stdlib.compare (order a) (order b) in
+      if r <> 0 then
+        r
+      else
+        match a,b with
+        | Const c1, Const c2 -> compareConst c1 c2
+        | AddrOf l1, AddrOf l2
+        | StartOf l1, StartOf l2
+        | Lval l1, Lval l2 -> compareLval l1 l2
+        | AlignOf t1, AlignOf t2
+        | SizeOf t1, SizeOf t2 -> compareType t1 t2
+        | AlignOfE e1, AlignOfE e2
+        | SizeOfE e1, SizeOfE e2 -> compareExp e1 e2
+        | SizeOfStr s1, SizeOfStr s2 -> compare s1 s2
+        | UnOp (op1, e1, t1), UnOp (op2, e2, t2) ->
+          let r = compare op1 op2 in
+          if r <> 0 then
+            r
+          else
+            let r = compareType t1 t2 in
+            if r <> 0 then
+              r
+            else
+              compareExp e1 e2
+        | BinOp (op1, e1a, e1b, t1), BinOp (op2, e2a, e2b, t2) ->
+          let r = compare op1 op2 in
+          if r <> 0 then
+            r
+          else
+            let r = compareType t1 t2 in
+            if r <> 0 then
+              r
+            else
+              let r = compareExp e1a e2a in
+              if r <> 0 then
+                r
+              else
+                compareExp e1b e2b
+        | CastE (t1, e1), CastE (t2, e2) ->
           let r = compareType t1 t2 in
           if r <> 0 then
             r
           else
             compareExp e1 e2
-      | BinOp (op1, e1a, e1b, t1), BinOp (op2, e2a, e2b, t2) ->
-        let r = compare op1 op2 in
-        if r <> 0 then
-          r
-        else
+        | AddrOfLabel s1, AddrOfLabel s2 -> compare s1 s2
+        | Question (e1a, e1b, e1c, t1), Question (e2a, e2b, e2c, t2) ->
           let r = compareType t1 t2 in
           if r <> 0 then
             r
@@ -271,29 +290,12 @@ struct
             if r <> 0 then
               r
             else
-              compareExp e1b e2b
-      | CastE (t1, e1), CastE (t2, e2) ->
-        let r = compareType t1 t2 in
-        if r <> 0 then
-          r
-        else
-          compareExp e1 e2
-      | AddrOfLabel s1, AddrOfLabel s2 -> compare s1 s2
-      | Question (e1a, e1b, e1c, t1), Question (e2a, e2b, e2c, t2) ->
-        let r = compareType t1 t2 in
-        if r <> 0 then
-          r
-        else
-          let r = compareExp e1a e2a in
-          if r <> 0 then
-            r
-          else
-            let r = compareExp e1b e2b in
-            if r <> 0 then
-              r
-            else
-              compareExp e1c e2c
-      | _ -> failwith "CilExp.compareExp unknown type of expression"
+              let r = compareExp e1b e2b in
+              if r <> 0 then
+                r
+              else
+                compareExp e1c e2c
+        | _ -> failwith "CilExp.compareExp unknown type of expression"
   and compareConst a b =
     match a,b with
     | CEnum (ea, sa, ia), CEnum (eb, sb, ib) ->
@@ -327,24 +329,25 @@ struct
       | Field _ -> 1
       | Index _ -> 2
     in
-      if order a <> order b then
-        (order a) - (order b)
-      else
-        match a, b with
-        | NoOffset, NoOffset -> 0
-        | Field (f1, o1), Field(f2, o2) ->
-          let r = compareFieldinfo f1 f2 in
-          if r <> 0 then
-            r
-          else
-            compareOffset o1 o2
-        | Index (e1, o1), Index(e2, o2) ->
-          let r = compareExp e1 e2 in
-          if r <> 0 then
-            r
-          else
-            compareOffset o1 o2
-        | _ -> failwith "CilExp.compareOffset unknown type of expression"
+    let r = Stdlib.compare (order a) (order b) in
+    if r <> 0 then
+      r
+    else
+      match a, b with
+      | NoOffset, NoOffset -> 0
+      | Field (f1, o1), Field(f2, o2) ->
+        let r = compareFieldinfo f1 f2 in
+        if r <> 0 then
+          r
+        else
+          compareOffset o1 o2
+      | Index (e1, o1), Index(e2, o2) ->
+        let r = compareExp e1 e2 in
+        if r <> 0 then
+          r
+        else
+          compareOffset o1 o2
+      | _ -> failwith "CilExp.compareOffset unknown type of expression"
   and compareFieldinfo a b =
     let r = compareType a.ftype b.ftype in
     if r <> 0 then
