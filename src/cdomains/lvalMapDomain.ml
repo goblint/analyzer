@@ -263,10 +263,10 @@ struct
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
     | _ -> Goblintutil.create_var @@ Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
 
-  let keys_from_lval lval ask = (* use MayPointTo query to get all possible pointees of &lval *)
+  let keys_from_lval lval (ask: Queries.ask) = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)
-    let query_lv ask exp = match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) -> Queries.LS.elements l
+    let query_lv (ask: Queries.ask) exp = match ask.f (Queries.MayPointTo exp) with
+      | l when not (Queries.LS.is_top l) -> Queries.LS.elements l
       | _ -> []
     in
     let exp = AddrOf lval in

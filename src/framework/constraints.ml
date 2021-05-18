@@ -3,7 +3,6 @@
 open Prelude
 open Cil
 open MyCFG
-open Pretty
 open Analyses
 open GobConfig
 
@@ -43,8 +42,8 @@ struct
   let sync ctx reason =
     D.lift @@ S.sync (conv ctx) reason
 
-  let query ctx q =
-    S.query (conv ctx) q
+  let query ctx =
+    S.query (conv ctx)
 
   let assign ctx lv e =
     D.lift @@ S.assign (conv ctx) lv e
@@ -118,7 +117,7 @@ struct
   let sync ctx reason =
     S.sync (conv ctx) reason
 
-  let query ctx q =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
       let g i (n, c, j) e = f i (n, Obj.repr (C.lift (Obj.obj c)), j) e in
@@ -222,7 +221,8 @@ struct
   let lift_start_level d = (d, !start_level)
 
   let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
-  let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)
+  let query' ctx (type a) (q: a Queries.t): a Queries.result =
+    lift_fun ctx identity   S.query  (fun x -> x q)
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
@@ -266,11 +266,12 @@ struct
       let d',_ = combine' ctx r fe f args fc es in
       (d', l)
 
-  let query ctx = function
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
     | Queries.EvalFunvar e ->
       let (d,l) = ctx.local in
       if leq0 l then
-        `LvalSet (Queries.LS.empty ())
+        Queries.LS.empty ()
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
@@ -476,7 +477,8 @@ struct
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
 
-  let query ctx q     = lift_fun ctx identity S.query  ((|>) q)            `Bot
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    lift_fun ctx identity S.query  (fun (x) -> x q)            (Queries.Result.bot q)
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
   let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
@@ -531,7 +533,7 @@ struct
     let spawns = ref [] in
     (* now watch this ... *)
     let rec ctx =
-      { ask     = query
+      { ask     = (fun (type a) (q: a Queries.t) -> S.query ctx q)
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
@@ -547,7 +549,6 @@ struct
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
-    and query x = S.query ctx x
     and spawn lval f args =
       (* TODO: adjust ctx node/edge? *)
       (* TODO: don't repeat for all paths that spawn same *)
@@ -574,19 +575,17 @@ struct
     else
       let rec ctx' =
         { ctx with
-          ask = query'
+          ask = (fun (type a) (q: a Queries.t) -> S.query ctx' q)
         ; local = d
         }
-      and query' x = S.query ctx' x
       in
       (* TODO: don't forget path dependencies *)
       let one_spawn (lval, f, args, fd) =
         let rec fctx =
           { ctx with
-            ask = fquery
+            ask = (fun (type a) (q: a Queries.t) -> S.query fctx q)
           ; local = fd
           }
-        and fquery x = S.query fctx x
         in
         S.threadspawn ctx' lval f args fctx
       in
@@ -649,11 +648,10 @@ struct
       let fd =
         (* TODO: more accurate ctx? *)
         let rec sync_ctx = { ctx with
-            ask = query;
+            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
             local = fd;
             prev_node = Function f
           }
-        and query x = S.query sync_ctx x
         in
         sync sync_ctx
       in
@@ -677,10 +675,8 @@ struct
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
-      match ctx.ask (Queries.EvalFunvar e) with
-      | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
-      | `Bot -> []
-      | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
+      let ls = ctx.ask (Queries.EvalFunvar e) in
+      Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
@@ -994,10 +990,10 @@ struct
       Spec.context @@ D.choose l
 
   let conv ctx x =
-    let rec ctx' = { ctx with ask   = query
+    let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
                             ; local = x
                             ; split = (ctx.split % D.singleton) }
-    and query x = Spec.query ctx' x in
+    in
     ctx'
 
   let map ctx f g =
@@ -1042,9 +1038,10 @@ struct
 
     let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
-  let query ctx q =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* join results so that they are sound for all paths *)
-    fold' ctx Spec.query identity (fun x f -> Queries.Result.join x (f q)) `Bot
+    let module Result = (val Queries.Result.lattice q) in
+    fold' ctx Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
 
   let enter ctx l f a =
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in

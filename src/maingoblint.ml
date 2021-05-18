@@ -282,12 +282,13 @@ let merge_preprocessed cpp_file_names =
   merged_AST
 
 let do_stats () =
-  if get_bool "printstats" then
+  if get_bool "printstats" then (
     print_newline ();
     ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
     print_newline ();
     Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ()
+  )
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
