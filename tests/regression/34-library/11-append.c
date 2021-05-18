@@ -36,5 +36,6 @@ int main(){
 
     assert(node1.next == &node3); //UNKNOWN!
     assert(node1.next == &node1); //UNKNOWN!
+    assert(node1.val == 1);
     return 0;
 }
