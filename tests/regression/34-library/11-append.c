@@ -1,0 +1,40 @@
+//PARAM: --enable ana.library --sets ana.activated[-] threadid  --sets ana.activated[+] mallocWrapperTypeBased --sets ana.activated[-] mallocWrapper --sets ana.activated[+] writtenLvals
+
+#include <stdlib.h>
+#include <assert.h>
+
+typedef struct list {
+    int val;
+    struct list *next;
+} list_t;
+
+int append_to_list_or_cycle(list_t *list1, list_t *list2){
+    int top = rand();
+    if(0){
+        if(list1 != NULL){
+            list1->next = list1;
+        }
+    } else {
+        list_t *current = list1;
+        if(current == NULL){
+            return 0;
+        }
+        while(current->next != NULL) {
+            current = current->next;
+        }
+        current->next = list2;
+    }
+    return 0;
+}
+
+int main(){
+    list_t node3 = {3, NULL};
+    list_t node2 = {2, NULL};
+    list_t node1 = {1, &node2};
+
+    append_to_list_or_cycle(&node1, &node3);
+
+    assert(node1.next == &node3); //UNKNOWN!
+    assert(node1.next == &node1); //UNKNOWN!
+    return 0;
+}
