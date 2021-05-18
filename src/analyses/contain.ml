@@ -45,8 +45,7 @@ struct
   let init_inh_rel () =
     let module StringH =
     struct
-      type t = string
-      let equal (x:t) (y:t) = x = y
+      type t = string [@@deriving eq]
       let hash (x:t) = Hashtbl.hash x
     end in
     let module InhMap = Hashtbl.Make (StringH) in

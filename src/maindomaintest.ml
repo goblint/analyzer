@@ -21,7 +21,7 @@ end
 
 module PrintableChar =
 struct
-  type t = char [@@deriving to_yojson]
+  type t = char [@@deriving eq, to_yojson]
   let name () = "char"
   let show x = String.make 1 x
 
@@ -35,7 +35,6 @@ struct
   include Printable.PrintSimple (P)
 
   let hash = Char.code
-  let equal = Char.equal
 end
 
 module ArbitraryLattice = FiniteSet (PrintableChar) (

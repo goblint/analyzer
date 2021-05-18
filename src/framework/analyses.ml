@@ -28,7 +28,7 @@ end
 
 module Var =
 struct
-  type t = MyCFG.node
+  type t = MyCFG.node [@@deriving eq, ord]
   let relift x = x
 
   let category = function
@@ -42,8 +42,6 @@ struct
     | MyCFG.Function      f -> Hashtbl.hash (f.vid, 1)
     | MyCFG.FunctionEntry f -> Hashtbl.hash (f.vid, 2)
 
-  let equal = MyCFG.Node.equal
-
   let getLocation n = MyCFG.getLoc n
 
   let pretty () x =
@@ -53,16 +51,6 @@ struct
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
 
   let pretty_trace () x =  dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
-
-  let compare n1 n2 =
-    match n1, n2 with
-    | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
-    | _                    , MyCFG.FunctionEntry g -> -1
-    | MyCFG.FunctionEntry g, _                     -> 1
-    | MyCFG.Statement _, MyCFG.Function _  -> -1
-    | MyCFG.Function  _, MyCFG.Statement _ -> 1
-    | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
-    | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
 
   let kind = function
     | MyCFG.Function f                         -> `ExitOfProc f
@@ -95,7 +83,7 @@ end
 
 module VarF (LD: Printable.S) =
 struct
-  type t = MyCFG.node * LD.t
+  type t = MyCFG.node * LD.t [@@deriving eq, ord]
   let relift (n,x) = n, LD.relift x
 
   let category = function
@@ -110,8 +98,6 @@ struct
     | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
     | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23)
 
-  let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
-
   let getLocation (n,d) = MyCFG.getLoc n
 
   let pretty () x =
@@ -123,19 +109,6 @@ struct
   let pretty_trace () (n,c as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
     else dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
-
-  let compare (n1,d1) (n2,d2) =
-    let comp =
-      match n1, n2 with
-      | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
-      | _                    , MyCFG.FunctionEntry g -> -1
-      | MyCFG.FunctionEntry g, _                     -> 1
-      | MyCFG.Statement _, MyCFG.Function _  -> -1
-      | MyCFG.Function  _, MyCFG.Statement _ -> 1
-      | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
-      | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
-    in
-    if comp == 0 then LD.compare d1 d2 else comp
 
   let printXml f (n,c) =
     Var.printXml f n;
