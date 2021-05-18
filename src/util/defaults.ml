@@ -217,6 +217,7 @@ let _ = ()
       ; reg Debugging "dbg.solver-signal"   "'sigusr1'" "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml)."
       ; reg Debugging "dbg.backtrace-signal" "'sigusr2'" "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml)."
       ; reg Debugging "dbg.solver-progress" "false" "Used for debugging. Prints out a symbol on solving a rhs."
+      ; reg Debugging "dbg.print_wpoints"   "false" "Print the widening points after solving (does not include the removed wpoints during solving by the slr solvers). Currently only implemented in: slr*, td3."
       ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."

@@ -169,6 +169,12 @@ module SLR3 =
       reachability vs;
       stop_event ();
 
+      if GobConfig.get_bool "dbg.print_wpoints" then (
+        Printf.printf "\nWidening points:\n";
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        print_newline ();
+      );
+
       HM.clear key   ;
       HM.clear wpoint;
       HM.clear stable;
@@ -475,6 +481,12 @@ module Make =
         HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove X.vals x) X.vals
       in
       reachability list;
+
+      if GobConfig.get_bool "dbg.print_wpoints" then (
+        Printf.printf "\nWidening points:\n";
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        print_newline ();
+      );
 
       X.to_list ()
 
