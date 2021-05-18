@@ -371,6 +371,21 @@ exception Timeout
 
 let timeout = Timeout.timeout
 
+let seconds_of_duration_string =
+  let unit = function
+    | "" | "s" -> 1
+    | "m" -> 60
+    | "h" -> 60 * 60
+    | s -> failwith ("Unkown duration unit " ^ s ^ ". Supported units are h, m, s.")
+  in
+  let int_rest f s = Scanf.sscanf s "%u%s" f in
+  let split s = BatString.(head s 1, tail s 1) in
+  let rec f i s =
+    let u, r = split s in (* unit, rest *)
+    i * (unit u) + if r = "" then 0 else int_rest f r
+  in
+  int_rest f
+
 let vars = ref 0
 let evals = ref 0
 
@@ -391,7 +406,8 @@ let print_gc_quick_stat chn =
     (printM gc.Gc.promoted_words)
     gc.Gc.minor_collections
     gc.Gc.major_collections
-    gc.Gc.compactions
+    gc.Gc.compactions;
+  gc
 
 let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
 (* typedef struct {
@@ -434,3 +450,25 @@ let signal_of_string = let open Sys in function
   | s -> failwith ("Unhandled signal " ^ s)
 
 let self_signal signal = Unix.kill (Unix.getpid ()) signal
+
+module LazyEval (M : sig
+  type t
+  type result
+  val eval : t -> result
+end) : sig
+  type t
+  val make : M.t -> t
+  val force : t -> M.result
+end = struct
+  type t = { mutable value : [ `Computed of M.result | `Closure of M.t ] }
+
+  let make arg = { value = `Closure arg }
+
+  let force l =
+    match l.value with
+    | `Closure arg ->
+        let v = M.eval arg in
+        l.value <- `Computed v;
+        v
+    | `Computed v -> v
+end

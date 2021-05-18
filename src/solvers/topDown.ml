@@ -1,4 +1,4 @@
-(** Top down solver. *)
+(** Top down solver using box/warrow. This is superseded by td3 but kept as a simple version without term & space (& incremental). *)
 
 open Prelude
 open Analyses

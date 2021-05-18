@@ -1,4 +1,3 @@
-(* Does this work on CygWin? *)
 open Unix
 
 let buff_size = 1024
