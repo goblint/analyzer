@@ -70,16 +70,16 @@ struct
       (ps, es)
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let regpart = get_regpart ctx in
     match q with
     | Queries.Regions e ->
-      if is_bullet e regpart ctx.local then `Bot else
+      if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
-        `LvalSet ls
+        ls
     | Queries.PartAccess {exp; var_opt; write} ->
-      `PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> Queries.Result.top ()
+      part_access ctx exp var_opt write
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

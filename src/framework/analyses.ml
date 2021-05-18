@@ -377,7 +377,7 @@ end
    It is not clear if we need pre-states, post-states or both on foreign analyses.
 *)
 type ('d,'g,'c) ctx =
-  { ask      : Queries.t -> Queries.Result.t
+  { ask      : 'a. 'a Queries.t -> 'a Queries.result (* Inlined Queries.ask *)
   ; emit     : Events.t -> unit
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
@@ -398,6 +398,9 @@ exception Ctx_failure of string
 (** Failure from ctx, e.g. global initializer *)
 
 let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
+
+(** Convert [ctx] to [Queries.ask]. *)
+let ask_of_ctx ctx: Queries.ask = { Queries.f = fun (type a) (q: a Queries.t) -> ctx.ask q }
 
 let swap_st ctx st =
   {ctx with local=st}
@@ -429,7 +432,7 @@ sig
   val call_descr : fundec -> C.t -> string
 
   val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t
-  val query : (D.t, G.t, C.t) ctx -> Queries.t -> Queries.Result.t
+  val query : (D.t, G.t, C.t) ctx -> 'a Queries.t -> 'a Queries.result
   val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
   val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
   val branch: (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
@@ -580,7 +583,7 @@ struct
 
   let skip x = x.local (* Just ignore. *)
 
-  let query _ (q:Queries.t) = Queries.Result.top ()
+  let query _ (type a) (q: a Queries.t) = Queries.Result.top q
   (* Don't know anything --- most will want to redefine this. *)
 
   let event ctx _ _ = ctx.local
