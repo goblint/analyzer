@@ -1237,7 +1237,7 @@ struct
 
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
-    let all_reachable_vars = List.fold (fun acc a -> reachable_vars ask [a] gs st) [] args in
+    let all_reachable_vars = List.fold (fun acc a ->  List.append (reachable_vars ask [a] gs st) acc) [] args in
     let update_reachable_written_var (ask: Q.ask) (arg: address) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
       let reachable_vars = reachable_vars ask [arg] gs st in
       let reachable_written_vars = (match lvals with
