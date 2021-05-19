@@ -303,7 +303,7 @@ struct
   let threadenter ctx lval f args = [D.top ()]
   let exitstate  v = D.top ()
 
-  let query ctx q =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let rec getSumAndDiffForVars exp1 exp2 =
       let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int oct_ik (BI.of_int64 c))) x in
       match exp1, exp2 with
@@ -334,22 +334,17 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
-            | (Some i) -> `MustBool (BI.equal BI.zero i)
-            | _ -> `MustBool false
+            | (Some i) -> BI.equal BI.zero i
+            | _ -> false
           end
-        | _ -> `MustBool false
+        | _ -> false
       end
     | Queries.MayBeEqual (exp1,exp2) ->
       begin
         match getSumAndDiffForVars exp1 exp2 with
         | _, Some(x) ->
-          begin
-            if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)) then
-              `MayBool false
-            else
-              `MayBool true
-          end
-        | _ -> `MayBool true
+          not (OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)))
+        | _ -> true
       end
     | Queries.MayBeLess (exp1, exp2) ->
       (* TODO: Here the order of arguments actually matters, be careful *)
@@ -359,17 +354,17 @@ struct
           begin
             match OctagonDomain.INV.minimal x with
             | Some i when BI.compare i BI.zero >= 0 ->
-              `MayBool false
-            | _ -> `MayBool true
+              false
+            | _ -> true
           end
-        | _ -> `MayBool true
+        | _ -> true
       end
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then `Int(INV.to_int inv |> Option.get |> BI.to_int64)
-      else `Top
-    | _ -> Queries.Result.top ()
+      then INV.to_int inv |> Option.get |> BI.to_int64 |> Queries.ID.of_int
+      else Queries.Result.top q
+    | _ -> Queries.Result.top q
 
   let threadspawn ctx lval f args fctx = ctx.local
 end

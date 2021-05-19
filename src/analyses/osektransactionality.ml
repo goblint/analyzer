@@ -42,8 +42,8 @@ struct
     let ((ctxs,ctxr): D.t) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
     let access_one_top = Osek.Spec.access_one_top in
-    let b1 = access_one_top ctx.ask true (Lval lval) in
-    let b2 = access_one_top ctx.ask false rval in
+    let b1 = access_one_top (Analyses.ask_of_ctx ctx) true (Lval lval) in
+    let b2 = access_one_top (Analyses.ask_of_ctx ctx) false rval in
     let stack = get_stack ctx in
     let addvars var fn = let (vars,t) = Hashtbl.find funs fn.vname in
       let _ = Hashtbl.replace funs fn.vname (Set.String.add var vars , Osektupel.join t ctxr) in

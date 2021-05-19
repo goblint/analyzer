@@ -185,34 +185,53 @@ struct
     in
     if a == b || Expcompare.compareExp a b then
       0
-    else if order a <> order b then
-      (order a) - (order b)
     else
-      match a,b with
-      | Const c1, Const c2 -> Constant.compare c1 c2
-      | AddrOf l1, AddrOf l2
-      | StartOf l1, StartOf l2
-      | Lval l1, Lval l2 -> Lval.compare l1 l2
-      | AlignOf t1, AlignOf t2
-      | SizeOf t1, SizeOf t2 -> Typ.compare t1 t2
-      | AlignOfE e1, AlignOfE e2
-      | SizeOfE e1, SizeOfE e2 -> compare e1 e2
-      | SizeOfStr s1, SizeOfStr s2 -> String.compare s1 s2
-      | UnOp (op1, e1, t1), UnOp (op2, e2, t2) ->
-        let r = Stdlib.compare op1 op2 in
-        if r <> 0 then
-          r
-        else
+      let r = Stdlib.compare (order a) (order b) in
+      if r <> 0 then
+        r
+      else
+        match a,b with
+        | Const c1, Const c2 -> Constant.compare c1 c2
+        | AddrOf l1, AddrOf l2
+        | StartOf l1, StartOf l2
+        | Lval l1, Lval l2 -> Lval.compare l1 l2
+        | AlignOf t1, AlignOf t2
+        | SizeOf t1, SizeOf t2 -> Typ.compare t1 t2
+        | AlignOfE e1, AlignOfE e2
+        | SizeOfE e1, SizeOfE e2 -> compare e1 e2
+        | SizeOfStr s1, SizeOfStr s2 -> String.compare s1 s2
+        | UnOp (op1, e1, t1), UnOp (op2, e2, t2) ->
+          let r = Stdlib.compare op1 op2 in
+          if r <> 0 then
+            r
+          else
+            let r = Typ.compare t1 t2 in
+            if r <> 0 then
+              r
+            else
+              compare e1 e2
+        | BinOp (op1, e1a, e1b, t1), BinOp (op2, e2a, e2b, t2) ->
+          let r = Stdlib.compare op1 op2 in
+          if r <> 0 then
+            r
+          else
+            let r = Typ.compare t1 t2 in
+            if r <> 0 then
+              r
+            else
+              let r = compare e1a e2a in
+              if r <> 0 then
+                r
+              else
+                compare e1b e2b
+        | CastE (t1, e1), CastE (t2, e2) ->
           let r = Typ.compare t1 t2 in
           if r <> 0 then
             r
           else
             compare e1 e2
-      | BinOp (op1, e1a, e1b, t1), BinOp (op2, e2a, e2b, t2) ->
-        let r = Stdlib.compare op1 op2 in
-        if r <> 0 then
-          r
-        else
+        | AddrOfLabel s1, AddrOfLabel s2 -> Stdlib.compare s1 s2 (* TODO: is this right? *)
+        | Question (e1a, e1b, e1c, t1), Question (e2a, e2b, e2c, t2) ->
           let r = Typ.compare t1 t2 in
           if r <> 0 then
             r
@@ -221,29 +240,12 @@ struct
             if r <> 0 then
               r
             else
-              compare e1b e2b
-      | CastE (t1, e1), CastE (t2, e2) ->
-        let r = Typ.compare t1 t2 in
-        if r <> 0 then
-          r
-        else
-          compare e1 e2
-      | AddrOfLabel s1, AddrOfLabel s2 -> Stdlib.compare s1 s2 (* TODO: is this right? *)
-      | Question (e1a, e1b, e1c, t1), Question (e2a, e2b, e2c, t2) ->
-        let r = Typ.compare t1 t2 in
-        if r <> 0 then
-          r
-        else
-          let r = compare e1a e2a in
-          if r <> 0 then
-            r
-          else
-            let r = compare e1b e2b in
-            if r <> 0 then
-              r
-            else
-              compare e1c e2c
-      | _ -> failwith "CilType.Exp.compare: mismatching exps"
+              let r = compare e1b e2b in
+              if r <> 0 then
+                r
+              else
+                compare e1c e2c
+        | _ -> failwith "CilType.Exp.compare: mismatching exps"
   let equal a b = compare a b = 0
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
@@ -270,8 +272,9 @@ struct
       | Field _ -> 1
       | Index _ -> 2
     in
-    if order a <> order b then
-      (order a) - (order b)
+    let r = Stdlib.compare (order a) (order b) in
+    if r <> 0 then
+      r
     else
       match a, b with
       | NoOffset, NoOffset -> 0

@@ -61,7 +61,7 @@ struct
 
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
+    | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
           M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
@@ -77,22 +77,25 @@ struct
     | _ -> None
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
-    let d = ctx.local in
-    let of_q = function Queries.CondVars e -> Some e | _ -> None in
-    let rec of_expr tv = function
-      | UnOp (LNot, e, t) when isIntegralType t -> of_expr (not tv) e
-      | BinOp (Ne, e1, e2, t) when isIntegralType t -> of_expr (not tv) (BinOp (Eq, e1, e2, t))
-      | BinOp (Eq, e1, e2, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
-      | BinOp (Eq, e2, e1, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
-      | Lval lval -> Some (tv, lval)
-      | _ -> None
-    in
-    let of_lval (tv,lval) = Option.map (fun k -> tv, k) @@ mustPointTo ctx (AddrOf lval) in
-    let t tv e = if tv then e else UnOp (LNot, e, intType) in
-    let f tv v = D.V.map (t tv) v |> fun v -> Some (`ExprSet v) in
-    let of_clval (tv,k) = D.get k d >? f tv in
-    of_q q >? of_expr true >? of_lval >? of_clval |? Queries.Result.top ()
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.CondVars e ->
+      let d = ctx.local in
+      let rec of_expr tv = function
+        | UnOp (LNot, e, t) when isIntegralType t -> of_expr (not tv) e
+        | BinOp (Ne, e1, e2, t) when isIntegralType t -> of_expr (not tv) (BinOp (Eq, e1, e2, t))
+        | BinOp (Eq, e1, e2, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
+        | BinOp (Eq, e2, e1, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
+        | Lval lval -> Some (tv, lval)
+        | _ -> None
+      in
+      let of_lval (tv,lval) = Option.map (fun k -> tv, k) @@ mustPointTo ctx (AddrOf lval) in
+      let t tv e = if tv then e else UnOp (LNot, e, intType) in
+      (* TODO: remove option? *)
+      let f tv v = D.V.map (t tv) v |> fun v -> Some v in
+      let of_clval (tv,k) = D.get k d >? f tv in
+      of_expr true e >? of_lval >? of_clval |? Queries.Result.top q
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

@@ -62,14 +62,12 @@ struct
         let pretty = pretty_f short*)
 end
 
-let is_private ask (lp:ListPtr.t) =
+let is_private (ask: Queries.ask) (lp:ListPtr.t) =
   let check v =
-    match ask Queries.MustBeSingleThreaded with
-    | `Bot | `MustBool true -> true
+    match ask.f Queries.MustBeSingleThreaded with
+    | true -> true
     | _ ->
-      match ask (Queries.MayBePublic {global=v; write=false})  with
-      | `Bot | `MayBool false -> true
-      | _ -> false
+      not (ask.f (Queries.MayBePublic {global=v; write=false}))
   in
   match lp with
   | `Right ((v,_),_) when v.vname.[0] = '{' -> true
