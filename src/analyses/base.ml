@@ -230,7 +230,7 @@ struct
                   | Some z -> `Int(ID.of_int ik z)
                   | _ -> `Int (ID.top_of ik)
                 end
-              | `Index (xi, xo), `Index(yi, yo) when xi = yi -> (* ID.equal? *)
+              | `Index (xi, xo), `Index(yi, yo) when xi = yi -> (* TODO: ID.equal? *)
                 calculateDiffFromOffset xo yo
               | _ -> `Int (ID.top_of result_ik)
             in
