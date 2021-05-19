@@ -7,7 +7,7 @@ To generate an HTML-output that can be [inspected using the browser](inspecting.
 
 #### Example:
 
-```
+```console
 ./goblint tests/regression/01-cpa/02-branch.c --html
 ```
 ## Passing Options
@@ -15,13 +15,13 @@ To generate an HTML-output that can be [inspected using the browser](inspecting.
 Goblint offers many options to tweak how the analysis is performed.
 For more information on how to set options, run:
 
-```
+```console
 ./goblint --help
 ```
 
 For a list of all options and their possible configurations, run:
 
-```
+```console
 ./goblint --print_all_options
 ```
 
