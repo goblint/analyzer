@@ -25,21 +25,6 @@ For a list of all options and their possible configurations, run:
 ./goblint --print_all_options
 ```
 
-## Executing Regression Tests
-The regression tests contained in `./tests/regression` usually come with some specific options that should be passed be Goblint when executing them. The script `regtest.sh` can be used to execute Goblint on an individual regression test.
-It passes the options that are specified in a test file to Goblint.
-The options for a regression test are specified in a single line comment starting with `//PARAM:`.
-
-#### Example:
-The following command executes Goblint on a regression test. The test is identified using the digit-prefix of the folder and the source file.
-```
-./regtest.sh 01 02
-```
-To execute all regression tests, run:
-```
-make test
-```
-
 ## Analyzing Recursive Programs
 In some cases, when using the default configuration, Goblint might not terminate in reasonable time on recursive programs, or
 crash in a stack overflow (indicated by the error message `exception Stack overflow`). If the stack overflow occurs within a C function called by Goblint, it will result in the following error message: `Command terminated by signal 11`.
