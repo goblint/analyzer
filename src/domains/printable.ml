@@ -164,7 +164,7 @@ end
 
 module HashCached (M: S) =
 struct
-  module LazyHash = Goblintutil.LazyEval (struct type t = M.t type result = int let eval = M.hash end)
+  module LazyHash = LazyEval.Make (struct type t = M.t type result = int let eval = M.hash end)
 
   let name () = "HashCached " ^ M.name ()
 
