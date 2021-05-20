@@ -10,7 +10,7 @@ typedef struct list {
 
 int append_to_list_or_cycle(list_t *list1, list_t *list2){
     int top = rand();
-    if(0){
+    if(top){
         if(list1 != NULL){
             list1->next = list1;
         }
