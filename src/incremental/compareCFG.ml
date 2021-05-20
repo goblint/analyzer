@@ -6,8 +6,6 @@ include CompareAST
 type nodes_diff = {
   unchangedNodes: (node * node) list;
   primObsoleteNodes: node list;
-  obsoleteNodes: node list;
-  newNodes: node list;
 }
 
 type changed_global = {
@@ -178,31 +176,38 @@ let reexamine f1 f2 same diff (module Cfg1 : CfgForward) (module Cfg2 : CfgForwa
   let sameNodes = let fromStdSet = Hashtbl.fold (fun (n1, n2) _ acc -> NodeNodeSet.add (n1,n2) acc) same NodeNodeSet.empty in
     let notInDiff = NodeNodeSet.filter (fun (n1,n2) -> not (NodeSet.mem n1 diffNodes1)) fromStdSet in
     NodeNodeSet.add (FunctionEntry f1, FunctionEntry f2) notInDiff in
-  let _, addedNodes =
-    let rec dfs2 node (vis, addedNodes) =
-      let classify n (vis, addedNodes) =
-        if NodeSet.mem n vis then (vis, addedNodes)
-        else let ext_vis = NodeSet.add n vis in
-        if NodeNodeSet.exists (fun (n1,n2) -> Node.equal n2 n) sameNodes then dfs2 n (ext_vis, addedNodes)
-        else dfs2 n (ext_vis, NodeSet.add n addedNodes) in
+
+  let diffNodes2, _ =
+    let rec dfs2 node (diffNodes2, vis) =
+      let classify k (diffNodes2, vis) =
+        if NodeSet.mem k vis then (diffNodes2, vis)
+        else let vis' = NodeSet.add k vis in
+        if NodeNodeSet.exists (fun (_,n2) -> Node.equal n2 k) sameNodes then dfs2 k (diffNodes2, vis')
+        else (NodeSet.add k diffNodes2, vis') in
       let succ = List.map snd (Cfg2.next node) in
-      List.fold_right classify succ (vis, addedNodes) in
+      List.fold_right classify succ (diffNodes2, vis) in
     dfs2 (FunctionEntry f2) (NodeSet.empty, NodeSet.empty) in
-  let (sameNodes, primRemovedNodes, removedNodes) =
-    let rec dfs1 node (sameNodes, primRemovedNodes, removedNodes) =
-      let classify k (same, primRemoved, removed) =
-        if NodeSet.mem k primRemoved || NodeSet.mem k removed then (same, primRemoved, removed)
-        else if NodeNodeSet.exists (fun (n1,_) -> Node.equal n1 k) same then (NodeNodeSet.filter (fun (n1,_) -> not (Node.equal n1 k)) same, NodeSet.add k primRemoved, NodeSet.add k removed)
-        else dfs1 k (same, primRemoved, NodeSet.add k removed) in
-      let succ = List.map snd (Cfg1.next node) in
-      List.fold_right classify succ (sameNodes, primRemovedNodes, removedNodes) in
-    NodeSet.fold dfs1 diffNodes1 (sameNodes, diffNodes1, diffNodes1) in
-  (NodeNodeSet.elements sameNodes, NodeSet.elements primRemovedNodes, NodeSet.elements removedNodes, NodeSet.elements addedNodes)
+
+  let sameNodes', diffNodes1', diffNodes2', _ =
+    let rec dfs2 node (sameNodes', diffNodes1', diffNodes2', vis) =
+      let classify k (sameNodes', diffNodes1', diffNodes2', vis) =
+        if NodeSet.mem k vis then (sameNodes', diffNodes1', diffNodes2', vis)
+        else let vis' = NodeSet.add k vis in
+        if NodeNodeSet.exists (fun (n1,n2) -> Node.equal n2 k) sameNodes
+        then let rsn, rd1, rd2 = NodeNodeSet.fold (fun (n1,n2) (rsn, rd1, rd2) -> if Node.equal n2 k then (NodeNodeSet.remove (n1,n2) rsn, NodeSet.add n1 rd1, NodeSet.add k rd2) else (rsn, rd1,rd2)) sameNodes (sameNodes', diffNodes1', diffNodes2') in
+         (rsn, rd1, rd2, vis')
+        else dfs2 k (sameNodes', diffNodes1', diffNodes2', vis') in
+      let succ = List.map snd (Cfg2.next node) in
+      List.fold_right classify succ (sameNodes', diffNodes1', diffNodes2', vis) in
+    NodeSet.fold dfs2 diffNodes2 (sameNodes, diffNodes1, diffNodes2, NodeSet.empty) in
+
+  (NodeNodeSet.elements sameNodes', NodeSet.elements diffNodes1', NodeSet.elements diffNodes2')
 
 let compareFun (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
-  let stdSet, diffSet = compareCfgs (module Cfg1) (module Cfg2) fun1 fun2 in
-  let unchanged, primRemoved, removed, added = reexamine fun1 fun2 stdSet diffSet (module Cfg1) (module Cfg2) in
-  unchanged, primRemoved, removed, added
+  let same, diff = compareCfgs (module Cfg1) (module Cfg2) fun1 fun2 in
+  let unchanged, primDiff1, primDiff2 = reexamine fun1 fun2 same diff (module Cfg1) (module Cfg2) in
+  Printf.printf "unchanged: %d, primDiff1: %d, primDiff2: %d\n" (List.length unchanged) (List.length primDiff1) (List.length primDiff2);
+  unchanged, primDiff1, primDiff2
 
 let eqF' (a: Cil.fundec) (module Cfg1 : MyCFG.CfgForward) (b: Cil.fundec) (module Cfg2 : MyCFG.CfgForward) =
   let unchangedHeader =
@@ -213,10 +218,10 @@ let eqF' (a: Cil.fundec) (module Cfg1 : MyCFG.CfgForward) (b: Cil.fundec) (modul
   let identical, diffOpt =
     try
       let sameDef = unchangedHeader && List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) in
-      let matches, primRemoved, removed, added = compareFun (module Cfg1) (module Cfg2) a b in
+      let matches, primObsoleteNodes, primNewNodes = compareFun (module Cfg1) (module Cfg2) a b in
       if not sameDef then (false, None)
-      else if List.length added = 0 && List.length removed = 0 then (true, None)
-      else (false, Some {unchangedNodes = matches; primObsoleteNodes = primRemoved; obsoleteNodes = removed; newNodes = added})
+      else if List.length primObsoleteNodes = 0 && List.length primNewNodes = 0 then (true, None)
+      else (false, Some {unchangedNodes = matches; primObsoleteNodes = primObsoleteNodes})
     with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
       false, None in
   identical, unchangedHeader, diffOpt
