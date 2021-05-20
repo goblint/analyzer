@@ -478,21 +478,27 @@ struct
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
 
-  let get_concretes (symb: varinfo) (st: store) (reachable_vars: Addr.t list BatMap.Int.t list) =
-    let ts = typeSig symb.vtype in
+  let get_concretes (symb, offset: varinfo * Offs.t) (st: store) (reachable_vars: Addr.t list BatMap.Int.t list) =
+    let sa = Addr.Addr (symb, offset) in
+    M.tracel "concretes" "Concrete value for symbolic address %a \n" Addr.pretty sa;
+    List.iter (fun a -> M.tracel "concretes" "Selecting from reachable values %a" AD.pretty a) reachable_vars;
+    let ts = typeSig (Addr.get_type sa) in
     let concretes = List.filter (fun a -> ts = (typeSig (AD.get_type a))) reachable_vars in
+
+    (* let concretes = List.map (fun a -> AD.map (fun addr -> Addr.add_offset addr offset) a) concrete_bases in *)
     List.fold AD.join (AD.bot ()) concretes
 
   let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let sym_address_to_conretes (addr: Addr.t) = (* Returns a list of concrete addresses and a list of addresses of memory blocks that are added to the heap *)
       match addr with
-      | Addr  (v, ofs) ->
+      | Addr  (v, `NoOffset) ->
         if is_allocated_var a v then (* Address has been allocated within the function, we add it to our heap *)
           [addr], Some addr
         else if is_heap_var a v then
-          List.map (fun v -> AD.Addr.Addr (v, ofs)) (AD.to_var_may (get_concretes v st reachable_vars)), None
+          List.map (fun v -> AD.Addr.Addr (v, `NoOffset)) (AD.to_var_may (get_concretes (v, `NoOffset) st reachable_vars)), None
         else
           [addr],None
+      | Addr (v, _) -> failwith "Unexpected offset!";
       | StrPtr _
       | NullPtr
       | SafePtr
@@ -512,7 +518,7 @@ struct
         let (s', na) = ValueDomain.Structs.fold (fun field field_val (s', naddrs) ->
           let concrete_val, new_adresses = get_concrete_value_and_new_blocks_from_value field_val in
           ValueDomain.Structs.replace s' field concrete_val,  new_adresses::naddrs) s (s, []) in
-        `Struct s', List.flatten na
+          `Struct s', List.flatten na
       | `Blob _
       | `Top
       | `Union _
@@ -521,15 +527,27 @@ struct
       | `List _
       | `Bot ->
         symb_value, []
-      in
-      let symb_value = get a g fun_st symb None in
-      get_concrete_value_and_new_blocks_from_value symb_value
+    in
+    let symb_value = get a g fun_st symb None in
+    let (r, n) = get_concrete_value_and_new_blocks_from_value symb_value in
+    M.tracel "concretes" "Got concrete value %a for address %a \n" VD.pretty r AD.pretty symb;
+    (r, n)
 
-  let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: address) (fun_st: store): address =
-    let ts = typeSig @@ AD.get_type concrete in
+  let add_offset_to_addr (a: Addr.t) offs =
+    match a with
+      | Addr (x, o) -> Addr.from_var_offset (x, add_offset o offs)
+      | _ -> failwith "unimplemented!"
+
+  let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: Addr.t) (fun_st: store): address =
+    let base_addr_concrete = List.hd @@ Addr.to_var_may concrete in
+    M.tracel "concretes" "concrete address: %a\n" Addr.pretty concrete;
+    let offset_concrete = Tuple2.second @@ List.hd (Addr.to_var_offset concrete) in
+    let ts = typeSig @@ base_addr_concrete.vtype in
     let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_heap_var a k && ts = (typeSig k.vtype)) fun_st.cpa in
-    let addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
-    addr
+    let base_symb_addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
+    M.trace "concretes" "Getting symbolic address %a for concrete %a with typesig %a in state %a \n" AD.pretty base_symb_addr Addr.pretty concrete Cil.d_typsig ts D.pretty fun_st;
+    let symb_addr = AD.map (fun a -> add_offset_to_addr a offset_concrete) base_symb_addr in
+    symb_addr
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
@@ -1244,21 +1262,33 @@ struct
         | `Top -> reachable_vars
         | `Lifted s ->
           let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.elements lvals) in
-          let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> typeSig v.vtype | _ -> failwith "Should never happen!") lvals in
-          List.filter (fun v -> Set.mem (typeSig (AD.get_type v)) typeSigs) reachable_vars
-      )
-      in
-      M.trace "update" "Reachabel vars have cardinality >= %s \n" (string_of_int @@ List.length reachable_written_vars);
-      let f (st, addr_list) (addr: address) =
+          let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> (typeSig v.vtype, offset) | _ -> failwith "Should never happen!") lvals in
+          let addrs_with_offs = List.map (fun addrs ->
+            let addr_ts = typeSig (AD.get_type addrs) in
+            let matches = Set.filter (fun (ts, offset) -> ts = addr_ts) typeSigs in
+            M.tracel "update" "Found %i matches for type %a. \n" (Set.cardinal matches) Cil.d_typsig addr_ts;
+            let address_with_offs = Set.map (fun (_,offset) -> AD.map (fun a -> add_offset_varinfo (Offs.from_cil_offset offset) a) addrs)
+            matches |> Set.to_list in
+            List.fold AD.join (AD.bot ()) address_with_offs
+          ) reachable_vars in
+          let addrs_with_offs = List.filter_map (fun ad -> if AD.is_bot ad then None else Some ad) addrs_with_offs in
+          M.tracel "update" "there are %i reachable written addresses.\n" (List.length addrs_with_offs);
+          List.iter (fun a -> M.tracel "update" "reachable written address: %a\n" AD.pretty a) addrs_with_offs;
+          addrs_with_offs
+      ) in
+      let reachable_written_vars = List.concat (List.map AD.elements reachable_written_vars) in
+      M.trace "update" "Reachable vars have cardinality >= %s \n" (string_of_int @@ List.length reachable_written_vars);
+      let update_written_address (st, addr_list) (addr: Addr.t) =
         let sa = get_symbolic_address ask gs addr fun_st in
-        let typ = AD.get_type addr in
+        let typ = Addr.get_type addr in
         let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
         (* For the existing memory blocks, we have join the old and the new value *)
-        let old_value = get ask gs st addr None in
+        let old_value = get ask gs st (AD.singleton addr) None in
         let value = VD.join old_value concrete_value in
-        (set ask gs st addr typ value, new_addresses::addr_list)
+        M.tracel "library" "Updating address %a with old value %a to value %a\n" Addr.pretty addr VD.pretty old_value VD.pretty concrete_value;
+        (set ask gs st (AD.singleton addr) typ value, new_addresses::addr_list)
       in
-      let (st, new_addresses) = List.fold f (st, []) reachable_written_vars in
+      let (st, new_addresses) = List.fold update_written_address (st, []) reachable_written_vars in
       let empty = AD.empty () in
       let visited = ref empty in
       let workset = ref (AD.of_list (List.flatten new_addresses)) in
@@ -1268,7 +1298,8 @@ struct
         (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
         let visit_and_collect var (acc, st) =
           let sa = AD.singleton var in
-          let (concrete_value, new_addresses) =  get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
+          let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
+          M.tracel "library" "Updating new address %a to value %a\n" AD.pretty sa VD.pretty concrete_value;
           let st = set ask gs st sa (AD.get_type sa) concrete_value in
           let addrs = AD.union (AD.of_list new_addresses) acc in
           (addrs, st)

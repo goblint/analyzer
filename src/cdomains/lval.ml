@@ -124,6 +124,12 @@ struct
     | `Field(f,o) -> Field(f, to_cil_offset o)
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
 
+  let rec from_cil_offset (o: offset) :t =
+    match o with
+    | NoOffset -> `NoOffset
+    | Field(f,o) -> `Field(f,(from_cil_offset o))
+    | Index(e, o) ->  `NoOffset (* TODO: OK? *)
+
   let join x y = merge `Join x y
   let meet x y = merge `Meet x y
   let widen x y = merge `Widen x y
