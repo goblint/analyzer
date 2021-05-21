@@ -22,7 +22,6 @@ struct
       | Some f -> ctx.sideg f.svar side
       | None -> ()
 
-
   let is_arg_var ctx (v: varinfo) =
     match ctx.ask (Q.IsHeapVar v), ctx.ask (Q.IsAllocatedVar v) with
       | `MustBool true,`MustBool false -> true
@@ -30,7 +29,6 @@ struct
 
   let filter_arg_vars ctx (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_arg_var ctx v) s
 
-  (* transfer functions *)
   let add_written_lval ctx (lval:lval): unit =
     let query e = ctx.ask (Q.MayPointTo e) in
     let side = match lval with
@@ -54,6 +52,7 @@ struct
     | Some lval -> add_written_lval ctx lval
     | None -> ()
 
+  (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     add_written_lval ctx lval
 
