@@ -2000,6 +2000,73 @@ struct
   let init_vars_with_symbolic_values ask globals local (vs: varinfo list) : store =
     List.fold (fun st v -> init_var_with_symbolic_value ask globals st v) local vs
 
+
+  (** Module for maps with typesigs as keys  *)
+  module TM = Map.Make(struct type t = Cil.typsig let compare = Stdlib.compare end)
+
+  let extract_type_to_address_map_from_state (st: D.t): AD.t TM.t =
+    let add_to_map k (v: Addr.t) m =
+      let v = match TM.find_opt k m with
+      | Some addr -> AD.join (AD.singleton v) addr
+      | None -> AD.singleton v
+      in
+      TM.add k v m
+    in
+    (* recursive for structs, but does not need to follow pointers! *)
+    let rec extract_type_to_addr_map_from_addr  (m: AD.t TM.t) (x: Addr.t): AD.t TM.t =
+      match unrollType (Addr.get_type x) with
+      | TVoid _ -> m
+      | TInt (ik, _) -> add_to_map (typeSig (TInt (ik, []))) x m
+      | TFloat (fk, _) -> add_to_map (typeSig (TFloat (fk, []))) x m
+      | TPtr (t, _) -> add_to_map (typeSig (TPtr (t, []))) x m
+      | TFun (t, args, b, _) -> add_to_map (typeSig (TFun (t, args, b, []))) x m
+      | TComp (c, _) when c.cstruct ->
+        let m = add_to_map (typeSig (TComp (c, []))) x m in
+        let addrs = List.map (fun field -> add_offset_to_addr x (`Field (field, `NoOffset))) c.cfields in
+        List.fold extract_type_to_addr_map_from_addr m addrs
+      | TArray (t, _, _) ->
+        let m = add_to_map (typeSig (TArray (t, None, []))) x m in
+        let addrs = add_offset_to_addr x (`Index (ID.top_of (Cilfacade.ptrdiff_ikind ()), `NoOffset)) in
+        extract_type_to_addr_map_from_addr m addrs
+      | t ->
+        M.trace "entry" "type %a not handled\n" Cil.d_type t;
+        failwith "unimplemented extract"
+    in
+    let extract_type_to_addr_from_varinfo (x: varinfo) (v: value) (m: AD.t TM.t) : AD.t TM.t =
+      extract_type_to_addr_map_from_addr m (Addr.from_var x)
+    in
+    let m : AD.t TM.t = TM.empty in
+    CPA.fold extract_type_to_addr_from_varinfo st.cpa m
+
+  let find_pointers (st: D.t) : Addr.t list =
+    let rec extract_pointers_from_addr (l: Addr.t list) (x: Addr.t) : Addr.t list =
+      let res = match unrollType (Addr.get_type x) with
+      | TPtr (t, _) -> [x]
+      | TComp (c, _) when c.cstruct ->
+        let addrs = List.map (fun field -> add_offset_to_addr x (`Field (field, `NoOffset))) c.cfields in
+        List.fold extract_pointers_from_addr ([]: Addr.t list) addrs
+      | TComp (c, a) (* union *) -> failwith "union not handled!"
+      | _ -> []
+      in
+      List.append res l
+    in
+    let extract_pointers_from_varinfo (x: varinfo) (v: value) (l: Addr.t list)=
+      extract_pointers_from_addr l (Addr.from_var x)
+    in
+    CPA.fold extract_pointers_from_varinfo st.cpa []
+
+  let update_pointer (a: Q.ask) (gs: glob_fun) (m: AD.t TM.t) (st: D.t) (p: Addr.t) : D.t =
+    match unrollType (Addr.get_type p) with
+      | TPtr (pointed_to_t, _) as t ->
+        let ts = typeSig pointed_to_t in
+        if TM.mem ts m then
+          let addr = AD.singleton p in
+          let old_value = get a gs st addr None in
+          let new_value = VD.join old_value (`Address (TM.find ts m)) in
+          set a gs st addr t new_value
+        else st
+      | _ -> st
+
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
     let st = ctx.local in
     if get_bool "ana.library" then begin
@@ -2009,7 +2076,13 @@ struct
       (* Inititalize globals with symbolic values *)
       let globals = CPA.filter (fun k v -> V.is_global k && not (is_heap_var ctx.ask k)) st.cpa in
       let global_list = CPA.fold (fun k v acc -> k::acc) globals [] in
-      init_vars_with_symbolic_values ctx.ask ctx.global st' global_list
+      let st' = init_vars_with_symbolic_values ctx.ask ctx.global st' global_list in
+      let map = extract_type_to_address_map_from_state st' in
+      TM.iter (fun t a -> M.tracel "entry" "typesig %a has possible address: %a \n" Cil.d_typsig t AD.pretty a) map;
+      let pointers = find_pointers st' in
+      List.iter (fun a -> M.tracel "entry" "found pointer %a. \n" Addr.pretty a) pointers;
+      List.fold (update_pointer ctx.ask ctx.global map) st' pointers
+      (* st' *)
     end
     else
       let vals, pa, heap_mem =
