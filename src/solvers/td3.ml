@@ -133,7 +133,8 @@ module WP =
           ) else if term && phase = Widen then (
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;
-          );
+          ) else if not space && (not term || phase = Narrow) then (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+            HM.remove wpoint x;
         )
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
