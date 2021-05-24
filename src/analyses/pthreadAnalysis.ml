@@ -922,7 +922,7 @@ module Spec : Analyses.MCPSpec = struct
   include Analyses.DefaultSpec
 
   (** Domains *)
-  include PthreadDomain
+  module D = PthreadDomain.D
 
   module C = D
 
