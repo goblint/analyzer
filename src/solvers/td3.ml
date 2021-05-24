@@ -260,16 +260,16 @@ module WP =
           List.fold_left (fun acc el -> match f el with Some x -> x::acc | _ -> acc) [] l
         in
         let changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), None -> Some f | _ -> None) S.increment.changes.changed in
-        let part_changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), Some nd -> Some (f,nd.primObsoleteNodes) | _ -> None) S.increment.changes.changed in
-        let prim_old_nodes_ids = Set.of_list (List.concat_map (fun (_,pn) -> List.map Node.show_id pn) part_changed_funs) in
+        let part_changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), Some nd -> Some (f,nd.primObsoleteNodes,nd.unchangedNodes) | _ -> None) S.increment.changes.changed in
+        let prim_old_nodes_ids = Set.of_list (List.concat_map (fun (_,pn,_) -> List.map Node.show_id pn) part_changed_funs) in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
         (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
         let obsolete_ret = Set.union (Set.of_list (List.map (fun f -> Node.show_id (Function f)) changed_funs))
-                                     (Set.of_list (List.map (fun (f,_) -> Node.show_id (Function f)) part_changed_funs)) in
+                                     (Set.of_list (List.map (fun (f,_,_) -> Node.show_id (Function f)) part_changed_funs)) in
         let obsolete_entry = Set.of_list (List.map (fun f -> Node.show_id (FunctionEntry f)) changed_funs) in
 
         List.iter (fun a -> print_endline ("Completely changed function: " ^ a.svar.vname)) changed_funs;
-        List.iter (fun (f,_) -> print_endline ("Partially changed function: " ^ (f.svar.vname))) part_changed_funs;
+        List.iter (fun (f,_,_) -> print_endline ("Partially changed function: " ^ (f.svar.vname))) part_changed_funs;
 
         let old_ret = Hashtbl.create 103 in
         if GobConfig.get_bool "incremental.reluctant.on" then (
@@ -294,7 +294,13 @@ module WP =
         let marked_for_deletion = Hashtbl.create 103 in
         add_nodes_of_fun changed_funs marked_for_deletion (not (GobConfig.get_bool "incremental.reluctant.on"));
         add_nodes_of_fun removed_funs marked_for_deletion true;
-        List.iter (fun (f,_) -> Hashtbl.replace marked_for_deletion (Node.show_id (Function f)) ()) part_changed_funs;
+        (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
+        let add_pseudo_return f un =
+          let pid = CfgTools.get_pseudo_return_id f in
+          let is_pseudo_return n = match n with MyCFG.Statement s -> s.sid = pid | _ -> false in
+          if not (List.exists (fun x -> is_pseudo_return @@ fst @@ x) un)
+            then Hashtbl.replace marked_for_deletion (string_of_int pid) () in
+        List.iter (fun (f,_,un) -> Hashtbl.replace marked_for_deletion (Node.show_id (Function f)) (); add_pseudo_return f un) part_changed_funs;
 
         print_endline "Removing data for changed and removed functions...";
         let delete_marked s = HM.filteri_inplace (fun k _ -> not (Hashtbl.mem  marked_for_deletion (S.Var.var_id k))) s in (* TODO: don't use string-based nodes *)
