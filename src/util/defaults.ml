@@ -135,9 +135,8 @@ let _ = ()
       ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
-      ; (let open PthreadAnalysis.Flags in
-         let register f = reg Analyses (show f) (string_of_bool @@ default_value f) (description f) in
-         List.iter register all)
+      ; reg Analyses "ana.pthread.assume_success" "true" "Assume that all POSIX pthread functions succeed."
+      ; reg Analyses "ana.pthread.ignore_assign" "true" "Ignors any assigns in POSIX programs."
 
 (* {4 category [Semantics]} *)
 let _ = ()
