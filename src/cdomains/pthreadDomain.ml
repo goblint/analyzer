@@ -35,7 +35,7 @@ module D = struct
     Printf.sprintf
       "{ Tid=%s; pred=%s; ctx=%s }"
       (Tid.show x.tid)
-      (Pretty.sprint 200 (Pred.pretty () x.pred))
+      (Pred.show x.pred)
       (Ctx.show x.ctx)
 
 
