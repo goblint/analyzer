@@ -393,10 +393,22 @@ struct
       in
       octa
 
+  let rec get_vars_from_expr exp l =
+    match exp with
+    | Cst _-> l
+    | Var v -> 
+    let () = print_endline (Var.to_string v) in l @ [v]
+    | Unop (_, e, _, _) -> l @ (get_vars_from_expr e [])
+    | Binop (_, e, _, _, _) -> l @ (get_vars_from_expr e [])
+
+  let vars_from_expr_in_env env exp =
+    let l = List.map (fun v -> Environment.mem_var env v) (get_vars_from_expr exp []) in
+    not (List.mem false l)
+
   (* Converts CIL expressions to Apron expressions of level 1 *)
-  let cil_exp_to_apron_texpr1 env exp =
+  let cil_exp_to_apron_texpr1 env lhost =
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
-    Texpr1.of_expr env (cil_exp_to_cil_lhost exp)
+      Texpr1.of_expr env lhost
   
   let is_chosen (v:string) =
     let oct_vars =  List.map Json.jsonString (GobConfig.get_list "octagon_vars") in 
@@ -429,8 +441,13 @@ struct
     (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
     if var_in_env v d then 
       begin try
-          A.assign_texpr_with Man.mgr d (Var.of_string v)
-            (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
+          let exp = Cil.constFold false e in
+          let env = A.env d in
+          let conversion_res = cil_exp_to_cil_lhost exp in
+          let can_do = vars_from_expr_in_env env conversion_res in
+          if can_do then 
+            A.assign_texpr_with Man.mgr d (Var.of_string v)
+              (cil_exp_to_apron_texpr1 env conversion_res) None
         with Invalid_CilExpToLhost ->
           A.forget_array_with Man.mgr d [|Var.of_string v|] false
           (* | Manager.Error q -> *)
@@ -459,8 +476,13 @@ struct
   let substitute_var_with d v e =
     (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
     begin try
-        A.substitute_texpr_with Man.mgr d (Var.of_string v)
-          (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
+        let exp = Cil.constFold false e in
+        let env = A.env d in
+        let conversion_res = cil_exp_to_cil_lhost exp in
+        let can_do = vars_from_expr_in_env env conversion_res in
+        if can_do then 
+          A.substitute_texpr_with Man.mgr d (Var.of_string v)
+            (cil_exp_to_apron_texpr1 env conversion_res) None
       with Invalid_CilExpToLhost ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
         (* | Manager.Error q ->
