@@ -2020,7 +2020,7 @@ struct
       | TFloat (fk, _) -> add_to_map (typeSig (TFloat (fk, []))) x m
       | TPtr (t, _) -> add_to_map (typeSig (TPtr (t, []))) x m
       | TFun (t, args, b, _) -> add_to_map (typeSig (TFun (t, args, b, []))) x m
-      | TComp (c, _) when c.cstruct ->
+      | TComp (c, _) ->
         let m = add_to_map (typeSig (TComp (c, []))) x m in
         let addrs = List.map (fun field -> add_offset_to_addr x (`Field (field, `NoOffset))) c.cfields in
         List.fold extract_type_to_addr_map_from_addr m addrs
@@ -2028,6 +2028,8 @@ struct
         let m = add_to_map (typeSig (TArray (t, None, []))) x m in
         let addrs = add_offset_to_addr x (`Index (ID.top_of (Cilfacade.ptrdiff_ikind ()), `NoOffset)) in
         extract_type_to_addr_map_from_addr m addrs
+      | TEnum (t, _) -> add_to_map (typeSig (TEnum (t, []))) x m
+      | TBuiltin_va_list _ -> failwith "bulitin va list!"
       | t ->
         M.trace "entry" "type %a not handled\n" Cil.d_type t;
         failwith "unimplemented extract"
