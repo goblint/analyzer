@@ -52,6 +52,12 @@ struct
   let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
   let print_octagon o = print_endline (short 30 o)
 
+  (* Apron can not join two abstract values have different environments. 
+  That hapens when we do a join with dead code and for that reason we need 
+  to handle joining with bottom manually. 
+  A similar if-based structure with is_top and is_bottom is also there for:
+  meet, widen, narrow, equal, leq.*)
+  
   let join x y =
     let ret = if is_bot x then
       y
