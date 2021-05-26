@@ -1,5 +1,8 @@
 #!/bin/sh
-#
+
+# Uses ocp-indent to check that staged changes are correctly indented.
+# Use `git commit -n` to bypass if necessary.
+
 # An example hook script to verify what is about to be committed.
 # Called by "git commit" with no arguments.  The hook should
 # exit with non-zero status after issuing an appropriate message if

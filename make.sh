@@ -106,6 +106,7 @@ rule() {
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -
+      # Use `git commit -n` to temporarily bypass the hook if necessary.
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
     ;; headers)

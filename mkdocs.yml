@@ -20,6 +20,7 @@ nav:
     - user-guide/running.md
     - user-guide/inspecting.md
   - 'Developer guide':
+    - developer-guide/developing.md
     - developer-guide/testing.md
     - developer-guide/debugging.md
     - developer-guide/documenting.md
