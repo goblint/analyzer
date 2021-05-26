@@ -219,11 +219,7 @@ struct
 
   module StringPair =
   struct
-    type t = string * string
-    let compare (x1,x2) (y1,y2) =
-      match compare x1 y1 with
-      | 0 -> compare x2 y2
-      | x -> x
+    type t = string * string [@@deriving ord]
   end
   module InhRel = Set.Make(StringPair)
   let inc : InhRel.t ref = ref InhRel.empty
@@ -548,7 +544,7 @@ struct
       used_args st e
   (*
       match ask (Queries.MayPointTo e) with
-          | `LvalSet s when not (Queries.LS.is_top s) ->
+          | s when not (Queries.LS.is_top s) ->
               Queries.LS.fold (fun (v,_) st -> ArgSet.add (FieldVars.gen v) st) s (ArgSet.empty ())
           | _ -> ArgSet.bot ()
 		*)

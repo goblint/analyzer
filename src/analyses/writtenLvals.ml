@@ -24,7 +24,7 @@ struct
 
   let is_arg_var ctx (v: varinfo) =
     match ctx.ask (Q.IsHeapVar v), ctx.ask (Q.IsAllocatedVar v) with
-      | `MustBool true,`MustBool false -> true
+      | true, false -> true
       | _ -> false
 
   let filter_arg_vars ctx (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_arg_var ctx v) s
@@ -33,16 +33,9 @@ struct
     let query e = ctx.ask (Q.MayPointTo e) in
     let side = match lval with
       | Mem e, NoOffset
-      | Mem e, Index _ ->
-        (match query e with
-          | `LvalSet s -> filter_arg_vars ctx s
-          | _ -> G.bot ()
-        )
+      | Mem e, Index _ -> filter_arg_vars ctx (query e)
       | Mem e, Field (finfo, offs) ->
-        (match query e with
-          | `LvalSet s -> filter_arg_vars ctx s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
-          | _ -> G.bot ()
-        )
+        filter_arg_vars ctx (query e) |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
       | _, _ -> G.bot ()
     in
     side_to_f ctx side
@@ -75,11 +68,7 @@ struct
 
     (* Find the heapvars that are reachable from the passed arguments *)
     let reachable_heap_vars =
-      let reachable_exp exp = match ctx.ask (Q.ReachableFrom exp) with
-        | `LvalSet s -> s
-        | `Top -> `Top
-        | `Bot | _ -> Q.LS.bot ()
-      in
+      let reachable_exp exp = ctx.ask (Q.ReachableFrom exp) in
       let reachable_from_exp = List.fold (fun acc exp -> Q.LS.join (reachable_exp exp) acc) (Q.LS.bot ()) args in
       match reachable_from_exp with
         | `Top -> M.warn "Top address is reachable from the expression (unhandled!)."; Q.LS.bot ()
@@ -102,10 +91,9 @@ struct
   let threadspawn ctx lval f args fctx = D.bot ()
   let exitstate  v = D.top ()
 
-  let query ctx (q:Q.t) = match q with
-    | Q.WrittenLvals f ->
-      `LvalSet (ctx.global f)
-    | _ -> `Top
+  let query ctx (type a) (q: a Q.t): a Q.result = match q with
+    | Q.WrittenLvals f -> (ctx.global f: Q.LS.t)
+    | _ -> Q.Result.top q
 
 end
 

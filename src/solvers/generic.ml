@@ -35,10 +35,10 @@ struct
   type t = B.t * int
   let relift x = x
   let compare ((u1,u2):t) (v1,v2) =
-    match Stdlib.compare u2 v2 with
+    match Stdlib.compare u2 v2 with (* cannot derive, compares snd first for efficiency *)
     | 0 -> B.compare u1 v1
     | n -> n
-  let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1
+  let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1 (* cannot derive, compares snd first for efficiency *)
   let category (u,_) = B.category u
   let hash (u,v) = B.hash u + 131233 * v
   let pretty_trace () (u,v:t) =

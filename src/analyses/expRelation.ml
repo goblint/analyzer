@@ -51,29 +51,24 @@ struct
     | TFloat _ -> true
     | _ -> false
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let lvalsEq l1 l2 = Basetype.CilExp.compareExp (Lval l1) (Lval l2) = 0 in (* == would be wrong here *)
     match q with
     | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
-      begin
-        if Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0 then
-          `MustBool true
-        else
-          `MustBool false
-      end
+      Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0
     | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
       begin
         match e1, e2 with
         | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-            `MayBool false  (* c > 0 => (! x+c < x) *)
+            false  (* c > 0 => (! x+c < x) *)
         | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-            `MayBool false  (* c < 0 => (! x < x+c )*)
+            false  (* c < 0 => (! x < x+c )*)
         | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-            `MayBool false  (* c < 0 => (! x-c < x) *)
+            false  (* c < 0 => (! x-c < x) *)
         | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-            `MayBool false  (* c < 0 => (! x < x-c) *)
+            false  (* c < 0 => (! x < x-c) *)
         | _ ->
-            `MayBool true
+            true
       end
     | Queries.MayBeEqual (e1,e2) when not (isFloat e1) ->
       begin
@@ -82,10 +77,10 @@ struct
         | Lval l2, BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _)
         | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
         | Lval l2, BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2) && Int64.compare i Int64.zero <> 0  ->
-            `MayBool false
-        | _ -> `MayBool true
+            false
+        | _ -> true
       end
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
 
   (* below here is all the usual stuff an analysis requires, we don't do anything here *)

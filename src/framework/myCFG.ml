@@ -260,7 +260,7 @@ let createCFG (file: file) =
             let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
             List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
-           * it's job well and we just pick out the right successors *)
+           * its job well and we just pick out the right successors *)
           | If (exp, true_block, false_block, loc) -> begin
               if isZero exp then ()
               else

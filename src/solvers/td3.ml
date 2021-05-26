@@ -56,8 +56,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t
-      let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
+      type t = S.Var.t * S.Var.t [@@deriving eq]
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
@@ -358,6 +357,12 @@ module WP =
 
       stop_event ();
       print_data data "Data after solve completed";
+
+      if GobConfig.get_bool "dbg.print_wpoints" then (
+        Printf.printf "\nWidening points:\n";
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        print_newline ();
+      );
 
       {st; infl; rho; wpoint; stable}
 

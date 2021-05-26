@@ -543,7 +543,7 @@ struct
       | _ -> 3
     in
     let rec compare a b =
-      let r = tag a - tag b in
+      let r = Stdlib.compare (tag a) (tag b) in
       if r <> 0 then r else
       match a,b with
       | `NoOffset , `NoOffset -> 0
@@ -557,7 +557,7 @@ struct
           compare o1 o2
       | _ -> failwith "unexpected tag"
     in
-    let r = x1.vid - x2.vid in
+    let r = Stdlib.compare x1.vid x2.vid in
     if r <> 0 then r else compare o1 o2
 
   let class_tag (v,o) =

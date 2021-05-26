@@ -70,10 +70,10 @@ struct
       Hashtbl.add arg_vars newvar.vid ();
       newvar
 
-  let query ctx (q:Q.t) : Q.Result.t =
+  let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.ArgVarTyp t ->
-      `Varinfo (`Lifted (get_arg_var t))
+      `Lifted (get_arg_var t)
     | Q.HeapVar ->
       let fn = (MyCFG.getFun ctx.node).svar in
       let rval =
@@ -92,12 +92,12 @@ struct
         | _ -> TVoid [])
       in
       M.tracel "malloc" "Malloc: Got typesig %a\n" Cil.d_type typ;
-      `Varinfo (`Lifted (get_heap_var typ fn))
+      `Lifted (get_heap_var typ fn)
     | Q.IsAllocatedVar v ->
-      `MustBool (Hashtbl.mem heap_vars v.vid)
+      Hashtbl.mem heap_vars v.vid
     | Q.IsHeapVar v ->
-      `MustBool (Hashtbl.mem heap_vars v.vid || Hashtbl.mem arg_vars v.vid)
-    | _ -> `Top
+      Hashtbl.mem heap_vars v.vid || Hashtbl.mem arg_vars v.vid
+    | _ -> Q.Result.top q
 
     let init () =
       Hashtbl.clear heap_hash;

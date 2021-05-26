@@ -48,17 +48,15 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
 module HashedPair (M1: Hashtbl.HashedType) (M2: Hashtbl.HashedType):
   Hashtbl.HashedType with type t = M1.t * M2.t =
 struct
-  type t = M1.t * M2.t
+  type t = M1.t * M2.t [@@deriving eq]
   (* copied from Printable.Prod *)
-  let equal (x1,x2) (y1,y2) = M1.equal x1 y1 && M2.equal x2 y2
   let hash (x,y) = M1.hash x + M2.hash y * 17
 end
 
 module HashedList (M: Hashtbl.HashedType):
   Hashtbl.HashedType with type t = M.t list =
 struct
-  type t = M.t list
+  type t = M.t list [@@deriving eq]
   (* copied from Printable.Liszt *)
-  let equal x y = try List.for_all2 M.equal x y with Invalid_argument _ -> false
   let hash = List.fold_left (fun xs x -> xs + M.hash x) 996699
 end

@@ -1,7 +1,7 @@
-type t' = Val of int | Bot
-and t = t' * t' * t'* t' [@@deriving to_yojson]
-
 include Printable.BlankPolyCompare
+
+type t' = Val of int | Bot
+and t = t' * t' * t'* t' [@@deriving eq, to_yojson]
 
 (* lowest priority obtained over:
    1st component = critical region (between first and last variable access)
@@ -21,8 +21,6 @@ let hash (a,b,c,d) =
   let c' = match c with Bot -> -1 | Val c'' -> c'' in
   let d' = match d with Bot -> -1 | Val d'' -> d'' in
   a' lxor b' lxor c' lxor d'
-
-let equal (a1,a2,a3,a4) (b1,b2,b3,b4) = a1=b1&&a2=b2&&a3=b3&&a4=b4
 
 let copy x = x
 let top () = (Val 0, Val 0, Val 0, Val 0)
