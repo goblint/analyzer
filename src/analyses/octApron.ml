@@ -163,9 +163,17 @@ struct
     let st = ctx.local in
     if AD.is_bot st.oct then D.bot () else
       match lv with
-      (* Locals which are numbers, have no offset and their address wasn't taken *)
-      | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) && (not v.vaddrof)->
-        {st with oct = AD.assign_var_handling_underflow_overflow st.oct v e}
+      (* Lvals which are numbers, have no offset and their address wasn't taken *)
+      | Var v, NoOffset when isArithmeticType v.vtype && not v.vaddrof ->
+        if not v.vglob then
+          {st with oct = AD.assign_var_handling_underflow_overflow st.oct v e}
+        else (
+          let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+          let oct' = AD.assign_var_handling_underflow_overflow st.oct v_out e in (* g#out = e; *)
+          let st' = Priv.write_global (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg {st with oct = oct'} v v_out in (* g = g#out; *)
+          let oct'' = AD.remove_all st'.oct [v_out.vname] in (* remove temporary g#out *)
+          {st' with oct = oct''}
+        )
       (* Ignoring all other assigns *)
       | _ -> st
 
