@@ -2029,7 +2029,7 @@ struct
         let addrs = add_offset_to_addr x (`Index (ID.top_of (Cilfacade.ptrdiff_ikind ()), `NoOffset)) in
         extract_type_to_addr_map_from_addr m addrs
       | TEnum (t, _) -> add_to_map (typeSig (TEnum (t, []))) x m
-      | TBuiltin_va_list _ -> failwith "bulitin va list!"
+      | TBuiltin_va_list _ -> M.warn "Analyzing a function that has a unhandled builtin_va_list as parameter!"; m
       | t ->
         M.trace "entry" "type %a not handled\n" Cil.d_type t;
         failwith "unimplemented extract"
@@ -2047,7 +2047,6 @@ struct
       | TComp (c, _) when c.cstruct ->
         let addrs = List.map (fun field -> add_offset_to_addr x (`Field (field, `NoOffset))) c.cfields in
         List.fold extract_pointers_from_addr ([]: Addr.t list) addrs
-      | TComp (c, a) (* union *) -> failwith "union not handled!"
       | _ -> []
       in
       List.append res l
