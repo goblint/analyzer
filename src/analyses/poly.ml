@@ -103,20 +103,20 @@ struct
       | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> D.assign_var ctx.local v.vname e
       | _ -> D.topE (A.env ctx.local)
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let d = ctx.local in
     match q with
     | EvalInt e ->
       begin
         match D.get_int_val_for_cil_exp d e with
-        | Some i -> `Int i
+        | Some i -> ID.of_int i
         | _ -> `Top
       end
     | MustBeEqual (e1, e2) ->
       if D.cil_exp_equals d e1 e2 then true
       else false
-    | _ -> Result.top ()
+    | _ -> Result.top q
 end
 
 let _ =

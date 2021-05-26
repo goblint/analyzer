@@ -1882,11 +1882,7 @@ struct
     let base_result = check_assert e ctx.local in
     let result =
       if should_warn then
-        let other_analsyis_result =
-          match ctx.ask (Q.Assert e) with
-          | `AssertionResult ar -> ar
-          | _ -> `Top
-        in
+        let other_analsyis_result = ctx.ask (Q.Assert e) in
         Basetype.Bools.meet base_result other_analsyis_result
       else
         base_result

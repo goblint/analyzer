@@ -44,6 +44,7 @@ struct
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
+  let relift x = x
 
   let join x y =
     if is_bot x then

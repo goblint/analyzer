@@ -21,15 +21,15 @@ struct
 
   let rec print_list_exp myList = match myList with
     | [] -> print_endline "End!"
-    | head::body -> 
+    | head::body ->
     begin
       D.print_expression head;
       print_list_exp body
     end
 
   let rec get_vnames_list exp = match exp with
-  | Lval lval -> 
-    let lhost, offset = lval in 
+  | Lval lval ->
+    let lhost, offset = lval in
     (match lhost with
       | Var vinfo -> [vinfo.vname]
       | _ -> [])
@@ -95,17 +95,17 @@ struct
         | `Unknown "__goblint_check" -> ctx.local
         | `Unknown "__goblint_commit" -> ctx.local
         | `Unknown "__goblint_assert" -> ctx.local
-        | `Malloc size -> 
+        | `Malloc size ->
           (match r with
             | Some lv ->
               D.remove_all ctx.local [f.vname]
             | _ -> ctx.local)
-        | `Calloc (n, size) -> 
+        | `Calloc (n, size) ->
           (match r with
             | Some lv ->
               D.remove_all ctx.local [f.vname]
             | _ -> ctx.local)
-        | `ThreadJoin (id,ret_var) -> 
+        | `ThreadJoin (id,ret_var) ->
             let nd = ctx.local in
             invalidate nd [ret_var];
             nd
@@ -117,24 +117,24 @@ struct
               | Some fnc -> let () = invalidate ctx.local (fnc `Write  args) in ctx.local
               | None -> D.topE (A.env ctx.local)
             in
-              st      
+              st
           end
       end
 
   let branch ctx e b =
-    if D.is_bot ctx.local then 
-      D.bot () 
+    if D.is_bot ctx.local then
+      D.bot ()
     else
-      let res = D.assert_inv ctx.local e (not b) in 
+      let res = D.assert_inv ctx.local e (not b) in
       if D.is_bot res then raise Deadcode;
       res
 
   let return ctx e f =
     if D.is_bot ctx.local then D.bot () else
-      
+
       let nd = match e with
-        | Some e when isArithmeticType (typeOf e) -> 
-          let nd = D.add_vars ctx.local (["#ret"],[]) in 
+        | Some e when isArithmeticType (typeOf e) ->
+          let nd = D.add_vars ctx.local (["#ret"],[]) in
           let () = D.assign_var_with nd "#ret" e in
           nd
         | None -> D.topE (A.env ctx.local)
@@ -155,29 +155,28 @@ struct
       match lv with
       (* Locals which are numbers, have no offset and their address wasn't taken *)
       | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) && (not v.vaddrof)->
-          D.assign_var_handling_underflow_overflow ctx.local v e 
+          D.assign_var_handling_underflow_overflow ctx.local v e
       (* Ignoring all other assigns *)
       | _ -> ctx.local
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let d = ctx.local in
     match q with
     | Assert e ->
-      let x = match D.check_assert e ctx.local with
+      begin match D.check_assert e ctx.local with
         | `Top -> `Top
-        | `True -> `Lifted true 
-        | `False -> `Lifted false 
+        | `True -> `Lifted true
+        | `False -> `Lifted false
         | _ -> `Bot
-      in
-      `AssertionResult x
+      end
     | EvalInt e ->
       begin
         match D.get_int_val_for_cil_exp d e with
-        | Some i -> `Int i
+        | Some i -> ID.of_int i
         | _ -> `Top
       end
-    | _ -> Result.top ()
+    | _ -> Result.top q
 end
 
 let _ =

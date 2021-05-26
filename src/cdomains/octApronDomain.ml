@@ -16,14 +16,14 @@ struct
 
   (* Allocate a new manager to manipulate octagons *)
   let mgr = Oct.manager_alloc ()
-  (* Making an environment from a set of integer and real variables. 
-  Raise Failure in case of name conflict. 
+  (* Making an environment from a set of integer and real variables.
+  Raise Failure in case of name conflict.
   In this case the environment is empty to begin with. *)
   let eenv = Environment.make [||] [||]
 end
 
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
-module A = Abstract1 
+module A = Abstract1
 
 module D =
 struct
@@ -43,14 +43,15 @@ struct
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
+  let relift x = x
 
-  let short n (x:t) =
+  let show (x:t) =
     A.print Legacy.Format.str_formatter x;
     Legacy.Format.flush_str_formatter ()
 
   let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
   let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
-  let print_octagon o = print_endline (short 30 o)
+  let print_octagon o = print_endline (show o)
 
   let join x y =
     let ret = if is_bot x then
@@ -79,11 +80,11 @@ struct
   let narrow = meet
 
   let equal x y =
-    if is_bot x then is_bot y 
+    if is_bot x then is_bot y
     else if is_bot y then false
-    else if is_top x then is_top y 
-    else if is_top y then false 
-    else A.is_eq Man.mgr x y 
+    else if is_top x then is_top y
+    else if is_top y then false
+    else A.is_eq Man.mgr x y
 
   let leq x y =
     if is_bot x || is_top y then true else
@@ -92,10 +93,8 @@ struct
 
   let hash (x:t) = Hashtbl.hash x
   let compare (x:t) y = Stdlib.compare x y
-  let isSimple x = true
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
-  let pretty_f s () (x:t) = text (s 10 x)
-  let pretty = pretty_f short
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
 
   (* Apron expressions of level 1 *)
@@ -106,11 +105,11 @@ struct
   let typesort =
     let f (is,fs) v =
       if isIntegralType v.vtype then
-        if GobConfig.get_bool "ana.oct_no_uints" then 
+        if GobConfig.get_bool "ana.oct_no_uints" then
           match v.vtype with
           | TInt(IUInt, i) -> (is, fs)
           | _ -> (v.vname::is,fs)
-        else 
+        else
           (v.vname::is,fs)
       else if isArithmeticType v.vtype then
         (is,v.vname::fs)
@@ -219,13 +218,13 @@ struct
         | Ne -> comb DISEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
         | _ -> raise Invalid_CilExpToLexp
       end
-    | CastE (TInt(new_ikind, _), e) -> 
+    | CastE (TInt(new_ikind, _), e) ->
       let new_exp = (match e with
       (* Do a cast of int constants *)
       | Const (CInt64 (value, old_ikind, _)) -> Cil.kinteger64 new_ikind (IntDomain.Integers.cast_to new_ikind value)
       (* Ignore other casts *)
       | Lval (Var varinfo, _) -> e (* TODO: handle variable casts *)
-      |_ -> e) 
+      |_ -> e)
       in
       cil_exp_to_lexp new_exp
     | _ ->
@@ -256,12 +255,12 @@ struct
     (* ignore (Pretty.printf "cil_exp_to_apron_linecons exptolinecons '%a'\n" d_plainexp cil_exp); *)
     let linexpr1, comparator = cil_exp_to_apron_linexpr1 environment cil_exp should_negate in
     match linexpr1, comparator with
-    | Some linexpr1, Some comparator -> 
+    | Some linexpr1, Some comparator ->
       Some (Lincons1.make linexpr1 comparator)
     | _ -> None
 
   (* Assert an invariant *)
-  (* Gives the result of the meet operation of the given octagon 
+  (* Gives the result of the meet operation of the given octagon
   with the linear constraints coming from the given expression *)
   let rec assert_inv d x b =
     try
@@ -270,29 +269,29 @@ struct
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
         BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
         | _ -> x in
-      match x with 
-      | BinOp (Ne, lhd, rhs, intType) -> 
+      match x with
+      | BinOp (Ne, lhd, rhs, intType) ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
         if not (is_bot assert_gt) then
           assert_gt
         else
           assert_lt
-      | _ ->       
+      | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
-        let linecons = cil_exp_to_apron_linecons (A.env d) x b in 
+        let linecons = cil_exp_to_apron_linecons (A.env d) x b in
         (* Linear constraints are optional, so we check if there are any. *)
         match linecons with
         | Some linecons ->
-          (* Get the underlying linear constraint of level 0. 
-          Modifying the constraint of level 0 (not advisable) 
-          modifies correspondingly the linear constraint and conversely, 
+          (* Get the underlying linear constraint of level 0.
+          Modifying the constraint of level 0 (not advisable)
+          modifies correspondingly the linear constraint and conversely,
           except for changes of environments *)
           let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
                   ; array_env = A.env d
                   }
           in
-          (* We perform a meet of the current octagon with the linear constraints 
+          (* We perform a meet of the current octagon with the linear constraints
           that come from the expression we wish to assert. *)
           A.meet_lincons_array Man.mgr d ea
         | None -> d
@@ -307,10 +306,10 @@ struct
     | _ -> x in
     try
       match x with
-        | BinOp (Ne, lhd, rhs, intType) -> 
+        | BinOp (Ne, lhd, rhs, intType) ->
           assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
 
-        | BinOp (Eq, lhd, rhs, intType) -> 
+        | BinOp (Eq, lhd, rhs, intType) ->
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
           if not (is_bot assert_gt) then
@@ -318,19 +317,19 @@ struct
           else
             assert_lt
 
-        | BinOp (Lt, lhd, rhs, intType) -> 
+        | BinOp (Lt, lhd, rhs, intType) ->
           assert_inv d (BinOp (Ge, lhd, rhs, intType)) b
 
-        | BinOp (Gt, lhd, rhs, intType) -> 
+        | BinOp (Gt, lhd, rhs, intType) ->
           assert_inv d (BinOp (Le, lhd, rhs, intType)) b
 
-        | BinOp (Le, lhd, rhs, intType) -> 
+        | BinOp (Le, lhd, rhs, intType) ->
           assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
 
-        | BinOp (Ge, lhd, rhs, intType) -> 
+        | BinOp (Ge, lhd, rhs, intType) ->
           assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
-        
-        | UnOp(LNot, e, t) -> 
+
+        | UnOp(LNot, e, t) ->
           assert_inv d e b
 
         | _ ->  assert_inv d x b
@@ -341,18 +340,18 @@ struct
     | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
     | CastE(t, e) -> `Top (* Octagon doesn't handle casts as assertions *)
     | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
-    | _ -> 
+    | _ ->
       let result_state = (assert_inv state e false) in
       let result_state_op = (assert_op_inv state e false) in
       if is_bot result_state then
         `False
       else if is_bot result_state_op then
         `True
-      else 
+      else
         `Top
 
-  let assert_fn ctrlctx octa e warn change =  
-    let expr = sprint 30 (Cil.d_exp () e) in 
+  let assert_fn ctrlctx octa e warn change =
+    let expr = sprint 30 (Cil.d_exp () e) in
     let warn ?annot msg = if warn then
         if GobConfig.get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !Messages.current_loc in
@@ -370,9 +369,9 @@ struct
           )
         ) else
         Messages.warn_each ~ctx:ctrlctx msg
-    in 
+    in
     match e with
-    | Const v -> 
+    | Const v ->
       let () = match v with
         | CInt64 (num, ikind, tag) ->
           begin match num with
@@ -380,9 +379,9 @@ struct
             | _  ->  warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
           end
         | _ -> warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
-      in 
+      in
       octa
-    | _ -> 
+    | _ ->
       let () = match check_assert e octa with
         | `False ->
           warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
@@ -396,7 +395,7 @@ struct
   let rec get_vars_from_expr exp l =
     match exp with
     | Cst _-> l
-    | Var v -> 
+    | Var v ->
     let () = print_endline (Var.to_string v) in l @ [v]
     | Unop (_, e, _, _) -> l @ (get_vars_from_expr e [])
     | Binop (_, e, _, _, _) -> l @ (get_vars_from_expr e [])
@@ -409,15 +408,15 @@ struct
   let cil_exp_to_apron_texpr1 env lhost =
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
       Texpr1.of_expr env lhost
-  
+
   let is_chosen (v:string) =
-    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "octagon_vars") in 
+    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "octagon_vars") in
     if List.length oct_vars == 0 then
       true
     else
       (* let () = print_endline (String.concat ", " oct_vars) in *)
       List.mem ("\""^v^"\"") oct_vars
-  
+
   let var_in_env (v:string) d =
     if (is_chosen v) then
       let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
@@ -426,26 +425,26 @@ struct
       (List.mem v existing_var_names_int) || (List.mem v existing_var_names_real)
     else
       false
-    
+
   let assign_var_eq_with d v v' =
-    if var_in_env v d then 
+    if var_in_env v d then
       A.assign_texpr_with Man.mgr d (Var.of_string v)
         (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
   let substitute_var_eq_with d v v' =
-    if var_in_env v d then 
+    if var_in_env v d then
       A.substitute_texpr_with Man.mgr d (Var.of_string v)
         (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
-  let assign_var_with d v e = 
+  let assign_var_with d v e =
     (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    if var_in_env v d then 
+    if var_in_env v d then
       begin try
           let exp = Cil.constFold false e in
           let env = A.env d in
           let conversion_res = cil_exp_to_cil_lhost exp in
           let can_do = vars_from_expr_in_env env conversion_res in
-          if can_do then 
+          if can_do then
             A.assign_texpr_with Man.mgr d (Var.of_string v)
               (cil_exp_to_apron_texpr1 env conversion_res) None
         with Invalid_CilExpToLhost ->
@@ -480,7 +479,7 @@ struct
         let env = A.env d in
         let conversion_res = cil_exp_to_cil_lhost exp in
         let can_do = vars_from_expr_in_env env conversion_res in
-        if can_do then 
+        if can_do then
           A.substitute_texpr_with Man.mgr d (Var.of_string v)
             (cil_exp_to_apron_texpr1 env conversion_res) None
       with Invalid_CilExpToLhost ->
@@ -518,7 +517,7 @@ struct
 
   let rec print_list_string l = match l with
     | [] -> print_endline "This is the end of the string list!"
-    | head::body -> 
+    | head::body ->
     begin
     print_endline head;
     print_list_string body
@@ -540,7 +539,7 @@ struct
       (* let vars = List.filter (fun v -> isArithmeticType v.vtype) xs in *)
       let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
       let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
-      let vars_filtered = List.filter (fun elem -> (List.mem elem (Array.to_list existing_vars_int)) || (List.mem elem (Array.to_list existing_vars_int))) (Array.to_list vars) in 
+      let vars_filtered = List.filter (fun elem -> (List.mem elem (Array.to_list existing_vars_int)) || (List.mem elem (Array.to_list existing_vars_int))) (Array.to_list vars) in
       let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
       A.change_environment_with Man.mgr d env false
 
@@ -587,7 +586,7 @@ struct
         else None
       end
     | _ -> None
-  
+
   let cil_exp_equals d exp1 exp2 =
     if (is_bot d) then false
     else
@@ -599,20 +598,20 @@ struct
         comp_result
       end
 
-    
+
     let assign_var_handling_underflow_overflow oct v e =
       (match v.vtype with
-        | TInt (ikind, _)-> 
+        | TInt (ikind, _)->
           let signed = Cil.isSigned ikind in
           let new_oct = assign_var oct v.vname e in
-          let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in 
-          let check_max = 
+          let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in
+          let check_max =
             check_assert (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) new_oct in
-          let check_min = 
+          let check_min =
             check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
-          if signed then 
-            if check_max <> `True || check_min <> `True then 
-              if GobConfig.get_bool "ana.int.no_signed_overflow" then 
+          if signed then
+            if check_max <> `True || check_min <> `True then
+              if GobConfig.get_bool "ana.int.no_signed_overflow" then
                 new_oct
               else
                 (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
@@ -621,10 +620,10 @@ struct
               new_oct
           else
             if check_max <> `True || check_min <> `True then
-              (* Unsigned overflows are defined, but for now 
+              (* Unsigned overflows are defined, but for now
               the variable in question goes to top if there is a possibility of overflow. *)
               let () = forget_all_with oct [v.vname] in
-              oct 
+              oct
             else
               new_oct
         | _ -> oct)
