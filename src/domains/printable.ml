@@ -394,7 +394,8 @@ struct
 
   include Std
 
-  let hash (x,y) = Base1.hash x + Base2.hash y * 17
+  (* let hash (x,y) = Base1.hash x + Base2.hash y * 17 *)
+  let hash = [%hash: Base1.t * Base2.t]
 
   let show (x,y) =
     (* TODO: remove ref *)
