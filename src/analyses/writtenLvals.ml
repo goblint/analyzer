@@ -80,10 +80,12 @@ struct
         | `Top -> `Top
         | `Bot | _ -> Q.LS.bot ()
       in
-      List.fold (fun acc exp -> Q.LS.join (reachable_exp exp) acc) (Q.LS.bot ()) args
-        |> filter_arg_vars ctx
+      let reachable_from_exp = List.fold (fun acc exp -> Q.LS.join (reachable_exp exp) acc) (Q.LS.bot ()) args in
+      match reachable_from_exp with
+        | `Top -> M.warn "Top address is reachable from the expression (unhandled!)."; Q.LS.bot ()
+        | `Lifted s -> filter_arg_vars ctx (`Lifted s)
     in
-    let reachable_heap_var_typesigs = match  reachable_heap_vars with
+    let reachable_heap_var_typesigs = match reachable_heap_vars with
       | `Lifted s -> (Q.LS.elements reachable_heap_vars) |> List.map (fun (v,o) -> Cil.typeSig v.vtype) |> Set.of_list
       | `Top -> failwith "This should not happen!"
     in
