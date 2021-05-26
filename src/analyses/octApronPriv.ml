@@ -6,6 +6,8 @@ module Q = Queries
 
 module OctApronComponents = OctApronDomain.OctApronComponents
 
+open CommonPriv
+
 
 module type S =
 sig
@@ -52,6 +54,82 @@ struct
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg st = st
   let threadenter ask st = st
+
+  let init () = ()
+  let finalize () = ()
+end
+
+(** Write-Centered Reading. *)
+module WriteCenteredPriv: S =
+struct
+  open Locksets
+
+  open WriteCenteredD
+  module D = Lattice.Prod (W) (P)
+
+  module G = Lattice.Unit
+
+  let startstate () = (W.bot (), P.top ())
+
+  let lockset_init = Lockset.top ()
+
+  (* TODO: distr_init? *)
+
+  let read_global ask getg (st: OctApronComponents (D).t) g x =
+    let s = current_lockset ask in
+    let (w, p) = st.priv in
+    let p_g = P.find g p in
+    (* TODO: implement *)
+    st
+  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) x g =
+    let s = current_lockset ask in
+    let (w, p) = st.priv in
+    let w' = W.add g (MinLocksets.singleton s) w in
+    let p' = P.add g (MinLocksets.singleton s) p in
+    let p' = P.map (fun s' -> MinLocksets.add s s') p' in
+    (* TODO: implement *)
+    {st with priv = (w', p')}
+
+  let lock ask getg (st: OctApronComponents (D).t) m = st
+
+  let unlock ask getg sideg (st: OctApronComponents (D).t) m =
+    let s = Lockset.remove m (current_lockset ask) in
+    let (w, p) = st.priv in
+    let p' = P.map (fun s' -> MinLocksets.add s s') p in
+    (* TODO: implement *)
+    {st with priv = (w, p')}
+
+  let sync ask getg sideg (st: OctApronComponents (D).t) reason =
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: implement? *)
+      begin match ThreadId.get_current ask with
+        | `Lifted x (* when CPA.mem x st.cpa *) ->
+          st
+        | _ ->
+          st
+      end
+    | `Normal
+    | `Join (* TODO: no problem with branched thread creation here? *)
+    | `Init
+    | `Thread ->
+      st
+
+  let escape ask getg sideg (st: OctApronComponents (D).t) escaped =
+    let s = current_lockset ask in
+    EscapeDomain.EscapedVars.fold (fun x acc ->
+        let (w, p) = st.priv in
+        let p' = P.add x (MinLocksets.singleton s) p in
+        (* TODO: implement *)
+        {st with priv = (w, p')}
+      ) escaped st
+
+  let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t) =
+    (* TODO: implement *)
+    st
+
+  let threadenter ask (st: OctApronComponents (D).t): OctApronComponents (D).t =
+    {oct = OctApronDomain.D.bot (); priv = startstate ()}
 
   let init () = ()
   let finalize () = ()

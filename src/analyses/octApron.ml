@@ -180,7 +180,7 @@ struct
 end
 
 (* TODO: make dynamically configurable *)
-module rec Spec: MCPSpec = SpecFunctor (OctApronPriv.Dummy)
+module rec Spec: MCPSpec = SpecFunctor (OctApronPriv.WriteCenteredPriv)
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
