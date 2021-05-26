@@ -12,7 +12,7 @@ struct
   let name () = "octApron"
 
   module D = OctApronComponents (Priv.D)
-  module G = Lattice.Unit
+  module G = Priv.G
   module C = D
 
   module AD = OctApronDomain.D
