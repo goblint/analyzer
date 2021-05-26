@@ -32,3 +32,27 @@ sig
   val init: unit -> unit
   val finalize: unit -> unit
 end
+
+
+module Dummy: S =
+struct
+  module D = Lattice.Unit
+  module G = Lattice.Unit
+
+  let startstate () = ()
+
+  let read_global ask getg st g x = st
+  let write_global ?(invariant=false) ask getg sideg st x g = st
+
+  let lock ask getg st m = st
+  let unlock ask getg sideg st m = st
+
+  let sync ask getg sideg st reason = st
+
+  let escape ask getg sideg st escaped = st
+  let enter_multithreaded ask getg sideg st = st
+  let threadenter ask st = st
+
+  let init () = ()
+  let finalize () = ()
+end
