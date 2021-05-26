@@ -68,20 +68,18 @@ struct
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
       (* CWStr is done in base.ml, query only returns `Str if it's safe *)
       | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | `Str b -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
+          | `Lifted b -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
           | _      -> M.debug_each "EQUAL String Query: no result!"; false
         )
       | `Regex a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | `Str b -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
+          | `Lifted b -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
           | _      -> M.debug_each "EQUAL Regex String Query: no result!"; false
         )
       | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
-          | `Int b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
-          | _      -> M.debug_each "EQUAL Bool Query: no result!"; false
+          | b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
         )
       | `Int a, e  -> (match ctx.ask (Queries.EvalInt e) with
-          | `Int b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
-          | _      -> M.debug_each "EQUAL Int Query: no result!"; false
+          | b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
         )
       | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
       | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false
@@ -117,7 +115,7 @@ struct
         let key = get_key c |? Cil.var (fst global_var) in
         (* ignore(printf "KEY: %a\n" d_plainlval key); *)
         (* get possible keys that &lval may point to *)
-        let keys = D.keys_from_lval key ctx.ask in (* does MayPointTo query *)
+        let keys = D.keys_from_lval key (Analyses.ask_of_ctx ctx) in (* does MayPointTo query *)
         let check_key (m,n) var =
           (* M.debug_each @@ "check_key: "^f.vname^"(...): "^D.string_of_entry var m; *)
           let wildcard = SC.is_wildcard c && fwd && b<>"end" in
@@ -189,7 +187,7 @@ struct
               in
               List.fold_left do_branch branches branch_edges
           in
-          let keys = D.keys_from_lval key ctx.ask in
+          let keys = D.keys_from_lval key (Analyses.ask_of_ctx ctx) in
           let new_set = List.fold_left check_branch Set.empty keys in ignore(new_set); (* TODO refactor *)
           (* List.of_enum (Set.enum new_set) *)
           new_m (* XX *)
@@ -198,13 +196,13 @@ struct
   end
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t) =
     match q with
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
-    | `LvalSet l when not (Queries.LS.is_top l) ->
+    | l when not (Queries.LS.is_top l) ->
       Queries.LS.elements l
     | _ -> []
 
@@ -212,24 +210,6 @@ struct
     match query_lv ask exp with
     | [(v,_)] -> Some v
     | _ -> None
-
-  let dump_query_result result =
-    match result with
-    | `Top -> "`Top"
-    | `Int x -> "`Int"
-    | `Interval x -> "`Interval"
-    | `IntSet x -> "`IntSet"
-    | `Str x -> "`Str"
-    | `LvalSet x -> "`LvalSet"
-    | `ExprSet x -> "`ExprSet"
-    | `ExpTriples x -> "`ExpTriples"
-    | `TypeSet x -> "`TypeSet"
-    | `Varinfo x -> "`Varinfo"
-    | `MustBool x -> "`MustBool"
-    | `MayBool x -> "`MayBool"
-    | `PartAccessResult x -> "`PartAccessResult"
-    | `AssertionResult x -> "`AssertionResult"
-    | `Bot -> "`Bot"
 
 
   (* transfer functions *)
@@ -249,7 +229,7 @@ struct
       (* check for constraints *p = _ where p is the key *)
       match lval, SC.get_lval c with
       | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c, rval) ->
-        let keys = D.keys_from_lval x ctx.ask in
+        let keys = D.keys_from_lval x (Analyses.ask_of_ctx ctx) in
         if List.length keys <> 1 then failwith "not implemented"
         else true
       | _ -> false (* nothing to do *)
@@ -306,12 +286,10 @@ struct
     (* try to evaluate the expression using query
        -> if the result is the same as tv, do the corresponding transition, otherwise remove the entry from the domain
        for pointers this won't help since it always returns `Top *)
-    (match ctx.ask (Queries.EvalInt exp) with
-     | `Int i (* when (Queries.ID.is_bool i) *) ->
-       (match Queries.ID.to_bool i with
-        | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
-        | _ -> M.debug_each "EvalInt: `Int no bool")
-     | x -> M.debug_each @@ "OTHER RESULT: "^dump_query_result x
+    ( let i = ctx.ask (Queries.EvalInt exp) in (* when (Queries.ID.is_bool i) *)
+      (match Queries.ID.to_bool i with
+      | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
+      | _ -> M.debug_each "EvalInt: `Int no bool")
     );
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)

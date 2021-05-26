@@ -58,18 +58,11 @@ end
 module type Groupable =
 sig
   include Printable.S
-  val classify: t -> int (* groups are sorted by this *)
-  val class_name: int -> string (* name of group *)
-  val trace_enabled: bool
+  type group (* use [@@deriving show { with_path = false }] *)
+  val show_group: group -> string
+  val to_group: t -> group option
+  val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
-
-module StripClasses (G: Groupable) =
-struct
-  include G
-  let classify x = 0
-end
-
-(* Just a global hack for tracing individual variables. *)
 
 module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
@@ -143,42 +136,40 @@ struct
     in
     M.merge f
 
-  let short _ x = "mapping"
-  let isSimple _ = false
+  let show x = "mapping"
 
-  let pretty_f short () mapping =
+  let pretty () mapping =
     let groups =
-      let group_fold key itm gps =
-        let cl = Domain.classify key in
-        match gps with
-        | (a,n) when cl <>  n -> ((cl,(M.add key itm M.empty))::a, cl)
-        | (a,_) -> ((fst (List.hd a),(M.add key itm (snd (List.hd a))))::(List.tl a),cl) in
-      List.rev (fst (fold group_fold mapping ([],min_int)))
+      let h = Hashtbl.create 13 in
+      iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
+      let cmpBy f a b = Stdlib.compare (f a) (f b) in
+      (* sort groups (order of constructors in type group)  *)
+      BatHashtbl.to_list h |> List.sort (cmpBy fst)
     in
     let f key st dok =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
-         not (List.mem (Domain.short 80 key) !ME.tracevars) then
+         not (List.mem (Domain.show key) !ME.tracevars) then
         dok
       else
-        dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else
-                  dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
+        dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
     in
-    let group_name a () = text (Domain.class_name a) in
-    let pretty_group  map () = fold f map nil in
-    let pretty_groups rest map =
-      match (fst map) with
-      | 0 ->  rest ++ pretty_group (snd map) ()
-      | a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name a) (pretty_group (snd map)) in
+    let group_name a () = text (Domain.show_group a) in
+    let pretty_group map () = fold f map nil in
+    let pretty_groups rest (group, map) =
+      match group with
+      | None ->  rest ++ pretty_group map ()
+      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
     let content () = List.fold_left pretty_groups nil groups in
-    dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
 
-  let pretty () x = pretty_f short () x
+  (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
+  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.short 800 k)) Range.printXml v
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.show k)) Range.printXml v
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;
@@ -232,6 +223,8 @@ struct
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
+
+  let relift x = x
 end
 
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)
@@ -300,9 +293,7 @@ struct
   (* TODO: time these also? *)
   let name = M.name
   let to_yojson = M.to_yojson
-  let isSimple = M.isSimple
-  let short = M.short
-  let pretty_f = M.pretty_f
+  let show = M.show
   let pretty = M.pretty
   let pretty_diff = M.pretty_diff
   let printXml = M.printXml
@@ -357,6 +348,8 @@ struct
   let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
   let join_with_fct f x y = time "join_with_fct" (M.join_with_fct f x) y
   let widen_with_fct f x y = time "widen_with_fct" (M.widen_with_fct f x) y
+
+  let relift x = M.relift x
 end
 
 module MapBot (Domain: Groupable) (Range: Lattice.S) : S with

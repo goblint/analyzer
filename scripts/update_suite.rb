@@ -6,6 +6,9 @@ require 'find'
 require 'fileutils'
 require 'timeout'
 require 'pathname'
+def relpath(file)
+  return Pathname(file).relative_path_from Pathname(Dir.getwd) # Pathname for arg required for ruby 2.5, 2.6 accepts string as well
+end
 require 'set'
 timeout = 5 # seconds
 
@@ -91,8 +94,12 @@ end
 #"future" will also run tests we normally skip
 dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
+marshal = ARGV.last == "-m" && ARGV.pop
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
+if marshal then
+  sequential = true
+end
 if only == "future" then
   future = true
   only = nil
@@ -132,6 +139,7 @@ regs.sort.each do |d|
     debug = true
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
+    next if marshal and lines[0] =~ /NOMARSHAL/
     debug = false unless lines[0] =~ /DEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
@@ -227,7 +235,11 @@ doproject = lambda do |p|
     p.size = `wc -l #{cilfile}`.split[0]
   end
   starttime = Time.now
-  cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true  2>#{statsfile}"
+  if marshal then
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true --sets save_run run  2>#{statsfile}"
+  else
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true 2>#{statsfile}"
+  end
   pid = Process.spawn(cmd, :pgroup=>true)
   begin
     Timeout::timeout(timeout) {Process.wait pid}
@@ -249,9 +261,8 @@ doproject = lambda do |p|
     if status == 1 then
       puts stats.last(5).itemize
     elsif status == 2 then # if stats[0] =~ /exception/ then
-      relpath = (Pathname.new filepath).relative_path_from(Pathname.new File.dirname(goblint))
       lastline = (File.readlines warnfile).last()
-      puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
+      puts lastline.strip().sub filename, relpath(filepath).to_s unless lastline.nil?
       puts stats[0..9].itemize
     elsif status == 3 then
       warn = File.readlines warnfile
@@ -267,6 +278,49 @@ doproject = lambda do |p|
     f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
     f.puts "Goblint params: #{cmd}"
     f.puts vrsn
+  end
+  if marshal then
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true --conf run/config.json --sets save_run '' --sets load_run run  2>#{statsfile}"
+    pid = Process.spawn(cmd, :pgroup=>true)
+    begin
+      Timeout::timeout(timeout) {Process.wait pid}
+    rescue Timeout::Error
+      pgid = Process.getpgid(pid)
+      puts "\t #{id} reached timeout of #{timeout}s!".red + " Killing pgid #{pgid}..."
+      timedout.push id
+      Process.kill('INT', -1*pgid)
+      p.ok = false
+      return p
+    end
+    endtime   = Time.now
+    status = $?.exitstatus
+    if status != 0 then
+      reason = if status == 1 then "error" elsif status == 2 then "exception" elsif status == 3 then "verify" end
+      clearline
+      puts "Testing #{id}" + "\t Status: #{status} (#{reason})".red
+      stats = File.readlines statsfile
+      if status == 1 then
+        puts stats.last(5).itemize
+      elsif status == 2 then # if stats[0] =~ /exception/ then
+        lastline = (File.readlines warnfile).last()
+        puts lastline.strip().sub filename, relpath(filepath).to_s unless lastline.nil?
+        puts stats[0..9].itemize
+      elsif status == 3 then
+        warn = File.readlines warnfile
+        puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.itemize
+      end
+    end
+    #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
+    #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
+    File.open(statsfile, "a") do |f|
+      f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
+      f.puts "Analysis began: #{starttime}"
+      f.puts "Analysis ended: #{endtime}"
+      f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
+      f.puts "Goblint params: #{cmd}"
+      f.puts vrsn
+    end
+    FileUtils.rm_rf('run')
   end
   p.ok = status == 0
   p
@@ -356,11 +410,12 @@ File.open(theresultfile, "w") do |f|
     correct = 0
     ignored = 0
     ferr = nil
+    path = relpath(p.path) # full p.path is too long and p.name does not allow click to open in terminal
     p.tests.each_pair do |idx, type|
       check = lambda {|cond|
         if cond then
           correct += 1
-          if p.todo.include? idx then puts "Excellent: ignored check on #{p.name.cyan}:#{idx.to_s.blue} is now passing!" end
+          if p.todo.include? idx then puts "Excellent: ignored check on #{path.to_s.cyan}:#{idx.to_s.blue} is now passing!" end
         else
           if p.todo.include? idx then ignored += 1 else
             puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"

@@ -1,5 +1,8 @@
 #!/bin/sh
-#
+
+# Uses ocp-indent to check that staged changes are correctly indented.
+# Use `git commit -n` to bypass if necessary.
+
 # An example hook script to verify what is about to be committed.
 # Called by "git commit" with no arguments.  The hook should
 # exit with non-zero status after issuing an appropriate message if
@@ -49,4 +52,8 @@ fi
 git diff-index --check --cached $against -- || exit 1
 
 # Check indentation for OCaml files
-git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$" | xargs -I% bash -c 'diff <(git show :%) <(git show :% | ocp-indent) || (echo; echo "ocp-indent says you suck at indentation in % (diff shown above)."; false)' || (echo "You shall not commit!"; exit 1)
+# Before we checked diff <(git show :%) <(git show :% | ocp-indent)
+# but that also complains about misindented code that is not touched by the current commit.
+# Now we only check the diff between the changes and the changes run through ocp-indent.
+# See https://github.com/goblint/analyzer/issues/236
+git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$" | xargs -I% bash -c 'diff <(diff <(git show HEAD:%) <(git show :%)) <(diff <(git show HEAD:% | ocp-indent) <(git show :% | ocp-indent)) || (echo; echo "Changes in % are misindented!"; false)' || (echo "You shall not commit! ocp-indent complains about the indentation of your changes (see diffs above). Please fix! You can bypass this check with git commit -n."; exit 1) # beware that xargs apparently has a limit on the length of the string until it replaces %. If you extend the text in echo, it might break...

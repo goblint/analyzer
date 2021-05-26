@@ -54,3 +54,4 @@ goblint.bc.js
 sv-comp/goblint.zip
 
 privPrecCompare*/
+tests/regression/*/run

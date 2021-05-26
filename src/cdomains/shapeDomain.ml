@@ -13,31 +13,25 @@ struct
   struct
     include Printable.Prod (CLval) (Offs)
 
-    let short w  = function
-      | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short w l
-      | (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
+    let show = function
+      | (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.show l
+      | (l,o) -> "&"^Lval.CilLval.show l^"->"^Offs.show o
 
-    let pretty = pretty_f short
+    let pretty () x = Pretty.text (show x)
   end
 
   include Printable.Either (Var) (AdrPair)
-  let short w = function
-    | `Left  v -> Var.short w v
-    | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short w l
-    | `Right (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
+  let show = function
+    | `Left  v -> Var.show v
+    | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.show l
+    | `Right (l,o) -> "&"^Lval.CilLval.show l^"->"^Offs.show o
 
   let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
 
-  let pretty = pretty_f short
-
-  let classify = function
-    | `Left  v -> 1
-    | `Right v -> 2
-  let class_name = function
-    | 1 -> "Variables"
-    | 2 -> "Values"
-    | _ -> "Sadness"
-  let isSimple _ = true
+  type group = Variables | Values [@@deriving show { with_path = false }]
+  let to_group = function
+    | `Left  v -> Some Variables
+    | `Right v -> Some Values
 end
 
 (* TODO: use SetDomain.Reverse? *)
@@ -53,12 +47,10 @@ struct
       (struct let top_name = "Unknown edge"
         let bot_name = "Impossible edge" end)
 
-  let short w : t -> string = function
-    | `Lifted1 v -> "N "^ListPtrSet.short w v
-    | `Lifted2 v -> "S "^ListPtrSet.short w v
-    | x -> short w x
-
-  let pretty = pretty_f short
+  let show : t -> string = function
+    | `Lifted1 v -> "N "^ListPtrSet.show v
+    | `Lifted2 v -> "S "^ListPtrSet.show v
+    | x -> show x
 end
 
 module Rhs =
@@ -70,14 +62,12 @@ struct
         let pretty = pretty_f short*)
 end
 
-let is_private ask (lp:ListPtr.t) =
+let is_private (ask: Queries.ask) (lp:ListPtr.t) =
   let check v =
-    match ask Queries.MustBeSingleThreaded with
-    | `Bot | `MustBool true -> true
+    match ask.f Queries.MustBeSingleThreaded with
+    | true -> true
     | _ ->
-      match ask (Queries.MayBePublic {global=v; write=false})  with
-      | `Bot | `MayBool false -> true
-      | _ -> false
+      not (ask.f (Queries.MayBePublic {global=v; write=false}))
   in
   match lp with
   | `Right ((v,_),_) when v.vname.[0] = '{' -> true
@@ -569,13 +559,13 @@ struct
 
   let join m1 m2 =
     match m1, m2 with
-    | Set _, Set _ when (cardinal m1 = 1 && SHMap.is_top (choose m1)) -> m1
-    | Set _, Set _ when (cardinal m2 = 1 && SHMap.is_top (choose m2)) -> m2
+    | `Lifted _, `Lifted _ when (cardinal m1 = 1 && SHMap.is_top (choose m1)) -> m1
+    | `Lifted _, `Lifted _ when (cardinal m2 = 1 && SHMap.is_top (choose m2)) -> m2
     | _ -> join m1 m2
 
   let leq m1 m2 =
     match m1, m2 with
-    | _ , Set s when cardinal m2 = 1 && SHMap.is_top (choose m2) -> true
+    | _ , `Lifted s when cardinal m2 = 1 && SHMap.is_top (choose m2) -> true
     |  _ -> leq m1 m2
 
   let widen = join

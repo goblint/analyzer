@@ -35,15 +35,14 @@ struct
     module  L = Printable.Prod (Addr) (RW)
     include L
 
-    let short w (a,write) =
-      let addr_str = Addr.short w a in
+    let show (a,write) =
+      let addr_str = Addr.show a in
       if write then
         addr_str
       else
         "read lock " ^ addr_str
 
-    let pretty_f sf () x = text (sf max_int x)
-    let pretty = pretty_f short
+    let pretty () x = text (show x)
   end
 
   (* TODO: use SetDomain.Reverse *)
@@ -112,10 +111,10 @@ struct
   let empty = S.empty
   let is_empty = S.is_empty
 
-  let rec eq_set ask e =
+  let rec eq_set (ask: Queries.ask) e =
     S.union
-      (match ask (Queries.EqualSet e) with
-       | `ExprSet es when not (Queries.ES.is_bot es) ->
+      (match ask.f (Queries.EqualSet e) with
+       | es when not (Queries.ES.is_bot es) ->
          Queries.ES.fold S.add es (S.empty ())
        | _ -> S.empty ())
       (match e with
@@ -137,7 +136,7 @@ struct
        | Question _ -> failwith "Logical operations should be compiled away by CIL."
        | _ -> failwith "Unmatched pattern.")
 
-  let add ask e st =
+  let add (ask: Queries.ask) e st =
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.union addrs st

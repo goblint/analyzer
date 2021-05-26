@@ -55,7 +55,7 @@ sig
   val set_string : string -> string -> unit
 
   (** Functions to modify conf variables by trying to parse the value.
-      The second argument must be valid Json exept single quotes represent double quotes. *)
+      The second argument must be valid Json except single quotes represent double quotes. *)
   val set_auto   : string -> string -> unit
 
   (** Get a list of values *)
@@ -168,7 +168,7 @@ struct
       eprintf "Error: Couldn't parse the json path '%s'\n%!" s;
       failwith "parsing"
 
-  (** Here we store the actual confinguration. *)
+  (** Here we store the actual configuration. *)
   let json_conf : jvalue ref = ref Null
 
   (** The schema for the conf [json_conf] *)
@@ -290,6 +290,15 @@ struct
   let memo_bool   = memog bool
   let memo_string = memog string
   let memo_list   = memo @@ List.map (!) % (!) % get_path_string array
+
+  let drop_memo ()  =
+    (* The explicit polymorphism is needed to make it compile *)
+    let drop:'a. (string,'a) BatCache.manual_cache -> _ = fun m ->
+      let r = m.enum () in
+      BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r
+    in
+    drop memo_int; drop memo_bool; drop memo_string; drop memo_list
+
   let get_int    = memo_int.get
   let get_bool   = memo_bool.get
   let get_string = memo_string.get
@@ -302,15 +311,16 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
+    if not !build_config then drop_memo ();
     if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson v;
     set_path_string st v
 
   (** Convenience functions for writing values. *)
-  let set_int    st i = memo_int.del st; set_path_string_trace st (Build.number i)
-  let set_bool   st i = memo_bool.del st; set_path_string_trace st (Build.bool i)
-  let set_string st i = memo_string.del st; set_path_string_trace st (Build.string i)
+  let set_int    st i = set_path_string_trace st (Build.number i)
+  let set_bool   st i = set_path_string_trace st (Build.bool i)
+  let set_string st i = set_path_string_trace st (Build.string i)
   let set_null   st   = set_path_string_trace st Build.null
-  let set_list   st l = memo_list.del st; set_value (Build.array l) json_conf (parse_path st)
+  let set_list   st l = set_value (Build.array l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =
@@ -338,8 +348,8 @@ struct
   let merge_file fn =
     let v = JsonParser.value JsonLexer.token % Lexing.from_channel |> File.with_file_in fn in
     json_conf := merge !json_conf v;
+    drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
-
 
   (** Function to drop one element of an 'array' *)
   let drop_index st i =

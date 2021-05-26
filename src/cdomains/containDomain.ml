@@ -63,9 +63,9 @@ struct
       end
     else Goblintutil.demangle (get_var x).vname
 
-  let short _ x = lookup x
+  let show x = lookup x
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (show x)
 
 end
 
@@ -83,11 +83,11 @@ struct
       cls^"::"^res
     with _ ->
       (*report("FAILED : "^cls^"::"^x.fname);*)
-      short 0 x
+      show x
 
-  let short _ x = lookup x
+  let show x = lookup x
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (show x)
 
 end
 
@@ -219,11 +219,7 @@ struct
 
   module StringPair =
   struct
-    type t = string * string
-    let compare (x1,x2) (y1,y2) =
-      match compare x1 y1 with
-      | 0 -> compare x2 y2
-      | x -> x
+    type t = string * string [@@deriving ord]
   end
   module InhRel = Set.Make(StringPair)
   let inc : InhRel.t ref = ref InhRel.empty
@@ -548,7 +544,7 @@ struct
       used_args st e
   (*
       match ask (Queries.MayPointTo e) with
-          | `LvalSet s when not (Queries.LS.is_top s) ->
+          | s when not (Queries.LS.is_top s) ->
               Queries.LS.fold (fun (v,_) st -> ArgSet.add (FieldVars.gen v) st) s (ArgSet.empty ())
           | _ -> ArgSet.bot ()
 		*)
@@ -977,7 +973,7 @@ struct
                       || not cft )
                 end) args false
               then
-                report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");true
+                report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.show args^".");true
             end
             else
               begin
@@ -1079,12 +1075,12 @@ struct
                 if may_be_constructed_from_this st e && not (is_loc_method (Some e) glob)then
                   begin
                     let fst = (get_field_from_this e st) in
-                    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^FieldSet.short 160 fst^".");
+                    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^FieldSet.show fst^".");
                     true
                   end
                 else
                   begin
-                    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");
+                    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.show args^".");
                     true
                   end
               end

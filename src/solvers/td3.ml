@@ -1,4 +1,13 @@
-(** Terminating top down solver that only keeps values at widening points and restores other values afterwards. *)
+(** Incremental terminating top down solver that optionally only keeps values at widening points and restores other values afterwards. *)
+(* Incremental: see paper 'Incremental Abstract Interpretation' https://link.springer.com/chapter/10.1007/978-3-030-41103-9_5 *)
+(* TD3: see paper 'Three Improvements to the Top-Down Solver' https://dl.acm.org/doi/10.1145/3236950.3236967
+ * Option exp.solver.td3.* (default) ? true : false (solver in paper):
+ * - term (true) ? use phases for widen+narrow (TDside) : use box (TDwarrow)
+ * - space (false) ? only keep values at widening points (TDspace + side) in rho : keep all values in rho
+ * - space_cache (true) ? local cache l for eval calls in each solve (TDcombined) : no cache
+ * - space_restore (true) ? eval each rhs and store all in rho : do not restore missing values
+ * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml.
+ *)
 
 open Prelude
 open Analyses
@@ -47,8 +56,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t
-      let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
+      type t = S.Var.t * S.Var.t [@@deriving eq]
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
@@ -68,7 +76,7 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
-      let () = print_stats := fun () ->
+      let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
         print_context_stats rho
@@ -125,7 +133,8 @@ module WP =
           ) else if term && phase = Widen then (
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;
-          );
+          ) else if not space && (not term || phase = Narrow) then (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+            HM.remove wpoint x;
         )
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
@@ -349,6 +358,12 @@ module WP =
 
       stop_event ();
       print_data data "Data after solve completed";
+
+      if GobConfig.get_bool "dbg.print_wpoints" then (
+        Printf.printf "\nWidening points:\n";
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        print_newline ();
+      );
 
       {st; infl; rho; wpoint; stable}
 

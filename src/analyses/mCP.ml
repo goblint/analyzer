@@ -78,7 +78,7 @@ struct
     in
     fold_left (fun a (n,d) -> f a n d) a x
 
-  let pretty_f _ () x =
+  let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
@@ -88,20 +88,16 @@ struct
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
       text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
-  let short w x =
-    let w2 = let n = List.length x in if n=0 then w else w / n in
-    (* width violated anyway? *)
+  let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
         let analysis_name = assoc n !analyses_table in
-        (analysis_name ^ ":(" ^ S.short w2 (obj x) ^ ")") :: a) [] x
+        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
   let to_yojson x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
     [%to_yojson: Printable.json list] xs
-
-  let pretty = pretty_f short
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
@@ -121,7 +117,6 @@ struct
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
 
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
-  let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
 
   let name () =
     let domain_name (n, (module D: Printable.S)) =
@@ -336,10 +331,10 @@ struct
     | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs
 
   (** [assoc_split_eq (=) 1 [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
-  let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
+  let assoc_split_eq eq (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
     let rec f a b = function
       | [] -> a, b
-      | (k',v)::xs when k=k' -> f (v::a) b xs
+      | (k',v)::xs when eq k k' -> f (v::a) b xs
       | x::xs -> f a (x::b) xs
     in
     f [] [] xs
@@ -446,7 +441,7 @@ struct
             ; control_context = ctx.control_context
             ; context = (fun () -> ctx.context () |> assoc n |> obj)
             ; edge   = ctx.edge
-            ; ask    = query ctx
+            ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
             ; emit   = (fun e -> emits := e :: !emits)
             ; presub = filter_presubs n ctx.local
             ; postsub= filter_presubs n post_all
@@ -464,7 +459,7 @@ struct
             ; control_context = octx.control_context
             ; context = (fun () -> octx.context () |> assoc n |> obj)
             ; edge   = octx.edge
-            ; ask    = query octx
+            ; ask    = (fun (type a) (q: a Queries.t) -> query octx q)
             ; emit   = (fun e -> emits := e :: !emits)
             ; presub = filter_presubs n octx.local
             ; postsub= filter_presubs n post_all
@@ -503,7 +498,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -524,8 +519,9 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  and query (ctx:(D.t, G.t, C.t) ctx) q =
-    let sides  = ref [] in
+  (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
+  and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+    let module Result = (val Queries.Result.lattice q) in
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
@@ -534,28 +530,28 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type b) (q: b Queries.t) -> query ctx q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
         ; presub = filter_presubs n ctx.local
         ; postsub= []
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
+        (* sideg is forbidden in query, because they would bypass sides grouping in other transfer functions.
+           See https://github.com/goblint/analyzer/pull/214. *)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
       (* meet results so that precision from all analyses is combined *)
-      Queries.Result.meet a @@ S.query ctx' q
+      Result.meet a @@ S.query ctx' q
     in
     match q with
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-      `Bot
+      ()
     | _ ->
-      let x = fold_left f `Top @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      x
+      fold_left f (Result.top ()) @@ spec_list ctx.local
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in
@@ -570,7 +566,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -604,7 +600,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -638,7 +634,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -673,7 +669,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -708,7 +704,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -743,7 +739,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -778,7 +774,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -813,7 +809,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -839,7 +835,7 @@ struct
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let f (n,(module S:MCPSpec),d) (dl,cs) =
+    let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -847,10 +843,10 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
-        ; postsub= []
+        ; postsub= filter_presubs n post_all
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -858,15 +854,14 @@ struct
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in sync context.")
         }
       in
-      let d, ds = S.sync ctx' reason in
-      (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::(remove_assoc n @@ G.bot ())) ds) @ cs
+      n, repr @@ S.sync ctx' reason
     in
-    let d,cs = fold_right f (spec_list ctx.local) ([],[]) in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_emits ctx !emits d in
-    d, cs
+    if q then raise Deadcode else d
 
   let enter (ctx:(D.t, G.t, C.t) ctx) r f a =
     let spawns = ref [] in
@@ -879,7 +874,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter context.")
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -910,7 +905,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -941,7 +936,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -970,7 +965,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -988,7 +983,7 @@ struct
         ; control_context = fctx.control_context
         ; context = (fun () -> fctx.context () |> assoc n |> obj)
         ; edge   = fctx.edge
-        ; ask    = query fctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query fctx q)
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n fctx.local
         ; postsub= filter_presubs n post_all

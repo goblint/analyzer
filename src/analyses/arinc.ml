@@ -107,7 +107,7 @@ struct
   let fname_ctx ctx f = f.vname ^ "_" ^ (match Ctx.to_int ctx with Some i -> i |> i64_to_int |> CtxTbl.get |> string_of_int | None -> "TOP")
 
   let is_single ctx =
-    not (ThreadFlag.is_multi ctx.ask)
+    not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx))
   let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
@@ -118,7 +118,7 @@ struct
     let node = Option.get !MyCFG.current_node in
     (* determine if we are at the root of a process or in some called function *)
     let fundec = MyCFG.getFun node in
-    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname^". State: " ^ D.short 100 d in
+    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname^". State: " ^ D.show d in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
     let procid = Process, pname in
     let pfuns = funs_for_process (Process,pname) in
@@ -150,7 +150,7 @@ struct
     ) else dlval
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
+    | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
           M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
@@ -158,9 +158,8 @@ struct
         ) else a
       in
       Queries.LS.elements a'
-    | `Bot -> []
     | v ->
-      M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty v;
+      M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
   let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
@@ -334,12 +333,12 @@ struct
       let is_error_handler = env.pname = pname_ErrorHandler in
       let eval_int exp =
         match ctx.ask (Queries.EvalInt exp) with
-        | `Int i -> i
+        | `Lifted i -> i
         | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "^f.vname
       in
       let eval_str exp =
         match ctx.ask (Queries.EvalStr exp) with
-        | `Str s -> s
+        | `Lifted s -> s
         | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "^f.vname
       in
       let eval_id exp = mayPointTo ctx exp |> List.map (Option.get % get_by_id % fst) in
@@ -398,7 +397,7 @@ struct
       (* Partition *)
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
           match ctx.ask (Queries.EvalInt mode) with
-          | `Int i ->
+          | `Lifted i ->
             let pm = partition_mode_of_enum @@ Int64.to_int i in
             if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (show_partition_mode_opt pm);
             if mode_is_multi (Pmo.of_int i) then (
@@ -408,7 +407,6 @@ struct
             );
             add_action (SetPartitionMode pm)
             |> D.pmo (const @@ Pmo.of_int i)
-          | `Bot -> failwith "DEAD"
           | _ -> D.top ()
         end
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
@@ -427,7 +425,7 @@ struct
         (* let dst_lval = mkMem ~addr:dst ~off:NoOffset in *)
         (* let src_expr = Lval (mkMem ~addr:src ~off:NoOffset) in *)
         begin match ctx.ask (Queries.MayPointTo dst) with
-        | `LvalSet ls ->
+        | ls ->
             ignore @@ Pretty.printf "strcpy %a points to %a\n" d_exp dst Queries.LS.pretty ls;
             Queries.LS.iter (fun (v,o) -> ctx.assign ~name:"base" (Var v, Lval.CilLval.to_ciloffs o) src) ls
         | _ -> M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^"): dst may point to anything!";
@@ -499,7 +497,7 @@ struct
         let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
         let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
         begin match name, entry_point, pri, per, cap with
-          | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
+          | `Lifted name, ls, `Lifted pri, `Lifted per, `Lifted cap when not (Queries.LS.is_top ls)
                                                                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
@@ -510,7 +508,7 @@ struct
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
-          | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d
+          | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d (* TODO: f*)
         end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
         assign_id_by_name Process name pid; d
@@ -611,7 +609,7 @@ struct
       (* Errors *)
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] ->
         begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
-          | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+          | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let pid = get_pid pname_ErrorHandler in
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
@@ -630,16 +628,16 @@ struct
       | _ when is_arinc_fun -> failwith @@ "Function "^f.vname^" not handled!"
       | _ -> d
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let d = ctx.local in
     match q with
     | Queries.Priority _ ->
       if Pri.is_int d.pri then
-        `Int (Option.get @@ Pri.to_int d.pri)
-      else if Pri.is_top d.pri then `Top else `Bot
+        Queries.ID.of_int @@ Option.get @@ Pri.to_int d.pri
+      else if Pri.is_top d.pri then Queries.Result.top q else Queries.Result.bot q (* TODO: remove bot *)
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   let finalize () =
     ArincUtil.print_actions ();

@@ -93,7 +93,8 @@ module H = BatHashtbl.Make(Node)
 (* Dumps a statement to the standard output *)
 let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
-let stmt_index_hack = Hashtbl.create 113
+(* Map from statement id to containing fundec *)
+let stmt_fundec_map = Hashtbl.create 113
 let current_node : node option ref = ref None
 
 let do_the_params (fd: fundec) =
@@ -220,7 +221,7 @@ let createCFG (file: file) =
           let start_id = 10_000_000_000 in (* TODO get max_sid? *)
           let sid = Hashtbl.hash loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
           newst.sid <- if sid < start_id then sid + start_id else sid;
-          Hashtbl.add stmt_index_hack newst.sid fd;
+          Hashtbl.add stmt_fundec_map newst.sid fd;
           let newst_node = Statement newst in
           addCfg (Function fd.svar) (Ret (None,fd), newst_node);
           newst_node
@@ -231,7 +232,7 @@ let createCFG (file: file) =
           (* Please ignore the next line. It creates an index of statements
            * so the Eclipse plug-in can know what function a given result
            * belongs to. *)
-          Hashtbl.add stmt_index_hack stmt.sid fd;
+          Hashtbl.add stmt_fundec_map stmt.sid fd;
           if Messages.tracing then Messages.trace "cfg" "Statement at %a.\n" d_loc (get_stmtLoc stmt.skind);
           match stmt.skind with
           (* turn pthread_exit into return? *)
@@ -259,7 +260,7 @@ let createCFG (file: file) =
             let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
             List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
-           * it's job well and we just pick out the right successors *)
+           * its job well and we just pick out the right successors *)
           | If (exp, true_block, false_block, loc) -> begin
               if isZero exp then ()
               else
@@ -473,7 +474,7 @@ let getCFG (file: file) : cfg * cfg =
   if get_bool "justcfg" then print cfgB;
   H.find_all cfgF, H.find_all cfgB
 
-let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt.sid
+let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_fundec_map stmt.sid
 
 let getFun (node: node) =
   match node with

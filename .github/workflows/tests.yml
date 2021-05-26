@@ -54,3 +54,8 @@ jobs:
         run: |
           ./make.sh domaintest
           ./goblint.domaintest
+
+      - name: Test Marshaling
+        run: |
+          ./make.sh
+          ruby scripts/update_suite.rb -m

@@ -18,7 +18,7 @@ let jsonFiles : string list ref = ref []
 let has_otherfuns = ref false
 
 (** If this is true we output messages and collect accesses.
-    This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
+    This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
 
 let did_overflow = ref false
@@ -366,6 +366,21 @@ exception Timeout
 
 let timeout = Timeout.timeout
 
+let seconds_of_duration_string =
+  let unit = function
+    | "" | "s" -> 1
+    | "m" -> 60
+    | "h" -> 60 * 60
+    | s -> failwith ("Unkown duration unit " ^ s ^ ". Supported units are h, m, s.")
+  in
+  let int_rest f s = Scanf.sscanf s "%u%s" f in
+  let split s = BatString.(head s 1, tail s 1) in
+  let rec f i s =
+    let u, r = split s in (* unit, rest *)
+    i * (unit u) + if r = "" then 0 else int_rest f r
+  in
+  int_rest f
+
 let vars = ref 0
 let evals = ref 0
 
@@ -386,7 +401,8 @@ let print_gc_quick_stat chn =
     (printM gc.Gc.promoted_words)
     gc.Gc.minor_collections
     gc.Gc.major_collections
-    gc.Gc.compactions
+    gc.Gc.compactions;
+  gc
 
 let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
 (* typedef struct {
@@ -410,6 +426,47 @@ let command = String.concat " " (Array.to_list Sys.argv)
 let opt_predicate (f : 'a -> bool) = function
   | Some x -> f x
   | None -> false
+
+(* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
+(* https://ocaml.github.io/ocamlunix/signals.html *)
+let signal_of_string = let open Sys in function
+  | "sigint"  -> sigint  (* Ctrl+C Interactive interrupt *)
+  | "sigtstp" -> sigtstp (* Ctrl+Z Interactive stop *)
+  | "sigquit" -> sigquit (* Ctrl+\ Interactive termination *)
+  | "sigalrm" -> sigalrm (* Timeout *)
+  | "sigkill" -> sigkill (* Termination (cannot be ignored) *)
+  | "sigsegv" -> sigsegv (* Invalid memory reference, https://github.com/goblint/analyzer/issues/206 *)
+  | "sigterm" -> sigterm (* Termination *)
+  | "sigusr1" -> sigusr1 (* Application-defined signal 1 *)
+  | "sigusr2" -> sigusr2 (* Application-defined signal 2 *)
+  | "sigstop" -> sigstop (* Stop *)
+  | "sigprof" -> sigprof (* Profiling interrupt *)
+  | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
+  | s -> failwith ("Unhandled signal " ^ s)
+
+let self_signal signal = Unix.kill (Unix.getpid ()) signal
+
+module LazyEval (M : sig
+  type t
+  type result
+  val eval : t -> result
+end) : sig
+  type t
+  val make : M.t -> t
+  val force : t -> M.result
+end = struct
+  type t = { mutable value : [ `Computed of M.result | `Closure of M.t ] }
+
+  let make arg = { value = `Closure arg }
+
+  let force l =
+    match l.value with
+    | `Closure arg ->
+        let v = M.eval arg in
+        l.value <- `Computed v;
+        v
+    | `Computed v -> v
+end
 
 (* The normal haskell zip that throws no exception *)
 let rec zip x y = match x,y with

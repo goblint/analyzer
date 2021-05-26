@@ -10,8 +10,8 @@ end
 module P =
 struct
   include Lattice.Flat (Printable.Prod3 (Method) (Eq) (IntDomain.FlatPureIntegers)) (L_names)
-  let short w x = match x with
-    | `Lifted (m,b,e) -> Method.short 1 m ^"ed "^ Eq.short 1 b ^ " " ^ IntDomain.FlatPureIntegers.short w e
+  let show x = match x with
+    | `Lifted (m,b,e) -> Method.show m ^"ed "^ Eq.show b ^ " " ^ IntDomain.FlatPureIntegers.show e
     | `Top -> top_name
     | `Bot -> bot_name
 

@@ -1,7 +1,7 @@
-type t' = Val of int | Bot
-and t = t' * t' * t'* t' [@@deriving to_yojson]
+include Printable.BlankPolyCompare
 
-include Printable.Blank
+type t' = Val of int | Bot
+and t = t' * t' * t'* t' [@@deriving eq, to_yojson]
 
 (* lowest priority obtained over:
    1st component = critical region (between first and last variable access)
@@ -22,28 +22,24 @@ let hash (a,b,c,d) =
   let d' = match d with Bot -> -1 | Val d'' -> d'' in
   a' lxor b' lxor c' lxor d'
 
-let equal (a1,a2,a3,a4) (b1,b2,b3,b4) = a1=b1&&a2=b2&&a3=b3&&a4=b4
-
 let copy x = x
 let top () = (Val 0, Val 0, Val 0, Val 0)
 let is_top x = (x = top())
 let bot () = (Bot, Bot, Bot, Bot)
 let is_bot x = (x = bot())
-let isSimple _  = true
 
-let short _ (a,b,c,d) =
+let show (a,b,c,d) =
   let a' = match a with Bot -> "bot" | Val a'' -> string_of_int a'' in
   let b' = match b with Bot -> "bot" | Val b'' -> string_of_int b'' in
   let c' = match c with Bot -> "bot" | Val c'' -> string_of_int c'' in
   let d' = match d with Bot -> "bot" | Val d'' -> string_of_int d'' in
   "("^a'^", "^b'^", "^c'^", "^d'^")"
 
-let pretty_f _ _ x = Pretty.text (short 0 x)
-let pretty () x = pretty_f short () x
+let pretty () x = Pretty.text (show x)
 
 let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-(* include Printable.PrintSimple (struct type t' = t let short = short let name = name end) *)
+(* include Printable.PrintSimple (struct type t' = t let show = show let name = name end) *)
 (* let pretty () x = Pretty.nil *)
 
 let min_t' a b = match (a,b) with

@@ -54,6 +54,10 @@ rule() {
       eval $(opam config env)
       dune build src/maindomaintest.exe &&
       cp _build/default/src/maindomaintest.exe goblint.domaintest
+    ;; privPrecCompare)
+      eval $(opam config env)
+      dune build src/privPrecCompare.exe &&
+      cp _build/default/src/privPrecCompare.exe privPrecCompare
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
@@ -100,11 +104,12 @@ rule() {
       opam_setup
     ;; dev)
       echo "Installing opam packages for development..."
-      opam install utop ocaml-lsp-server ocp-indent ocamlformat ounit2
+      opam install utop ocaml-lsp-server ocp-indent ocamlformat ounit2 earlybird
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -
+      # Use `git commit -n` to temporarily bypass the hook if necessary.
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
     ;; headers)

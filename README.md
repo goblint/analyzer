@@ -1,6 +1,9 @@
 # goblint
 ![Build status](https://github.com/goblint/analyzer/workflows/build%20and%20run%20tests/badge.svg)
 [![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
+[![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
+
+Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/en/latest/) or [GitHub](./docs/).
 
 ## Setup
 ### Linux / MacOS
@@ -17,8 +20,7 @@ Goblint relies on GNU `cpp` to preprocess source files - the default clang `cpp`
 You can install it with `brew install gcc` (first do `xcode-select --install` if you don't want to build from source). You can check src/config.ml to see what command is used to call `cpp`.
 
 ### Windows
-For Windows 10 we recommend using [WSL](https://docs.microsoft.com/de-de/windows/wsl/install-win10).
-For older versions you can try to build using [these scripts](https://github.com/goblint/analyzer/tree/master/scripts/old/cygwin) for Cygwin, or use a virtual machine.
+For Windows, we recommend using [WSL](https://docs.microsoft.com/de-de/windows/wsl/install-win10).
 
 ### Docker / Virtual machine
 You can run Goblint in a [Docker container](https://hub.docker.com/r/voglerr/goblint/) using: `docker run -it voglerr/goblint ./goblint --help`.

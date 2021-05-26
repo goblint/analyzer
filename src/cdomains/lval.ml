@@ -51,14 +51,13 @@ struct
     | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
     | _ -> false
 
-  let rec short w = function
+  let rec show = function
     | `NoOffset -> ""
-    | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (short w o)
-    | `Field (x,o) -> "." ^ (x.fname) ^ (short w o)
+    | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
+    | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
 
-  let pretty_f sf () x = text (sf 80 x)
+  let pretty () x = text (show x)
 
-  let pretty x = pretty_f short x
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
@@ -106,8 +105,6 @@ struct
     | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> leq o1 o2
     | _ -> false
 
-  let isSimple x = true
-
   let rec merge cop x y =
     let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
     match x, y with
@@ -137,7 +134,7 @@ struct
     | `Field (x, o) -> `Field (x, drop_ints o)
     | `NoOffset -> `NoOffset
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module type S =
@@ -150,8 +147,6 @@ sig
   val str_ptr: unit -> t
   val is_null: t -> bool
   val get_location: t -> location
-  val classify: t -> int
-  val class_name: int -> string
 
   val from_var: varinfo -> t
   (** Creates an address from variable. *)
@@ -188,11 +183,11 @@ struct
     | Addr (x,_) -> x.vdecl
     | _ -> builtinLoc
 
-  let classify = function
-    | Addr (x,_) -> Basetype.Variables.classify x
-    | _ -> 1
-
-  let class_name = Basetype.Variables.class_name
+  type group = Basetype.Variables.group
+  let show_group = Basetype.Variables.show_group
+  let to_group = function
+    | Addr (x,_) -> Basetype.Variables.to_group x
+    | _ -> Some Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)
   let from_var_offset x = Addr x
@@ -219,12 +214,12 @@ struct
   let rec short_offs = function
     | `NoOffset -> ""
     | `Field (fld, o) -> "." ^ fld.fname ^ short_offs o
-    | `Index (v, o) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ short_offs o
+    | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
 
   let short_addr (x, o) =
     GU.demangle x.vname ^ short_offs o
 
-  let short _ = function
+  let show = function
     | Addr x     -> short_addr x
     | StrPtr x   -> "\"" ^ x ^ "\""
     | UnknownPtr -> "?"
@@ -259,7 +254,6 @@ struct
     | UnknownPtr -> voidPtrType
 
   let copy x = x
-  let isSimple _  = true
 
   let hash = function
     | Addr (v,o) -> v.vid + 2 * Offs.hash o
@@ -300,8 +294,7 @@ struct
             | StrPtr a, StrPtr b -> compare a b
             | _, _ -> raise @@ Invalid_argument "Invalid argument for Normal.compare"
 
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty = pretty_f short
+  let pretty () x = Pretty.text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   (* TODO: seems to be unused *)
@@ -331,7 +324,7 @@ struct
     | `Index (i,o) -> `Index (i, remove_offset o)
     | `Field (f,o) -> `Field (f, remove_offset o)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
@@ -371,7 +364,7 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module Stateless (Idx: Printable.S) =
@@ -381,24 +374,21 @@ struct
   type t = bool * varinfo * (field, idx) offs_uk
   include Printable.Std
 
-  let isSimple _  = true
-
-  let short _ (dest, x, offs) =
+  let show (dest, x, offs) =
     let rec off_str ofs =
       match ofs with
       | `NoOffset -> ""
       | `UnknownOffset -> "?"
       | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
-      | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
+      | `Index (v, ofs) -> "[" ^ Idx.show v ^ "]" ^ off_str ofs
     in
     (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
 
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (show x)
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end
 
 module Fields =
@@ -408,19 +398,19 @@ struct
   module FI = Printable.Either (F) (I)
   include Printable.Liszt (FI)
 
-  let rec short w x = match x with
+  let rec show x = match x with
     | [] -> ""
-    | (`Left x :: xs) -> "." ^ F.short w x ^ short w xs
-    | (`Right x :: xs) -> "[" ^ I.short w x ^ "]" ^ short w xs
+    | (`Left x :: xs) -> "." ^ F.show x ^ show xs
+    | (`Right x :: xs) -> "[" ^ I.show x ^ "]" ^ show xs
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (show x)
 
   let rec printInnerXml f = function
     | [] -> ()
     | (`Left x :: xs) ->
-      BatPrintf.fprintf f ".%s%a" (F.short 80 x) printInnerXml xs
+      BatPrintf.fprintf f ".%s%a" (F.show x) printInnerXml xs
     | (`Right x :: xs) ->
-      BatPrintf.fprintf f "[%s]%a" (I.short 80 x) printInnerXml xs
+      BatPrintf.fprintf f "[%s]%a" (I.show x) printInnerXml xs
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
 
@@ -531,7 +521,31 @@ struct
 
   let hash    = Hashtbl.hash
   let name () = "simplified lval"
-  let isSimple _ = true
+
+  let compare (x1,o1) (x2,o2) =
+    let tag = function
+      | `NoOffset -> 0
+      | `Field _ -> 1
+      | `Index _ -> 2
+      | _ -> 3
+    in
+    let rec compare a b =
+      let r = Stdlib.compare (tag a) (tag b) in
+      if r <> 0 then r else
+      match a,b with
+      | `NoOffset , `NoOffset -> 0
+      | `Field (f1,o1), `Field (f2,o2) ->
+        let r = String.compare f1.fname f2.fname in
+        if r <>0 then r else
+          compare o1 o2
+      | `Index (i1,o1), `Index (i2,o2) ->
+        let r = Basetype.CilExp.compareExp i1 i2 in
+        if r <> 0 then r else
+          compare o1 o2
+      | _ -> failwith "unexpected tag"
+    in
+    let r = Stdlib.compare x1.vid x2.vid in
+    if r <> 0 then r else compare o1 o2
 
   let class_tag (v,o) =
     match v with
@@ -569,11 +583,10 @@ struct
     | `Field (_,o) -> has_index_offs o
   let has_index (v,o) = has_index_offs o
 
-  let short _ (v,o) = short_offs o (GU.demangle v.vname)
+  let show (v,o) = short_offs o (GU.demangle v.vname)
 
-  let pretty_f sf () x = text (sf 80 x)
-  let pretty  = pretty_f short
+  let pretty () x = text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
 end

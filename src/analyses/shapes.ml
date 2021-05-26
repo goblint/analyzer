@@ -97,7 +97,7 @@ struct
   let reclaimLostRegions alive ctx (e,_) v =
     if (not e.vglob) &&  (not (Usedef.VS.mem e alive)) then () else
       let is_public = function
-        | `Left (v,_) -> (not (is_private ctx.ask (`Left v)))
+        | `Left (v,_) -> (not (is_private (Analyses.ask_of_ctx ctx) (`Left v)))
         | `Right _    -> false
       in
       let rs = RS.filter is_public v in
@@ -106,12 +106,12 @@ struct
 
 
 
-  let sync ctx reason : D.t * (varinfo*G.t) list =
+  let sync ctx reason : D.t =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
-    let nst, dst, rm, part = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
-    let nre, dre = Re.sync (re_context ctx re) reason in
+    let nst, dst, rm, part = tryReallyHard (Analyses.ask_of_ctx ctx) gl upd (sync_ld (Analyses.ask_of_ctx ctx) gl upd) st in
+    let nre = Re.sync (re_context ctx re) reason in
     let update k v m =
       let old = try RegMap.find k m with Not_found -> RS.empty () in
       if (not (RS.is_top old)) && RS.for_all (function  (`Left (v,_)) -> not (gl v) |  `Right _ -> true)  old
@@ -135,10 +135,9 @@ struct
       | x -> ()
     in
     ctx.sideg (Re.partition_varinfo ()) (false, part);
-    let is_public (v,_) = gl v in
-    (nst,nre),
-    (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre)
-     @ List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst)
+    (* let is_public (v,_) = gl v in *)
+    List.iter (uncurry ctx.sideg) (List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst);
+    (nst,nre)
 
   (* transfer functions *)
   let assign_ld ask gl dup (lval:lval) (rval:exp) st : LD.t =
@@ -160,7 +159,7 @@ struct
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
-    tryReallyHard ctx.ask gl upd (assign_ld ctx.ask gl upd lval rval) st,
+    tryReallyHard (Analyses.ask_of_ctx ctx) gl upd (assign_ld (Analyses.ask_of_ctx ctx) gl upd lval rval) st,
     Re.assign (re_context ctx re) lval rval
 
   let invariant ask gl lp1 lp2 st b =
@@ -189,7 +188,7 @@ struct
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
-    tryReallyHard ctx.ask gl upd (fun st -> branch_ld ctx.ask gl st exp tv) st,
+    tryReallyHard (Analyses.ask_of_ctx ctx) gl upd (fun st -> branch_ld (Analyses.ask_of_ctx ctx) gl st exp tv) st,
     Re.branch (re_context ctx re) exp tv
 
   let body ctx (f:fundec) : D.t =
@@ -204,7 +203,7 @@ struct
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
-    tryReallyHard ctx.ask gl upd (fun st -> return_ld ctx.ask gl upd st exp f) st,
+    tryReallyHard (Analyses.ask_of_ctx ctx) gl upd (fun st -> return_ld (Analyses.ask_of_ctx ctx) gl upd st exp f) st,
     Re.return (re_context ctx re) exp f
 
   let enter_func_ld ask gl dup (lval: lval option) (f:varinfo) (args:exp list) st : LD.t =
@@ -221,7 +220,7 @@ struct
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = () in
-    let es = tryReallyHard ctx.ask gl upd (enter_func_ld ctx.ask gl upd lval f args) st  in
+    let es = tryReallyHard (Analyses.ask_of_ctx ctx) gl upd (enter_func_ld (Analyses.ask_of_ctx ctx) gl upd lval f args) st  in
     let es' = Re.enter (re_context ctx re) lval f args in
     List.map (fun (x,y) -> (st,x),(es,y)) es'
 
@@ -264,12 +263,12 @@ struct
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
-    let s1 = tryReallyHard ctx.ask gl upd (special_fn_ld ctx.ask gl upd lval f arglist) st in
+    let s1 = tryReallyHard (Analyses.ask_of_ctx ctx) gl upd (special_fn_ld (Analyses.ask_of_ctx ctx) gl upd lval f arglist) st in
     let s2 = Re.special (re_context ctx re) lval f arglist in
     List.iter (fun (x,y,z) -> ctx.split (x,s2) [Events.SplitBranch (y, z)]) s1;
     raise Analyses.Deadcode
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t) =
     let st, re = ctx.local in
     Re.query (re_context ctx re) q
 

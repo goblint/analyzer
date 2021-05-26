@@ -398,9 +398,9 @@ struct
     Flags.fold helper flagstate min_int
 
   (* from thread*)
-  let query_lv ask exp =
-    match ask (Queries.MayPointTo exp) with
-    | `LvalSet l when not (Queries.LS.is_top l) ->
+  let query_lv (ask: Queries.ask) exp =
+    match ask.f (Queries.MayPointTo exp) with
+    | l when not (Queries.LS.is_top l) ->
       Queries.LS.elements l
     | _ -> []
 
@@ -412,7 +412,7 @@ struct
   let eval_arg ctx (arg:exp) =
     match arg with
     | Lval (Var vinfo,_) -> vinfo
-    | _ -> (match eval_fv ctx.ask arg with
+    | _ -> (match eval_fv (Analyses.ask_of_ctx ctx) arg with
         | Some v -> v
         | None   -> failwith "cannot extract arg")
 
@@ -423,7 +423,7 @@ struct
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
     let ign_flag_filter acc tuple = not (AccLoc.equal acc (proj2_1 tuple)) in
     let remove_acc acc set = AccValSet.filter (ign_flag_filter acc) set in
-    if (BaseUtil.is_global ctx.ask v) then begin
+    if (BaseUtil.is_global (Analyses.ask_of_ctx ctx) v) then begin
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if !GU.should_warn then begin
           let new_acc = ((loc,fl,rv),ust,o) in
@@ -492,7 +492,7 @@ struct
   let add_type_access ctx fl loc ust flagstate (e,rw:exp * bool) =
     let eqset =
       match ctx.ask (Queries.EqualSet e) with
-      | `ExprSet es
+      | es
         when not (Queries.ES.is_bot es)
         -> Queries.ES.elements es
       | _ -> [e]
@@ -565,16 +565,16 @@ struct
       in
       List.iter dispatch accessed
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-      `Int (Int64.of_int pry)
-    | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
+      Queries.ID.of_int @@ Int64.of_int pry
+    | Queries.Priority vname -> begin try Queries.ID.of_int @@ Int64.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
-        `MayBool false
+        false
       else
         let off =
           (*         if !FlagModes.Spec.flag_list = [] then begin *)
@@ -586,11 +586,11 @@ struct
           (*             let flagstate = get_flags ctx.presub in *)
           (*             offpry_flags flagstate v *)
           (*           end *)
-        in `MayBool (off > pry)
+        in off > pry
     | Queries.CurrentLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
       M.query ctx q
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   let rec conv_offset x =
     match x with
@@ -615,14 +615,14 @@ struct
     | _ -> v, Offs.from_offset (conv_offset o)
 
 
-  let access_address ask regs write lv : accesses =
+  let access_address (ask: Queries.ask) regs write lv : accesses =
     if is_ignorable lv then [] else
       let add_reg (v,o) =
         (*       Messages.report ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
         Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
       in
-      match ask (Queries.MayPointTo (mkAddrOf lv)) with
-      | `LvalSet a when not (Queries.LS.is_top a) ->
+      match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
+      | a when not (Queries.LS.is_top a) ->
         let to_accs (v,o) xs =
           Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs
         in
@@ -662,11 +662,8 @@ struct
       | _ -> []
     in
     (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
-    match a (Queries.Regions exp) with
-    | `Bot ->
-      (*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local"); *)
-      [] (*List.filter is_unknown (accs [])*)
-    | `LvalSet regs ->
+    match a.f (Queries.Regions exp) with
+    | regs when not (Queries.LS.is_top regs) ->
       (*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
       accs (Queries.LS.elements regs)
     | _ -> accs []
@@ -693,18 +690,18 @@ struct
   let access_byval a (rw: bool) (exps: exp list): accesses =
     List.concat (List.map (access_one_top a rw) exps)
 
+  (* TODO: unused? remove? *)
   let access_reachable ask (exps: exp list) =
     (* Find the addresses reachable from some expression, and assume that these
      * can all be written to. *)
     let do_exp e =
       match ask (Queries.ReachableFrom e) with
-      | `LvalSet a when not (Queries.LS.is_top a)
+      | a when not (Queries.LS.is_top a)
                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
         let to_extra (v,o) xs =
           if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
             Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
         Queries.LS.fold to_extra a []
-      | `Bot -> []
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> [Unknown (e,true)]
     in
@@ -729,13 +726,13 @@ struct
     if !GU.global_initialization then
       ctx.local
     else
-      let b1 = access_one_byval ctx.ask true (Lval lval) in
-      let b2 = access_one_byval ctx.ask false rval in
+      let b1 = access_one_byval (Analyses.ask_of_ctx ctx) true (Lval lval) in
+      let b2 = access_one_byval (Analyses.ask_of_ctx ctx) false rval in
       add_accesses ctx (b1@b2) (get_flags ctx.presub) ctx.local;
       ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    let accessed = access_one_top ctx.ask false exp in
+    let accessed = access_one_top (Analyses.ask_of_ctx ctx) false exp in
     add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
     ctx.local
 
@@ -752,7 +749,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let m_st = match exp with
       | Some exp -> begin
-          let accessed = access_one_top ctx.ask false exp in
+          let accessed = access_one_top (Analyses.ask_of_ctx ctx) false exp in
           add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
           ctx.local
         end
@@ -773,7 +770,7 @@ struct
       m_st
 
   let eval_funvar ctx exp =
-    let read = access_one_top ctx.ask false exp in
+    let read = access_one_top (Analyses.ask_of_ctx ctx) false exp in
     add_accesses ctx read ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
@@ -1117,17 +1114,17 @@ struct
 
       let report_race offset acc_list =
         let f  (((loc, fl, write), dom_elem,o),flagstate) =
-          let lock_str = Lockset.short 80 dom_elem in
+          let lock_str = Lockset.show dom_elem in
           let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully2) never happens!" ) (Lockset.ReverseAddrSet.elements dom_elem) in
           let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
           let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
           let action = if write then "write" else "read" in
-          let thread = "\"" ^ Flag.short 80 fl ^ "\"" in
+          let thread = "\"" ^ Flag.show fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in
           (warn,loc)
         in (*/f*)
         let warnings =  List.map f acc_list in
-        let var_str = gl.vname ^ ValueDomain.Offs.short 80 offset in
+        let var_str = gl.vname ^ ValueDomain.Offs.show offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
         let handle_race def_warn = begin
           if (List.mem gl.vname  (List.map Json.string @@ get_list "ana.osek.safe_vars")) then begin
@@ -1160,7 +1157,7 @@ struct
                   print_group warn warnings
                 end
               | Guarded locks ->
-                let lock_str = Mutex.Lockset.short 80 locks in
+                let lock_str = Mutex.Lockset.show locks in
                 if (get_bool "allglobs") then
                   print_group (safe_str "common mutex after filtering") warnings
                 else
@@ -1209,7 +1206,7 @@ struct
           | LowRead -> handle_race "Low read datarace"
           | LowWrite -> handle_race "Low write datarace"
           | Guarded locks ->
-            let lock_str = Mutex.Lockset.short 80 locks in
+            let lock_str = Mutex.Lockset.show locks in
             if (get_bool "allglobs") then
               print_group (safe_str "common mutex") warnings
             else
