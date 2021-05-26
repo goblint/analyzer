@@ -113,9 +113,10 @@ struct
     let f (is,fs) v =
       if isIntegralType v.vtype then
         if GobConfig.get_bool "ana.oct_no_uints" then 
-          match v.vtype with
-          | TInt(IUInt, i) -> (is, fs)
-          | _ -> (v.vname::is,fs)
+            if Cil.isSigned (Cilfacade.get_ikind v.vtype) then 
+              (v.vname::is,fs)
+            else
+              (is,fs)
         else 
           (v.vname::is,fs)
       else if isArithmeticType v.vtype then
