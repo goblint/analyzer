@@ -5,7 +5,7 @@ open Analyses
 open Apron
 open OctApronDomain
 
-module Spec : Analyses.MCPSpec =
+module SpecFunctor (Priv: OctApronPriv.S) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -178,6 +178,9 @@ struct
       end
     | _ -> Result.top q
 end
+
+(* TODO: make dynamically configurable *)
+module rec Spec: MCPSpec = SpecFunctor (OctApronPriv.Dummy)
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
