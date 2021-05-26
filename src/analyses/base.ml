@@ -785,16 +785,6 @@ struct
         (* The &-operator: we create the address abstract element *)
         | AddrOf lval ->
           let adrs = eval_lv a gs st lval in
-          let adrs = if get_bool "ana.library" then (
-            let vars = AD.to_var_may adrs in
-            let type_based_adresses = List.map
-              (fun v -> if v.vglob then
-                (match (arg_value a (typeOf (Lval lval))) with v -> Some v | exception Failure _ -> None) else None) vars in
-            (* Join type based adresses into abstract value *)
-            List.fold (fun acc a -> match a with Some a -> AD.union acc a | _ -> acc) adrs type_based_adresses
-          ) else
-            adrs
-          in
           `Address adrs
         (* CIL's very nice implicit conversion of an array name [a] to a pointer
          * to its first element [&a[0]]. *)
