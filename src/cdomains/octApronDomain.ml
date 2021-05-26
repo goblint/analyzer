@@ -353,8 +353,7 @@ struct
   let rec get_vars_from_expr exp l =
     match exp with
     | Cst _-> l
-    | Var v ->
-    let () = print_endline (Var.to_string v) in l @ [v]
+    | Var v -> l @ [v]
     | Unop (_, e, _, _) -> l @ (get_vars_from_expr e [])
     | Binop (_, e, _, _, _) -> l @ (get_vars_from_expr e [])
 
