@@ -587,3 +587,72 @@ struct
         | _ -> oct)
 
 end
+
+
+(* Copy-paste from BaseDomain... *)
+type 'a octaproncomponents_t = {
+  oct: D.t;
+  priv: 'a;
+} [@@deriving eq, ord, to_yojson]
+
+module OctApronComponents (PrivD: Lattice.S):
+sig
+  include Lattice.S with type t = PrivD.t octaproncomponents_t
+  val op_scheme: (D.t -> D.t -> D.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+end =
+struct
+  type t = PrivD.t octaproncomponents_t [@@deriving eq, ord, to_yojson]
+
+  include Printable.Std
+  open Pretty
+  let hash r  = D.hash r.oct + PrivD.hash r.priv * 33
+
+
+  let show r =
+    let first  = D.show r.oct in
+    let third  = PrivD.show r.priv in
+    "(" ^ first ^ ", " ^ third  ^ ")"
+
+  let pretty () r =
+    text "(" ++
+    D.pretty () r.oct
+    ++ text ", " ++
+    PrivD.pretty () r.priv
+    ++ text ")"
+
+  let printXml f r =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D.name ())) D.printXml r.oct (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+
+  let name () = D.name () ^ " * " ^ PrivD.name ()
+
+  let invariant c {oct; priv} =
+    Invariant.(D.invariant c oct && PrivD.invariant c priv)
+
+  let of_tuple(oct, priv):t = {oct; priv}
+  let to_tuple r = (r.oct, r.priv)
+
+  let arbitrary () =
+    let tr = QCheck.pair (D.arbitrary ()) (PrivD.arbitrary ()) in
+    QCheck.map ~rev:to_tuple of_tuple tr
+
+  let bot () = { oct = D.bot (); priv = PrivD.bot ()}
+  let is_bot {oct; priv} = D.is_bot oct && PrivD.is_bot priv
+  let top () = {oct = D.top (); priv = PrivD.bot ()}
+  let is_top {oct; priv} = D.is_top oct && PrivD.is_top priv
+
+  let leq {oct=x1; priv=x3 } {oct=y1; priv=y3} =
+    D.leq x1 y1 && PrivD.leq x3 y3
+
+  let pretty_diff () (({oct=x1; priv=x3}:t),({oct=y1; priv=y3}:t)): Pretty.doc =
+    if not (D.leq x1 y1) then
+      D.pretty_diff () (x1,y1)
+    else
+      PrivD.pretty_diff () (x3,y3)
+
+  let op_scheme op1 op3 {oct=x1; priv=x3} {oct=y1; priv=y3}: t =
+    {oct = op1 x1 y1; priv = op3 x3 y3 }
+  let join = op_scheme D.join PrivD.join
+  let meet = op_scheme D.meet PrivD.meet
+  let widen = op_scheme D.widen PrivD.widen
+  let narrow = op_scheme D.narrow PrivD.narrow
+end
