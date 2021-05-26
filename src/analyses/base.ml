@@ -2260,8 +2260,22 @@ struct
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
-    List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
-    let st: store = ctx.local in
+    let st: store = if GobConfig.get_bool "ana.library" && not (List.is_empty forks) then
+      begin
+        let enter_combine st (_, forked_fun, args) =
+          let ctx = {ctx with local = st} in
+          let entered = enter ctx lv forked_fun args in
+          combine ctx lv () forked_fun args () (Tuple2.second (List.hd entered))
+        in
+        M.warn "Thread creation is treated as function call!";
+        List.fold enter_combine ctx.local forks
+      end
+    else
+      begin
+        List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
+        ctx.local
+      end
+    in
     let gs = ctx.global in
     match LF.classify f.vname args with
     | `Unknown "F59" (* strcpy *)
