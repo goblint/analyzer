@@ -350,48 +350,6 @@ struct
       else
         `Top
 
-  let assert_fn ctrlctx octa e warn change =
-    let expr = sprint 30 (Cil.d_exp () e) in
-    let warn ?annot msg = if warn then
-        if GobConfig.get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
-          let loc = !Messages.current_loc in
-          let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
-          let open Str in
-          let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
-          if expected <> annot then (
-            let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
-            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
-            let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
-            let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
-            Messages.warn_each ~ctx:ctrlctx (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> octApron says " ^ result)
-          ) else (
-            Messages.warn_each ~ctx:ctrlctx (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> octApron says good")
-          )
-        ) else
-        Messages.warn_each ~ctx:ctrlctx msg
-    in
-    match e with
-    | Const v ->
-      let () = match v with
-        | CInt64 (num, ikind, tag) ->
-          begin match num with
-            | 0L ->  warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
-            | _  ->  warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
-          end
-        | _ -> warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
-      in
-      octa
-    | _ ->
-      let () = match check_assert e octa with
-        | `False ->
-          warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.")
-        | `True ->
-          warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
-        | `Top ->
-          warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.")
-      in
-      octa
-
   let rec get_vars_from_expr exp l =
     match exp with
     | Cst _-> l
