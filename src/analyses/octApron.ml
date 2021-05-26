@@ -24,22 +24,21 @@ struct
   let rec print_list_exp myList = match myList with
     | [] -> print_endline "End!"
     | head::body ->
-    begin
       AD.print_expression head;
       print_list_exp body
-    end
 
   let rec get_vnames_list exp = match exp with
-  | Lval lval ->
-    let lhost, offset = lval in
-    (match lhost with
-      | Var vinfo -> [vinfo.vname]
-      | _ -> [])
-  | UnOp (unop, e, typ) -> get_vnames_list e
-  | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
-  | AddrOf lval -> get_vnames_list (Lval(lval))
-  | CastE(_, e) -> get_vnames_list e
-  | _ -> []
+    | Lval lval ->
+      let lhost, offset = lval in
+      begin match lhost with
+        | Var vinfo -> [vinfo.vname]
+        | _ -> []
+      end
+    | UnOp (unop, e, typ) -> get_vnames_list e
+    | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
+    | AddrOf lval -> get_vnames_list (Lval(lval))
+    | CastE(_, e) -> get_vnames_list e
+    | _ -> []
 
   let invalidate oct (exps: exp list) =
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
@@ -101,19 +100,21 @@ struct
         | `Unknown "__goblint_commit" -> st
         | `Unknown "__goblint_assert" -> st
         | `Malloc size ->
-          (match r with
+          begin match r with
             | Some lv ->
               {st with oct = AD.remove_all st.oct [f.vname]}
-            | _ -> st)
+            | _ -> st
+          end
         | `Calloc (n, size) ->
-          (match r with
+          begin match r with
             | Some lv ->
               {st with oct = AD.remove_all st.oct [f.vname]}
-            | _ -> st)
+            | _ -> st
+          end
         | `ThreadJoin (id,ret_var) ->
-            let nd = st.oct in
-            invalidate nd [ret_var];
-            st
+          let nd = st.oct in
+          invalidate nd [ret_var];
+          st
         | `ThreadCreate _ -> st
         | _ ->
           begin
@@ -122,7 +123,7 @@ struct
               | Some fnc -> let () = invalidate st.oct (fnc `Write  args) in st
               | None -> {st with oct = AD.topE (A.env st.oct)}
             in
-              st
+            st
           end
       end
 
