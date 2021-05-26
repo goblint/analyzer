@@ -29,6 +29,8 @@ let is_heap_var (a: Q.ask) (v: varinfo): bool = a.f (Q.IsHeapVar v)
   (* TODO: There should be is_heap_var and is_arg_var *)
 let is_allocated_var (a: Q.ask) (v: varinfo): bool = a.f (Q.IsAllocatedVar v)
 
+let is_arg_var (a: Q.ask) (v: varinfo): bool = is_heap_var a v && not (is_allocated_var a v)
+
 let is_always_unknown (variable: varinfo) = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
 let is_static (v:varinfo): bool = v.vstorage == Static
@@ -799,7 +801,24 @@ struct
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
         | CastE  (t, exp) ->
           let v = eval_rv a gs st exp in
-          VD.cast ~torg:(typeOf exp) t v
+          let cast = VD.cast ~torg:(typeOf exp) t v in
+          if GobConfig.get_bool "ana.library" then
+            begin
+              match v, t with
+              | `Address adrs, TPtr (pointed_to_t,_) ->
+                begin
+                  (* if we cast an address of some symbolic argument value to some type t, we add an abstraction of this type t to the result
+                   We do not handle allocated symbolic values here, because we assume that they are always directly cast to the right type. *)
+                  let vars = List.filter (is_arg_var a) (AD.to_var_may adrs) in
+                  let type_based_adresses = List.map
+                    (fun v -> match (arg_value a pointed_to_t) with v -> Some v | exception Failure _ -> None) vars in
+                  (* Join type based adresses into abstract value *)
+                  `Address (List.fold (fun acc a -> match a with Some a -> AD.union acc a | _ -> acc) adrs type_based_adresses)
+                end
+              | _ -> cast
+            end
+          else
+            cast
         | _ -> VD.top ()
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
