@@ -12,22 +12,22 @@
   (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js
     qcheck-core.runner
     (select apronDomain.ml from
-      (apron apron.polkaMPQ apron.octD -> apronDomain.apron.ml)
-      (!apron -> apronDomain.no-apron.ml)
+      (apron apron.polkaMPQ -> apronDomain.apron.ml)
+      (-> apronDomain.no-apron.ml)
     )
     (select octApronDomain.ml from
-      (apron apron.polkaMPQ apron.octD -> octApronDomain.apron.ml)
-      (!apron -> octApronDomain.no-apron.ml)
+      (apron apron.octD -> octApronDomain.apron.ml)
+      (-> octApronDomain.no-apron.ml)
     )
     (select poly.ml from
-      (apron apron.polkaMPQ apron.octD -> poly.apron.ml)
-      (!apron -> poly.no-apron.ml)
+      (apron -> poly.apron.ml)
+      (-> poly.no-apron.ml)
     )
     (select octApron.ml from
-      (apron apron.polkaMPQ apron.octD -> octApron.apron.ml)
-      (!apron -> octApron.no-apron.ml)
+      (apron -> octApron.apron.ml)
+      (-> octApron.no-apron.ml)
     )
-  )      
+  )
   (preprocess
     (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson
       ppx_distr_guards ocaml-monadic))
