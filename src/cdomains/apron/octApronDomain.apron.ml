@@ -271,11 +271,17 @@ struct
   with the linear constraints coming from the given expression *)
   let rec assert_inv d x b =
     try
-      (* if assert(x) then convert it to assert(x != 0) *)
       let x = match x with
-        | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
-        BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
-        | _ -> x in
+        | BinOp (Lt, _, _, _) -> x 
+        | BinOp (Gt, _, _, _) -> x 
+        | BinOp (Le, _, _, _) -> x 
+        | BinOp (Ge, _, _, _) -> x 
+        | BinOp (Eq, _, _, _) -> x 
+        | BinOp (Ne, _, _, _) -> x 
+        (* For expressions x that aren't a BinOp with a comparison operator,
+         assert(x) will be converted it to assert(x != 0) *)
+        | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
+        in
       match x with
       | BinOp (Ne, lhd, rhs, intType) ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
