@@ -530,6 +530,8 @@ struct
     in
     let symb_value = get a g fun_st symb None in
     let (r, n) = get_concrete_value_and_new_blocks_from_value symb_value in
+    (* Going from bot to top is here for the case that we did not create an symbolic abstraction, and therefore did not gather potential writes. If we always generate such a symbolic representation, in particular for the cases of casts, this should not be a problem. *)
+    let r = if VD.is_bot r then `Top else r in
     M.tracel "concretes" "Got concrete value %a for address %a \n" VD.pretty r AD.pretty symb;
     (r, n)
 
@@ -2393,7 +2395,7 @@ struct
       end
     (* handling thread creations *)
     | `ThreadCreate _ ->
-      ctx.local (* actual results joined via threadspawn *)
+      st (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
