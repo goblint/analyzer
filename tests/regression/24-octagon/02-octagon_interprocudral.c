@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper']"
+// PARAM: --sets solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','octApron','mallocWrapper']"
 int main(void) {
     f1();
 }
@@ -11,14 +11,14 @@ int f1() {
 
     one = two;
 
-    assert(one - two == 0); // UNKNOWN
+    assert(one - two == 0);
     x = f2(one,two);
-    assert(one - two == 0); // UNKNOWN
-    assert(x == 48); 
+    assert(one - two == 0);
+    assert(x == 48);
 }
 
 int f2(int a, int b) {
-    assert(a-b == 0); // UNKNOWN
+    assert(a-b == 0);
 
     return 48;
 }
