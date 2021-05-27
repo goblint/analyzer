@@ -51,7 +51,7 @@ jobs:
         run: ./make.sh headers testci
 
       - name: Run octagon regression tests # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group octagon
+        run: ruby scripts/update_suite.rb group octagon -s
 
       - name: Run domain tests
         run: |
