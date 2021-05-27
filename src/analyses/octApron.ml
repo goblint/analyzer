@@ -181,10 +181,12 @@ struct
       end
     in
     let st' = VH.fold (fun v v_in st ->
+        if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
         Priv.read_global ask getg st v v_in (* g#in = g; *)
       ) v_ins st
     in
     let e' = visitCilExpr visitor e in
+    if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
     let oct' = AD.assign_var_handling_underflow_overflow st'.oct v e' in (* x = e; *)
     let oct'' = AD.remove_all oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     {st' with oct = oct''}
@@ -195,16 +197,22 @@ struct
       match lv with
       (* Lvals which are numbers, have no offset and their address wasn't taken *)
       | Var v, NoOffset when isArithmeticType v.vtype && not v.vaddrof ->
+        if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
         let ask = Analyses.ask_of_ctx ctx in
-        if not v.vglob then
-          assign_with_globals ask ctx.global st v e
-        else (
-          let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-          let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
-          let st' = Priv.write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-          let oct'' = AD.remove_all st'.oct [v_out.vname] in (* remove temporary g#out *)
-          {st' with oct = oct''}
-        )
+        let r =
+          if not v.vglob then
+            assign_with_globals ask ctx.global st v e
+          else (
+            let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+            let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
+            if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
+            let st' = Priv.write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
+            let oct'' = AD.remove_all st'.oct [v_out.vname] in (* remove temporary g#out *)
+            {st' with oct = oct''}
+          )
+        in
+        if M.tracing then M.traceu "apron" "assign\n";
+        r
       (* Ignoring all other assigns *)
       | _ -> st
 
