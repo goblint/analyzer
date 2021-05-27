@@ -118,7 +118,7 @@ struct
             (is,fs)
         else
           (v.vname::is,fs)
-      else if isArithmeticType v.vtype then
+      else if (isArithmeticType v.vtype) && (not (GobConfig.get_bool "ana.oct_no_floats")) then
         (is,v.vname::fs)
       else
         (is,fs)

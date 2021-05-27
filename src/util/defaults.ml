@@ -137,6 +137,7 @@ let _ = ()
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
       ; reg Analyses "ana.oct_no_uints"    "false"  "Use OctApron without tracking unsigned integers."
+      ; reg Analyses "ana.oct_no_floats"   "true"  "Use OctApron without tracking floats."
 
 (* {4 category [Semantics]} *)
 let _ = ()
