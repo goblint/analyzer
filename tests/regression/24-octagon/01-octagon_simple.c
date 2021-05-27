@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper','octApron']"
+// PARAM: --sets solver td3 --enable ana.int.interval  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper']"
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf
 void main(void) {
   int X = 0;
@@ -9,7 +9,7 @@ void main(void) {
     X++;
   }
 
-  assert(X-N == 0);
+  assert(X-N == 0); // UNKNOWN
   // assert(X == N); // Currently not able to assert this because octagon doesn't handle it
 
   if(X == N) {

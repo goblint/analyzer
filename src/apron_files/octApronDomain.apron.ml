@@ -53,6 +53,12 @@ struct
   let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
   let print_octagon o = print_endline (show o)
 
+  (* Apron can not join two abstract values have different environments.
+  That hapens when we do a join with dead code and for that reason we need
+  to handle joining with bottom manually.
+  A similar if-based structure with is_top and is_bottom is also there for:
+  meet, widen, narrow, equal, leq.*)
+
   let join x y =
     let ret = if is_bot x then
       y
@@ -106,9 +112,10 @@ struct
     let f (is,fs) v =
       if isIntegralType v.vtype then
         if GobConfig.get_bool "ana.oct_no_uints" then
-          match v.vtype with
-          | TInt(IUInt, i) -> (is, fs)
-          | _ -> (v.vname::is,fs)
+          if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
+            (v.vname::is,fs)
+          else
+            (is,fs)
         else
           (v.vname::is,fs)
       else if isArithmeticType v.vtype then
@@ -353,8 +360,7 @@ struct
   let rec get_vars_from_expr exp l =
     match exp with
     | Cst _-> l
-    | Var v ->
-    let () = print_endline (Var.to_string v) in l @ [v]
+    | Var v -> l @ [v]
     | Unop (_, e, _, _) -> l @ (get_vars_from_expr e [])
     | Binop (_, e, _, _, _) -> l @ (get_vars_from_expr e [])
 

@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','octApron']"
+// PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper']"
 void change(int *p) {
     (*p)++;
 }
