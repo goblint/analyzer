@@ -45,10 +45,19 @@ struct
     let l = List.flatten (List.map get_vnames_list exps) in
     AD.forget_all_with oct l
 
-  let threadenter ctx lval f args = [D.top ()]
+  let threadenter ctx lval f args =
+    let st = ctx.local in
+    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+       EnterMultithreaded events only execute after threadenter and threadspawn. *)
+    if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+      ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
+    [Priv.threadenter (Analyses.ask_of_ctx ctx) st]
+
   let threadspawn ctx lval f args fctx = let st = ctx.local in (invalidate st.oct args); st
-  let exitstate  _ = D.top ()
-  let startstate _ =  D.top ()
+  let exitstate  _ = { oct = AD.top (); priv = Priv.startstate () }
+  let startstate _ = { oct = AD.top (); priv = Priv.startstate () }
 
   let enter ctx r f args =
     let st = ctx.local in
@@ -234,6 +243,29 @@ struct
         | _ -> `Top
       end
     | _ -> Result.top q
+
+  let event ctx e octx =
+    let st = ctx.local in
+    match e with
+    | Events.Lock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+      Priv.lock (Analyses.ask_of_ctx octx) octx.global st addr
+    | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+      Priv.unlock (Analyses.ask_of_ctx octx) octx.global octx.sideg st addr
+    | Events.Escape escaped ->
+      Priv.escape (Analyses.ask_of_ctx octx) octx.global octx.sideg st escaped
+    | Events.EnterMultiThreaded ->
+      Priv.enter_multithreaded (Analyses.ask_of_ctx octx) octx.global octx.sideg st
+    | _ ->
+      st
+
+  let sync ctx reason =
+    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+
+  let init () =
+    Priv.init ()
+
+  let finalize () =
+    Priv.finalize ()
 end
 
 (* TODO: make dynamically configurable *)
