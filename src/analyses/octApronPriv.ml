@@ -134,3 +134,106 @@ struct
   let init () = ()
   let finalize () = ()
 end
+
+
+module TracingPriv (Priv: S): S with module D = Priv.D =
+struct
+  include Priv
+
+  module OctApronComponents = OctApronComponents (D)
+
+  let read_global ask getg st g x =
+    if M.tracing then M.traceli "apronpriv" "read_global %a %a\n" d_varinfo g d_varinfo x;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let r = Priv.read_global ask getg st g x in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    r
+
+  let write_global ?invariant ask getg sideg st x g =
+    if M.tracing then M.traceli "apronpriv" "write_global %a %a\n" d_varinfo x d_varinfo g;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      sideg x v
+    in
+    let r = write_global ?invariant ask getg sideg st x g in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    r
+
+  let lock ask getg st m =
+    if M.tracing then M.traceli "apronpriv" "lock %a\n" LockDomain.Addr.pretty m;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let r = lock ask getg st m in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    r
+
+  let unlock ask getg sideg st m =
+    if M.tracing then M.traceli "apronpriv" "unlock %a\n" LockDomain.Addr.pretty m;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      sideg x v
+    in
+    let r = unlock ask getg sideg st m in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    r
+
+  let enter_multithreaded ask getg sideg st =
+    if M.tracing then M.traceli "apronpriv" "enter_multithreaded\n";
+    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      sideg x v
+    in
+    let r = enter_multithreaded ask getg sideg st in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    r
+
+  let threadenter ask st =
+    if M.tracing then M.traceli "apronpriv" "threadenter\n";
+    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    let r = threadenter ask st in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    r
+
+  let sync ask getg sideg st reason =
+    if M.tracing then M.traceli "apronpriv" "sync\n";
+    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let sideg x v =
+      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      sideg x v
+    in
+    let r = sync ask getg sideg st reason in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    r
+end
