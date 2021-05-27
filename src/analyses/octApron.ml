@@ -159,9 +159,35 @@ struct
       let vars = AD.typesort f.slocals in
       {st with oct = AD.add_vars st.oct vars}
 
-  let assign_with_globals ask st v e =
-    let oct' = AD.assign_var_handling_underflow_overflow st.oct v e in
-    {st with oct = oct'}
+  let assign_with_globals ask getg st v e =
+    let module VH = BatHashtbl.Make (Basetype.Variables) in
+    let v_ins = VH.create 10 in
+    let visitor = object
+        inherit nopCilVisitor
+        method! vvrbl (vi: varinfo) =
+          if vi.vglob then (
+            let v_in =
+              if VH.mem v_ins vi then
+                VH.find v_ins vi
+              else
+                let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#in for global g *)
+                VH.replace v_ins vi v_in;
+                v_in
+            in
+            ChangeTo v_in
+          )
+          else
+            SkipChildren
+      end
+    in
+    let st' = VH.fold (fun v v_in st ->
+        Priv.read_global ask getg st v v_in (* g#in = g; *)
+      ) v_ins st
+    in
+    let e' = visitCilExpr visitor e in
+    let oct' = AD.assign_var_handling_underflow_overflow st'.oct v e' in (* x = e; *)
+    let oct'' = AD.remove_all oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    {st' with oct = oct''}
 
   let assign ctx (lv:lval) e =
     let st = ctx.local in
@@ -171,10 +197,10 @@ struct
       | Var v, NoOffset when isArithmeticType v.vtype && not v.vaddrof ->
         let ask = Analyses.ask_of_ctx ctx in
         if not v.vglob then
-          assign_with_globals ask st v e
+          assign_with_globals ask ctx.global st v e
         else (
           let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-          let st' = assign_with_globals ask st v_out e in (* g#out = e; *)
+          let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
           let st' = Priv.write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
           let oct'' = AD.remove_all st'.oct [v_out.vname] in (* remove temporary g#out *)
           {st' with oct = oct''}
