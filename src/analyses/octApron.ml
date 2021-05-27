@@ -159,18 +159,23 @@ struct
       let vars = AD.typesort f.slocals in
       {st with oct = AD.add_vars st.oct vars}
 
+  let assign_with_globals ask st v e =
+    let oct' = AD.assign_var_handling_underflow_overflow st.oct v e in
+    {st with oct = oct'}
+
   let assign ctx (lv:lval) e =
     let st = ctx.local in
     if AD.is_bot st.oct then D.bot () else
       match lv with
       (* Lvals which are numbers, have no offset and their address wasn't taken *)
       | Var v, NoOffset when isArithmeticType v.vtype && not v.vaddrof ->
+        let ask = Analyses.ask_of_ctx ctx in
         if not v.vglob then
-          {st with oct = AD.assign_var_handling_underflow_overflow st.oct v e}
+          assign_with_globals ask st v e
         else (
           let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-          let oct' = AD.assign_var_handling_underflow_overflow st.oct v_out e in (* g#out = e; *)
-          let st' = Priv.write_global (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg {st with oct = oct'} v v_out in (* g = g#out; *)
+          let st' = assign_with_globals ask st v_out e in (* g#out = e; *)
+          let st' = Priv.write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
           let oct'' = AD.remove_all st'.oct [v_out.vname] in (* remove temporary g#out *)
           {st' with oct = oct''}
         )
