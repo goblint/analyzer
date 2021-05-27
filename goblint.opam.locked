@@ -12,6 +12,7 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.github.io/analyzer"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
+  "apron" {= "v0.9.13"}
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
@@ -50,9 +51,6 @@ depends: [
   "yojson" {= "1.7.0"}
   "zarith" {= "1.10"}
   "zarith_stubs_js" {= "v0.14.0"}
-]
-depopts: [
-  "apron" {= "v0.9.13"}
 ]
 build: [
   ["dune" "subst"] {pinned}
