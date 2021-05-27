@@ -170,7 +170,7 @@ struct
               if VH.mem v_ins vi then
                 VH.find v_ins vi
               else
-                let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#in for global g *)
+                let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
                 VH.replace v_ins vi v_in;
                 v_in
             in
