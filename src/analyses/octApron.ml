@@ -164,14 +164,14 @@ struct
     let v_ins = VH.create 10 in
     let visitor = object
         inherit nopCilVisitor
-        method! vvrbl (vi: varinfo) =
-          if vi.vglob then (
+        method! vvrbl (v: varinfo) =
+          if v.vglob then (
             let v_in =
-              if VH.mem v_ins vi then
-                VH.find v_ins vi
+              if VH.mem v_ins v then
+                VH.find v_ins v
               else
                 let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
-                VH.replace v_ins vi v_in;
+                VH.replace v_ins v v_in;
                 v_in
             in
             ChangeTo v_in
@@ -180,12 +180,12 @@ struct
             SkipChildren
       end
     in
+    let e' = visitCilExpr visitor e in
     let st' = VH.fold (fun v v_in st ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
         Priv.read_global ask getg st v v_in (* g#in = g; *)
       ) v_ins st
     in
-    let e' = visitCilExpr visitor e in
     if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
     let oct' = AD.assign_var_handling_underflow_overflow st'.oct v e' in (* x = e; *)
     let oct'' = AD.remove_all oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
