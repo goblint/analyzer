@@ -5,6 +5,10 @@ open BaseUtil
 module Q = Queries
 
 module OctApronComponents = OctApronDomain.OctApronComponents
+module AD = OctApronDomain.D
+module A = OctApronDomain.A
+module Man = OctApronDomain.Man
+open Apron
 
 open CommonPriv
 
@@ -80,7 +84,9 @@ struct
     let (w, p) = st.priv in
     let p_g = P.find g p in
     (* TODO: implement *)
-    st
+    let oct' = A.assign_texpr Man.mgr st.oct (Var.of_string x.vname) (Texpr1.var (A.env st.oct) (Var.of_string g.vname)) None in (* TODO: unsound *)
+    {st with oct = oct'}
+
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) x g =
     let s = current_lockset ask in
     let (w, p) = st.priv in

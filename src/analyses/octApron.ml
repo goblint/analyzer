@@ -165,7 +165,20 @@ struct
   let body ctx f =
     let st = ctx.local in
     if AD.is_bot st.oct then D.bot () else
-      let vars = AD.typesort f.slocals in
+      let vars = f.slocals in
+      (* TODO: avoid adding all global (with temps) to environment *)
+      let vars =
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+          match global with
+          | GVar (vi, _, _) ->
+            vi :: acc
+            (* TODO: what about GVarDecl? *)
+          | _ -> acc
+        ) vars
+      in
+      let vars = AD.typesort vars in
+      let add_temps = List.concat_map (fun v -> [v; v ^ "#out"; v ^ "#in"]) in
+      let vars = Tuple2.mapn add_temps vars in
       {st with oct = AD.add_vars st.oct vars}
 
   let assign_with_globals ask getg st v e =
