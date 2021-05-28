@@ -233,7 +233,7 @@ struct
             {st' with oct = oct''}
           )
         in
-        if M.tracing then M.traceu "apron" "assign\n";
+        if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
         r
       (* Ignoring all other assigns *)
       | _ -> st

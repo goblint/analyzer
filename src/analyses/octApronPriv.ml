@@ -48,7 +48,7 @@ struct
   let startstate () = ()
 
   let read_global ask getg st g x = st
-  let write_global ?(invariant=false) ask getg sideg st x g = st
+  let write_global ?(invariant=false) ask getg sideg st g x = st
 
   let lock ask getg st m = st
   let unlock ask getg sideg st m = st
@@ -89,7 +89,7 @@ struct
     let oct' = A.assign_texpr Man.mgr st.oct (Var.of_string x.vname) (Texpr1.var (A.env st.oct) (Var.of_string g.vname)) None in (* TODO: unsound *)
     {st with oct = oct'}
 
-  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) x g =
+  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
     let s = current_lockset ask in
     let (w, p) = st.priv in
     let w' = W.add g (MinLocksets.singleton s) w in
@@ -163,8 +163,8 @@ struct
     if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
     r
 
-  let write_global ?invariant ask getg sideg st x g =
-    if M.tracing then M.traceli "apronpriv" "write_global %a %a\n" d_varinfo x d_varinfo g;
+  let write_global ?invariant ask getg sideg st g x =
+    if M.tracing then M.traceli "apronpriv" "write_global %a %a\n" d_varinfo g d_varinfo x;
     if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
     let getg x =
       let r = getg x in
@@ -175,7 +175,7 @@ struct
       if M.tracing then M.trace "apronpriv" "sideg %a %a\n" d_varinfo x G.pretty v;
       sideg x v
     in
-    let r = write_global ?invariant ask getg sideg st x g in
+    let r = write_global ?invariant ask getg sideg st g x in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
     r
 
