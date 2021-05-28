@@ -111,14 +111,14 @@ struct
   let typesort =
     let f (is,fs) v =
       if isIntegralType v.vtype then
-        if GobConfig.get_bool "ana.oct_no_uints" then
+        if GobConfig.get_bool "ana.octapron.no_uints" then
           if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
             (v.vname::is,fs)
           else
             (is,fs)
         else
           (v.vname::is,fs)
-      else if (isArithmeticType v.vtype) && (not (GobConfig.get_bool "ana.oct_no_floats")) then
+      else if (isArithmeticType v.vtype) && (not (GobConfig.get_bool "ana.octapron.no_floats")) then
         (is,v.vname::fs)
       else
         (is,fs)
@@ -375,7 +375,7 @@ struct
       Texpr1.of_expr env lhost
 
   let is_chosen (v:string) =
-    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "octagon_vars") in
+    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
     if List.length oct_vars == 0 then
       true
     else
@@ -576,7 +576,7 @@ struct
             check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
           if signed then
             if check_max <> `True || check_min <> `True then
-              if GobConfig.get_bool "ana.int.no_signed_overflow" then
+              if GobConfig.get_bool "ana.octapron.no_signed_overflow" then
                 new_oct
               else
                 (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
