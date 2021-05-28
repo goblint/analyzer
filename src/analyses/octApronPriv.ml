@@ -33,7 +33,7 @@ sig
 
   val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> EscapeDomain.EscapedVars.t -> OctApronComponents (D).t
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> OctApronComponents (D).t
-  val threadenter: Q.ask -> OctApronComponents (D).t -> OctApronComponents (D).t
+  val threadenter: Q.ask -> (varinfo -> G.t) -> OctApronComponents (D).t -> OctApronComponents (D).t
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -57,7 +57,7 @@ struct
 
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg st = st
-  let threadenter ask st = st
+  let threadenter ask getg st = st
 
   let init () = ()
   let finalize () = ()
@@ -71,7 +71,7 @@ struct
   open WriteCenteredD
   module D = Lattice.Prod (W) (P)
 
-  module G = AD
+  module G = Lattice.Reverse (AD)
 
   let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
@@ -137,7 +137,7 @@ struct
     (* TODO: implement *)
     st
 
-  let threadenter ask (st: OctApronComponents (D).t): OctApronComponents (D).t =
+  let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     {oct = OctApronDomain.D.top (); priv = startstate ()}
 
   let init () = ()
@@ -223,10 +223,15 @@ struct
     if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
     r
 
-  let threadenter ask st =
+  let threadenter ask getg st =
     if M.tracing then M.traceli "apronpriv" "threadenter\n";
     if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
-    let r = threadenter ask st in
+    let getg x =
+      let r = getg x in
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      r
+    in
+    let r = threadenter ask getg st in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
     r
 

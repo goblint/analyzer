@@ -53,7 +53,7 @@ struct
        EnterMultithreaded events only execute after threadenter and threadspawn. *)
     if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
       ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
-    [Priv.threadenter (Analyses.ask_of_ctx ctx) st]
+    [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
 
   let threadspawn ctx lval f args fctx = let st = ctx.local in (invalidate st.oct args); st
   let exitstate  _ = { oct = AD.top (); priv = Priv.startstate () }
