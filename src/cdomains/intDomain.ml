@@ -412,6 +412,19 @@ module Size = struct (* size in bits as int, range as int64 *)
           a,b
       else
         a, b
+
+  (* From the number of bits used to represent a positive value, determines the maximal representable value *)
+  let max_from_bit_range pos_bits =
+    match pos_bits with
+    | Some i when i < 64L -> Some(BI.(pred @@ shift_left BI.one (to_int (BI.of_int64 i)))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
+    | _ -> None
+
+  (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
+  let min_from_bit_range neg_bits =
+    match neg_bits with
+    | Some i when i > -64L -> Some(BI.(if i = 0L then BI.zero else neg @@ shift_left BI.one (to_int (neg (BI.of_int64 i))))) (* things that are smaller than (-2^63)can not be represented as int64 *)
+    | _ -> None
+
 end
 
 
@@ -1135,15 +1148,8 @@ struct
         )
       | `Bot -> `Bot
 
-  let max_of_range r =
-    match R.maximal r with
-    | Some i when i < 64L -> Some(BI.(pred @@ shift_left BI.one (to_int (BI.of_int64 i)))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
-    | _ -> None
-
-  let min_of_range r =
-    match R.minimal r with
-    | Some i when i > -64L -> Some(BI.(if i = 0L then BI.zero else neg @@ shift_left BI.one (to_int (neg (BI.of_int64 i))))) (* things that are smaller than (-2^63) can not be represented as int64 *)
-    | _ -> None
+  let max_of_range r = Size.max_from_bit_range (R.maximal r)
+  let min_of_range r = Size.min_from_bit_range (R.minimal r)
 
   let maximal = function
     | `Definite x -> Some x
@@ -1550,6 +1556,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let top_of ik = Exc (ISet.empty (), size ik)
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (ISet.empty ())
+  let top_bool = Inc (ISet.of_list [I.zero; I.one])
 
   let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
@@ -1636,16 +1643,22 @@ module Enums : S with type int_t = BigInt.t = struct
   let narrow = meet
 
   let leq x y = equal (join_ignore_ikind x y) y
+  let handle_bot x y f = match is_bot x, is_bot y with
+    | false, false -> f ()
+    | true, false
+    | false, true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | true, true -> Inc (ISet.empty ())
 
   let lift1 f ikind v = norm ikind @@ match v with
+    | Inc x when ISet.is_empty x -> v (* Return bottom when value is bottom *)
     | Inc x when ISet.is_singleton x -> Inc (ISet.singleton (f (ISet.choose x)))
     | _ -> top_of ikind
 
-  let lift2 f (ikind: Cil.ikind) u v = norm ikind @@ match u, v with
-    | Inc e,_ when ISet.is_empty e -> u
-    | _,Inc e when ISet.is_empty e -> v
-    | Inc x,Inc y when ISet.is_singleton x && ISet.is_singleton y -> Inc (ISet.singleton (f (ISet.choose x) (ISet.choose y)))
-    | _,_ -> top_of ikind
+  let lift2 f (ikind: Cil.ikind) u v =
+    handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x,Inc y when ISet.is_singleton x && ISet.is_singleton y -> Inc (ISet.singleton (f (ISet.choose x) (ISet.choose y)))
+      | _,_ -> top_of ikind)
 
   let lift2 f ikind a b =
     try lift2 f ikind a b with Division_by_zero -> top_of ikind
@@ -1671,40 +1684,32 @@ module Enums : S with type int_t = BigInt.t = struct
     | x,y -> lift2 I.div ikind x y
 
   let rem = lift2 I.rem
-  let lt = lift2 I.lt
-  let gt = lift2 I.gt
-  let le = lift2 I.le
-  let ge = lift2 I.ge
-  let eq = lift2 (fun a b -> I.of_bool @@ I.equal a b) (* TODO: add more precise cases for Exc, like in DefExc? *)
-  let ne = lift2 (fun a b -> I.of_bool @@ not (I.equal a b)) (* TODO: add more precise cases for Exc, like in DefExc? *)
+
   let bitnot = lift1 BigInt.bitnot
   let bitand = lift2 BigInt.bitand
   let bitor  = lift2 BigInt.bitor
   let bitxor = lift2 BigInt.bitxor
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
-    (* BigInt only accepts int as second argument for shifts; perform conversion here *)
-    let shift_op_big_int a (b: int_t) =
-      let (b : int) = BI.to_int b in
-      shift_op a b
-    in
-    (* If one of the parameters of the shift is negative, the result is undefined *)
-    let x_min = minimal x in
-    let y_min = minimal y in
-    if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then
-      top_of ik
-    else
-      lift2 shift_op_big_int ik x y
+    handle_bot x y (fun () ->
+      (* BigInt only accepts int as second argument for shifts; perform conversion here *)
+      let shift_op_big_int a (b: int_t) =
+        let (b : int) = BI.to_int b in
+        shift_op a b
+      in
+      (* If one of the parameters of the shift is negative, the result is undefined *)
+      let x_min = minimal x in
+      let y_min = minimal y in
+      if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then
+        top_of ik
+      else
+        lift2 shift_op_big_int ik x y)
 
   let shift_left =
     shift BigInt.shift_left
 
   let shift_right =
     shift BigInt.shift_right
-
-  let lognot = lift1 I.lognot
-  let logand = lift2 I.logand
-  let logor  = lift2 I.logor
 
   let of_bool ikind x = Inc (ISet.singleton (if x then BI.one else BI.zero))
   let to_bool  = function
@@ -1723,8 +1728,75 @@ module Enums : S with type int_t = BigInt.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
-  let maximal = function Inc xs when not (ISet.is_empty xs) -> Some (ISet.max_elt xs) | _ -> None
-  let minimal = function Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs) | _ -> None
+
+  let lognot ik x =
+    if is_bot x
+    then x
+    else
+      match to_bool x with
+       | Some b -> of_bool ik (not b)
+       | None -> top_bool
+
+  let logand = lift2 I.logand
+  let logor  = lift2 I.logor
+  let maximal = function
+    | Inc xs when not (ISet.is_empty xs) -> Some (ISet.max_elt xs)
+    | Exc (excl,r) ->
+      (match Size.max_from_bit_range (R.maximal r) with
+       | None -> None
+       | Some range_max ->
+         let rec decrement_while_contained v s =
+           if ISet.mem range_max s
+           then decrement_while_contained (BI.sub v (BI.one)) s
+           else v
+         in
+         Some (decrement_while_contained range_max excl))
+    | _ (* bottom case *) -> None
+
+  let minimal = function
+    | Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs)
+    | Exc (excl,r) ->
+      (match Size.min_from_bit_range (R.minimal r) with
+       | None -> None
+       | Some range_min ->
+         let rec increment_while_contained v s =
+           if ISet.mem range_min s
+           then increment_while_contained (BI.add v (BI.one)) s
+           else v
+         in
+         Some (increment_while_contained range_min excl))
+    | _ (* bottom case *) -> None
+
+  let lt ik x y =
+    handle_bot x y (fun () ->
+      match minimal x, maximal x, minimal y, maximal y with
+      | _, Some x2, Some y1, _ when I.compare x2 y1 < 0 -> of_bool ik true
+      | Some x1, _, _, Some y2 when I.compare x1 y2 >= 0 -> of_bool ik false
+      | _, _, _, _ -> top_bool)
+
+  let gt ik x y = lt ik y x
+
+  let le ik x y =
+    handle_bot x y (fun () ->
+      match minimal x, maximal x, minimal y, maximal y with
+      | _, Some x2, Some y1, _ when I.compare x2 y1 <= 0 -> of_bool ik true
+      | Some x1, _, _, Some y2 when I.compare x1 y2 > 0 -> of_bool ik false
+      | _, _, _, _ -> top_bool)
+
+  let ge ik x y = le ik y x
+
+  let eq ik x y =
+    handle_bot x y (fun () ->
+      match x, y with
+      | Inc xs, Inc ys when ISet.is_singleton xs && ISet.is_singleton ys -> of_bool ik (I.equal (ISet.choose xs) (ISet.choose ys))
+      | _, _ ->
+        if is_bot (meet ik x y) then
+          (* If the meet is empty, there is no chance that concrete values are equal *)
+          of_bool ik false
+        else
+          top_bool)
+
+  let ne ik x y = lognot ik (eq ik x y)
 
   let invariant_ikind c ik x =
     let c = Cil.(Lval (Option.get c.Invariant.lval)) in

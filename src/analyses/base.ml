@@ -385,11 +385,6 @@ struct
    * Auxiliary functions for function calls
    **************************************************************************)
 
-  (* The normal haskell zip that throws no exception *)
-  let rec zip x y = match x,y with
-    | (x::xs), (y::ys) -> (x,y) :: zip xs ys
-    | _ -> []
-
   (* From a list of values, presumably arguments to a function, simply extract
    * the pointer arguments. *)
   let get_ptrs (vals: value list): address list =
@@ -1797,7 +1792,7 @@ struct
         {st with cpa = new_cpa}
     in
     (* Assign parameters to arguments *)
-    let pa = zip fundec.sformals vals in
+    let pa = GU.zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st)) in
@@ -1854,20 +1849,21 @@ struct
       end
     | _ ->  []
 
-  let assert_fn ctx e warn change =
+  let assert_fn ctx e should_warn change =
+
     let check_assert e st =
       match eval_rv (Analyses.ask_of_ctx ctx) ctx.global st e with
       | `Int v when ID.is_bool v ->
         begin match ID.to_bool v with
-          | Some false ->  `False
-          | Some true  ->  `True
+          | Some false ->  `Lifted false
+          | Some true  ->  `Lifted true
           | _ -> `Top
         end
       | `Bot -> `Bot
       | _ -> `Top
     in
     let expr = sprint d_exp e in
-    let warn ?annot msg = if warn then
+    let warn ?annot msg = if should_warn then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
           let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
@@ -1883,11 +1879,19 @@ struct
         ) else
           M.warn_each ~ctx:ctx.control_context msg
     in
-    match check_assert e ctx.local with
-    | `False ->
+    let base_result = check_assert e ctx.local in
+    let result =
+      if should_warn then
+        let other_analsyis_result = ctx.ask (Q.Assert e) in
+        Basetype.Bools.meet base_result other_analsyis_result
+      else
+        base_result
+    in
+    match result with
+    | `Lifted false ->
       warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
-    | `True ->
+    | `Lifted true ->
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
@@ -1898,7 +1902,7 @@ struct
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
-        (* if check_assert e newst <> `True then
+        (* if check_assert e newst <> `Lifted true then
             M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
         newst
       end

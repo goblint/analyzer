@@ -51,7 +51,9 @@ Other tracing functions are available:
 
 To build a Goblint executable with debug information, run the following command within the `analyzer` directory.
 
-`make debug`
+```console
+make debug
+```
 
 This will create a file called `goblint.byte`.
 
@@ -68,12 +70,16 @@ Install the [`hackwaly.ocamlearlybird` extension](https://marketplace.visualstud
 To be able to use this extension, you additionally need to install `ocamlearlybird` on the opam switch you use for Goblint.
 Running:
 
-`make dev`
+```console
+make dev
+```
 
 will install `ocamlearlybird` along with some other useful development tools.
 In case you do not want to install all of these and only want to install `ocamlearlybird` by itself, run the following command in the `analyzer` directory:
 
-`opam install earlybird`
+```console
+opam install earlybird
+```
 
 ### Providing a Launch Configuration
 
@@ -104,7 +110,7 @@ Note that the individual arguments to Goblint should be passed here as separate 
 
 To make sure that VS Code can find `ocamlearlybird`, run the following commands in the `analyzer` directory:
 
-```
+```console
 eval $(opam env) // Sets up envrionment variables
 code .           // Starts VS Code in the current directory
 ```

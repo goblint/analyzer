@@ -8,13 +8,39 @@
   (public_name goblint.lib)
   (wrapped false)
   (modules :standard \ goblint mainarinc maindomaintest mainspec
-    apronDomain poly violationZ3 privPrecCompare)
+    violationZ3 privPrecCompare)
   (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js
-    qcheck-core.runner)
+    qcheck-core.runner
+    ; Conditionally compile based on whether apron optional dependency is installed or not.
+    ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
+    ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
+    (select apronDomain.ml from
+      (apron apron.polkaMPQ -> apronDomain.apron.ml)
+      (-> apronDomain.no-apron.ml)
+    )
+    (select octApronDomain.ml from
+      (apron apron.octD -> octApronDomain.apron.ml)
+      (-> octApronDomain.no-apron.ml)
+    )
+    (select poly.ml from
+      (apron -> poly.apron.ml)
+      (-> poly.no-apron.ml)
+    )
+    (select octApron.ml from
+      (apron -> octApron.apron.ml)
+      (-> octApron.no-apron.ml)
+    )
+  )
   (preprocess
     (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson
       ppx_distr_guards ocaml-monadic))
 )
+
+; Workaround for alternative dependencies with unqualified subdirs.
+; See: https://github.com/ocaml/dune/issues/4383#issuecomment-805107435.
+; TODO: Remove workaround with dune 3.0, where this should get fixed.
+(copy_files cdomains/apron/*.ml)
+(copy_files analyses/apron/*.ml)
 
 (executables
   (names goblint maindomaintest) ; TODO: separate domaintest executable?

@@ -6,7 +6,7 @@ open Apron
 
 open ApronDomain
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -19,7 +19,7 @@ struct
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
 
-  let threadenter ctx lval f args = D.top ()
+  let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  _ = D.top ()
   let startstate _ = D.top ()
@@ -103,21 +103,21 @@ struct
       | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> D.assign_var ctx.local v.vname e
       | _ -> D.topE (A.env ctx.local)
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let d = ctx.local in
     match q with
     | EvalInt e ->
       begin
         match D.get_int_val_for_cil_exp d e with
-        | Some i -> `Int i
+        | Some i -> ID.of_int i
         | _ -> `Top
       end
     | MustBeEqual (e1, e2) ->
       if D.cil_exp_equals d e1 e2 then true
       else false
-    | _ -> Result.top ()
+    | _ -> Result.top q
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

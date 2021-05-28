@@ -363,8 +363,10 @@ struct
     (* call print_stats every dbg.solver-stats-interval *)
     Sys.set_signal Sys.sigvtalrm (Signal_handle print_stats);
     (* https://ocaml.org/api/Unix.html#TYPEinterval_timer ITIMER_VIRTUAL is user time; sends sigvtalarm; ITIMER_PROF/sigprof is already used in Timeout.Unix.timeout *)
-    let it = float_of_int (get_int "dbg.solver-stats-interval") in
-    ignore Unix.(setitimer ITIMER_VIRTUAL { it_interval = it; it_value = it });
+    let ssi = get_int "dbg.solver-stats-interval" in
+    if ssi > 0 then
+      let it = float_of_int ssi in
+      ignore Unix.(setitimer ITIMER_VIRTUAL { it_interval = it; it_value = it });
 end
 
 (** use this if your [box] is [join] --- the simple solver *)

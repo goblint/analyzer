@@ -438,3 +438,8 @@ let signal_of_string = let open Sys in function
   | s -> failwith ("Unhandled signal " ^ s)
 
 let self_signal signal = Unix.kill (Unix.getpid ()) signal
+
+(* The normal haskell zip that throws no exception *)
+let rec zip x y = match x,y with
+  | (x::xs), (y::ys) -> (x,y) :: zip xs ys
+  | _ -> []

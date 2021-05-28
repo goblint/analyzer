@@ -14,6 +14,7 @@ module VI = Lattice.Flat (Basetype.Variables) (struct
 end)
 
 module PartAccessResult = Access.PartAccessResult
+module AR = Basetype.Bools (* TODO: move to BoolDomain? *)
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
@@ -58,6 +59,7 @@ type _ t =
   | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
+  | Assert: exp -> AR.t t
 
 type 'a result = 'a
 
@@ -105,6 +107,7 @@ struct
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
+    | Assert _ -> (module AR)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -151,4 +154,5 @@ struct
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> PartAccessResult.top ()
+    | Assert _ -> AR.top ()
 end
