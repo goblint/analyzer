@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','octApron','mallocWrapper']"
+// PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','octagon','mallocWrapper']"
 void main(void) {
   int i = 0;
   int j = i;
