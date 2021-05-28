@@ -46,7 +46,7 @@ struct
   let copy x = x
   let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b (* ignores fundec component *)
   let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x (* ignores fundec component *)
-  let hash (x,a,f) = ProgLines.hash x * f.svar.vid * MyCFG.Node.hash a (* FIXME: doesn't agree with equal, considers fundec component *)
+  let hash (x,a,f) = ProgLines.hash x * MyCFG.Node.hash a (* ignores fundec component *)
   let pretty_node () (l,x) =
     match x with
     | MyCFG.Statement     s -> dprintf "statement \"%a\" at %a" dn_stmt s ProgLines.pretty l
