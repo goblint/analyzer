@@ -8,6 +8,7 @@ pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A);
   g = 2; // write something non-initial so base wouldn't find success
+  assert(g == 2);
   pthread_mutex_unlock(&A);
   return NULL;
 }
