@@ -272,12 +272,7 @@ struct
   let rec assert_inv d x b =
     try
       let x = match x with
-        | BinOp (Lt, _, _, _) -> x 
-        | BinOp (Gt, _, _, _) -> x 
-        | BinOp (Le, _, _, _) -> x 
-        | BinOp (Ge, _, _, _) -> x 
-        | BinOp (Eq, _, _, _) -> x 
-        | BinOp (Ne, _, _, _) -> x 
+        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> x
         (* For expressions x that aren't a BinOp with a comparison operator,
          assert(x) will be converted it to assert(x != 0) *)
         | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
