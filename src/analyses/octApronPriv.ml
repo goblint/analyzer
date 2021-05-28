@@ -138,7 +138,7 @@ struct
     st
 
   let threadenter ask (st: OctApronComponents (D).t): OctApronComponents (D).t =
-    {oct = OctApronDomain.D.bot (); priv = startstate ()}
+    {oct = OctApronDomain.D.top (); priv = startstate ()}
 
   let init () = ()
   let finalize () = ()
