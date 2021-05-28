@@ -467,3 +467,8 @@ end = struct
         v
     | `Computed v -> v
 end
+
+(* The normal haskell zip that throws no exception *)
+let rec zip x y = match x,y with
+  | (x::xs), (y::ys) -> (x,y) :: zip xs ys
+  | _ -> []

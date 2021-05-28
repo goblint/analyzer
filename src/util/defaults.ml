@@ -134,6 +134,10 @@ let _ = ()
       ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
+      ; reg Analyses "ana.octapron.no_uints"    "false"  "Use OctApron without tracking unsigned integers."
+      ; reg Analyses "ana.octapron.no_floats"   "true"  "Use OctApron without tracking floats."
+      ; reg Analyses "ana.octapron.no_signed_overflow" "true" "Assume there will be no signed overflow for OctApron."
+      ; reg Analyses "ana.octapron.vars"    "[]"           "Variables tracked by OctApron. Empty list means all are included!"
 
 (* {4 category [Semantics]} *)
 let _ = ()

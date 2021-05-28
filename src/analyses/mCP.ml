@@ -261,10 +261,10 @@ struct
   let init () =
     let map' f =
       let f x =
-        try Some (f x)
+        try f x
         with Not_found -> raise @@ ConfigError ("Analysis '"^x^"' not found. Abort!")
       in
-      List.filter_map f
+      List.map f
     in
     let xs = map Json.string @@ get_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in
