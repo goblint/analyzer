@@ -6,6 +6,7 @@ include CompareAST
 type nodes_diff = {
   unchangedNodes: (node * node) list;
   primObsoleteNodes: node list;
+  primNewNodes: node list
 }
 
 type changed_global = {
@@ -24,35 +25,6 @@ type change_info = {
 
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
-module StdS = Set.Make (
-  struct
-    let compare = compare
-    type t = (node * node) * (edge list * edge list) * (node * node)
-  end
-)
-
-module DiffS = Set.Make (
-  struct
-    let compare = compare
-    type t = (node * node) * edge list * node
-  end
-)
-
-module NodeSet = Set.Make (
-    struct
-      let compare = compare
-      type t = node
-    end
-)
-
-module NodeNodeSet = Set.Make (
-    struct
-      let compare = compare
-      type t = node * node
-    end
-)
-
-(* in contrast to the original eq_varinfo in CompareAST, this method also ignores location, vid, vreferenced, vdescr, vdescrpure, vinline, vaddrof *)
 let eq_varinfo' (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b.vtype && eq_list eq_attribute a.vattr b.vattr &&
                                            a.vstorage = b.vstorage && a.vglob = b.vglob
 
@@ -67,9 +39,8 @@ let eq_instr' (a: instr) (b: instr) = match a, b with
   | VarDecl (v1, _l1), VarDecl (v2, _l2) -> eq_varinfo' v1 v2
   | _, _ -> false
 
-(* in contrast to the similar method eq_stmtkind in CompareAST,
-this method does not compare the inner body, that is sub blocks,
-of if and switch statements *)
+(* in contrast to the similar method eq_stmtkind in CompareAST, this method does not compare the inner body,
+   that is sub blocks, of if and switch statements *)
 let eq_stmtkind' ((a, af): stmtkind * fundec) ((b, bf): stmtkind * fundec) =
   let eq_block' = fun x y -> eq_block (x, af) (y, bf) in
   match a, b with
@@ -172,9 +143,11 @@ let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 
   Queue.push (entryNode1,entryNode2) waitingList; compareNext (); (same, diff)
 
 let reexamine f1 f2 same diff (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) =
+  let module NodeSet = Set.Make(Node) in
+  let module NodeNodeSet = Set.Make (struct type t = node * node let compare = compare end) in
   let diffNodes1 = Hashtbl.fold (fun n _ acc -> NodeSet.add n acc) diff NodeSet.empty in
-  let sameNodes = let fromStdSet = Hashtbl.fold (fun (n1, n2) _ acc -> NodeNodeSet.add (n1,n2) acc) same NodeNodeSet.empty in
-    let notInDiff = NodeNodeSet.filter (fun (n1,n2) -> not (NodeSet.mem n1 diffNodes1)) fromStdSet in
+  let sameNodes =
+    let notInDiff = Hashtbl.fold (fun (n1,n2) _ acc -> if NodeSet.mem n1 diffNodes1 then acc else NodeNodeSet.add (n1,n2) acc) same NodeNodeSet.empty in
     NodeNodeSet.add (FunctionEntry f1, FunctionEntry f2) notInDiff in
 
   let diffNodes2, _ =
@@ -205,9 +178,8 @@ let reexamine f1 f2 same diff (module Cfg1 : CfgForward) (module Cfg2 : CfgForwa
 
 let compareFun (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
   let same, diff = compareCfgs (module Cfg1) (module Cfg2) fun1 fun2 in
-  let unchanged, primDiff1, primDiff2 = reexamine fun1 fun2 same diff (module Cfg1) (module Cfg2) in
-  Printf.printf "unchanged: %d, primDiff1: %d, primDiff2: %d\n" (List.length unchanged) (List.length primDiff1) (List.length primDiff2);
-  unchanged, primDiff1, primDiff2
+  let unchanged, diffNodes1, diffNodes2 = reexamine fun1 fun2 same diff (module Cfg1) (module Cfg2) in
+  unchanged, diffNodes1, diffNodes2
 
 let eqF' (a: Cil.fundec) (module Cfg1 : MyCFG.CfgForward) (b: Cil.fundec) (module Cfg2 : MyCFG.CfgForward) =
   let unchangedHeader =
@@ -218,10 +190,10 @@ let eqF' (a: Cil.fundec) (module Cfg1 : MyCFG.CfgForward) (b: Cil.fundec) (modul
   let identical, diffOpt =
     try
       let sameDef = unchangedHeader && List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) in
-      let matches, primObsoleteNodes, primNewNodes = compareFun (module Cfg1) (module Cfg2) a b in
+      let matches, diffNodes1, diffNodes2 = compareFun (module Cfg1) (module Cfg2) a b in
       if not sameDef then (false, None)
-      else if List.length primObsoleteNodes = 0 && List.length primNewNodes = 0 then (true, None)
-      else (false, Some {unchangedNodes = matches; primObsoleteNodes = primObsoleteNodes})
+      else if List.length diffNodes1 = 0 && List.length diffNodes2 = 0 then (true, None)
+      else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
     with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
       false, None in
   identical, unchangedHeader, diffOpt
