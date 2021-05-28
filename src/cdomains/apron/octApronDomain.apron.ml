@@ -53,6 +53,12 @@ struct
   let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
   let print_octagon o = print_endline (show o)
 
+  (* Apron can not join two abstract values have different environments.
+  That hapens when we do a join with dead code and for that reason we need
+  to handle joining with bottom manually.
+  A similar if-based structure with is_top and is_bottom is also there for:
+  meet, widen, narrow, equal, leq.*)
+
   let join x y =
     let ret = if is_bot x then
       y
@@ -105,13 +111,14 @@ struct
   let typesort =
     let f (is,fs) v =
       if isIntegralType v.vtype then
-        if GobConfig.get_bool "ana.oct_no_uints" then
-          match v.vtype with
-          | TInt(IUInt, i) -> (is, fs)
-          | _ -> (v.vname::is,fs)
+        if GobConfig.get_bool "ana.octapron.no_uints" then
+          if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
+            (v.vname::is,fs)
+          else
+            (is,fs)
         else
           (v.vname::is,fs)
-      else if isArithmeticType v.vtype then
+      else if (isArithmeticType v.vtype) && (not (GobConfig.get_bool "ana.octapron.no_floats")) then
         (is,v.vname::fs)
       else
         (is,fs)
@@ -264,11 +271,12 @@ struct
   with the linear constraints coming from the given expression *)
   let rec assert_inv d x b =
     try
-      (* if assert(x) then convert it to assert(x != 0) *)
       let x = match x with
-        | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
-        BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
-        | _ -> x in
+        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> x
+        (* For expressions x that aren't a BinOp with a comparison operator,
+         assert(x) will be converted it to assert(x != 0) *)
+        | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
+        in
       match x with
       | BinOp (Ne, lhd, rhs, intType) ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
@@ -367,7 +375,7 @@ struct
       Texpr1.of_expr env lhost
 
   let is_chosen (v:string) =
-    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "octagon_vars") in
+    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
     if List.length oct_vars == 0 then
       true
     else
@@ -568,7 +576,7 @@ struct
             check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
           if signed then
             if check_max <> `True || check_min <> `True then
-              if GobConfig.get_bool "ana.int.no_signed_overflow" then
+              if GobConfig.get_bool "ana.octapron.no_signed_overflow" then
                 new_oct
               else
                 (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)

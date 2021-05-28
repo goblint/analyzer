@@ -91,7 +91,6 @@ let _ = ()
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
       ; reg Std "warn"            "'post'"       "Output warnings: 'post'. Output warnings after solving. Best results. 'never': Do not produce warnings, 'early'. For debugging. Outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
-      ; reg Std "octagon_vars"    "[]"           "Variables tracked by the octagon"
 
 (* {4 category [Analyses]} *)
 let _ = ()
@@ -117,7 +116,6 @@ let _ = ()
       ; reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags."
       ; reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure"
       ; reg Analyses "ana.int.wrap_on_signed_overflow" "false" "Whether to assume wrap-around behavior on signed overflow. If set to true, assumes two's complement representation of signed integers. If set to false, goes to top on signed overflow."
-      ; reg Analyses "ana.int.no_signed_overflow" "true" "Assume there will be no signed overflow."
       ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: (int64 * int64) option."
       ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
@@ -136,7 +134,10 @@ let _ = ()
       ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
-      ; reg Analyses "ana.oct_no_uints"    "false"  "Use OctApron without tracking unsigned integers."
+      ; reg Analyses "ana.octapron.no_uints"    "false"  "Use OctApron without tracking unsigned integers."
+      ; reg Analyses "ana.octapron.no_floats"   "true"  "Use OctApron without tracking floats."
+      ; reg Analyses "ana.octapron.no_signed_overflow" "true" "Assume there will be no signed overflow for OctApron."
+      ; reg Analyses "ana.octapron.vars"    "[]"           "Variables tracked by OctApron. Empty list means all are included!"
 
 (* {4 category [Semantics]} *)
 let _ = ()
@@ -216,7 +217,7 @@ let _ = ()
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
       ; reg Debugging "dbg.timeout"         "'0'"   "Stop solver after this time. 0 means no timeout. Supports optional units h, m, s. E.g. 1m6s = 01m06s = 66; 6h = 6*60*60."
-      ; reg Debugging "dbg.solver-stats-interval"   "10" "Interval in seconds to print statistics while solving."
+      ; reg Debugging "dbg.solver-stats-interval"   "10" "Interval in seconds to print statistics while solving. Set to 0 to deactivate."
       ; reg Debugging "dbg.solver-signal"   "'sigusr1'" "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml)."
       ; reg Debugging "dbg.backtrace-signal" "'sigusr2'" "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml)."
       ; reg Debugging "dbg.solver-progress" "false" "Used for debugging. Prints out a symbol on solving a rhs."
@@ -296,7 +297,6 @@ let default_schema = "\
   , 'load_run'        : {}
   , 'compare_runs'    : {}
   , 'warn'            : {}
-  , 'octagon_vars'    : {}
   }
 }"
 

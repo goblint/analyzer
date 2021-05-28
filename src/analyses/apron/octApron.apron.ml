@@ -286,3 +286,12 @@ module rec Spec: MCPSpec = SpecFunctor (OctApronPriv.TracingPriv (OctApronPriv.W
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
+
+let () =
+  Printexc.register_printer
+    (function
+      | Apron.Manager.Error e -> 
+        let () = Apron.Manager.print_exclog Format.str_formatter e in
+        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ())) 
+      | _ -> None (* for other exceptions *)
+    )

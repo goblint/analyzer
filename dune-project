@@ -39,7 +39,5 @@
   )
   (depopts
     apron
-    apron.polkaMPQ
-    apron.octD
   )
 )
