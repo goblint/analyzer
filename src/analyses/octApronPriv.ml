@@ -71,7 +71,9 @@ struct
   open WriteCenteredD
   module D = Lattice.Prod (W) (P)
 
-  module G = Lattice.Unit
+  module G = AD
+
+  let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
   let startstate () = (W.bot (), P.top ())
 
@@ -94,7 +96,8 @@ struct
     let p' = P.add g (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     (* TODO: implement *)
-    {st with priv = (w', p')}
+    let oct' = A.assign_texpr Man.mgr st.oct (Var.of_string g.vname) (Texpr1.var (A.env st.oct) (Var.of_string x.vname)) None in (* TODO: unsound? *)
+    {st with oct = oct'; priv = (w', p')}
 
   let lock ask getg (st: OctApronComponents (D).t) m = st
 

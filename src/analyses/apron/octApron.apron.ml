@@ -218,7 +218,7 @@ struct
     if AD.is_bot st.oct then D.bot () else
       match lv with
       (* Lvals which are numbers, have no offset and their address wasn't taken *)
-      | Var v, NoOffset when isArithmeticType v.vtype && not v.vaddrof ->
+      | Var v, NoOffset when isArithmeticType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
         if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
         let ask = Analyses.ask_of_ctx ctx in
         let r =
@@ -290,8 +290,8 @@ let _ =
 let () =
   Printexc.register_printer
     (function
-      | Apron.Manager.Error e -> 
+      | Apron.Manager.Error e ->
         let () = Apron.Manager.print_exclog Format.str_formatter e in
-        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ())) 
+        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ()))
       | _ -> None (* for other exceptions *)
     )
