@@ -81,6 +81,30 @@ struct
 
   (* TODO: distr_init? *)
 
+  let restrict_globals oct =
+    match !MyCFG.current_node with
+    | Some node ->
+      let fd = MyCFG.getFun node in
+      if M.tracing then M.trace "apronpriv" "restrict_globals %s\n" fd.svar.vname;
+      (* TODO: avoid *)
+      let vars =
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+          match global with
+          | GVar (vi, _, _) ->
+            vi :: acc
+            (* TODO: what about GVarDecl? *)
+          | _ -> acc
+        ) []
+      in
+      let to_keep = List.map (fun v -> v.vname) vars in
+      let oct' = A.copy Man.mgr oct in
+      AD.remove_all_but_with oct' to_keep;
+      oct'
+    | None ->
+      (* TODO: when does this happen? *)
+      if M.tracing then M.trace "apronpriv" "restrict_globals -\n";
+      AD.top ()
+
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let s = current_lockset ask in
     let (w, p) = st.priv in
@@ -97,6 +121,7 @@ struct
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     (* TODO: implement *)
     let oct' = A.assign_texpr Man.mgr st.oct (Var.of_string g.vname) (Texpr1.var (A.env st.oct) (Var.of_string x.vname)) None in (* TODO: unsound? *)
+    sideg (global_varinfo ()) (restrict_globals oct');
     {st with oct = oct'; priv = (w', p')}
 
   let lock ask getg (st: OctApronComponents (D).t) m = st
@@ -106,6 +131,7 @@ struct
     let (w, p) = st.priv in
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
     (* TODO: implement *)
+    sideg (global_varinfo ()) (restrict_globals st.oct);
     {st with priv = (w, p')}
 
   let sync ask getg sideg (st: OctApronComponents (D).t) reason =
@@ -138,7 +164,7 @@ struct
     st
 
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
-    {oct = OctApronDomain.D.top (); priv = startstate ()}
+    {oct = getg (global_varinfo ()); priv = startstate ()}
 
   let init () = ()
   let finalize () = ()

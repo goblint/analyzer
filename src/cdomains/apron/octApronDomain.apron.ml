@@ -510,7 +510,7 @@ struct
 
   let remove_all d vars =
     let newd = A.copy Man.mgr d in
-    forget_all_with newd vars;
+    forget_all_with newd vars; (* TODO: why does this forget instead of remove? *)
     newd
 
   let copy = A.copy Man.mgr
