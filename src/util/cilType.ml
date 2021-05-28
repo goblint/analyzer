@@ -165,6 +165,7 @@ struct
   (* Identity *)
   (* Need custom compare because normal compare on CIL Exp might not terminate *)
   let rec compare a b =
+    (* ArrayDomain seems to rely on this constructor order for "simpler" expressions *)
     let order x = match x with
       | Const _ -> 0
       | Lval _ -> 1
