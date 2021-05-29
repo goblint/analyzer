@@ -13,12 +13,12 @@ int main( )
     {
         ptr[i] = 5; //WARN
     }
-    int * ptr = arr2;
-    ptr[3] = 10; //WARN
-    ptr[-1] = 10; //WARN
+    int * ptr2 = arr2;
+    ptr2[3] = 10; //WARN
+    ptr2[-1] = 10; //WARN
     for (int i = 0; i < 5; ++i)
     {
-        ptr[i] = 5; //WARN
+        ptr2[i] = 5; //WARN
     }
     return 0;
 }
