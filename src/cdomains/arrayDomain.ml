@@ -592,7 +592,7 @@ struct
         | Some false, Some true ->
           M.warn_each "[Array out of bounds][MUST] Array index is before the beginning of the array."
         | None, Some true ->
-          M.warn_each "[Array out of bounds][MUST] Array index might be before the beginning of the array."
+          M.warn_each "[Array out of bounds][MAY] Array index might be before the beginning of the array."
         | _ ->
           M.warn_each "[Array out of bounds][MAY] Array index might be out of bounds."
       in
