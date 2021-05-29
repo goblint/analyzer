@@ -18,10 +18,10 @@ int main() {
   stu[-1].roll = 10;    // WARN
   stu[20].marks = 89.5f; //WARN
   for (int i = 0; i < 3; ++i) {
-    stu[i].roll = 5;
+    stu[i].roll = 5; // NOWARN
   }
   for (int i = 0; i < 10; ++i) {
-    stu[i].roll = 5;
+    stu[i].roll = 5; // WARN
   }
   return 0;
 }
