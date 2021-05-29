@@ -577,18 +577,26 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (ask : Q.ask) (x, (l : idx)) (e, v) =
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
     if GobConfig.get_bool "ana.arrayoob" then
       let length_check = Idx.lt v l
       and zero_check = Idx.ge v (Idx.of_int Cil.ILong BI.zero) in
       let bool_length = Idx.to_bool length_check
       and bool_zero = Idx.to_bool zero_check in
       let () =
-        match (bool_length, bool_zero) with
-        | Some true, Some true ->
+        match(bool_zero, bool_length) with
+        | Some true, Some true -> (* Certainly in bounds on both sides.*)
           ()
+        | Some true, Some false ->
+          M.warn_each "[Array out of bounds][MUST] Array index is past the end of the array."
+        | Some true, None ->
+          M.warn_each "[Array out of bounds][MAY] Array index might be past the end of the array."
+        | Some false, Some true ->
+          M.warn_each "[Array out of bounds][MUST] Array index is before the beginning of the array."
+        | None, Some true ->
+          M.warn_each "[Array out of bounds][MUST] Array index might be before the beginning of the array."
         | _ ->
-          M.warn_each "Array out of bounds"
+          M.warn_each "[Array out of bounds][MAY] Array index might be out of bounds."
       in
       Base.get ask x (e, v)
     else Base.get ask x (e, v)
