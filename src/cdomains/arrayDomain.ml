@@ -579,12 +579,10 @@ struct
   type value = Val.t
   let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
     if GobConfig.get_bool "ana.arrayoob" then
-      let length_check = Idx.lt v l
-      and zero_check = Idx.ge v (Idx.of_int Cil.ILong BI.zero) in
-      let bool_length = Idx.to_bool length_check
-      and bool_zero = Idx.to_bool zero_check in
+      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
       let () =
-        match(bool_zero, bool_length) with
+        match(idx_after_start, idx_before_end) with
         | Some true, Some true -> (* Certainly in bounds on both sides.*)
           ()
         | Some true, Some false ->
