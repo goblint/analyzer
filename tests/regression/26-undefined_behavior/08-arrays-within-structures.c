@@ -8,7 +8,7 @@ int main()
     char  name[100];
     int   roll;
     float marks;
-} stu[100];
+};
 // Structure array declaration
 struct student stu[100];
 struct student stu[100] = 
