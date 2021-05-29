@@ -1,3 +1,4 @@
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']" --set dbg.debug true --enable ana.arrayoob
 //Dynamically sized array: oob access
 #include <stdio.h>
 int main()

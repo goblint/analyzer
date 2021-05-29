@@ -1,3 +1,4 @@
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']" --set dbg.debug true --enable ana.arrayoob
 //Pointer pointing to arrays of different sizes
 #include <stdio.h>
 int main( )
