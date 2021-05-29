@@ -10,7 +10,6 @@ int main()
     float marks;
 };
 // Structure array declaration
-struct student stu[100];
 struct student stu[100] = 
 {
     { "vandah", 12, 89.5f },
