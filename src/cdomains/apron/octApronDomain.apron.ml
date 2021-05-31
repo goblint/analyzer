@@ -29,7 +29,7 @@ module D =
 struct
   type t = Man.mt A.t
 
-  let name () = "APRON octagon numerical abstract domain"
+  let name () = "OctApron"
 
   let topE = A.top    Man.mgr
   let botE = A.bottom Man.mgr
