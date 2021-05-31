@@ -111,13 +111,13 @@ struct
         | `Malloc size ->
           begin match r with
             | Some lv ->
-              {st with oct = AD.remove_all st.oct [f.vname]}
+              {st with oct = AD.forget_all st.oct [f.vname]}
             | _ -> st
           end
         | `Calloc (n, size) ->
           begin match r with
             | Some lv ->
-              {st with oct = AD.remove_all st.oct [f.vname]}
+              {st with oct = AD.forget_all st.oct [f.vname]}
             | _ -> st
           end
         | `ThreadJoin (id,ret_var) ->
@@ -209,7 +209,7 @@ struct
     in
     if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
     let oct' = AD.assign_var_handling_underflow_overflow st'.oct v e' in (* x = e; *)
-    let oct'' = AD.remove_all' oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    let oct'' = AD.remove_all oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     {st' with oct = oct''}
 
   let assign ctx (lv:lval) e =
@@ -229,7 +229,7 @@ struct
             let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
             if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
             let st' = Priv.write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-            let oct'' = AD.remove_all' st'.oct [v_out.vname] in (* remove temporary g#out *)
+            let oct'' = AD.remove_all st'.oct [v_out.vname] in (* remove temporary g#out *)
             {st' with oct = oct''}
           )
         in
