@@ -39,13 +39,16 @@ struct
     | Index (e,offs) -> G.join (collect_casts e) (collect_casts_offs offs)
     | NoOffset -> G.bot ()
 
+  let side_effect_casts ctx (e: exp) =
+    let side_effects = collect_casts e in
+    let current_fun = MyCFG.getFun ctx.node in
+    (* Side effect to the function start node *)
+    ctx.sideg current_fun.svar side_effects
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let side_effects = collect_casts rval in
-    let current_fun = MyCFG.getFun ctx.node in
-    (* Side effect to the function start node *)
-    ctx.sideg current_fun.svar side_effects;
+    side_effect_casts ctx rval;
+    (* TODO: side effect lval *)
     ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -58,12 +61,17 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+    (* TODO: Side effect? *)
     [ctx.local, ctx.local]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+    List.iter (side_effect_casts ctx) args;
+    (* TODO: side effect lval *)
     au
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
+    List.iter (side_effect_casts ctx) args;
+    (* TODO: side effect lval *)
     ctx.local
 
   let startstate v = D.bot ()
