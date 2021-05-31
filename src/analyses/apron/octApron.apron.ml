@@ -177,8 +177,6 @@ struct
         ) vars
       in
       let vars = AD.typesort vars in
-      let add_temps = List.concat_map (fun v -> [v; v ^ "#in"]) in
-      let vars = Tuple2.mapn add_temps vars in
       {st with oct = AD.add_vars st.oct vars}
 
   let assign_with_globals ask getg st v e =
@@ -203,6 +201,7 @@ struct
       end
     in
     let e' = visitCilExpr visitor e in
+    let st = {st with oct = AD.add_vars st.oct (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum), [])} in (* add temporary g#in-s *)
     let st' = VH.fold (fun v v_in st ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
         Priv.read_global ask getg st v v_in (* g#in = g; *)
@@ -210,7 +209,7 @@ struct
     in
     if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
     let oct' = AD.assign_var_handling_underflow_overflow st'.oct v e' in (* x = e; *)
-    let oct'' = AD.remove_all oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    let oct'' = AD.remove_all' oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     {st' with oct = oct''}
 
   let assign ctx (lv:lval) e =
