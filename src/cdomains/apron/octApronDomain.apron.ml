@@ -46,8 +46,7 @@ struct
   let relift x = x
 
   let show (x:t) =
-    A.print Legacy.Format.str_formatter x;
-    Legacy.Format.flush_str_formatter ()
+    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
 
   let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
   let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
