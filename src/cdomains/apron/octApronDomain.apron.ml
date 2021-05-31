@@ -512,6 +512,11 @@ struct
     forget_all_with newd vars; (* TODO: why does this forget instead of remove? *)
     newd
 
+  let remove_all' d vars =
+    let newd = A.copy Man.mgr d in
+    remove_all_with newd vars;
+    newd
+
   let copy = A.copy Man.mgr
 
   let get_int_interval_for_cil_exp d cil_exp =

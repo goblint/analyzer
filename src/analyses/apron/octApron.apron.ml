@@ -177,7 +177,7 @@ struct
         ) vars
       in
       let vars = AD.typesort vars in
-      let add_temps = List.concat_map (fun v -> [v; v ^ "#out"; v ^ "#in"]) in
+      let add_temps = List.concat_map (fun v -> [v; v ^ "#in"]) in
       let vars = Tuple2.mapn add_temps vars in
       {st with oct = AD.add_vars st.oct vars}
 
@@ -226,10 +226,11 @@ struct
             assign_with_globals ask ctx.global st v e
           else (
             let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+            let st = {st with oct = AD.add_vars st.oct ([v_out.vname], [])} in (* add temporary g#out *)
             let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
             if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
             let st' = Priv.write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-            let oct'' = AD.remove_all st'.oct [v_out.vname] in (* remove temporary g#out *)
+            let oct'' = AD.remove_all' st'.oct [v_out.vname] in (* remove temporary g#out *)
             {st' with oct = oct''}
           )
         in
