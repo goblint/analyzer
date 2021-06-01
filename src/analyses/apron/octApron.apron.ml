@@ -167,7 +167,7 @@ struct
     if AD.is_bot st.oct then D.bot () else
       let vars = f.slocals in
       (* TODO: avoid adding all global (with temps) to environment *)
-      let vars =
+      (* let vars =
         foldGlobals !Cilfacade.current_file (fun acc global ->
           match global with
           | GVar (vi, _, _) ->
@@ -175,7 +175,7 @@ struct
             (* TODO: what about GVarDecl? *)
           | _ -> acc
         ) vars
-      in
+      in *)
       let vars = AD.typesort vars in
       {st with oct = AD.add_vars st.oct vars}
 
