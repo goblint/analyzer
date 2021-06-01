@@ -177,7 +177,7 @@ struct
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
-        fprintf f "\n<glob><key>%s</key>%a</glob>" (Goblintutil.escape (Basetype.Variables.show k)) Spec.G.printXml v;
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (Basetype.Variables.show k)) Spec.G.printXml v;
       in
       GHT.iter print_globals g
     in

@@ -169,7 +169,7 @@ struct
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.show k)) Range.printXml v
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (Domain.show k)) Range.printXml v
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;

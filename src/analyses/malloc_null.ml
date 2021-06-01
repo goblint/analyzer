@@ -39,7 +39,7 @@ struct
       | (`Field (f1, o1), `Field (f2,o2)) -> f1 == f2 && is_offs_prefix_of o1 o2
       | (_, _) -> false
     in
-    (v1.vid == v2.vid) && is_offs_prefix_of ofs1 ofs2
+    CilType.Varinfo.equal v1 v2 && is_offs_prefix_of ofs1 ofs2
 
   (* We just had to dereference an lval --- warn if it was null *)
   let warn_lval (st:D.t) (v :varinfo * (Addr.field,Addr.idx) Lval.offs) : unit =

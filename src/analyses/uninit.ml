@@ -108,10 +108,10 @@ struct
     let rec is_offs_prefix_of pr os =
       match (pr, os) with
       | (`NoOffset, _) -> true
-      | (`Field (f1, o1), `Field (f2,o2)) -> f1.fname = f2.fname && is_offs_prefix_of o1 o2
+      | (`Field (f1, o1), `Field (f2,o2)) -> CilType.Fieldinfo.equal f1 f2 && is_offs_prefix_of o1 o2
       | (_, _) -> false
     in
-    (v1.vid == v2.vid) && is_offs_prefix_of ofs1 ofs2
+    CilType.Varinfo.equal v1 v2 && is_offs_prefix_of ofs1 ofs2
 
 
   (* Does it contain non-initialized variables? *)
@@ -155,9 +155,9 @@ struct
     in
     let rec bothstruct (t:fieldinfo list) (tf:fieldinfo) (o:fieldinfo list) (no:lval_offs)  : var_offs list =
       match t, o with
-      | x::xs, y::ys when x.fcomp.ckey = tf.fcomp.ckey && x.fname = tf.fname ->
+      | x::xs, y::ys when CilType.Fieldinfo.equal x tf ->
         get_pfx v (`Field (y, cx)) no x.ftype y.ftype
-      | x::xs, y::ys when Basetype.CilExp.compareType x.ftype y.ftype = 0 ->
+      | x::xs, y::ys when CilType.Typ.equal x.ftype y.ftype -> (* different fields, same type? *)
         bothstruct xs tf ys no
       | x::xs, y::ys ->
         [] (* found a mismatch *)

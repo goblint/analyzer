@@ -79,7 +79,7 @@ struct
     | TArray (t1,d1,_), TArray (t2,d2,_) -> option_eq exp_equal d1 d2 && typ_equal t1 t2
     | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (for_all2 args_eq) arg1 arg2
     | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
-    | TComp (c1,_), TComp (c2,_) -> c1.ckey = c2.ckey
+    | TComp (c1,_), TComp (c2,_) -> CilType.Compinfo.equal c1 c2
     | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename && for_all2 eitem_eq e1.eitems e2.eitems
     | TBuiltin_va_list _, TBuiltin_va_list _ -> true
     | _ -> false
@@ -88,13 +88,13 @@ struct
     let rec offs_equal o1 o2 =
       match o1, o2 with
       | NoOffset, NoOffset -> true
-      | Field (f1, o1), Field (f2,o2) -> f1.fcomp.ckey = f2.fcomp.ckey && f1.fname = f2.fname && (match Cil.unrollType f1.ftype with | TArray(TFloat _,_,_) | TFloat _ -> false | _ -> true)  &&offs_equal o1 o2
+      | Field (f1, o1), Field (f2,o2) -> CilType.Fieldinfo.equal f1 f2 && (match Cil.unrollType f1.ftype with | TArray(TFloat _,_,_) | TFloat _ -> false | _ -> true)  &&offs_equal o1 o2
       | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2
       | _ -> false
     in
     offs_equal o1 o2
     && match l1, l2 with
-    | Var v1, Var v2 -> v1.vid = v2.vid && (match Cil.unrollTypeDeep v1.vtype with | TArray(TFloat _,_,_) | TFloat  _-> false | _ -> true)
+    | Var v1, Var v2 -> CilType.Varinfo.equal v1 v2 && (match Cil.unrollTypeDeep v1.vtype with | TArray(TFloat _,_,_) | TFloat  _-> false | _ -> true)
     | Mem m1, Mem m2 -> exp_equal m1 m2
     | _ -> false
 
@@ -274,13 +274,13 @@ struct
         let rec oleq o s =
           match o, s with
           | `NoOffset, _ -> true
-          | `Field (f1,o), `Field (f2,s) when f1.fname = f2.fname -> oleq o s
+          | `Field (f1,o), `Field (f2,s) when CilType.Fieldinfo.equal f1 f2 -> oleq o s
           | `Index (i1,o), `Index (i2,s) when exp_equal i1 i2     -> oleq o s
           | _ -> false
         in
         if Queries.LS.is_top als
         then false
-        else Queries.LS.exists (fun (u,s) ->  v.vid = u.vid && oleq o s) als
+        else Queries.LS.exists (fun (u,s) -> CilType.Varinfo.equal v u && oleq o s) als
       in
       let (als, test) =
         match addrOfExp a with
@@ -412,13 +412,13 @@ struct
       let rec is_prefix x1 x2 =
         match x1, x2 with
         | _, `NoOffset -> true
-        | Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> is_prefix o1 o2
+        | Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> is_prefix o1 o2
         | Index (_,o1), `Index (_,o2) -> is_prefix o1 o2
         | _ -> false
       in
       let has_reachable_prefix v1 ofs =
         let suitable_prefix (v2,ofs2) =
-          v1.vid = v2.vid
+          CilType.Varinfo.equal v1 v2
           && is_prefix ofs ofs2
         in
         Queries.LS.exists suitable_prefix r

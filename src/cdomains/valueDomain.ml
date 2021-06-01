@@ -58,7 +58,7 @@ struct
   type size = Size.t
   type origin = ZeroInit.t
   let printXml f (x, y, z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
   let make v s = v, s, true
   let value (a, b, c) = a
@@ -669,7 +669,7 @@ struct
         | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with
-          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.compareExp i Cil.zero = 0 && var.vid = arr_start_var.vid ->
+          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.equal i Cil.zero && CilType.Varinfo.equal var arr_start_var ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)

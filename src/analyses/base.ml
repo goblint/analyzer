@@ -220,7 +220,7 @@ struct
             let rec calculateDiffFromOffset x y =
               match x, y with
               | `Field ((xf:Cil.fieldinfo), xo), `Field((yf:Cil.fieldinfo), yo)
-                when  xf.floc = yf.floc && xf.fname = yf.fname && Cil.typeSig xf.ftype = Cil.typeSig yf.ftype && xf.fbitfield = yf.fbitfield && xf.fattr = yf.fattr ->
+                when CilType.Fieldinfo.equal xf yf ->
                 calculateDiffFromOffset xo yo
               | `Index (i, `NoOffset), `Index(j, `NoOffset) ->
                 begin
@@ -230,13 +230,13 @@ struct
                   | Some z -> `Int(ID.of_int ik z)
                   | _ -> `Int (ID.top_of ik)
                 end
-              | `Index (xi, xo), `Index(yi, yo) when xi = yi ->
+              | `Index (xi, xo), `Index(yi, yo) when xi = yi -> (* TODO: ID.equal? *)
                 calculateDiffFromOffset xo yo
               | _ -> `Int (ID.top_of result_ik)
             in
             if AD.is_definite p1 && AD.is_definite p2 then
               match Addr.to_var_offset (AD.choose p1), Addr.to_var_offset (AD.choose p2) with
-              | [x, xo], [y, yo] when x.vid = y.vid ->
+              | [x, xo], [y, yo] when CilType.Varinfo.equal x y ->
                 calculateDiffFromOffset xo yo
               | _ ->
                 `Int (ID.top_of result_ik)
@@ -1567,7 +1567,7 @@ struct
     let is_list_init () =
       match lval, rval with
       | (Var a, Field (fi,NoOffset)), AddrOf((Var b, NoOffset))
-        when !GU.global_initialization && a.vid = b.vid
+        when !GU.global_initialization && CilType.Varinfo.equal a b
              && fi.fcomp.cname = "list_head"
              && (fi.fname = "prev" || fi.fname = "next") -> Some a
       | _ -> None
@@ -2080,8 +2080,8 @@ struct
           match LF.get_invalidate_action f.vname with
           | Some fnc -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (fnc `Write  args)
           | None -> (
-              (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
-              (if f.vid = dummyFunDec.svar.vid then M.warn_each ("Unknown function ptr called"));
+              (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
+              (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ("Unknown function ptr called"));
               let addrs =
                 if get_bool "sem.unknown_function.invalidate.globals" then (
                   M.warn_each "INVALIDATING ALL GLOBALS!";

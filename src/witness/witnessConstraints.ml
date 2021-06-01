@@ -17,7 +17,7 @@ struct
     | Statement stmt  -> string_of_int stmt.sid
     | Function f      -> "return of " ^ f.vname ^ "()"
     | FunctionEntry f -> f.vname ^ "()"
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
   let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"
