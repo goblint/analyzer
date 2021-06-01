@@ -594,6 +594,30 @@ struct
 
 end
 
+(** With heterogeneous environments. *)
+module D2 =
+struct
+  include D
+
+  let gce (x: Environment.t) (y: Environment.t): Environment.t =
+    let (xi, xf) = Environment.vars x in
+    (* TODO: check type compatibility *)
+    let i = Array.filter (Environment.mem_var y) xi in
+    let f = Array.filter (Environment.mem_var y) xf in
+    Environment.make i f
+
+  let join x y =
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let c_env = gce x_env y_env in
+    let x_c = A.change_environment Man.mgr x c_env false in
+    let y_c = A.change_environment Man.mgr y c_env false in
+    let join_c = A.join Man.mgr x_c y_c in
+    let j_env = Environment.lce x_env y_env in
+    A.change_environment Man.mgr join_c j_env false
+    (* TODO: strengthening *)
+end
+
 
 (* Copy-paste from BaseDomain... *)
 type 'a octaproncomponents_t = {

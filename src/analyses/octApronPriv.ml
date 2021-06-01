@@ -5,7 +5,7 @@ open BaseUtil
 module Q = Queries
 
 module OctApronComponents = OctApronDomain.OctApronComponents
-module AD = OctApronDomain.D
+module AD = OctApronDomain.D2
 module A = OctApronDomain.A
 module Man = OctApronDomain.Man
 open Apron
@@ -71,7 +71,7 @@ struct
   open WriteCenteredD
   module D = Lattice.Prod (W) (P)
 
-  module G = Lattice.Reverse (AD)
+  module G = AD
 
   let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
