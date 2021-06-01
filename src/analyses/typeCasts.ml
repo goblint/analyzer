@@ -24,8 +24,9 @@ struct
     (* TODO: Add handling for lvalues!*)
     | Lval lv -> collect_casts_lv lv
     | CastE (t,e) ->
-      let typeOrig = TypeSigSet.singleton (typeSig (typeOf e)) in
-      G.singleton (typeSig t) typeOrig
+      let orig_type = typeSig (typeOf e) in
+      let casted_to_type = TypeSigSet.singleton (typeSig t) in
+      G.singleton orig_type casted_to_type
     | UnOp (_,e,t) -> collect_casts e
     | BinOp (_,e1,e2,_) -> G.join (collect_casts e1) (collect_casts e2)
     | _ -> G.bot ()
@@ -39,16 +40,21 @@ struct
     | Index (e,offs) -> G.join (collect_casts e) (collect_casts_offs offs)
     | NoOffset -> G.bot ()
 
-  let side_effect_casts ctx (e: exp) =
-    let side_effects = collect_casts e in
+  let side_effect_casts ctx (g: G.t) =
     let current_fun = MyCFG.getFun ctx.node in
     (* Side effect to the function start node *)
-    ctx.sideg current_fun.svar side_effects
+    ctx.sideg current_fun.svar g
+
+  let side_effect_casts_lv ctx (lv: lval) =
+    side_effect_casts ctx (collect_casts_lv lv)
+
+  let side_effect_casts_exp ctx (e: exp) =
+    side_effect_casts ctx (collect_casts e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    side_effect_casts ctx rval;
-    (* TODO: side effect lval *)
+    side_effect_casts_exp ctx rval;
+    side_effect_casts_lv ctx lval;
     ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -65,13 +71,13 @@ struct
     [ctx.local, ctx.local]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    List.iter (side_effect_casts ctx) args;
-    (* TODO: side effect lval *)
+    List.iter (side_effect_casts_exp ctx) args;
+    ignore @@ BatOption.map (side_effect_casts_lv ctx) lval;
     au
 
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
-    List.iter (side_effect_casts ctx) args;
-    (* TODO: side effect lval *)
+    List.iter (side_effect_casts_exp ctx) args;
+    ignore @@ BatOption.map (side_effect_casts_lv ctx) lval;
     ctx.local
 
   let startstate v = D.bot ()

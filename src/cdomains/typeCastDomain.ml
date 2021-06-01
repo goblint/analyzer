@@ -9,17 +9,14 @@ struct
   let hash = Hashtbl.hash
 
   let pretty = Cil.d_typsig
-  let pretty_diff = failwith "unimplemented"
-  (* These two lets us reuse the short function, and allows some overriding
-   * possibilities. *)
-  let printXml = failwith "uimplemented"
-  (* This is for debugging *)
+  let pretty_diff _ _ = failwith "unimplemented pretty_diff"
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
   let name () = "typeCasts"
 
   let invariant _ _ = None
-  let tag = failwith "unimplemented"
+  let tag _ = failwith "unimplemented tag"
 
-  let arbitrary = failwith "unimplemented arbitrary"
+  let arbitrary _ = failwith "unimplementmed arbitrary"
 
   let relift x = x
 
