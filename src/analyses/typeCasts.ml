@@ -24,8 +24,8 @@ struct
     (* TODO: Add handling for lvalues!*)
     | Lval lv -> collect_casts_lv lv
     | CastE (t,e) ->
-      let orig_type = typeSig (typeOf e) in
-      let casted_to_type = TypeSigSet.singleton (typeSig t) in
+      let orig_type = typeOf e in
+      let casted_to_type = TypeSet.singleton t in
       G.singleton orig_type casted_to_type
     | UnOp (_,e,t) -> collect_casts e
     | BinOp (_,e1,e2,_) -> G.join (collect_casts e1) (collect_casts e2)

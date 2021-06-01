@@ -1,14 +1,14 @@
-module TypeSig : MapDomain.Groupable with type t = Cil.typsig =
+module Type : MapDomain.Groupable with type t = Cil.typ =
 struct
-  type t = Cil.typsig
+  type t = Cil.typ
 
   let compare = Stdlib.compare
   let equal = (=)
-  let show x = Pretty.sprint ~width:80 (Cil.d_typsig () x)
+  let show x = Pretty.sprint ~width:80 (Cil.d_type () x)
   let to_yojson (x :t) = `String (show x)
   let hash = Hashtbl.hash
 
-  let pretty = Cil.d_typsig
+  let pretty = Cil.d_type
   let pretty_diff _ _ = failwith "unimplemented pretty_diff"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
   let name () = "typeCasts"
@@ -27,5 +27,5 @@ struct
   let  trace_enabled = false
 end
 
-module TypeSigSet = SetDomain.Make (TypeSig)
-module TypeCastMap = MapDomain.MapBot (TypeSig) (TypeSigSet)
+module TypeSet = SetDomain.Make (Type)
+module TypeCastMap = MapDomain.MapBot_LiftTop (Type) (TypeSet)

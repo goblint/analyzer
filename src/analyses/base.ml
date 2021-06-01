@@ -93,7 +93,9 @@ struct
     | `Lifted v -> (AD.from_var v)
     | _ -> failwith "Ran without heap analysis"
 
-  let create_val ask t : value * (address * typ * value) list = VD.arg_value (arg_value ask) t
+  let create_val (f: varinfo) (ask: Q.ask) t : value * (address * typ * value) list =
+    let map = ask.f (Q.TypeCasts f) in
+    VD.arg_value map (arg_value ask) t
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
@@ -1996,15 +1998,15 @@ struct
     List.concat (List.map do_exp exps)
 
   (** Library analysis: Initialization of a variable value with a symbolic memory block representation. *)
-  let init_var_with_symbolic_value ask global local (v: varinfo) : store =
+  let init_var_with_symbolic_value ctx (f: (* varinfo of function we analyze *) varinfo) global local (v: varinfo) : store =
     let t = unrollType v.vtype in
-    let value = create_val ask t in
+    let ask = Analyses.ask_of_ctx ctx in
+    let value = create_val f ask t in
     let st = set ask ~force_update:true global local (AD.from_var v) t (fst value) in
     List.fold (fun st (a, t, v) -> set ask ~force_update:true global st a t v) st (snd value)
 
-  let init_vars_with_symbolic_values ask globals local (vs: varinfo list) : store =
-    List.fold (fun st v -> init_var_with_symbolic_value ask globals st v) local vs
-
+  let init_vars_with_symbolic_values ctx (f: varinfo) globals local (vs: varinfo list) : store =
+    List.fold (fun st v -> init_var_with_symbolic_value ctx f globals st v) local vs
 
   (** Module for maps with typesigs as keys  *)
   module TM = Map.Make(struct type t = Cil.typsig let compare = Stdlib.compare end)
@@ -2078,11 +2080,11 @@ struct
     if get_bool "ana.library" then begin
       (* Initialize arguments with symbolic values *)
       let fundec = Cilfacade.getdec fn in
-      let st' = init_vars_with_symbolic_values (Analyses.ask_of_ctx ctx) ctx.global (D.bot ()) fundec.sformals in
+      let st' = init_vars_with_symbolic_values ctx fn ctx.global (D.bot ()) fundec.sformals in
       (* Inititalize globals with symbolic values *)
       let globals = CPA.filter (fun k v -> V.is_global k && not (is_heap_var (Analyses.ask_of_ctx ctx) k)) st.cpa in
       let global_list = CPA.fold (fun k v acc -> k::acc) globals [] in
-      let st' = init_vars_with_symbolic_values (Analyses.ask_of_ctx ctx) ctx.global st' global_list in
+      let st' = init_vars_with_symbolic_values ctx fn ctx.global st' global_list in
       let map = extract_type_to_address_map_from_state st' in
       TM.iter (fun t a -> M.tracel "entry" "typesig %a has possible address: %a \n" Cil.d_typsig t AD.pretty a) map;
       let pointers = find_pointers st' in

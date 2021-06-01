@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open GobConfig
+open TypeCastDomain
 
 include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
@@ -33,7 +34,7 @@ sig
   val bot_value: typ -> t
   val init_value: typ -> t
   val top_value: typ -> t
-  val arg_value: (typ -> AddrSetDomain.elt list BatMap.Int.t) -> typ -> t * (address * typ * t) list
+  val arg_value: TypeCastDomain.TypeCastMap.t -> (typ -> AddrSetDomain.elt list BatMap.Int.t) -> typ -> t * (address * typ * t) list
   val zero_init_value: typ -> t
 end
 
@@ -161,7 +162,7 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
-    let arg_value (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
+    let arg_value (map: TypeCastDomain.TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
       (* Record mapping from types to addresses created for blocks with corresponding type *)
       let type_to_symbolic_address = Hashtbl.create 113 in
       let rec arg_comp compinfo l : Structs.t * (address * typ * t) list =
@@ -179,14 +180,29 @@ struct
              If this is not the case, we create an address, store it in the hashtable,
              and recursively construct a value for the pointed to type.
           *)
-          (match Hashtbl.find type_to_symbolic_address pointed_to_t with
+          begin
+            match Hashtbl.find type_to_symbolic_address pointed_to_t with
             | v -> `Address v, l
             | exception Not_found ->
-                let heap_var = heap_var pointed_to_t in
-                let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
-                Hashtbl.add type_to_symbolic_address pointed_to_t heap_var_or_NULL;
-                let (tval, l2) = arg_val pointed_to_t l  in
-                `Address (heap_var_or_NULL), (heap_var, pointed_to_t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::l2)
+              begin
+                let types = TypeSet.singleton (pointed_to_t) in
+                let types = match TypeCastMap.find_opt (TPtr (pointed_to_t, [])) map with
+                | Some cast_to_types ->
+                  TypeSet.join types cast_to_types
+                  | None -> types
+                in
+                let do_typ pointed_to_t acc =
+                  let heap_var = heap_var pointed_to_t in
+                  let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
+                  Hashtbl.add type_to_symbolic_address pointed_to_t heap_var_or_NULL;
+                  let (tval, l2) = arg_val pointed_to_t l in
+                  (heap_var, pointed_to_t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::l2@acc
+                in
+                let heap_vars = TypeSet.fold do_typ types [] in
+                let addr = List.fold_left (fun acc (ad,_,_) -> AD.join acc ad) AD.null_ptr heap_vars in
+                `Address addr, heap_vars
+              end
+            end
         | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
         | TComp ({cstruct=false; _},_) -> `Union (Unions.top ()), l
         | TArray (ai, None, _) -> let v, adrs = arg_val ai l in
