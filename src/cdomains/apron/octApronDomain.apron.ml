@@ -4,6 +4,8 @@ open Pretty
 (* For Apron implementation of octagons *)
 open Apron
 
+module M = Messages
+
 exception Invalid_CilExpToLhost
 exception Invalid_CilExpToLexp
 
@@ -615,7 +617,30 @@ struct
     let join_c = A.join Man.mgr x_c y_c in
     let j_env = Environment.lce x_env y_env in
     A.change_environment Man.mgr join_c j_env false
-    (* TODO: strengthening *)
+
+  let strengthening j x y =
+    if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
+    let j_env = A.env j in
+    let x_j = A.change_environment Man.mgr x j_env false in
+    let y_j = A.change_environment Man.mgr y j_env false in
+    let x_cons = A.to_lincons_array Man.mgr x_j in
+    let y_cons = A.to_lincons_array Man.mgr y_j in
+    let try_add_con j con0 =
+      let cons1: Lincons1.earray = {lincons0_array = [|con0|]; array_env = j_env} in
+      if M.tracing then M.trace "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.array_print: Format.formatter -> Lincons1.earray -> unit) cons1);
+      let t = A.meet_lincons_array Man.mgr j cons1 in
+      if A.is_leq Man.mgr x_j t && A.is_leq Man.mgr y_j t then
+        t
+      else
+        j
+    in
+    let j = Array.fold_left try_add_con j x_cons.lincons0_array in
+    let j = Array.fold_left try_add_con j y_cons.lincons0_array in
+    if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+    j
+
+  let join x y =
+    strengthening (join x y) x y
 end
 
 
