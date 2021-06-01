@@ -163,7 +163,7 @@ struct
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t) =
     (* TODO: implement *)
-    st
+    {st with oct = AD.meet st.oct (getg (global_varinfo ()))}
 
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     {oct = getg (global_varinfo ()); priv = startstate ()}
