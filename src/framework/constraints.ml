@@ -622,7 +622,7 @@ struct
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d =
-      if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
+      if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
          (get_bool "kernel" || get_string "ana.osek.oil" <> "")
       then toplevel_kernel_return ret fd ctx sideg

@@ -1548,7 +1548,7 @@ module Enums : S with type int_t = BigInt.t = struct
     include SetDomain.Make(I)
     let is_singleton s = cardinal s = 1
   end
-  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving eq, to_yojson] (* inclusion/exclusion set *)
+  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving eq, ord, to_yojson] (* inclusion/exclusion set *)
 
   type int_t = BI.t
   let name () = "enums"
@@ -1567,17 +1567,6 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map I.show (ISet.elements xs))) ^ "} " ^ "("^R.show r^")"
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-
-  let compare a b =
-    let value c =
-      match c with Inc _ -> 0 | Exc _ -> 1
-    in
-    match a, b with
-    | Inc x, Inc y -> ISet.compare x y
-    | Exc (x,r), Exc (y, s) ->
-        let comp_sets = ISet.compare x y in
-        if comp_sets = 0 then R.compare r s else comp_sets
-    | _, _ -> compare (value a) (value b)
 
   let hash = function
     | Inc x -> ISet.hash x

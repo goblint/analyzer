@@ -98,7 +98,7 @@ struct
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (CPA.name ())) CPA.printXml r.cpa (Goblintutil.escape (PartDeps.name ())) PartDeps.printXml r.deps (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (CPA.name ())) CPA.printXml r.cpa (XmlUtil.escape (PartDeps.name ())) PartDeps.printXml r.deps (XmlUtil.escape (PrivD.name ())) PrivD.printXml r.priv
 
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ PrivD.name ()
 

@@ -69,9 +69,9 @@ struct
 
   let rec replace_elem (v,o) q ex =
     match ex with
-    | AddrOf  (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
-    | StartOf (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
-    | Lval    (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
+    | AddrOf  (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
+    | StartOf (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
+    | Lval    (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
     | CastE (_,e)           -> replace_elem (v,o) q e
     | _ -> v, Offs.from_offset (conv_offset o)
 
@@ -171,7 +171,7 @@ struct
       let conf = if includes_uk then conf - 10 else conf in
       let f (var, offs) =
         let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
+        if CilType.Varinfo.equal var dummyFunDec.svar then
           add_access conf None (Some coffs)
         else
           add_access conf (Some var) (Some coffs)
