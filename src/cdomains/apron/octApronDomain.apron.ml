@@ -620,6 +620,8 @@ struct
 
   let strengthening j x y =
     if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
+    let x_env = A.env x in
+    let y_env = A.env y in
     let j_env = A.env j in
     let x_j = A.change_environment Man.mgr x j_env false in
     let y_j = A.change_environment Man.mgr y j_env false in
@@ -629,7 +631,9 @@ struct
       let cons1: Lincons1.earray = {lincons0_array = [|con0|]; array_env = j_env} in
       if M.tracing then M.trace "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.array_print: Format.formatter -> Lincons1.earray -> unit) cons1);
       let t = A.meet_lincons_array Man.mgr j cons1 in
-      if A.is_leq Man.mgr x_j t && A.is_leq Man.mgr y_j t then
+      let t_x = A.change_environment Man.mgr t x_env false in
+      let t_y = A.change_environment Man.mgr t y_env false in
+      if A.is_leq Man.mgr x t_x && A.is_leq Man.mgr y t_y then
         t
       else
         j
@@ -640,7 +644,12 @@ struct
     j
 
   let join x y =
-    strengthening (join x y) x y
+    if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
+    let j = join x y in
+    if M.tracing then M.trace "apron" "j = %a\n" pretty j;
+    let j = strengthening j x y in
+    if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+    j
 
   let meet x y =
     A.unify Man.mgr x y
