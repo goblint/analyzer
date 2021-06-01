@@ -226,7 +226,7 @@ struct
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublic {global=v; write} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.filter snd ctx.local) in
-      (* TODO: unsound in 22/24, why did we do this before? *)
+      (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
         false
       else *)
@@ -234,7 +234,7 @@ struct
     | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
-      (* TODO: unsound in 22/24, why did we do this before? *)
+      (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
         false
       else *)
@@ -242,7 +242,7 @@ struct
     | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
       let held_locks: G.t = P.check_fun ~write mutex_lockset in
-      (* TODO: unsound in 22/24, why did we do this before? *)
+      (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex verifier_atomic then
         true
       else *)
