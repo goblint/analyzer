@@ -103,7 +103,7 @@ struct
     | None ->
       (* TODO: when does this happen? *)
       if M.tracing then M.trace "apronpriv" "restrict_globals -\n";
-      AD.top ()
+      AD.bot ()
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let s = current_lockset ask in

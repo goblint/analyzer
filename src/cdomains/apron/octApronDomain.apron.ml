@@ -641,6 +641,21 @@ struct
 
   let join x y =
     strengthening (join x y) x y
+
+  let meet x y =
+    A.unify Man.mgr x y
+
+  let bot () =
+    top ()
+
+  let top () =
+    failwith "D2.top"
+
+  (* TODO: is_bot, is_top *)
+
+  let leq x y =
+    (* TODO: more direct *)
+    equal (join x y) y
 end
 
 
