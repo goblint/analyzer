@@ -27,7 +27,9 @@ struct
       | true, false -> true
       | _ -> false
 
-  let filter_arg_vars ctx (s: Q.LS.t) = Q.LS.filter (fun (v,offset) -> is_arg_var ctx v) s
+
+  (* Returns the set of argument vars within the set of lvalues *)
+  let filter_arg_vars ctx (s: Q.LS.t): Q.LS.t = Q.LS.filter (fun (v,offset) -> is_arg_var ctx v) s
 
   let add_written_lval ctx (lval:lval): unit =
     let query e = ctx.ask (Q.MayPointTo e) in
@@ -35,7 +37,11 @@ struct
       | Mem e, NoOffset
       | Mem e, Index _ -> filter_arg_vars ctx (query e)
       | Mem e, Field (finfo, offs) ->
-        filter_arg_vars ctx (query e) |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
+        begin
+          match query e with
+          | `Top -> M.warn @@ "Write to top address occurs in expression " ^ (Pretty.sprint ~width:100 (Cil.d_exp () e)) ^ "\n"; Q.LS.bot ()
+          | s -> filter_arg_vars ctx s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
+        end
       | _, _ -> G.bot ()
     in
     side_to_f ctx side
