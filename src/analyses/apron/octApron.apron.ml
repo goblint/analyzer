@@ -281,11 +281,24 @@ struct
     Priv.finalize ()
 end
 
-(* TODO: make dynamically configurable *)
-module rec Spec: MCPSpec = SpecFunctor (OctApronPriv.TracingPriv (OctApronPriv.WriteCenteredPriv))
+
+let spec_module: (module MCPSpec) Lazy.t =
+  lazy (
+    let module Priv = (val OctApronPriv.get_priv ()) in
+    let module Spec = SpecFunctor (Priv) in
+    (module Spec)
+  )
+
+let get_spec (): (module MCPSpec) =
+  Lazy.force spec_module
+
+let after_config () =
+  let module Spec = (val get_spec ()) in
+  MCP.register_analysis (module Spec : MCPSpec)
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  AfterConfig.register after_config
+
 
 let () =
   Printexc.register_printer

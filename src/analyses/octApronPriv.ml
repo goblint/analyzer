@@ -279,3 +279,20 @@ struct
     if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
     r
 end
+
+
+let priv_module: (module S) Lazy.t =
+  lazy (
+    let module Priv: S =
+      (val match get_string "exp.octapron.privatization" with
+        | "dummy" -> (module Dummy: S)
+        | "write" -> (module WriteCenteredPriv)
+        | _ -> failwith "exp.octapron.privatization: illegal value"
+      )
+    in
+    let module Priv = TracingPriv (Priv) in
+    (module Priv)
+  )
+
+let get_priv (): (module S) =
+  Lazy.force priv_module
