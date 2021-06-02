@@ -284,8 +284,6 @@ module WP =
             let old_rho = HM.find rho k in
             let old_infl = HM.find_default infl k VS.empty in
             Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
-          (* Do not destabilize changed functions immediately, instead remove ret nodes from stable and wait for result of function-only solve *)
-          Hashtbl.iter (fun k v -> HM.remove stable k) old_ret
         ) else (
           HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry then destabilize k) stable
         );
