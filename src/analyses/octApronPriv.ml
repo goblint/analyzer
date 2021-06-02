@@ -83,19 +83,34 @@ struct
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     (* TODO: implement *)
-    if P.mem x st.priv then
-      st
-    else if is_unprotected ask x then
-      st
-    else
-      st
+    let oct_local = st.oct in
+    let oct_local =
+      if Environment.mem_var (A.env oct_local) (Var.of_string g.vname) then
+        A.assign_texpr Man.mgr oct_local (Var.of_string x.vname) (Texpr1.var (A.env oct_local) (Var.of_string g.vname)) None
+      else
+        oct_local
+    in
+    if P.mem g st.priv then
+      {st with oct = oct_local}
+    else if is_unprotected ask g then (
+      let g_unprot = g.vname ^ "#unprot" in
+      let oct_unprot = AD.add_vars st.oct ([g_unprot], []) in
+      let oct_unprot = A.assign_texpr Man.mgr oct_unprot (Var.of_string x.vname) (Texpr1.var (A.env oct_unprot) (Var.of_string g_unprot)) None in
+      {st with oct = AD.join oct_local oct_unprot}
+    )
+    else (
+      let g_prot = g.vname ^ "#prot" in
+      let oct_prot = AD.add_vars st.oct ([g_prot], []) in
+      let oct_prot = A.assign_texpr Man.mgr oct_prot (Var.of_string x.vname) (Texpr1.var (A.env oct_prot) (Var.of_string g_prot)) None in
+      {st with oct = AD.join oct_local oct_prot}
+    )
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
     (* TODO: implement *)
-    if is_unprotected ask x then
+    if is_unprotected ask g then
       st
     else
-      {st with priv = P.add x st.priv}
+      {st with priv = P.add g st.priv}
 
   let lock ask getg (st: OctApronComponents (D).t) m = st
 
@@ -127,7 +142,7 @@ struct
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t) =
     (* TODO: implement *)
-    {st with oct = AD.meet st.oct (getg (global_varinfo ()))}
+    {st with oct = AD.meet st.oct (getg (global_varinfo ())); priv = startstate ()}
 
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     {oct = getg (global_varinfo ()); priv = startstate ()}
