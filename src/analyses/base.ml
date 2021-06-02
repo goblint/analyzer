@@ -95,6 +95,7 @@ struct
 
   let create_val (f: varinfo) (ask: Q.ask) t : value * (address * typ * value) list =
     let map = ask.f (Q.TypeCasts f) in
+    M.tracel "args" "For function %s got map %a\n" f.vname TypeCastDomain.TypeCastMap.pretty map;
     VD.arg_value map (arg_value ask) t
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
@@ -533,7 +534,7 @@ struct
     let symb_value = get a g fun_st symb None in
     let (r, n) = get_concrete_value_and_new_blocks_from_value symb_value in
     (* Going from bot to top is here for the case that we did not create an symbolic abstraction, and therefore did not gather potential writes. If we always generate such a symbolic representation, in particular for the cases of casts, this should not be a problem. *)
-    let r = if VD.is_bot r then `Top else r in
+    (* let r = if VD.is_bot r then `Top else r in *)
     M.tracel "concretes" "Got concrete value %a for address %a \n" VD.pretty r AD.pretty symb;
     (r, n)
 
@@ -1892,95 +1893,6 @@ struct
         Locmap.replace (dead_branches tv) !Tracing.next_loc false;
       refine ()
 
-  let body ctx f =
-    (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
-    (* Apply it to all the locals and then assign them all *)
-    let inits = List.map init_var f.slocals in
-    set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
-
-  let return ctx exp fundec: store =
-    let st: store = ctx.local in
-    match fundec.svar.vname with
-    | "__goblint_dummy_init"
-    | "StartupHook" ->
-      if M.tracing then M.trace "init" "dummy init: %a\n" D.pretty st;
-      publish_all ctx `Init;
-      (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
-      (* TODO: move into sync `Init *)
-      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
-    | _ ->
-      let locals = (fundec.sformals @ fundec.slocals) in
-      let nst_part = rem_many_paritioning (Analyses.ask_of_ctx ctx) ctx.local locals in
-      let nst: store = rem_many (Analyses.ask_of_ctx ctx) nst_part locals in
-      match exp with
-      | None -> nst
-      | Some exp ->
-        let t_override = match fundec.svar.vtype with
-          | TFun(TVoid _, _, _, _) -> M.warn "Returning a value from a void function"; assert false
-          | TFun(ret, _, _, _) -> ret
-          | _ -> assert false
-        in
-        (* Evaluate exp and cast the resulting value to the void-pointer-type.
-        Casting to the right type here avoids precision loss on joins. *)
-        let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp |> VD.cast ~torg:(typeOf exp) Cil.voidPtrType in
-        let nst: store =
-          match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add tid rv nst.cpa}
-          | _ -> nst
-        in
-        set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
-        (* lval_raw:None, and rval_raw:None is correct here *)
-
-  let vdecl ctx (v:varinfo) =
-    if not (Cil.isArrayType v.vtype) then
-      ctx.local
-    else
-      let lval = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Var v, NoOffset) in
-      let current_value = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
-      let new_value = VD.update_array_lengths (eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local) current_value v.vtype in
-      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval v.vtype new_value
-
-  (**************************************************************************
-   * Function calls
-   **************************************************************************)
-
-  (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
-  let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
-    let do_exp e =
-      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cil.typeOf e) (Pretty.sprint ~width:100 (Cil.d_exp () e)) in
-      reachable_vars ask [immediately_reachable] gs st
-    in
-    List.concat (List.map do_exp exps)
-
-  let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
-    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    if exps <> [] then M.warn_each ("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps);
-    (* To invalidate a single address, we create a pair with its corresponding
-     * top value. *)
-    let invalidate_address st a =
-      let t = AD.get_type a in
-      let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
-      let nv =  VD.invalidate_value ask t v in
-      (a, t, nv)
-    in
-    (* We define the function that invalidates all the values that an address
-     * expression e may point to *)
-    let invalidate_exp exps =
-      let args = collect_funargs ~warn:true ask gs st exps in
-      List.map (invalidate_address st) args
-    in
-    let invalids = invalidate_exp exps in
-    let is_fav_addr x =
-      List.exists BaseUtil.is_precious_glob (AD.to_var_may x)
-    in
-    let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
-    if M.tracing && exps <> [] then (
-      let addrs = List.map (Tuple3.first) invalids' in
-      let vs = List.map (Tuple3.third) invalids' in
-      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
-    );
-    set_many ?ctx ask gs st invalids'
 
   (* Variation of the above for yet another purpose, uhm, code reuse? *)
   let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) =
@@ -2079,18 +1991,19 @@ struct
     let st = ctx.local in
     if get_bool "ana.library" then begin
       (* Initialize arguments with symbolic values *)
-      let fundec = Cilfacade.getdec fn in
-      let st' = init_vars_with_symbolic_values ctx fn ctx.global (D.bot ()) fundec.sformals in
-      (* Inititalize globals with symbolic values *)
-      let globals = CPA.filter (fun k v -> V.is_global k && not (is_heap_var (Analyses.ask_of_ctx ctx) k)) st.cpa in
-      let global_list = CPA.fold (fun k v acc -> k::acc) globals [] in
-      let st' = init_vars_with_symbolic_values ctx fn ctx.global st' global_list in
-      let map = extract_type_to_address_map_from_state st' in
-      TM.iter (fun t a -> M.tracel "entry" "typesig %a has possible address: %a \n" Cil.d_typsig t AD.pretty a) map;
-      let pointers = find_pointers st' in
-      List.iter (fun a -> M.tracel "entry" "found pointer %a. \n" Addr.pretty a) pointers;
-      List.fold (update_pointer (Analyses.ask_of_ctx ctx) ctx.global map) st' pointers
-      (* st' *)
+      match Cilfacade.getdec fn with
+      | fundec ->
+        let st' = init_vars_with_symbolic_values ctx fn ctx.global (D.bot ()) fundec.sformals in
+        (* Inititalize globals with symbolic values *)
+        let globals = CPA.filter (fun k v -> V.is_global k && not (is_heap_var (Analyses.ask_of_ctx ctx) k)) st.cpa in
+        let global_list = CPA.fold (fun k v acc -> k::acc) globals [] in
+        let st' = init_vars_with_symbolic_values ctx fn ctx.global st' global_list in
+        let map = extract_type_to_address_map_from_state st' in
+        TM.iter (fun t a -> M.tracel "entry" "typesig %a has possible address: %a \n" Cil.d_typsig t AD.pretty a) map;
+        let pointers = find_pointers st' in
+        List.iter (fun a -> M.tracel "entry" "found pointer %a. \n" Addr.pretty a) pointers;
+        List.fold (update_pointer (Analyses.ask_of_ctx ctx) ctx.global map) st' pointers
+      | exception Not_found -> M.warn @@ "Did not find defintion of function " ^ fn.vname; D.bot () (* TODO: is this ok? *)
     end
     else
       (* Evaluate the arguments. *)
@@ -2123,10 +2036,106 @@ struct
       let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
       {st' with cpa = new_cpa}
 
+  let body ctx (f: fundec) =
+    let args = List.map (fun v -> Lval (var v)) f.sformals in
+    let st = if GobConfig.get_bool "ana.library" then make_entry ctx f.svar args else ctx.local in
+    let ctx = {ctx with local = st} in
+    (* First we create a variable-initvalue pair for each variable *)
+    let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
+    (* Apply it to all the locals and then assign them all *)
+    let inits = List.map init_var f.slocals in
+    let map = ctx.ask (Q.TypeCasts f.svar) in
+    M.tracel "args" "Body: For function %s got map %a\n" f.svar.vname TypeCastDomain.TypeCastMap.pretty map;
+    set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
+
+  let return ctx exp fundec: store =
+    let st: store = ctx.local in
+    match fundec.svar.vname with
+    | "__goblint_dummy_init"
+    | "StartupHook" ->
+      if M.tracing then M.trace "init" "dummy init: %a\n" D.pretty st;
+      publish_all ctx `Init;
+      (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
+      (* TODO: move into sync `Init *)
+      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
+    | _ ->
+      let locals = (fundec.sformals @ fundec.slocals) in
+      let nst_part = rem_many_paritioning (Analyses.ask_of_ctx ctx) ctx.local locals in
+      let nst: store = rem_many (Analyses.ask_of_ctx ctx) nst_part locals in
+      match exp with
+      | None -> nst
+      | Some exp ->
+        let t_override = match fundec.svar.vtype with
+          | TFun(TVoid _, _, _, _) -> M.warn "Returning a value from a void function"; assert false
+          | TFun(ret, _, _, _) -> ret
+          | _ -> assert false
+        in
+        (* Evaluate exp and cast the resulting value to the void-pointer-type.
+        Casting to the right type here avoids precision loss on joins. *)
+        let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp |> VD.cast ~torg:(typeOf exp) Cil.voidPtrType in
+        let nst: store =
+          match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add tid rv nst.cpa}
+          | _ -> nst
+        in
+        set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
+        (* lval_raw:None, and rval_raw:None is correct here *)
+
+  let vdecl ctx (v:varinfo) =
+    if not (Cil.isArrayType v.vtype) then
+      ctx.local
+    else
+      let lval = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Var v, NoOffset) in
+      let current_value = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
+      let new_value = VD.update_array_lengths (eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local) current_value v.vtype in
+      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval v.vtype new_value
+
+  (**************************************************************************
+   * Function calls
+   **************************************************************************)
+
+  (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
+  let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+    let do_exp e =
+      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cil.typeOf e) (Pretty.sprint ~width:100 (Cil.d_exp () e)) in
+      reachable_vars ask [immediately_reachable] gs st
+    in
+    List.concat (List.map do_exp exps)
+
+  let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
+    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
+    if exps <> [] then M.warn_each ("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps);
+    (* To invalidate a single address, we create a pair with its corresponding
+     * top value. *)
+    let invalidate_address st a =
+      let t = AD.get_type a in
+      let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
+      let nv =  VD.invalidate_value ask t v in
+      (a, t, nv)
+    in
+    (* We define the function that invalidates all the values that an address
+     * expression e may point to *)
+    let invalidate_exp exps =
+      let args = collect_funargs ~warn:true ask gs st exps in
+      List.map (invalidate_address st) args
+    in
+    let invalids = invalidate_exp exps in
+    let is_fav_addr x =
+      List.exists BaseUtil.is_precious_glob (AD.to_var_may x)
+    in
+    let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
+    if M.tracing && exps <> [] then (
+      let addrs = List.map (Tuple3.first) invalids' in
+      let vs = List.map (Tuple3.third) invalids' in
+      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
+    );
+    set_many ?ctx ask gs st invalids'
+
 
   let enter ctx lval fn args : (D.t * D.t) list =
     (* make_entry has special treatment for args that are equal to MyCFG.unknown_exp *)
-    [ctx.local, make_entry ctx fn args]
+    let callee_st = if GobConfig.get_bool "ana.library" then D.bot () else make_entry ctx fn args in
+    [ctx.local, callee_st]
 
   let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
     let create_thread lval arg v =
