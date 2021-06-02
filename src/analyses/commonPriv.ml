@@ -1,9 +1,40 @@
 open Prelude.Ana
 open Analyses
+open BaseUtil
 module Q = Queries
 
 module IdxDom = ValueDomain.IndexDomain
+module VD     = BaseDomain.VD
 
+module Protection =
+struct
+  let is_unprotected ask x: bool =
+    let multi = ThreadFlag.is_multi ask in
+    (!GU.earlyglobs && not multi && not (is_precious_glob x)) ||
+    (
+      multi &&
+      ask.f (Q.MayBePublic {global=x; write=true})
+    )
+
+  let is_unprotected_without ask ?(write=true) x m: bool =
+    ThreadFlag.is_multi ask &&
+    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m})
+
+  let is_protected_by ask m x: bool =
+    is_global ask x &&
+    not (VD.is_immediate_type x.vtype) &&
+    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true})
+
+  let is_atomic ask: bool =
+    ask Q.MustBeAtomic
+end
+
+module MustVars =
+struct
+  module MayVars = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+  include SetDomain.Reverse (MayVars)
+  let name () = "must variables"
+end
 
 module Locksets =
 struct

@@ -63,6 +63,79 @@ struct
   let finalize () = ()
 end
 
+(** Protection-Based Reading. *)
+module ProtectionBasedPriv: S =
+struct
+  open Protection
+
+  module P =
+  struct
+    include MustVars
+    let name () = "P"
+  end
+  module D = P
+
+  module G = AD
+
+  let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
+
+  let startstate () = P.empty ()
+
+  let read_global ask getg (st: OctApronComponents (D).t) g x =
+    (* TODO: implement *)
+    if P.mem x st.priv then
+      st
+    else if is_unprotected ask x then
+      st
+    else
+      st
+
+  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
+    (* TODO: implement *)
+    if is_unprotected ask x then
+      st
+    else
+      {st with priv = P.add x st.priv}
+
+  let lock ask getg (st: OctApronComponents (D).t) m = st
+
+  let unlock ask getg sideg (st: OctApronComponents (D).t) m =
+    (* TODO: implement *)
+    st
+
+  let sync ask getg sideg (st: OctApronComponents (D).t) reason =
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: implement? *)
+      begin match ThreadId.get_current ask with
+        | `Lifted x (* when CPA.mem x st.cpa *) ->
+          st
+        | _ ->
+          st
+      end
+    | `Normal
+    | `Join (* TODO: no problem with branched thread creation here? *)
+    | `Init
+    | `Thread ->
+      st
+
+  let escape ask getg sideg (st: OctApronComponents (D).t) escaped =
+    EscapeDomain.EscapedVars.fold (fun x acc ->
+        (* TODO: implement *)
+        st
+      ) escaped st
+
+  let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t) =
+    (* TODO: implement *)
+    {st with oct = AD.meet st.oct (getg (global_varinfo ()))}
+
+  let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
+    {oct = getg (global_varinfo ()); priv = startstate ()}
+
+  let init () = ()
+  let finalize () = ()
+end
+
 (** Write-Centered Reading. *)
 module WriteCenteredPriv: S =
 struct
@@ -286,6 +359,7 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "exp.octapron.privatization" with
         | "dummy" -> (module Dummy: S)
+        | "protection" -> (module ProtectionBasedPriv)
         | "write" -> (module WriteCenteredPriv)
         | _ -> failwith "exp.octapron.privatization: illegal value"
       )
