@@ -179,8 +179,9 @@ struct
       let vars = AD.typesort vars in
       {st with oct = AD.add_vars st.oct vars}
 
-  let assign_with_globals ask getg st v e =
-    let module VH = BatHashtbl.Make (Basetype.Variables) in
+  module VH = BatHashtbl.Make (Basetype.Variables)
+
+  let read_globals_to_locals ask getg st e =
     let v_ins = VH.create 10 in
     let visitor = object
         inherit nopCilVisitor
@@ -207,6 +208,10 @@ struct
         Priv.read_global ask getg st v v_in (* g#in = g; *)
       ) v_ins st
     in
+    (st', e', v_ins)
+
+  let assign_with_globals ask getg st v e =
+    let (st', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
     let oct' = AD.assign_var_handling_underflow_overflow st'.oct v e' in (* x = e; *)
     let oct'' = AD.remove_all oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
@@ -238,12 +243,18 @@ struct
       (* Ignoring all other assigns *)
       | _ -> st
 
+  let check_assert_with_globals ctx e =
+    let st = ctx.local in
+    let (st', e', _) = read_globals_to_locals (Analyses.ask_of_ctx ctx) ctx.global st e in
+    AD.check_assert e' st'.oct
+    (* no need to remove g#in-s *)
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
     match q with
     | Assert e ->
-      begin match AD.check_assert e st.oct with
+      begin match check_assert_with_globals ctx e with
         | `Top -> `Top
         | `True -> `Lifted true
         | `False -> `Lifted false
