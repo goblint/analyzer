@@ -87,15 +87,15 @@ struct
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
-    let g_var = Var.of_string g.vname in (* TODO: local *)
+    let g_local_var = var_local g in
     let x_var = Var.of_string x.vname in
     let oct_local =
-      if AD.mem_var oct g_var then
-        AD.assign_var' oct x_var g_var
+      if AD.mem_var oct g_local_var then
+        AD.assign_var' oct x_var g_local_var
       else
         AD.bot ()
     in
-    let oct' =
+    let oct_local' =
       if P.mem g st.priv then
         oct_local
       else if is_unprotected ask g then (
@@ -111,8 +111,8 @@ struct
         AD.join oct_local oct_prot
       )
     in
-    {st with oct = oct'}
     (* TODO: unlock? *)
+    {st with oct = oct_local'}
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
