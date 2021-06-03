@@ -88,7 +88,7 @@ struct
       if Environment.mem_var (A.env oct_local) (Var.of_string g.vname) then
         A.assign_texpr Man.mgr oct_local (Var.of_string x.vname) (Texpr1.var (A.env oct_local) (Var.of_string g.vname)) None
       else
-        oct_local
+        AD.bot ()
     in
     if P.mem g st.priv then
       {st with oct = oct_local}
