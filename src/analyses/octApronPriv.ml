@@ -79,6 +79,7 @@ struct
 
   let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
+  let var_local g = Var.of_string g.vname
   let var_unprot g = Var.of_string (g.vname ^ "#unprot")
   let var_prot g = Var.of_string (g.vname ^ "#prot")
 
@@ -86,7 +87,7 @@ struct
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
-    let g_var = Var.of_string g.vname in
+    let g_var = Var.of_string g.vname in (* TODO: local *)
     let x_var = Var.of_string x.vname in
     let oct_local =
       if AD.mem_var oct g_var then
@@ -114,36 +115,24 @@ struct
     (* TODO: unlock? *)
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
-    (* TODO: implement *)
-    (* if is_unprotected ask g then
-      st
-    else
-      {st with priv = P.add g st.priv} *)
-
-    let oct' = AD.add_vars st.oct ([g.vname], []) in
-    let oct' = A.assign_texpr Man.mgr oct' (Var.of_string g.vname) (Texpr1.var (A.env oct') (Var.of_string x.vname)) None in
-    let p' = P.add g st.priv in
-    (* {st with oct = oct'; priv = p'} *)
-
-    (* unlock *)
-    let oct = oct' in
-    let p = p' in
-    let p' = P.filter (fun g -> not (is_unprotected ask g)) p in (* TODO: optimize add + filter (remove) *)
-    let side_oct =
-      let oct' = AD.add_vars oct ([g.vname ^ "#unprot"], []) in
-      A.assign_texpr Man.mgr oct' (Var.of_string (g.vname ^ "#unprot")) (Texpr1.var (A.env oct) (Var.of_string g.vname)) None
+    let oct = st.oct in
+    let g_local_var = var_local g in
+    let g_unprot_var = var_unprot g in
+    let x_var = Var.of_string x.vname in
+    let oct_local = AD.add_vars_int oct [g_local_var] in
+    let oct_local = AD.assign_var' oct_local g_local_var x_var in
+    let oct_side = AD.add_vars_int oct_local [g_unprot_var] in
+    let oct_side = AD.assign_var' oct_side g_unprot_var g_local_var in
+    let oct_side = AD.keep_vars oct_side [g_unprot_var] in (* TODO: don't remove g#prot-s, other g#unprot-s *)
+    sideg (global_varinfo ()) oct_side;
+    let st' =
+      if is_unprotected ask g then
+        st (* add, assign, remove gives original local state *)
+      else
+        {oct = oct_local; priv = P.add g st.priv}
     in
-    let side_oct =
-      let side_oct = A.copy Man.mgr side_oct in
-      let to_keep = [g.vname ^ "#unprot"] in
-      AD.remove_all_but_with side_oct to_keep; (* TODO: don't remove g#prot-s, other g#unprot-s *)
-      side_oct
-    in
-    sideg (global_varinfo ()) side_oct;
-    let p_remove = P.filter (fun g -> is_unprotected ask g) p in
-    let oct' = AD.remove_all oct (p_remove |> P.elements |> List.map (fun g -> g.vname)) in
-    let oct' = AD.meet oct' (getg (global_varinfo ())) in
-    {st with oct = oct'; priv = p'}
+    let oct_local' = AD.meet st'.oct (getg (global_varinfo ())) in
+    {st' with oct = oct_local'}
 
   let lock ask getg (st: OctApronComponents (D).t) m = st
 

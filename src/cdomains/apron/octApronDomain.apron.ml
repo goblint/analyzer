@@ -684,6 +684,16 @@ struct
   let add_vars_int d vs =
     (* TODO: add_vars which takes Var arguments instead *)
     add_vars d (List.map Var.to_string vs, [])
+
+  let remove_vars d vs =
+    (* TODO: remove_all which takes Var arguments instead *)
+    remove_all d (List.map Var.to_string vs)
+
+  let keep_vars d vs =
+    let d' = A.copy Man.mgr d in
+    (* TODO: remove_all_but_with which takes Var arguments instead *)
+    remove_all_but_with d' (List.map Var.to_string vs);
+    d'
 end
 
 
