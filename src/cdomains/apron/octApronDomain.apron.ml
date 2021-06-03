@@ -662,9 +662,17 @@ struct
 
   (* TODO: is_bot, is_top *)
 
+
+  let equal x y =
+    Environment.equal (A.env x) (A.env y) && equal x y
+
   let leq x y =
     (* TODO: more direct *)
     equal (join x y) y
+
+  (* TODO: better widen, narrow *)
+  let widen x y = y
+  let narrow x y = x
 end
 
 
