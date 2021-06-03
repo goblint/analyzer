@@ -104,13 +104,19 @@ struct
       let oct_prot = A.assign_texpr Man.mgr oct_prot (Var.of_string x.vname) (Texpr1.var (A.env oct_prot) (Var.of_string g_prot)) None in
       {st with oct = AD.join oct_local oct_prot}
     )
+    (* TODO: unlock? *)
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
     (* TODO: implement *)
-    if is_unprotected ask g then
+    (* if is_unprotected ask g then
       st
     else
-      {st with priv = P.add g st.priv}
+      {st with priv = P.add g st.priv} *)
+
+    let oct' = AD.add_vars st.oct ([g.vname], []) in
+    let oct' = A.assign_texpr Man.mgr oct' (Var.of_string g.vname) (Texpr1.var (A.env oct') (Var.of_string x.vname)) None in
+    {st with oct = oct'; priv = P.add g st.priv}
+    (* TODO: unlock *)
 
   let lock ask getg (st: OctApronComponents (D).t) m = st
 
