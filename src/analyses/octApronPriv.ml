@@ -150,23 +150,21 @@ struct
         | _ -> acc
       ) []
     in
+    (* not locally may-written globals couldn't be parallel assigned for side effect anyway *)
     let may_local_gs = List.filter (fun g ->
         AD.mem_var oct (var_local g)
       ) all_gs
     in
     let big_omega_gs =
-      may_local_gs
-      |> List.map (fun g ->
-        (* original formulation *)
-        (* let (-->) a b = not a || b in
-        let f b = (b --> is_protected_by ask m g) && (P.mem g p --> b) in *)
-        (* logically equivalent simpler formulation *)
-        let f = function
-          | true -> is_protected_by ask m g
-          | false -> not (P.mem g p)
-        in
-        List.filter f [false; true]
-      )
+      (* all locally must-written globals are always included *)
+      let certain_gs = List.filter (fun g -> P.mem g p) may_local_gs in
+      (* all protected but not locally must-written globals have a choice *)
+      let choice_gs = List.filter (fun g ->
+          not (P.mem g p) && is_protected_by ask m g
+        ) may_local_gs
+      in
+      choice_gs
+      |> List.map (fun _ -> [true; false])
       |> List.n_cartesian_product (* TODO: exponential! *)
       |> List.map (fun omega ->
           (* list globals where omega is true *)
@@ -175,7 +173,7 @@ struct
               g :: acc
             else
               acc
-          ) [] may_local_gs omega
+          ) certain_gs choice_gs omega
         )
     in
     let oct_side = List.fold_left (fun acc omega_gs ->
