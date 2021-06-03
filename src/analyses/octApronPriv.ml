@@ -121,8 +121,62 @@ struct
   let lock ask getg (st: OctApronComponents (D).t) m = st
 
   let unlock ask getg sideg (st: OctApronComponents (D).t) m =
-    (* TODO: implement *)
-    st
+    let oct = st.oct in
+    let p = st.priv in
+    let p' = P.filter (fun g -> not (is_unprotected_without ask g m)) p in
+    (* TODO: avoid *)
+    let globals =
+      foldGlobals !Cilfacade.current_file (fun acc global ->
+        match global with
+        | GVar (vi, _, _) ->
+          vi :: acc
+          (* TODO: what about GVarDecl? *)
+        | _ -> acc
+      ) []
+    in
+    let omega_gs = List.map (fun g ->
+        let (-->) a b = not a || b in
+        let f b = (b --> is_protected_by ask m g) && (P.mem g p --> b) in
+        List.filter f [false; true]
+      ) globals
+    in
+    let big_omega = List.n_cartesian_product omega_gs in
+    let side_oct = List.fold_left (fun acc omega ->
+        let assign_globals = List.fold_left2 (fun acc g omega_g ->
+            if omega_g then
+              g :: acc
+            else
+              acc
+          ) [] globals omega
+        in
+        let assign_globals = List.filter (fun g ->
+            Environment.mem_var (A.env oct) (Var.of_string g.vname)
+          ) assign_globals
+        in
+        let lhss = List.map (fun g ->
+            Var.of_string (g.vname ^ "#prot")
+          ) assign_globals
+        in
+        let rhss = List.map (fun g ->
+            Texpr1.var (A.env oct) (Var.of_string g.vname)
+          ) assign_globals
+        in
+        let oct' = AD.add_vars oct (List.map Var.to_string lhss, []) in
+        let oct' = A.assign_texpr_array Man.mgr oct' (Array.of_list lhss) (Array.of_list rhss) None in
+        AD.join acc oct'
+      ) (AD.bot ()) big_omega
+    in
+    let side_oct =
+      let side_oct = A.copy Man.mgr side_oct in
+      let to_keep = List.map (fun g -> g.vname ^ "#prot") globals in
+      AD.remove_all_but_with side_oct to_keep;
+      side_oct
+    in
+    sideg (global_varinfo ()) side_oct;
+    let p_remove = P.filter (fun g -> is_unprotected_without ask g m) p in
+    let oct' = AD.remove_all oct (p_remove |> P.elements |> List.map (fun g -> g.vname)) in
+    let oct' = AD.meet oct' (getg (global_varinfo ())) in
+    {st with oct = oct'; priv = p'}
 
   let sync ask getg sideg (st: OctApronComponents (D).t) reason =
     match reason with
