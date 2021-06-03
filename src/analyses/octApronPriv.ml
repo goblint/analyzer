@@ -79,31 +79,38 @@ struct
 
   let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
+  let var_unprot g = Var.of_string (g.vname ^ "#unprot")
+  let var_prot g = Var.of_string (g.vname ^ "#prot")
+
   let startstate () = P.empty ()
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
-    (* TODO: implement *)
-    let oct_local = st.oct in
+    let oct = st.oct in
+    let g_var = Var.of_string g.vname in
+    let x_var = Var.of_string x.vname in
     let oct_local =
-      if Environment.mem_var (A.env oct_local) (Var.of_string g.vname) then
-        A.assign_texpr Man.mgr oct_local (Var.of_string x.vname) (Texpr1.var (A.env oct_local) (Var.of_string g.vname)) None
+      if AD.mem_var oct g_var then
+        AD.assign_var' oct x_var g_var
       else
         AD.bot ()
     in
-    if P.mem g st.priv then
-      {st with oct = oct_local}
-    else if is_unprotected ask g then (
-      let g_unprot = g.vname ^ "#unprot" in
-      let oct_unprot = AD.add_vars st.oct ([g_unprot], []) in
-      let oct_unprot = A.assign_texpr Man.mgr oct_unprot (Var.of_string x.vname) (Texpr1.var (A.env oct_unprot) (Var.of_string g_unprot)) None in
-      {st with oct = AD.join oct_local oct_unprot}
-    )
-    else (
-      let g_prot = g.vname ^ "#prot" in
-      let oct_prot = AD.add_vars st.oct ([g_prot], []) in
-      let oct_prot = A.assign_texpr Man.mgr oct_prot (Var.of_string x.vname) (Texpr1.var (A.env oct_prot) (Var.of_string g_prot)) None in
-      {st with oct = AD.join oct_local oct_prot}
-    )
+    let oct' =
+      if P.mem g st.priv then
+        oct_local
+      else if is_unprotected ask g then (
+        let g_unprot_var = var_unprot g in
+        let oct_unprot = AD.add_vars_int oct [g_unprot_var] in
+        let oct_unprot = AD.assign_var' oct_unprot x_var g_unprot_var in
+        AD.join oct_local oct_unprot
+      )
+      else (
+        let g_prot_var = var_prot g in
+        let oct_prot = AD.add_vars_int oct [g_prot_var] in
+        let oct_prot = AD.assign_var' oct_prot x_var g_prot_var in
+        AD.join oct_local oct_prot
+      )
+    in
+    {st with oct = oct'}
     (* TODO: unlock? *)
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
