@@ -694,6 +694,17 @@ struct
     (* TODO: remove_all_but_with which takes Var arguments instead *)
     remove_all_but_with d' (List.map Var.to_string vs);
     d'
+
+  let parallel_assign_vars d vs v's =
+    let env = A.env d in
+    let vs = Array.of_list vs in
+    let v's =
+      v's
+      |> List.enum
+      |> Enum.map (Texpr1.var env)
+      |> Array.of_enum
+    in
+    A.assign_texpr_array Man.mgr d vs v's None
 end
 
 

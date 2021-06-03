@@ -139,9 +139,9 @@ struct
   let unlock ask getg sideg (st: OctApronComponents (D).t) m =
     let oct = st.oct in
     let p = st.priv in
-    let p' = P.filter (fun g -> not (is_unprotected_without ask g m)) p in
-    (* TODO: avoid *)
-    let globals =
+    let (p_remove, p') = P.partition (fun g -> is_unprotected_without ask g m) p in
+    (* TODO: avoid all globals *)
+    let all_gs =
       foldGlobals !Cilfacade.current_file (fun acc global ->
         match global with
         | GVar (vi, _, _) ->
@@ -150,49 +150,47 @@ struct
         | _ -> acc
       ) []
     in
-    let omega_gs = List.map (fun g ->
-        let (-->) a b = not a || b in
-        let f b = (b --> is_protected_by ask m g) && (P.mem g p --> b) in
-        List.filter f [false; true]
-      ) globals
+    let may_local_gs = List.filter (fun g ->
+        AD.mem_var oct (var_local g)
+      ) all_gs
     in
-    let big_omega = List.n_cartesian_product omega_gs in
-    let side_oct = List.fold_left (fun acc omega ->
-        let assign_globals = List.fold_left2 (fun acc g omega_g ->
+    let big_omega_gs =
+      may_local_gs
+      |> List.map (fun g ->
+        (* original formulation *)
+        (* let (-->) a b = not a || b in
+        let f b = (b --> is_protected_by ask m g) && (P.mem g p --> b) in *)
+        (* logically equivalent simpler formulation *)
+        let f = function
+          | true -> is_protected_by ask m g
+          | false -> not (P.mem g p)
+        in
+        List.filter f [false; true]
+      )
+      |> List.n_cartesian_product (* TODO: exponential! *)
+      |> List.map (fun omega ->
+          (* list globals where omega is true *)
+          List.fold_left2 (fun acc g omega_g ->
             if omega_g then
               g :: acc
             else
               acc
-          ) [] globals omega
-        in
-        let assign_globals = List.filter (fun g ->
-            Environment.mem_var (A.env oct) (Var.of_string g.vname)
-          ) assign_globals
-        in
-        let lhss = List.map (fun g ->
-            Var.of_string (g.vname ^ "#prot")
-          ) assign_globals
-        in
-        let rhss = List.map (fun g ->
-            Texpr1.var (A.env oct) (Var.of_string g.vname)
-          ) assign_globals
-        in
-        let oct' = AD.add_vars oct (List.map Var.to_string lhss, []) in
-        let oct' = A.assign_texpr_array Man.mgr oct' (Array.of_list lhss) (Array.of_list rhss) None in
-        AD.join acc oct'
-      ) (AD.bot ()) big_omega
+          ) [] may_local_gs omega
+        )
     in
-    let side_oct =
-      let side_oct = A.copy Man.mgr side_oct in
-      let to_keep = List.map (fun g -> g.vname ^ "#prot") globals in
-      AD.remove_all_but_with side_oct to_keep; (* TODO: don't remove g#unprot-s, other g#prot-s *)
-      side_oct
+    let oct_side = List.fold_left (fun acc omega_gs ->
+        let g_prot_vars = List.map var_prot omega_gs in
+        let g_local_vars = List.map var_local omega_gs in
+        let oct_side1 = AD.add_vars_int oct g_prot_vars in
+        let oct_side1 = AD.parallel_assign_vars oct_side1 g_prot_vars g_local_vars in
+        AD.join acc oct_side1
+      ) (AD.bot ()) big_omega_gs
     in
-    sideg (global_varinfo ()) side_oct;
-    let p_remove = P.filter (fun g -> is_unprotected_without ask g m) p in
-    let oct' = AD.remove_all oct (p_remove |> P.elements |> List.map (fun g -> g.vname)) in
-    let oct' = AD.meet oct' (getg (global_varinfo ())) in
-    {st with oct = oct'; priv = p'}
+    let oct_side = AD.keep_vars oct_side (List.map var_prot may_local_gs) in (* TODO: don't remove g#unprot-s, other g#prot-s *)
+    sideg (global_varinfo ()) oct_side;
+    let oct_local = AD.remove_vars oct (List.map var_local (P.elements p_remove)) in
+    let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
+    {st with oct = oct_local'; priv = p'}
 
   let sync ask getg sideg (st: OctApronComponents (D).t) reason =
     match reason with
