@@ -752,15 +752,16 @@ struct
                                           ". Program might crash! Following states assume only addresses different from NULL have been dereferenced."; true
               | v -> false
             in
-            if GobConfig.get_bool "ana.assume-casts-ok" then
-              begin
-                let ok_addrs = AD.filter cast_ok p in
-                get a gs st ok_addrs (Some exp)
-              end
-            else if AD.for_all cast_ok p then
+            if AD.for_all cast_ok p then
               get a gs st p (Some exp)  (* downcasts are safe *)
             else
-              VD.top () (* upcasts not! *)
+              let ok_addrs = AD.filter cast_ok p in
+              let base = get a gs st ok_addrs (Some exp) in
+              (* upcasts not! -- check whether we want to treat them in an optimistic manner. *)
+              if GobConfig.get_bool "ana.assume-casts-ok" then
+                base
+              else
+                VD.join base (VD.top_value t) (* By joining the top_value with the base value, we retain some information on pointer values *)
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
           M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
