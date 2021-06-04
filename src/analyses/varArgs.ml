@@ -12,6 +12,8 @@ struct
   module G = TypeCastDomain.TypeSet (* Set of types that are extracted from varargs within a function *)
   module C = Lattice.Unit
 
+  let builtin_va_arg_str =  "__builtin_va_arg"
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     ctx.local
@@ -31,7 +33,16 @@ struct
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
     au
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
+    (match f.vname with
+    | builtin_va_arg_str ->
+      if List.length args <> 3 then
+        M.warn @@ "Unexpected number of arguments to " ^ builtin_va_arg_str ^ ". Length was:" ^ (string_of_int (List.length args))
+      else begin
+        match List.nth args 1 with
+        | SizeOf t -> ctx.sideg f (TypeCastDomain.TypeSet.singleton t)
+        | _ ->  M.warn @@ "Unexpected argument to " ^ builtin_va_arg_str ^ ".";
+      end);
     ctx.local
 
   let startstate v = D.bot ()
