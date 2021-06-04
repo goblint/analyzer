@@ -2044,8 +2044,6 @@ struct
     let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
-    let map = ctx.ask (Q.TypeCasts f.svar) in
-    M.tracel "args" "Body: For function %s got map %a\n" f.svar.vname TypeCastDomain.TypeCastMap.pretty map;
     set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
 
   let return ctx exp fundec: store =
