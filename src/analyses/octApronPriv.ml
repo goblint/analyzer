@@ -218,7 +218,33 @@ struct
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t) =
     (* TODO: implement *)
-    {st with oct = AD.meet st.oct (getg (global_varinfo ())); priv = startstate ()}
+    let oct = st.oct in
+    (* TODO: avoid all globals *)
+    let all_gs =
+      foldGlobals !Cilfacade.current_file (fun acc global ->
+        match global with
+        | GVar (vi, _, _) ->
+          vi :: acc
+          (* TODO: what about GVarDecl? *)
+        | _ -> acc
+      ) []
+    in
+    let gs = List.filter (fun g ->
+        AD.mem_var oct (Var.of_string g.vname)
+      ) all_gs
+    in
+    let g_vars = List.map (fun g -> Var.of_string g.vname) gs in
+    let g_unprot_vars = List.map var_unprot gs in
+    let g_prot_vars = List.map var_prot gs in
+    let oct_side = AD.add_vars_int oct (g_unprot_vars @ g_prot_vars) in
+    let oct_side = AD.parallel_assign_vars oct_side g_unprot_vars g_vars in
+    let oct_side = AD.parallel_assign_vars oct_side g_prot_vars g_vars in
+    let oct_side = AD.keep_vars oct_side (g_unprot_vars @ g_prot_vars) in
+    sideg (global_varinfo ()) oct_side;
+    (* TODO: why 36/12 loses equality now with Oct? works with Polka *)
+    let oct_local = AD.remove_vars oct g_vars in
+    let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
+    {st with oct = oct_local'; priv = startstate ()}
 
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     {oct = getg (global_varinfo ()); priv = startstate ()}

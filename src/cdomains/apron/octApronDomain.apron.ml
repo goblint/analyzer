@@ -13,11 +13,15 @@ module Man =
 struct
   (* Manager type, parameter for the command below *)
   type mt = Oct.t
+  (* type mt = Polka.equalities Polka.t *)
+  (* type mt = Polka.loose Polka.t *)
   (* A type of manager allocated by the underlying octagon domain *)
   type t = mt Manager.t
 
   (* Allocate a new manager to manipulate octagons *)
   let mgr = Oct.manager_alloc ()
+  (* let mgr = Polka.manager_alloc_equalities () *)
+  (* let mgr = Polka.manager_alloc_loose () *)
   (* Making an environment from a set of integer and real variables.
   Raise Failure in case of name conflict.
   In this case the environment is empty to begin with. *)
