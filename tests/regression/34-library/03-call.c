@@ -1,4 +1,4 @@
-//PARAM: --enable ana.library --sets ana.activated[-] threadid  --sets ana.activated[+] mallocWrapperTypeBased --sets ana.activated[-] mallocWrapper --sets ana.activated[+] writtenLvals
+//PARAM: --enable ana.library --sets ana.activated[-] threadid  --sets ana.activated[+] mallocWrapperTypeBased --sets ana.activated[-] mallocWrapper --sets ana.activated[+] writtenLvals --sets ana.activated[+] typecasts
 
 #include<stdlib.h>
 
@@ -8,7 +8,8 @@ void bar(my_struct *y){
     long x = 3;
     y->b = &x;
 
-    long *p = y->b;
+    long *p = NULL;
+    p = y->b;
     y->a = 4;
     *p = 5;
 
