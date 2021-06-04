@@ -187,20 +187,21 @@ struct
               begin
                 let types = TypeSet.singleton (pointed_to_t) in
                 let types = match TypeCastMap.find_opt (TPtr (pointed_to_t, [])) map with
-                | Some cast_to_types ->
-                  TypeSet.join types cast_to_types
+                  | Some casted_to_types -> TypeSet.join types casted_to_types
                   | None -> types
                 in
-                let do_typ pointed_to_t acc =
-                  let heap_var = heap_var pointed_to_t in
+                (* Creates the memory abstraction for type t, collects memory
+                 that is directly and indirectly reachable from the pointer to this types abstraction *)
+                let do_typ t (acc_dir,acc_ind)  =
+                  let heap_var = heap_var t in
                   let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
-                  Hashtbl.add type_to_symbolic_address pointed_to_t heap_var_or_NULL;
-                  let (tval, l2) = arg_val pointed_to_t l in
-                  (heap_var, pointed_to_t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::l2@acc
+                  Hashtbl.add type_to_symbolic_address t heap_var_or_NULL;
+                  let (tval, l2) = arg_val t l in
+                  (heap_var, t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::acc_dir, l2@acc_ind
                 in
-                let heap_vars = TypeSet.fold do_typ types [] in
-                let addr = List.fold_left (fun acc (ad,_,_) -> AD.join acc ad) AD.null_ptr heap_vars in
-                `Address addr, heap_vars
+                let (direct, indirect) = TypeSet.fold do_typ types ([],[]) in
+                let addr = List.fold_left (fun acc (ad,_,_) -> AD.join acc ad) AD.null_ptr direct in
+                `Address addr, direct@indirect
               end
             end
         | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
