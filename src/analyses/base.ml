@@ -1993,58 +1993,56 @@ struct
         else st
       | _ -> st
 
+  let body_library (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
+    match Cilfacade.getdec fn with
+    | fundec ->
+      (* Initialize arguments with symbolic values *)
+      let st = init_vars_with_symbolic_values ctx fn ctx.global (D.bot ()) fundec.sformals in
+      (* Inititalize globals with symbolic values *)
+      let globals = (List.filter_map (fun g -> match g with GVar (v,_,_) -> if not (isFunctionType v.vtype) then Some v else None | _ -> None)) (!Cilfacade.current_file).globals in
+      let st = init_vars_with_symbolic_values ctx fn ctx.global st globals in
+      let map = extract_type_to_address_map_from_state st in
+      TM.iter (fun t a -> M.tracel "entry" "typesig %a has possible address: %a \n" Cil.d_typsig t AD.pretty a) map;
+      let pointers = find_pointers st in
+      List.iter (fun a -> M.tracel "entry" "found pointer %a. \n" Addr.pretty a) pointers;
+      List.fold (update_pointer (Analyses.ask_of_ctx ctx) ctx.global map) st pointers
+    | exception Not_found -> M.warn @@ "Did not find defintion of function " ^ fn.vname; D.bot () (* TODO: is this ok? *)
+
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
     let st = ctx.local in
-    if get_bool "ana.library" then begin
-      (* Initialize arguments with symbolic values *)
-      match Cilfacade.getdec fn with
-      | fundec ->
-        let st' = init_vars_with_symbolic_values ctx fn ctx.global (D.bot ()) fundec.sformals in
-        (* Inititalize globals with symbolic values *)
-        let globals = CPA.filter (fun k v -> V.is_global k && not (is_heap_var (Analyses.ask_of_ctx ctx) k)) st.cpa in
-        let global_list = CPA.fold (fun k v acc -> k::acc) globals [] in
-        let st' = init_vars_with_symbolic_values ctx fn ctx.global st' global_list in
-        let map = extract_type_to_address_map_from_state st' in
-        TM.iter (fun t a -> M.tracel "entry" "typesig %a has possible address: %a \n" Cil.d_typsig t AD.pretty a) map;
-        let pointers = find_pointers st' in
-        List.iter (fun a -> M.tracel "entry" "found pointer %a. \n" Addr.pretty a) pointers;
-        List.fold (update_pointer (Analyses.ask_of_ctx ctx) ctx.global map) st' pointers
-      | exception Not_found -> M.warn @@ "Did not find defintion of function " ^ fn.vname; D.bot () (* TODO: is this ok? *)
-    end
-    else
-      (* Evaluate the arguments. *)
-      let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in
-      (* generate the entry states *)
-      let fundec = Cilfacade.getdec fn in
-      (* If we need the globals, add them *)
-      (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
-      let st' =
-        if thread then (
-          (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-            Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-            EnterMultithreaded events only execute after threadenter and threadspawn. *)
-          if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
-            ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
-          Priv.threadenter (Analyses.ask_of_ctx ctx) st
-        ) else
-          let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
-          (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
-          let new_cpa = globals in
-          {st with cpa = new_cpa}
-      in
-      (* Assign parameters to arguments *)
-      let pa = zip fundec.sformals vals in
-      let new_cpa = CPA.add_list pa st'.cpa in
-      (* List of reachable variables *)
-      let reachable = List.concat (List.map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st)) in
-      let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
-      let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
-      {st' with cpa = new_cpa}
+    (* Evaluate the arguments. *)
+    let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in
+    (* generate the entry states *)
+    let fundec = Cilfacade.getdec fn in
+    (* If we need the globals, add them *)
+    (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
+    let st' =
+      if thread then (
+        (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+          Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might getpublished...
+          sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+          EnterMultithreaded events only execute after threadenter and threadspawn. *)
+        if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+          ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
+        Priv.threadenter (Analyses.ask_of_ctx ctx) st
+      ) else
+        let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
+        (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.localk) globals else globals in *)
+        let new_cpa = globals in
+        {st with cpa = new_cpa}
+    in
+    (* Assign parameters to arguments *)
+    let pa = zip fundec.sformals vals in
+    let new_cpa = CPA.add_list pa st'.cpa in
+    (* List of reachable variables *)
+    let reachable = List.concat (List.map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st))in
+    let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
+    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    {st' with cpa = new_cpa}
 
   let body ctx (f: fundec) =
     let args = List.map (fun v -> Lval (var v)) f.sformals in
-    let st = if GobConfig.get_bool "ana.library" then make_entry ctx f.svar args else ctx.local in
+    let st = if GobConfig.get_bool "ana.library" then body_library ctx f.svar args else ctx.local in
     let ctx = {ctx with local = st} in
     (* First we create a variable-initvalue pair for each variable *)
     let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
