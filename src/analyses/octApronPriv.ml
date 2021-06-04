@@ -102,9 +102,11 @@ struct
         let g_unprot_var = var_unprot g in
         let oct_unprot = AD.add_vars_int oct [g_unprot_var] in
         let oct_unprot = AD.assign_var' oct_unprot x_var g_unprot_var in
-        let oct_unprot' = AD.remove_vars oct_unprot [g_unprot_var] in (* unlock *)
+        let oct_unprot' = AD.join oct_local oct_unprot in
+        (* unlock *)
+        let oct_unprot' = AD.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
         (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
-        AD.join oct_local oct_unprot'
+        oct_unprot'
       )
       else (
         let g_prot_var = var_prot g in
