@@ -24,7 +24,7 @@ struct
   type group = Trivial
   let show_group _ = "Trivial"
   let to_group x = Some Trivial
-  let  trace_enabled = false
+  let trace_enabled = false
 end
 
 module TypeSet = SetDomain.Make (Type)
