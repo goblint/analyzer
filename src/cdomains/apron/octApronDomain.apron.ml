@@ -660,11 +660,11 @@ struct
   let top () =
     failwith "D2.top"
 
-  (* TODO: is_bot, is_top *)
-
-
   let equal x y =
     Environment.equal (A.env x) (A.env y) && equal x y
+
+  let is_bot = equal (bot ())
+  let is_top _ = false
 
   let leq x y =
     (* TODO: more direct *)

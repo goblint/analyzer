@@ -15,7 +15,7 @@ struct
   module G = Priv.G
   module C = D
 
-  module AD = OctApronDomain.D
+  module AD = OctApronDomain.D2
 
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
@@ -56,12 +56,18 @@ struct
     [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
 
   let threadspawn ctx lval f args fctx = let st = ctx.local in (invalidate st.oct args); st
-  let exitstate  _ = { oct = AD.top (); priv = Priv.startstate () }
-  let startstate _ = { oct = AD.top (); priv = Priv.startstate () }
+  let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
+  let startstate _ = { oct = AD.bot (); priv = Priv.startstate () }
 
   let enter ctx r f args =
     let st = ctx.local in
     if AD.is_bot st.oct then [st, D.bot ()] else
+      let ctx_f_locals =
+        if MyCFG.Node.equal ctx.prev_node MyCFG.dummy_node then
+          [] (* enter_with in Control *)
+        else
+          (MyCFG.getFun ctx.prev_node).slocals
+      in
       let f = Cilfacade.getdec f in
       let is, fs = AD.typesort f.sformals in
       let is = is @ List.map (fun x -> x^"'") is in
@@ -72,7 +78,7 @@ struct
       List.iter (fun (v, e) -> AD.assign_var_with newd (v.vname^"'") e) arith_formals;
       AD.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
       List.iter  (fun (v,_)   -> AD.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
-      AD.remove_all_but_with newd (is@fs);
+      AD.remove_all_with newd (List.map (fun x -> x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
       [st, {st with oct = newd}]
 
 
@@ -164,7 +170,7 @@ struct
 
   let body ctx f =
     let st = ctx.local in
-    if AD.is_bot st.oct then D.bot () else
+    (* if AD.is_bot st.oct then D.bot () else *)
       let vars = f.slocals in
       (* TODO: avoid adding all global (with temps) to environment *)
       (* let vars =
@@ -178,6 +184,18 @@ struct
       in *)
       let vars = AD.typesort vars in
       {st with oct = AD.add_vars st.oct vars}
+
+  let read_global ask getg st g x =
+    if ThreadFlag.is_multi ask then
+      Priv.read_global ask getg st g x
+    else (
+      let oct = st.oct in
+      let g_var = Var.of_string g.vname in
+      let x_var = Var.of_string x.vname in
+      let oct' = AD.add_vars_int oct [g_var] in
+      let oct' = AD.assign_var' oct' x_var g_var in
+      {st with oct = oct'}
+    )
 
   module VH = BatHashtbl.Make (Basetype.Variables)
 
@@ -205,7 +223,7 @@ struct
     let st = {st with oct = AD.add_vars st.oct (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum), [])} in (* add temporary g#in-s *)
     let st' = VH.fold (fun v v_in st ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
-        Priv.read_global ask getg st v v_in (* g#in = g; *)
+        read_global ask getg st v v_in (* g#in = g; *)
       ) v_ins st
     in
     (st', e', v_ins)
@@ -217,9 +235,21 @@ struct
     let oct'' = AD.remove_all oct' (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     {st' with oct = oct''}
 
+  let write_global ask getg sideg st g x =
+    if ThreadFlag.is_multi ask then
+      Priv.write_global ask getg sideg st g x
+    else (
+      let oct = st.oct in
+      let g_var = Var.of_string g.vname in
+      let x_var = Var.of_string x.vname in
+      let oct' = AD.add_vars_int oct [g_var] in
+      let oct' = AD.assign_var' oct' g_var x_var in
+      {st with oct = oct'}
+    )
+
   let assign ctx (lv:lval) e =
     let st = ctx.local in
-    if AD.is_bot st.oct then D.bot () else
+    (* if AD.is_bot st.oct then D.bot () else *)
       match lv with
       (* Lvals which are numbers, have no offset and their address wasn't taken *)
       | Var v, NoOffset when isArithmeticType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
@@ -233,7 +263,7 @@ struct
             let st = {st with oct = AD.add_vars st.oct ([v_out.vname], [])} in (* add temporary g#out *)
             let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
             if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
-            let st' = Priv.write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
+            let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
             let oct'' = AD.remove_all st'.oct [v_out.vname] in (* remove temporary g#out *)
             {st' with oct = oct''}
           )
