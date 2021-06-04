@@ -752,7 +752,12 @@ struct
                                           ". Program might crash! Following states assume only addresses different from NULL have been dereferenced."; true
               | v -> false
             in
-            if AD.for_all cast_ok p then
+            if GobConfig.get_bool "ana.assume-casts-ok" then
+              begin
+                let ok_addrs = AD.filter cast_ok p in
+                get a gs st ok_addrs (Some exp)
+              end
+            else if AD.for_all cast_ok p then
               get a gs st p (Some exp)  (* downcasts are safe *)
             else
               VD.top () (* upcasts not! *)

@@ -135,6 +135,7 @@ let _ = ()
       ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
+      ; reg Analyses "ana.assume-casts-ok" "false" "Assume that casts between pointer types are only done performed when the corresponding object fits to the target type of the cast."
 
 (* {4 category [Semantics]} *)
 let _ = ()
