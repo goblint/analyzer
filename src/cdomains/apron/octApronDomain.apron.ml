@@ -705,6 +705,10 @@ struct
       |> Array.of_enum
     in
     A.assign_texpr_array Man.mgr d vs v's None
+
+  let forget_vars d vs =
+    (* TODO: forget_all which takes Var arguments instead *)
+    forget_all d (List.map Var.to_string vs)
 end
 
 

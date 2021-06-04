@@ -102,7 +102,9 @@ struct
         let g_unprot_var = var_unprot g in
         let oct_unprot = AD.add_vars_int oct [g_unprot_var] in
         let oct_unprot = AD.assign_var' oct_unprot x_var g_unprot_var in
-        AD.join oct_local oct_unprot
+        let oct_unprot' = AD.remove_vars oct_unprot [g_unprot_var] in (* unlock *)
+        (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
+        AD.join oct_local oct_unprot'
       )
       else (
         let g_prot_var = var_prot g in
@@ -111,7 +113,7 @@ struct
         AD.join oct_local oct_prot
       )
     in
-    (* TODO: unlock? *)
+    let oct_local' = AD.meet oct_local' (getg (global_varinfo ())) in
     {st with oct = oct_local'}
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
