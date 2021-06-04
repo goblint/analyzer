@@ -41,9 +41,14 @@ struct
     | NoOffset -> G.bot ()
 
   let side_effect_casts ctx (g: G.t) =
-    let current_fun = MyCFG.getFun ctx.node in
-    (* Side effect to the function start node *)
-    ctx.sideg current_fun.svar g
+    if not (G.is_bot g) then begin
+      try
+        let current_fun = MyCFG.getFun ctx.node in
+        (* Side effect to the function *)
+        ctx.sideg current_fun.svar g
+      with e ->
+        M.warn @@ "Warning: TypeCasts " ^ (G.show g) ^ " at node " ^ (Pretty.sprint ~width: 80 (MyCFG.pretty_node () ctx.node)) ^ " cannot be associated to a function." ;
+    end
 
   let side_effect_casts_lv ctx (lv: lval) =
     side_effect_casts ctx (collect_casts_lv lv)
