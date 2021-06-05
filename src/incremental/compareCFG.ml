@@ -110,19 +110,24 @@ let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 
       let outList2 = Cfg2.next fromNode2 in
 
       let findEquiv (edgeList1, toNode1) =
-        let aux (locEdgeList2, toNode2) b = if b then b else
-          let edgeList2 = to_edge_list locEdgeList2 in
-          if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
-            begin
-              let notIn = Hashtbl.fold (fun (toNode1', toNode2') v acc -> acc && not (Node.equal toNode1 toNode1' && Node.equal toNode2 toNode2')) same true in
-              if notIn then Queue.add (toNode1, toNode2) waitingList;
-              Hashtbl.add same (toNode1, toNode2) ();
-              true
-            end
-          else false in
-        let found = List.fold_right aux outList2 false in
-        if not found then Hashtbl.add diff toNode1 () in
-
+        let rec aux remSuc = match remSuc with
+          | [] -> Hashtbl.replace diff toNode1 ()
+          | (locEdgeList2, toNode2)::remSuc' ->
+              let edgeList2 = to_edge_list locEdgeList2 in
+              if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
+                begin
+                  let notInSame, matchedAlready =
+                    Hashtbl.fold (fun (toNode1', toNode2') v (ni, ma) ->
+                      let n1equal = Node.equal toNode1 toNode1' in
+                      let n2equal = Node.equal toNode2 toNode2' in
+                      (ni && not (n1equal && n2equal), ma || (n1equal && not n2equal))) same (true, false) in
+                  if matchedAlready then Hashtbl.replace diff toNode1 ()
+                  else Hashtbl.replace same (toNode1, toNode2) ();
+                  if notInSame then Queue.add (toNode1, toNode2) waitingList;
+                  Hashtbl.replace same (toNode1, toNode2) ()
+                end
+              else aux remSuc' in
+        aux outList2 in
       let iterOuts (locEdgeList1, toNode1) =
         let edgeList1 = to_edge_list locEdgeList1 in
         (* Differentiate between a possibly duplicate Test(1,false) edge and a single occurence. In the first
@@ -135,7 +140,7 @@ let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 
           let numDuplicates l = List.length (List.find_all findTestFalseEdge l) in
           testFalseEdge (List.hd edgeList) && (numDuplicates outList1 > 1 || numDuplicates outList2 > 1) in
         if posAmbigEdge edgeList1
-          then Hashtbl.add diff toNode1 ()
+          then Hashtbl.replace diff toNode1 ()
           else findEquiv (edgeList1, toNode1) in
     List.iter iterOuts outList1; compareNext () in
 
