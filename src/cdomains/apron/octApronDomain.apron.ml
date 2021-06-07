@@ -660,8 +660,8 @@ struct
         {Lincons1.lincons0 = con0; env = y_env}
       ) y_cons.lincons0_array
     in
-    let cons1 = Array.append x_cons1 y_cons1 in
     let cons1 =
+      (** Whether [con1] contains a var in [env]. *)
       let env_exists_mem_con1 env con1 =
         try
           Lincons1.iter (fun _ var ->
@@ -672,9 +672,11 @@ struct
         with Not_found ->
           true
       in
-      let (cons1, x_cons1_only) = Array.partition (env_exists_mem_con1 y_env) cons1 in
-      let (cons1, y_cons1_only) = Array.partition (env_exists_mem_con1 x_env) cons1 in
-      Array.concat [x_cons1_only; y_cons1_only; x_cons1]
+      (* Heuristically reorder constraints to pass 36/12 with singlethreaded->multithreaded mode switching. *)
+      (* Put those constraints which strictly are in one argument's env first, to (hopefully) ensure they remain. *)
+      let (x_cons1_some_y, x_cons1_only_x) = Array.partition (env_exists_mem_con1 y_env) x_cons1 in
+      let (y_cons1_some_x, y_cons1_only_y) = Array.partition (env_exists_mem_con1 x_env) y_cons1 in
+      Array.concat [x_cons1_only_x; y_cons1_only_y; x_cons1_some_y; y_cons1_some_x]
     in
     let j = Array.fold_left try_add_con j cons1 in
     if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
