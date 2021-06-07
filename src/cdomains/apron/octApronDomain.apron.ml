@@ -665,7 +665,7 @@ struct
     failwith "D2.top"
 
   let equal x y =
-    Environment.equal (A.env x) (A.env y) && equal x y
+    Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
 
   let is_bot = equal (bot ())
   let is_top _ = false
