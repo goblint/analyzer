@@ -1916,20 +1916,20 @@ struct
     let do_exp e = do_value (eval_rv ask gs st e) in
     List.concat (List.map do_exp exps)
 
-  (** Library analysis: Initialization of a variable with a symbolic memory block representation for the given type
-      If v is None, the heap objects will still be created, but no variable is set to point to them. *)
-  let init_var_with_symbolic_value ctx (f: (* varinfo of function we analyze *) varinfo) global local (v: varinfo option) (t: typ) : store =
+  (** Library analysis: Initialization of a address with a symbolic memory block representation for the given type
+      If addr is None, the heap objects will still be created, but no addr is set to point to them. *)
+  let init_address_with_symbolic_value ctx (f: (* varinfo of function we analyze *) varinfo) global local (addr: address option) (t: typ) : store =
     (* let t = unrollType v.vtype in *)
     let ask = Analyses.ask_of_ctx ctx in
     let value = create_val f ask t in
-    let st = match v with
-      | Some v -> set ask ~force_update:true global local (AD.from_var v) t (fst value)
+    let st = match addr with
+      | Some addr -> set ask ~force_update:true global local addr t (fst value)
       | None -> local
     in
     List.fold (fun st (a, t, v) -> set ask ~force_update:true global st a t v) st (snd value)
 
   let init_vars_with_symbolic_values ctx (f: varinfo) globals local (vs: (varinfo option * typ) list) : store =
-    List.fold (fun st (v,t) -> init_var_with_symbolic_value ctx f globals st v t) local vs
+    List.fold (fun st (v,t) -> init_address_with_symbolic_value ctx f globals st v t) local (List.map (fun (v,t) -> BatOption.map AD.from_var v, t) vs)
 
   (* Creates the abstract heap objects for a list of types and inserts them into the store *)
   let init_types_with_symbolic_values ctx (f: varinfo) globals local (ts: typ list) : store =
@@ -2490,6 +2490,33 @@ struct
     | `Unknown "__goblint_commit" -> assert_fn ctx (List.hd args) false true
     | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true
     | `Assert e -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
+    | `Unknown "__builtin_va_arg" when GobConfig.get_bool "ana.library" ->
+      if List.length args <> 3 then
+        begin
+          M.warn "Unexpected number of arguments passed to __builtin_va_arg.";
+          st
+        end
+      else
+        begin
+          match List.nth args 1, List.nth args 2 with
+          | SizeOf t, target ->
+            begin
+              match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local target with
+              | `Address addr ->
+                begin
+                  let current_fun = MyCFG.getFun ctx.node in
+                  let st = init_address_with_symbolic_value ctx current_fun.svar ctx.global st (Some addr) (unrollType t) in
+                  M.tracel "var_args" "Set state to %a \n" D.pretty st;
+                  st
+                end
+              | v -> (M.warn @@ "Expected an address to which the result of __builtin_va_arg is written, but got " ^ (VD.show v); st)
+            end
+          | e, _ -> begin
+              M.warn @@ "Unexpected second argument to __builtin_va_arg, was " ^ (Pretty.sprint ~width:80 (Cil.d_exp () e));
+              st
+            end
+        end
+
     | _ -> begin
         let st =
           match LF.get_invalidate_action f.vname with
