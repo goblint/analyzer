@@ -545,15 +545,20 @@ struct
       | _ -> failwith "unimplemented!"
 
   let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: Addr.t) (fun_st: store): address =
-    let base_addr_concrete = List.hd @@ Addr.to_var_may concrete in
-    M.tracel "concretes" "concrete address: %a\n" Addr.pretty concrete;
-    let offset_concrete = Tuple2.second @@ List.hd (Addr.to_var_offset concrete) in
-    let ts = typeSig @@ base_addr_concrete.vtype in
-    let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_heap_var a k && ts = (typeSig k.vtype)) fun_st.cpa in
-    let base_symb_addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
-    M.trace "concretes" "Getting symbolic address %a for concrete %a with typesig %a in state %a \n" AD.pretty base_symb_addr Addr.pretty concrete Cil.d_typsig ts D.pretty fun_st;
-    let symb_addr = AD.map (fun a -> add_offset_to_addr a offset_concrete) base_symb_addr in
-    symb_addr
+    let get_symbolic_address base_addr_var =
+      M.tracel "concretes" "concrete address: %a\n" Addr.pretty concrete;
+      let offset_concrete = Tuple2.second @@ List.hd (Addr.to_var_offset concrete) in
+      let ts = typeSig @@ base_addr_var.vtype in
+      let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_heap_var a k && ts = (typeSig k.vtype)) fun_st.cpa in
+      let base_symb_addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
+      M.trace "concretes" "Getting symbolic address %a for concrete %a with typesig %a in state %a \n" AD.pretty base_symb_addr Addr.pretty concrete Cil.d_typsig ts D.pretty fun_st;
+      let symb_addr = AD.map (fun a -> add_offset_to_addr a offset_concrete) base_symb_addr in
+      symb_addr
+    in
+    match Addr.to_var_may concrete with
+    | [base_var] -> get_symbolic_address base_var
+    | _ -> M.warn @@ "Could not get varinfo for address " ^ Addr.show concrete; AD.unknown_ptr
+
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
