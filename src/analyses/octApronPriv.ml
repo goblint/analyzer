@@ -241,7 +241,6 @@ struct
     let oct_side = AD.parallel_assign_vars oct_side g_prot_vars g_vars in
     let oct_side = AD.keep_vars oct_side (g_unprot_vars @ g_prot_vars) in
     sideg (global_varinfo ()) oct_side;
-    (* TODO: why 36/12 loses equality now with Oct? works with Polka *)
     let oct_local = AD.remove_vars oct g_vars in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
     {st with oct = oct_local'; priv = startstate ()}
