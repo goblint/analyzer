@@ -2,6 +2,7 @@
 
 open Prelude.Ana
 open Analyses
+module Q = Queries
 
 module Spec : Analyses.MCPSpec =
 struct
@@ -34,13 +35,14 @@ struct
     au
 
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
+    let current_fun = (MyCFG.getFun ctx.node).svar in
     (match f.vname with
     | builtin_va_arg_str ->
       if List.length args <> 3 then
         M.warn @@ "Unexpected number of arguments to " ^ builtin_va_arg_str ^ ". Length was:" ^ (string_of_int (List.length args))
       else begin
         match List.nth args 1 with
-        | SizeOf t -> ctx.sideg f (TypeCastDomain.TypeSet.singleton t)
+        | SizeOf t -> ctx.sideg current_fun (TypeCastDomain.TypeSet.singleton t)
         | _ ->  M.warn @@ "Unexpected argument to " ^ builtin_va_arg_str ^ ".";
       end);
     ctx.local
@@ -49,6 +51,12 @@ struct
   let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
+
+  let query ctx (type a) (q: a Q.t): a Q.result =
+    match q with
+    | VarArgSet v -> `Lifted (ctx.global v)
+    | _ -> Queries.Result.top q
+
 end
 
 let _ =

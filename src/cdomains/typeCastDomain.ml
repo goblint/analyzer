@@ -28,4 +28,5 @@ struct
 end
 
 module TypeSet = SetDomain.Make (Type)
+module TypeSetTopped = SetDomain.LiftTop (TypeSet) (struct let topname = "All types" end)
 module TypeCastMap = MapDomain.MapBot_LiftTop (Type) (TypeSet)

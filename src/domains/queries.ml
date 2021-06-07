@@ -62,6 +62,8 @@ type _ t =
   | IsHeapVar: varinfo -> MustBool.t t (* TODO: is may or must? *)
   | IsAllocatedVar: varinfo -> MustBool.t t
   | TypeCasts: varinfo -> TypeCastDomain.TypeCastMap.t t
+  | VarArgSet: varinfo -> TypeCastDomain.TypeSetTopped.t t
+
 
 type 'a result = 'a
 
@@ -113,6 +115,7 @@ struct
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
     | TypeCasts _ -> (module TypeCastDomain.TypeCastMap)
+    | VarArgSet _ -> (module TypeCastDomain.TypeSetTopped)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -163,4 +166,5 @@ struct
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> PartAccessResult.top ()
     | TypeCasts _ -> TypeCastDomain.TypeCastMap.top ()
+    | VarArgSet _ -> TypeCastDomain.TypeSetTopped.top  ()
 end

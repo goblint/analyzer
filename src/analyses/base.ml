@@ -2010,8 +2010,12 @@ struct
   let body_library (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
     match Cilfacade.getdec fn with
     | fundec ->
+      (* Get the types of varargs and create heap obects for them *)
+      let varargs = TypeCastDomain.TypeSetTopped.elements @@ ctx.ask (Q.VarArgSet fn) in
+      let st = init_types_with_symbolic_values ctx fn ctx.global (D.bot ()) varargs in
+      M.tracel "body_library" "Updated state with varargs to %a\n" D.pretty st;
       (* Initialize arguments with symbolic values *)
-      let st = init_vars_with_symbolic_values ctx fn ctx.global (D.bot ()) fundec.sformals in
+      let st = init_vars_with_symbolic_values ctx fn ctx.global st fundec.sformals in
       (* Inititalize globals with symbolic values *)
       let globals = (List.filter_map (fun g -> match g with GVar (v,_,_) -> if not (isFunctionType v.vtype) then Some v else None | _ -> None)) (!Cilfacade.current_file).globals in
       let st = init_vars_with_symbolic_values ctx fn ctx.global st globals in
