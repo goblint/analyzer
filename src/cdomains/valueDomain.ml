@@ -1,7 +1,7 @@
 open Cil
 open Pretty
 open GobConfig
-open TypeCastDomain
+open TypeDomain
 
 include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
@@ -34,7 +34,7 @@ sig
   val bot_value: typ -> t
   val init_value: typ -> t
   val top_value: typ -> t
-  val arg_value: TypeCastDomain.TypeCastMap.t -> (typ -> AddrSetDomain.elt list BatMap.Int.t) -> typ -> t * (address * typ * t) list
+  val arg_value: TypeCastMap.t -> (typ -> AddrSetDomain.elt list BatMap.Int.t) -> typ -> t * (address * typ * t) list
   val zero_init_value: typ -> t
 end
 
@@ -162,7 +162,7 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
-    let arg_value (map: TypeCastDomain.TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
+    let arg_value (map: TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
       (* Record mapping from types to addresses created for blocks with corresponding type *)
       let type_to_symbolic_address = Hashtbl.create 113 in
       let rec arg_comp compinfo l : Structs.t * (address * typ * t) list =

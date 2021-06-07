@@ -1,6 +1,7 @@
 (** Structures for the querying subsystem. *)
 
 open Deriving.Cil
+open TypeDomain
 
 module GU = Goblintutil
 module ID = IntDomain.Flattened
@@ -61,8 +62,8 @@ type _ t =
   | ArgVarTyp: typ -> VI.t t
   | IsHeapVar: varinfo -> MustBool.t t (* TODO: is may or must? *)
   | IsAllocatedVar: varinfo -> MustBool.t t
-  | TypeCasts: varinfo -> TypeCastDomain.TypeCastMap.t t
-  | VarArgSet: varinfo -> TypeCastDomain.TypeSetTopped.t t
+  | TypeCasts: varinfo -> TypeCastMap.t t
+  | VarArgSet: varinfo -> TypeSetTopped.t t
 
 
 type 'a result = 'a
@@ -114,8 +115,8 @@ struct
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
-    | TypeCasts _ -> (module TypeCastDomain.TypeCastMap)
-    | VarArgSet _ -> (module TypeCastDomain.TypeSetTopped)
+    | TypeCasts _ -> (module TypeCastMap)
+    | VarArgSet _ -> (module TypeSetTopped)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -165,6 +166,6 @@ struct
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> PartAccessResult.top ()
-    | TypeCasts _ -> TypeCastDomain.TypeCastMap.top ()
-    | VarArgSet _ -> TypeCastDomain.TypeSetTopped.top  ()
+    | TypeCasts _ -> TypeCastMap.top ()
+    | VarArgSet _ -> TypeSetTopped.top  ()
 end

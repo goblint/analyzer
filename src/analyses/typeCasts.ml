@@ -4,7 +4,7 @@
 
 open Prelude.Ana
 open Analyses
-open TypeCastDomain
+open TypeDomain
 module Q = Queries
 
 

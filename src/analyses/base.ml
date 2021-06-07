@@ -4,6 +4,7 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 open BaseUtil
+open TypeDomain
 module A = Analyses
 module H = Hashtbl
 module Q = Queries
@@ -95,7 +96,7 @@ struct
 
   let create_val (f: varinfo) (ask: Q.ask) t : value * (address * typ * value) list =
     let map = ask.f (Q.TypeCasts f) in
-    M.tracel "args" "For function %s got map %a\n" f.vname TypeCastDomain.TypeCastMap.pretty map;
+    M.tracel "args" "For function %s got map %a\n" f.vname TypeCastMap.pretty map;
     VD.arg_value map (arg_value ask) t
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
@@ -2011,7 +2012,7 @@ struct
     match Cilfacade.getdec fn with
     | fundec ->
       (* Get the types of varargs and create heap obects for them *)
-      let varargs = TypeCastDomain.TypeSetTopped.elements @@ ctx.ask (Q.VarArgSet fn) in
+      let varargs = TypeSetTopped.elements @@ ctx.ask (Q.VarArgSet fn) in
       let st = init_types_with_symbolic_values ctx fn ctx.global (D.bot ()) varargs in
       M.tracel "body_library" "Updated state with varargs to %a\n" D.pretty st;
       (* Initialize arguments with symbolic values *)

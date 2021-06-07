@@ -2,6 +2,7 @@
 
 open Prelude.Ana
 open Analyses
+open TypeDomain
 module Q = Queries
 
 module Spec : Analyses.MCPSpec =
@@ -10,7 +11,7 @@ struct
 
   let name () = "varArgs"
   module D = Lattice.Unit
-  module G = TypeCastDomain.TypeSet (* Set of types that are extracted from varargs within a function *)
+  module G = TypeSet (* Set of types that are extracted from varargs within a function *)
   module C = Lattice.Unit
 
   let builtin_va_arg_str =  "__builtin_va_arg"
@@ -42,7 +43,7 @@ struct
         M.warn @@ "Unexpected number of arguments to " ^ builtin_va_arg_str ^ ". Length was:" ^ (string_of_int (List.length args))
       else begin
         match List.nth args 1 with
-        | SizeOf t -> ctx.sideg current_fun (TypeCastDomain.TypeSet.singleton t)
+        | SizeOf t -> ctx.sideg current_fun (TypeSet.singleton t)
         | _ ->  M.warn @@ "Unexpected argument to " ^ builtin_va_arg_str ^ ".";
       end);
     ctx.local
