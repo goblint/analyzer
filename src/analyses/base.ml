@@ -1915,16 +1915,30 @@ struct
     let do_exp e = do_value (eval_rv ask gs st e) in
     List.concat (List.map do_exp exps)
 
-  (** Library analysis: Initialization of a variable value with a symbolic memory block representation. *)
-  let init_var_with_symbolic_value ctx (f: (* varinfo of function we analyze *) varinfo) global local (v: varinfo) : store =
-    let t = unrollType v.vtype in
+  (** Library analysis: Initialization of a variable with a symbolic memory block representation for the given type
+      If v is None, the heap objects will still be created, but no variable is set to point to them. *)
+  let init_var_with_symbolic_value ctx (f: (* varinfo of function we analyze *) varinfo) global local (v: varinfo option) (t: typ) : store =
+    (* let t = unrollType v.vtype in *)
     let ask = Analyses.ask_of_ctx ctx in
     let value = create_val f ask t in
-    let st = set ask ~force_update:true global local (AD.from_var v) t (fst value) in
+    let st = match v with
+      | Some v -> set ask ~force_update:true global local (AD.from_var v) t (fst value)
+      | None -> local
+    in
     List.fold (fun st (a, t, v) -> set ask ~force_update:true global st a t v) st (snd value)
 
+  let init_vars_with_symbolic_values ctx (f: varinfo) globals local (vs: (varinfo option * typ) list) : store =
+    List.fold (fun st (v,t) -> init_var_with_symbolic_value ctx f globals st v t) local vs
+
+  (* Creates the abstract heap objects for a list of types and inserts them into the store *)
+  let init_types_with_symbolic_values ctx (f: varinfo) globals local (ts: typ list) : store =
+    let ts = List.map (fun t -> None, t) ts in
+    init_vars_with_symbolic_values ctx f globals local ts
+
+  (* Creates the abstract heap objects for a list of varinfos, and maps the varinfos to those heap objects *)
   let init_vars_with_symbolic_values ctx (f: varinfo) globals local (vs: varinfo list) : store =
-    List.fold (fun st v -> init_var_with_symbolic_value ctx f globals st v) local vs
+    let vars_with_types = List.map (fun v -> Some v, unrollType (v.vtype)) vs in
+    init_vars_with_symbolic_values ctx f globals local vars_with_types
 
   (** Module for maps with typesigs as keys  *)
   module TM = Map.Make(struct type t = Cil.typsig let compare = Stdlib.compare end)
