@@ -37,8 +37,7 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let current_fun = (MyCFG.getFun ctx.node).svar in
-    (match f.vname with
-    | builtin_va_arg_str ->
+    (if f.vname = builtin_va_arg_str then
       if List.length args <> 3 then
         M.warn @@ "Unexpected number of arguments to " ^ builtin_va_arg_str ^ ". Length was:" ^ (string_of_int (List.length args))
       else begin
