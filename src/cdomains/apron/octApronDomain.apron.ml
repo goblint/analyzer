@@ -653,11 +653,11 @@ struct
       )
     in
     let x_cons1 = Array.map (fun con0 ->
-        {Lincons1.lincons0 = con0; env = x_env}
+        {Lincons1.lincons0 = con0; env = x_cons.array_env}
       ) x_cons.lincons0_array
     in
     let y_cons1 = Array.map (fun con0 ->
-        {Lincons1.lincons0 = con0; env = y_env}
+        {Lincons1.lincons0 = con0; env = y_cons.array_env}
       ) y_cons.lincons0_array
     in
     let cons1 =
