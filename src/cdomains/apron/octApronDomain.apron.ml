@@ -631,19 +631,52 @@ struct
     let y_j = A.change_environment Man.mgr y j_env false in
     let x_cons = A.to_lincons_array Man.mgr x_j in
     let y_cons = A.to_lincons_array Man.mgr y_j in
-    let try_add_con j con0 =
+    let try_add_con j con1 =
+      let con0: Lincons0.t = con1.Lincons1.lincons0 in
       let cons1: Lincons1.earray = {lincons0_array = [|con0|]; array_env = j_env} in
-      if M.tracing then M.trace "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.array_print: Format.formatter -> Lincons1.earray -> unit) cons1);
+      if M.tracing then M.tracei "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.array_print: Format.formatter -> Lincons1.earray -> unit) cons1);
       let t = A.meet_lincons_array Man.mgr j cons1 in
       let t_x = A.change_environment Man.mgr t x_env false in
       let t_y = A.change_environment Man.mgr t y_env false in
-      if A.is_leq Man.mgr x t_x && A.is_leq Man.mgr y t_y then
+      let leq_x = A.is_leq Man.mgr x t_x in
+      let leq_y = A.is_leq Man.mgr y t_y in
+      if M.tracing then M.trace "apron" "t: %a\n" pretty t;
+      if M.tracing then M.trace "apron" "t_x (leq x %B): %a\n" leq_x pretty t_x;
+      if M.tracing then M.trace "apron" "t_y (leq y %B): %a\n" leq_y pretty t_y;
+      if leq_x && leq_y then (
+        if M.tracing then M.traceu "apron" "added\n";
         t
-      else
+      )
+      else (
+        if M.tracing then M.traceu "apron" "not added\n";
         j
+      )
     in
-    let j = Array.fold_left try_add_con j x_cons.lincons0_array in
-    let j = Array.fold_left try_add_con j y_cons.lincons0_array in
+    let x_cons1 = Array.map (fun con0 ->
+        {Lincons1.lincons0 = con0; env = x_env}
+      ) x_cons.lincons0_array
+    in
+    let y_cons1 = Array.map (fun con0 ->
+        {Lincons1.lincons0 = con0; env = y_env}
+      ) y_cons.lincons0_array
+    in
+    let cons1 = Array.append x_cons1 y_cons1 in
+    let cons1 =
+      let env_exists_mem_con1 env con1 =
+        try
+          Lincons1.iter (fun _ var ->
+              if Environment.mem_var env var then
+                raise Not_found
+            ) con1;
+          false
+        with Not_found ->
+          true
+      in
+      let (cons1, x_cons1_only) = Array.partition (env_exists_mem_con1 y_env) cons1 in
+      let (cons1, y_cons1_only) = Array.partition (env_exists_mem_con1 x_env) cons1 in
+      Array.concat [x_cons1_only; y_cons1_only; x_cons1]
+    in
+    let j = Array.fold_left try_add_con j cons1 in
     if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
     j
 
