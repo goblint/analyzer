@@ -1,16 +1,11 @@
 
 #include <stdio.h>
-struct person
-{
-   int age;
-   float weight;
-};
-
 int main(){    
-    int a, b, c; // some integers
     int *pi;     // a pointer to an integer
-
-    pi = NULL;
-    c = *pi; // this is a NULL pointer dereference
+    int *t;
+    t = 5;
+    pi = NULL; 
+    int c = *pi; // this is a NULL pointer dereference
+    int d = *t;
     return 1;
 }

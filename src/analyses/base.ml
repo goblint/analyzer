@@ -603,6 +603,7 @@ struct
       | Index (_, offs) -> do_offs def offs
       | NoOffset -> def
     in
+
     (* we have a special expression that should evaluate to top ... *)
     if exp = MyCFG.unknown_exp then VD.top () else
       (* First we try with query functions --- these are currently more precise.
@@ -615,7 +616,8 @@ struct
         (* Integer literals *)
         (* seems like constFold already converts CChr to CInt64 *)
         | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
-        | Const (CInt64 (num,ikind,str)) ->
+        | Const (CInt64 (num,ikind,str)) -> 
+
           (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind ikind x | None -> ());
           `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
         (* String literals *)
@@ -625,10 +627,12 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
+        | Lval (Var v, ofs) -> 
+        do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
-          (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+          let lval = (Mem e, ofs) in
+          M.tracel "newcast" "Deref: lval: %a\n" d_plainlval lval;
           let rec contains_vla (t:typ) = match t with
             | TPtr (t, _) -> contains_vla t
             | TArray(t, None, args) -> true
@@ -666,7 +670,17 @@ struct
               VD.top () (* upcasts not! *)
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-          M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+          let lval = (Mem e, ofs) in
+          M.tracel "nptr" "Deref: lval: %a\n" d_plainlval lval;
+           (* M.tracel "nptr" "Dereferenced value: %a\n" VD.pretty v'; *)
+           (* M.tracel "nptr" "NPTR: %a\n" AD.pretty AD.null_ptr;  *)
+          (match v' with 
+          | `Address a when (AD.is_null a) ->           M.tracel "nptr" "NULLPOINTER\n"; 
+          ();
+          | `Address a -> M.tracel "nptr" "BUT AN ADRESS %a" AD.pretty a;
+          | _ -> M.tracel "nptr" " NOT NULLPOINTER %a \n" VD.pretty v';();
+          );
+
           let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
