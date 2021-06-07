@@ -671,8 +671,16 @@ struct
   let is_top _ = false
 
   let leq x y =
-    (* TODO: more direct *)
-    equal (join x y) y
+    (* TODO: float *)
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let (x_vars, _) = Environment.vars x_env in
+    if Array.for_all (Environment.mem_var y_env) x_vars then (
+      let y' = A.change_environment Man.mgr y x_env false in
+      A.is_leq Man.mgr x y'
+    )
+    else
+      false
 
   (* TODO: better widen, narrow *)
   let widen x y = y
