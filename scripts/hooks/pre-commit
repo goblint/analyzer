@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Uses ocp-indent to check that staged changes are correctly indented.
 # Use `git commit -n` to bypass if necessary.
@@ -56,4 +56,14 @@ git diff-index --check --cached $against -- || exit 1
 # but that also complains about misindented code that is not touched by the current commit.
 # Now we only check the diff between the changes and the changes run through ocp-indent.
 # See https://github.com/goblint/analyzer/issues/236
-git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$" | xargs -I% bash -c 'diff <(diff <(git show HEAD:%) <(git show :%)) <(diff <(git show HEAD:% | ocp-indent) <(git show :% | ocp-indent)) | sed "/^</d" | sed "s/^> //" || (echo "Problems in %"; false)' || (echo "You shall not commit! ocp-indent complains about the indentation of your changes (see diffs above). Please fix! You can bypass this check with git commit -n."; exit 1) # beware that xargs apparently has a limit on the length of the string until it replaces %. If you extend the text in echo, it might break...
+fail="false"
+for f in $(git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$"); do
+  # echo "Checking $f"
+  diff <(diff <(git show HEAD:$f) <(git show :$f)) <(diff <(git show HEAD:$f | ocp-indent) <(git show :$f | ocp-indent)) | sed "/^</d" | sed "s/^> //" || (echo "Problems in $f"; false)
+  # can't set fail above since it's in some subshell, so we return false and set it below:
+  [ $? = 1 ] && fail="true"
+done
+if [ "$fail" == "true" ]; then
+  echo "You shall not commit! ocp-indent complains about the indentation of your changes (see diffs above). Please fix! You can bypass this check with git commit -n."
+  exit 1
+fi
