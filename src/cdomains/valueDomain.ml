@@ -172,7 +172,7 @@ struct
         in
         List.fold_left (arg_field) (nstruct, l) compinfo.cfields
       and arg_val t (l: (address * typ * t) list) = match t with
-        | TInt _ -> `Int (ID.top_of (Cilfacade.ptrdiff_ikind ())), l
+        | TInt (ik, _) -> `Int (ID.top_of ik), l
         | TPtr (pointed_to_t, attr) ->
           (* Check whether we already have created an address for the pointed-to-type.
              If we already have an address, we just return it.
