@@ -1,0 +1,6 @@
+{
+    "ana" : {
+      "activated" : ["expRelation", "base", "threadflag", "threadreturn", "escape", "mutex", "mallocWrapperTypeBased", "writtenLvals", "typecasts", "varArgs"],
+      "library" : true
+    }
+}
