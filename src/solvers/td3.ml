@@ -277,11 +277,11 @@ module WP =
 
       List.iter set_start st;
       List.iter init vs;
-      List.iter (fun x -> solve x Widen) vs;
-      (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on. Then v2 is no longer stable and we have to solve it again. *)
+      (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
       let rec solver () = (* as while loop in paper *)
-        if not (List.for_all (HM.mem stable) vs) then (
-          List.iter (fun x -> solve x Widen) vs;
+        let unstable_vs = List.filter (neg (HM.mem stable)) vs in
+        if unstable_vs <> [] then (
+          List.iter (fun x -> solve x Widen) unstable_vs;
           solver ();
         )
       in
