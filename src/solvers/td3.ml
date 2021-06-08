@@ -278,19 +278,18 @@ module WP =
       List.iter set_start st;
       List.iter init vs;
       List.iter (fun x -> solve x Widen) vs;
-      (* iterate until there are no unstable variables
-       * after termination, only those variables are stable which are
-       * - reachable from any of the queried variables vs, or
-       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses)
-       *)
-      let rec solve_sidevs () =
-        let non_stable = HM.fold (fun k _ a -> if S.system k <> None && not (HM.mem stable k) then k::a else a) rho [] in
-        if non_stable <> [] then (
-          List.iter (fun x -> solve x Widen) non_stable;
-          solve_sidevs ()
+      (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on. Then v2 is no longer stable and we have to solve it again. *)
+      let rec solver () = (* as while loop in paper *)
+        if not (List.for_all (HM.mem stable) vs) then (
+          List.iter (fun x -> solve x Widen) vs;
+          solver ();
         )
       in
-      solve_sidevs ();
+      solver ();
+      (* Before we solved all unstable vars in rho with a rhs in a loop. This is unneeded overhead since it also solved unreachable vars (reachibility only removes those from rho further down). *)
+      (* After termination, only those variables are stable which are
+       * - reachable from any of the queried variables vs, or
+       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses). *)
 
       (* verifies values at widening points and adds values for variables in-between *)
       let visited = HM.create 10 in
