@@ -6,6 +6,6 @@ int main(){
     t = 5;
     pi = NULL; 
     int c = *pi; // this is a NULL pointer dereference
-    int d = *t;
+    int d = *t; // this is NOT a NULL POINTER
     return 1;
 }

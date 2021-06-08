@@ -631,8 +631,6 @@ struct
         do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
-          let lval = (Mem e, ofs) in
-          M.tracel "newcast" "Deref: lval: %a\n" d_plainlval lval;
           let rec contains_vla (t:typ) = match t with
             | TPtr (t, _) -> contains_vla t
             | TArray(t, None, args) -> true
@@ -643,6 +641,7 @@ struct
           let b = Mem e, NoOffset in (* base pointer *)
           let t = typeOfLval b in (* static type of base *)
           let p = eval_lv a gs st b in (* abstract base addresses *)
+          if (AD.is_null p) then M.warn "Warning Dereferencing Nullpointer\n";
           let v = (* abstract base value *)
             let open Addr in
             (* pre VLA: *)
@@ -670,17 +669,6 @@ struct
               VD.top () (* upcasts not! *)
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-          let lval = (Mem e, ofs) in
-          M.tracel "nptr" "Deref: lval: %a\n" d_plainlval lval;
-           (* M.tracel "nptr" "Dereferenced value: %a\n" VD.pretty v'; *)
-           (* M.tracel "nptr" "NPTR: %a\n" AD.pretty AD.null_ptr;  *)
-          (match v' with 
-          | `Address a when (AD.is_null a) ->           M.tracel "nptr" "NULLPOINTER\n"; 
-          ();
-          | `Address a -> M.tracel "nptr" "BUT AN ADRESS %a" AD.pretty a;
-          | _ -> M.tracel "nptr" " NOT NULLPOINTER %a \n" VD.pretty v';();
-          );
-
           let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
