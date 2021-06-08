@@ -495,14 +495,15 @@ struct
   let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let sym_address_to_conretes (addr: Addr.t) = (* Returns a list of concrete addresses and a list of addresses of memory blocks that are added to the heap *)
       match addr with
-      | Addr  (v, `NoOffset) ->
+      | Addr  (v, offs) ->
         if is_allocated_var a v then (* Address has been allocated within the function, we add it to our heap *)
           [addr], Some addr
         else if is_heap_var a v then
-          List.map (fun v -> AD.Addr.Addr (v, `NoOffset)) (AD.to_var_may (get_concretes (v, `NoOffset) st reachable_vars)), None
+          let concretes = AD.elements (get_concretes (v, `NoOffset) st reachable_vars) in
+          let concretes = List.map (add_offset_varinfo offs) concretes in
+          concretes, None
         else
           [addr],None
-      | Addr (v, _) -> failwith "Unexpected offset!";
       | StrPtr _
       | NullPtr
       | SafePtr
@@ -558,7 +559,6 @@ struct
     match Addr.to_var_may concrete with
     | [base_var] -> get_symbolic_address base_var
     | _ -> M.warn @@ "Could not get varinfo for address " ^ Addr.show concrete; AD.unknown_ptr
-
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
