@@ -1283,14 +1283,15 @@ struct
         | `Lifted s ->
           let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.elements lvals) in
           let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> (typeSig v.vtype, offset) | _ -> failwith "Should never happen!") lvals in
-          let addrs_with_offs = List.map (fun addrs ->
+          let get_addrs_with_offs addrs =
             let addr_ts = typeSig (AD.get_type addrs) in
             let matches = Set.filter (fun (ts, offset) -> ts = addr_ts) typeSigs in
             M.tracel "update" "Found %i matches for type %a. \n" (Set.cardinal matches) Cil.d_typsig addr_ts;
             let address_with_offs = Set.map (fun (_,offset) -> AD.map (fun a -> add_offset_varinfo (Offs.from_cil_offset offset) a) addrs)
             matches |> Set.to_list in
             List.fold AD.join (AD.bot ()) address_with_offs
-          ) reachable_vars in
+          in
+          let addrs_with_offs = List.map get_addrs_with_offs reachable_vars in
           let addrs_with_offs = List.filter_map (fun ad -> if AD.is_bot ad then None else Some ad) addrs_with_offs in
           M.tracel "update" "there are %i reachable written addresses.\n" (List.length addrs_with_offs);
           List.iter (fun a -> M.tracel "update" "reachable written address: %a\n" AD.pretty a) addrs_with_offs;
