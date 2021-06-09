@@ -4,6 +4,8 @@ open Prelude.Ana
 open GobConfig
 open Analyses
 
+module QuerySet = Set.Make(Queries.Query)
+
 type spec_modules = { spec : (module MCPSpec)
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
@@ -519,8 +521,12 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
-  and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+  and query': type a. QuerySet.t -> (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun asked ctx q ->
+  if QuerySet.mem (Any(q)) asked then 
+    (* let () = Printf.printf "Size 0: %d\n" (QuerySet.cardinal asked) in *)
+    (Queries.Result.top q) 
+  else
+    (* let () = Printf.printf "Size 1: %d\n" (QuerySet.cardinal asked) in *)
     let module Result = (val Queries.Result.lattice q) in
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
@@ -530,7 +536,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = (fun (type b) (q: b Queries.t) -> query ctx q)
+        ; ask    = (fun (type b) (q: b Queries.t) -> query' (QuerySet.add (Any(q)) asked) ctx q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -552,6 +558,10 @@ struct
       ()
     | _ ->
       fold_left f (Result.top ()) @@ spec_list ctx.local
+
+  (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
+  and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+    query' QuerySet.empty ctx q
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in

@@ -274,6 +274,7 @@ struct
 
   (* evaluate value using our "query functions" *)
   let eval_rv_pre (ask: Q.ask) exp pr =
+    let _other_analsyis_result = ask.f (Q.EvalInt exp) in
     let binop op e1 e2 =
       let equality () =
         (* TODO: just return bool? *)
