@@ -234,18 +234,11 @@ module Query = struct
               r3
             else
               Bool.compare x1.write x2.write
-        | Any(CurrentLockset), Any(CurrentLockset) -> 0
-        | Any(MustBeAtomic), Any(MustBeAtomic) -> 0
-        | Any(MustBeSingleThreaded), Any(MustBeSingleThreaded) -> 0
-        | Any(MustBeUniqueThread), Any(MustBeUniqueThread) -> 0
-        | Any(CurrentThreadId), Any(CurrentThreadId) -> 0
-        | Any(MayBeThreadReturn), Any(MayBeThreadReturn) -> 0
         | Any(EvalFunvar e1), Any(EvalFunvar e2) -> CilType.Exp.compare e1 e2
         | Any(EvalInt e1), Any(EvalInt e2) -> CilType.Exp.compare e1 e2
         | Any(EvalStr e1), Any(EvalStr e2) -> CilType.Exp.compare e1 e2
         | Any(EvalLength e1), Any(EvalLength e2) -> CilType.Exp.compare e1 e2
         | Any(BlobSize e1), Any(BlobSize e2) -> CilType.Exp.compare e1 e2
-        | Any(PrintFullState), Any(PrintFullState) -> 0
         | Any(CondVars e1), Any(CondVars e2) -> CilType.Exp.compare e1 e2
         | Any(PartAccess p1), Any(PartAccess p2) ->
           let r2 = CilType.Exp.compare p1.exp p2.exp in
@@ -282,7 +275,6 @@ module Query = struct
             r2
           else
             CilType.Exp.compare e2 e4 
-        | Any(HeapVar), Any(HeapVar) -> 0
         | Any(IsHeapVar v1), Any(IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
         | Any(Assert a1), Any(Assert a2) -> CilType.Exp.compare a1 a2 
         | _, _ -> Stdlib.compare (order a) (order b)
