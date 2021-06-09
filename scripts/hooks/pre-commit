@@ -59,11 +59,22 @@ git diff-index --check --cached $against -- || exit 1
 fail="false"
 for f in $(git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$"); do
   # echo "Checking $f"
-  diff <(diff <(git show HEAD:$f) <(git show :$f)) <(diff <(git show HEAD:$f | ocp-indent) <(git show :$f | ocp-indent)) | sed "/^</d" | sed "s/^> //" || (echo "Problems in $f"; false)
-  # can't set fail above since it's in some subshell, so we return false and set it below:
-  [ $? = 1 ] && fail="true"
+  # diff <(diff <(git show HEAD:$f) <(git show :$f)) <(diff <(git show HEAD:$f | ocp-indent) <(git show :$f | ocp-indent)) | sed "/^</d" | sed "s/^> //" || (echo "Problems in $f"; false)
+  for l in $(git diff --cached -U0 -- $f | sed -n "s/^@@ -\S* +\(\S*\) @@.*/\1/p"); do
+    a=$(echo $l | cut -d',' -f1)
+    b=$(echo $l | cut -d',' -f2)
+    if [ "$a" = "$b" ]; then
+      lines=$a
+    else
+      b=$(expr $a + $b - 1)
+      lines="$a-$b"
+    fi
+    echo "ocp-indent file: $f, lines: $lines"
+    diff $f <(ocp-indent --lines=$lines $f) || fail="true"
+  done
 done
 if [ "$fail" == "true" ]; then
+  echo
   echo "You shall not commit! ocp-indent complains about the indentation of your changes (see diffs above). Please fix! You can bypass this check with git commit -n."
   exit 1
 fi
