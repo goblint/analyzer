@@ -4,8 +4,13 @@
 int main()
 {
     int arr[] = {1, 2, 3, 4, 5, 6};
+    arr[2] = 0; //NOWARN
     arr[6] = 10; //WARN
     arr[-1] = 10; //WARN
+    for (int i = 0; i < 5; ++i)
+    {
+        arr[i] = 5; //NOWARN
+    }
     for (int i = 0; i < 10; ++i)
     {
         arr[i] = 5; //WARN
