@@ -20,7 +20,7 @@ int main() {
   stu[-1].roll = 10;    // WARN
   stu[1].marks = 90.5f; //NOWARN
   stu[20].marks = 89.5f; //WARN
-  stu[2].name = "Dave"; //NOWARN
+  //stu[1].name = "Edin"; //NOWARN
   for (int i = 0; i < 3; ++i) {
     stu[i].roll = 5; // NOWARN
   }

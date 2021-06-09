@@ -8,10 +8,7 @@ int main( )
     ptr[3] = 3; //NOWARN
     ptr[6] = 10; //WARN
     ptr[-1] = 10; //WARN
-    for (int i = 0; i < 3; ++i)
-    {
-        ptr[i] = 5; //NOWARN
-    }
+
     for (int i = 0; i < 10; ++i)
     {
         ptr[i] = 5; //WARN

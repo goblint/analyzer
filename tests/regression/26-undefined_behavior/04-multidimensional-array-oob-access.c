@@ -10,10 +10,7 @@ int main( )
     arr[0][1] = 4; //NOWARN
     arr[-6][3] = 10; //WARN
     arr[3][-3] = 10; //WARN
-    for (int i = 0; i < 2; ++i)
-    {
-        arr[i][i] = 5; //NOWARN
-    }
+
     for (int i = 0; i < 10; ++i)
     {
         arr[i][i] = 5; //WARN
