@@ -661,7 +661,7 @@ struct
       ) y_cons.lincons0_array
     in
     let cons1 =
-      (** Whether [con1] contains a var in [env]. *)
+      (* Whether [con1] contains a var in [env]. *)
       let env_exists_mem_con1 env con1 =
         try
           Lincons1.iter (fun _ var ->

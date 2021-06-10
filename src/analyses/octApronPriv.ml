@@ -1,7 +1,7 @@
 open Prelude.Ana
 open Analyses
 open GobConfig
-open BaseUtil
+(* open BaseUtil *)
 module Q = Queries
 
 module OctApronComponents = OctApronDomain.OctApronComponents
@@ -203,7 +203,7 @@ struct
       else (
         let p' = P.add g p in
         let w' = W.add g w in
-        {st with oct = restrict_local (is_unprotected ask) oct' (W.empty ()); priv = (p', w')}
+        {oct = restrict_local (is_unprotected ask) oct' (W.empty ()); priv = (p', w')}
       )
     in
     let oct_local' = AD.meet st'.oct (getg (global_varinfo ())) in
@@ -211,7 +211,7 @@ struct
 
   let lock ask getg (st: OctApronComponents (D).t) m = st
 
-  let unlock ask getg sideg (st: OctApronComponents (D).t) m =
+  let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
     let oct = st.oct in
     let (p, w) = st.priv in
     let (p_remove, p') = P.partition (fun g -> is_unprotected_without ask g m) p in
@@ -247,7 +247,7 @@ struct
     sideg (global_varinfo ()) oct_side;
     let oct_local = restrict_local (fun g -> is_unprotected_without ask g m) oct' w_remove in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
-    {st with oct = oct_local'; priv = (p', w')}
+    {oct = oct_local'; priv = (p', w')}
 
   let sync ask getg sideg (st: OctApronComponents (D).t) reason =
     match reason with
@@ -271,7 +271,7 @@ struct
         st
       ) escaped st
 
-  let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t) =
+  let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     (* TODO: implement *)
     let oct = st.oct in
     (* TODO: avoid all globals *)
@@ -298,7 +298,7 @@ struct
     sideg (global_varinfo ()) oct_side;
     let oct_local = AD.remove_vars oct g_vars in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
-    {st with oct = oct_local'; priv = startstate ()}
+    {oct = oct_local'; priv = startstate ()}
 
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     {oct = getg (global_varinfo ()); priv = startstate ()}
@@ -350,15 +350,15 @@ struct
       AD.bot ()
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
-    let s = current_lockset ask in
-    let (w, p) = st.priv in
-    let p_g = P.find g p in
+    (* let s = current_lockset ask in *)
+    (* let (w, p) = st.priv in *)
+    (* let p_g = P.find g p in *)
     (* TODO: implement *)
     let oct' = AD.add_vars st.oct ([g.vname], []) in
     let oct' = A.assign_texpr Man.mgr oct' (Var.of_string x.vname) (Texpr1.var (A.env oct') (Var.of_string g.vname)) None in (* TODO: unsound *)
     {st with oct = oct'}
 
-  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
+  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
     let s = current_lockset ask in
     let (w, p) = st.priv in
     let w' = W.add g (MinLocksets.singleton s) w in
@@ -368,7 +368,7 @@ struct
     let oct' = AD.add_vars st.oct ([g.vname], []) in
     let oct' = A.assign_texpr Man.mgr oct' (Var.of_string g.vname) (Texpr1.var (A.env oct') (Var.of_string x.vname)) None in (* TODO: unsound? *)
     sideg (global_varinfo ()) (restrict_globals oct');
-    {st with oct = oct'; priv = (w', p')}
+    {oct = oct'; priv = (w', p')}
 
   let lock ask getg (st: OctApronComponents (D).t) m = st
 
