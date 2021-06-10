@@ -93,6 +93,21 @@ struct
   let var_unprot g = Var.of_string (g.vname ^ "#unprot")
   let var_prot g = Var.of_string (g.vname ^ "#prot")
 
+  (** Restrict environment to global invariant variables. *)
+  let restrict_global oct =
+    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
+    let remove_vars =
+      vars
+      |> Array.enum
+      |> Enum.filter (fun var ->
+          (* TODO: replace name-based check with reverse mapping hashtable *)
+          let name = Var.to_string var in
+          not (String.ends_with name "#unprot" || String.ends_with name "#prot")
+        )
+      |> List.of_enum
+    in
+    AD.remove_vars oct remove_vars
+
   let startstate () = (P.empty (), W.empty ())
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
@@ -140,7 +155,7 @@ struct
     let oct_local = AD.assign_var' oct_local g_local_var x_var in
     let oct_side = AD.add_vars_int oct_local [g_unprot_var] in
     let oct_side = AD.assign_var' oct_side g_unprot_var g_local_var in
-    let oct_side = AD.keep_vars oct_side [g_unprot_var] in (* TODO: don't remove g#prot-s, other g#unprot-s *)
+    let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
     let st' =
       if is_unprotected ask g then
@@ -184,9 +199,7 @@ struct
         AD.join acc oct_side1
       ) (AD.bot ()) big_omega
     in
-    (* not locally may-written globals couldn't be parallel assigned for side effect anyway *)
-    let may_local_gs = W.elements w in
-    let oct_side = AD.keep_vars oct_side (List.map var_prot may_local_gs) in (* TODO: don't remove g#unprot-s, other g#prot-s *)
+    let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
     let oct_local = AD.remove_vars oct (List.map var_local (P.elements p_remove)) in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
@@ -237,7 +250,7 @@ struct
     let oct_side = AD.add_vars_int oct (g_unprot_vars @ g_prot_vars) in
     let oct_side = AD.parallel_assign_vars oct_side g_unprot_vars g_vars in
     let oct_side = AD.parallel_assign_vars oct_side g_prot_vars g_vars in
-    let oct_side = AD.keep_vars oct_side (g_unprot_vars @ g_prot_vars) in
+    let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
     let oct_local = AD.remove_vars oct g_vars in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
