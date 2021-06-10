@@ -1088,18 +1088,6 @@ struct
           end
         | _ -> true
       end
-    (* | Q.IsMallocAssignment rval ->
-      let is_malloc_pointer e =
-        let rv = eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-        let is_pointer = match e with Lval (Var v, _) -> (match v.vtype with TPtr _ -> true |  (* TArray _ -> true | *) _ -> false) | _ -> false in
-        is_pointer && VD.is_bot rv
-      in
-      let is_malloc_assignment rval =
-        match rval with
-        | CastE (t, e) -> is_malloc_pointer e
-        | e -> is_malloc_pointer e
-      in
-      `MustBool (is_malloc_assignment rval) *)
     | _ -> Q.Result.top q
 
   let update_variable ?(force_update=false) (a: Q.ask) variable typ value cpa  =
