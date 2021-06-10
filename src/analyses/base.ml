@@ -2265,6 +2265,7 @@ struct
         let writtenLvals = ask.f (Q.WrittenLvals f) in
         update_reachable_written_vars ask addresses globs st fun_st writtenLvals
       in
+      let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) st.cpa [] in
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
@@ -2273,7 +2274,6 @@ struct
       let add_globals (st: store) (fun_st: store) =
         if get_bool "ana.library" then
           (* Update globals that were written by the called function *)
-          let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) st.cpa [] in
           update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global globals
         else
           (* Remove the return value as this is dealt with separately. *)
@@ -2283,16 +2283,18 @@ struct
           { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
-      let return_val = if GobConfig.get_bool "ana.library" then (
-        (* TODO: Check whether argument memory block has been returned. *)
-        (* TODO: only take those values that are indicated by the "type" of the argument memory block *)
-        let vals = List.map (fun a -> match a with `Address a -> a | _ -> failwith "huh?") (List.filter (fun a -> match a with `Address _ -> true | _ -> false) (List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local) args)) in
-        `Address (List.fold_left AD.join (AD.bot ()) vals);
-      ) else (
+      let return_val =
         if CPA.mem (return_varinfo ()) fun_st.cpa
-        then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
+        then
+          if GobConfig.get_bool "ana.library" then
+            let ask = Analyses.ask_of_ctx ctx in
+            let reachable_addresses = collect_funargs ask ctx.global st args in
+            let reachable_addresses = (collect_funargs ask ctx.global st globals)@reachable_addresses in
+            let res = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses in
+            Tuple2.first res
+          else
+            get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
         else VD.top ()
-      )
       in
       let st = if get_bool "ana.library"
         then update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global args (* Update locations that are pointed to by arguments and were possibly written by the called function *)

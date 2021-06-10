@@ -27,6 +27,6 @@ int main(){
     if(p == &i){
         z = 0;
     }
-    assert(z == 0);
+    assert(z == 0); //UNKNOWN
     return 0;
 }
