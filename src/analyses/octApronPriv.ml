@@ -108,6 +108,25 @@ struct
     in
     AD.remove_vars oct remove_vars
 
+  (** Restrict environment to local variables and still-protected global variables. *)
+  let restrict_local oct p' w' p_remove w_remove =
+    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
+    let preserve_global_vars = List.map var_prot (P.elements p') in
+    let remove_global_vars =
+      vars
+      |> Array.enum
+      |> Enum.filter (fun var ->
+          (* TODO: replace name-based check with reverse mapping hashtable *)
+          let name = Var.to_string var in
+          String.ends_with name "#unprot" || String.ends_with name "#prot" (* negated compared to restrict_global! *)
+        )
+      |> Enum.filter (fun var -> not (List.mem_cmp Var.compare var preserve_global_vars)) (* TODO: optimize mem *)
+      |> List.of_enum
+    in
+    let remove_local_vars = List.map var_local (W.elements w_remove) in
+    let remove_vars = remove_local_vars @ remove_global_vars in
+    AD.remove_vars oct remove_vars
+
   let startstate () = (P.empty (), W.empty ())
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
@@ -199,9 +218,10 @@ struct
         AD.join acc oct_side1
       ) (AD.bot ()) big_omega
     in
+    let oct' = oct_side in
     let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
-    let oct_local = AD.remove_vars oct (List.map var_local (P.elements p_remove)) in
+    let oct_local = restrict_local oct' p' w' p_remove w_remove in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
     {st with oct = oct_local'; priv = (p', w')}
 
