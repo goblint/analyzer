@@ -293,23 +293,19 @@ struct
       ) escaped st
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
-    (* TODO: implement *)
     let oct = st.oct in
-    (* TODO: avoid all globals *)
-    let all_gs =
-      foldGlobals !Cilfacade.current_file (fun acc global ->
-        match global with
-        | GVar (vi, _, _) ->
-          vi :: acc
-          (* TODO: what about GVarDecl? *)
-        | _ -> acc
-      ) []
+    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
+    let (g_vars, gs) =
+      vars
+      |> Array.enum
+      |> Enum.filter_map (fun var ->
+          match OctApronDomain.GV.find_metadata var with
+          | Some g -> Some (var, g)
+          | _ -> None
+        )
+      |> Enum.uncombine
+      |> Tuple2.map List.of_enum List.of_enum
     in
-    let gs = List.filter (fun g ->
-        AD.mem_var oct (Var.of_string g.vname)
-      ) all_gs
-    in
-    let g_vars = List.map (fun g -> Var.of_string g.vname) gs in
     let g_unprot_vars = List.map V.unprot gs in
     let g_prot_vars = List.map V.prot gs in
     let oct_side = AD.add_vars_int oct (g_unprot_vars @ g_prot_vars) in

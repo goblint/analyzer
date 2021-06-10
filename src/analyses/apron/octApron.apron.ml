@@ -192,7 +192,7 @@ struct
       Priv.read_global ask getg st g x
     else (
       let oct = st.oct in
-      let g_var = Var.of_string g.vname in
+      let g_var = GV.make g in
       let x_var = Var.of_string x.vname in
       let oct' = AD.add_vars_int oct [g_var] in
       let oct' = AD.assign_var' oct' x_var g_var in
@@ -242,7 +242,7 @@ struct
       Priv.write_global ask getg sideg st g x
     else (
       let oct = st.oct in
-      let g_var = Var.of_string g.vname in
+      let g_var = GV.make g in
       let x_var = Var.of_string x.vname in
       let oct' = AD.add_vars_int oct [g_var] in
       let oct' = AD.assign_var' oct' g_var x_var in

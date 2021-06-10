@@ -855,3 +855,16 @@ struct
   let find_metadata var =
     VH.find_option vh var
 end
+
+module GVM =
+struct
+  include CilType.Varinfo
+  let var_name g = g.vname
+end
+
+module GV =
+struct
+  include VarMetadataTbl (GVM)
+
+  let make g = make_var g
+end
