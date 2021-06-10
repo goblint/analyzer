@@ -101,7 +101,7 @@ struct
     let g_local_var = var_local g in
     let x_var = Var.of_string x.vname in
     let oct_local =
-      if AD.mem_var oct g_local_var then
+      if W.mem g w then
         AD.assign_var' oct x_var g_local_var
       else
         AD.bot ()
@@ -117,6 +117,7 @@ struct
         (* unlock *)
         let oct_unprot' = AD.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
         (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
+        (* TODO: why removing g_unprot_var? *)
         oct_unprot'
       )
       else (
