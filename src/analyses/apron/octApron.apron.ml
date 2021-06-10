@@ -307,8 +307,7 @@ struct
       Priv.lock (Analyses.ask_of_ctx octx) octx.global st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       Priv.unlock (Analyses.ask_of_ctx octx) octx.global octx.sideg st addr
-    | Events.Escape escaped ->
-      Priv.escape (Analyses.ask_of_ctx octx) octx.global octx.sideg st escaped
+    (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx octx) octx.global octx.sideg st
     | _ ->

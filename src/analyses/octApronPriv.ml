@@ -32,7 +32,6 @@ sig
 
   val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> OctApronComponents (D).t
 
-  val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> EscapeDomain.EscapedVars.t -> OctApronComponents (D).t
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> OctApronComponents (D).t
   val threadenter: Q.ask -> (varinfo -> G.t) -> OctApronComponents (D).t -> OctApronComponents (D).t
 
@@ -57,7 +56,6 @@ struct
 
   let sync ask getg sideg st reason = st
 
-  let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg st = st
   let threadenter ask getg st = st
 
@@ -286,12 +284,6 @@ struct
     | `Thread ->
       st
 
-  let escape ask getg sideg (st: OctApronComponents (D).t) escaped =
-    EscapeDomain.EscapedVars.fold (fun x acc ->
-        (* TODO: implement *)
-        st
-      ) escaped st
-
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     let oct = st.oct in
     let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
@@ -414,15 +406,6 @@ struct
     | `Init
     | `Thread ->
       st
-
-  let escape ask getg sideg (st: OctApronComponents (D).t) escaped =
-    let s = current_lockset ask in
-    EscapeDomain.EscapedVars.fold (fun x acc ->
-        let (w, p) = st.priv in
-        let p' = P.add x (MinLocksets.singleton s) p in
-        (* TODO: implement *)
-        {st with priv = (w, p')}
-      ) escaped st
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t) =
     (* TODO: implement *)
