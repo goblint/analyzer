@@ -126,9 +126,9 @@ struct
       vars
       |> Array.enum
       |> Enum.filter (fun var ->
-          (* TODO: replace name-based check with reverse mapping hashtable *)
-          let name = Var.to_string var in
-          not (String.ends_with name "#unprot" || String.ends_with name "#prot")
+          match V.find_metadata var with
+          | Some (Unprot _ | Prot _) -> false
+          | _ -> true
         )
       |> List.of_enum
     in
@@ -137,29 +137,15 @@ struct
   (** Restrict environment to local variables and still-protected global variables. *)
   let restrict_local is_unprot oct w_remove =
     let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
-    (* TODO: avoid all globals *)
-    let preserve_global_vars =
-      foldGlobals !Cilfacade.current_file (fun acc global ->
-          match global with
-          | GVar (vi, _, _) ->
-            if is_unprot vi then
-              acc
-            else
-              vi :: acc
-            (* TODO: what about GVarDecl? *)
-          | _ -> acc
-        ) []
-      |> List.map V.prot
-    in
     let remove_global_vars =
       vars
       |> Array.enum
       |> Enum.filter (fun var ->
-          (* TODO: replace name-based check with reverse mapping hashtable *)
-          let name = Var.to_string var in
-          String.ends_with name "#unprot" || String.ends_with name "#prot" (* negated compared to restrict_global! *)
+          match V.find_metadata var with
+          | Some (Unprot _) -> true
+          | Some (Prot g) when is_unprot g -> true
+          | _ -> false
         )
-      |> Enum.filter (fun var -> not (List.mem_cmp Var.compare var preserve_global_vars)) (* TODO: optimize mem *)
       |> List.of_enum
     in
     let remove_local_vars = List.map V.local (W.elements w_remove) in
