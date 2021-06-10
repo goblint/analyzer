@@ -157,30 +157,13 @@ struct
     let oct = st.oct in
     let (p, w) = st.priv in
     let (p_remove, p') = P.partition (fun g -> is_unprotected_without ask g m) p in
-    (* TODO: avoid all globals *)
-    let all_gs =
-      foldGlobals !Cilfacade.current_file (fun acc global ->
-        match global with
-        | GVar (vi, _, _) ->
-          vi :: acc
-          (* TODO: what about GVarDecl? *)
-        | _ -> acc
-      ) []
-    in
-    (* not locally may-written globals couldn't be parallel assigned for side effect anyway *)
-    let may_local_gs = List.filter (fun g ->
-        AD.mem_var oct (var_local g)
-      ) all_gs
-    in
-    let big_omega_gs =
-      (* all locally must-written globals are always included *)
-      let certain_gs = List.filter (fun g -> P.mem g p) may_local_gs in
-      (* all protected but not locally must-written globals have a choice *)
-      let choice_gs = List.filter (fun g ->
-          not (P.mem g p) && is_protected_by ask m g
-        ) may_local_gs
-      in
-      choice_gs
+    let (w_remove, w') = W.partition (fun g -> is_unprotected_without ask g m) w in
+    let p_a = P.filter (is_protected_by ask m) p in
+    let w_a = W.filter (is_protected_by ask m) (W.diff w p) in
+    let big_omega =
+      let certain = P.elements p_a in
+      let choice = W.elements w_a in
+      choice
       |> List.map (fun _ -> [true; false])
       |> List.n_cartesian_product (* TODO: exponential! *)
       |> List.map (fun omega ->
@@ -190,22 +173,24 @@ struct
               g :: acc
             else
               acc
-          ) certain_gs choice_gs omega
+          ) certain choice omega
         )
     in
-    let oct_side = List.fold_left (fun acc omega_gs ->
-        let g_prot_vars = List.map var_prot omega_gs in
-        let g_local_vars = List.map var_local omega_gs in
+    let oct_side = List.fold_left (fun acc omega ->
+        let g_prot_vars = List.map var_prot omega in
+        let g_local_vars = List.map var_local omega in
         let oct_side1 = AD.add_vars_int oct g_prot_vars in
         let oct_side1 = AD.parallel_assign_vars oct_side1 g_prot_vars g_local_vars in
         AD.join acc oct_side1
-      ) (AD.bot ()) big_omega_gs
+      ) (AD.bot ()) big_omega
     in
+    (* not locally may-written globals couldn't be parallel assigned for side effect anyway *)
+    let may_local_gs = W.elements w in
     let oct_side = AD.keep_vars oct_side (List.map var_prot may_local_gs) in (* TODO: don't remove g#unprot-s, other g#prot-s *)
     sideg (global_varinfo ()) oct_side;
     let oct_local = AD.remove_vars oct (List.map var_local (P.elements p_remove)) in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
-    {st with oct = oct_local'; priv = (p', w)}
+    {st with oct = oct_local'; priv = (p', w')}
 
   let sync ask getg sideg (st: OctApronComponents (D).t) reason =
     match reason with
