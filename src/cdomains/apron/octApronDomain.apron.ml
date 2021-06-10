@@ -826,3 +826,32 @@ struct
   let widen = op_scheme D2.widen PrivD.widen
   let narrow = op_scheme D2.narrow PrivD.narrow
 end
+
+
+module Var =
+struct
+  include Var
+
+  let equal x y = Var.compare x y = 0
+end
+
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
+
+module VarMetadataTbl (VM: VarMetadata) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var metadata =
+    let var = Var.of_string (VM.var_name metadata) in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata var =
+    VH.find_option vh var
+end

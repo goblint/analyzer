@@ -97,9 +97,27 @@ struct
 
   let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
-  let var_local g = Var.of_string g.vname
-  let var_unprot g = Var.of_string (g.vname ^ "#unprot")
-  let var_prot g = Var.of_string (g.vname ^ "#prot")
+  module VM =
+  struct
+    type t =
+      | Local of varinfo
+      | Unprot of varinfo
+      | Prot of varinfo
+
+    let var_name = function
+      | Local g -> g.vname
+      | Unprot g -> g.vname ^ "#unprot"
+      | Prot g -> g.vname ^ "#prot"
+  end
+  module V =
+  struct
+    include OctApronDomain.VarMetadataTbl (VM)
+    open VM
+
+    let local g = make_var (Local g)
+    let unprot g = make_var (Unprot g)
+    let prot g = make_var (Prot g)
+  end
 
   (** Restrict environment to global invariant variables. *)
   let restrict_global oct =
@@ -131,7 +149,7 @@ struct
             (* TODO: what about GVarDecl? *)
           | _ -> acc
         ) []
-      |> List.map var_prot
+      |> List.map V.prot
     in
     let remove_global_vars =
       vars
@@ -144,7 +162,7 @@ struct
       |> Enum.filter (fun var -> not (List.mem_cmp Var.compare var preserve_global_vars)) (* TODO: optimize mem *)
       |> List.of_enum
     in
-    let remove_local_vars = List.map var_local (W.elements w_remove) in
+    let remove_local_vars = List.map V.local (W.elements w_remove) in
     let remove_vars = remove_local_vars @ remove_global_vars in
     AD.remove_vars oct remove_vars
 
@@ -162,7 +180,7 @@ struct
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
     let (p, w) = st.priv in
-    let g_local_var = var_local g in
+    let g_local_var = V.local g in
     let x_var = Var.of_string x.vname in
     let oct_local =
       if W.mem g w then
@@ -174,7 +192,7 @@ struct
       if P.mem g p then
         oct_local
       else if is_unprotected ask g then (
-        let g_unprot_var = var_unprot g in
+        let g_unprot_var = V.unprot g in
         let oct_unprot = AD.add_vars_int oct [g_unprot_var] in
         let oct_unprot = AD.assign_var' oct_unprot x_var g_unprot_var in
         (* let oct_unprot' = AD.join oct_local oct_unprot in
@@ -186,7 +204,7 @@ struct
         AD.join oct_local oct_unprot
       )
       else (
-        let g_prot_var = var_prot g in
+        let g_prot_var = V.prot g in
         let oct_prot = AD.add_vars_int oct [g_prot_var] in
         let oct_prot = AD.assign_var' oct_prot x_var g_prot_var in
         AD.join oct_local oct_prot
@@ -199,8 +217,8 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
     let (p, w) = st.priv in
-    let g_local_var = var_local g in
-    let g_unprot_var = var_unprot g in
+    let g_local_var = V.local g in
+    let g_unprot_var = V.unprot g in
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars_int oct [g_local_var] in
     let oct_local = AD.assign_var' oct_local g_local_var x_var in
@@ -252,8 +270,8 @@ struct
         )
     in
     let oct_side = List.fold_left (fun acc omega ->
-        let g_prot_vars = List.map var_prot omega in
-        let g_local_vars = List.map var_local omega in
+        let g_prot_vars = List.map V.prot omega in
+        let g_local_vars = List.map V.local omega in
         let oct_side1 = AD.add_vars_int oct g_prot_vars in
         let oct_side1 = AD.parallel_assign_vars oct_side1 g_prot_vars g_local_vars in
         AD.join acc oct_side1
@@ -306,8 +324,8 @@ struct
       ) all_gs
     in
     let g_vars = List.map (fun g -> Var.of_string g.vname) gs in
-    let g_unprot_vars = List.map var_unprot gs in
-    let g_prot_vars = List.map var_prot gs in
+    let g_unprot_vars = List.map V.unprot gs in
+    let g_prot_vars = List.map V.prot gs in
     let oct_side = AD.add_vars_int oct (g_unprot_vars @ g_prot_vars) in
     let oct_side = AD.parallel_assign_vars oct_side g_unprot_vars g_vars in
     let oct_side = AD.parallel_assign_vars oct_side g_prot_vars g_vars in
