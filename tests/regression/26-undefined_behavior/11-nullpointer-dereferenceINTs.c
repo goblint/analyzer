@@ -2,7 +2,7 @@
 #include <stdio.h>
 //source base: https://stackoverflow.com/questions/4007268/what-exactly-is-meant-by-de-referencing-a-null-pointer
 int main(){    
-    int a, b, c; // some integers
+    int a, b, c, x; // some integers
     int *pi;     // a pointer to an integer
     int *ok;
     a = 5;
@@ -10,7 +10,7 @@ int main(){
     pi = &a; // pi points to a
     b = *pi; // b is now 5
     pi = NULL;
-    c = *ok; //NOWARN
+    x = *ok; //NOWARN
     c = *pi; // WARN
 
     return 1;
