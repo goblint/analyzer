@@ -32,6 +32,7 @@ void *t2_fun(void *arg) {
     g = x;
   else
     h = x;
+  assert(g == h); // UNKNOWN!
   pthread_mutex_unlock(&A);
   return NULL;
 }
