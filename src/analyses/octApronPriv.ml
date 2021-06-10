@@ -109,7 +109,7 @@ struct
     AD.remove_vars oct remove_vars
 
   (** Restrict environment to local variables and still-protected global variables. *)
-  let restrict_local oct p' w' p_remove w_remove =
+  let restrict_local oct p' w_remove =
     let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
     let preserve_global_vars = List.map var_prot (P.elements p') in
     let remove_global_vars =
@@ -221,7 +221,7 @@ struct
     let oct' = oct_side in
     let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
-    let oct_local = restrict_local oct' p' w' p_remove w_remove in
+    let oct_local = restrict_local oct' p' w_remove in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
     {st with oct = oct_local'; priv = (p', w')}
 
