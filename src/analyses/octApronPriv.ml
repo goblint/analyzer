@@ -109,9 +109,22 @@ struct
     AD.remove_vars oct remove_vars
 
   (** Restrict environment to local variables and still-protected global variables. *)
-  let restrict_local oct p' w_remove =
+  let restrict_local is_unprot oct w_remove =
     let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
-    let preserve_global_vars = List.map var_prot (P.elements p') in
+    (* TODO: avoid all globals *)
+    let preserve_global_vars =
+      foldGlobals !Cilfacade.current_file (fun acc global ->
+          match global with
+          | GVar (vi, _, _) ->
+            if is_unprot vi then
+              acc
+            else
+              vi :: acc
+            (* TODO: what about GVarDecl? *)
+          | _ -> acc
+        ) []
+      |> List.map var_prot
+    in
     let remove_global_vars =
       vars
       |> Array.enum
@@ -162,7 +175,7 @@ struct
         AD.join oct_local oct_prot
       )
     in
-    let oct_local' = restrict_local oct_local' p (W.empty ()) in (* TODO: this even breaks 36/12 by immediately forgetting g#in = g#prot by removing g#prot, which hasn't ben locally written *)
+    let oct_local' = restrict_local (is_unprotected ask) oct_local' (W.empty ()) in
     let oct_local' = AD.meet oct_local' (getg (global_varinfo ())) in
     {st with oct = oct_local'}
 
@@ -186,11 +199,11 @@ struct
         (* restricting g#unprot-s out from oct' gives oct_local *)
         {oct = oct_local; priv = (P.add g p, W.add g w)} *)
       if is_unprotected ask g then
-        {st with oct = restrict_local oct' p (W.singleton g)}
+        {st with oct = restrict_local (is_unprotected ask) oct' (W.singleton g)}
       else (
         let p' = P.add g p in
         let w' = W.add g w in
-        {st with oct = restrict_local oct' p' (W.empty ()); priv = (p', w')}
+        {st with oct = restrict_local (is_unprotected ask) oct' (W.empty ()); priv = (p', w')}
       )
     in
     let oct_local' = AD.meet st'.oct (getg (global_varinfo ())) in
@@ -232,7 +245,7 @@ struct
     let oct' = oct_side in
     let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
-    let oct_local = restrict_local oct' p' w_remove in
+    let oct_local = restrict_local (fun g -> is_unprotected_without ask g m) oct' w_remove in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
     {st with oct = oct_local'; priv = (p', w')}
 
