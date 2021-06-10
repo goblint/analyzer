@@ -19,6 +19,7 @@ sig
   module G: Lattice.S
 
   val startstate: unit -> D.t
+  val should_join: OctApronComponents (D).t -> OctApronComponents (D).t -> bool
 
   val read_global: Q.ask -> (varinfo -> G.t) -> OctApronComponents (D).t -> varinfo -> varinfo -> OctApronComponents (D).t
 
@@ -46,6 +47,7 @@ struct
   module G = Lattice.Unit
 
   let startstate () = ()
+  let should_join _ _ = true
 
   let read_global ask getg st g x = st
   let write_global ?(invariant=false) ask getg sideg st g x = st
@@ -141,6 +143,8 @@ struct
     AD.remove_vars oct remove_vars
 
   let startstate () = (P.empty (), W.empty ())
+
+  let should_join _ _ = true (* TODO: change *)
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
@@ -320,6 +324,8 @@ struct
   let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
   let startstate () = (W.bot (), P.top ())
+
+  let should_join _ _ = true
 
   let lockset_init = Lockset.top ()
 

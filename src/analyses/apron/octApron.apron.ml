@@ -17,6 +17,8 @@ struct
 
   module AD = OctApronDomain.D2
 
+  let should_join = Priv.should_join
+
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
 
