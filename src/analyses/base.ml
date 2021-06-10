@@ -1794,27 +1794,7 @@ struct
         List.iter (fun x -> ctx.spawn None x []) funs
       | _ -> ()
       );
-      let is_malloc_pointer e =
-        let rv =  eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-        let is_pointer = match e with Lval (Var v, _) -> (match v.vtype with TPtr _ -> true |  (* TArray _ -> true | *) _ -> false) | _ -> false in
-        is_pointer && VD.is_bot rv
-      in
-      let is_malloc_assignment rval =
-        match rval with
-        | CastE (t, e) -> is_malloc_pointer e
-        | e -> is_malloc_pointer e
-      in
-      let handle_malloc_assignment () =
-        let heap_var = AD.from_var (heap_var ctx) in
-          let heap_var = if (get_bool "exp.malloc.fail")
-              then AD.join heap_var AD.null_ptr
-              else heap_var
-          in
-          set_many (Analyses.ask_of_ctx ctx) ctx.global ctx.local [(heap_var, TVoid [], `Blob (VD.top (), IdxDom.top_of (Cilfacade.ptrdiff_ikind ()), false));
-                                   (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval, Cil.typeOfLval lval,`Address heap_var) ]
-      in
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, _) when GobConfig.get_bool "ana.library" && is_malloc_assignment rval -> handle_malloc_assignment ()
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
         let current_val = eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
         (match current_val with
