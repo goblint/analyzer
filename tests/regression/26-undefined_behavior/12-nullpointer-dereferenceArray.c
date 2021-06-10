@@ -12,7 +12,7 @@ int main(){
     b = *pi; // b is now 5
     pi = NULL;
     c = *ok; //NOWARN
-    c = *pi; // should be a war n no ?
+    c = *pi; // should be a warn no ?
     arr[3] = NULL; 
     x = arr[3];
     c = x; //this should be a warn too ?
