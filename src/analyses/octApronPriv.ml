@@ -174,13 +174,22 @@ struct
     let oct_local = AD.assign_var' oct_local g_local_var x_var in
     let oct_side = AD.add_vars_int oct_local [g_unprot_var] in
     let oct_side = AD.assign_var' oct_side g_unprot_var g_local_var in
+    let oct' = oct_side in
     let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
     let st' =
-      if is_unprotected ask g then
+      (* if is_unprotected ask g then
         st (* add, assign, remove gives original local state *)
       else
-        {oct = oct_local; priv = (P.add g p, W.add g w)}
+        (* restricting g#unprot-s out from oct' gives oct_local *)
+        {oct = oct_local; priv = (P.add g p, W.add g w)} *)
+      if is_unprotected ask g then
+        {st with oct = restrict_local oct' p (W.singleton g)}
+      else (
+        let p' = P.add g p in
+        let w' = W.add g w in
+        {st with oct = restrict_local oct' p' (W.empty ()); priv = (p', w')}
+      )
     in
     let oct_local' = AD.meet st'.oct (getg (global_varinfo ())) in
     {st' with oct = oct_local'}
