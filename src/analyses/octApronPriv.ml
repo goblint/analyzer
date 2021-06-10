@@ -68,12 +68,22 @@ module ProtectionBasedPriv: S =
 struct
   open Protection
 
+  (** Locally must-written protected globals that have been continuously protected since writing. *)
   module P =
   struct
     include MustVars
     let name () = "P"
   end
-  module D = P
+
+  (** Locally may-written protected globals that have been continuously protected since writing. *)
+  (* TODO: is this right? *)
+  module W =
+  struct
+    include MayVars
+    let name () = "W"
+  end
+
+  module D = Lattice.Prod (P) (W)
 
   module G = AD
 
@@ -83,10 +93,11 @@ struct
   let var_unprot g = Var.of_string (g.vname ^ "#unprot")
   let var_prot g = Var.of_string (g.vname ^ "#prot")
 
-  let startstate () = P.empty ()
+  let startstate () = (P.empty (), W.empty ())
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
+    let (p, w) = st.priv in
     let g_local_var = var_local g in
     let x_var = Var.of_string x.vname in
     let oct_local =
@@ -96,7 +107,7 @@ struct
         AD.bot ()
     in
     let oct_local' =
-      if P.mem g st.priv then
+      if P.mem g p then
         oct_local
       else if is_unprotected ask g then (
         let g_unprot_var = var_unprot g in
@@ -120,6 +131,7 @@ struct
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
+    let (p, w) = st.priv in
     let g_local_var = var_local g in
     let g_unprot_var = var_unprot g in
     let x_var = Var.of_string x.vname in
@@ -133,7 +145,7 @@ struct
       if is_unprotected ask g then
         st (* add, assign, remove gives original local state *)
       else
-        {oct = oct_local; priv = P.add g st.priv}
+        {oct = oct_local; priv = (P.add g p, W.add g w)}
     in
     let oct_local' = AD.meet st'.oct (getg (global_varinfo ())) in
     {st' with oct = oct_local'}
@@ -142,7 +154,7 @@ struct
 
   let unlock ask getg sideg (st: OctApronComponents (D).t) m =
     let oct = st.oct in
-    let p = st.priv in
+    let (p, w) = st.priv in
     let (p_remove, p') = P.partition (fun g -> is_unprotected_without ask g m) p in
     (* TODO: avoid all globals *)
     let all_gs =
@@ -192,7 +204,7 @@ struct
     sideg (global_varinfo ()) oct_side;
     let oct_local = AD.remove_vars oct (List.map var_local (P.elements p_remove)) in
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
-    {st with oct = oct_local'; priv = p'}
+    {st with oct = oct_local'; priv = (p', w)}
 
   let sync ask getg sideg (st: OctApronComponents (D).t) reason =
     match reason with

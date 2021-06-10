@@ -29,9 +29,14 @@ struct
     ask Q.MustBeAtomic
 end
 
+module MayVars =
+struct
+  include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+  let name () = "may variables"
+end
+
 module MustVars =
 struct
-  module MayVars = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
   include SetDomain.Reverse (MayVars)
   let name () = "must variables"
 end
