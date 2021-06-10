@@ -65,8 +65,14 @@ struct
   let finalize () = ()
 end
 
+module type ProtectionBasedPrivParam =
+sig
+  (** Whether to be path-sensitive w.r.t. locally written protected globals that have been continuously protected since writing. *)
+  val path_sensitive: bool
+end
+
 (** Protection-Based Reading. *)
-module ProtectionBasedPriv: S =
+module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
 struct
   open Protection
 
@@ -144,7 +150,14 @@ struct
 
   let startstate () = (P.empty (), W.empty ())
 
-  let should_join _ _ = true (* TODO: change *)
+  let should_join (st1: OctApronComponents (D).t) (st2: OctApronComponents (D).t) =
+    if Param.path_sensitive then (
+      let (p1, _) = st1.priv in
+      let (p2, _) = st2.priv in
+      P.equal p1 p2
+    )
+    else
+      true
 
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
@@ -536,7 +549,8 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "exp.octapron.privatization" with
         | "dummy" -> (module Dummy: S)
-        | "protection" -> (module ProtectionBasedPriv)
+        | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
+        | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
         | "write" -> (module WriteCenteredPriv)
         | _ -> failwith "exp.octapron.privatization: illegal value"
       )

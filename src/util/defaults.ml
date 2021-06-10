@@ -95,7 +95,7 @@ let _ = ()
 (* {4 category [Analyses]} *)
 let _ = ()
       ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','threadreturn','escape','mutex','mallocWrapper']"  "Lists of activated analyses in this phase."
-      ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
+      ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit','octApron']"  "List of path-sensitive analyses"
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
       ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
@@ -158,7 +158,7 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.octapron.privatization" "'protection'" "Which octApron privatization to use? dummy/protection/write"
+      ; reg Experimental "exp.octapron.privatization" "'protection'" "Which octApron privatization to use? dummy/protection/protection-path/write"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
