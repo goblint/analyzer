@@ -2,7 +2,6 @@
 
 open Prelude.Ana
 open Analyses
-open Apron
 open OctApronDomain
 
 module SpecFunctor (Priv: OctApronPriv.S) : Analyses.MCPSpec =
