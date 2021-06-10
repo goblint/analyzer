@@ -527,6 +527,7 @@ struct
     (Queries.Result.top q) 
   else
     (* let () = Printf.printf "Size 1: %d\n" (QuerySet.cardinal asked) in *)
+    let asked = QuerySet.add (Any(q)) asked in
     let module Result = (val Queries.Result.lattice q) in
     let f a (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
@@ -536,7 +537,7 @@ struct
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = (fun (type b) (q: b Queries.t) -> query' (QuerySet.add (Any(q)) asked) ctx q)
+        ; ask    = (fun (type b) (q: b Queries.t) -> query' asked ctx q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
         ; presub = filter_presubs n ctx.local
         ; postsub= []
