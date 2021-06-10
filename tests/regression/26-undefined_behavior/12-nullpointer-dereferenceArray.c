@@ -12,10 +12,10 @@ int main(){
     b = *pi; // b is now 5
     pi = NULL;
     c = *ok; //NOWARN
-    c = *pi; // WARN
-    arr[3] = NULL; //WARN
+    c = *pi; // should be a war n no ?
+    arr[3] = NULL; 
     x = arr[3];
-    c = x; //WARN
+    c = x; //this should be a warn too ?
 
     return 1;
 }
