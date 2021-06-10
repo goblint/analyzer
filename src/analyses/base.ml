@@ -514,7 +514,7 @@ struct
     let new_addrs = List.filter_map Tuple2.second concrete_and_new_addresses in
     (concrete_addrs, new_addrs)
 
-  let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (reachable_vars: Addr.t list BatMap.Int.t list) =
+  let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (reachable_vars: AD.t list) =
     let rec get_concrete_value_and_new_blocks_from_value symb_value = match symb_value with
       | `Address addr ->
         let (concrete_addrs, new_addrs) = symb_address_set_to_concretes a g symb st fun_st addr reachable_vars in
