@@ -5,6 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 int main() {
+  int x;
+  int n;
+  if(x < 5) {
+    n = 45;
+  } else {
+    n = 27;
+  }
+  int array[n]; //WARN
   int N = 3 + 2;
   int arr[N];
   arr[0] = 1;
