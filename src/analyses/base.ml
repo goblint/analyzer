@@ -490,7 +490,8 @@ struct
     let concretes = List.filter (fun a -> ts = (typeSig (AD.get_type a))) reachable_vars in
 
     (* let concretes = List.map (fun a -> AD.map (fun addr -> Addr.add_offset addr offset) a) concrete_bases in *)
-    List.fold AD.join (AD.bot ()) concretes
+    (* Passing the address sets with smaller cardinality as the first parameter to join significantly improves performance *)
+    List.fold (fun acc a -> AD.join a acc) (AD.bot ()) concretes
 
   let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let sym_address_to_conretes (addr: Addr.t) = (* Returns a list of concrete addresses and a list of addresses of memory blocks that are added to the heap *)
