@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] octApron --disable ana.int.def_exc
+// SKIP PARAM: --sets ana.activated[+] octApron --disable ana.int.def_exc
 #include <assert.h>
 
 int g = 0;

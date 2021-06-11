@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] octApron
+// SKIP PARAM: --sets ana.activated[+] octApron
 #include <pthread.h>
 #include <assert.h>
 

@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] octApron
+// SKIP PARAM: --sets ana.activated[+] octApron
 #include <pthread.h>
 #include <assert.h>
 
@@ -7,11 +7,11 @@ pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t B = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  pthread_mutex_lock(&A);
-  pthread_mutex_lock(&B);
-  g = 42;
-  pthread_mutex_unlock(&B);
-  pthread_mutex_unlock(&A);
+  // pthread_mutex_lock(&A);
+  // pthread_mutex_lock(&B);
+  // g = 42;
+  // pthread_mutex_unlock(&B);
+  // pthread_mutex_unlock(&A);
   return NULL;
 }
 
@@ -23,7 +23,7 @@ int main(void) {
 
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
-  if (r) {
+  if (r * r) {
     g = 17;
     pthread_mutex_unlock(&B); // publish to g#prot
     pthread_mutex_lock(&B);
