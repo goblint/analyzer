@@ -4,6 +4,8 @@ open Pretty
 (* For Apron implementation of octagons *)
 open Apron
 
+module M = Messages
+
 exception Invalid_CilExpToLhost
 exception Invalid_CilExpToLexp
 
@@ -278,13 +280,14 @@ struct
         | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
         in
       match x with
-      | BinOp (Ne, lhd, rhs, intType) ->
+      (* TODO: why was this ever necessary? it is unsound for 36/18 *)
+      (* | BinOp (Ne, lhd, rhs, intType) ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
         if not (is_bot assert_gt) then
           assert_gt
         else
-          assert_lt
+          assert_lt *)
       | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
         let linecons = cil_exp_to_apron_linecons (A.env d) x b in
@@ -306,6 +309,7 @@ struct
     with Invalid_CilExpToLexp -> d
 
   (* Creates the opposite invariant and assters it *)
+  (* TODO: why is this necessary if assert_inv has boolean argument? *)
   let assert_op_inv d x b =
     (* if assert(x) then convert it to assert(x != 0) *)
     let x = match x with
@@ -318,6 +322,7 @@ struct
           assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
 
         | BinOp (Eq, lhd, rhs, intType) ->
+          (* FIXME: this is probably wrong here too? *)
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
           if not (is_bot assert_gt) then
@@ -350,7 +355,7 @@ struct
     | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
     | _ ->
       let result_state = (assert_inv state e false) in
-      let result_state_op = (assert_op_inv state e false) in
+      let result_state_op = (assert_op_inv state e false) in (* TODO: why not use assert_inv with true? *)
       if is_bot result_state then
         `False
       else if is_bot result_state_op then
@@ -593,4 +598,287 @@ struct
               new_oct
         | _ -> oct)
 
+end
+
+(** With heterogeneous environments. *)
+module D2 =
+struct
+  include D
+
+  let gce (x: Environment.t) (y: Environment.t): Environment.t =
+    let (xi, xf) = Environment.vars x in
+    (* TODO: check type compatibility *)
+    let i = Array.filter (Environment.mem_var y) xi in
+    let f = Array.filter (Environment.mem_var y) xf in
+    Environment.make i f
+
+  let join x y =
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let c_env = gce x_env y_env in
+    let x_c = A.change_environment Man.mgr x c_env false in
+    let y_c = A.change_environment Man.mgr y c_env false in
+    let join_c = A.join Man.mgr x_c y_c in
+    let j_env = Environment.lce x_env y_env in
+    A.change_environment Man.mgr join_c j_env false
+
+  let strengthening j x y =
+    if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let j_env = A.env j in
+    let x_j = A.change_environment Man.mgr x j_env false in
+    let y_j = A.change_environment Man.mgr y j_env false in
+    let x_cons = A.to_lincons_array Man.mgr x_j in
+    let y_cons = A.to_lincons_array Man.mgr y_j in
+    let try_add_con j con1 =
+      let con0: Lincons0.t = con1.Lincons1.lincons0 in
+      let cons1: Lincons1.earray = {lincons0_array = [|con0|]; array_env = j_env} in
+      if M.tracing then M.tracei "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.array_print: Format.formatter -> Lincons1.earray -> unit) cons1);
+      let t = A.meet_lincons_array Man.mgr j cons1 in
+      let t_x = A.change_environment Man.mgr t x_env false in
+      let t_y = A.change_environment Man.mgr t y_env false in
+      let leq_x = A.is_leq Man.mgr x t_x in
+      let leq_y = A.is_leq Man.mgr y t_y in
+      if M.tracing then M.trace "apron" "t: %a\n" pretty t;
+      if M.tracing then M.trace "apron" "t_x (leq x %B): %a\n" leq_x pretty t_x;
+      if M.tracing then M.trace "apron" "t_y (leq y %B): %a\n" leq_y pretty t_y;
+      if leq_x && leq_y then (
+        if M.tracing then M.traceu "apron" "added\n";
+        t
+      )
+      else (
+        if M.tracing then M.traceu "apron" "not added\n";
+        j
+      )
+    in
+    let x_cons1 = Array.map (fun con0 ->
+        {Lincons1.lincons0 = con0; env = x_cons.array_env}
+      ) x_cons.lincons0_array
+    in
+    let y_cons1 = Array.map (fun con0 ->
+        {Lincons1.lincons0 = con0; env = y_cons.array_env}
+      ) y_cons.lincons0_array
+    in
+    let cons1 =
+      (* Whether [con1] contains a var in [env]. *)
+      let env_exists_mem_con1 env con1 =
+        try
+          Lincons1.iter (fun _ var ->
+              if Environment.mem_var env var then
+                raise Not_found
+            ) con1;
+          false
+        with Not_found ->
+          true
+      in
+      (* Heuristically reorder constraints to pass 36/12 with singlethreaded->multithreaded mode switching. *)
+      (* Put those constraints which strictly are in one argument's env first, to (hopefully) ensure they remain. *)
+      let (x_cons1_some_y, x_cons1_only_x) = Array.partition (env_exists_mem_con1 y_env) x_cons1 in
+      let (y_cons1_some_x, y_cons1_only_y) = Array.partition (env_exists_mem_con1 x_env) y_cons1 in
+      Array.concat [x_cons1_only_x; y_cons1_only_y; x_cons1_some_y; y_cons1_some_x]
+    in
+    let j = Array.fold_left try_add_con j cons1 in
+    if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+    j
+
+  let bot () =
+    top ()
+
+  let top () =
+    failwith "D2.top"
+
+  let equal x y =
+    Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
+
+  let is_bot = equal (bot ())
+  let is_top _ = false
+
+  let join x y =
+    (* just to optimize joining folds, which start with bot *)
+    if is_bot x then
+      y
+    else if is_bot y then
+      x
+    else (
+      if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
+      let j = join x y in
+      if M.tracing then M.trace "apron" "j = %a\n" pretty j;
+      let j = strengthening j x y in
+      if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+      j
+    )
+
+  let meet x y =
+    A.unify Man.mgr x y
+
+  let leq x y =
+    (* TODO: float *)
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let (x_vars, _) = Environment.vars x_env in
+    if Array.for_all (Environment.mem_var y_env) x_vars then (
+      let y' = A.change_environment Man.mgr y x_env false in
+      A.is_leq Man.mgr x y'
+    )
+    else
+      false
+
+  let widen x y =
+    let x_env = A.env x in
+    let y_env = A.env y in
+    if Environment.equal x_env y_env then
+      A.widening Man.mgr x y (* widen if env didn't increase *)
+    else
+      y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
+
+  (* TODO: better narrow *)
+  let narrow x y = x
+
+
+  (* Extra helper functions, some just to bypass chosen vars. *)
+  let mem_var d v = Environment.mem_var (A.env d) v
+
+  let assign_var' d v v' =
+    A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
+
+  let add_vars_int d vs =
+    (* TODO: add_vars which takes Var arguments instead *)
+    add_vars d (List.map Var.to_string vs, [])
+
+  let remove_vars d vs =
+    (* TODO: remove_all which takes Var arguments instead *)
+    remove_all d (List.map Var.to_string vs)
+
+  let keep_vars d vs =
+    let d' = A.copy Man.mgr d in
+    (* TODO: remove_all_but_with which takes Var arguments instead *)
+    remove_all_but_with d' (List.map Var.to_string vs);
+    d'
+
+  let parallel_assign_vars d vs v's =
+    let env = A.env d in
+    let vs = Array.of_list vs in
+    let v's =
+      v's
+      |> List.enum
+      |> Enum.map (Texpr1.var env)
+      |> Array.of_enum
+    in
+    A.assign_texpr_array Man.mgr d vs v's None
+
+  let forget_vars d vs =
+    (* TODO: forget_all which takes Var arguments instead *)
+    forget_all d (List.map Var.to_string vs)
+end
+
+
+(* Copy-paste from BaseDomain... *)
+type 'a octaproncomponents_t = {
+  oct: D2.t;
+  priv: 'a;
+} [@@deriving eq, ord, to_yojson]
+
+module OctApronComponents (PrivD: Lattice.S):
+sig
+  include Lattice.S with type t = PrivD.t octaproncomponents_t
+  val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+end =
+struct
+  type t = PrivD.t octaproncomponents_t [@@deriving eq, ord, to_yojson]
+
+  include Printable.Std
+  open Pretty
+  let hash r  = D2.hash r.oct + PrivD.hash r.priv * 33
+
+
+  let show r =
+    let first  = D2.show r.oct in
+    let third  = PrivD.show r.priv in
+    "(" ^ first ^ ", " ^ third  ^ ")"
+
+  let pretty () r =
+    text "(" ++
+    D2.pretty () r.oct
+    ++ text ", " ++
+    PrivD.pretty () r.priv
+    ++ text ")"
+
+  let printXml f r =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.oct (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+
+  let name () = D2.name () ^ " * " ^ PrivD.name ()
+
+  let invariant c {oct; priv} =
+    Invariant.(D2.invariant c oct && PrivD.invariant c priv)
+
+  let of_tuple(oct, priv):t = {oct; priv}
+  let to_tuple r = (r.oct, r.priv)
+
+  let arbitrary () =
+    let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
+    QCheck.map ~rev:to_tuple of_tuple tr
+
+  let bot () = { oct = D2.bot (); priv = PrivD.bot ()}
+  let is_bot {oct; priv} = D2.is_bot oct && PrivD.is_bot priv
+  let top () = {oct = D2.top (); priv = PrivD.bot ()}
+  let is_top {oct; priv} = D2.is_top oct && PrivD.is_top priv
+
+  let leq {oct=x1; priv=x3 } {oct=y1; priv=y3} =
+    D2.leq x1 y1 && PrivD.leq x3 y3
+
+  let pretty_diff () (({oct=x1; priv=x3}:t),({oct=y1; priv=y3}:t)): Pretty.doc =
+    if not (D2.leq x1 y1) then
+      D2.pretty_diff () (x1,y1)
+    else
+      PrivD.pretty_diff () (x3,y3)
+
+  let op_scheme op1 op3 {oct=x1; priv=x3} {oct=y1; priv=y3}: t =
+    {oct = op1 x1 y1; priv = op3 x3 y3 }
+  let join = op_scheme D2.join PrivD.join
+  let meet = op_scheme D2.meet PrivD.meet
+  let widen = op_scheme D2.widen PrivD.widen
+  let narrow = op_scheme D2.narrow PrivD.narrow
+end
+
+
+module Var =
+struct
+  include Var
+
+  let equal x y = Var.compare x y = 0
+end
+
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
+
+module VarMetadataTbl (VM: VarMetadata) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var metadata =
+    let var = Var.of_string (VM.var_name metadata) in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata var =
+    VH.find_option vh var
+end
+
+module GVM =
+struct
+  include CilType.Varinfo
+  let var_name g = g.vname
+end
+
+module GV =
+struct
+  include VarMetadataTbl (GVM)
+
+  let make g = make_var g
 end
