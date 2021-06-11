@@ -5,7 +5,7 @@ int main(){
     int *t;
     t = 5;
     pi = NULL; 
-    int c = *pi; // this is a NULL pointer dereference
-    int d = *t; // this is NOT a NULL POINTER
+    int c = *pi; // WARN
+    int d = *t; // NOWARN
     return 1;
 }

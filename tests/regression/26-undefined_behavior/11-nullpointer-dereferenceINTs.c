@@ -11,7 +11,7 @@ int main(){
     b = *pi; // b is now 5
     pi = NULL;
     x = *ok; //NOWARN
-    c = *pi; // This should be a warn, shouldn't it ?
+    c = *pi; // WARN
 
     return 1;
 }
