@@ -717,8 +717,15 @@ struct
     else
       false
 
-  (* TODO: better widen, narrow *)
-  let widen x y = y
+  let widen x y =
+    let x_env = A.env x in
+    let y_env = A.env y in
+    if Environment.equal x_env y_env then
+      A.widening Man.mgr x y (* widen if env didn't increase *)
+    else
+      y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
+
+  (* TODO: better narrow *)
   let narrow x y = x
 
 
