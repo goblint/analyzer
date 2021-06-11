@@ -570,19 +570,13 @@ struct
   let update_length _ x = x
 end
 
-
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module ArrayCheck (Idx: IntDomain.Z) =
 struct
-  module Base = Trivial (Val) (Idx)
-  include Lattice.Prod (Base) (Idx)
-  type idx = Idx.t
-  type value = Val.t
-  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+  let array_oob_check (x, l) (e, v) =
     if GobConfig.get_bool "ana.arrayoob" then
       let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
       and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
-      let () =
-        match(idx_after_start, idx_before_end) with
+      let () = match(idx_after_start, idx_before_end) with
         | Some true, Some true -> (* Certainly in bounds on both sides.*)
           ()
         | Some true, Some false ->
@@ -595,9 +589,22 @@ struct
           M.warn_each "[Array out of bounds][MAY] Array index might be before the beginning of the array."
         | _ ->
           M.warn_each "[Array out of bounds][MAY] Array index might be out of bounds."
-      in
-      Base.get ask x (e, v)
-    else Base.get ask x (e, v)
+      in ()
+    else ()
+end
+
+
+module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+struct
+  module Base = Trivial (Val) (Idx)
+  include Lattice.Prod (Base) (Idx)
+  type idx = Idx.t
+  type value = Val.t
+  module AC = ArrayCheck (Idx)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (AC.array_oob_check (x, l) (e, v));
+    Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
@@ -624,14 +631,17 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
-
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Partitioned (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
+  module AC = ArrayCheck (Idx)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (AC.array_oob_check (x, l) (e, v));
+    Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
