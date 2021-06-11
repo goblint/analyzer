@@ -283,13 +283,14 @@ struct
         | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
         in
       match x with
-      | BinOp (Ne, lhd, rhs, intType) ->
+      (* TODO: why was this ever necessary? it is unsound for 36/18 *)
+      (* | BinOp (Ne, lhd, rhs, intType) ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
         if not (is_bot assert_gt) then
           assert_gt
         else
-          assert_lt
+          assert_lt *)
       | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
         let linecons = cil_exp_to_apron_linecons (A.env d) x b in
@@ -311,6 +312,7 @@ struct
     with Invalid_CilExpToLexp -> d
 
   (* Creates the opposite invariant and assters it *)
+  (* TODO: why is this necessary if assert_inv has boolean argument? *)
   let assert_op_inv d x b =
     (* if assert(x) then convert it to assert(x != 0) *)
     let x = match x with
@@ -323,6 +325,7 @@ struct
           assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
 
         | BinOp (Eq, lhd, rhs, intType) ->
+          (* FIXME: this is probably wrong here too? *)
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
           if not (is_bot assert_gt) then
@@ -355,7 +358,7 @@ struct
     | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
     | _ ->
       let result_state = (assert_inv state e false) in
-      let result_state_op = (assert_op_inv state e false) in
+      let result_state_op = (assert_op_inv state e false) in (* TODO: why not use assert_inv with true? *)
       if is_bot result_state then
         `False
       else if is_bot result_state_op then
@@ -682,17 +685,6 @@ struct
     if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
     j
 
-  let join x y =
-    if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
-    let j = join x y in
-    if M.tracing then M.trace "apron" "j = %a\n" pretty j;
-    let j = strengthening j x y in
-    if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
-    j
-
-  let meet x y =
-    A.unify Man.mgr x y
-
   let bot () =
     top ()
 
@@ -704,6 +696,24 @@ struct
 
   let is_bot = equal (bot ())
   let is_top _ = false
+
+  let join x y =
+    (* just to optimize joining folds, which start with bot *)
+    if is_bot x then
+      y
+    else if is_bot y then
+      x
+    else (
+      if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
+      let j = join x y in
+      if M.tracing then M.trace "apron" "j = %a\n" pretty j;
+      let j = strengthening j x y in
+      if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+      j
+    )
+
+  let meet x y =
+    A.unify Man.mgr x y
 
   let leq x y =
     (* TODO: float *)
