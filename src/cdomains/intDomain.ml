@@ -117,6 +117,13 @@ module type S =
 sig
   include B
   include ArithIkind with type t:= t
+
+  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+
   val join: Cil.ikind -> t -> t -> t
   val meet: Cil.ikind -> t -> t -> t
   val narrow: Cil.ikind -> t -> t -> t
@@ -152,10 +159,10 @@ struct
   include Old
   type int_t = BI.t
   let neg _ik = Old.neg
-  let add _ik = Old.add
-  let sub _ik = Old.sub
-  let mul _ik = Old.mul
-  let div _ik = Old.div
+  let add ?no_ov _ik = Old.add
+  let sub ?no_ov _ik = Old.sub
+  let mul ?no_ov _ik = Old.mul
+  let div ?no_ov _ik = Old.div
   let rem _ik = Old.rem
 
   let lt _ik = Old.lt
@@ -221,6 +228,7 @@ struct
 
   let invariant_ikind c ik t = Old.invariant c t
 
+  let cast_to ?torg ?no_ov = Old.cast_to ?torg
 end
 
 
@@ -553,7 +561,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to ?torg t = function
+  let cast_to ?torg ?no_ov t = function
     | None -> None
     | Some (x,y) ->
       try
@@ -644,12 +652,12 @@ struct
 
   let neg ik = function None -> None | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
 
-  let add ik x y = match x, y with
+  let add ?no_ov ik x y = match x, y with
   | None, None -> None
   | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
   | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2)
 
-  let sub ik x y = match x, y with
+  let sub ?no_ov ik x y = match x, y with
   | None, None -> None
   | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
   | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.sub x1 y2, Ints_t.sub x2 y1) (* y1, y2 are in different order here than in add *)
@@ -676,7 +684,7 @@ struct
         let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, min xu b) else Some (max xl (Ints_t.neg b), min xu b) in
         meet ik (bit (fun _ik -> Ints_t.rem) ik x y) range
 
-  let mul ik x y =
+  let mul ?no_ov ik x y =
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
@@ -686,7 +694,7 @@ struct
       norm ik @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
                       (max (max x1y1 x1y2) (max x2y1 x2y2)))
 
-  let rec div ik x y =
+  let rec div ?no_ov ik x y =
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
@@ -1093,7 +1101,7 @@ struct
 
   let top_of ik = `Excluded (S.empty (), size ik)
   let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
-  let cast_to ?torg ik = top_if_not_in_int64 ik @@ function
+  let cast_to ?torg ?no_ov ik = top_if_not_in_int64 ik @@ function
     | `Excluded (s,r) ->
       let r' = size ik in
       `Excluded (
@@ -1365,10 +1373,10 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
   let neg ik (x :t) = norm ik @@ lift1 BigInt.neg ik x
-  let add ik x y = norm ik @@ lift2_inj BigInt.add ik x y
+  let add ?no_ov ik x y = norm ik @@ lift2_inj BigInt.add ik x y
 
-  let sub ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
-  let mul ik x y = norm ik @@ match x, y with
+  let sub ?no_ov ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
+  let mul ?no_ov ik x y = norm ik @@ match x, y with
     | `Definite z, (`Excluded _ | `Definite _) when BigInt.equal z BigInt.zero -> x
     | (`Excluded _ | `Definite _), `Definite z when BigInt.equal z BigInt.zero -> y
     | `Definite a, `Excluded (s,r)
@@ -1376,7 +1384,7 @@ struct
     (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
     | `Excluded (s,r),`Definite a when BigInt.equal (BigInt.rem a (BigInt.of_int 2)) BigInt.zero -> `Excluded (S.empty (), apply_range (BigInt.mul a) r)
     | _ -> lift2_inj BigInt.mul ik x y
-  let div ik x y = lift2 BigInt.div ik x y
+  let div ?no_ov ik x y = lift2 BigInt.div ik x y
   let rem ik x y = lift2 BigInt.rem ik x y
   let lt ik = lift2 BigInt.lt ik
   let gt ik = lift2 BigInt.gt ik
@@ -1597,7 +1605,7 @@ module Enums : S with type int_t = BigInt.t = struct
       if ISet.mem i x then `Neq
       else `Top
 
-  let cast_to ?torg ik v = norm ik @@ match v with
+  let cast_to ?torg ?no_ov ik v = norm ik @@ match v with
     | Exc (s,r) ->
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
@@ -1664,12 +1672,12 @@ module Enums : S with type int_t = BigInt.t = struct
     try lift2 f ikind a b with Division_by_zero -> top_of ikind
 
   let neg = lift1 I.neg
-  let add ikind = curry @@ function
+  let add ?no_ov ikind = curry @@ function
     | Inc z,x when ISet.is_singleton z && ISet.choose z = BI.zero -> x
     | x,Inc z when ISet.is_singleton z && ISet.choose z = BI.zero -> x
     | x,y -> lift2 I.add ikind x y
-  let sub = lift2 I.sub
-  let mul ikind a b =
+  let sub ?no_ov = lift2 I.sub
+  let mul ?no_ov ikind a b =
     match a, b with
     | Inc one,x when ISet.is_singleton one && ISet.choose one = BI.one -> x
     | x,Inc one when ISet.is_singleton one && ISet.choose one = BI.one -> x
@@ -1677,7 +1685,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | _,Inc zero when ISet.is_singleton zero && ISet.choose zero = BI.zero -> b
     | x,y -> lift2 I.mul ikind x y
 
-  let div ikind a b = match a, b with
+  let div ?no_ov ikind a b = match a, b with
     | x,Inc one when ISet.is_singleton one && ISet.choose one = BI.one -> x
     | _,Inc zero when ISet.is_singleton zero && ISet.choose zero = BI.zero -> top_of ikind
     | Inc zero,_ when ISet.is_singleton zero && ISet.choose zero = BI.zero -> a
@@ -1829,6 +1837,441 @@ module Enums : S with type int_t = BigInt.t = struct
 
 end
 
+module CongruenceFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
+struct
+  let name () = "congruences"
+  type int_t = Ints_t.t
+
+  (* represents congruence class of c mod m *)
+  type t = (Ints_t.t * Ints_t.t) option
+
+  let ( *: ) = Ints_t.mul
+  let (+:) = Ints_t.add
+  let (-:) = Ints_t.sub
+  let (%:) = Ints_t.rem
+  let (/:) = Ints_t.div
+  let (=:) = Ints_t.equal
+  let (<:) x y = Ints_t.compare x y < 0
+  let (>:) x y = Ints_t.compare x y > 0
+  let (<=:) x y = Ints_t.compare x y <= 0
+  let (>=:) x y = Ints_t.compare x y >= 0
+  (* a divides b *)
+  let ( |: ) a b = (b %: a) =: Ints_t.zero
+
+  let to_yojson t = failwith "to yojson unimplemented"
+
+  let rec gcd x y = (*TODO Double Check*)
+    if y =: Ints_t.zero then x else gcd y (x %: y)
+
+  let abs x = let r = Ints_t.neg x
+    in if x <: r then r else x
+
+  let normalize x =
+    match x with
+    | None -> None
+    | Some (c, m) -> if m =: Ints_t.zero then Some (c, m) else Some (c %: (abs m), (abs m))
+
+  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
+
+  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
+  let top () = Some (Ints_t.zero, Ints_t.one)
+  let top_of ik = Some (Ints_t.zero, Ints_t.one)
+  let bot () = None
+  let bot_of ik = bot () (* TODO: improve  *)
+
+  let is_top x = x = top ()
+
+  let show = function ik -> match ik with
+    | None -> "∅"
+    | Some (c, m) when (c, m) = (Ints_t.zero, Ints_t.zero) -> Ints_t.to_string c
+    | Some (c, m) ->
+      let a = if c =: Ints_t.zero then "" else Ints_t.to_string c in
+      let b = if m =: Ints_t.zero then "" else if m = Ints_t.one then "ℤ" else Ints_t.to_string m^"ℤ" in
+      let c = if a = "" || b = "" then "" else "+" in
+      a^c^b
+
+  let equal a b = match (normalize a), (normalize b) with
+    | None, None -> true
+    | Some (a, b), Some (c, d) -> a =: c && b =: d
+    | _, _ -> false
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+
+  let equal_to i = function
+    | None -> failwith "unsupported: equal_to with bottom"
+    | Some (a, b) when b =: Ints_t.zero -> if a = i then `Eq else `Neq
+    | Some (a, b) -> if i %: b = a then `Top else `Neq
+
+  let set_overflow_flag ik =
+    if Cil.isSigned ik && !GU.in_verifying_stage then
+      Goblintutil.did_overflow := true
+
+  let norm ik = function None -> None | Some (c,m) ->
+    if c <: min_int ik   || c >: max_int ik || m <: min_int ik || m >: max_int ik then (set_overflow_flag ik; top_of ik)
+    else Some (c,m)
+
+  let leq (x:t) (y:t) =
+    match x, y with
+    | None, _ -> true
+    | Some _, None -> false
+    | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero && m1 =: Ints_t.zero -> c1 =: c2
+    | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero -> c1 =: c2 && m1 =: Ints_t.zero
+    | Some (c1,m1), Some (c2,m2) -> m2 |: (gcd (c1 -: c2) m2)
+
+  let leq x y =
+    let res = leq x y in
+    if M.tracing then M.trace "mything" "Cong. leq %a %a -> %a \n" pretty x pretty y pretty (Some(Ints_t.of_int (Bool.to_int res), Ints_t.zero)) ;
+    res
+
+  let join ik (x:t) y =
+    match x, y with
+    | None, z | z, None -> z
+    | Some (c1,m1), Some (c2,m2) ->
+      let m3 = gcd m1 (gcd m2 (c1 -: c2)) in
+      norm ik @@ normalize (Some (c1, m3))
+
+  let join ik (x:t) y =
+    let res = join ik x y in
+    if M.tracing then M.trace "mything" "Cong. join %a %a -> %a\n" pretty x pretty y pretty res;
+    res
+
+  (* if it exists, c2/a2 is solution to a*x ≡ c (mod m) *)
+  let congruence_series a c m =
+    let rec next a1 c1 a2 c2 =
+      if a2 |: a1 then (a2, c2)
+      else next a2 c2 (a1 %: a2) ((c1 -: c2) *: (a1 /: a2))
+    in next m Ints_t.zero a c
+
+  let meet ik x y =
+    let simple_case i c m =
+      if m |: (i -: c)
+      then Some (i, Ints_t.zero) else None
+    in
+    match x, y with
+    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero -> if c1 =: c2 then Some (c1, Ints_t.zero) else None
+    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero -> simple_case c1 c2 m2
+    | Some (c1, m1), Some (c2, m2) when m2 =: Ints_t.zero -> simple_case c2 c1 m1
+    | Some (c1, m1), Some (c2, m2) when (gcd m1 m2) |: (c1 -: c2) ->
+      let (c, m) = congruence_series m1 (c2 -: c1 ) m2 in
+      normalize (Some(c1 +: (m1 *: (m /: c)), m1 *: (m2 /: c)))
+    | _  -> None
+
+  let meet ik x y =
+    let res = meet ik x y in
+    if M.tracing then M.trace "mything" "Cong. meet %a %a -> %a\n" pretty x pretty y pretty res;
+    res
+
+  let is_int = function Some (c, m) when m =: Ints_t.zero -> true | _ -> false
+
+  (* TODO: change to_int signature so it returns a big_int *)
+  let to_int = function Some (c, m) when m =: Ints_t.zero -> Some c | _ -> None
+  let of_int ik (x: int_t) = Some (x, Ints_t.zero)
+  let of_pair ik p = normalize (Some p)
+  let zero = Some (Ints_t.zero, Ints_t.zero)
+  let one  = Some (Ints_t.one, Ints_t.zero)
+  let top_bool = top()
+
+  let of_bool _ik = function true -> one | false -> zero
+  let is_bool x = x <> None && not (leq zero x) || equal x zero
+
+  let to_bool (a: t) = match a with
+    | None -> None
+    | x when equal zero x -> Some false
+    | x -> if leq zero x then None else Some true
+
+  let to_bool (a: t) = let res = to_bool a in  if M.tracing then M.trace "mything" "Cong. to_bool %a -> ?\n" pretty a ;
+    res
+
+  let starting ik n = top()
+
+  let ending = starting
+
+  let maximal t = match t with
+    | Some (x, y) when y =: Ints_t.zero -> Some x
+    | _ -> None
+
+  let minimal t = match t with
+    | Some (x,y) when y =: Ints_t.zero -> Some x
+    | _ -> None
+
+  (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
+  let cast_to ?torg ?no_ov t = function
+    | None -> None
+    | Some (c,m) -> try
+        let a = Ints_t.of_bigint @@ Size.cast_big_int t (Ints_t.to_bigint c) in
+        let b = Ints_t.of_bigint @@ Size.cast_big_int t (Ints_t.to_bigint m) in
+        let a,b = if Ints_t.compare c a <> 0 || Ints_t.compare m b <> 0 then Size.range_big_int t |> (fun (a, b) -> (Ints_t.of_bigint a, Ints_t.of_bigint b)) else a,b in
+            norm t @@ Some (a, b)
+        with Size.Not_in_int64 -> top_of t
+
+  let widen = join
+
+  let widen ik x y =
+    let res = widen ik x y in
+    if M.tracing then M.trace "mything" "Cong. widen %a %a -> %a\n" pretty x pretty y pretty res;
+    res
+
+  let narrow = meet
+
+  let log f ik i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, true -> bot_of ik
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | _ ->
+      match to_bool i1, to_bool i2 with
+      | Some x, Some y -> of_bool ik (f x y)
+      | _              -> top_of ik
+
+  let logor = log (||)
+  let logand = log (&&)
+
+  let log1 f ik i1 =
+    if is_bot i1 then
+      bot_of ik
+    else
+      match to_bool i1 with
+      | Some x -> of_bool ik (f ik x)
+      | _      -> top_of ik
+
+  let lognot = log1 (fun _ik -> not)
+
+  let bitcomp f ik i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, true -> bot_of ik
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | _ ->
+      match to_int i1, to_int i2 with
+      | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
+      | _              -> (set_overflow_flag ik;  top_of ik)
+
+  let is_power_of_two x = x >: Ints_t.zero && Ints_t.of_int 2 |: x
+
+  (* Not very pretty. A proper log operation might be better*)
+  let rec log2 c k = if float_of_int 2 **  float_of_int k = float_of_int c then k else log2 c (k + 1)
+
+  (*let shift_right ik x y = match x, y with
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
+    | Some (c, m), Some (c', m') when m =: Ints_t.zero && m' =: Ints_t.zero -> if c' <: Ints_t.zero then top() else norm ik @@ Some (Ints_t.shift_right c (Ints_t.to_int c'), Ints_t.zero)
+    | Some (c, m), Some (c', m') when m' =: Ints_t.zero && is_power_of_two m -> let n = log2 (Ints_t.to_int m) 0 in
+          if c' <: Ints_t.of_int n then norm ik @@ Some (Ints_t.shift_right c (Ints_t.to_int c'), Ints_t.of_int (int_of_float ((float_of_int 2) ** float_of_int (n - (Ints_t.to_int c'))))) else top()
+    | _, _ -> top()*)
+
+  let shift_right _ _ _ = top()
+
+  let shift_right ik x y =
+    let res = shift_right ik x y in
+     if M.tracing then  M.trace "shifting" "Cong. shift_right : %a %a becomes %a \n" pretty x pretty y pretty res;
+     res
+
+  (* Naive primility test *)
+  let is_prime n =
+      let n = Ints_t.to_int (abs n) in
+      let rec is_not_divisor d =
+        d * d > n || (n mod d <> 0 && is_not_divisor (d + 1)) in
+      n <> 1 && is_not_divisor 2
+
+(* ToDo: Check for negative y? *)
+let shift_left ik x y = match x, y with
+  | None, None -> None
+  | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+  | Some (c, m), Some (c', m') when c <: Ints_t.zero || c' <: Ints_t.zero -> top()
+  | Some (c, m), Some (c', m') when c >: (max_int ik) || c' >: (max_int ik) -> top()
+  | Some (c, m), Some (c', m') -> if (m =: Ints_t.zero && m' =: Ints_t.zero) then Some (Ints_t.shift_left c (Ints_t.to_int c'), Ints_t.zero)
+    else let t = m' +: Ints_t.one in let x = Ints_t.shift_left Ints_t.one (Ints_t.to_int c') in   (* 2^c' *)
+      if is_prime t then Some (x *: c, gcd (x *: m) ((c *: x) *: t)) else Some (x *: c, gcd (x *: m) (c *: x))
+
+(*  let shift_left _ _ _ = top()*)
+
+  let shift_left ik x y =
+    let res = shift_left ik x y in
+    if M.tracing then  M.trace "shifting" "Cong. shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
+    res
+
+  let mul ?(no_ov=false) ik x y =
+    match x, y with
+    | None, None -> bot ()
+    | None, _ | _, None ->
+       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c1, m1), Some (c2, m2) when no_ov ->
+       Some (c1 *: c2, gcd (c1 *: m2) (gcd (m1 *: c2) (m1 *: m2)))
+    | Some (c1, m1), Some (c2, m2)
+         when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
+       Some((c1 *: c2) %: max_int ik, Ints_t.zero)
+    | _ -> top ()
+
+  let mul ?no_ov ik x y =
+    let res = mul ik x y in
+    if M.tracing then  M.trace "mything" "Cong. mul : %a %a becomes %a \n" pretty x pretty y pretty res;
+    res
+
+  let neg ik x =
+    match x with
+    | None -> bot()
+    | Some _ ->  mul ik (of_int ik (Ints_t.of_int (-1))) x
+
+
+  let add ?(no_ov=false) ik x y =
+    match (x, y) with
+    | None, None -> bot ()
+    | None, _ | _, None ->
+       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize (Some (c1 +: c2, gcd m1 m2))
+    | Some (c1, m1), Some (c2, m2)
+         when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
+       Some((c1 +: c2) %: max_int ik, Ints_t.zero)
+    | _ -> top ()
+
+
+  let add ?no_ov ik x y =
+    let res = add ?no_ov ik x y in
+    if M.tracing then
+      M.trace "mything" "Cong. add : %a %a becomes %a \n" pretty x pretty y
+        pretty res ;
+    res
+
+  let sub ?no_ov ik x y = add ?no_ov ik x (neg ik y)
+
+  let sub ?no_ov ik x y =
+    let res = sub ?no_ov ik x y in
+    if M.tracing then
+      M.trace "mything" "Cong. sub : %a %a becomes %a \n" pretty x pretty y
+        pretty res ;
+    res
+
+  let bitnot ik x = match x with
+    | None -> None
+    | Some (c, m) -> if (Cil.isSigned ik) then sub ik (neg ik x) one else Some (Ints_t.sub (max_int ik) c, m)
+
+  let bitand ik x y = match x, y with
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c, m), Some (c', m') when m =: Ints_t.zero && m' =: Ints_t.zero -> Some (Ints_t.bitand c c', Ints_t.zero)
+    | Some (c, m), Some (c', m') -> if (c =: Ints_t.zero && c' =: Ints_t.zero && m =: Ints_t.one && m' =: Ints_t.one)
+      then top() else Some ((Ints_t.bitand c c'), Ints_t.shift_left Ints_t.one (Ints_t.to_int (min m m')))
+
+   let bitor ik x y = match x, y with
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c, m), Some (c', m') when m =: Ints_t.zero && m' =: Ints_t.zero -> Some (Ints_t.bitor c c', Ints_t.zero)
+    | Some (c, m), Some (c', m') -> if (c =: Ints_t.zero && c' =: Ints_t.zero && m =: Ints_t.one && m' =: Ints_t.one)
+      then top() else Some ((Ints_t.bitor c c'), Ints_t.shift_left Ints_t.one (Ints_t.to_int (min m m')))
+
+   let bitxor ik x y = match x, y with
+    | None, None -> None
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c, m), Some (c', m') when m =: Ints_t.zero && m' =: Ints_t.zero -> Some (Ints_t.bitxor c c', Ints_t.zero)
+    | Some (c, m), Some (c', m') -> if (c =: Ints_t.zero && c' =: Ints_t.zero && m =: Ints_t.one && m' =: Ints_t.one)
+      then top() else Some ((Ints_t.bitxor c c'), Ints_t.shift_left Ints_t.one (Ints_t.to_int (min m m')))
+
+  let rem ik x y =
+    match x, y with
+    | None, None -> bot()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c1, m1), Some(c2, m2) -> (if m2 =: Ints_t.zero then (if (c2 |: m1) && (c2 |: c1) then zero else normalize(Some(c1, (gcd m1 c2))))
+        else normalize (Some(c1, gcd m1 (gcd c2 m2))))
+
+  let rem ik x y = let res = rem ik x y in
+    if M.tracing then  M.trace "mything" "Cong. rem : %a %a -> %a \n" pretty x pretty y pretty res;
+    res
+
+  let div ?(no_ov=false) ik x y =
+    match x,y with
+    | None, None -> bot ()
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | _, x when leq zero x -> top () (*TODO warn about undefined behaviour when x equals zero*)
+    | Some(c1, m1), Some(c2, m2) when not no_ov && m2 = Ints_t.zero && c2 = Ints_t.neg Ints_t.one -> top ()
+    | Some(c1, m1), Some(c2, m2) when m1 =: Ints_t.zero && m2 = Ints_t.zero -> Some(c1 /: c2, Ints_t.zero)
+    | Some(c1, m1), Some(c2, m2) when m2 =: Ints_t.zero ->  if (c2 |: m1) && (c2 |: c1) then Some(c1 /: c2, m1 /: c2) else top ()
+    | _, _ -> top ()
+
+
+  let div ?no_ov ik x y =
+    let res = div ?no_ov ik x y in
+    if M.tracing then
+      M.trace "mything" "Cong. div : %a %a -> %a \n" pretty x pretty y pretty
+        res ;
+    res
+
+  let ne ik i1 i2 = if meet ik i1 i2 = None then of_bool ik true else top_bool
+
+  let eq ik (i1: t) (i2: t) = if meet ik i1 i2 <> None then top_bool else of_bool ik false
+
+  let ge ik x y = match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c1,m1), Some (c2,m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
+        if c1 >=: c2 then of_bool ik true else of_bool ik false
+      else top_bool
+
+  let ge ik x y =
+    let res = ge ik x y in
+    if M.tracing then  M.trace "mything" "Cong. greater or equal : %a %a becomes %a \n" pretty x pretty y pretty res;
+    res
+
+  let le ik x y = match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c1,m1), Some (c2,m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
+        if c1 <=: c2 then of_bool ik true else of_bool ik false
+      else top_bool
+
+  let le ik x y =
+    let res = le ik x y in
+    if M.tracing then  M.trace "mything" "Cong. less or equal : %a %a becomes %a \n" pretty x pretty y pretty res;
+    res
+
+  let gt ik x y = match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c1,m1), Some (c2,m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
+        if c1 >: c2 then of_bool ik true else of_bool ik false
+      else top_bool
+
+  let gt ik x y =
+    let res = gt ik x y in
+    if M.tracing then  M.trace "mything" "Cong. greater than : %a %a becomes %a \n" pretty x pretty y pretty res;
+    res
+
+  let lt ik x y = match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c1,m1), Some (c2,m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
+        if c1 <: c2 then of_bool ik true else of_bool ik false
+      else top_bool
+
+  let lt ik x y =
+    let res = lt ik x y in
+    if M.tracing then  M.trace "mything" "Cong. less than : %a %a becomes %a \n" pretty x pretty y pretty res;
+    res
+
+  let invariant c x = failwith "unimplemented"
+
+  let invariant_ikind c ik x = failwith "unimplemented"
+
+  let arbitrary () =
+    let open QCheck in
+    let ik = Cil.ILongLong in
+    let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let top_arb = make ~print:show (Gen.return (top ())) in
+    let bot_arb = make ~print:show (Gen.return (bot ())) in
+    let int_cong_arb = pair int_arb (make (Gen.return Ints_t.zero)) in
+    let cong_arb = pair int_arb int_arb in
+    oneof
+      ((set_print show @@ map (of_pair ik) cong_arb)::
+         (set_print show @@ map (of_pair ik) int_cong_arb)::
+           top_arb::bot_arb::[])
+
+  let relift x = x
+end
+
+module Congruence = CongruenceFunctor (BI)
+
+(* module Congruence32 =
+ *   IntDomWithDefaultIkind
+ *     (IntDomLifter (CongruenceFunctor (IntOps.Int64Ops))) (IntIkind) *)
 
 (* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I3 below to see where you need to extend. *)
 (* discussion: https://github.com/goblint/analyzer/pull/188#issuecomment-818928540 *)
@@ -1840,10 +2283,13 @@ module IntDomTupleImpl = struct
   module I1 = DefExc
   module I2 = Interval
   module I3 = Enums
-  type t = I1.t option * I2.t option * I3.t option [@@deriving to_yojson]
+  module I4 = Congruence
+
+  type t = I1.t option * I2.t option * I3.t option * I4.t option
+  [@@deriving to_yojson]
 
   (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
-  let no_interval = Tuple3.map2 (const None)
+  let no_interval = Tuple4.map2 (const None)
 
   type 'a m = (module S with type t = 'a)
   type 'a m2 = (module S with type t = 'a and type int_t = int_t )
@@ -1853,27 +2299,121 @@ module IntDomTupleImpl = struct
   type 'b poly2_in  = { fi2  : 'a. 'a m2 -> 'b -> 'a } (* inject for functions that depend on int_t *)
   type 'b poly_pr  = { fp  : 'a. 'a m -> 'a -> 'b } (* project *)
   type 'b poly_pr2  = { fp2  : 'a. 'a m2 -> 'a -> 'b } (* project for functions that depend on int_t *)
-  type 'b poly2_pr  = { f2p  : 'a. 'a m -> 'a -> 'a -> 'b }
-  type poly1 = { f1 : 'a. 'a m -> 'a -> 'a } (* needed b/c above 'b must be different from 'a *)
-  type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
+  type 'b poly2_pr = {f2p: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'b}
+  type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
+  type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3)
+    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3), f "congruence" @@ r.fi (module I4)
   let create2 r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3)
+    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3), f "congruence" @@ r.fi2 (module I4)
 
-  let mapp r (a,b,c) = BatOption.(map (r.fp (module I1)) a, map (r.fp (module I2)) b,  map (r.fp (module I3)) c)
-  let mapp2 r (a,b,c) = BatOption.(map (r.fp2 (module I1)) a, map (r.fp2 (module I2)) b, map (r.fp2 (module I3)) c)
+  let no_overflow ik r =
+    let ika, ikb = Size.range_big_int ik in
+    match I2.minimal r, I2.maximal r with
+    | Some ra, Some rb -> ika < ra && rb < ikb
+    | _ -> false
 
-  let map r (a,b,c) = BatOption.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c)
-  let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
-  let map2  r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc
-  let map2p r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb,  opt_map2 (r.f2p  (module I3)) xc yc
-  let to_list x = Tuple3.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  (* map with overflow check *)
+  let mapovc ik r (a, b, c, d) =
+    let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
+    let intv = map (r.f1 (module I2)) b in
+    let no_ov =
+      match intv with Some i -> no_overflow ik i | _ -> false
+    in
+    ( map (r.f1 (module I1)) a
+    , intv
+    , map (r.f1 (module I3)) c
+    , map (r.f1 (module I4)) ~no_ov d )
+
+  let opt_map2 f ?no_ov =
+    curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
+
+  let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
 
+  (* map2 with overflow check *)
+  let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+    let intv = opt_map2 (r.f2 (module I2)) xb yb in
+    let no_ov =
+      match intv with Some i -> no_overflow ik i | _ -> false
+    in
+      ( opt_map2 (r.f2 (module I1)) xa ya
+      , intv
+      , opt_map2 (r.f2 (module I3)) xc yc
+      , opt_map2 (r.f2 (module I4)) ~no_ov xd yd )
+
+  let refineIntCong (a, b, c, d) =
+     (a, b, c, d)
+
+let r ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with
+    | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.add i (BI.sub p i)) (BI.neg(m))
+      else BI.rem (BI.add i (BI.sub p i)) m
+
+  let l ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with
+    | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.sub i (BI.sub i p)) (BI.neg(m))
+      else BI.rem (BI.sub i (BI.sub i p)) m
+
+(*ToDo: Check interval infinity *)
+(*  let refineIntCong ((i1, i2, i3, i4) : I1.t option * I2.t option * I3.t option * I4.t option)*)
+(*      : I1.t option * I2.t option * I3.t option * I4.t option =*)
+(*     match i2, i4 with*)
+(*     | Some(None), _ | _, Some(None) -> (i1, Some(None), i3, Some(None))*)
+(*     | Some(Some(x, y)), Some(Some(c, m)) ->*)
+(*        let rca = r((c, m), x) in*)
+(*        let lcb = l((c, m), y) in*)
+(*        if m = BI.zero && (c < x || c > y) then (i1, Some(None), i3, Some(None))*)
+(*        else if m = BI.zero then (i1, Some(Some(c, c)), i3, Some(Some(c, BI.zero)))*)
+(*        else if rca > lcb then (i1, Some(None), i3, Some(None))*)
+(*        else if rca < lcb then (i1, Some(Some(rca, rca)), i3, Some(Some(rca, BI.zero)))   (*ToDo: doulbe check *)*)
+(*        else (i1, i2, i3, i4)*)
+(*     | _ -> (i1, i2, i3, i4)*)
+
+  (* Add refinement functions here *)
+  let reffuns = [refineIntCong]
+
+  let rec refine l (a, b, c, d) =
+    match l with [] -> (a, b, c, d) | h :: t -> refine t @@ h (a, b, c, d)
+
+  let mapp r (a, b, c, d) =
+    refine reffuns
+      BatOption.
+        ( map (r.fp (module I1)) a
+        , map (r.fp (module I2)) b
+        , map (r.fp (module I3)) c
+        , map (r.fp (module I4)) d )
+
+  let mapp2 r (a, b, c, d) =
+    refine reffuns
+      BatOption.
+        ( map (r.fp2 (module I1)) a
+        , map (r.fp2 (module I2)) b
+        , map (r.fp2 (module I3)) c
+        , map (r.fp2 (module I4)) d )
+
+  let map r (a, b, c, d) =
+    refine reffuns
+      BatOption.
+        ( map (r.f1 (module I1)) a
+        , map (r.f1 (module I2)) b
+        , map (r.f1 (module I3)) c
+        , map (r.f1 (module I4)) d )
+
+  let map2 r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+    refine reffuns
+      ( opt_map2 (r.f2 (module I1)) xa ya
+      , opt_map2 (r.f2 (module I2)) xb yb
+      , opt_map2 (r.f2 (module I3)) xc yc
+      , opt_map2 (r.f2 (module I4)) xd yd )
+
+  let map2p r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+    refine reffuns
+      ( opt_map2 (r.f2p (module I1)) xa ya
+      , opt_map2 (r.f2p (module I2)) xb yb
+      , opt_map2 (r.f2p (module I3)) xc yc
+      , opt_map2 (r.f2p (module I4)) xd yd )
   let name () = "intdomtuple"
 
   (* f0: constructors *)
@@ -1889,14 +2429,21 @@ module IntDomTupleImpl = struct
   let of_interval ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ik }
 
   (* f1: unary ops *)
-  let neg ik = map { f1 = fun (type a) (module I:S with type t = a)  -> (I.neg ik) }
-  let bitnot ik = map { f1 = fun (type a) (module I:S with type t = a) -> (I.bitnot ik) }
-  let lognot ik = map { f1 = fun (type a) (module I:S with type t = a) -> (I.lognot ik) }
-  let cast_to ?torg t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to ?torg t }
+  let neg ik =
+    map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.neg ik)}
+
+  let bitnot ik =
+    map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitnot ik)}
+
+  let lognot ik =
+    map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.lognot ik)}
+
+  let cast_to ?torg ?no_ov t =
+    mapovc t {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.cast_to ?torg t)}
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple3.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple4.enum |> List.of_enum |> List.filter_map identity in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top
@@ -1924,34 +2471,92 @@ module IntDomTupleImpl = struct
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   (* f2: binary ops *)
-  let join ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.join ik }
-  let meet ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.meet ik }
-  let widen  ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.widen ik }
-  let narrow ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.narrow ik }
-  let add ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.add ik }
-  let sub ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.sub ik }
-  let mul ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.mul ik }
-  let div ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.div ik }
-  let rem ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.rem ik }
-  let lt ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.lt ik }
-  let gt ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.gt ik }
-  let le ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.le ik }
-  let ge ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.ge ik }
-  let eq ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.eq ik }
-  let ne ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.ne ik }
-  let bitand ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitand ik }
-  let bitor ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitor ik }
-  let bitxor ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitxor ik }
-  let shift_left ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.shift_left ik }
-  let shift_right ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.shift_right ik }
-  let logand ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.logand ik }
-  let logor ik = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.logor ik }
+  let join ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
+
+  let meet ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.meet ik)}
+
+  let widen ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
+
+  let narrow ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.narrow ik)}
+
+  let add ?no_ov ik =
+    map2ovc ik
+      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.add ik)}
+
+  let sub ?no_ov ik =
+    map2ovc ik
+      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.sub ik)}
+
+  let mul ?no_ov ik =
+    map2ovc ik
+      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.mul ik)}
+
+  let div ?no_ov ik =
+    map2ovc ik
+      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.div ik)}
+
+  let rem ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.rem ik)}
+
+  let lt ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.lt ik)}
+
+  let gt ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.gt ik)}
+
+  let le ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.le ik)}
+
+  let ge ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.ge ik)}
+
+  let eq ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.eq ik)}
+
+  let ne ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.ne ik)}
+
+  let bitand ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitand ik)}
+
+  let bitor ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitor ik)}
+
+  let bitxor ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitxor ik)}
+
+  let shift_left ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.shift_left ik)}
+
+  let shift_right ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.shift_right ik)}
+
+  let logand ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.logand ik)}
+
+  let logor ik =
+    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.logor ik)}
 
   (* f2p: binary projections *)
   let (%%) f g x = f % (g x) (* composition for binary function g *)
-  let leq = for_all %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.leq }
-  let equal = for_all %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.equal }
-  let compare = List.fold_left (fun a x -> if x<>0 then x else a) 0 % to_list %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.compare } (* idea? same impl. as above... *)
+
+  let leq =
+    for_all
+    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.leq)}
+
+  let equal =
+    for_all
+    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.equal)}
+
+  let compare =
+    List.fold_left (fun a x -> if x <> 0 then x else a) 0
+    % to_list
+    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.compare)} (* idea? same impl. as above... *)
+
   let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
   (* printing boilerplate *)
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
@@ -1971,7 +2576,7 @@ module IntDomTupleImpl = struct
           Invariant.(a && i)
         ) Invariant.none is
 
-  let arbitrary () = QCheck.(set_print show @@ triple (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())))
+  let arbitrary () = QCheck.(set_print show @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
 end
 
 module IntDomTuple =

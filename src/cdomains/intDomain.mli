@@ -231,6 +231,13 @@ module type S =
 sig
   include B
   include ArithIkind with type t:= t
+
+  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+
   val join: Cil.ikind -> t ->  t -> t
   val meet: Cil.ikind -> t -> t -> t
   val narrow: Cil.ikind -> t -> t -> t
@@ -342,6 +349,11 @@ module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) op
 module BigInt : Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
+
+module CongruenceFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
+
+module Congruence : S with type int_t = IntOps.BigIntOps.t
+
 module DefExc : S with type int_t = IntOps.BigIntOps.t
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
