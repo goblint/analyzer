@@ -367,8 +367,32 @@ struct
   let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
     let oct = st.oct in
     let i = st.priv in
-    (* TODO: implement *)
-    st
+    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
+    let keep_vars_side =
+      vars
+      |> Array.enum
+      |> Enum.filter (fun var ->
+          match V.find_metadata var with
+          | Some g -> is_protected_by ask m g
+          | None -> false
+        )
+      |> List.of_enum
+    in
+    let oct_side = AD.keep_vars oct keep_vars_side in
+    let i_side = I.add m oct_side i in
+    sideg (global_varinfo ()) i_side;
+    let remove_vars_local =
+      vars
+      |> Array.enum
+      |> Enum.filter (fun var ->
+          match V.find_metadata var with
+          | Some g -> is_protected_by ask m g && is_unprotected_without ask g m
+          | None -> false
+        )
+      |> List.of_enum
+    in
+    let oct_local = AD.remove_vars oct remove_vars_local in
+    {oct = oct_local; priv = getg (global_varinfo ())}
 
   let sync ask getg sideg (st: OctApronComponents (D).t) reason =
     match reason with
