@@ -359,8 +359,10 @@ struct
     {st with oct = oct_local}
 
   let lock ask getg (st: OctApronComponents (D).t) m =
-    (* TODO: implement *)
-    st
+    let oct = st.oct in
+    let i = st.priv in
+    let oct' = AD.meet oct (I.find m i) in
+    {st with oct = oct'}
 
   let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
     let oct = st.oct in
