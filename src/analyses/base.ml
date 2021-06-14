@@ -1264,7 +1264,6 @@ struct
 
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
-    let all_reachable_vars = Stats.time "all_reachable_vars" (reachable_vars ask args gs) st in
     let reachable_vars = Stats.time "reachable_vars"(reachable_vars ask args gs) st in
     let reachable_written_vars = (match lvals with
       | `Top -> reachable_vars
@@ -1288,7 +1287,7 @@ struct
     let update_written_address (st, addr_list) (addr: Addr.t) =
       let sa = Stats.time "get_symbolic_address" (get_symbolic_address ask gs addr) fun_st in
       let typ = Addr.get_type addr in
-      let (concrete_value, new_addresses) = Stats.time "get_concrete_value_and_new_blocks" (get_concrete_value_and_new_blocks ask gs sa st fun_st) all_reachable_vars in
+      let (concrete_value, new_addresses) = Stats.time "get_concrete_value_and_new_blocks" (get_concrete_value_and_new_blocks ask gs sa st fun_st) reachable_vars in
       (* For the existing memory blocks, we have to join the old and the new value *)
       let old_value = get ask gs st (AD.singleton addr) None in
       let value = VD.join old_value concrete_value in
@@ -1305,7 +1304,7 @@ struct
         (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
         let visit_and_collect var (acc, st) =
           let sa = AD.singleton var in
-          let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
+          let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st reachable_vars in
           if M.tracing then M.tracel "library" "Updating new address %a to value %a\n" AD.pretty sa VD.pretty concrete_value;
           let st = set ask gs st sa (AD.get_type sa) concrete_value in
           let addrs = AD.union (AD.of_list new_addresses) acc in
