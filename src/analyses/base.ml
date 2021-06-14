@@ -491,7 +491,7 @@ struct
 
     (* let concretes = List.map (fun a -> AD.map (fun addr -> Addr.add_offset addr offset) a) concrete_bases in *)
     (* Passing the address sets with smaller cardinality as the first parameter to join significantly improves performance *)
-    List.fold (fun acc a -> AD.join a acc) (AD.bot ()) concretes
+    Stats.time "fold AD.join" (List.fold (fun acc a -> AD.join a acc) (AD.bot ())) concretes
 
   let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let sym_address_to_conretes (addr: Addr.t) = (* Returns a list of concrete addresses and a list of addresses of memory blocks that are added to the heap *)
@@ -500,7 +500,7 @@ struct
         if is_allocated_var a v then (* Address has been allocated within the function, we add it to our heap *)
           [addr], Some addr
         else if is_heap_var a v then
-          let concretes = AD.elements (get_concretes (v, `NoOffset) st reachable_vars) in
+          let concretes = AD.elements (Stats.time "get_concretes" (get_concretes (v, `NoOffset) st) reachable_vars) in
           let concretes = List.map (add_offset_varinfo offs) concretes in
           concretes, None
         else
@@ -518,11 +518,11 @@ struct
   let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (reachable_vars: AD.t list) =
     let rec get_concrete_value_and_new_blocks_from_value symb_value = match symb_value with
       | `Address addr ->
-        let (concrete_addrs, new_addrs) = symb_address_set_to_concretes a g symb st fun_st addr reachable_vars in
+        let (concrete_addrs, new_addrs) = Stats.time "symb_address_set_to_concretes" (symb_address_set_to_concretes a g symb st fun_st addr) reachable_vars in
         (`Address concrete_addrs, new_addrs)
       | `Struct s ->
         let (s', na) = ValueDomain.Structs.fold (fun field field_val (s', naddrs) ->
-          let concrete_val, new_adresses = get_concrete_value_and_new_blocks_from_value field_val in
+          let concrete_val, new_adresses = Stats.time "get_concrete_value_and_new_blocks_from_value" get_concrete_value_and_new_blocks_from_value field_val in
           ValueDomain.Structs.replace s' field concrete_val,  new_adresses::naddrs) s (s, []) in
           `Struct s', List.flatten na
       | `Blob _
@@ -2225,9 +2225,9 @@ struct
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
-        let addresses = collect_funargs ask globs st exps in
+        let addresses = Stats.time "collect_funargs" (collect_funargs ask globs st) exps in
         let writtenLvals = ask.f (Q.WrittenLvals f) in
-        update_reachable_written_vars ask addresses globs st fun_st writtenLvals
+        Stats.time "update_reachable_written_vars" (update_reachable_written_vars ask addresses globs st fun_st) writtenLvals
       in
       let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) st.cpa [] in
       (* This function does miscellaneous things, but the main task was to give the
@@ -2238,7 +2238,7 @@ struct
       let add_globals (st: store) (fun_st: store) =
         if get_bool "ana.library" then
           (* Update globals that were written by the called function *)
-          update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global globals
+          Stats.time "update_lvals" (update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global) globals
         else
           (* Remove the return value as this is dealt with separately. *)
           let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
@@ -2261,7 +2261,7 @@ struct
         else VD.top ()
       in
       let st = if get_bool "ana.library"
-        then update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global args (* Update locations that are pointed to by arguments and were possibly written by the called function *)
+        then Stats.time "update_lvals" (update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global) args (* Update locations that are pointed to by arguments and were possibly written by the called function *)
         else st
       in
       let st = add_globals st fun_st in
@@ -2269,7 +2269,7 @@ struct
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cil.typeOfLval lval) return_val
     in
-    combine_one ctx.local after
+    Stats.time "Base.combine" (combine_one ctx.local) after
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
