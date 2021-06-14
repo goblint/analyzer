@@ -315,6 +315,247 @@ struct
   let finalize () = ()
 end
 
+(** Per-mutex meet. *)
+module PerMutexMeetPriv: S =
+struct
+  (* TODO: implement *)
+  open Protection
+
+  (** Locally must-written protected globals that have been continuously protected since writing. *)
+  module P =
+  struct
+    include MustVars
+    let name () = "P"
+  end
+
+  (** Locally may-written protected globals that have been continuously protected since writing. *)
+  (* TODO: is this right? *)
+  module W =
+  struct
+    include MayVars
+    let name () = "W"
+  end
+
+  module D = Lattice.Prod (P) (W)
+
+  module G = AD
+
+  let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
+
+  module VM =
+  struct
+    type t =
+      | Local of varinfo
+      | Unprot of varinfo
+      | Prot of varinfo
+
+    let var_name = function
+      | Local g -> g.vname
+      | Unprot g -> g.vname ^ "#unprot"
+      | Prot g -> g.vname ^ "#prot"
+  end
+  module V =
+  struct
+    include OctApronDomain.VarMetadataTbl (VM)
+    open VM
+
+    let local g = make_var (Local g)
+    let unprot g = make_var (Unprot g)
+    let prot g = make_var (Prot g)
+  end
+
+  (** Restrict environment to global invariant variables. *)
+  let restrict_global oct =
+    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
+    let remove_vars =
+      vars
+      |> Array.enum
+      |> Enum.filter (fun var ->
+          match V.find_metadata var with
+          | Some (Unprot _ | Prot _) -> false
+          | _ -> true
+        )
+      |> List.of_enum
+    in
+    AD.remove_vars oct remove_vars
+
+  (** Restrict environment to local variables and still-protected global variables. *)
+  let restrict_local is_unprot oct w_remove =
+    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
+    let remove_global_vars =
+      vars
+      |> Array.enum
+      |> Enum.filter (fun var ->
+          match V.find_metadata var with
+          | Some (Unprot g | Prot g) -> is_unprot g
+          | _ -> false
+        )
+      |> List.of_enum
+    in
+    let remove_local_vars = List.map V.local (W.elements w_remove) in
+    let remove_vars = remove_local_vars @ remove_global_vars in
+    AD.remove_vars oct remove_vars
+
+  let startstate () = (P.empty (), W.empty ())
+
+  let should_join (st1: OctApronComponents (D).t) (st2: OctApronComponents (D).t) =
+    true
+
+  let read_global ask getg (st: OctApronComponents (D).t) g x =
+    let oct = st.oct in
+    let (p, w) = st.priv in
+    let g_local_var = V.local g in
+    let x_var = Var.of_string x.vname in
+    let oct_local =
+      if W.mem g w then
+        AD.assign_var' oct x_var g_local_var
+      else
+        AD.bot ()
+    in
+    let oct_local' =
+      if P.mem g p then
+        oct_local
+      else if is_unprotected ask g then (
+        let g_unprot_var = V.unprot g in
+        let oct_unprot = AD.add_vars_int oct [g_unprot_var] in
+        let oct_unprot = AD.assign_var' oct_unprot x_var g_unprot_var in
+        (* let oct_unprot' = AD.join oct_local oct_unprot in
+        (* unlock *)
+        let oct_unprot' = AD.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
+        (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
+        (* TODO: why removing g_unprot_var? *)
+        oct_unprot' *)
+        AD.join oct_local oct_unprot
+      )
+      else (
+        let g_prot_var = V.prot g in
+        let oct_prot = AD.add_vars_int oct [g_prot_var] in
+        let oct_prot = AD.assign_var' oct_prot x_var g_prot_var in
+        AD.join oct_local oct_prot
+      )
+    in
+    let oct_local' = restrict_local (is_unprotected ask) oct_local' (W.empty ()) in
+    let oct_local' = AD.meet oct_local' (getg (global_varinfo ())) in
+    {st with oct = oct_local'}
+
+  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
+    let oct = st.oct in
+    let (p, w) = st.priv in
+    let g_local_var = V.local g in
+    let g_unprot_var = V.unprot g in
+    let x_var = Var.of_string x.vname in
+    let oct_local = AD.add_vars_int oct [g_local_var] in
+    let oct_local = AD.assign_var' oct_local g_local_var x_var in
+    let oct_side = AD.add_vars_int oct_local [g_unprot_var] in
+    let oct_side = AD.assign_var' oct_side g_unprot_var g_local_var in
+    let oct' = oct_side in
+    let oct_side = restrict_global oct_side in
+    sideg (global_varinfo ()) oct_side;
+    let st' =
+      (* if is_unprotected ask g then
+        st (* add, assign, remove gives original local state *)
+      else
+        (* restricting g#unprot-s out from oct' gives oct_local *)
+        {oct = oct_local; priv = (P.add g p, W.add g w)} *)
+      if is_unprotected ask g then
+        {st with oct = restrict_local (is_unprotected ask) oct' (W.singleton g)}
+      else (
+        let p' = P.add g p in
+        let w' = W.add g w in
+        {oct = restrict_local (is_unprotected ask) oct' (W.empty ()); priv = (p', w')}
+      )
+    in
+    let oct_local' = AD.meet st'.oct (getg (global_varinfo ())) in
+    {st' with oct = oct_local'}
+
+  let lock ask getg (st: OctApronComponents (D).t) m = st
+
+  let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
+    let oct = st.oct in
+    let (p, w) = st.priv in
+    let (p_remove, p') = P.partition (fun g -> is_unprotected_without ask g m) p in
+    let (w_remove, w') = W.partition (fun g -> is_unprotected_without ask g m) w in
+    let p_a = P.filter (is_protected_by ask m) p in
+    let w_a = W.filter (is_protected_by ask m) (W.diff w p) in
+    let big_omega =
+      let certain = P.elements p_a in
+      let choice = W.elements w_a in
+      choice
+      |> List.map (fun _ -> [true; false])
+      |> List.n_cartesian_product (* TODO: exponential! *)
+      |> List.map (fun omega ->
+          (* list globals where omega is true *)
+          List.fold_left2 (fun acc g omega_g ->
+            if omega_g then
+              g :: acc
+            else
+              acc
+          ) certain choice omega
+        )
+    in
+    let oct_side = List.fold_left (fun acc omega ->
+        let g_prot_vars = List.map V.prot omega in
+        let g_local_vars = List.map V.local omega in
+        let oct_side1 = AD.add_vars_int oct g_prot_vars in
+        let oct_side1 = AD.parallel_assign_vars oct_side1 g_prot_vars g_local_vars in
+        AD.join acc oct_side1
+      ) (AD.bot ()) big_omega
+    in
+    let oct' = oct_side in
+    let oct_side = restrict_global oct_side in
+    sideg (global_varinfo ()) oct_side;
+    let oct_local = restrict_local (fun g -> is_unprotected_without ask g m) oct' w_remove in
+    let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
+    {oct = oct_local'; priv = (p', w')}
+
+  let sync ask getg sideg (st: OctApronComponents (D).t) reason =
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: implement? *)
+      begin match ThreadId.get_current ask with
+        | `Lifted x (* when CPA.mem x st.cpa *) ->
+          st
+        | _ ->
+          st
+      end
+    | `Normal
+    | `Join (* TODO: no problem with branched thread creation here? *)
+    | `Init
+    | `Thread ->
+      st
+
+  let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
+    let oct = st.oct in
+    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
+    let (g_vars, gs) =
+      vars
+      |> Array.enum
+      |> Enum.filter_map (fun var ->
+          match OctApronDomain.GV.find_metadata var with
+          | Some g -> Some (var, g)
+          | _ -> None
+        )
+      |> Enum.uncombine
+      |> Tuple2.map List.of_enum List.of_enum
+    in
+    let g_unprot_vars = List.map V.unprot gs in
+    let g_prot_vars = List.map V.prot gs in
+    let oct_side = AD.add_vars_int oct (g_unprot_vars @ g_prot_vars) in
+    let oct_side = AD.parallel_assign_vars oct_side g_unprot_vars g_vars in
+    let oct_side = AD.parallel_assign_vars oct_side g_prot_vars g_vars in
+    let oct_side = restrict_global oct_side in
+    sideg (global_varinfo ()) oct_side;
+    let oct_local = AD.remove_vars oct g_vars in
+    let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
+    {oct = oct_local'; priv = startstate ()}
+
+  let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
+    {oct = getg (global_varinfo ()); priv = startstate ()}
+
+  let init () = ()
+  let finalize () = ()
+end
+
 (** Write-Centered Reading. *)
 module WriteCenteredPriv: S =
 struct
@@ -533,6 +774,7 @@ let priv_module: (module S) Lazy.t =
         | "dummy" -> (module Dummy: S)
         | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
         | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
+        | "mutex-meet" -> (module PerMutexMeetPriv)
         | "write" -> (module WriteCenteredPriv)
         | _ -> failwith "exp.octapron.privatization: illegal value"
       )
