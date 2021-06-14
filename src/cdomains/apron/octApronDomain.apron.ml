@@ -274,7 +274,7 @@ struct
   (* Assert an invariant *)
   (* Gives the result of the meet operation of the given octagon
   with the linear constraints coming from the given expression *)
-  let rec assert_inv d x b =
+  let assert_inv d x b =
     try
       let x = match x with
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> x
