@@ -367,12 +367,18 @@ struct
     let i_mutex_inits' = AD.keep_vars i_mutex_inits keep_vars_mutex_inits in
     AD.join i_m i_mutex_inits'
 
+  let i_find_mutex_global_with_mutex_inits ask i g =
+    let i_mutex_global = I.find (mutex_global g) i in
+    let i_mutex_inits = I.find (mutex_inits ()) i in
+    let g_var = V.make g in
+    let i_mutex_inits' = AD.keep_vars i_mutex_inits [g_var] in
+    AD.join i_mutex_global i_mutex_inits'
+
   let read_global ask getg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
     let oct = st.oct in
     let i = st.priv in
-    let m = mutex_global g in
     (* lock *)
-    let oct = AD.meet oct (i_find_with_mutex_inits ask i m) in
+    let oct = AD.meet oct (i_find_mutex_global_with_mutex_inits ask i g) in
     (* read *)
     let g_var = V.make g in
     let x_var = Var.of_string x.vname in
@@ -390,9 +396,8 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
     let oct = st.oct in
     let i = st.priv in
-    let m = mutex_global g in
     (* lock *)
-    let oct = AD.meet oct (i_find_with_mutex_inits ask i m) in
+    let oct = AD.meet oct (i_find_mutex_global_with_mutex_inits ask i g) in
     (* write *)
     let g_var = V.make g in
     let x_var = Var.of_string x.vname in
@@ -400,7 +405,7 @@ struct
     let oct_local = AD.assign_var' oct_local g_var x_var in
     (* unlock *)
     let oct_side = AD.keep_vars oct_local [g_var] in
-    let i_side = I.add m oct_side i in
+    let i_side = I.add (mutex_global g) oct_side i in
     sideg (global_varinfo ()) i_side;
     let oct_local' =
       if is_unprotected ask g then
