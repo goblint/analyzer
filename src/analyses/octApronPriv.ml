@@ -338,9 +338,20 @@ struct
 
   let should_join _ _ = true
 
+  (* TODO: deduplicate with BasePriv *)
+  let mutex_global: varinfo -> LockDomain.Addr.t =
+    let mutex_global_varinfo: varinfo -> varinfo = RichVarinfo.Variables.map ~name:(fun x -> "MUTEX_GLOBAL_" ^ x.vname) (* explicit type to force call without ?size *)
+    in
+    fun g ->
+      LockDomain.Addr.from_var (mutex_global_varinfo g)
+
   let read_global ask getg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
     let i = st.priv in
+    let m = mutex_global g in
+    (* lock *)
+    let oct = AD.meet oct (I.find m i) in
+    (* read *)
     let g_var = V.make g in
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars_int oct [g_var] in
@@ -351,6 +362,10 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
     let i = st.priv in
+    let m = mutex_global g in
+    (* lock *)
+    let oct = AD.meet oct (I.find m i) in
+    (* write *)
     let g_var = V.make g in
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars_int oct [g_var] in
