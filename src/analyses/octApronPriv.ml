@@ -345,7 +345,7 @@ struct
     fun g ->
       LockDomain.Addr.from_var (mutex_global_varinfo g)
 
-  let read_global ask getg (st: OctApronComponents (D).t) g x =
+  let read_global ask getg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
     let oct = st.oct in
     let i = st.priv in
     let m = mutex_global g in
@@ -356,10 +356,16 @@ struct
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars_int oct [g_var] in
     let oct_local = AD.assign_var' oct_local x_var g_var in
-    (* TODO: unlock *)
-    {st with oct = oct_local}
+    (* unlock *)
+    let oct_local' =
+      if is_unprotected ask g then
+        AD.remove_vars oct_local [g_var]
+      else
+        oct_local
+    in
+    {oct = oct_local'; priv = getg (global_varinfo ())}
 
-  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
+  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
     let oct = st.oct in
     let i = st.priv in
     let m = mutex_global g in
@@ -370,8 +376,17 @@ struct
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars_int oct [g_var] in
     let oct_local = AD.assign_var' oct_local g_var x_var in
-    (* TODO: unlock *)
-    {st with oct = oct_local}
+    (* unlock *)
+    let oct_side = AD.keep_vars oct_local [g_var] in
+    let i_side = I.add m oct_side i in
+    sideg (global_varinfo ()) i_side;
+    let oct_local' =
+      if is_unprotected ask g then
+        AD.remove_vars oct_local [g_var]
+      else
+        oct_local
+    in
+    {oct = oct_local'; priv = getg (global_varinfo ())}
 
   let lock ask getg (st: OctApronComponents (D).t) m =
     let oct = st.oct in
