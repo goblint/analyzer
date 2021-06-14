@@ -1264,41 +1264,38 @@ struct
 
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
-    let all_reachable_vars = List.fold (fun acc a ->  List.append (reachable_vars ask [a] gs st) acc) [] args in
-    let update_reachable_written_var (ask: Q.ask) (arg: address) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
-      let reachable_vars = reachable_vars ask [arg] gs st in
-      let reachable_written_vars = (match lvals with
-        | `Top -> reachable_vars
-        | `Lifted s ->
-          let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.elements lvals) in
-          let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> (typeSig v.vtype, offset) | _ -> failwith "Should never happen!") lvals in
-          let get_addrs_with_offs addrs =
-            let addr_ts = typeSig (AD.get_type addrs) in
-            let matches = Set.filter (fun (ts, offset) -> ts = addr_ts) typeSigs in
-            M.tracel "update" "Found %i matches for type %a. \n" (Set.cardinal matches) Cil.d_typsig addr_ts;
-            let address_with_offs = Set.map (fun (_,offset) -> AD.map (fun a -> add_offset_varinfo (Offs.from_cil_offset offset) a) addrs)
-            matches |> Set.to_list in
-            List.fold AD.join (AD.bot ()) address_with_offs
-          in
-          let addrs_with_offs = List.map get_addrs_with_offs reachable_vars in
-          let addrs_with_offs = List.filter_map (fun ad -> if AD.is_bot ad then None else Some ad) addrs_with_offs in
-          M.tracel "update" "there are %i reachable written addresses.\n" (List.length addrs_with_offs);
-          List.iter (fun a -> M.tracel "update" "reachable written address: %a\n" AD.pretty a) addrs_with_offs;
-          addrs_with_offs
-      ) in
-      let reachable_written_vars = List.concat (List.map AD.elements reachable_written_vars) in
-      M.trace "update" "Reachable vars have cardinality >= %s \n" (string_of_int @@ List.length reachable_written_vars);
-      let update_written_address (st, addr_list) (addr: Addr.t) =
-        let sa = get_symbolic_address ask gs addr fun_st in
-        let typ = Addr.get_type addr in
-        let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
-        (* For the existing memory blocks, we have join the old and the new value *)
-        let old_value = get ask gs st (AD.singleton addr) None in
-        let value = VD.join old_value concrete_value in
-        M.tracel "library" "Updating address %a with old value %a to value %a\n" Addr.pretty addr VD.pretty old_value VD.pretty concrete_value;
-        (set ask gs st (AD.singleton addr) typ value, new_addresses::addr_list)
-      in
-      let (st, new_addresses) = List.fold update_written_address (st, []) reachable_written_vars in
+    let all_reachable_vars = Stats.time "all_reachable_vars" (reachable_vars ask args gs) st in
+    let reachable_vars = Stats.time "reachable_vars"(reachable_vars ask args gs) st in
+    let reachable_written_vars = (match lvals with
+      | `Top -> reachable_vars
+      | `Lifted s ->
+        let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.elements lvals) in
+        let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> (typeSig v.vtype, offset) | _ -> failwith "Should never happen!") lvals in
+        let get_addrs_with_offs addrs =
+          let addr_ts = typeSig (AD.get_type addrs) in
+          let matches = Set.filter (fun (ts, offset) -> ts = addr_ts) typeSigs in
+          if M.tracing then M.tracel "update" "Found %i matches for type %a. \n" (Set.cardinal matches) Cil.d_typsig addr_ts;
+          let address_with_offs = Set.map (fun (_,offset) -> AD.map (fun a -> add_offset_varinfo (Offs.from_cil_offset offset) a) addrs)
+          matches |> Set.to_list in
+          List.fold (fun acc a -> AD.join a acc) (AD.bot ()) address_with_offs
+        in
+        let addrs_with_offs = Stats.time "get_addrs_with_offs" (List.map get_addrs_with_offs) reachable_vars in
+        let addrs_with_offs = List.filter_map (fun ad -> if AD.is_bot ad then None else Some ad) addrs_with_offs in
+        if M.tracing then M.tracel "update" "there are %i reachable written addresses.\n" (List.length addrs_with_offs);
+        addrs_with_offs
+    ) in
+    let reachable_written_vars = Stats.time "concat reachable_written_vars" List.concat (Stats.time "reachable_written_vars" (List.map AD.elements) reachable_written_vars) in
+    let update_written_address (st, addr_list) (addr: Addr.t) =
+      let sa = Stats.time "get_symbolic_address" (get_symbolic_address ask gs addr) fun_st in
+      let typ = Addr.get_type addr in
+      let (concrete_value, new_addresses) = Stats.time "get_concrete_value_and_new_blocks" (get_concrete_value_and_new_blocks ask gs sa st fun_st) all_reachable_vars in
+      (* For the existing memory blocks, we have to join the old and the new value *)
+      let old_value = get ask gs st (AD.singleton addr) None in
+      let value = VD.join old_value concrete_value in
+      set ask gs st (AD.singleton addr) typ value, new_addresses::addr_list
+    in
+    let (st, new_addresses) = Stats.time "update_written_address" (List.fold update_written_address (st, [])) reachable_written_vars in
+    let integrate_new_addresses () =
       let empty = AD.empty () in
       let visited = ref empty in
       let workset = ref (AD.of_list (List.flatten new_addresses)) in
@@ -1309,7 +1306,7 @@ struct
         let visit_and_collect var (acc, st) =
           let sa = AD.singleton var in
           let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st all_reachable_vars in
-          M.tracel "library" "Updating new address %a to value %a\n" AD.pretty sa VD.pretty concrete_value;
+          if M.tracing then M.tracel "library" "Updating new address %a to value %a\n" AD.pretty sa VD.pretty concrete_value;
           let st = set ask gs st sa (AD.get_type sa) concrete_value in
           let addrs = AD.union (AD.of_list new_addresses) acc in
           (addrs, st)
@@ -1321,8 +1318,7 @@ struct
       done;
       !st
     in
-    M.tracel "update" "Updating with %d args.\n" (List.length args);
-    List.fold (fun st (v: address) -> update_reachable_written_var ask v gs st fun_st lvals) st args
+    Stats.time "integrate_new_addresses" integrate_new_addresses ()
 
   let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
