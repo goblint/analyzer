@@ -345,12 +345,34 @@ struct
     fun g ->
       LockDomain.Addr.from_var (mutex_global_varinfo g)
 
+  let mutex_inits =
+    let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS" in
+    fun () ->
+      LockDomain.Addr.from_var (mutex_inits ())
+
+  let i_find_with_mutex_inits ask i m =
+    let i_m = I.find m i in
+    let i_mutex_inits = I.find (mutex_inits ()) i in
+    let (mutex_inits_vars, _) = Environment.vars (A.env i_mutex_inits) in (* FIXME: floats *)
+    let keep_vars_mutex_inits =
+      mutex_inits_vars
+      |> Array.enum
+      |> Enum.filter (fun var ->
+          match V.find_metadata var with
+          | Some g -> is_protected_by ask m g
+          | None -> false
+        )
+      |> List.of_enum
+    in
+    let i_mutex_inits' = AD.keep_vars i_mutex_inits keep_vars_mutex_inits in
+    AD.join i_m i_mutex_inits'
+
   let read_global ask getg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
     let oct = st.oct in
     let i = st.priv in
     let m = mutex_global g in
     (* lock *)
-    let oct = AD.meet oct (I.find m i) in
+    let oct = AD.meet oct (i_find_with_mutex_inits ask i m) in
     (* read *)
     let g_var = V.make g in
     let x_var = Var.of_string x.vname in
@@ -370,7 +392,7 @@ struct
     let i = st.priv in
     let m = mutex_global g in
     (* lock *)
-    let oct = AD.meet oct (I.find m i) in
+    let oct = AD.meet oct (i_find_with_mutex_inits ask i m) in
     (* write *)
     let g_var = V.make g in
     let x_var = Var.of_string x.vname in
@@ -391,7 +413,7 @@ struct
   let lock ask getg (st: OctApronComponents (D).t) m =
     let oct = st.oct in
     let i = st.priv in
-    let oct' = AD.meet oct (I.find m i) in
+    let oct' = AD.meet oct (i_find_with_mutex_inits ask i m) in
     {st with oct = oct'}
 
   let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
@@ -442,8 +464,23 @@ struct
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     let oct = st.oct in
-    (* TODO: implement *)
-    st
+    let i = st.priv in
+    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
+    let g_vars =
+      vars
+      |> Array.enum
+      |> Enum.filter (fun var ->
+          match V.find_metadata var with
+          | Some _ -> true
+          | None -> false
+        )
+      |> List.of_enum
+    in
+    let oct_side = AD.keep_vars oct g_vars in
+    let i_side = I.add (mutex_inits ()) oct_side i in
+    sideg (global_varinfo ()) i_side;
+    let oct_local = AD.remove_vars oct g_vars in (* TODO: side effect initial values to mutex_globals? *)
+    {oct = oct_local; priv = getg (global_varinfo ())}
 
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     {st with priv = startstate ()}
