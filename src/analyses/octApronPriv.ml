@@ -140,8 +140,7 @@ struct
       |> Array.enum
       |> Enum.filter (fun var ->
           match V.find_metadata var with
-          | Some (Unprot _) -> true
-          | Some (Prot g) when is_unprot g -> true
+          | Some (Unprot g | Prot g) -> is_unprot g
           | _ -> false
         )
       |> List.of_enum
