@@ -2,16 +2,16 @@
 #include <pthread.h>
 #include <assert.h>
 
-int g = 17; // matches write in t_fun
-int h = 14; // matches write in t_fun
+int g = 17;
+int h = 14;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t B = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  int t;
+  int t, r; // rand
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
-  g = 17;
+  g = r;
   t = g;
   h = t - 3;
   pthread_mutex_unlock(&B);
@@ -51,7 +51,7 @@ int main(void) {
 
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
-  assert(g >= h); // UNKNOWN?
+  assert(g >= h); // UNKNOWN (for protection at least)
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
   return 0;
