@@ -79,7 +79,7 @@ struct
           | b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
         )
       | `Int a, e  -> (match ctx.ask (Queries.EvalInt e) with
-          | b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
+          | b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=(IntOps.BigIntOps.to_int64 b) | None -> false)
         )
       | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
       | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false

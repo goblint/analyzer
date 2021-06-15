@@ -102,8 +102,9 @@ end
 
 module type IkindUnawareS =
 sig
-  include B with type int_t = int64
-  include Arith with type t:= t
+  type int_t
+  include B with type int_t := int_t
+  include Arith with type t := t
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
   val of_int: int_t -> t
@@ -147,7 +148,7 @@ end
 
 module type Z = Y with type int_t = BI.t
 
-module OldDomainFacade (Old : IkindUnawareS) : S with type int_t = BI.t and type t = Old.t =
+module OldDomainFacade (Old : IkindUnawareS with type int_t = int64) : S with type int_t = BI.t and type t = Old.t =
 struct
   include Old
   type int_t = BI.t
@@ -786,69 +787,69 @@ module IntIkind = struct let ikind () = Cil.IInt end
 module Interval =  IntervalFunctor (BI)
 module Interval32 = IntDomWithDefaultIkind (IntDomLifter (IntervalFunctor (IntOps.Int64Ops))) (IntIkind)
 
-module Integers : IkindUnawareS with type t = int64 and type int_t = int64 = (* no top/bot, order is <= *)
+module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t = (* no top/bot, order is <= *)
 struct
   include Printable.Std
   let name () = "integers"
-  type t = int64 [@@deriving eq, to_yojson]
-  type int_t = int64
+  type t = Ints_t.t [@@deriving eq]
+  let to_yojson x = failwith "TODO implement to_yojson"
+  type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let show x = if x = GU.inthack then "*" else Int64.to_string x
+  let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* FIXME: poly compare *)
-  let hash (x:t) = ((Int64.to_int x) - 787) * 17
+  let hash (x:t) = ((Ints_t.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
   let is_bot _ = false
 
   let equal_to i x = if i > x then `Neq else `Top
   let leq x y = x <= y
-  let join x y = if Int64.compare x y > 0 then x else y
+  let join x y = if Ints_t.compare x y > 0 then x else y
   let widen = join
-  let meet x y = if Int64.compare x y > 0 then y else x
+  let meet x y = if Ints_t.compare x y > 0 then y else x
   let narrow = meet
 
-  let of_bool x = if x then Int64.one else Int64.zero
-  let to_bool' x = x <> Int64.zero
+  let of_bool x = if x then Ints_t.one else Ints_t.zero
+  let to_bool' x = x <> Ints_t.zero
   let to_bool x = Some (to_bool' x)
   let is_bool _ = true
   let of_int  x = x
   let to_int  x = Some x
   let is_int  _ = true
 
-  let neg  = Int64.neg
-  let add  = Int64.add (* TODO: signed overflow is undefined behavior! *)
-  let sub  = Int64.sub
-  let mul  = Int64.mul
-  let div  = Int64.div
-  let rem  = Int64.rem
+  let neg  = Ints_t.neg
+  let add  = Ints_t.add (* TODO: signed overflow is undefined behavior! *)
+  let sub  = Ints_t.sub
+  let mul  = Ints_t.mul
+  let div  = Ints_t.div
+  let rem  = Ints_t.rem
   let lt n1 n2 = of_bool (n1 <  n2)
   let gt n1 n2 = of_bool (n1 >  n2)
   let le n1 n2 = of_bool (n1 <= n2)
   let ge n1 n2 = of_bool (n1 >= n2)
   let eq n1 n2 = of_bool (n1 =  n2)
   let ne n1 n2 = of_bool (n1 <> n2)
-  let bitnot = Int64.lognot
-  let bitand = Int64.logand
-  let bitor  = Int64.logor
-  let bitxor = Int64.logxor
-  let shift_left  n1 n2 = Int64.shift_left n1 (Int64.to_int n2)
-  let shift_right n1 n2 = Int64.shift_right n1 (Int64.to_int n2)
+  let bitnot = Ints_t.lognot
+  let bitand = Ints_t.logand
+  let bitor  = Ints_t.logor
+  let bitxor = Ints_t.logxor
+  let shift_left  n1 n2 = Ints_t.shift_left n1 (Ints_t.to_int n2)
+  let shift_right n1 n2 = Ints_t.shift_right n1 (Ints_t.to_int n2)
   let lognot n1    = of_bool (not (to_bool' n1))
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let cast_to ?torg t x = Size.cast t x
-  let arbitrary () = MyCheck.Arbitrary.int64
+  let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
+  let arbitrary () = failwith @@ "Arbitrary not implemented for " ^ (name ()) ^ "."
 end
 
-module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
+module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises Unknown/Error on join/meet *)
 struct
-  include Integers
-
+  include Integers(IntOps.Int64Ops) 
   let top () = raise Unknown
   let bot () = raise Error
   let leq = equal
@@ -1001,8 +1002,9 @@ struct
   let logor  = lift2 Base.logor
 end
 
-module Flattened = Flat (Integers)
-module Lifted    = Lift (Integers)
+module Flattened = Flat (Integers(IntOps.Int64Ops))
+module FlattenedBI = Flat (Integers(IntOps.BigIntOps))
+module Lifted    = Lift (Integers(IntOps.Int64Ops))
 
 module Reverse (Base: IkindUnawareS) =
 struct

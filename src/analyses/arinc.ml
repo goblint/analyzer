@@ -398,15 +398,15 @@ struct
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
           match ctx.ask (Queries.EvalInt mode) with
           | `Lifted i ->
-            let pm = partition_mode_of_enum @@ Int64.to_int i in
-            if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (show_partition_mode_opt pm);
-            if mode_is_multi (Pmo.of_int i) then (
+            let pm = partition_mode_of_enum @@ IntOps.BigIntOps.to_int i in
+            if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" (IntOps.BigIntOps.to_int64 i) (show_partition_mode_opt pm);
+            if mode_is_multi (Pmo.of_int (IntOps.BigIntOps.to_int64 i)) then (
               let tasks = ctx.global tasks_var in
               ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
               Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
             );
             add_action (SetPartitionMode pm)
-            |> D.pmo (const @@ Pmo.of_int i)
+            |> D.pmo (const @@ Pmo.of_int (IntOps.BigIntOps.to_int64 i))
           | _ -> D.top ()
         end
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
@@ -499,6 +499,9 @@ struct
         begin match name, entry_point, pri, per, cap with
           | `Lifted name, ls, `Lifted pri, `Lifted per, `Lifted cap when not (Queries.LS.is_top ls)
                                                                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+            let pri = (IntOps.BigIntOps.to_int64 pri) in
+            let per = (IntOps.BigIntOps.to_int64 per) in
+            let cap = (IntOps.BigIntOps.to_int64 cap) in
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
@@ -527,7 +530,7 @@ struct
       | "LAP_Se_Suspend", [pid; r] ->
         add_actions @@ List.map (fun pid -> Suspend pid) (eval_id pid)
       | "LAP_Se_SuspendSelf", [timeout; r] ->
-        let t = eval_int timeout in
+        let t = IntOps.BigIntOps.to_int64 (eval_int timeout) in
         add_action (SuspendSelf (env.procid, t))
       | "LAP_Se_Resume", [pid; r] ->
         add_actions @@ List.map (fun pid -> Resume pid) (eval_id pid)
@@ -564,7 +567,7 @@ struct
       | "LAP_Se_DisplayBlackboard", [bbid; msg_addr; len; r] ->
         add_actions @@ List.map (fun id -> DisplayBlackboard id) (eval_id bbid)
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
-        let t = eval_int timeout in
+        let t = IntOps.BigIntOps.to_int64 (eval_int timeout) in
         add_actions @@ List.map (fun id -> ReadBlackboard (id, t)) (eval_id bbid)
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
         add_actions @@ List.map (fun id -> ClearBlackboard id) (eval_id bbid)
@@ -576,9 +579,9 @@ struct
         (* create resource for name *)
         let sid' = Semaphore, eval_str name in
         assign_id sid (get_id sid');
-        add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing }))
+        add_action (CreateSemaphore Action.({ sid = sid'; cur = (IntOps.BigIntOps.to_int64 (eval_int cur)); max = (IntOps.BigIntOps.to_int64 (eval_int max)); queuing = (IntOps.BigIntOps.to_int64 (eval_int queuing)) }))
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
-        let t = eval_int timeout in
+        let t = IntOps.BigIntOps.to_int64 (eval_int timeout) in
         add_actions @@ List.map (fun id -> WaitSemaphore (id, t)) (eval_id sid)
       | "LAP_Se_SignalSemaphore", [sid; r] ->
         add_actions @@ List.map (fun id -> SignalSemaphore id) (eval_id sid)
@@ -595,7 +598,7 @@ struct
       | "LAP_Se_ResetEvent", [eid; r] ->
         add_actions @@ List.map (fun id -> ResetEvent id) (eval_id eid)
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
-        let t = eval_int timeout in
+        let t = IntOps.BigIntOps.to_int64 (eval_int timeout) in
         add_actions @@ List.map (fun id -> WaitEvent (id, t)) (eval_id eid)
       | "LAP_Se_GetEventId", [name; eid; r] ->
         assign_id_by_name Event name eid; d
@@ -603,7 +606,7 @@ struct
       (* Time *)
       | "LAP_Se_GetTime", [time; r] -> todo ()
       | "LAP_Se_TimedWait", [delay; r] ->
-        add_action (TimedWait (eval_int delay))
+        add_action (TimedWait (IntOps.BigIntOps.to_int64 (eval_int delay)))
       | "LAP_Se_PeriodicWait", [r] ->
         add_action PeriodicWait
       (* Errors *)
@@ -632,8 +635,11 @@ struct
     let d = ctx.local in
     match q with
     | Queries.Priority _ ->
-      if Pri.is_int d.pri then
-        Queries.ID.of_int @@ Option.get @@ Pri.to_int d.pri
+      if Pri.is_int d.pri then Queries.ID.of_int @@ IntOps.BigIntOps.of_int64 @@ Option.get @@ Pri.to_int d.pri
+        (*match Option.get @@ Pri.to_int d.pri with
+          | `Lifted i -> Queries.ID.of_int @@ IntOps.BigIntOps.of_int64 i
+          | `Top -> Queries.Result.top q
+          | `Bot -> Queries.Result.bot q *)
       else if Pri.is_top d.pri then Queries.Result.top q else Queries.Result.bot q (* TODO: remove bot *)
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)

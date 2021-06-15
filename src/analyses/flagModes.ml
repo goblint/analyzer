@@ -32,12 +32,12 @@ struct
               ctx.local
             end else begin
               match eval_int (Analyses.ask_of_ctx ctx) rval with
-              | Some ex -> D.add f (`Lifted (false,true,ex)) ctx.local
+              | Some ex -> D.add f (`Lifted (false,true, Option.get(IntDomain.FlatPureIntegers.to_int (IntOps.BigIntOps.to_int64 ex)))) ctx.local
               | _ -> D.remove f ctx.local
             end
           end else begin
             match eval_int (Analyses.ask_of_ctx ctx) rval with
-            | Some ex -> D.add f (`Lifted (false,true,ex)) ctx.local
+            | Some ex -> D.add f (`Lifted (false,true, IntOps.BigIntOps.to_int64 ex)) ctx.local
             | _ -> D.remove f ctx.local
           end
         end
@@ -60,6 +60,7 @@ struct
           let temp = eval_int (Analyses.ask_of_ctx ctx) ex in
           match temp with
           | Some value -> begin (*guard == value = (true true value*)
+              let value = IntOps.BigIntOps.to_int64 value in
               try
                 match (D.find f ctx.local) with
                 | `Lifted (false,_,old_val) -> if value <> old_val then D.add f `Bot ctx.local else ctx.local
@@ -100,6 +101,7 @@ struct
           let temp = eval_int (Analyses.ask_of_ctx ctx) ex in
           match temp with
           | Some value -> begin
+              let value = IntOps.BigIntOps.to_int64 value in
               try
                 match (D.find f ctx.local) with
                 | `Lifted (false,_,old_val) -> if value <> old_val then ctx.local else D.add f `Bot ctx.local

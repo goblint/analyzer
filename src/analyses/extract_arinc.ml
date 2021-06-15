@@ -250,7 +250,7 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | `Lifted x -> [Int64.to_string x]
+          | `Lifted x -> [IntOps.BigIntOps.to_string x]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
@@ -325,6 +325,7 @@ struct
           begin match name, entry_point, pri, per, cap with
             | `Lifted name, ls, `Lifted pri, `Lifted per, `Lifted cap when not (Queries.LS.is_top ls)
                                                                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+              let pri = (IntOps.BigIntOps.to_int64 pri) in
               let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
               if M.tracing then M.tracel "extract_arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in

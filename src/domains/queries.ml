@@ -1,7 +1,7 @@
 (** Structures for the querying subsystem. *)
 
 module GU = Goblintutil
-module ID = IntDomain.Flattened
+module ID = IntDomain.FlattenedBI
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))

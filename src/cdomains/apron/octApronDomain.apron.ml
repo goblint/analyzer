@@ -228,7 +228,7 @@ struct
     | CastE (TInt(new_ikind, _), e) ->
       let new_exp = (match e with
       (* Do a cast of int constants *)
-      | Const (CInt64 (value, old_ikind, _)) -> Cil.kinteger64 new_ikind (IntDomain.Integers.cast_to new_ikind value)
+      | Const (CInt64 (value, old_ikind, _)) -> let module I = IntDomain.Integers(IntOps.Int64Ops) in Cil.kinteger64 new_ikind (I.cast_to new_ikind value)
       (* Ignore other casts *)
       | Lval (Var varinfo, _) -> e (* TODO: handle variable casts *)
       |_ -> e)
@@ -547,7 +547,7 @@ struct
     | Some infimum, Some supremum ->
       begin
         if (supremum = infimum) then
-          (Some infimum)
+          (Some (IntOps.BigIntOps.of_int64 infimum))
         else None
       end
     | _ -> None

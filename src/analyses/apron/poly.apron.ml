@@ -110,7 +110,7 @@ struct
     | EvalInt e ->
       begin
         match D.get_int_val_for_cil_exp d e with
-        | Some i -> ID.of_int i
+        | Some i -> Queries.ID.of_int i
         | _ -> `Top
       end
     | MustBeEqual (e1, e2) ->
