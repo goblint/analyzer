@@ -6,13 +6,13 @@
 #include <stdlib.h>
 int main() {
   int top;
-  int arr1[2];  
-  if (top=1) {    
-     arr1[5] = 1; // WARN
+  int N;
+
+  if (top) {
+    N = 5;
   } else {
-    arr1[0] = 2; 
-    }
-  int N = 3 + 2;
+    N = 10;
+  }
   int arr[N];
   arr[0] = 1;
   arr[1] = 2;
