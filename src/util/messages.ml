@@ -3,6 +3,14 @@ open Pretty
 open GobConfig
 module GU = Goblintutil
 
+type behavior_event = Undefined | Implementation | Machine
+type integer_event = Overflow | DivByZero
+type cast_event = TypeMismatch
+type array_event = OutOfBounds of int*int
+type event_type = Behavior of behavior_event | Integer of integer_event | Race | Array of array_event | Cast of cast_event | Unknown
+type certainty = May | Must
+type log_event = { event_type : event_type; certainty: certainty}
+
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
