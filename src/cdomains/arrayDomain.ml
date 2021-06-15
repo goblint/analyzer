@@ -581,21 +581,21 @@ struct
     if GobConfig.get_bool "ana.arrayoob" then
       let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
       and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
+      let warn_type t = (M.EventType.Behavior (M.BehaviorEvent.Undefined (M.UndefinedBehavior.ArrayOutOfBounds t))) in
       let () =
         match(idx_after_start, idx_before_end) with
         | Some true, Some true -> (* Certainly in bounds on both sides.*)
           ()
         | Some true, Some false ->
-          M.mywarn_each (M.Behavior (M.Undefined (M.ArrayOutOfBounds M.PastEnd))) M.May
-        (*M.warn_each "[Array out of bounds][MUST] Array index is past the end of the array."*)
+          M.mywarn_each (M.LogEvent.must (warn_type M.ArrayOOB.PastEnd))
         | Some true, None ->
-          M.warn_each "[Array out of bounds][MAY] Array index might be past the end of the array."
+          M.mywarn_each (M.LogEvent.may (warn_type M.ArrayOOB.PastEnd))
         | Some false, Some true ->
-          M.warn_each "[Array out of bounds][MUST] Array index is before the beginning of the array."
+          M.mywarn_each (M.LogEvent.must (warn_type M.ArrayOOB.BeforeStart))
         | None, Some true ->
-          M.warn_each "[Array out of bounds][MAY] Array index might be before the beginning of the array."
+          M.mywarn_each (M.LogEvent.may (warn_type M.ArrayOOB.BeforeStart))
         | _ ->
-          M.warn_each "[Array out of bounds][MAY] Array index might be out of bounds."
+          M.mywarn_each (M.LogEvent.may (warn_type M.ArrayOOB.Unknown))
       in
       Base.get ask x (e, v)
     else Base.get ask x (e, v)

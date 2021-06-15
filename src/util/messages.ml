@@ -3,51 +3,106 @@ open Pretty
 open GobConfig
 module GU = Goblintutil
 
-type array_oob_event = PastEnd | BeforeStart | Unknown
-type undefined_behavior_event = ArrayOutOfBounds of array_oob_event | NullPointerDereference | UseAfterFree
-type behavior_event = Undefined of undefined_behavior_event | Implementation | Machine
-type integer_event = Overflow | DivByZero
-type cast_event = TypeMismatch
-type array_event = OutOfBounds of int*int
-type event_type = Behavior of behavior_event | Integer of integer_event | Race | Array of array_event | Cast of cast_event | Unknown
-type certainty = May | Must
-type log_event = { event_type : event_type; certainty: certainty}
+module ArrayOOB =
+struct
+  type t =
+    | PastEnd
+    | BeforeStart
+    | Unknown
 
-let show_array_oob e =
-  match e with
-  | PastEnd -> "Index is past the end of the array."
-  | BeforeStart -> "Index is before start of the array."
-  | Unknown -> "Not enough information about index."
+  let show e =
+    match e with
+    | PastEnd -> "Index is past the end of the array."
+    | BeforeStart -> "Index is before start of the array."
+    | Unknown -> "Not enough information about index."
+end
 
-let show_undefined_behavior e =
-  match e with
-  | ArrayOutOfBounds e -> Printf.sprintf "[Array out of bounds] %s" (show_array_oob e)
-  | NullPointerDereference -> "[Null pointer dereference]"
-  | UseAfterFree -> "[Use After Free]"
+module UndefinedBehavior =
+struct
+  type t =
+    | ArrayOutOfBounds of ArrayOOB.t
+    | NullPointerDereference
+    | UseAfterFree
 
-let show_behavior_event e =
-  match e with
-  | Undefined u -> Printf.sprintf "[Undefined] %s" (show_undefined_behavior u)
-  | Implementation -> "[Implementation]"
-  | Machine -> "[Machine]"
+  let show e =
+    match e with
+    | ArrayOutOfBounds e -> Printf.sprintf "[Array out of bounds] %s" (ArrayOOB.show e)
+    | NullPointerDereference -> "[Null pointer dereference]"
+    | UseAfterFree -> "[Use After Free]"
+end
 
-let show_certainty c =
-  match c with
-  | May -> "MAY"
-  | Must -> "MUST"
+module BehaviorEvent =
+struct
+  type t =
+    | Undefined of UndefinedBehavior.t
+    | Implementation
+    | Machine
 
-let show_event_type e =
-  match e with
-  | Behavior behavior -> Printf.sprintf "[Behavior] %s" (show_behavior_event behavior)
-  | Integer _ -> "[Integer]"
-  | Race -> "[Race]"
-  | Array _ -> "[Array]"
-  | Cast _ -> "[Cast]"
-  | Unknown -> "[Unknown]"
+  let show e =
+    match e with
+    | Undefined u -> Printf.sprintf "[Undefined] %s" (UndefinedBehavior.show u)
+    | Implementation -> "[Implementation]"
+    | Machine -> "[Machine]"
+end
 
-let show_log_event {event_type; certainty} =
-  Printf.sprintf "[%s] %s" (show_certainty certainty) (show_event_type event_type)
+module IntegerEvent =
+struct
+  type t = Overflow | DivByZero
+end
 
+module CastEvent =
+struct
+  type t = TypeMismatch
+end
+
+module ArrayEvent =
+struct
+  type t = OutOfBounds of int*int
+end
+
+module EventType =
+struct
+  type t =
+    | Behavior of BehaviorEvent.t
+    | Integer of IntegerEvent.t
+    | Race
+    | Array of ArrayEvent.t
+    | Cast of CastEvent.t
+    | Unknown
+
+  let show e =
+    match e with
+    | Behavior behavior -> Printf.sprintf "[Behavior] %s" (BehaviorEvent.show behavior)
+    | Integer _ -> "[Integer]"
+    | Race -> "[Race]"
+    | Array _ -> "[Array]"
+    | Cast _ -> "[Cast]"
+    | Unknown -> "[Unknown]"
+end
+
+module Certainty = struct
+  type t = May | Must
+
+  let show c =
+    match c with
+    | May -> "MAY"
+    | Must -> "MUST"
+end
+
+module LogEvent =
+struct
+  type t = {
+    event_type : EventType.t;
+    certainty: Certainty.t
+  }
+
+  let may e = {event_type = e; certainty = Certainty.May}
+  let must e = {event_type = e; certainty = Certainty.Must}
+
+  let create e c = {event_type = e; certainty = c}
+  let show {event_type; certainty} =
+    Printf.sprintf "[%s] %s" (Certainty.show certainty) (EventType.show event_type)
+end
 
 exception Bailure of string
 let bailwith s = raise (Bailure s)
@@ -210,14 +265,28 @@ let debug msg =
 let debug_each msg =
   if (get_bool "dbg.debug") then warn_each ("{blue}"^msg)
 
-let mywarn event_type certainty : unit =
-  let log_event = {event_type: event_type; certainty: certainty} in
-  let msg = show_log_event log_event in
-  warn msg
+let mywarn ?ctx (log_event: LogEvent.t) =
+  if !GU.should_warn then begin
+    let msg = LogEvent.show log_event in
+    let msg = with_context msg ctx in
+    if (Hashtbl.mem warn_str_hashtbl msg == false) then
+      begin
+        warn_all msg;
+        Hashtbl.add warn_str_hashtbl msg true
+      end
+  end
 
-let mywarn_each event_type certainty : unit =
-  let log_event = {event_type: event_type; certainty: certainty} in
-  let msg = show_log_event log_event in
-  warn_each msg
+let mywarn_each ?ctx (log_event: LogEvent.t) =
+  if !GU.should_warn then begin
+    let loc = !Tracing.current_loc in
+    let msg = LogEvent.show log_event in
+    let msg = with_context msg ctx in
+    if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
+      begin
+        warn_all msg;
+        Hashtbl.add warn_lin_hashtbl (msg,loc) true
+      end
+  end
+
 
 include Tracing
