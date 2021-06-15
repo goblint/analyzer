@@ -69,9 +69,9 @@ struct
 
   let rec replace_elem (v,o) q ex =
     match ex with
-    | AddrOf  (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
-    | StartOf (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
-    | Lval    (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
+    | AddrOf  (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
+    | StartOf (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
+    | Lval    (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
     | CastE (_,e)           -> replace_elem (v,o) q e
     | _ -> v, Offs.from_offset (conv_offset o)
 
@@ -93,10 +93,10 @@ struct
     let ls = D.fold add_lock locks (LSSet.empty ()) in
     (ps, ls)
 
-  let eval_exp_addr a exp =
+  let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a)
+    match a.f (Queries.MayPointTo exp) with
+    | a when not (Queries.LS.is_top a)
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
@@ -150,13 +150,9 @@ struct
             ctx.sideg v el
         | None -> M.warn "Write to unknown address: privatization is unsound."
       end;
-      
+
       (*partitions & locks*)
-      let open Access in
-      match ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}) with
-      | `PartAccessResult (po, pd) -> (po, pd)
-      | `Top -> PartAccessResult.top ()
-      | _ -> failwith "MutexAnalysis.part_access"
+      ctx.ask (PartAccess {exp=e; var_opt=vo; write=w})
     in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
@@ -166,11 +162,7 @@ struct
       let (po,pd) = part_access ctx e None w in
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
-    let has_escaped g =
-      match ctx.ask (Queries.MayEscape g) with
-      | `MayBool false -> false
-      | _ -> true
-    in
+    let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls
        -- this is the common case if we have a sound points-to set. *)
     let on_lvals ls includes_uk =
@@ -179,7 +171,7 @@ struct
       let conf = if includes_uk then conf - 10 else conf in
       let f (var, offs) =
         let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
+        if CilType.Varinfo.equal var dummyFunDec.svar then
           add_access conf None (Some coffs)
         else
           add_access conf (Some var) (Some coffs)
@@ -188,19 +180,17 @@ struct
     in
     let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
     match ctx.ask reach_or_mpt with
-    | `Bot -> ()
-    | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+    | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
       (* the case where the points-to set is non top and does not contain unknown values *)
       on_lvals ls false
-    | `LvalSet ls when not (LS.is_top ls) ->
+    | ls when not (LS.is_top ls) ->
       (* the case where the points-to set is non top and contains unknown values *)
       let includes_uk = ref false in
       (* now we need to access all fields that might be pointed to: is this correct? *)
       begin match ctx.ask (ReachableUkTypes e) with
-        | `Bot -> ()
-        | `TypeSet ts when Queries.TS.is_top ts ->
+        | ts when Queries.TS.is_top ts ->
           includes_uk := true
-        | `TypeSet ts ->
+        | ts ->
           if Queries.TS.is_empty ts = false then
             includes_uk := true;
           let f = function
@@ -209,8 +199,6 @@ struct
             | _ -> ()
           in
           Queries.TS.iter f ts
-        | _ ->
-          includes_uk := true
       end;
       on_lvals ls !includes_uk
     | _ ->
@@ -218,7 +206,7 @@ struct
 
   let access_one_top ?(force=false) ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    if force || ThreadFlag.is_multi ctx.ask then (
+    if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
       if reach || write then do_access ctx write reach conf exp;
       Access.distribute_access_exp (do_access ctx) false false conf exp;
@@ -229,28 +217,36 @@ struct
   let threadenter ctx lval f args = [Lockset.empty ()]
   let exitstate  v = Lockset.empty ()
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let non_overlapping locks1 locks2 =
       let intersect = G.join locks1 locks2 in
-      let tv = G.is_top intersect in
-      `MayBool (tv)
+      G.is_top intersect
     in
     match q with
-    | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> `MayBool false
+    | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublic {global=v; write} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.filter snd ctx.local) in
-      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then `MayBool false
-      else non_overlapping held_locks (ctx.global v)
-    | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> `MayBool false
+      (* TODO: unsound in 29/24, why did we do this before? *)
+      (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
+        false
+      else *)
+        non_overlapping held_locks (ctx.global v)
+    | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
-      if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then `MayBool false
-      else non_overlapping held_locks (ctx.global v)
+      (* TODO: unsound in 29/24, why did we do this before? *)
+      (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
+        false
+      else *)
+         non_overlapping held_locks (ctx.global v)
     | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
       let held_locks: G.t = P.check_fun ~write mutex_lockset in
-      if LockDomain.Addr.equal mutex verifier_atomic then `MustBool true
-      else `MustBool (G.leq (ctx.global global) held_locks)
+      (* TODO: unsound in 29/24, why did we do this before? *)
+      (* if LockDomain.Addr.equal mutex verifier_atomic then
+        true
+      else *)
+        G.leq (ctx.global global) held_locks
     | Queries.CurrentLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
@@ -259,13 +255,13 @@ struct
           | _ -> ls
         ) held_locks (Queries.LS.empty ())
       in
-      `LvalSet ls
+      ls
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      `MustBool (Mutexes.mem verifier_atomic held_locks)
+      Mutexes.mem verifier_atomic held_locks
     | Queries.PartAccess {exp; var_opt; write} ->
-      `PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> Queries.Result.top ()
+      part_access ctx exp var_opt write
+    | _ -> Queries.Result.top q
 
 
   (** Transfer functions: *)
@@ -318,7 +314,7 @@ struct
             ) x
       in
       match arglist with
-      | x::xs -> begin match  (eval_exp_addr ctx.ask x) with
+      | x::xs -> begin match  (eval_exp_addr (Analyses.ask_of_ctx ctx) x) with
           | [] -> remove_nonspecial ctx.local
           | es -> List.fold_right remove_fn es ctx.local
         end
@@ -334,7 +330,7 @@ struct
     | `Lock (failing, rw, nonzero_return_when_aquired), _
       -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
       (*print_endline @@ "Mutex `Lock "^f.vname;*)
-      lock ctx rw failing nonzero_return_when_aquired ctx.ask lv arglist ctx.local
+      lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arglist ctx.local
     | `Unlock, "__raw_read_unlock"
     | `Unlock, "__raw_write_unlock"  ->
       let drop_raw_lock x =

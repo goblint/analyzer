@@ -58,7 +58,7 @@ struct
   type size = Size.t
   type origin = ZeroInit.t
   let printXml f (x, y, z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
   let make v s = v, s, true
   let value (a, b, c) = a
@@ -90,7 +90,7 @@ struct
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ] [@@deriving to_yojson]
+  ] [@@deriving eq, ord, to_yojson]
 
   let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -202,18 +202,6 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> ID.equal x y
-    | (`Address x, `Address y) -> AD.equal x y
-    | (`Struct x, `Struct y) -> Structs.equal x y
-    | (`Union x, `Union y) -> Unions.equal x y
-    | (`Array x, `Array y) -> CArrays.equal x y
-    | (`Blob x, `Blob y) -> Blobs.equal x y
-    | _ -> false
-
   let hash x =
     match x with
     | `Int n -> 17 * ID.hash n
@@ -223,27 +211,6 @@ struct
     | `Array n -> 31 * CArrays.hash n
     | `Blob n -> 37 * Blobs.hash n
     | _ -> Hashtbl.hash x
-
-  let compare x y =
-    let constr_to_int x = match x with
-      | `Bot -> 0
-      | `Int _ -> 1
-      | `Address _ -> 3
-      | `Struct _ -> 5
-      | `Union _ -> 6
-      | `Array _ -> 7
-      | `Blob _ -> 9
-      | `List _ -> 10
-      | `Top -> 100
-    in match x,y with
-    | `Int x, `Int y -> ID.compare x y
-    | `Address x, `Address y -> AD.compare x y
-    | `Struct x, `Struct y -> Structs.compare x y
-    | `Union x, `Union y -> Unions.compare x y
-    | `Array x, `Array y -> CArrays.compare x y
-    | `List x, `List y -> Lists.compare x y
-    | `Blob x, `Blob y -> Blobs.compare x y
-    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
 
   let pretty () state =
     match state with
@@ -672,7 +639,7 @@ struct
       end
     | _ -> None, None
 
-  let determine_offset ask left offset exp v =
+  let determine_offset (ask: Q.ask) left offset exp v =
     let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
       match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
@@ -698,11 +665,11 @@ struct
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin
-        match ask (Q.MayPointTo (Lval lval)) with
-        | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
+        match ask.f (Q.MayPointTo (Lval lval)) with
+        | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with
-          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.compareExp i Cil.zero = 0 && var.vid = arr_start_var.vid ->
+          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.equal i Cil.zero && CilType.Varinfo.equal var arr_start_var ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)

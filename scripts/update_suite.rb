@@ -166,6 +166,8 @@ regs.sort.each do |d|
         debug = true
         if obj =~ /FAIL/ then
           tests[i] = "fail"
+        elsif obj =~ /UNKNOWN!/ then
+          tests[i] = "unknown!"
         elsif obj =~ /UNKNOWN/ then
           tests[i] = "unknown"
         else
@@ -424,8 +426,10 @@ File.open(theresultfile, "w") do |f|
         end
       }
       case type
-      when "deadlock", "race", "fail", "unknown", "noterm", "term", "warn"
-        check.call warnings[idx] == type
+      when "unknown"
+        check.call ["deadlock", "race", "fail", "unknown", "noterm", "term", "warn", "success"].include? warnings[idx] 
+      when "deadlock", "race", "fail", "noterm", "unknown!", "term", "warn"
+        check.call warnings[idx] == type.tr('!', '')
       when "nowarn"
         check.call warnings[idx].nil?
       when "assert"

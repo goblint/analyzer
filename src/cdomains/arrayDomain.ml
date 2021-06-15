@@ -119,9 +119,9 @@ struct
       "Array (no part.): " ^ Val.show xl
     else
       "Array (part. by " ^ Expp.show e ^ "): (" ^
-      Val.show xl ^ " -- " ^
-      Val.show xm ^ " -- " ^
-      Val.show xr ^ ")"
+        Val.show xl ^ " -- " ^
+        Val.show xm ^ " -- " ^
+        Val.show xr ^ ")"
 
   let pretty () x = text "Array: " ++ text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -142,21 +142,18 @@ struct
     match e, i with
     | `Lifted e', `Lifted i' ->
       begin
-        let isEqual = match ask (Q.MustBeEqual (e',i')) with
-          | `MustBool true -> true
-          | _ -> false in
-        if isEqual then xm
+        if ask.f (Q.MustBeEqual (e',i')) then xm
         else
           begin
-            let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-              | `MayBool false -> Val.bot ()
-              | _ -> xl in
-            let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-              | `MayBool false -> Val.bot ()
-              | _ -> xm in
-            let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-              | `MayBool false -> Val.bot ()
-              | _ -> xr in
+            let contributionLess = match ask.f (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
+            | false -> Val.bot ()
+            | _ -> xl in
+            let contributionEqual = match ask.f (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
+            | false -> Val.bot ()
+            | _ -> xm in
+            let contributionGreater =  match ask.f (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
+            | false -> Val.bot ()
+            | _ -> xr in
             Val.join (Val.join contributionLess contributionEqual) contributionGreater
           end
       end
@@ -178,24 +175,24 @@ struct
         | Field (_, o) -> offset_contains_array_access o
       in
       match e with
-      |	Const _
-      |	SizeOf _
-      |	SizeOfE _
-      |	SizeOfStr _
-      |	AlignOf _
-      |	AlignOfE _ -> false
-      | Question(e1, e2, e3, _) ->
-        contains_array_access e1 || contains_array_access e2 || contains_array_access e3
-      |	CastE(_, e)
-      |	UnOp(_, e , _)
-      | Real e
-      | Imag e -> contains_array_access e
-      |	BinOp(_, e1, e2, _) -> contains_array_access e1 || contains_array_access e2
-      | AddrOf _
-      | AddrOfLabel _
-      | StartOf _ -> false
-      | Lval(Mem e, o) -> offset_contains_array_access o || contains_array_access e
-      | Lval(Var _, o) -> offset_contains_array_access o
+        |	Const _
+        |	SizeOf _
+        |	SizeOfE _
+        |	SizeOfStr _
+        |	AlignOf _
+        |	AlignOfE _ -> false
+        | Question(e1, e2, e3, _) ->
+          contains_array_access e1 || contains_array_access e2 || contains_array_access e3
+        |	CastE(_, e)
+        |	UnOp(_, e , _)
+        | Real e
+        | Imag e -> contains_array_access e
+        |	BinOp(_, e1, e2, _) -> contains_array_access e1 || contains_array_access e2
+        | AddrOf _
+        | AddrOfLabel _
+        | StartOf _ -> false
+        | Lval(Mem e, o) -> offset_contains_array_access o || contains_array_access e
+        | Lval(Var _, o) -> offset_contains_array_access o
     in
     match e with
     | `Top
@@ -236,14 +233,10 @@ struct
             match e with
             | `Lifted e' ->
               begin
-                match ask (Q.EvalInt e') with
-                | `Int n ->
-                  begin
-                    match Q.ID.to_int n with
-                    | Some i ->
-                      (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
-                    | _ -> default
-                  end
+                let n = ask.f (Q.EvalInt e') in
+                match Q.ID.to_int n with
+                | Some i ->
+                  (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
                 | _ -> default
               end
             | _ -> default
@@ -253,42 +246,38 @@ struct
     in
     match e with
     | `Lifted exp ->
-      let is_affected = Basetype.CilExp.occurs v exp in
-      if not is_affected then
-        x
-      else
-        (* check if one part covers the entire array, so we can drop partitioning *)
-        begin
-          let e_must_bigger_max_index =
-            match length with
-            | Some l ->
-              begin
-                match Idx.to_int l with
-                | Some i ->
-                  begin
-                    match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) with
-                    | `MayBool false -> true (* !(e <_{may} length) => e >=_{must} length *)
-                    | _ -> false
-                  end
-                | None -> false
-              end
-            | _ -> false
-          in
-          let e_must_less_zero =
-            match ask (Q.MayBeLess (Cil.mone, exp)) with
-            | `MayBool false -> true (* !(-1 <_{may} e) => e <=_{must} -1 *)
-            | _ -> false
-          in
-          if e_must_bigger_max_index then
-            (* Entire array is covered by left part, dropping partitioning. *)
-            Expp.top(),(xl, xl, xl)
-          else if e_must_less_zero then
-            (* Entire array is covered by right value, dropping partitioning. *)
-            Expp.top(),(xr, xr, xr)
-          else
-            (* If we can not drop partitioning, move *)
-            move (movement_for_exp exp)
-        end
+        let is_affected = Basetype.CilExp.occurs v exp in
+        if not is_affected then
+          x
+        else
+          (* check if one part covers the entire array, so we can drop partitioning *)
+          begin
+            let e_must_bigger_max_index =
+              match length with
+              | Some l ->
+                begin
+                  match Idx.to_int l with
+                  | Some i ->
+                    let b = ask.f (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) in
+                    not b (* !(e <_{may} length) => e >=_{must} length *)
+                  | None -> false
+                end
+              | _ -> false
+            in
+            let e_must_less_zero =
+              let b = ask.f (Q.MayBeLess (Cil.mone, exp)) in
+              not b (* !(-1 <_{may} e) => e <=_{must} -1 *)
+            in
+            if e_must_bigger_max_index then
+              (* Entire array is covered by left part, dropping partitioning. *)
+              Expp.top(),(xl, xl, xl)
+            else if e_must_less_zero then
+              (* Entire array is covered by right value, dropping partitioning. *)
+              Expp.top(),(xr, xr, xr)
+            else
+              (* If we can not drop partitioning, move *)
+              move (movement_for_exp exp)
+          end
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
   let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
@@ -296,19 +285,16 @@ struct
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
     if i = `Lifted MyCFG.all_array_index_exp then
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
-       let r =  Val.join xm a in
-       (Expp.top(), (r, r, r)))
+      let r =  Val.join xm a in
+      (Expp.top(), (r, r, r)))
     else
       normalize @@
       let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
       let exp_value e =
         match e with
         | `Lifted e' ->
-          begin
-            match ask (Q.EvalInt e') with
-            | `Int n -> Option.map BI.of_int64 (Q.ID.to_int n)
-            | _ -> None
-          end
+          let n = ask.f (Q.EvalInt e') in
+          Option.map BI.of_int64 (Q.ID.to_int n)
         |_ -> None
       in
       let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
@@ -332,24 +318,21 @@ struct
           let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
           (i, (l, a, r))
       else
-        let isEqual e' i' = match ask (Q.MustBeEqual (e',i')) with
-          | `MustBool true -> true
-          | _ -> false
-        in
+        let isEqual e' i' = ask.f (Q.MustBeEqual (e',i')) in
         match e, i with
         | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
             let default =
               let left =
-                match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
-                | `MayBool false -> xl
+                match ask.f (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
+                | false -> xl
                 | _ -> lubIfNotBot xl in
               let middle =
-                match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
-                | `MayBool false -> xm
+                match ask.f (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
+                | false -> xm
                 | _ -> Val.join xm a in
               let right =
-                match ask (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
-                | `MayBool false -> xr
+                match ask.f (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
+                | false -> xr
                 | _ -> lubIfNotBot xr in
               (e, (left, middle, right))
             in
@@ -358,19 +341,19 @@ struct
               (e, (xl, a, xr))
             else if Cil.isConstant e' && Cil.isConstant i' then
               match Cil.getInteger e', Cil.getInteger i' with
-              | Some (e'': Cilint.cilint), Some i'' ->
-                let (i'': BI.t) = Cilint.big_int_of_cilint  i'' in
-                let (e'': BI.t) = Cilint.big_int_of_cilint  e'' in
+                | Some (e'': Cilint.cilint), Some i'' ->
+                  let (i'': BI.t) = Cilint.big_int_of_cilint  i'' in
+                  let (e'': BI.t) = Cilint.big_int_of_cilint  e'' in
 
-                if BI.equal  i'' (BI.add e'' BI.one) then
-                  (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
-                  (i, (Val.join xl xm, a, xr))
-                else if BI.equal e'' (BI.add i'' BI.one) then
-                  (i, (xl, a, Val.join xm xr))
-                else
+                  if BI.equal  i'' (BI.add e'' BI.one) then
+                    (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
+                    (i, (Val.join xl xm, a, xr))
+                  else if BI.equal e'' (BI.add i'' BI.one) then
+                    (i, (xl, a, Val.join xm xr))
+                  else
+                    default
+                | _ ->
                   default
-              | _ ->
-                default
             else
               default
           end
@@ -379,37 +362,37 @@ struct
             (e,(xl,a,xr))
           else
             let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
-                  (match ask (Q.MayBeEqual (e', i')) with
-                   | `MayBool false -> Val.bot()
-                   | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
-                  (
-                    let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                    match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
-                    | `MustBool true -> xm
-                    | _ ->
-                      begin
-                        match ask (Q.MayBeLess (e', i')) with
-                        | `MayBool false-> Val.bot()
-                        | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
-                      end
-                  )
+              (match ask.f (Q.MayBeEqual (e', i')) with
+              | false -> Val.bot()
+              | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
+              (
+                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
+                | true -> xm
+                | _ ->
+                  begin
+                    match ask.f (Q.MayBeLess (e', i')) with
+                    | false-> Val.bot()
+                    | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
+                  end
+              )
             in
             let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
-                  (match ask (Q.MayBeEqual (e', i')) with
-                   | `MayBool false -> Val.bot()
-                   | _ -> xm)
+              (match ask.f (Q.MayBeEqual (e', i')) with
+              | false -> Val.bot()
+              | _ -> xm)
 
-                  (
-                    let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                    match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
-                    | `MustBool true -> xm
-                    | _ ->
-                      begin
-                        match ask (Q.MayBeLess (i', e')) with
-                        | `MayBool false -> Val.bot()
-                        | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
-                      end
-                  )
+              (
+                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
+                | true -> xm
+                | _ ->
+                  begin
+                    match ask.f (Q.MayBeLess (i', e')) with
+                    | false -> Val.bot()
+                    | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
+                  end
+              )
             in
             (* The new thing is partitioned according to i so we can strongly update *)
             (i,(left, a, right))
@@ -466,7 +449,7 @@ struct
         let over_all_x2 = op (op xl2 xm2) xr2 in
         let e1e_in_state_of_x2 = x2_eval_int e1e in
         let e2e_in_state_of_x1 = x1_eval_int e2e in
-        let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compareExp e1e e2e < 0 in
+        let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compare e1e e2e < 0 in (* TODO: why does this depend on exp comparison? probably to use "simpler" expression according to constructor order in compare *)
         if e1e_is_better then (* first try if the result can be partitioned by e1e *)
           if must_be_zero e1e_in_state_of_x2  then
             (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
@@ -479,16 +462,16 @@ struct
           else
             (Expp.top (), (op_over_all, op_over_all, op_over_all))
         else  (* first try if the result can be partitioned by e2e *)
-        if must_be_zero e2e_in_state_of_x1 then
-          (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
-        else if must_be_length_minus_one e2e_in_state_of_x1 then
-          (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
-        else if must_be_zero e1e_in_state_of_x2 then
-          (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
-        else if must_be_length_minus_one e1e_in_state_of_x2 then
-          (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
-        else
-          (Expp.top (), (op_over_all, op_over_all, op_over_all))
+          if must_be_zero e2e_in_state_of_x1 then
+            (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+          else if must_be_length_minus_one e2e_in_state_of_x1 then
+            (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+          else if must_be_zero e1e_in_state_of_x2 then
+            (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+          else if must_be_length_minus_one e1e_in_state_of_x2 then
+            (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+          else
+            (Expp.top (), (op_over_all, op_over_all, op_over_all))
       else
         (Expp.top (), (op_over_all, op_over_all, op_over_all))
     | `Top, `Top ->
@@ -624,8 +607,9 @@ struct
   let update_length newl (x, l) = (x, newl)
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
+
 
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
@@ -670,7 +654,7 @@ struct
   let update_length newl (x, l) = (x, newl)
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
@@ -721,12 +705,12 @@ struct
   let is_top = unop P.is_top T.is_top
   let is_bot = unop P.is_bot T.is_bot
   let get a x (e,i) = unop (fun x ->
-      if e = `Top then
-        let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
-        P.get a x (e', i)
-      else
-        P.get a x (e, i)
-    ) (fun x -> T.get a x (e,i)) x
+        if e = `Top then
+          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
+          P.get a x (e', i)
+        else
+          P.get a x (e, i)
+      ) (fun x -> T.get a x (e,i)) x
   let set (ask:Q.ask) x i a = unop_to_t (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) x
   let length = unop P.length T.length
   let get_vars_in_e = unop P.get_vars_in_e T.get_vars_in_e

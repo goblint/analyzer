@@ -62,14 +62,12 @@ struct
         let pretty = pretty_f short*)
 end
 
-let is_private ask (lp:ListPtr.t) =
+let is_private (ask: Queries.ask) (lp:ListPtr.t) =
   let check v =
-    match ask Queries.MustBeSingleThreaded with
-    | `Bot | `MustBool true -> true
+    match ask.f Queries.MustBeSingleThreaded with
+    | true -> true
     | _ ->
-      match ask (Queries.MayBePublic {global=v; write=false})  with
-      | `Bot | `MayBool false -> true
-      | _ -> false
+      not (ask.f (Queries.MayBePublic {global=v; write=false}))
   in
   match lp with
   | `Right ((v,_),_) when v.vname.[0] = '{' -> true
@@ -524,10 +522,10 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       in
       let dead lp' =
         let lpv' = ListPtr.get_var lp' in
-        lpv'.vid = lpv.vid ||
+        CilType.Varinfo.equal lpv' lpv ||
         (blab (not (lpv'.vglob)) (fun () -> Pretty.printf "global %s is never dead\n" lpv'.vname) &&
          let killer = ref dummyFunDec.svar in
-         blab (if Usedef.VS.exists (fun x -> if lpv'.vid = x.vid then (killer := x; true) else false) alive
+         blab (if Usedef.VS.exists (fun x -> if CilType.Varinfo.equal lpv' x then (killer := x; true) else false) alive
                then ((*ignore (Messages.report ("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname));*)false)
                else true) (fun () -> Pretty.printf "%s in alive list\n" lpv'.vname ))
       in

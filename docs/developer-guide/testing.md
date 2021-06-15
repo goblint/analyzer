@@ -3,6 +3,7 @@
 ## Regression tests
 Regression tests are small programs that can be used to quickly verify that existing functionality hasn't been broken.
 They can be found in `./tests/regression/`.
+Options that should be passed to Goblint when executing a regression test are specified in the test file using a single line comment starting with `//PARAM:`.
 
 ### Running
 Regression tests can be run with various granularity:

@@ -238,7 +238,7 @@ let partition_if_next if_next_n =
   in
   (* assert (List.length if_next <= 2); *)
   match test_next true, test_next false with
-  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when Basetype.CilExp.compareExp e_true e_false = 0 ->
+  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when Basetype.CilExp.equal e_true e_false ->
     (e_true, if_true_next_n, if_false_next_n)
   | _, _ -> failwith "partition_if_next: bad branches"
 

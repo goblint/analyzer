@@ -260,7 +260,7 @@ let createCFG (file: file) =
             let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
             List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
-           * it's job well and we just pick out the right successors *)
+           * its job well and we just pick out the right successors *)
           | If (exp, true_block, false_block, loc) -> begin
               if isZero exp then ()
               else
@@ -327,10 +327,10 @@ let print cfg  =
     | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
   in
   let dn_exp () e =
-    text (Goblintutil.escape (sprint 800 (dn_exp () e)))
+    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
   in
   let dn_lval () l =
-    text (Goblintutil.escape (sprint 800 (dn_lval () l)))
+    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
   in
   let p_edge () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
@@ -494,10 +494,10 @@ let printFun (module Cfg : CfgBidir) live fd out =
     | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
   in
   let dn_exp () e =
-    text (Goblintutil.escape (sprint 800 (dn_exp () e)))
+    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
   in
   let dn_lval () l =
-    text (Goblintutil.escape (sprint 800 (dn_lval () l)))
+    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
   in
   let p_edge () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp

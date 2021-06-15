@@ -35,10 +35,10 @@ struct
   type t = B.t * int
   let relift x = x
   let compare ((u1,u2):t) (v1,v2) =
-    match Stdlib.compare u2 v2 with
+    match Stdlib.compare u2 v2 with (* cannot derive, compares snd first for efficiency *)
     | 0 -> B.compare u1 v1
     | n -> n
-  let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1
+  let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1 (* cannot derive, compares snd first for efficiency *)
   let category (u,_) = B.category u
   let hash (u,v) = B.hash u + 131233 * v
   let pretty_trace () (u,v:t) =
@@ -311,6 +311,7 @@ struct
   let print_solver_stats = ref (fun () -> ())
 
   (* this can be used in print_solver_stats *)
+  let ncontexts = ref 0
   let print_context_stats rho =
     let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
     let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
@@ -318,20 +319,28 @@ struct
     HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 1 (str k) ((+)1) histo) rho;
     (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
     (* ignore @@ Pretty.printf "max #contexts: %d for %s\n" n max_k; *)
-    let ncontexts = Hashtbl.fold (fun _ -> (+)) histo 0 in
+    ncontexts := Hashtbl.fold (fun _ -> (+)) histo 0;
     let topn = 5 in
-    Printf.printf "Found %d contexts for %d functions. Top %d functions:\n" ncontexts (Hashtbl.length histo) topn;
+    Printf.printf "Found %d contexts for %d functions. Top %d functions:\n" !ncontexts (Hashtbl.length histo) topn;
     Hashtbl.to_list histo
     |> List.sort (fun (_,n1) (_,n2) -> compare n2 n1)
     |> List.take topn
     |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k
+
+  let stats_csv =
+    let save_run = GobConfig.get_string "save_run" in
+    if save_run <> "" then (
+      ignore @@ Goblintutil.create_dir save_run;
+      save_run ^ Filename.dir_sep ^ "solver_stats.csv" |> open_out |> Option.some
+    ) else None
+  let write_csv xs oc = output_string oc @@ String.concat ",\t" xs ^ "\n"
 
   (* print generic and specific stats *)
   let print_stats _ =
     print_newline ();
     (* print_endline "# Generic solver stats"; *)
     Printf.printf "runtime: %s\n" (string_of_time ());
-    Printf.printf "vars: %d, evals %d\n" !Goblintutil.vars !Goblintutil.evals;
+    Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
     Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
@@ -339,20 +348,25 @@ struct
     print_newline ();
     (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
-    Goblintutil.print_gc_quick_stat Legacy.stdout;
+    let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
     print_newline ();
+    Option.may (write_csv [string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
     (* print_string "Do you want to continue? [Y/n]"; *)
     flush stdout
     (* if read_line () = "n" then raise Break *)
 
   let () =
+    let write_header = write_csv ["runtime"; "vars"; "evals"; "contexts"; "max_heap"] (* TODO @ !solver_stats_headers *) in
+    Option.may write_header stats_csv;
     (* call print_stats on dbg.solver-signal *)
     Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
     (* call print_stats every dbg.solver-stats-interval *)
     Sys.set_signal Sys.sigvtalrm (Signal_handle print_stats);
     (* https://ocaml.org/api/Unix.html#TYPEinterval_timer ITIMER_VIRTUAL is user time; sends sigvtalarm; ITIMER_PROF/sigprof is already used in Timeout.Unix.timeout *)
-    let it = float_of_int (get_int "dbg.solver-stats-interval") in
-    ignore Unix.(setitimer ITIMER_VIRTUAL { it_interval = it; it_value = it });
+    let ssi = get_int "dbg.solver-stats-interval" in
+    if ssi > 0 then
+      let it = float_of_int ssi in
+      ignore Unix.(setitimer ITIMER_VIRTUAL { it_interval = it; it_value = it });
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
