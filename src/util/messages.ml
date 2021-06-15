@@ -3,13 +3,33 @@ open Pretty
 open GobConfig
 module GU = Goblintutil
 
-type behavior_event = Undefined | Implementation | Machine
+type array_oob_event = PastEnd | BeforeStart | Unknown
+type undefined_behavior_event = ArrayOutOfBounds of array_oob_event | NullPointerDereference | UseAfterFree
+type behavior_event = Undefined of undefined_behavior_event | Implementation | Machine
 type integer_event = Overflow | DivByZero
 type cast_event = TypeMismatch
 type array_event = OutOfBounds of int*int
 type event_type = Behavior of behavior_event | Integer of integer_event | Race | Array of array_event | Cast of cast_event | Unknown
 type certainty = May | Must
 type log_event = { event_type : event_type; certainty: certainty}
+
+let show_array_oob e =
+  match e with
+  | PastEnd -> "Index is past the end of the array."
+  | BeforeStart -> "Index is before start of the array."
+  | Unknown -> "Not enough information about index."
+
+let show_undefined_behavior e =
+  match e with
+  | ArrayOutOfBounds e -> Printf.sprintf "[Array out of bounds] %s" (show_array_oob e)
+  | NullPointerDereference -> "[Null pointer dereference]"
+  | UseAfterFree -> "[Use After Free]"
+
+let show_behavior_event e =
+  match e with
+  | Undefined u -> Printf.sprintf "[Undefined] %s" (show_undefined_behavior u)
+  | Implementation -> "[Implementation]"
+  | Machine -> "[Machine]"
 
 let show_certainty c =
   match c with
@@ -18,12 +38,12 @@ let show_certainty c =
 
 let show_event_type e =
   match e with
-  | Behavior _ -> "Behavior"
-  | Integer _ -> "Integer"
-  | Race -> "Race"
-  | Array _ -> "Array"
-  | Cast _ -> "Cast"
-  | Unknown -> "Unknown"
+  | Behavior behavior -> Printf.sprintf "[Behavior] %s" (show_behavior_event behavior)
+  | Integer _ -> "[Integer]"
+  | Race -> "[Race]"
+  | Array _ -> "[Array]"
+  | Cast _ -> "[Cast]"
+  | Unknown -> "[Unknown]"
 
 let show_log_event {event_type; certainty} =
   Printf.sprintf "[%s] %s" (show_certainty certainty) (show_event_type event_type)
