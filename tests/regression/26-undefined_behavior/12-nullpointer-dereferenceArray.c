@@ -11,11 +11,11 @@ int main(){
     pi = &a; // pi points to a
     b = *pi; // b is now 5
     pi = NULL;
-    c = *ok; //NOWARN
-    c = *pi; // WARN
+    c = *ok; //prolly nowarn
+    c = *pi; // prolly warn
     arr[3] = NULL; 
     x = arr[3];
-    c = x; //WARN
+    c = x; //prolly warn
 
     return 1;
 }

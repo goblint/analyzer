@@ -10,8 +10,8 @@ int main(){
     pi = &a; // pi points to a
     b = *pi; // b is now 5
     pi = NULL;
-    x = *ok; //NOWARN
-    c = *pi; // WARN
+    x = *ok; //Prolly nowarn
+    c = *pi; // prolly warn
 
     return 1;
 }
