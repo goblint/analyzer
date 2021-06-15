@@ -11,6 +11,24 @@ type event_type = Behavior of behavior_event | Integer of integer_event | Race |
 type certainty = May | Must
 type log_event = { event_type : event_type; certainty: certainty}
 
+let show_certainty c =
+  match c with
+  | May -> "MAY"
+  | Must -> "MUST"
+
+let show_event_type e =
+  match e with
+  | Behavior _ -> "Behavior"
+  | Integer _ -> "Integer"
+  | Race -> "Race"
+  | Array _ -> "Array"
+  | Cast _ -> "Cast"
+  | Unknown -> "Unknown"
+
+let show_log_event {event_type; certainty} =
+  Printf.sprintf "[%s] %s" (show_certainty certainty) (show_event_type event_type)
+
+
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
@@ -171,5 +189,15 @@ let debug msg =
 
 let debug_each msg =
   if (get_bool "dbg.debug") then warn_each ("{blue}"^msg)
+
+let mywarn event_type certainty : unit =
+  let log_event = {event_type: event_type; certainty: certainty} in
+  let msg = show_log_event log_event in
+  warn msg
+
+let mywarn_each event_type certainty : unit =
+  let log_event = {event_type: event_type; certainty: certainty} in
+  let msg = show_log_event log_event in
+  warn_each msg
 
 include Tracing

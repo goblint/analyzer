@@ -586,7 +586,8 @@ struct
         | Some true, Some true -> (* Certainly in bounds on both sides.*)
           ()
         | Some true, Some false ->
-          M.warn_each "[Array out of bounds][MUST] Array index is past the end of the array."
+          M.mywarn_each M.Unknown M.May
+        (*M.warn_each "[Array out of bounds][MUST] Array index is past the end of the array."*)
         | Some true, None ->
           M.warn_each "[Array out of bounds][MAY] Array index might be past the end of the array."
         | Some false, Some true ->
