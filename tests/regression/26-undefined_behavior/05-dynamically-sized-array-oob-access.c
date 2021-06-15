@@ -6,12 +6,12 @@
 #include <stdlib.h>
 int main() {
   int top;
-  int arr[2];  
-  if (top) {    
-     arr[5] = 1; // WARN
-} else {
-    arr[0] = 2; //NOWARN
-}
+  int arr1[2];  
+  if (top=1) {    
+     arr1[5] = 1; // WARN
+  } else {
+    arr1[0] = 2; 
+    }
   int N = 3 + 2;
   int arr[N];
   arr[0] = 1;
