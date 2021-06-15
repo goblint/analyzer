@@ -1263,8 +1263,7 @@ struct
     List.fold_left f st lval_value_list
 
   (* Update the state st by adding the state fun_st  *)
-  let update_reachable_written_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
-    let reachable_vars = Stats.time "reachable_vars"(reachable_vars ask args gs) st in
+  let update_reachable_written_vars (ask: Q.ask) (reachable_vars: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
     let reachable_written_vars = (match lvals with
       | `Top -> reachable_vars
       | `Lifted s ->
