@@ -2087,11 +2087,11 @@ struct
 
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
-    let do_exp e =
-      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cil.typeOf e) (Pretty.sprint ~width:100 (Cil.d_exp () e)) in
-      reachable_vars ask [immediately_reachable] gs st
+    let immediately_reachable_from e =
+      reachable_from_value ask gs st (eval_rv ask gs st e) (Cil.typeOf e) (Pretty.sprint ~width:100 (Cil.d_exp () e))
     in
-    List.concat (List.map do_exp exps)
+    let immediately_reachable = List.map immediately_reachable_from exps in
+    reachable_vars ask immediately_reachable gs st
 
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
