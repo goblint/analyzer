@@ -180,32 +180,6 @@ struct
     CPA.fold side_var st.cpa st
 end
 
-module MutexGlobalsBase =
-struct
-  let mutex_addr_to_varinfo = function
-    | LockDomain.Addr.Addr (v, `NoOffset) -> v
-    | LockDomain.Addr.Addr (v, offs) ->
-      M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs);
-      v
-    | _ -> failwith "MutexGlobalsBase.mutex_addr_to_varinfo"
-end
-
-module ImplicitMutexGlobals =
-struct
-  include MutexGlobalsBase
-  let mutex_global x = x
-end
-
-module ExplicitMutexGlobals =
-struct
-  include MutexGlobalsBase
-  let mutex_global: varinfo -> varinfo = RichVarinfo.Variables.map ~name:(fun x -> "MUTEX_GLOBAL_" ^ x.vname) (* explicit type to force call without ?size *)
-  let mutex_global x =
-    let r = mutex_global x in
-    if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x d_varinfo r;
-    r
-end
-
 module PerMutexPrivBase =
 struct
   include NoInitFinalize
