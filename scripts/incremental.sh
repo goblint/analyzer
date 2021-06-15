@@ -65,7 +65,7 @@ loc=$(git -C $repo_path diff --shortstat 4b825dc642cb6eb9a060e54bf8d69288fbee490
 git -C $repo_path checkout $start_commit
 i=1
 prev_commit=''
-echo "index; commit; l_ins; l_del; l_max; time; vars; evals; changed; added; removed; changed_start; new_start" >> $outp/incremental_runtime.log
+echo -e "index\tcommit\tl_ins\tl_del\tl_max\ttime\tvars\tevals\tchanged\tadded\tremoved\tchanged_start\tnew_start" >> $outp/incremental_runtime.log
 while
   commit=$(git -C $repo_path rev-parse HEAD)
   if [ "$commit" = "$prev_commit" ]; then
@@ -120,7 +120,7 @@ while
   else
     l_max=$l_ins
   fi
-  echo "$i; $commit; $l_ins; $l_del; $l_max; $runtime; $vars; $evals; $changed; $added; $removed; $changed_start; $new_start" >> $outp/incremental_runtime.log
+  echo -e "$i\t$commit\t$l_ins\t$l_del\t$l_max\t$runtime\t$vars\t$evals\t$changed\t$added\t$removed\t$changed_start\t$new_start" >> $outp/incremental_runtime.log
   log "  $(grep 'evals = ' $outc/analyzer.log)"
   log "  $(grep 'change_info = ' $outc/analyzer.log)"
   log "  Obsolete functions: $(grep 'Obsolete function' $outc/analyzer.log | wc -l)"
