@@ -570,6 +570,26 @@ struct
   let update_length _ x = x
 end
 
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+  if GobConfig.get_bool "ana.arrayoob" then
+    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
+    let () = match(idx_after_start, idx_before_end) with
+      | Some true, Some true -> (* Certainly in bounds on both sides.*)
+        ()
+      | Some true, Some false ->
+        M.warn_each "[Array out of bounds][MUST] Array index is past the end of the array."
+      | Some true, None ->
+        M.warn_each "[Array out of bounds][MAY] Array index might be past the end of the array."
+      | Some false, Some true ->
+        M.warn_each "[Array out of bounds][MUST] Array index is before the beginning of the array."
+      | None, Some true ->
+        M.warn_each "[Array out of bounds][MAY] Array index might be before the beginning of the array."
+      | _ ->
+        M.warn_each "[Array out of bounds][MAY] Array index might be out of bounds."
+    in ()
+  else ()
+
 
 module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
@@ -577,27 +597,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
+
   let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
-    if GobConfig.get_bool "ana.arrayoob" then
-      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
-      let () =
-        match(idx_after_start, idx_before_end) with
-        | Some true, Some true -> (* Certainly in bounds on both sides.*)
-          ()
-        | Some true, Some false ->
-          M.warn_each "[Array out of bounds][MUST] Array index is past the end of the array."
-        | Some true, None ->
-          M.warn_each "[Array out of bounds][MAY] Array index might be past the end of the array."
-        | Some false, Some true ->
-          M.warn_each "[Array out of bounds][MUST] Array index is before the beginning of the array."
-        | None, Some true ->
-          M.warn_each "[Array out of bounds][MAY] Array index might be before the beginning of the array."
-        | _ ->
-          M.warn_each "[Array out of bounds][MAY] Array index might be out of bounds."
-      in
-      Base.get ask x (e, v)
-    else Base.get ask x (e, v)
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
@@ -624,14 +627,16 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 end
 
-
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Partitioned (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
