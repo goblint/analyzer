@@ -131,7 +131,7 @@ struct
       if pry = (-1) then begin
         (* let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in *)
         (* let _ = print_endline ( "Looking for (pry -1) " ^ var) in *)
-        M.mywarn_each (M.LogEvent.may (warn_type M.Unknown))
+        warn
       end else begin
         (* let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in *)
         (* let _ = print_endline ( "Looking for " ^ var) in *)
@@ -141,7 +141,7 @@ struct
         (* let _ = if (pryo > -1) then print_endline ( "Offensive priority for " ^ var ^ ": " ^ (string_of_int pryo)) in *)
         if pry < pryo then let _ = transactional := false in
           ("  variable " ^ var ^ " has offensive priority " ^ (string_of_int pryo))::warn
-        else M.mywarn_each (M.LogEvent.may (warn_type M.Unknown))
+        else warn
       end in
     let rec printlist warn = match warn with
         [] -> ()

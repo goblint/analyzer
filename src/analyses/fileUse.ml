@@ -78,8 +78,7 @@ struct
       D.alias k1 k2 m
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
       M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ sprint d_exp rval;
-      M.mywarn_each (M.LogEvent.may (warn_type M.Unknown))
-      (* old warning: D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";*)
+      D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";
       saveOpened ~unknown:true k1 m |> D.unknown k1
     | _ -> (* no change in D for other things *)
       M.debug @@ "assign (none in D): " ^ sprint d_lval lval ^ " = " ^ sprint d_exp rval ^ " [" ^ sprint d_plainexp rval ^ "]";

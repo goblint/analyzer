@@ -383,17 +383,15 @@ struct
     if ignore_this ctx.local ctx.global
     then ctx.local
     else begin
-      Messages.mywarn_each (Messages.LogEvent.may (warn_type Messages.Unknown))
-      (* old warning: D.warn_glob (Lval lval) "assignment";)
-      (*D.warn_glob rval "assignment";*)
+      D.warn_glob (Lval lval) "assignment";
+      D.warn_glob rval "assignment";
       let fs = D.get_tainted_fields ctx.global in
       D.warn_tainted fs ctx.local rval "assignment";
       D.warn_tainted fs ctx.local (Lval lval) "assignment";
       let _, ds, _ = ctx.local in
       if D.must_be_constructed_from_this ds (Lval lval) || not (D.maybe_deref (Lval lval)) then ()
       else D.warn_bad_reachables (Analyses.ask_of_ctx ctx) [AddrOf lval] false ctx.local fs "assignment" ctx.global;
-      Messages.mywarn_each (Messages.LogEvent.may (warn_type Messages.NullPointerDereference))
-      (* old warning: D.warn_bad_dereference rval false ctx.local fs "assignment";*)
+      D.warn_bad_dereference rval false ctx.local fs "assignment";
       (*D.report("tainted : "^sprint 80 (ContainDomain.FieldSet.pretty () fs)^"\n");*)
       (*D.report ("before assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
       let nctx = D.assign_to_local (Analyses.ask_of_ctx ctx) lval (Some rval) ctx.local fs ctx.global in
