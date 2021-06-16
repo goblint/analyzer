@@ -135,6 +135,11 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
+
+  val refine_with_congruence: t -> (int_t * int_t) option -> t
+  val refine_with_interval: t -> (int_t * int_t) option -> t
+  val refine_with_excl_list: t -> int_t list option -> t
+  val refine_with_incl_list: t -> int_t list option -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -229,6 +234,11 @@ struct
   let invariant_ikind c ik t = Old.invariant c t
 
   let cast_to ?torg ?no_ov = Old.cast_to ?torg
+
+  let refine_with_congruence a b = a
+  let refine_with_interval a b = a
+  let refine_with_excl_list a b = a
+  let refine_with_incl_list a b = a
 end
 
 
@@ -787,6 +797,16 @@ struct
     in
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
   let relift x = x
+
+  let refine_with_congruence (intv : t) (cong : (int_t * int_t ) option) : t =
+    match intv, cong with
+    | Some (x, y), Some (c, m) -> None (* TODO: implement *)
+    | _ -> cong
+
+  let refine_with_interval a b = a
+  let refine_with_excl_list a b = a
+  let refine_with_incl_list a b = a
+
 end
 
 
@@ -1444,6 +1464,11 @@ struct
       10, QCheck.map definite (BigInt.arbitrary ());
       1, QCheck.always `Bot
     ] (* S TODO: decide frequencies *)
+
+  let refine_with_congruence a b = a
+  let refine_with_interval a b = a
+  let refine_with_excl_list a b = a
+  let refine_with_incl_list a b = a
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -1834,7 +1859,10 @@ module Enums : S with type int_t = BigInt.t = struct
       10, QCheck.map pos (ISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
 
-
+  let refine_with_congruence a b = a
+  let refine_with_interval a b = a
+  let refine_with_excl_list a b = a
+  let refine_with_incl_list a b = a
 end
 
 module CongruenceFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -2265,6 +2293,15 @@ let shift_left ik x y = match x, y with
            top_arb::bot_arb::[])
 
   let relift x = x
+
+  let refine_with_interval (cong : t) (intv : (int_t * int_t ) option) : t =
+    match intv, cong with
+    | Some (x, y), Some (c, m) -> None (* TODO: implement *)
+    | _ -> cong
+
+  let refine_with_congruence a b = a
+  let refine_with_excl_list a b = a
+  let refine_with_incl_list a b = a
 end
 
 module Congruence = CongruenceFunctor (BI)
@@ -2334,19 +2371,61 @@ module IntDomTupleImpl = struct
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
 
+
+
+  let refine_with_congruence ((a, b, c, d) : t) (cong : (int_t * int_t) option) : t=
+    let opt f =
+      curry @@ function Some x, y -> Some (f x y) | _ -> None
+    in
+    ( opt I1.refine_with_congruence a cong
+    , opt I2.refine_with_congruence b cong
+    , opt I3.refine_with_congruence c cong
+    , opt I4.refine_with_congruence d cong )
+
+  let refine_with_interval (a, b, c, d) intv =
+    let opt f =
+      curry @@ function Some x, y -> Some (f x y) | _ -> None
+    in
+    ( opt I1.refine_with_interval a intv
+    , opt I2.refine_with_interval b intv
+    , opt I3.refine_with_interval c intv
+    , opt I4.refine_with_interval d intv )
+
+  let refine_with_excl_list (a, b, c, d) excl =
+    let opt f =
+      curry @@ function Some x, y -> Some (f x y) | _ -> None
+    in
+    ( opt I1.refine_with_excl_list a excl
+    , opt I2.refine_with_excl_list b excl
+    , opt I3.refine_with_excl_list c excl
+    , opt I4.refine_with_excl_list d excl )
+
+  let refine_with_incl_list (a, b, c, d) incl =
+    let opt f =
+      curry @@ function Some x, y -> Some (f x y) | _ -> None
+    in
+    ( opt I1.refine_with_incl_list a incl
+    , opt I2.refine_with_incl_list b incl
+    , opt I3.refine_with_incl_list c incl
+    , opt I4.refine_with_incl_list d incl )
+
+
+  let refine ((a, b, c, d ) : t ) : t =
+    ( a, b, c, d)
+
+
   (* map2 with overflow check *)
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
     let intv = opt_map2 (r.f2 (module I2)) xb yb in
     let no_ov =
       match intv with Some i -> no_overflow ik i | _ -> false
     in
+    refine
       ( opt_map2 (r.f2 (module I1)) xa ya
       , intv
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) ~no_ov xd yd )
 
-  let refineIntCong (a, b, c, d) =
-     (a, b, c, d)
 
 let r ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with
     | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.add i (BI.sub p i)) (BI.neg(m))
@@ -2371,22 +2450,38 @@ let r ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with
 (*        else (i1, i2, i3, i4)*)
 (*     | _ -> (i1, i2, i3, i4)*)
 
-  (* Add refinement functions here *)
-  let reffuns = [refineIntCong]
+  (* (\* Add refinement functions here *\)
+   * let reffuns = []
+   *
+   * let rec refine l (a, b, c, d) =
+   *   (\* match a with
+   *    * | Some defe ->
+   *    *    match defe with
+   *    *    | `Excluded -> (a, b, c, d)
+   *    *    | _ -> (a, b, c, d)
+   *    * | None -> (a, b, c, d) *\)
+   *   match l with [] -> (a, b, c, d) | h :: t -> refine t @@ h (a, b, c, d) *)
 
-  let rec refine l (a, b, c, d) =
-    match l with [] -> (a, b, c, d) | h :: t -> refine t @@ h (a, b, c, d)
 
   let mapp r (a, b, c, d) =
-    refine reffuns
-      BatOption.
-        ( map (r.fp (module I1)) a
-        , map (r.fp (module I2)) b
-        , map (r.fp (module I3)) c
-        , map (r.fp (module I4)) d )
+    let map = BatOption.map in
+    ( map (r.fp (module I1)) a
+    , map (r.fp (module I2)) b
+    , map (r.fp (module I3)) c
+    , map (r.fp (module I4)) d)
+
+  (* let mapp r (a, b, c, d) =
+   *   (\* refine reffuns *\)
+   *   let map = BatOption.map in
+   *   let intv = map (r.fp (module I2)) b in
+   *   let cong = map (r.fp (module I4)) d in
+   *   (map (r.fp (module I1)) a
+   *   , I2.refine_with_congruence intv cong
+   *   , map (r.fp (module I3)) c
+   *   , cong) *)
+
 
   let mapp2 r (a, b, c, d) =
-    refine reffuns
       BatOption.
         ( map (r.fp2 (module I1)) a
         , map (r.fp2 (module I2)) b
@@ -2394,7 +2489,7 @@ let r ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with
         , map (r.fp2 (module I4)) d )
 
   let map r (a, b, c, d) =
-    refine reffuns
+    refine
       BatOption.
         ( map (r.f1 (module I1)) a
         , map (r.f1 (module I2)) b
@@ -2402,14 +2497,13 @@ let r ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with
         , map (r.f1 (module I4)) d )
 
   let map2 r (xa, xb, xc, xd) (ya, yb, yc, yd) =
-    refine reffuns
+    refine
       ( opt_map2 (r.f2 (module I1)) xa ya
       , opt_map2 (r.f2 (module I2)) xb yb
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) xd yd )
 
   let map2p r (xa, xb, xc, xd) (ya, yb, yc, yd) =
-    refine reffuns
       ( opt_map2 (r.f2p (module I1)) xa ya
       , opt_map2 (r.f2p (module I2)) xb yb
       , opt_map2 (r.f2p (module I3)) xc yc
