@@ -633,9 +633,6 @@ struct
           let b = Mem e, NoOffset in (* base pointer *)
           let t = typeOfLval b in (* static type of base *)
           let p = eval_lv a gs st b in (* abstract base addresses *)
-          if GobConfig.get_bool "ana.nullptr" then 
-            if(AD.is_null p) then M.warn_each "MUST Dereferencing Nullpointer\n"
-            else if (AD.may_be_null p) then M.warn_each "MAY Dereferencing Nullpointer\n";   
           let v = (* abstract base value *)
             let open Addr in
             (* pre VLA: *)
@@ -766,7 +763,12 @@ struct
      * and then add the subfield to it: { (x,field.subfield) }. *)
     | Mem n, ofs -> begin
         match (eval_rv a gs st n) with
-        | `Address adr -> do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
+        | `Address adr -> 
+          if GobConfig.get_bool "ana.nullptr" then 
+            if (AD.is_null adr) then M.warn_each "MUST dereferencing of null\n"
+            else if( AD.may_be_null adr) then M.warn_each "MAY dereferencing of null\n";
+            ();
+          do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
@@ -788,7 +790,7 @@ struct
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
-  (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
+  (* Whereve  r possible, don't use this but the query system or normal eval_rv instead. *)
   let eval_exp x (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
     let knownothing = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top q } in (* our version of ask *)

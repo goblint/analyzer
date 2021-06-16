@@ -1,4 +1,6 @@
 
+// PARAM: --enable ana.nullptr --enable dbg.debug
+
 #include <stdio.h>
 //source base: https://stackoverflow.com/questions/4007268/what-exactly-is-meant-by-de-referencing-a-null-pointer
 int main(){  
