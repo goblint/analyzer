@@ -1859,7 +1859,13 @@ module Enums : S with type int_t = BigInt.t = struct
       10, QCheck.map pos (ISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
 
-  let refine_with_congruence a b = a
+    let refine_with_congruence a b =
+      let contains c m x = (BI.rem (BI.sub x c) m) == BI.zero in
+      match a with
+      | Inc e -> ( match b with
+                | None -> Inc e
+                | Some (c, m) -> Inc (ISet.filter (contains c m) e))
+      | a -> a
   let refine_with_interval a b = a
   let refine_with_excl_list a b = a
   let refine_with_incl_list a b = a
