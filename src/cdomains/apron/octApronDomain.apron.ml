@@ -129,8 +129,6 @@ struct
       Var (Var.of_string v.vname)
     | Const (CInt64 (i,_,_)) ->
       Cst (Coeff.s_of_int (Int64.to_int i))
-    | Const (CReal (f,_,_)) ->
-      Cst (Coeff.s_of_float f)
     | UnOp  (Neg ,e,_) ->
       Unop (Neg,cil_exp_to_cil_lhost e,Int,Near)
     | BinOp (PlusA,e1,e2,_) ->
@@ -143,9 +141,6 @@ struct
       Binop (Div,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Zero)
     | BinOp (Mod,e1,e2,_) ->
       Binop (Mod,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | CastE (TFloat (FFloat,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Single,Zero)
-    | CastE (TFloat (FDouble,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Double,Zero)
-    | CastE (TFloat (FLongDouble,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Extended,Zero)
     | CastE (TInt _,e) -> Unop(Cast,cil_exp_to_cil_lhost e,Int,Zero)
     | _ -> raise Invalid_CilExpToLhost
 
