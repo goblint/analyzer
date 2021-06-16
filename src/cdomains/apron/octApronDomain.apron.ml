@@ -150,25 +150,20 @@ struct
     | _ -> raise Invalid_CilExpToLhost
 
 
-  let add_t x y =
-    match x, y with
-    | `int x, `int y -> `int (x+y)
-
   let add_t' x y =
     match x, y with
-    | `none, x | x, `none -> x
-    | `int x, `int y -> `int (x+y)
+    | None, x | x, None -> x
+    | Some x, Some y -> Some (x+y)
 
-  let neg_t = function `int x -> `int (-x)
-  let neg_t' = function `int x -> `int (-x) | `none -> `none
+  let neg_t' = function Some x -> Some (-x) | None -> None
 
   let negate (xs,x,r) =
-    let xs' = List.map (fun (x,y) -> (x,neg_t y)) xs in
+    let xs' = List.map (fun (x,y) -> (x, -y)) xs in
     xs', neg_t' x, r
 
-  type lexpr = (string * [`int of int]) list
+  type lexpr = (string * int) list
 
-  let rec cil_exp_to_lexp =
+  let rec cil_exp_to_lexp: exp -> lexpr * int option * Lincons0.typ =
     let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
       let add_one xs (var_name, var_coefficient) =
         let found_var_in_list var_name var_coeff_list =
@@ -176,7 +171,7 @@ struct
             found_already || (String.compare var_name var_name_in_list) == 0 in
           List.fold_left find false var_coeff_list in
         if (found_var_in_list var_name xs) then
-          List.modify var_name (fun x -> add_t x var_coefficient) xs
+          List.modify var_name (fun x -> x + var_coefficient) xs
         else (var_name, var_coefficient)::xs in
       match r, r' with
       | EQ, EQ -> List.fold_left add_one xs ys, add_t' x y, EQ
@@ -184,9 +179,9 @@ struct
     in
     function
     | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-      [v.vname,`int 1], `none, EQ
+      [v.vname, 1], None, EQ
     | Const (CInt64 (i,_,_)) ->
-      [], `int (Int64.to_int i), EQ
+      [], Some (Int64.to_int i), EQ
     | UnOp  (Neg ,e,_) ->
       negate (cil_exp_to_lexp e)
     | BinOp (PlusA,e1,e2,_) ->
@@ -195,9 +190,9 @@ struct
       add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2))
     | BinOp (Mult,e1,e2,_) ->
       begin match cil_exp_to_lexp e1, cil_exp_to_lexp e2 with
-        | ([], `int x, EQ), ([], `int y, EQ) -> ([], `int (x*y), EQ)
-        | (xs, `none, EQ), ([], `int y, EQ) | ([], `int y, EQ), (xs, `none, EQ) ->
-          (List.map (function (n,`int x) -> n, `int (x*y)) xs, `none, EQ)
+        | ([], Some x, EQ), ([], Some y, EQ) -> ([], Some (x*y), EQ)
+        | (xs, None, EQ), ([], Some y, EQ) | ([], Some y, EQ), (xs, None, EQ) ->
+          (List.map (function (n, x) -> n, x*y) xs, None, EQ)
         | _ -> raise Invalid_CilExpToLexp
       end
     | BinOp (r,e1,e2,_) ->
@@ -236,8 +231,8 @@ struct
       | EQMOD x -> EQMOD x in
     let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
     let var_name_coeff_pairs, constant, comparator = if should_negate then negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) else var_name_coeff_pairs, constant, comparator in
-    let apron_var_coeff_pairs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x) var_name_coeff_pairs in
-    let apron_constant = match constant with `int x -> Some (Coeff.s_of_int x) | `none -> None in
+    let apron_var_coeff_pairs = List.map (function (x, y) -> Coeff.s_of_int y, Var.of_string x) var_name_coeff_pairs in
+    let apron_constant = match constant with Some x -> Some (Coeff.s_of_int x) | None -> None in
     let all_variables_known_to_environment = List.fold_left (fun known (_,var) -> known && (Environment.mem_var environment var)) true apron_var_coeff_pairs in
     if not(all_variables_known_to_environment) then None, None
     else
