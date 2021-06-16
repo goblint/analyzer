@@ -762,12 +762,12 @@ struct
      * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
      * and then add the subfield to it: { (x,field.subfield) }. *)
     | Mem n, ofs -> begin
-      let warn_type t = (M.EventType.Behavior (M.BehaviorEvent.Undefined (M.UndefinedBehavior.NullPointerDereference))) in
+      let warn_type = (M.EventType.Behavior (M.BehaviorEvent.Undefined (M.UndefinedBehavior.NullPointerDereference))) in
         match (eval_rv a gs st n) with
         | `Address adr -> 
           if GobConfig.get_bool "ana.nullptr" then 
-            if (AD.is_null adr) then M.mywarn_each (M.LogEvent.may (warn_type M.EventType.Unknown))
-            else if( AD.may_be_null adr) then M.mywarn_each (M.LogEvent.must (warn_type M.EventType.Unknown));
+            if (AD.is_null adr) then M.mywarn_each (M.LogEvent.may warn_type)
+            else if( AD.may_be_null adr) then M.mywarn_each (M.LogEvent.must warn_type);
             ();
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
