@@ -70,7 +70,7 @@ struct
       match r with
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let nd = D.forget_all ctx.local [v.vname] in
-        let fis,ffs = D.get_vars ctx.local in
+        let fis = D.get_vars ctx.local in
         let fis = List.map Var.to_string fis in
         let nd' = D.add_vars d fis in
         let formargs = Goblintutil.zip f.sformals args in

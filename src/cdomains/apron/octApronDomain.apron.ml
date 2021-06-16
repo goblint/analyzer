@@ -455,7 +455,8 @@ struct
 
   let get_vars d =
     let xs, ys = Environment.vars (A.env d) in
-    List.of_enum (Array.enum xs), List.of_enum (Array.enum ys)
+    assert (Array.length ys = 0); (* shouldn't ever contain floats *)
+    List.of_enum (Array.enum xs)
 
   let add_vars_with newd newis =
     (* TODO: why is this necessary? *)
@@ -463,12 +464,11 @@ struct
       match list with
       | [] -> []
       | head::tail -> head::(remove_duplicates (List.filter (fun x -> x <> head) tail)) in
-    let oldis, oldfs = get_vars newd in
-    let oldvs = oldis@oldfs in
+    let oldis = get_vars newd in
     let environment = (A.env newd) in
     let newis = remove_duplicates newis in
     (* why is this not done by remove_duplicates already? *)
-    let cis = List.filter (fun x -> not (List.mem x oldvs) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in (* TODO: why is the mem_var check necessary? *)
+    let cis = List.filter (fun x -> not (List.mem x oldis) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in (* TODO: why is the mem_var check necessary? *)
     let cis = Array.of_enum (List.enum cis) in
     let newenv = Environment.add environment cis [||] in
     A.change_environment_with Man.mgr newd newenv false
@@ -491,9 +491,8 @@ struct
     | head::body -> (list_length body) + 1
 
   let remove_all_but_with d xs =
-      let is', fs' = get_vars d in
-      let vs = List.append (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is')
-          (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) fs') in
+      let is' = get_vars d in
+      let vs = List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is' in
       let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
       A.change_environment_with Man.mgr d env false
 
