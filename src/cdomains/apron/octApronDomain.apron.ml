@@ -499,8 +499,8 @@ struct
     if list_length xs > 0 then
       (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
       let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
-      let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
-      let vars_filtered = List.filter (fun elem -> (List.mem elem (Array.to_list existing_vars_int)) || (List.mem elem (Array.to_list existing_vars_int))) (Array.to_list vars) in
+      let existing_vars_int = get_vars d in
+      let vars_filtered = List.filter (fun elem -> List.mem elem existing_vars_int) (Array.to_list vars) in
       let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
       A.change_environment_with Man.mgr d env false
 
