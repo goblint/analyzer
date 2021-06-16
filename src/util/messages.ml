@@ -27,7 +27,7 @@ struct
   let show e =
     match e with
     | ArrayOutOfBounds e -> Printf.sprintf "[Array out of bounds] %s" (ArrayOOB.show e)
-    | NullPointerDereference -> "[Null pointer dereference]"
+    | NullPointerDereference -> "[dereferencing of null]"
     | UseAfterFree -> "[Use After Free]"
 end
 
