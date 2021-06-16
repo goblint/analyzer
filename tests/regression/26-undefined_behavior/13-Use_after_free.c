@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'Use_after_free'" --enable  ana.file.optimistic
+// PARAM: --set ana.activated[+] "'13-Use_after_free'" --enable  ana.file.optimistic
 #include <stdio.h>
 #include <stdlib.h>
 
