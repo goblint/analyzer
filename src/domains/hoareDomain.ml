@@ -68,7 +68,7 @@ struct
   (* join all elements from the smaller map into their bucket in the other one.
    * this doesn't need to go over all elements of both maps as the general merge above. *)
   let merge_join f x y =
-    (* let x, y = if Map.cardinal x < Map.cardinal y then x, y else y, x in *)
+    let x, y = if Map.cardinal x < Map.cardinal y then x, y else y, x in
     List.fold_left (flip (B.merge_element (B.join f))) y (elements x)
 
   let join   x y = merge_join E.join x y
