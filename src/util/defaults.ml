@@ -234,6 +234,8 @@ let _ = ()
       ; reg Debugging "dbg.warn.cast"        "false"  "Cast (Type_mismatch(bug) warnings"
       ; reg Debugging "dbg.warn.race"        "false"  "Race warnings"
       ; reg Debugging "dbg.warn.array"        "false"  "Array (Out_of_bounds of int*int) warnings"
+      ; reg Debugging "dbg.warn.unknown"        "false"  "Unknown (of string) warnings"
+      ; reg Debugging "dbg.warn.debug"        "false"  "Debug (of string) warnings"
 
 let default_schema = "\
 { 'id'              : 'root'

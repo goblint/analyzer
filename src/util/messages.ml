@@ -117,7 +117,7 @@ struct
   let debug msg = {event_type = EventType.Debug msg; certainty = Certainty.None}
 
   (* FIXME: also filter may/must ? *)
-  let should_warn (e:LogEvent) = EventType.should_warn e.event_type
+  let should_warn (e:t) = EventType.should_warn e.event_type
 
   let create e c = {event_type = e; certainty = c}
   let show {event_type; certainty} =
@@ -308,9 +308,9 @@ let mywarn_each ?ctx (log_event: LogEvent.t) =
   end
 
 let debug msg =
-  if (get_bool "dbg.debug") then mywarn EventType.debug ("{BLUE}"^msg)
+  if (get_bool "dbg.debug") then mywarn (LogEvent.debug ("{BLUE}"^msg))
 
 let debug_each msg =
-  if (get_bool "dbg.debug") then warn_each EventType.debug ("{blue}"^msg)
+  if (get_bool "dbg.debug") then mywarn_each (LogEvent.debug ("{blue}"^msg))
 
 include Tracing
