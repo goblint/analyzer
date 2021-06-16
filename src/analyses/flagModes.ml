@@ -32,7 +32,7 @@ struct
               ctx.local
             end else begin
               match eval_int (Analyses.ask_of_ctx ctx) rval with
-              | Some ex -> D.add f (`Lifted (false,true, Option.get(IntDomain.FlatPureIntegers.to_int (IntOps.BigIntOps.to_int64 ex)))) ctx.local
+              | Some ex -> D.add f (`Lifted (false,true, IntOps.BigIntOps.to_int64 ex)) ctx.local
               | _ -> D.remove f ctx.local
             end
           end else begin
