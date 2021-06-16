@@ -125,7 +125,7 @@ struct
 
   let rec cil_exp_to_cil_lhost =
     function
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
+    | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
       Var (Var.of_string v.vname)
     | Const (CInt64 (i,_,_)) ->
       Cst (Coeff.s_of_int (Int64.to_int i))
@@ -187,7 +187,7 @@ struct
       | _ -> raise Invalid_CilExpToLexp
     in
     function
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
+    | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
       [v.vname,`int 1], `none, EQ
     | Const (CInt64 (i,_,_)) ->
       [], `int (Int64.to_int i), EQ
@@ -307,7 +307,7 @@ struct
   let assert_op_inv d x b =
     (* if assert(x) then convert it to assert(x != 0) *)
     let x = match x with
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
+    | Lval (Var v,NoOffset) when isIntegralType v.vtype ->
       BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
     | _ -> x in
     try
@@ -499,7 +499,7 @@ struct
 
   let remove_all_with d xs =
     if list_length xs > 0 then
-      (* let vars = List.filter (fun v -> isArithmeticType v.vtype) xs in *)
+      (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
       let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
       let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
       let vars_filtered = List.filter (fun elem -> (List.mem elem (Array.to_list existing_vars_int)) || (List.mem elem (Array.to_list existing_vars_int))) (Array.to_list vars) in

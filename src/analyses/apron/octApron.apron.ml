@@ -57,7 +57,7 @@ struct
       let fs = fs @ List.map (fun x -> x^"'") fs in
       let newd = D.add_vars ctx.local (is,fs) in
       let formargs = Goblintutil.zip f.sformals args in
-      let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
+      let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
       List.iter (fun (v, e) -> D.assign_var_with newd (v.vname^"'") e) arith_formals;
       D.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
       List.iter  (fun (v,_)   -> D.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
@@ -69,14 +69,14 @@ struct
     if D.is_bot ctx.local || D.is_bot d then D.bot () else
       let f = Cilfacade.getdec f in
       match r with
-      | Some (Var v, NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
+      | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let nd = D.forget_all ctx.local [v.vname] in
         let fis,ffs = D.get_vars ctx.local in
         let fis = List.map Var.to_string fis in
         let ffs = List.map Var.to_string ffs in
         let nd' = D.add_vars d (fis,ffs) in
         let formargs = Goblintutil.zip f.sformals args in
-        let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
+        let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
         List.iter (fun (v, e) -> D.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> x.vname^"'") arith_formals in
         D.remove_all_with nd' vars;
@@ -133,14 +133,14 @@ struct
     if D.is_bot ctx.local then D.bot () else
 
       let nd = match e with
-        | Some e when isArithmeticType (typeOf e) ->
+        | Some e when isIntegralType (typeOf e) ->
           let nd = D.add_vars ctx.local (["#ret"],[]) in
           let () = D.assign_var_with nd "#ret" e in
           nd
         | None -> D.topE (A.env ctx.local)
         | _ -> D.add_vars ctx.local (["#ret"],[])
       in
-      let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
+      let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
       let vars = List.map (fun x -> x.vname) vars in
       D.remove_all_with nd vars;
       nd
@@ -154,7 +154,7 @@ struct
     if D.is_bot ctx.local then D.bot () else
       match lv with
       (* Locals which are numbers, have no offset and their address wasn't taken *)
-      | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) && (not v.vaddrof)->
+      | Var v, NoOffset when isIntegralType v.vtype && (not v.vglob) && (not v.vaddrof)->
           D.assign_var_handling_underflow_overflow ctx.local v e
       (* Ignoring all other assigns *)
       | _ -> ctx.local
@@ -185,8 +185,8 @@ let _ =
 let () =
   Printexc.register_printer
     (function
-      | Apron.Manager.Error e -> 
+      | Apron.Manager.Error e ->
         let () = Apron.Manager.print_exclog Format.str_formatter e in
-        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ())) 
+        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ()))
       | _ -> None (* for other exceptions *)
     )
