@@ -521,6 +521,7 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
+  (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query': type a. QuerySet.t -> (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun asked ctx q ->
   if QuerySet.mem (Any(q)) asked then 
     (* let () = Printf.printf "Size 0: %d\n" (QuerySet.cardinal asked) in *)
@@ -560,7 +561,6 @@ struct
     | _ ->
       fold_left f (Result.top ()) @@ spec_list ctx.local
 
-  (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
     query' QuerySet.empty ctx q
 
