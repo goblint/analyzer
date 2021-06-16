@@ -54,7 +54,7 @@ struct
       let f = Cilfacade.getdec f in
       let is = D.typesort f.sformals in
       let is = is @ List.map (fun x -> x^"'") is in
-      let newd = D.add_vars ctx.local (is,[]) in
+      let newd = D.add_vars ctx.local is in
       let formargs = Goblintutil.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
       List.iter (fun (v, e) -> D.assign_var_with newd (v.vname^"'") e) arith_formals;
@@ -72,8 +72,7 @@ struct
         let nd = D.forget_all ctx.local [v.vname] in
         let fis,ffs = D.get_vars ctx.local in
         let fis = List.map Var.to_string fis in
-        let ffs = List.map Var.to_string ffs in
-        let nd' = D.add_vars d (fis,ffs) in
+        let nd' = D.add_vars d fis in
         let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
         List.iter (fun (v, e) -> D.substitute_var_with nd' (v.vname^"'") e) arith_formals;
@@ -133,11 +132,11 @@ struct
 
       let nd = match e with
         | Some e when isIntegralType (typeOf e) ->
-          let nd = D.add_vars ctx.local (["#ret"],[]) in
+          let nd = D.add_vars ctx.local ["#ret"] in
           let () = D.assign_var_with nd "#ret" e in
           nd
         | None -> D.topE (A.env ctx.local)
-        | _ -> D.add_vars ctx.local (["#ret"],[])
+        | _ -> D.add_vars ctx.local ["#ret"]
       in
       let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
       let vars = List.map (fun x -> x.vname) vars in
@@ -147,7 +146,7 @@ struct
   let body ctx f =
     if D.is_bot ctx.local then D.bot () else
       let vars = D.typesort f.slocals in
-      D.add_vars ctx.local (vars, [])
+      D.add_vars ctx.local vars
 
   let assign ctx (lv:lval) e =
     if D.is_bot ctx.local then D.bot () else

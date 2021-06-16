@@ -457,7 +457,8 @@ struct
     let xs, ys = Environment.vars (A.env d) in
     List.of_enum (Array.enum xs), List.of_enum (Array.enum ys)
 
-  let add_vars_with newd (newis, newfs) =
+  let add_vars_with newd newis =
+    (* TODO: why is this necessary? *)
     let rec remove_duplicates list =
       match list with
       | [] -> []
@@ -466,11 +467,10 @@ struct
     let oldvs = oldis@oldfs in
     let environment = (A.env newd) in
     let newis = remove_duplicates newis in
-    let newfs = remove_duplicates newfs in
-    let cis = List.filter (fun x -> not (List.mem x oldvs) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in
-    let cfs = List.filter (fun x -> not (List.mem x oldvs) && (not (Environment.mem_var environment x))) (List.map Var.of_string newfs) in
-    let cis, cfs = Array.of_enum (List.enum cis), Array.of_enum (List.enum cfs) in
-    let newenv = Environment.add environment cis cfs in
+    (* why is this not done by remove_duplicates already? *)
+    let cis = List.filter (fun x -> not (List.mem x oldvs) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in (* TODO: why is the mem_var check necessary? *)
+    let cis = Array.of_enum (List.enum cis) in
+    let newenv = Environment.add environment cis [||] in
     A.change_environment_with Man.mgr newd newenv false
 
   let add_vars d vars =
