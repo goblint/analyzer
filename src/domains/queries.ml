@@ -1,5 +1,7 @@
 (** Structures for the querying subsystem. *)
 
+open Deriving.Cil
+
 module GU = Goblintutil
 module ID = IntDomain.FlattenedBI
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
@@ -28,38 +30,39 @@ module Unit = Lattice.Unit
 
 (** GADT for queries with specific result type. *)
 type _ t =
-  | EqualSet: CilType.Exp.t -> ES.t t
-  | MayPointTo: CilType.Exp.t -> LS.t t
-  | ReachableFrom: CilType.Exp.t -> LS.t t
-  | ReachableUkTypes: CilType.Exp.t -> TS.t t
-  | Regions: CilType.Exp.t -> LS.t t
-  | MayEscape: CilType.Varinfo.t -> MayBool.t t
+  | EqualSet: exp -> ES.t t
+  | MayPointTo: exp -> LS.t t
+  | ReachableFrom: exp -> LS.t t
+  | ReachableUkTypes: exp -> TS.t t
+  | Regions: exp -> LS.t t
+  | MayEscape: varinfo -> MayBool.t t
   | Priority: string -> ID.t t
-  | MayBePublic: {global: CilType.Varinfo.t; write: bool} -> MayBool.t t (* old behavior with write=false *)
-  | MayBePublicWithout: {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} -> MayBool.t t
-  | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} -> MustBool.t t
+  | MayBePublic: {global: varinfo; write: bool} -> MayBool.t t (* old behavior with write=false *)
+  | MayBePublicWithout: {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t} -> MayBool.t t
+  | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool} -> MustBool.t t
   | CurrentLockset: LS.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: VI.t t
   | MayBeThreadReturn: MayBool.t t
-  | EvalFunvar: CilType.Exp.t -> LS.t t
-  | EvalInt: CilType.Exp.t -> ID.t t
-  | EvalStr: CilType.Exp.t -> SD.t t
-  | EvalLength: CilType.Exp.t -> ID.t t (* length of an array or string *)
-  | BlobSize: CilType.Exp.t -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
+  | EvalFunvar: exp -> LS.t t
+  | EvalInt: exp -> ID.t t
+  | EvalStr: exp -> SD.t t
+  | EvalLength: exp -> ID.t t (* length of an array or string *)
+  | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | PrintFullState: Unit.t t
-  | CondVars: CilType.Exp.t -> ES.t t
-  | PartAccess: {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: bool} -> PartAccessResult.t t
+  | CondVars: exp -> ES.t t
+  | PartAccess: {exp: exp; var_opt: varinfo option; write: bool} -> PartAccessResult.t t
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
-  | MustBeEqual: CilType.Exp.t * CilType.Exp.t -> MustBool.t t (* are two expression known to must-equal ? *)
-  | MayBeEqual: CilType.Exp.t * CilType.Exp.t -> MayBool.t t (* may two expressions be equal? *)
-  | MayBeLess: CilType.Exp.t * CilType.Exp.t -> MayBool.t t (* may exp1 < exp2 ? *)
+  | MustBeEqual: exp * exp -> MustBool.t t (* are two expression known to must-equal ? *)
+  | MayBeEqual: exp * exp -> MayBool.t t (* may two expressions be equal? *)
+  | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
-  | IsHeapVar: CilType.Varinfo.t -> MayBool.t t (* TODO: is may or must? *)
-  | Assert: CilType.Exp.t -> AR.t t
+  | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
+  | Assert: exp -> AR.t t
+
 type 'a result = 'a
 
 (** Container for explicitly polymorphic [ctx.ask] function out of [ctx].
