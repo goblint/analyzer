@@ -1860,7 +1860,7 @@ module Enums : S with type int_t = BigInt.t = struct
     ] (* S TODO: decide frequencies *)
 
     let refine_with_congruence a b =
-      let contains c m x = (BI.rem (BI.sub x c) m) == BI.zero in
+      let contains c m x = if BI.equal m BI.zero then BI.equal c x else (BI.rem (BI.sub x c) m) == BI.zero in
       match a with
       | Inc e -> ( match b with
                 | None -> Inc e
