@@ -8,7 +8,7 @@ int main() {
     *a = 1;
     int *b = a;
     free(b); // detects the free even when the pointer is aliased to b
-    return *a; // use after ‘free’ of ‘a’
+    return *a; // WARN
   }
   return 0;
 }

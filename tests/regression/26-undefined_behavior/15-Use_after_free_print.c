@@ -11,7 +11,7 @@ int main() {
   free(a);
 
   for(int i = 0; i < 10; i++) {
-    printf("%d ", a[i]); // use after free
+    printf("%d ", a[i]); // WARN
   }
   printf("\n");
   return 0;
