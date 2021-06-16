@@ -473,14 +473,18 @@ struct
       (* ok, let's visit all the variables in the workset and collect the new variables *)
       let visit_and_collect var (acc: address): address =
         let var = AD.singleton var in (* Very bad hack! Pathetic really! *)
-        AD.union (reachable_from_address ask gs st var) acc in
-      let collected = AD.fold visit_and_collect !workset empty in
+        let reachable_from_ad = Stats.time "reachable_from_address" (reachable_from_address ask gs st) var in
+        Stats.time "AD.union" (AD.union (reachable_from_ad)) acc in
+      let collected = Stats.time "fold visit" (fun () -> AD.fold visit_and_collect !workset empty) () in
       (* And here we remove the already visited variables *)
       workset := AD.diff collected !visited
     done;
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
+
+  let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
+    Stats.time "reachable_vars" (reachable_vars ask args gs) st
 
   let get_concretes (symb, offset: varinfo * Offs.t) (st: store) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let sa = Addr.Addr (symb, offset) in
