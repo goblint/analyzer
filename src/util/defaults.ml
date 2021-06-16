@@ -236,6 +236,8 @@ let _ = ()
       ; reg Debugging "dbg.warn.array"        "false"  "Array (Out_of_bounds of int*int) warnings"
       ; reg Debugging "dbg.warn.unknown"        "false"  "Unknown (of string) warnings"
       ; reg Debugging "dbg.warn.debug"        "false"  "Debug (of string) warnings"
+      ; reg Debugging "dbg.warn.may"        "false"  "Enable or disable may warnings"
+      ; reg Debugging "dbg.warn.must"        "false"  "Enable or disable must warnings"
 
 let default_schema = "\
 { 'id'              : 'root'
