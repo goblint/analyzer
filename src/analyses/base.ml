@@ -643,7 +643,7 @@ struct
           let t = typeOfLval b in (* static type of base *)
           let p = eval_lv a gs st b in (* abstract base addresses *)
           if GobConfig.get_bool "ana.nullptr" then 
-            if( AD.is_null p) then M.warn_each "MUST Dereferencing Nullpointer\n"
+            if(AD.is_null p) then M.warn_each "MUST Dereferencing Nullpointer\n"
             else if (not (AD.is_not_null p)) then M.warn_each "MAY Dereferencing Nullpointer\n";   
           let v = (* abstract base value *)
             let open Addr in
