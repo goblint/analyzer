@@ -82,7 +82,7 @@ struct
     | Debug msg -> "debug"
 
   let should_warn e =
-    get_bool ("dbg." ^ (to_string e))
+    get_bool ("dbg.warn." ^ (to_string e))
 
   let show e =
     match e with
