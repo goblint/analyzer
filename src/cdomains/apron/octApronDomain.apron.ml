@@ -153,24 +153,20 @@ struct
   let add_t x y =
     match x, y with
     | `int x, `int y -> `int (x+y)
-    | `float x, `float y -> `float (x+.y)
-    | `int x, `float y | `float y, `int x -> `float (float_of_int x+.y)
 
   let add_t' x y =
     match x, y with
     | `none, x | x, `none -> x
     | `int x, `int y -> `int (x+y)
-    | `float x, `float y -> `float (x+.y)
-    | `int x, `float y | `float y, `int x -> `float (float_of_int x+.y)
 
-  let neg_t = function `int x -> `int (-x) | `float x -> `float (0.0-.x)
-  let neg_t' = function `int x -> `int (-x) | `float x -> `float (0.0-.x) | `none -> `none
+  let neg_t = function `int x -> `int (-x)
+  let neg_t' = function `int x -> `int (-x) | `none -> `none
 
   let negate (xs,x,r) =
     let xs' = List.map (fun (x,y) -> (x,neg_t y)) xs in
     xs', neg_t' x, r
 
-  type lexpr = (string * [`int of int | `float of float]) list
+  type lexpr = (string * [`int of int]) list
 
   let rec cil_exp_to_lexp =
     let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
@@ -191,8 +187,6 @@ struct
       [v.vname,`int 1], `none, EQ
     | Const (CInt64 (i,_,_)) ->
       [], `int (Int64.to_int i), EQ
-    | Const (CReal (f,_,_)) ->
-      [], `float f, EQ
     | UnOp  (Neg ,e,_) ->
       negate (cil_exp_to_lexp e)
     | BinOp (PlusA,e1,e2,_) ->
@@ -202,11 +196,8 @@ struct
     | BinOp (Mult,e1,e2,_) ->
       begin match cil_exp_to_lexp e1, cil_exp_to_lexp e2 with
         | ([], `int x, EQ), ([], `int y, EQ) -> ([], `int (x*y), EQ)
-        | ([], `float x, EQ), ([], `float y, EQ) -> ([], `float (x*.y), EQ)
         | (xs, `none, EQ), ([], `int y, EQ) | ([], `int y, EQ), (xs, `none, EQ) ->
-          (List.map (function (n,`int x) -> n, `int (x*y) | (n,`float x) -> n, `float (x*.float_of_int y)) xs, `none, EQ)
-        | (xs, `none, EQ), ([], `float y, EQ) | ([], `float y, EQ), (xs, `none, EQ) ->
-          (List.map (function (n,`float x) -> n, `float (x*.y) | (n,`int x) -> (n,`float (float_of_int x*.y))) xs, `none, EQ)
+          (List.map (function (n,`int x) -> n, `int (x*y)) xs, `none, EQ)
         | _ -> raise Invalid_CilExpToLexp
       end
     | BinOp (r,e1,e2,_) ->
@@ -245,8 +236,8 @@ struct
       | EQMOD x -> EQMOD x in
     let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
     let var_name_coeff_pairs, constant, comparator = if should_negate then negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) else var_name_coeff_pairs, constant, comparator in
-    let apron_var_coeff_pairs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) -> Coeff.s_of_float f, Var.of_string x) var_name_coeff_pairs in
-    let apron_constant = match constant with `int x -> Some (Coeff.s_of_int x) | `float f -> Some (Coeff.s_of_float f) | `none -> None in
+    let apron_var_coeff_pairs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x) var_name_coeff_pairs in
+    let apron_constant = match constant with `int x -> Some (Coeff.s_of_int x) | `none -> None in
     let all_variables_known_to_environment = List.fold_left (fun known (_,var) -> known && (Environment.mem_var environment var)) true apron_var_coeff_pairs in
     if not(all_variables_known_to_environment) then None, None
     else
