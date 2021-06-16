@@ -52,16 +52,15 @@ struct
   let enter ctx r f args =
     if D.is_bot ctx.local then [ctx.local, D.bot ()] else
       let f = Cilfacade.getdec f in
-      let is, fs = D.typesort f.sformals in
+      let is = D.typesort f.sformals in
       let is = is @ List.map (fun x -> x^"'") is in
-      let fs = fs @ List.map (fun x -> x^"'") fs in
-      let newd = D.add_vars ctx.local (is,fs) in
+      let newd = D.add_vars ctx.local (is,[]) in
       let formargs = Goblintutil.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
       List.iter (fun (v, e) -> D.assign_var_with newd (v.vname^"'") e) arith_formals;
       D.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
       List.iter  (fun (v,_)   -> D.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
-      D.remove_all_but_with newd (is@fs);
+      D.remove_all_but_with newd (is);
       [ctx.local, newd]
 
 
@@ -148,7 +147,7 @@ struct
   let body ctx f =
     if D.is_bot ctx.local then D.bot () else
       let vars = D.typesort f.slocals in
-      D.add_vars ctx.local vars
+      D.add_vars ctx.local (vars, [])
 
   let assign ctx (lv:lval) e =
     if D.is_bot ctx.local then D.bot () else

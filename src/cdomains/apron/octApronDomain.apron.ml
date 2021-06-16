@@ -109,19 +109,19 @@ struct
   open Lincons1
 
   let typesort =
-    let f (is,fs) v =
+    let f is v =
       if isIntegralType v.vtype then
         if GobConfig.get_bool "ana.octapron.no_uints" then
           if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
-            (v.vname::is,fs)
+            v.vname::is
           else
-            (is,fs)
+            is
         else
-          (v.vname::is,fs)
+          v.vname::is
       else
-        (is,fs)
+        is
     in
-    List.fold_left f ([],[])
+    List.fold_left f []
 
   let rec cil_exp_to_cil_lhost =
     function
