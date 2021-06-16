@@ -159,9 +159,11 @@ struct
     | Assert _ -> AR.top ()
 end
 
+(* The type any_query can't be directly included in the module Any.
+ This is because it refers to the t from the outer scope. *)
 type any_query = Any: 'a t -> any_query
 
-module Query = struct
+module Any = struct
   type t = any_query
   let compare a b =
     let order (q: t) = 

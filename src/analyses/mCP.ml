@@ -4,7 +4,7 @@ open Prelude.Ana
 open GobConfig
 open Analyses
 
-module QuerySet = Set.Make(Queries.Query)
+module QuerySet = Set.Make(Queries.Any)
 
 type spec_modules = { spec : (module MCPSpec)
                     ; dom  : (module Lattice.S)
