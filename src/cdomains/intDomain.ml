@@ -2411,7 +2411,11 @@ module IntDomTupleImpl = struct
 
 
   let refine ((a, b, c, d ) : t ) : t =
-    ( a, b, c, d)
+    let maybe reffun domtup dom =
+      match dom with Some y -> reffun domtup y | _ -> domtup
+    in
+    maybe refine_with_interval (maybe refine_with_congruence (a, b, c, d) d) b
+
 
 
   (* map2 with overflow check *)
