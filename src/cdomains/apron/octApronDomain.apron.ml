@@ -380,12 +380,16 @@ struct
       (* let () = print_endline (String.concat ", " oct_vars) in *)
       List.mem ("\""^v^"\"") oct_vars
 
+  let get_vars d =
+    let xs, ys = Environment.vars (A.env d) in
+    assert (Array.length ys = 0); (* shouldn't ever contain floats *)
+    List.of_enum (Array.enum xs)
+
   let var_in_env (v:string) d =
     if (is_chosen v) then
-      let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
-      let existing_var_names_int = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_int) in
-      let existing_var_names_real = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_real) in
-      (List.mem v existing_var_names_int) || (List.mem v existing_var_names_real)
+      let existing_vars_int = get_vars d in
+      let existing_var_names_int = List.map (fun v -> Var.to_string v) existing_vars_int in
+      List.mem v existing_var_names_int
     else
       false
 
@@ -452,11 +456,6 @@ struct
            ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
            raise (Manager.Error q) *)
     end
-
-  let get_vars d =
-    let xs, ys = Environment.vars (A.env d) in
-    assert (Array.length ys = 0); (* shouldn't ever contain floats *)
-    List.of_enum (Array.enum xs)
 
   let add_vars_with newd newis =
     (* TODO: why is this necessary? *)
