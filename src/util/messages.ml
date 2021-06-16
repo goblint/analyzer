@@ -68,7 +68,21 @@ struct
     | Race
     | Array of ArrayEvent.t
     | Cast of CastEvent.t
-    | Unknown
+    | Unknown of string
+    | Debug of string
+
+  let to_string e =
+    match e with
+    | Behavior _ -> "behavior"
+    | Integer _ -> "integer"
+    | Race -> "race"
+    | Array _ -> "array"
+    | Cast _ -> "cast"
+    | Unknown msg -> "unknown"
+    | Debug msg -> "debug"
+
+  let should_warn e =
+    get_bool ("dbg." ^ (to_string e))
 
   let show e =
     match e with
@@ -77,16 +91,18 @@ struct
     | Race -> "[Race]"
     | Array _ -> "[Array]"
     | Cast _ -> "[Cast]"
-    | Unknown -> "[Unknown]"
+    | Unknown msg -> Printf.sprintf "[Unknown] %s" msg
+    | Debug msg -> Printf.sprintf "[Debug] %s" msg
 end
 
 module Certainty = struct
-  type t = May | Must
+  type t = May | Must | None
 
   let show c =
     match c with
-    | May -> "MAY"
-    | Must -> "MUST"
+    | May -> "[MAY]"
+    | Must -> "[MUST]"
+    | None -> ""
 end
 
 module LogEvent =
@@ -98,10 +114,18 @@ struct
 
   let may e = {event_type = e; certainty = Certainty.May}
   let must e = {event_type = e; certainty = Certainty.Must}
+  let debug msg = {event_type = EventType.Debug msg; certainty = Certainty.None}
+
+  (* FIXME: also filter may/must ? *)
+  let should_warn (e:LogEvent) = EventType.should_warn e.event_type
 
   let create e c = {event_type = e; certainty = c}
   let show {event_type; certainty} =
-    Printf.sprintf "[%s] %s" (Certainty.show certainty) (EventType.show event_type)
+    let certainty_str = match certainty with
+    | Certainty.None -> ""
+    | c -> (Certainty.show c) ^ " "
+    in
+    Printf.sprintf "%s%s" certainty_str (EventType.show event_type)
 end
 
 exception Bailure of string
@@ -259,14 +283,9 @@ let warn_each_ctx ctx msg = (* cyclic dependency... *)
   warn_each (msg ^ " in context " ^ string_of_int (Hashtbl.hash (Obj.obj ctx.context ())))
 *)
 
-let debug msg =
-  if (get_bool "dbg.debug") then warn ("{BLUE}"^msg)
-
-let debug_each msg =
-  if (get_bool "dbg.debug") then warn_each ("{blue}"^msg)
 
 let mywarn ?ctx (log_event: LogEvent.t) =
-  if !GU.should_warn then begin
+  if !GU.should_warn && (LogEvent.should_warn log_event) then begin
     let msg = LogEvent.show log_event in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_str_hashtbl msg == false) then
@@ -277,7 +296,7 @@ let mywarn ?ctx (log_event: LogEvent.t) =
   end
 
 let mywarn_each ?ctx (log_event: LogEvent.t) =
-  if !GU.should_warn then begin
+  if !GU.should_warn && (LogEvent.should_warn log_event) then begin
     let loc = !Tracing.current_loc in
     let msg = LogEvent.show log_event in
     let msg = with_context msg ctx in
@@ -288,5 +307,10 @@ let mywarn_each ?ctx (log_event: LogEvent.t) =
       end
   end
 
+let debug msg =
+  if (get_bool "dbg.debug") then mywarn EventType.debug ("{BLUE}"^msg)
+
+let debug_each msg =
+  if (get_bool "dbg.debug") then warn_each EventType.debug ("{blue}"^msg)
 
 include Tracing

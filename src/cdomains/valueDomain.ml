@@ -324,7 +324,7 @@ struct
               a (* probably garbage, but this is deref's problem *)
               (*raise (CastError s)*)
             | SizeOfError (s,t) ->
-              M.mywarn_each (M.LogEvent.may M.EventType.Unknown);
+              M.mywarn_each (M.LogEvent.may (M.EventType.Unknown ("size of error: " ^  s)));
               (* old warning: M.warn_each("size of error: " ^  s ^ "\n");*)
               a
           end
