@@ -628,7 +628,8 @@ struct
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
         | Lval (Var v, ofs) -> 
-        do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
+          let test = do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
+        in test
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           let rec contains_vla (t:typ) = match t with
@@ -642,8 +643,8 @@ struct
           let t = typeOfLval b in (* static type of base *)
           let p = eval_lv a gs st b in (* abstract base addresses *)
           if GobConfig.get_bool "ana.nullptr" then 
-            if (not (AD.is_not_null p)) then M.warn_each "Warning Dereferencing Nullpointer\n";   
-            M.tracel "nptr" " Abstract base adress %a\n" AD.pretty p;    
+            if( AD.is_null p) then M.warn_each "MUST Dereferencing Nullpointer\n"
+            else if (not (AD.is_not_null p)) then M.warn_each "MAY Dereferencing Nullpointer\n";   
           let v = (* abstract base value *)
             let open Addr in
             (* pre VLA: *)
