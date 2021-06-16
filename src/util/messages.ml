@@ -96,34 +96,40 @@ struct
 end
 
 module Certainty = struct
-  type t = May | Must | None
+  type t = May | Must
+
+  let to_string e =
+    match e with
+    | May -> "may"
+    | Must -> "must"
+
+  let should_warn e =
+    get_bool ("dbg.warn." ^ (to_string e))
 
   let show c =
     match c with
     | May -> "[MAY]"
     | Must -> "[MUST]"
-    | None -> ""
 end
 
 module LogEvent =
 struct
   type t = {
     event_type : EventType.t;
-    certainty: Certainty.t
+    certainty: Certainty.t option
   }
 
-  let may e = {event_type = e; certainty = Certainty.May}
-  let must e = {event_type = e; certainty = Certainty.Must}
-  let debug msg = {event_type = EventType.Debug msg; certainty = Certainty.None}
+  let may e = {event_type = e; certainty = Some Certainty.May}
+  let must e = {event_type = e; certainty = Some Certainty.Must}
+  let debug msg = {event_type = EventType.Debug msg; certainty = None}
 
-  (* FIXME: also filter may/must ? *)
-  let should_warn (e:t) = EventType.should_warn e.event_type
+  let should_warn (e:t) = EventType.should_warn e.event_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
 
   let create e c = {event_type = e; certainty = c}
   let show {event_type; certainty} =
     let certainty_str = match certainty with
-    | Certainty.None -> ""
-    | c -> (Certainty.show c) ^ " "
+      | Some c -> (Certainty.show c) ^ " "
+      | None -> ""
     in
     Printf.sprintf "%s%s" certainty_str (EventType.show event_type)
 end
