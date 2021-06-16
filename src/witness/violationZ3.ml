@@ -18,12 +18,7 @@ struct
 
   type var = varinfo
 
-  module Var =
-  struct
-    type t = var
-    let equal x y = x.vid = y.vid
-    let compare x y = compare x.vid y.vid
-  end
+  module Var = CilType.Varinfo
 
   module type Env =
   sig

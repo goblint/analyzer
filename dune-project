@@ -37,4 +37,7 @@
     ocamlbuild
     ocamlfind
   )
+  (depopts
+    apron
+  )
 )

@@ -177,7 +177,7 @@ struct
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
-        fprintf f "\n<glob><key>%s</key>%a</glob>" (Goblintutil.escape (Basetype.Variables.show k)) Spec.G.printXml v;
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (Basetype.Variables.show k)) Spec.G.printXml v;
       in
       GHT.iter print_globals g
     in
@@ -215,7 +215,7 @@ struct
     (* analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
-        { ask     = (fun _ -> Queries.Result.top ())
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -305,7 +305,7 @@ struct
     let enter_with st fd =
       let st = st fd.svar in
       let ctx =
-        { ask     = (fun _ -> Queries.Result.top ())
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -340,7 +340,7 @@ struct
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
     let otherstate st v =
       let ctx =
-        { ask     = (fun _ -> Queries.Result.top ())
+        { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
@@ -410,27 +410,29 @@ struct
           | _ -> failwith "Currently only two runs can be compared!";
         ) else (
           if get_bool "dbg.verbose" then
-            print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s.");
+            print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           if get_string "warn" = "early" then Goblintutil.should_warn := true;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
             let analyses = append_opt "save_run" "analyses.marshalled" in
             let config = append_opt "save_run" "config.json" in
             let meta = append_opt "save_run" "meta.json" in
+            let solver_stats = append_opt "save_run" "solver_stats.csv" in (* see Generic.SolverStats... *)
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ " and meta-data about this run to " ^ meta);
+              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
             ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
             Serialize.marshal (lh, gh) save_run;
             Serialize.marshal !MCP.analyses_table analyses;
             GobConfig.write_file config;
             let module Meta = struct
-                type t = { command : string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command; timestamp = Unix.time (); localtime = localtime () }
+                type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
+                let json = to_yojson { command = GU.command; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
-            Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json (* the above is compact, this is pretty-printed *)
+            Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json; (* the above is compact, this is pretty-printed *)
+            Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
           lh, gh
         )
@@ -507,7 +509,7 @@ struct
         let ask loc =
           (* build a ctx for using the query system *)
           let rec ctx =
-            { ask    = query
+            { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
             ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
             ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
             ; prev_node = MyCFG.dummy_node
@@ -523,9 +525,10 @@ struct
             ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
             ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
             }
-          and query x = Spec.query ctx x in
+          in
           Spec.query ctx
         in
+        let ask loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask loc q } in
         List.iter (fun name -> Transform.run name ask file) active_transformations
       );
 
@@ -539,12 +542,12 @@ struct
       M.print_msg "Timeout reached!" (!Tracing.current_loc);
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
-         print_stats is triggered by dbg.solver-signal, so we send that signal to ourself.
+         print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.
          The alternative would be to catch the below Timeout, print_stats and re-raise in each solver (or include it in some functor above them). *)
-      Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
       raise GU.Timeout
     in
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int (get_int "dbg.timeout")) timeout_reached in
+    let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
+    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let local_xml = solver2source_result lh in
 
     let liveness =

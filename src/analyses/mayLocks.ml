@@ -29,13 +29,12 @@ struct
     | `Field (f,o) -> `Field (f, conv_offset o)
 
   (* Query the value (of the locking argument) to a list of locks. *)
-  let eval_exp_addr a exp =
+  let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a) ->
+    match a.f (Queries.MayPointTo exp) with
+    | a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | `Bot -> []
-    | b -> Messages.warn ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.Result.show b^"'."); []
+    | b -> Messages.warn ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'."); []
 
   (* locking logic -- add all locks we can add *)
   let lock ctx rw may_fail return_value_on_success a lv arglist ls : D.ReverseAddrSet.t =
@@ -54,7 +53,7 @@ struct
     (* unlocking logic *)
     let unlock remove_fn =
       match arglist with
-      | x::xs -> begin match  (eval_exp_addr ctx.ask x) with
+      | x::xs -> begin match  (eval_exp_addr (Analyses.ask_of_ctx ctx) x) with
           | [x] -> remove_fn x ctx.local
           | _ -> ctx.local
         end
@@ -62,7 +61,7 @@ struct
     in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
     | `Lock (failing, rw, return_value_on_success), _
-      -> lock ctx rw failing return_value_on_success ctx.ask lv arglist ctx.local
+      -> lock ctx rw failing return_value_on_success (Analyses.ask_of_ctx ctx) lv arglist ctx.local
     | `Unlock, _
       -> unlock remove_rw
 

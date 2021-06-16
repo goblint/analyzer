@@ -17,7 +17,7 @@ struct
     | Statement stmt  -> string_of_int stmt.sid
     | Function f      -> "return of " ^ f.vname ^ "()"
     | FunctionEntry f -> f.vname ^ "()"
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (show x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
   let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"
@@ -179,10 +179,10 @@ struct
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)
-    let rec ctx' = { ctx with ask   = query
+    let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
                             ; local = x
                             ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }
-    and query x = Spec.query ctx' x in
+    in
     ctx'
 
   let step n c i e = R.singleton (`Lifted ((n, c, i), e))
@@ -259,7 +259,7 @@ struct
         (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async)
       ) (Dom.empty (), Sync.bot ())
 
-  let query ctx q =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
       Dom.iter' (fun x r ->
@@ -275,15 +275,16 @@ struct
         | Function _ -> () (* returns post-sync in FromSpec *)
         | _ -> assert (Sync.is_bot (snd ctx.local));
       end;
-      `Bot
+      ()
     | Queries.IterVars f ->
       Dom.iter' (fun x r ->
           f (I.to_int x)
         ) (fst ctx.local);
-      `Bot
+      ()
     | _ ->
       (* join results so that they are sound for all paths *)
-      fold' ctx Spec.query identity (fun x _ f -> Queries.Result.join x (f q)) `Bot
+      let module Result = (val Queries.Result.lattice q) in
+      fold' ctx Spec.query identity (fun x _ f -> Result.join x (f q)) (Result.bot ())
 
   let should_inline f =
     (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)

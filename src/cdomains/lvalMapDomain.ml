@@ -73,12 +73,12 @@ struct
     include Printable.Blank
     type t = { key: k; loc: location list; state: s }
     let hash = Hashtbl.hash
-    let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc && a.state = b.state
+    let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc (* FIXME: polymorphic list equal! *) && a.state = b.state
 
     let compare a b =
       let r = Lval.CilLval.compare a.key b.key in
       if r <> 0 then r else
-        let r = compare a.loc b.loc in
+        let r = compare a.loc b.loc in (* FIXME: polymorphic list compare! *)
         if r <> 0 then r else
           Impl.compare a.state b.state
 
@@ -263,10 +263,10 @@ struct
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
     | _ -> Goblintutil.create_var @@ Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
 
-  let keys_from_lval lval ask = (* use MayPointTo query to get all possible pointees of &lval *)
+  let keys_from_lval lval (ask: Queries.ask) = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)
-    let query_lv ask exp = match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) -> Queries.LS.elements l
+    let query_lv (ask: Queries.ask) exp = match ask.f (Queries.MayPointTo exp) with
+      | l when not (Queries.LS.is_top l) -> Queries.LS.elements l
       | _ -> []
     in
     let exp = AddrOf lval in

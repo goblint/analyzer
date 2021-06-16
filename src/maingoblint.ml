@@ -281,6 +281,15 @@ let merge_preprocessed cpp_file_names =
   Cilfacade.current_file := merged_AST;
   merged_AST
 
+let do_stats () =
+  if get_bool "printstats" then (
+    print_newline ();
+    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
+    print_newline ();
+    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
+    flush_all ()
+  )
+
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   let module L = Printable.Liszt (Basetype.CilFundec) in
@@ -307,10 +316,15 @@ let do_analyze change_info merged_AST =
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
         try Control.analyze change_info ast funs
-        with x ->
+        with e ->
+          let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
           let loc = !Tracing.current_loc in
-          Messages.print_msg "About to crash!" loc;
-          raise x
+          Messages.print_msg "{RED}About to crash!" loc;
+          (* trigger Generic.SolverStats...print_stats *)
+          Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
+          do_stats ();
+          print_newline ();
+          Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
           (* Cilfacade.current_file := ast'; *)
       in
       (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
@@ -331,12 +345,10 @@ let do_analyze change_info merged_AST =
   )
 
 let do_html_output () =
-  (* if we are in Cygwin, we use the host's Java and GraphViz -> paths need to be converted from Cygwin to Windows style *)
-  let get_path path = if Sys.os_type = "Cygwin" then "$(cygpath -wa "^path^")" else path in
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
   if get_bool "g2html" then (
     if Sys.file_exists jar then (
-      let command = "java -jar "^get_path jar^" --result-dir "^get_path (get_string "outfile")^" "^get_path !Messages.xml_file_name in
+      let command = "java -jar "^ jar ^" --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
       try match Unix.system command with
         | Unix.WEXITED 0 -> ()
         | _ -> eprintf "HTML generation failed! Command: %s\n" command
@@ -418,61 +430,50 @@ let diff_and_rename file =
       | None -> failwith "Failure! Working directory is not clean")
   in change_info
 
-let do_stats () =
-  if get_bool "printstats" then
-    print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
-    print_newline ();
-    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
-    flush_all ()
-
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
-  (* catch_break true; *)
+  catch_break true;
   set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
 
 (** the main function *)
-let main =
-  let main_running = ref false in fun () ->
-    if not !main_running then (
-      main_running := true;
-      try
-        Stats.reset Stats.SoftwareTimer;
-        parse_arguments ();
-        check_arguments ();
-        AfterConfig.run ();
+let main () =
+  try
+    Stats.reset Stats.SoftwareTimer;
+    parse_arguments ();
+    check_arguments ();
+    AfterConfig.run ();
 
-        (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
-          for overflows, as this will replace potential overflows with constants after wrap-around *)
-        (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
-          set_bool "exp.lower-constants" false);
-        Cilfacade.init ();
+    (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
+      for overflows, as this will replace potential overflows with constants after wrap-around *)
+    (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
+      set_bool "exp.lower-constants" false);
+    Cilfacade.init ();
 
-        handle_extraspecials ();
-        create_temp_dir ();
-        handle_flags ();
-        if get_bool "dbg.verbose" then (
-          print_endline (localtime ());
-          print_endline command;
-        );
-        let file = preprocess_files () |> merge_preprocessed in
-        let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
-        file|> do_analyze changeInfo;
-        do_stats ();
-        do_html_output ();
-        if !verified = Some false then exit 3;  (* verifier failed! *)
-      with
-        | Exit ->
-          exit 1
-        | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
-          Printexc.print_backtrace BatInnerIO.stderr
-        | Timeout ->
-          do_stats ();
-          print_newline ();
-          eprintf "%s\n" (Messages.colorize "{RED}Analysis was aborted because it reached the set timeout!");
-          exit 124
-    )
+    handle_extraspecials ();
+    create_temp_dir ();
+    handle_flags ();
+    if get_bool "dbg.verbose" then (
+      print_endline (localtime ());
+      print_endline command;
+    );
+    let file = preprocess_files () |> merge_preprocessed in
+    let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
+    file|> do_analyze changeInfo;
+    do_stats ();
+    do_html_output ();
+    if !verified = Some false then exit 3;  (* verifier failed! *)
+  with
+    | Exit ->
+      exit 1
+    | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
+      (* Printexc.print_backtrace BatInnerIO.stderr *)
+      eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+      exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
+    | Timeout ->
+      eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+      exit 124
 
-(* The actual entry point is in the auto-generated goblint.ml module, and it is defined as: *)
+(* The actual entry point is in the auto-generated goblint.ml module, and is defined as: *)
 (* let _ = at_exit main *)
+(* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)

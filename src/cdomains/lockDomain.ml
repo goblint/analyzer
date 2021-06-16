@@ -56,7 +56,7 @@ struct
   let rec may_be_same_offset of1 of2 =
     match of1, of2 with
     | `NoOffset , `NoOffset -> true
-    | `Field (x1,y1) , `Field (x2,y2) -> x1.fcomp.ckey = x2.fcomp.ckey && may_be_same_offset y1 y2
+    | `Field (x1,y1) , `Field (x2,y2) -> CilType.Compinfo.equal x1.fcomp x2.fcomp && may_be_same_offset y1 y2 (* TODO: why not fieldinfo equal? *)
     | `Index (x1,y1) , `Index (x2,y2)
       -> (not (IdxDom.is_int x1) || not (IdxDom.is_int x2))
          || IdxDom.equal x1 x2 && may_be_same_offset y1 y2
@@ -70,8 +70,8 @@ struct
   let remove (addr,rw) set =
     let collect_diff_varinfo_with (vi,os) (addr,rw) =
       match (Addr.to_var_offset addr) with
-      | [(v,o)] when vi.vid == v.vid -> not (may_be_same_offset o os)
-      | [(v,o)] when vi.vid != v.vid -> true
+      | [(v,o)] when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
+      | [(v,o)] -> true
       | _ -> false
     in
     match (Addr.to_var_offset addr) with
@@ -111,10 +111,10 @@ struct
   let empty = S.empty
   let is_empty = S.is_empty
 
-  let rec eq_set ask e =
+  let rec eq_set (ask: Queries.ask) e =
     S.union
-      (match ask (Queries.EqualSet e) with
-       | `ExprSet es when not (Queries.ES.is_bot es) ->
+      (match ask.f (Queries.EqualSet e) with
+       | es when not (Queries.ES.is_bot es) ->
          Queries.ES.fold S.add es (S.empty ())
        | _ -> S.empty ())
       (match e with
@@ -136,7 +136,7 @@ struct
        | Question _ -> failwith "Logical operations should be compiled away by CIL."
        | _ -> failwith "Unmatched pattern.")
 
-  let add ask e st =
+  let add (ask: Queries.ask) e st =
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.union addrs st
