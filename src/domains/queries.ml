@@ -276,6 +276,5 @@ module Any = struct
           else
             CilType.Exp.compare e2 e4 
         | Any(IsHeapVar v1), Any(IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
-        (*| Any(Assert a1), Any(Assert a2) -> CilType.Exp.compare a1 a2 *)
         | _, _ -> Stdlib.compare (order a) (order b)
 end
