@@ -199,28 +199,25 @@ struct
      meet, widen, narrow, equal, leq.*)
 
   let join x y =
-    let ret = if is_bot x then
-        y
-      else if is_bot y then
-        x
-      else
-        A.join (Man.mgr) x y in
-    ret
+    if is_bot x then
+      y
+    else if is_bot y then
+      x
+    else
+      A.join (Man.mgr) x y
 
   let meet x y =
-    let ret = if is_top x then y else
-      if is_top y then x else
-        A.meet Man.mgr x y in
-    ret
+    if is_top x then y else
+    if is_top y then x else
+      A.meet Man.mgr x y
 
   let widen x y =
-    let ret = if is_bot x then
-        y
-      else if is_bot y then
-        x
-      else
-        A.widening (Man.mgr) x y in
-    ret
+    if is_bot x then
+      y
+    else if is_bot y then
+      x
+    else
+      A.widening (Man.mgr) x y
 
   let narrow = meet
 
