@@ -287,17 +287,6 @@ struct
       else
         `Top
 
-  let rec get_vars_from_expr exp l =
-    match exp with
-    | Cst _-> l
-    | Var v -> l @ [v]
-    | Unop (_, e, _, _) -> l @ (get_vars_from_expr e [])
-    | Binop (_, e, _, _, _) -> l @ (get_vars_from_expr e [])
-
-  let vars_from_expr_in_env env exp =
-    let l = List.map (fun v -> Environment.mem_var env v) (get_vars_from_expr exp []) in
-    not (List.mem false l)
-
   let is_chosen (v:string) =
     let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
     if List.length oct_vars == 0 then
