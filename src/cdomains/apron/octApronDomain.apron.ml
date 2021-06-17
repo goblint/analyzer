@@ -308,46 +308,6 @@ struct
         | None -> d
     with Invalid_CilExpToLexp -> d
 
-  (* Creates the opposite invariant and assters it *)
-  (* TODO: why is this necessary if assert_inv has boolean argument? *)
-  let assert_op_inv d x b =
-    (* if assert(x) then convert it to assert(x != 0) *)
-    let x = match x with
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
-      BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
-    | _ -> x in
-    try
-      match x with
-        | BinOp (Ne, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
-
-        | BinOp (Eq, lhd, rhs, intType) ->
-          (* FIXME: this is probably wrong here too? *)
-          let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
-          let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-          if not (is_bot assert_gt) then
-            assert_gt
-          else
-            assert_lt
-
-        | BinOp (Lt, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Ge, lhd, rhs, intType)) b
-
-        | BinOp (Gt, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Le, lhd, rhs, intType)) b
-
-        | BinOp (Le, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
-
-        | BinOp (Ge, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
-
-        | UnOp(LNot, e, t) ->
-          assert_inv d e b
-
-        | _ ->  assert_inv d x b
-    with Invalid_CilExpToLexp -> d
-
   let check_assert (e:exp) state =
     match e with
     | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
@@ -355,7 +315,7 @@ struct
     | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
     | _ ->
       let result_state = (assert_inv state e false) in
-      let result_state_op = (assert_op_inv state e false) in (* TODO: why not use assert_inv with true? *)
+      let result_state_op = (assert_inv state e true) in (* TODO: why not use assert_inv with true? *)
       if is_bot result_state then
         `False
       else if is_bot result_state_op then
