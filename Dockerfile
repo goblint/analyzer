@@ -5,7 +5,7 @@ FROM ocaml/opam2
 # To best make use of the build cache, layers should be ordered by frequency of change.
 # Here: apt packages, make.sh, linux-headers, opam packages, source code
 # {ruby, gem, locale} needed for `make test`
-RUN sudo apt-get update && sudo apt-get install -yq m4 libgmp-dev ruby
+RUN sudo apt-get update && sudo apt-get install -yq m4 libgmp-dev ruby libmpfr-dev
 RUN sudo gem install parallel
 RUN opam switch 4.10
 # First we only copy files needed for setup. If we added all here, it would invalidate the cache on every change and the following steps would have to be rerun.
