@@ -682,7 +682,7 @@ struct
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
       if has_dec then (
         if LibraryFunctions.use_special f.vname then (
-          M.warn_each ("Using special for defined function " ^ f.vname);
+          M.warn_each (M.LogEvent.may (M.EventType.Unknown (("Using special for defined function " ^ f.vname))));
           tf_special_call ctx lv f args
         )
         else
@@ -737,7 +737,7 @@ struct
     let old_node = !current_node in
     let _       = current_node := Some u in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg
-      with M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
+      with M.Bailure s -> Messages.warn_each (Messages.LogEvent.may (Messages.EventType.Unknown (s))); (getl (u,c))  in
     let _       = current_node := old_node in
     d
 
