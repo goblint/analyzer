@@ -553,35 +553,33 @@ struct
       end
 
 
-    let assign_var_handling_underflow_overflow oct v e =
-      (match v.vtype with
-        | TInt (ikind, _)->
-          let signed = Cil.isSigned ikind in
-          let new_oct = assign_var oct v.vname e in
-          let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in
-          let check_max =
-            check_assert (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) new_oct in
-          let check_min =
-            check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
-          if signed then
-            if check_max <> `True || check_min <> `True then
-              if GobConfig.get_bool "ana.octapron.no_signed_overflow" then
-                new_oct
-              else
-                (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
-                topE (A.env oct)
-            else
-              new_oct
+  let assign_var_handling_underflow_overflow oct v e =
+    match v.vtype with
+    | TInt (ikind, _)->
+      let signed = Cil.isSigned ikind in
+      let new_oct = assign_var oct v.vname e in
+      let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in
+      let check_max =
+        check_assert (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) new_oct in
+      let check_min =
+        check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
+      if signed then
+        if check_max <> `True || check_min <> `True then
+          if GobConfig.get_bool "ana.octapron.no_signed_overflow" then
+            new_oct
           else
-            if check_max <> `True || check_min <> `True then
-              (* Unsigned overflows are defined, but for now
-              the variable in question goes to top if there is a possibility of overflow. *)
-              let () = forget_all_with oct [v.vname] in
-              oct
-            else
-              new_oct
-        | _ -> oct)
-
+            (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
+            topE (A.env oct)
+        else
+          new_oct
+      else if check_max <> `True || check_min <> `True then
+        (* Unsigned overflows are defined, but for now
+           the variable in question goes to top if there is a possibility of overflow. *)
+        let () = forget_all_with oct [v.vname] in
+        oct
+      else
+        new_oct
+    | _ -> oct
 end
 
 (** With heterogeneous environments. *)
