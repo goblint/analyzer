@@ -551,7 +551,7 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    ignore (M.mywarn (M.LogEvent.may (M.EventType.Unknown "ASM statement ignored.")));
+    ignore (M.warn (M.LogEvent.may (M.EventType.Unknown "ASM statement ignored.")));
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)

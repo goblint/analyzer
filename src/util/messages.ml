@@ -259,26 +259,6 @@ let with_context msg = function
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
-let warn ?ctx msg =
-  if !GU.should_warn then begin
-    let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_str_hashtbl msg == false) then
-      begin
-        warn_all msg;
-        Hashtbl.add warn_str_hashtbl msg true
-      end
-  end
-
-let warn_each ?ctx msg =
-  if !GU.should_warn then begin
-    let loc = !Tracing.current_loc in
-    let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
-      begin
-        warn_all msg;
-        Hashtbl.add warn_lin_hashtbl (msg,loc) true
-      end
-  end
 
 (*
 let warn_each_ctx ctx msg = (* cyclic dependency... *)
@@ -290,7 +270,7 @@ let warn_each_ctx ctx msg = (* cyclic dependency... *)
 *)
 
 
-let mywarn ?ctx (log_event: LogEvent.t) =
+let warn ?ctx (log_event: LogEvent.t) =
   if !GU.should_warn && (LogEvent.should_warn log_event) then begin
     let msg = LogEvent.show log_event in
     let msg = with_context msg ctx in
@@ -301,7 +281,7 @@ let mywarn ?ctx (log_event: LogEvent.t) =
       end
   end
 
-let mywarn_each ?ctx (log_event: LogEvent.t) =
+let warn_each ?ctx (log_event: LogEvent.t) =
   if !GU.should_warn && (LogEvent.should_warn log_event) then begin
     let loc = !Tracing.current_loc in
     let msg = LogEvent.show log_event in
@@ -314,9 +294,9 @@ let mywarn_each ?ctx (log_event: LogEvent.t) =
   end
 
 let debug msg =
-  if (get_bool "dbg.debug") then mywarn (LogEvent.debug ("{BLUE}"^msg))
+  if (get_bool "dbg.debug") then warn (LogEvent.debug ("{BLUE}"^msg))
 
 let debug_each msg =
-  if (get_bool "dbg.debug") then mywarn_each (LogEvent.debug ("{blue}"^msg))
+  if (get_bool "dbg.debug") then warn_each (LogEvent.debug ("{blue}"^msg))
 
 include Tracing
