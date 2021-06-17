@@ -6,8 +6,6 @@ open Apron
 
 module M = Messages
 
-exception Invalid_CilExpToLhost
-exception Invalid_CilExpToLexp
 
 module Man =
 struct
@@ -29,58 +27,56 @@ struct
 end
 
 (** Conversion from CIL expressions to Apron. *)
-module CilExp =
+module Convert =
 struct
-  open Lincons1
   open Texpr1
+  open Tcons1
 
-  let rec cil_exp_to_cil_lhost =
-    function
-    | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
+  exception Unsupported_CilExp
+
+  let rec texpr1_expr_of_cil_exp = function
+    | Lval (Var v, NoOffset) when isIntegralType v.vtype && not v.vglob ->
       Var (Var.of_string v.vname)
-    | Const (CInt64 (i,_,_)) ->
+    | Const (CInt64 (i, _, _)) ->
       Cst (Coeff.s_of_int (Int64.to_int i))
-    | UnOp  (Neg ,e,_) ->
-      Unop (Neg,cil_exp_to_cil_lhost e,Int,Near)
-    | BinOp (PlusA,e1,e2,_) ->
-      Binop (Add,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | BinOp (MinusA,e1,e2,_) ->
-      Binop (Sub,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | BinOp (Mult,e1,e2,_) ->
-      Binop (Mul,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | BinOp (Div,e1,e2,_) ->
-      Binop (Div,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Zero)
-    | BinOp (Mod,e1,e2,_) ->
-      Binop (Mod,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | CastE (TInt _,e) -> Unop(Cast,cil_exp_to_cil_lhost e,Int,Zero)
-    | _ -> raise Invalid_CilExpToLhost
+    | UnOp (Neg, e, _) ->
+      Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
+    | BinOp (PlusA, e1, e2, _) ->
+      Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+    | BinOp (MinusA, e1, e2, _) ->
+      Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+    | BinOp (Mult, e1, e2, _) ->
+      Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+    | BinOp (Div, e1, e2, _) ->
+      Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
+    | BinOp (Mod, e1, e2, _) ->
+      Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+    | CastE (TInt _, e) ->
+      Unop(Cast, texpr1_expr_of_cil_exp e, Int, Zero)
+    | _ ->
+      raise Unsupported_CilExp
 
-
-  let inverse_comparator comparator =
-    match comparator with
-    | EQ -> DISEQ
-    | DISEQ -> EQ
-    | SUPEQ -> SUP
-    | SUP -> SUPEQ
-    | EQMOD x -> EQMOD x
-
-  (* Converts CIL expressions to Apron expressions of level 1 *)
-  let cil_exp_to_apron_texpr1 env lhost =
-    (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
-    Texpr1.of_expr env lhost (* TODO: why doesn't this do anything? lhost is already Texpr1.expr... *)
-
-  let rec texpr1_all_vars_in_env env = function
+  let rec env_mem_texpr1_expr env = function
     | Cst _ -> true
     | Var var -> Environment.mem_var env var
-    | Unop (_, e, _, _) -> texpr1_all_vars_in_env env e
-    | Binop (_, e1, e2, _, _) -> texpr1_all_vars_in_env env e1 && texpr1_all_vars_in_env env e2
+    | Unop (_, e, _, _) -> env_mem_texpr1_expr env e
+    | Binop (_, e1, e2, _, _) -> env_mem_texpr1_expr env e1 && env_mem_texpr1_expr env e2
 
-  let to_tcons1 env e negate =
+  let texpr1_of_texpr1_expr env texpr1_expr =
+    (* TODO: move this check right into texpr1_expr_of_cil_exp? *)
+    if not (env_mem_texpr1_expr env texpr1_expr) then
+      raise Unsupported_CilExp;
+    Texpr1.of_expr env texpr1_expr
+
+  let texpr1_of_cil_exp env e =
+    texpr1_of_texpr1_expr env (texpr1_expr_of_cil_exp e)
+
+  let tcons1_of_cil_exp env e negate =
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = cil_exp_to_cil_lhost e1 in
-        let texpr1_2 = cil_exp_to_cil_lhost e2 in
+        let texpr1_1 = texpr1_expr_of_cil_exp e1 in
+        let texpr1_2 = texpr1_expr_of_cil_exp e2 in
         begin match r with
           | Lt -> (texpr1_2, texpr1_1, SUP)
           | Gt -> (texpr1_1, texpr1_2, SUP)
@@ -88,20 +84,25 @@ struct
           | Ge -> (texpr1_1, texpr1_2, SUPEQ)
           | Eq -> (texpr1_1, texpr1_2, EQ)
           | Ne -> (texpr1_1, texpr1_2, DISEQ)
-          | _ -> raise Invalid_CilExpToLhost
+          | _ -> raise Unsupported_CilExp
         end
-      | _ -> raise Invalid_CilExpToLhost
+      | _ -> raise Unsupported_CilExp
+    in
+    let inverse_typ = function
+      | EQ -> DISEQ
+      | DISEQ -> EQ
+      | SUPEQ -> SUP
+      | SUP -> SUPEQ
+      | EQMOD x -> EQMOD x
     in
     let (texpr1_plus, texpr1_minus, typ) =
       if negate then
-        (texpr1_minus, texpr1_plus, inverse_comparator typ)
+        (texpr1_minus, texpr1_plus, inverse_typ typ)
       else
         (texpr1_plus, texpr1_minus, typ)
     in
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
-    if not (texpr1_all_vars_in_env env texpr1') then
-      raise Invalid_CilExpToLhost;
-    Tcons1.make (cil_exp_to_apron_texpr1 env texpr1') typ
+    Tcons1.make (texpr1_of_texpr1_expr env texpr1') typ
 end
 
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
@@ -217,7 +218,7 @@ struct
           assert_lt *)
       | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
-        let tcons1 = CilExp.to_tcons1 (A.env d) x b in
+        let tcons1 = Convert.tcons1_of_cil_exp (A.env d) x b in
         (* Get the underlying linear constraint of level 0.
            Modifying the constraint of level 0 (not advisable)
            modifies correspondingly the linear constraint and conversely,
@@ -229,7 +230,7 @@ struct
         (* We perform a meet of the current octagon with the linear constraints
            that come from the expression we wish to assert. *)
         A.meet_tcons_array Man.mgr d ea
-    with Invalid_CilExpToLhost -> d
+    with Convert.Unsupported_CilExp -> d
 
   (* Creates the opposite invariant and assters it *)
   (* TODO: why is this necessary if assert_inv has boolean argument? *)
@@ -269,7 +270,7 @@ struct
           assert_inv d e b
 
         | _ ->  assert_inv d x b
-    with Invalid_CilExpToLexp -> d
+    with Convert.Unsupported_CilExp -> d
 
   let check_assert (e:exp) state =
     match e with
@@ -334,12 +335,9 @@ struct
       begin try
           let exp = Cil.constFold false e in
           let env = A.env d in
-          let conversion_res = CilExp.cil_exp_to_cil_lhost exp in
-          let can_do = vars_from_expr_in_env env conversion_res in
-          if can_do then
-            A.assign_texpr_with Man.mgr d (Var.of_string v)
-              (CilExp.cil_exp_to_apron_texpr1 env conversion_res) None
-        with Invalid_CilExpToLhost ->
+          A.assign_texpr_with Man.mgr d (Var.of_string v)
+            (Convert.texpr1_of_cil_exp env exp) None
+        with Convert.Unsupported_CilExp ->
           A.forget_array_with Man.mgr d [|Var.of_string v|] false
           (* | Manager.Error q -> *)
           (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
@@ -369,12 +367,9 @@ struct
     begin try
         let exp = Cil.constFold false e in
         let env = A.env d in
-        let conversion_res = CilExp.cil_exp_to_cil_lhost exp in
-        let can_do = vars_from_expr_in_env env conversion_res in
-        if can_do then
-          A.substitute_texpr_with Man.mgr d (Var.of_string v)
-            (CilExp.cil_exp_to_apron_texpr1 env conversion_res) None
-      with Invalid_CilExpToLhost ->
+        A.substitute_texpr_with Man.mgr d (Var.of_string v)
+          (Convert.texpr1_of_cil_exp env exp) None
+      with Convert.Unsupported_CilExp ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
         (* | Manager.Error q ->
            ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
@@ -437,7 +432,7 @@ struct
         end
       | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
     try
-      let texpr1 = CilExp.cil_exp_to_apron_texpr1 (A.env d) (CilExp.cil_exp_to_cil_lhost (Cil.constFold false cil_exp)) in
+      let texpr1 = Convert.texpr1_of_cil_exp (A.env d) (Cil.constFold false cil_exp) in
       let interval_of_variable = A.bound_texpr Man.mgr d texpr1 in
       let infimum = get_int_for_apron_scalar interval_of_variable.inf in
       let supremum = get_int_for_apron_scalar interval_of_variable.sup in
@@ -446,7 +441,7 @@ struct
       | Some infimum, None -> Some (Int64.of_int (-infimum)), None
       | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
       | _, _ -> None, None
-    with Invalid_CilExpToLhost -> None, None
+    with Convert.Unsupported_CilExp -> None, None
 
   let get_int_val_for_cil_exp d cil_exp =
     match get_int_interval_for_cil_exp d cil_exp with
