@@ -501,19 +501,16 @@ struct
         end
       | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
     try
-      let linexpr1, _  = CilExp.cil_exp_to_apron_linexpr1 (A.env d) cil_exp false in
-      match linexpr1 with
-      | Some linexpr1 -> (
-          let interval_of_variable = A.bound_linexpr Man.mgr d linexpr1 in
-          let infimum = get_int_for_apron_scalar interval_of_variable.inf in
-          let supremum = get_int_for_apron_scalar interval_of_variable.sup in
-          match infimum, supremum with
-          | Some infimum, Some supremum -> Some (Int64.of_int (infimum)),  Some (Int64.of_int (supremum))
-          | Some infimum, None -> Some (Int64.of_int (-infimum)), None
-          | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
-          | _, _ -> None, None)
-      | _ -> None, None
-    with Invalid_CilExpToLexp -> None, None
+      let texpr1 = CilExp.cil_exp_to_apron_texpr1 (A.env d) (CilExp.cil_exp_to_cil_lhost (Cil.constFold false cil_exp)) in
+      let interval_of_variable = A.bound_texpr Man.mgr d texpr1 in
+      let infimum = get_int_for_apron_scalar interval_of_variable.inf in
+      let supremum = get_int_for_apron_scalar interval_of_variable.sup in
+      match infimum, supremum with
+      | Some infimum, Some supremum -> Some (Int64.of_int (infimum)),  Some (Int64.of_int (supremum))
+      | Some infimum, None -> Some (Int64.of_int (-infimum)), None
+      | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
+      | _, _ -> None, None
+    with Invalid_CilExpToLhost -> None, None
 
   let get_int_val_for_cil_exp d cil_exp =
     match get_int_interval_for_cil_exp d cil_exp with
