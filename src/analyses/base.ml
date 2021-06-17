@@ -851,6 +851,7 @@ struct
     | Q.EvalInt e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i)) 
+        | `Int i -> Queries.Result.top q
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
         | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q
       end
