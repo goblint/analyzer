@@ -195,7 +195,6 @@ module Any = struct
         | Any(MayBeLess _) -> 28
         | Any(HeapVar) -> 29
         | Any(IsHeapVar _) -> 30
-        (*| Any(Assert _) -> 31*)
     in 
     let r = Stdlib.compare (order a) (order b) in
       if r <> 0 then
