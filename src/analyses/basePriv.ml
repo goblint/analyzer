@@ -206,7 +206,7 @@ struct
   let mutex_addr_to_varinfo = function
     | LockDomain.Addr.Addr (v, `NoOffset) -> v
     | LockDomain.Addr.Addr (v, offs) ->
-      M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs);
+      M.mywarn_each (M.LogEvent.may (M.EventType.Unknown ((Pretty.sprint ~width:800 @@ Pretty.dprintf "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs))));
       v
     | _ -> failwith "MutexGlobalsBase.mutex_addr_to_varinfo"
 end

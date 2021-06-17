@@ -148,7 +148,7 @@ struct
             let ls = Lockset.filter snd ctx.local in
             let el = P.effect_fun ~write:w ls in
             ctx.sideg v el
-        | None -> M.warn "Write to unknown address: privatization is unsound."
+        | None -> M.mywarn (M.LogEvent.may (M.EventType.Unknown ("Write to unknown address: privatization is unsound.")))
       end;
 
       (*partitions & locks*)

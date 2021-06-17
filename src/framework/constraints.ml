@@ -682,7 +682,7 @@ struct
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
       if has_dec then (
         if LibraryFunctions.use_special f.vname then (
-          M.warn_each ("Using special for defined function " ^ f.vname);
+          M.mywarn_each (M.LogEvent.may (M.EventType.Unknown (("Using special for defined function " ^ f.vname))));
           tf_special_call ctx lv f args
         )
         else
