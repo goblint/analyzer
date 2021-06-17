@@ -274,45 +274,75 @@ struct
 
   (* evaluate value using our "query functions" *)
   let eval_rv_pre (ask: Q.ask) exp pr =
-    (*let _other_analsyis_result = ask.f (Q.EvalInt exp) in *) (* This is here in case we want to create acycle on purpose *)
-    let binop op e1 e2 =
-      let equality () =
-        (* TODO: just return bool? *)
-        if ask.f (Q.MustBeEqual (e1,e2)) then (
-          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
-          Some true
-        )
-        else
-          None
+    let evaluate = 
+      let binop op e1 e2 =
+        let equality () =
+          (* TODO: just return bool? *)
+          if ask.f (Q.MustBeEqual (e1,e2)) then (
+            if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
+            Some true
+          )
+          else
+            None
+        in
+        let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
+        match op with
+        | MinusA when equality () = Some true ->
+          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+          Some (`Int (ID.of_int ik BI.zero))
+        | MinusPI
+        | MinusPP when equality () = Some true -> Some (`Int (ID.of_int ptrdiff_ikind BI.zero))
+        | MinusPI
+        | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list ptrdiff_ikind [BI.zero]))
+        | Le
+        | Ge when equality () = Some true ->
+          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+          Some (`Int (ID.of_bool ik true))
+        | Lt
+        | Gt when equality () = Some true ->
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+            Some (`Int (ID.of_bool ik false))
+        | Eq -> (match equality () with Some tv ->
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+            Some (`Int (ID.of_bool ik tv)) | None -> None)
+        | Ne -> (match equality () with Some tv ->
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+            Some (`Int (ID.of_bool ik (not tv))) | None -> None)
+        | _ -> None
       in
-      let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
-      match op with
-      | MinusA when equality () = Some true ->
-        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        Some (`Int (ID.of_int ik BI.zero))
-      | MinusPI
-      | MinusPP when equality () = Some true -> Some (`Int (ID.of_int ptrdiff_ikind BI.zero))
-      | MinusPI
-      | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list ptrdiff_ikind [BI.zero]))
-      | Le
-      | Ge when equality () = Some true ->
-        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        Some (`Int (ID.of_bool ik true))
-      | Lt
-      | Gt when equality () = Some true ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          Some (`Int (ID.of_bool ik false))
-      | Eq -> (match equality () with Some tv ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          Some (`Int (ID.of_bool ik tv)) | None -> None)
-      | Ne -> (match equality () with Some tv ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          Some (`Int (ID.of_bool ik (not tv))) | None -> None)
+      match exp with
+      | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
       | _ -> None
-    in
+    in 
     match exp with
-    | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
-    | _ -> None
+      | Const c -> 
+        let ans =  ask.f (Q.EvalInt exp) in
+          (match ans with
+            | `Top ->  evaluate
+            | `Bot -> None
+            | `Lifted z -> let ik = Cilfacade.get_ikind (Cil.typeOf exp) in Some (`Int (ID.of_int ik z) )
+          ) 
+      | SizeOf _
+      | Real _
+      | Imag _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _
+      | AlignOfE _
+      | UnOp (_, _, _)
+      | BinOp (_, _, _, _)
+      | Question (_, _, _, _)
+      | CastE (_, _)
+      | StartOf (_, _) ->
+        let ans =  ask.f (Q.EvalInt exp) in
+        (match ans with
+          | `Top ->  evaluate
+          | `Bot -> None
+          | `Lifted z -> 
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in Some (`Int (ID.of_int ik z) )
+        ) 
+      | _ ->
+      evaluate
 
 
   (**************************************************************************
@@ -1879,15 +1909,7 @@ struct
         ) else
           M.warn_each ~ctx:ctx.control_context msg
     in
-    let base_result = check_assert e ctx.local in
-    let result =
-      if should_warn then
-        let other_analsyis_result = ctx.ask (Q.Assert e) in
-        Basetype.Bools.meet base_result other_analsyis_result
-      else
-        base_result
-    in
-    match result with
+    match check_assert e ctx.local with
     | `Lifted false ->
       warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local

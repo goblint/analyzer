@@ -163,13 +163,6 @@ struct
     let open Queries in
     let d = ctx.local in
     match q with
-    | Assert e ->
-      begin match D.check_assert e ctx.local with
-        | `Top -> `Top
-        | `True -> `Lifted true
-        | `False -> `Lifted false
-        | _ -> `Bot
-      end
     | EvalInt e ->
       begin
         match D.get_int_val_for_cil_exp d e with

@@ -14,7 +14,6 @@ module VI = Lattice.Flat (Basetype.Variables) (struct
 end)
 
 module PartAccessResult = Access.PartAccessResult
-module AR = Basetype.Bools (* TODO: move to BoolDomain? *)
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
@@ -61,7 +60,6 @@ type _ t =
   | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
-  | Assert: exp -> AR.t t
 
 type 'a result = 'a
 
@@ -109,7 +107,6 @@ struct
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
-    | Assert _ -> (module AR)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -156,7 +153,6 @@ struct
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> PartAccessResult.top ()
-    | Assert _ -> AR.top ()
 end
 
 (* The type any_query can't be directly included in the module Any.
@@ -199,7 +195,7 @@ module Any = struct
         | Any(MayBeLess _) -> 28
         | Any(HeapVar) -> 29
         | Any(IsHeapVar _) -> 30
-        | Any(Assert _) -> 31
+        (*| Any(Assert _) -> 31*)
     in 
     let r = Stdlib.compare (order a) (order b) in
       if r <> 0 then
@@ -281,6 +277,6 @@ module Any = struct
           else
             CilType.Exp.compare e2 e4 
         | Any(IsHeapVar v1), Any(IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
-        | Any(Assert a1), Any(Assert a2) -> CilType.Exp.compare a1 a2 
+        (*| Any(Assert a1), Any(Assert a2) -> CilType.Exp.compare a1 a2 *)
         | _, _ -> Stdlib.compare (order a) (order b)
 end
