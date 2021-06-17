@@ -68,7 +68,21 @@ struct
     | Race
     | Array of ArrayEvent.t
     | Cast of CastEvent.t
-    | Unknown
+    | Unknown of string
+    | Debug of string
+
+  let to_string e =
+    match e with
+    | Behavior _ -> "behavior"
+    | Integer _ -> "integer"
+    | Race -> "race"
+    | Array _ -> "array"
+    | Cast _ -> "cast"
+    | Unknown msg -> "unknown"
+    | Debug msg -> "debug"
+
+  let should_warn e =
+    get_bool ("dbg.warn." ^ (to_string e))
 
   let show e =
     match e with
@@ -77,31 +91,47 @@ struct
     | Race -> "[Race]"
     | Array _ -> "[Array]"
     | Cast _ -> "[Cast]"
-    | Unknown -> "[Unknown]"
+    | Unknown msg -> Printf.sprintf "[Unknown] %s" msg
+    | Debug msg -> Printf.sprintf "[Debug] %s" msg
 end
 
 module Certainty = struct
   type t = May | Must
 
+  let to_string e =
+    match e with
+    | May -> "may"
+    | Must -> "must"
+
+  let should_warn e =
+    get_bool ("dbg.warn." ^ (to_string e))
+
   let show c =
     match c with
-    | May -> "MAY"
-    | Must -> "MUST"
+    | May -> "[MAY]"
+    | Must -> "[MUST]"
 end
 
 module LogEvent =
 struct
   type t = {
     event_type : EventType.t;
-    certainty: Certainty.t
+    certainty: Certainty.t option
   }
 
-  let may e = {event_type = e; certainty = Certainty.May}
-  let must e = {event_type = e; certainty = Certainty.Must}
+  let may e = {event_type = e; certainty = Some Certainty.May}
+  let must e = {event_type = e; certainty = Some Certainty.Must}
+  let debug msg = {event_type = EventType.Debug msg; certainty = None}
+
+  let should_warn (e:t) = EventType.should_warn e.event_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
 
   let create e c = {event_type = e; certainty = c}
   let show {event_type; certainty} =
-    Printf.sprintf "[%s] %s" (Certainty.show certainty) (EventType.show event_type)
+    let certainty_str = match certainty with
+      | Some c -> (Certainty.show c) ^ " "
+      | None -> ""
+    in
+    Printf.sprintf "%s%s" certainty_str (EventType.show event_type)
 end
 
 exception Bailure of string
@@ -229,26 +259,6 @@ let with_context msg = function
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
-let warn ?ctx msg =
-  if !GU.should_warn then begin
-    let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_str_hashtbl msg == false) then
-      begin
-        warn_all msg;
-        Hashtbl.add warn_str_hashtbl msg true
-      end
-  end
-
-let warn_each ?ctx msg =
-  if !GU.should_warn then begin
-    let loc = !Tracing.current_loc in
-    let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
-      begin
-        warn_all msg;
-        Hashtbl.add warn_lin_hashtbl (msg,loc) true
-      end
-  end
 
 (*
 let warn_each_ctx ctx msg = (* cyclic dependency... *)
@@ -259,14 +269,9 @@ let warn_each_ctx ctx msg = (* cyclic dependency... *)
   warn_each (msg ^ " in context " ^ string_of_int (Hashtbl.hash (Obj.obj ctx.context ())))
 *)
 
-let debug msg =
-  if (get_bool "dbg.debug") then warn ("{BLUE}"^msg)
 
-let debug_each msg =
-  if (get_bool "dbg.debug") then warn_each ("{blue}"^msg)
-
-let mywarn ?ctx (log_event: LogEvent.t) =
-  if !GU.should_warn then begin
+let warn ?ctx (log_event: LogEvent.t) =
+  if !GU.should_warn && (LogEvent.should_warn log_event) then begin
     let msg = LogEvent.show log_event in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_str_hashtbl msg == false) then
@@ -276,8 +281,8 @@ let mywarn ?ctx (log_event: LogEvent.t) =
       end
   end
 
-let mywarn_each ?ctx (log_event: LogEvent.t) =
-  if !GU.should_warn then begin
+let warn_each ?ctx (log_event: LogEvent.t) =
+  if !GU.should_warn && (LogEvent.should_warn log_event) then begin
     let loc = !Tracing.current_loc in
     let msg = LogEvent.show log_event in
     let msg = with_context msg ctx in
@@ -288,5 +293,10 @@ let mywarn_each ?ctx (log_event: LogEvent.t) =
       end
   end
 
+let debug msg =
+  if (get_bool "dbg.debug") then warn (LogEvent.debug ("{BLUE}"^msg))
+
+let debug_each msg =
+  if (get_bool "dbg.debug") then warn_each (LogEvent.debug ("{blue}"^msg))
 
 include Tracing
