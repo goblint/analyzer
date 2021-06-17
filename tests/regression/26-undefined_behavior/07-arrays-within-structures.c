@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']" --set dbg.debug true --enable ana.arrayoob --enable ana.int.interval
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']" --set dbg.debug true --enable ana.arrayoob --enable ana.int.interval --enable ana.int.interval --enable ana.int.enums
 // Arrays within structures. Source of sample struct:
 // https://codeforwin.org/2018/07/how-to-declare-initialize-and-access-array-of-structure.html
 #include <stdio.h>
