@@ -564,15 +564,15 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
       | Some true, Some true -> (* Certainly in bounds on both sides.*)
         ()
       | Some true, Some false ->
-        M.mywarn_each (M.LogEvent.must (warn_type M.ArrayOOB.PastEnd))
+        M.warn_each (M.LogEvent.must (warn_type M.ArrayOOB.PastEnd))
       | Some true, None ->
-        M.mywarn_each (M.LogEvent.may (warn_type M.ArrayOOB.PastEnd))
+        M.warn_each (M.LogEvent.may (warn_type M.ArrayOOB.PastEnd))
       | Some false, Some true ->
-        M.mywarn_each (M.LogEvent.must (warn_type M.ArrayOOB.BeforeStart))
+        M.warn_each (M.LogEvent.must (warn_type M.ArrayOOB.BeforeStart))
       | None, Some true ->
-        M.mywarn_each (M.LogEvent.may (warn_type M.ArrayOOB.BeforeStart))
+        M.warn_each (M.LogEvent.may (warn_type M.ArrayOOB.BeforeStart))
       | _ ->
-        M.mywarn_each (M.LogEvent.may (warn_type M.ArrayOOB.Unknown))
+        M.warn_each (M.LogEvent.may (warn_type M.ArrayOOB.Unknown))
     in ()
     else ()
 
