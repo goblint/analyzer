@@ -800,8 +800,8 @@ struct
 
   let refine_with_congruence (intv : t) (cong : (int_t * int_t ) option) : t =
     match intv, cong with
-    | Some (x, y), Some (c, m) -> None (* TODO: implement *)
-    | _ -> cong
+    | Some (x, y), Some (c, m) -> Some (x, y) (* TODO: implement *)
+    | _ -> intv
 
   let refine_with_interval a b = a
   let refine_with_excl_list a b = a
@@ -2302,7 +2302,7 @@ let shift_left ik x y = match x, y with
 
   let refine_with_interval (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
-    | Some (x, y), Some (c, m) -> None (* TODO: implement *)
+    | Some (x, y), Some (c, m) -> Some (c, m) (* TODO: implement *)
     | _ -> cong
 
   let refine_with_congruence a b = a
