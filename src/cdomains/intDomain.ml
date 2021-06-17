@@ -804,7 +804,14 @@ struct
     | _ -> intv
 
   let refine_with_interval a b = a
-  let refine_with_excl_list a b = a
+
+  let refine_with_excl_list (intv : t) (excl : (int_t list) option) : t = match intv, excl with
+    | None, _ -> None
+    | _, None -> None
+    | Some(l, u), Some(ls) ->
+        let l' = (Ints_t.add l (Ints_t.of_int(Bool.to_int(List.mem l ls)))) in
+        let u' = (Ints_t.sub u (Ints_t.of_int(Bool.to_int(List.mem u ls)))) in Some(l', u')
+
   let refine_with_incl_list a b = a
 
 end
