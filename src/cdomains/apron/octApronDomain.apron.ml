@@ -466,10 +466,6 @@ struct
     add_vars_with newd vars;
     newd
 
-  let rec list_length l = match l with
-    | [] -> 0
-    | head::body -> (list_length body) + 1
-
   let remove_all_but_with d xs =
       let is' = get_vars d in
       let vs = List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is' in
@@ -477,7 +473,7 @@ struct
       A.change_environment_with Man.mgr d env false
 
   let remove_all_with d xs =
-    if list_length xs > 0 then
+    if not (List.is_empty xs) then
       (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
       let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
       let existing_vars_int = get_vars d in
