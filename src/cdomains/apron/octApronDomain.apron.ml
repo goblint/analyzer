@@ -56,78 +56,6 @@ struct
     | _ -> raise Invalid_CilExpToLhost
 
 
-  let add_t' x y =
-    match x, y with
-    | None, x | x, None -> x
-    | Some x, Some y -> Some (x+y)
-
-  let neg_t' = function Some x -> Some (-x) | None -> None
-
-  let negate (xs,x,r) =
-    let xs' = List.map (fun (x,y) -> (x, -y)) xs in
-    xs', neg_t' x, r
-
-  type lexpr = (string * int) list
-
-  let rec cil_exp_to_lexp: exp -> lexpr * int option * Lincons0.typ =
-    let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
-      let add_one xs (var_name, var_coefficient) =
-        let found_var_in_list var_name var_coeff_list =
-          let find found_already (var_name_in_list, _)  =
-            found_already || (String.compare var_name var_name_in_list) == 0 in
-          List.fold_left find false var_coeff_list in
-        if (found_var_in_list var_name xs) then
-          List.modify var_name (fun x -> x + var_coefficient) xs
-        else (var_name, var_coefficient)::xs in
-      match r, r' with
-      | EQ, EQ -> List.fold_left add_one xs ys, add_t' x y, EQ
-      | _ -> raise Invalid_CilExpToLexp
-    in
-    function
-    | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-      [v.vname, 1], None, EQ
-    | Const (CInt64 (i,_,_)) ->
-      [], Some (Int64.to_int i), EQ
-    | UnOp  (Neg ,e,_) ->
-      negate (cil_exp_to_lexp e)
-    | BinOp (PlusA,e1,e2,_) ->
-      add (cil_exp_to_lexp e1) (cil_exp_to_lexp e2)
-    | BinOp (MinusA,e1,e2,_) ->
-      add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2))
-    | BinOp (Mult,e1,e2,_) ->
-      begin match cil_exp_to_lexp e1, cil_exp_to_lexp e2 with
-        | ([], Some x, EQ), ([], Some y, EQ) -> ([], Some (x*y), EQ)
-        | (xs, None, EQ), ([], Some y, EQ) | ([], Some y, EQ), (xs, None, EQ) ->
-          (List.map (function (n, x) -> n, x*y) xs, None, EQ)
-        | _ -> raise Invalid_CilExpToLexp
-      end
-    | BinOp (r,e1,e2,_) ->
-      let comb r = function
-        | (xs,y,EQ) -> (xs,y,r)
-        | _ -> raise Invalid_CilExpToLexp
-      in
-      begin match r with
-        | Lt -> comb SUP   (add (cil_exp_to_lexp e2) (negate (cil_exp_to_lexp e1)))
-        | Gt -> comb SUP   (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | Le -> comb SUPEQ (add (cil_exp_to_lexp e2) (negate (cil_exp_to_lexp e1)))
-        | Ge -> comb SUPEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | Eq -> comb EQ    (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | Ne -> comb DISEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | _ -> raise Invalid_CilExpToLexp
-      end
-    | CastE (TInt(new_ikind, _), e) ->
-      let new_exp = (match e with
-      (* Do a cast of int constants *)
-      | Const (CInt64 (value, old_ikind, _)) -> Cil.kinteger64 new_ikind (IntDomain.Integers.cast_to new_ikind value)
-      (* Ignore other casts *)
-      | Lval (Var varinfo, _) -> e (* TODO: handle variable casts *)
-      |_ -> e)
-      in
-      cil_exp_to_lexp new_exp
-    | _ ->
-      raise Invalid_CilExpToLexp
-
-
   let inverse_comparator comparator =
     match comparator with
     | EQ -> DISEQ
@@ -135,28 +63,6 @@ struct
     | SUPEQ -> SUP
     | SUP -> SUPEQ
     | EQMOD x -> EQMOD x
-
-  let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
-    let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
-    let var_name_coeff_pairs, constant, comparator = if should_negate then negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) else var_name_coeff_pairs, constant, comparator in
-    let apron_var_coeff_pairs = List.map (function (x, y) -> Coeff.s_of_int y, Var.of_string x) var_name_coeff_pairs in
-    let apron_constant = match constant with Some x -> Some (Coeff.s_of_int x) | None -> None in
-    let all_variables_known_to_environment = List.fold_left (fun known (_,var) -> known && (Environment.mem_var environment var)) true apron_var_coeff_pairs in
-    if not(all_variables_known_to_environment) then None, None
-    else
-      begin
-        let linexpr1 = Linexpr1.make environment in
-        Linexpr1.set_list linexpr1 apron_var_coeff_pairs apron_constant;
-        Some linexpr1, Some comparator
-      end
-
-  let cil_exp_to_apron_linecons environment cil_exp should_negate =
-    (* ignore (Pretty.printf "cil_exp_to_apron_linecons exptolinecons '%a'\n" d_plainexp cil_exp); *)
-    let linexpr1, comparator = cil_exp_to_apron_linexpr1 environment cil_exp should_negate in
-    match linexpr1, comparator with
-    | Some linexpr1, Some comparator ->
-      Some (Lincons1.make linexpr1 comparator)
-    | _ -> None
 
   (* Converts CIL expressions to Apron expressions of level 1 *)
   let cil_exp_to_apron_texpr1 env lhost =
@@ -273,8 +179,6 @@ struct
 
   (* Apron expressions of level 1 *)
   open Texpr1
-  (* Apron linear constraints of level 1 *)
-  open Lincons1
 
   let typesort =
     let f is v =
