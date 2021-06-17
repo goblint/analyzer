@@ -2224,13 +2224,24 @@ struct
         newst
       end
 
+  (* when the value is definitely a non-symbolic one, return true. Might return false in some cases even if the value is "concrete" *)
+  let is_non_symbolic (v: VD.t): bool =
+    match v with
+    | `Int _ | `Bot | `Top -> true
+    | _ -> true
+
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
-        let addresses = Stats.time "collect_funargs" (collect_funargs ask globs st) exps in
         let writtenLvals = ask.f (Q.WrittenLvals f) in
-        Stats.time "update_reachable_written_vars" (update_reachable_written_vars ask addresses globs st fun_st) writtenLvals
+        if Q.LS.is_bot writtenLvals
+          then
+            (* No need to update if the called function did not write anything *)
+            st
+          else
+            let addresses = Stats.time "collect_funargs" (collect_funargs ask globs st) exps in
+            Stats.time "update_reachable_written_vars" (update_reachable_written_vars ask addresses globs st fun_st) writtenLvals
       in
       let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) st.cpa [] in
       (* This function does miscellaneous things, but the main task was to give the
