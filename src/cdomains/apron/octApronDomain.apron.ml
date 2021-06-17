@@ -28,105 +28,11 @@ struct
   let eenv = Environment.make [||] [||]
 end
 
-(* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
-module A = Abstract1
-
-module D =
+(** Conversion from CIL expressions to Apron. *)
+module CilExp =
 struct
-  type t = Man.mt A.t
-
-  let name () = "OctApron"
-
-  let topE = A.top    Man.mgr
-  let botE = A.bottom Man.mgr
-
-  let top () = topE Man.eenv
-  let bot () = botE Man.eenv
-  let is_top = A.is_top    Man.mgr
-  let is_bot = A.is_bottom Man.mgr
-
-  let to_yojson x = failwith "TODO implement to_yojson"
-  let invariant _ _ = Invariant.none
-  let tag _ = failwith "Std: no tag"
-  let arbitrary () = failwith "no arbitrary"
-  let relift x = x
-
-  let show (x:t) =
-    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
-
-  let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
-  let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
-  let print_octagon o = print_endline (show o)
-
-  (* Apron can not join two abstract values have different environments.
-  That hapens when we do a join with dead code and for that reason we need
-  to handle joining with bottom manually.
-  A similar if-based structure with is_top and is_bottom is also there for:
-  meet, widen, narrow, equal, leq.*)
-
-  let join x y =
-    let ret = if is_bot x then
-      y
-    else if is_bot y then
-      x
-    else
-      A.join (Man.mgr) x y in
-    ret
-
-  let meet x y =
-    let ret = if is_top x then y else
-    if is_top y then x else
-      A.meet Man.mgr x y in
-    ret
-
-  let widen x y =
-    let ret = if is_bot x then
-      y
-    else if is_bot y then
-      x
-    else
-      A.widening (Man.mgr) x y in
-    ret
-
-  let narrow = meet
-
-  let equal x y =
-    if is_bot x then is_bot y
-    else if is_bot y then false
-    else if is_top x then is_top y
-    else if is_top y then false
-    else A.is_eq Man.mgr x y
-
-  let leq x y =
-    if is_bot x || is_top y then true else
-    if is_bot y || is_top x then false else
-      A.is_leq (Man.mgr) x y
-
-  let hash (x:t) = Hashtbl.hash x
-  let compare (x:t) y = Stdlib.compare x y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
-  let pretty () (x:t) = text (show x)
-  let pretty_diff () (x,y) = text "pretty_diff"
-
-  (* Apron expressions of level 1 *)
-  open Texpr1
-  (* Apron linear constraints of level 1 *)
   open Lincons1
-
-  let typesort =
-    let f is v =
-      if isIntegralType v.vtype then
-        if GobConfig.get_bool "ana.octapron.no_uints" then
-          if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
-            v.vname::is
-          else
-            is
-        else
-          v.vname::is
-      else
-        is
-    in
-    List.fold_left f []
+  open Texpr1
 
   let rec cil_exp_to_cil_lhost =
     function
@@ -250,6 +156,112 @@ struct
       Some (Lincons1.make linexpr1 comparator)
     | _ -> None
 
+  (* Converts CIL expressions to Apron expressions of level 1 *)
+  let cil_exp_to_apron_texpr1 env lhost =
+    (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
+    Texpr1.of_expr env lhost (* TODO: why doesn't this do anything? lhost is already Texpr1.expr... *)
+end
+
+(* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
+module A = Abstract1
+
+module D =
+struct
+  type t = Man.mt A.t
+
+  let name () = "OctApron"
+
+  let topE = A.top    Man.mgr
+  let botE = A.bottom Man.mgr
+
+  let top () = topE Man.eenv
+  let bot () = botE Man.eenv
+  let is_top = A.is_top    Man.mgr
+  let is_bot = A.is_bottom Man.mgr
+
+  let to_yojson x = failwith "TODO implement to_yojson"
+  let invariant _ _ = Invariant.none
+  let tag _ = failwith "Std: no tag"
+  let arbitrary () = failwith "no arbitrary"
+  let relift x = x
+
+  let show (x:t) =
+    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
+
+  let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
+  let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
+  let print_octagon o = print_endline (show o)
+
+  (* Apron can not join two abstract values have different environments.
+     That hapens when we do a join with dead code and for that reason we need
+     to handle joining with bottom manually.
+     A similar if-based structure with is_top and is_bottom is also there for:
+     meet, widen, narrow, equal, leq.*)
+
+  let join x y =
+    let ret = if is_bot x then
+        y
+      else if is_bot y then
+        x
+      else
+        A.join (Man.mgr) x y in
+    ret
+
+  let meet x y =
+    let ret = if is_top x then y else
+      if is_top y then x else
+        A.meet Man.mgr x y in
+    ret
+
+  let widen x y =
+    let ret = if is_bot x then
+        y
+      else if is_bot y then
+        x
+      else
+        A.widening (Man.mgr) x y in
+    ret
+
+  let narrow = meet
+
+  let equal x y =
+    if is_bot x then is_bot y
+    else if is_bot y then false
+    else if is_top x then is_top y
+    else if is_top y then false
+    else A.is_eq Man.mgr x y
+
+  let leq x y =
+    if is_bot x || is_top y then true else
+    if is_bot y || is_top x then false else
+      A.is_leq (Man.mgr) x y
+
+  let hash (x:t) = Hashtbl.hash x
+  let compare (x:t) y = Stdlib.compare x y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
+  let pretty () (x:t) = text (show x)
+  let pretty_diff () (x,y) = text "pretty_diff"
+
+  (* Apron expressions of level 1 *)
+  open Texpr1
+  (* Apron linear constraints of level 1 *)
+  open Lincons1
+
+  let typesort =
+    let f is v =
+      if isIntegralType v.vtype then
+        if GobConfig.get_bool "ana.octapron.no_uints" then
+          if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
+            v.vname::is
+          else
+            is
+        else
+          v.vname::is
+      else
+        is
+    in
+    List.fold_left f []
+
   (* Assert an invariant *)
   (* Gives the result of the meet operation of the given octagon
   with the linear constraints coming from the given expression *)
@@ -272,7 +284,7 @@ struct
           assert_lt *)
       | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
-        let linecons = cil_exp_to_apron_linecons (A.env d) x b in
+        let linecons = CilExp.cil_exp_to_apron_linecons (A.env d) x b in
         (* Linear constraints are optional, so we check if there are any. *)
         match linecons with
         | Some linecons ->
@@ -356,11 +368,6 @@ struct
     let l = List.map (fun v -> Environment.mem_var env v) (get_vars_from_expr exp []) in
     not (List.mem false l)
 
-  (* Converts CIL expressions to Apron expressions of level 1 *)
-  let cil_exp_to_apron_texpr1 env lhost =
-    (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
-      Texpr1.of_expr env lhost
-
   let is_chosen (v:string) =
     let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
     if List.length oct_vars == 0 then
@@ -398,11 +405,11 @@ struct
       begin try
           let exp = Cil.constFold false e in
           let env = A.env d in
-          let conversion_res = cil_exp_to_cil_lhost exp in
+          let conversion_res = CilExp.cil_exp_to_cil_lhost exp in
           let can_do = vars_from_expr_in_env env conversion_res in
           if can_do then
             A.assign_texpr_with Man.mgr d (Var.of_string v)
-              (cil_exp_to_apron_texpr1 env conversion_res) None
+              (CilExp.cil_exp_to_apron_texpr1 env conversion_res) None
         with Invalid_CilExpToLhost ->
           A.forget_array_with Man.mgr d [|Var.of_string v|] false
           (* | Manager.Error q -> *)
@@ -433,11 +440,11 @@ struct
     begin try
         let exp = Cil.constFold false e in
         let env = A.env d in
-        let conversion_res = cil_exp_to_cil_lhost exp in
+        let conversion_res = CilExp.cil_exp_to_cil_lhost exp in
         let can_do = vars_from_expr_in_env env conversion_res in
         if can_do then
           A.substitute_texpr_with Man.mgr d (Var.of_string v)
-            (cil_exp_to_apron_texpr1 env conversion_res) None
+            (CilExp.cil_exp_to_apron_texpr1 env conversion_res) None
       with Invalid_CilExpToLhost ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
         (* | Manager.Error q ->
@@ -513,7 +520,7 @@ struct
         end
       | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
     try
-      let linexpr1, _  = cil_exp_to_apron_linexpr1 (A.env d) cil_exp false in
+      let linexpr1, _  = CilExp.cil_exp_to_apron_linexpr1 (A.env d) cil_exp false in
       match linexpr1 with
       | Some linexpr1 -> (
           let interval_of_variable = A.bound_linexpr Man.mgr d linexpr1 in
