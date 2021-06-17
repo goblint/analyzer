@@ -22,7 +22,7 @@ int main() {
 	assert (c == 4); // UNKNOWN!
 	assert (d == 12); // UNKNOWN
 	assert (a == 6); // UNKNOWN
-	assert (b == 0); // UNKNOWN
+	assert (b == 0);
 
 	return 0;
 }

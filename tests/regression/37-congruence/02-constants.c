@@ -22,7 +22,6 @@ int main() {
     assert ((zero & zero) == 0); assert ((zero & one) == 0); assert ((one & zero) == 0); assert ((one & one) == 1);
     assert ((zero | zero) == 0); assert ((zero | one) == 1); assert ((one | zero) == 1); assert ((one | one) == 1);
     assert ((zero ^ zero) == 0); assert ((zero ^ one) == 1); assert ((one ^ zero) == 1); assert ((one ^ one) == 0);
-    assert (~zero == -1); assert (~uns_z == 4294967295);
 
     // shift-left
     unsigned char m = 136;
