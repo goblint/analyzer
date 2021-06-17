@@ -2539,7 +2539,7 @@ module IntDomTupleImpl = struct
     map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.lognot ik)}
 
   let cast_to ?torg ?no_ov t =
-    mapovc t {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.cast_to ?torg t)}
+    mapovc t {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
 
   (* fp: projections *)
   let equal_to i x =
@@ -2585,19 +2585,19 @@ module IntDomTupleImpl = struct
 
   let add ?no_ov ik =
     map2ovc ik
-      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.add ik)}
+      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.add ?no_ov ik)}
 
   let sub ?no_ov ik =
     map2ovc ik
-      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.sub ik)}
+      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.sub ?no_ov ik)}
 
   let mul ?no_ov ik =
     map2ovc ik
-      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.mul ik)}
+      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.mul ?no_ov ik)}
 
   let div ?no_ov ik =
     map2ovc ik
-      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.div ik)}
+      {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.div ?no_ov ik)}
 
   let rem ik =
     map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.rem ik)}
