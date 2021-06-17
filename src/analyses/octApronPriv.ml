@@ -519,7 +519,7 @@ struct
     (* let (w, p) = st.priv in *)
     (* let p_g = P.find g p in *)
     (* TODO: implement *)
-    let oct' = AD.add_vars st.oct ([g.vname], []) in
+    let oct' = AD.add_vars st.oct [g.vname] in
     let oct' = A.assign_texpr Man.mgr oct' (Var.of_string x.vname) (Texpr1.var (A.env oct') (Var.of_string g.vname)) None in (* TODO: unsound *)
     {st with oct = oct'}
 
@@ -530,7 +530,7 @@ struct
     let p' = P.add g (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     (* TODO: implement *)
-    let oct' = AD.add_vars st.oct ([g.vname], []) in
+    let oct' = AD.add_vars st.oct [g.vname] in
     let oct' = A.assign_texpr Man.mgr oct' (Var.of_string g.vname) (Texpr1.var (A.env oct') (Var.of_string x.vname)) None in (* TODO: unsound? *)
     sideg (global_varinfo ()) (restrict_globals oct');
     {oct = oct'; priv = (w', p')}

@@ -70,12 +70,11 @@ struct
           (MyCFG.getFun ctx.prev_node).slocals
       in
       let f = Cilfacade.getdec f in
-      let is, fs = AD.typesort f.sformals in
+      let is = AD.typesort f.sformals in
       let is = is @ List.map (fun x -> x^"'") is in
-      let fs = fs @ List.map (fun x -> x^"'") fs in
-      let newd = AD.add_vars st.oct (is,fs) in
+      let newd = AD.add_vars st.oct is in
       let formargs = Goblintutil.zip f.sformals args in
-      let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
+      let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
       List.iter (fun (v, e) -> AD.assign_var_with newd (v.vname^"'") e) arith_formals;
       AD.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
       List.iter  (fun (v,_)   -> AD.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
@@ -88,14 +87,13 @@ struct
     if AD.is_bot st.oct then D.bot () else
       let f = Cilfacade.getdec f in
       match r with
-      | Some (Var v, NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
+      | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let nd = AD.forget_all st.oct [v.vname] in
-        let fis,ffs = AD.get_vars st.oct in
+        let fis = AD.get_vars st.oct in
         let fis = List.map Var.to_string fis in
-        let ffs = List.map Var.to_string ffs in
-        let nd' = AD.add_vars fun_st.oct (fis,ffs) in
+        let nd' = AD.add_vars fun_st.oct fis in
         let formargs = Goblintutil.zip f.sformals args in
-        let arith_formals = List.filter (fun (x,_) -> isArithmeticType x.vtype) formargs in
+        let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
         List.iter (fun (v, e) -> AD.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> x.vname^"'") arith_formals in
         AD.remove_all_with nd' vars;
@@ -157,14 +155,14 @@ struct
     if AD.is_bot st.oct then D.bot () else
 
       let nd = match e with
-        | Some e when isArithmeticType (typeOf e) ->
-          let nd = AD.add_vars st.oct (["#ret"],[]) in
+        | Some e when isIntegralType (typeOf e) ->
+          let nd = AD.add_vars st.oct ["#ret"] in
           let () = AD.assign_var_with nd "#ret" e in
           nd
         | None -> AD.topE (A.env st.oct)
-        | _ -> AD.add_vars st.oct (["#ret"],[])
+        | _ -> AD.add_vars st.oct ["#ret"]
       in
-      let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
+      let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
       let vars = List.map (fun x -> x.vname) vars in
       AD.remove_all_with nd vars;
       {st with oct = nd}
@@ -221,7 +219,7 @@ struct
       end
     in
     let e' = visitCilExpr visitor e in
-    let st = {st with oct = AD.add_vars st.oct (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum), [])} in (* add temporary g#in-s *)
+    let st = {st with oct = AD.add_vars st.oct (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum))} in (* add temporary g#in-s *)
     let st' = VH.fold (fun v v_in st ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
         read_global ask getg st v v_in (* g#in = g; *)
@@ -253,7 +251,7 @@ struct
     (* if AD.is_bot st.oct then D.bot () else *)
       match lv with
       (* Lvals which are numbers, have no offset and their address wasn't taken *)
-      | Var v, NoOffset when isArithmeticType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
+      | Var v, NoOffset when isIntegralType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
         if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
         let ask = Analyses.ask_of_ctx ctx in
         let r =
@@ -261,7 +259,7 @@ struct
             assign_with_globals ask ctx.global st v e
           else (
             let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-            let st = {st with oct = AD.add_vars st.oct ([v_out.vname], [])} in (* add temporary g#out *)
+            let st = {st with oct = AD.add_vars st.oct [v_out.vname]} in (* add temporary g#out *)
             let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
             if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
             let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)

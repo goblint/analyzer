@@ -114,30 +114,26 @@ struct
   open Lincons1
 
   let typesort =
-    let f (is,fs) v =
+    let f is v =
       if isIntegralType v.vtype then
         if GobConfig.get_bool "ana.octapron.no_uints" then
           if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
-            (v.vname::is,fs)
+            v.vname::is
           else
-            (is,fs)
+            is
         else
-          (v.vname::is,fs)
-      else if (isArithmeticType v.vtype) && (not (GobConfig.get_bool "ana.octapron.no_floats")) then
-        (is,v.vname::fs)
+          v.vname::is
       else
-        (is,fs)
+        is
     in
-    List.fold_left f ([],[])
+    List.fold_left f []
 
   let rec cil_exp_to_cil_lhost =
     function
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
+    | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
       Var (Var.of_string v.vname)
     | Const (CInt64 (i,_,_)) ->
       Cst (Coeff.s_of_int (Int64.to_int i))
-    | Const (CReal (f,_,_)) ->
-      Cst (Coeff.s_of_float f)
     | UnOp  (Neg ,e,_) ->
       Unop (Neg,cil_exp_to_cil_lhost e,Int,Near)
     | BinOp (PlusA,e1,e2,_) ->
@@ -150,36 +146,24 @@ struct
       Binop (Div,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Zero)
     | BinOp (Mod,e1,e2,_) ->
       Binop (Mod,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | CastE (TFloat (FFloat,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Single,Zero)
-    | CastE (TFloat (FDouble,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Double,Zero)
-    | CastE (TFloat (FLongDouble,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Extended,Zero)
     | CastE (TInt _,e) -> Unop(Cast,cil_exp_to_cil_lhost e,Int,Zero)
     | _ -> raise Invalid_CilExpToLhost
 
 
-  let add_t x y =
-    match x, y with
-    | `int x, `int y -> `int (x+y)
-    | `float x, `float y -> `float (x+.y)
-    | `int x, `float y | `float y, `int x -> `float (float_of_int x+.y)
-
   let add_t' x y =
     match x, y with
-    | `none, x | x, `none -> x
-    | `int x, `int y -> `int (x+y)
-    | `float x, `float y -> `float (x+.y)
-    | `int x, `float y | `float y, `int x -> `float (float_of_int x+.y)
+    | None, x | x, None -> x
+    | Some x, Some y -> Some (x+y)
 
-  let neg_t = function `int x -> `int (-x) | `float x -> `float (0.0-.x)
-  let neg_t' = function `int x -> `int (-x) | `float x -> `float (0.0-.x) | `none -> `none
+  let neg_t' = function Some x -> Some (-x) | None -> None
 
   let negate (xs,x,r) =
-    let xs' = List.map (fun (x,y) -> (x,neg_t y)) xs in
+    let xs' = List.map (fun (x,y) -> (x, -y)) xs in
     xs', neg_t' x, r
 
-  type lexpr = (string * [`int of int | `float of float]) list
+  type lexpr = (string * int) list
 
-  let rec cil_exp_to_lexp =
+  let rec cil_exp_to_lexp: exp -> lexpr * int option * Lincons0.typ =
     let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
       let add_one xs (var_name, var_coefficient) =
         let found_var_in_list var_name var_coeff_list =
@@ -187,19 +171,17 @@ struct
             found_already || (String.compare var_name var_name_in_list) == 0 in
           List.fold_left find false var_coeff_list in
         if (found_var_in_list var_name xs) then
-          List.modify var_name (fun x -> add_t x var_coefficient) xs
+          List.modify var_name (fun x -> x + var_coefficient) xs
         else (var_name, var_coefficient)::xs in
       match r, r' with
       | EQ, EQ -> List.fold_left add_one xs ys, add_t' x y, EQ
       | _ -> raise Invalid_CilExpToLexp
     in
     function
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
-      [v.vname,`int 1], `none, EQ
+    | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
+      [v.vname, 1], None, EQ
     | Const (CInt64 (i,_,_)) ->
-      [], `int (Int64.to_int i), EQ
-    | Const (CReal (f,_,_)) ->
-      [], `float f, EQ
+      [], Some (Int64.to_int i), EQ
     | UnOp  (Neg ,e,_) ->
       negate (cil_exp_to_lexp e)
     | BinOp (PlusA,e1,e2,_) ->
@@ -208,12 +190,9 @@ struct
       add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2))
     | BinOp (Mult,e1,e2,_) ->
       begin match cil_exp_to_lexp e1, cil_exp_to_lexp e2 with
-        | ([], `int x, EQ), ([], `int y, EQ) -> ([], `int (x*y), EQ)
-        | ([], `float x, EQ), ([], `float y, EQ) -> ([], `float (x*.y), EQ)
-        | (xs, `none, EQ), ([], `int y, EQ) | ([], `int y, EQ), (xs, `none, EQ) ->
-          (List.map (function (n,`int x) -> n, `int (x*y) | (n,`float x) -> n, `float (x*.float_of_int y)) xs, `none, EQ)
-        | (xs, `none, EQ), ([], `float y, EQ) | ([], `float y, EQ), (xs, `none, EQ) ->
-          (List.map (function (n,`float x) -> n, `float (x*.y) | (n,`int x) -> (n,`float (float_of_int x*.y))) xs, `none, EQ)
+        | ([], Some x, EQ), ([], Some y, EQ) -> ([], Some (x*y), EQ)
+        | (xs, None, EQ), ([], Some y, EQ) | ([], Some y, EQ), (xs, None, EQ) ->
+          (List.map (function (n, x) -> n, x*y) xs, None, EQ)
         | _ -> raise Invalid_CilExpToLexp
       end
     | BinOp (r,e1,e2,_) ->
@@ -252,8 +231,8 @@ struct
       | EQMOD x -> EQMOD x in
     let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
     let var_name_coeff_pairs, constant, comparator = if should_negate then negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) else var_name_coeff_pairs, constant, comparator in
-    let apron_var_coeff_pairs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) -> Coeff.s_of_float f, Var.of_string x) var_name_coeff_pairs in
-    let apron_constant = match constant with `int x -> Some (Coeff.s_of_int x) | `float f -> Some (Coeff.s_of_float f) | `none -> None in
+    let apron_var_coeff_pairs = List.map (function (x, y) -> Coeff.s_of_int y, Var.of_string x) var_name_coeff_pairs in
+    let apron_constant = match constant with Some x -> Some (Coeff.s_of_int x) | None -> None in
     let all_variables_known_to_environment = List.fold_left (fun known (_,var) -> known && (Environment.mem_var environment var)) true apron_var_coeff_pairs in
     if not(all_variables_known_to_environment) then None, None
     else
@@ -316,7 +295,7 @@ struct
   let assert_op_inv d x b =
     (* if assert(x) then convert it to assert(x != 0) *)
     let x = match x with
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
+    | Lval (Var v,NoOffset) when isIntegralType v.vtype ->
       BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
     | _ -> x in
     try
@@ -390,12 +369,16 @@ struct
       (* let () = print_endline (String.concat ", " oct_vars) in *)
       List.mem ("\""^v^"\"") oct_vars
 
+  let get_vars d =
+    let xs, ys = Environment.vars (A.env d) in
+    assert (Array.length ys = 0); (* shouldn't ever contain floats *)
+    List.of_enum (Array.enum xs)
+
   let var_in_env (v:string) d =
     if (is_chosen v) then
-      let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
-      let existing_var_names_int = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_int) in
-      let existing_var_names_real = List.map (fun v -> Var.to_string v) (Array.to_list existing_vars_real) in
-      (List.mem v existing_var_names_int) || (List.mem v existing_var_names_real)
+      let existing_vars_int = get_vars d in
+      let existing_var_names_int = List.map (fun v -> Var.to_string v) existing_vars_int in
+      List.mem v existing_var_names_int
     else
       false
 
@@ -463,24 +446,19 @@ struct
            raise (Manager.Error q) *)
     end
 
-  let get_vars d =
-    let xs, ys = Environment.vars (A.env d) in
-    List.of_enum (Array.enum xs), List.of_enum (Array.enum ys)
-
-  let add_vars_with newd (newis, newfs) =
+  let add_vars_with newd newis =
+    (* TODO: why is this necessary? *)
     let rec remove_duplicates list =
       match list with
       | [] -> []
       | head::tail -> head::(remove_duplicates (List.filter (fun x -> x <> head) tail)) in
-    let oldis, oldfs = get_vars newd in
-    let oldvs = oldis@oldfs in
+    let oldis = get_vars newd in
     let environment = (A.env newd) in
     let newis = remove_duplicates newis in
-    let newfs = remove_duplicates newfs in
-    let cis = List.filter (fun x -> not (List.mem x oldvs) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in
-    let cfs = List.filter (fun x -> not (List.mem x oldvs) && (not (Environment.mem_var environment x))) (List.map Var.of_string newfs) in
-    let cis, cfs = Array.of_enum (List.enum cis), Array.of_enum (List.enum cfs) in
-    let newenv = Environment.add environment cis cfs in
+    (* why is this not done by remove_duplicates already? *)
+    let cis = List.filter (fun x -> not (List.mem x oldis) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in (* TODO: why is the mem_var check necessary? *)
+    let cis = Array.of_enum (List.enum cis) in
+    let newenv = Environment.add environment cis [||] in
     A.change_environment_with Man.mgr newd newenv false
 
   let add_vars d vars =
@@ -501,18 +479,17 @@ struct
     | head::body -> (list_length body) + 1
 
   let remove_all_but_with d xs =
-      let is', fs' = get_vars d in
-      let vs = List.append (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is')
-          (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) fs') in
+      let is' = get_vars d in
+      let vs = List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is' in
       let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
       A.change_environment_with Man.mgr d env false
 
   let remove_all_with d xs =
     if list_length xs > 0 then
-      (* let vars = List.filter (fun v -> isArithmeticType v.vtype) xs in *)
+      (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
       let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
-      let (existing_vars_int, existing_vars_real) = Environment.vars (A.env d) in
-      let vars_filtered = List.filter (fun elem -> (List.mem elem (Array.to_list existing_vars_int)) || (List.mem elem (Array.to_list existing_vars_int))) (Array.to_list vars) in
+      let existing_vars_int = get_vars d in
+      let vars_filtered = List.filter (fun elem -> List.mem elem existing_vars_int) (Array.to_list vars) in
       let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
       A.change_environment_with Man.mgr d env false
 
@@ -747,7 +724,7 @@ struct
 
   let add_vars_int d vs =
     (* TODO: add_vars which takes Var arguments instead *)
-    add_vars d (List.map Var.to_string vs, [])
+    add_vars d (List.map Var.to_string vs)
 
   let remove_vars d vs =
     (* TODO: remove_all which takes Var arguments instead *)
