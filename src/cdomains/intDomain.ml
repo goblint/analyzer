@@ -2293,13 +2293,14 @@ let shift_left ik x y = match x, y with
   let refine_with_interval (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
-        let rcx = x +: (Ints_t.rem (c -: x) (abs(m))) in
-        let lcy = y -: (Ints_t.rem (y -: c) (abs(m))) in
-        if m =: Ints_t.zero && (c <: x || c >: y) then None
-        else if m =: Ints_t.zero then Some (c, Ints_t.zero)  (* ToDo: redundant? *)
-        else if rcx >: lcy then None
-        else if rcx =: lcy then Some (rcx, Ints_t.zero)
-        else cong
+       if m =: Ints_t.zero then
+         if (c <: x || c >: y) then None else Some (c, Ints_t.zero)
+       else
+         let rcx = x +: ((c -: x) %: abs(m)) in
+         let lcy = y -: ((y -: c) %: abs(m)) in
+         if rcx >: lcy then None
+         else if rcx =: lcy then Some (rcx, Ints_t.zero)
+         else cong
     | _ -> cong
 
   let refine_with_congruence a b = a
