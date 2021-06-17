@@ -798,9 +798,19 @@ struct
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
   let relift x = x
 
+  let abs x = let r = Ints_t.neg x
+   in if Ints_t.compare x r < 0 then r else x
+
   let refine_with_congruence (intv : t) (cong : (int_t * int_t ) option) : t =
     match intv, cong with
-    | Some (x, y), Some (c, m) -> Some (x, y) (* TODO: implement *)
+    | Some (x, y), Some (c, m) ->
+        if m = Ints_t.zero && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
+        else if m = Ints_t.zero then Some (c, c)
+        else let rcx = Ints_t.add x (Ints_t.rem (Ints_t.sub c x) (abs(m))) in
+             let lcy = Ints_t.sub y (Ints_t.rem (Ints_t.sub y c) (abs(m))) in
+             if Ints_t.compare rcx lcy > 0 then None
+             else if Ints_t.compare rcx lcy = 0 then Some (rcx, rcx)
+             else Some (rcx, lcy)
     | _ -> intv
 
   let refine_with_interval a b = a
@@ -811,7 +821,7 @@ struct
     | Some(l, u), Some(ls) ->
         let l' = (Ints_t.add l (Ints_t.of_int(Bool.to_int(List.mem l ls)))) in
         let u' = (Ints_t.sub u (Ints_t.of_int(Bool.to_int(List.mem u ls)))) in Some(l', u')
-
+        
   let refine_with_incl_list a b = a
 
 end
