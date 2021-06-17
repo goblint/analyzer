@@ -2228,7 +2228,7 @@ struct
   let is_non_symbolic (v: VD.t): bool =
     match v with
     | `Int _ | `Bot | `Top -> true
-    | _ -> true
+    | _ -> false
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
@@ -2264,14 +2264,18 @@ struct
       let return_val =
         if CPA.mem (return_varinfo ()) fun_st.cpa
         then
+          let return_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None in
           if GobConfig.get_bool "ana.library" then
-            let ask = Analyses.ask_of_ctx ctx in
-            let reachable_addresses = collect_funargs ask ctx.global st args in
-            let reachable_addresses = (collect_funargs ask ctx.global st globals)@reachable_addresses in
-            let res = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses in
-            Tuple2.first res
+            if is_non_symbolic return_val then
+              return_val
+            else
+              let ask = Analyses.ask_of_ctx ctx in
+              let reachable_addresses = collect_funargs ask ctx.global st args in
+              let reachable_addresses = (collect_funargs ask ctx.global st globals)@reachable_addresses in
+              let res = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses in
+              Tuple2.first res
           else
-            get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
+            return_val
         else VD.top ()
       in
       let st = if get_bool "ana.library"
