@@ -21,13 +21,6 @@ struct
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
 
-
-  let rec print_list_exp myList = match myList with
-    | [] -> print_endline "End!"
-    | head::body ->
-      AD.print_expression head;
-      print_list_exp body
-
   let rec get_vnames_list exp = match exp with
     | Lval lval ->
       let lhost, offset = lval in

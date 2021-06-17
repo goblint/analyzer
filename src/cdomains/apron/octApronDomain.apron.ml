@@ -188,10 +188,6 @@ struct
   let show (x:t) =
     Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
 
-  let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
-  let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
-  let print_octagon o = print_endline (show o)
-
   (* Apron can not join two abstract values have different environments.
      That hapens when we do a join with dead code and for that reason we need
      to handle joining with bottom manually.
@@ -469,14 +465,6 @@ struct
     let newd = A.copy Man.mgr d in
     add_vars_with newd vars;
     newd
-
-  let rec print_list_string l = match l with
-    | [] -> print_endline "This is the end of the string list!"
-    | head::body ->
-    begin
-    print_endline head;
-    print_list_string body
-    end
 
   let rec list_length l = match l with
     | [] -> 0
