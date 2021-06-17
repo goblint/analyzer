@@ -127,14 +127,16 @@ struct
     | _ ->
       raise Invalid_CilExpToLexp
 
+
+  let inverse_comparator comparator =
+    match comparator with
+    | EQ -> DISEQ
+    | DISEQ -> EQ
+    | SUPEQ -> SUP
+    | SUP -> SUPEQ
+    | EQMOD x -> EQMOD x
+
   let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
-    let inverse_comparator comparator =
-      match comparator with
-      | EQ -> DISEQ
-      | DISEQ -> EQ
-      | SUPEQ -> SUP
-      | SUP -> SUPEQ
-      | EQMOD x -> EQMOD x in
     let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
     let var_name_coeff_pairs, constant, comparator = if should_negate then negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) else var_name_coeff_pairs, constant, comparator in
     let apron_var_coeff_pairs = List.map (function (x, y) -> Coeff.s_of_int y, Var.of_string x) var_name_coeff_pairs in
@@ -160,6 +162,40 @@ struct
   let cil_exp_to_apron_texpr1 env lhost =
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
     Texpr1.of_expr env lhost (* TODO: why doesn't this do anything? lhost is already Texpr1.expr... *)
+
+  let rec texpr1_all_vars_in_env env = function
+    | Cst _ -> true
+    | Var var -> Environment.mem_var env var
+    | Unop (_, e, _, _) -> texpr1_all_vars_in_env env e
+    | Binop (_, e1, e2, _, _) -> texpr1_all_vars_in_env env e1 && texpr1_all_vars_in_env env e2
+
+  let to_tcons1 env e negate =
+    let (texpr1_plus, texpr1_minus, typ) =
+      match e with
+      | BinOp (r, e1, e2, _) ->
+        let texpr1_1 = cil_exp_to_cil_lhost e1 in
+        let texpr1_2 = cil_exp_to_cil_lhost e2 in
+        begin match r with
+          | Lt -> (texpr1_2, texpr1_1, SUP)
+          | Gt -> (texpr1_1, texpr1_2, SUP)
+          | Le -> (texpr1_2, texpr1_1, SUPEQ)
+          | Ge -> (texpr1_1, texpr1_2, SUPEQ)
+          | Eq -> (texpr1_1, texpr1_2, EQ)
+          | Ne -> (texpr1_1, texpr1_2, DISEQ)
+          | _ -> raise Invalid_CilExpToLhost
+        end
+      | _ -> raise Invalid_CilExpToLhost
+    in
+    let (texpr1_plus, texpr1_minus, typ) =
+      if negate then
+        (texpr1_minus, texpr1_plus, inverse_comparator typ)
+      else
+        (texpr1_plus, texpr1_minus, typ)
+    in
+    let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
+    if not (texpr1_all_vars_in_env env texpr1') then
+      raise Invalid_CilExpToLhost;
+    Tcons1.make (cil_exp_to_apron_texpr1 env texpr1') typ
 end
 
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
@@ -277,23 +313,19 @@ struct
           assert_lt *)
       | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
-        let linecons = CilExp.cil_exp_to_apron_linecons (A.env d) x b in
-        (* Linear constraints are optional, so we check if there are any. *)
-        match linecons with
-        | Some linecons ->
-          (* Get the underlying linear constraint of level 0.
-          Modifying the constraint of level 0 (not advisable)
-          modifies correspondingly the linear constraint and conversely,
-          except for changes of environments *)
-          let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
-                  ; array_env = A.env d
-                  }
-          in
-          (* We perform a meet of the current octagon with the linear constraints
-          that come from the expression we wish to assert. *)
-          A.meet_lincons_array Man.mgr d ea
-        | None -> d
-    with Invalid_CilExpToLexp -> d
+        let tcons1 = CilExp.to_tcons1 (A.env d) x b in
+        (* Get the underlying linear constraint of level 0.
+           Modifying the constraint of level 0 (not advisable)
+           modifies correspondingly the linear constraint and conversely,
+           except for changes of environments *)
+        let ea = { Tcons1.tcons0_array = [|Tcons1.get_tcons0 tcons1 |]
+                 ; array_env = A.env d
+                 }
+        in
+        (* We perform a meet of the current octagon with the linear constraints
+           that come from the expression we wish to assert. *)
+        A.meet_tcons_array Man.mgr d ea
+    with Invalid_CilExpToLhost -> d
 
   (* Creates the opposite invariant and assters it *)
   (* TODO: why is this necessary if assert_inv has boolean argument? *)
