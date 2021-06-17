@@ -2302,7 +2302,14 @@ let shift_left ik x y = match x, y with
 
   let refine_with_interval (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
-    | Some (x, y), Some (c, m) -> Some (c, m) (* TODO: implement *)
+    | Some (x, y), Some (c, m) ->
+        let rcx = x +: (Ints_t.rem (c -: x) (abs(m))) in
+        let lcy = y -: (Ints_t.rem (y -: c) (abs(m))) in
+        if m =: Ints_t.zero && (c <: x || c >: y) then None
+        else if m =: Ints_t.zero then Some (c, Ints_t.zero)  (* ToDo: redundant? *)
+        else if rcx >: lcy then None
+        else if rcx =: lcy then Some (rcx, Ints_t.zero)
+        else cong
     | _ -> cong
 
   let refine_with_congruence a b = a
@@ -2437,15 +2444,14 @@ module IntDomTupleImpl = struct
       , opt_map2 (r.f2 (module I4)) ~no_ov xd yd )
 
 
-let r ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with
-    | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.add i (BI.sub p i)) (BI.neg(m))
-      else BI.rem (BI.add i (BI.sub p i)) m
+(*let r ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with*)
+(*    | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.add i (BI.sub p i)) (BI.neg(m))*)
+(*      else BI.rem (BI.add i (BI.sub p i)) m*)
 
-  let l ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with
-    | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.sub i (BI.sub i p)) (BI.neg(m))
-      else BI.rem (BI.sub i (BI.sub i p)) m
+(*let l ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with*)
+(*    | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.sub i (BI.sub i p)) (BI.neg(m))*)
+(*      else BI.rem (BI.sub i (BI.sub i p)) m*)
 
-(*ToDo: Check interval infinity *)
 (*  let refineIntCong ((i1, i2, i3, i4) : I1.t option * I2.t option * I3.t option * I4.t option)*)
 (*      : I1.t option * I2.t option * I3.t option * I4.t option =*)
 (*     match i2, i4 with*)
