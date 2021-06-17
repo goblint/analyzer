@@ -2261,7 +2261,7 @@ struct
           { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
-      let return_val =
+      let return_val () =
         if CPA.mem (return_varinfo ()) fun_st.cpa
         then
           let return_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None in
@@ -2285,7 +2285,7 @@ struct
       let st = add_globals st fun_st in
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cil.typeOfLval lval) return_val
+      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cil.typeOfLval lval) (return_val ())
     in
     Stats.time "Base.combine" (combine_one ctx.local) after
 
