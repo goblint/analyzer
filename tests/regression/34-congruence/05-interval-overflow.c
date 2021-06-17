@@ -1,6 +1,5 @@
-// PARAM: --enable ana.int.interval --disable ana.int.def_exc
+// PARAM: --enable ana.int.interval --enable ana.int.congruence --disable ana.int.def_exc
 // Overflow + underflow information should be passed from the interval domain to congruences
-// TODO Implement underflow + overflow information passing from intervals to congruences and enable congruences + adjust this test if required.
 #include <assert.h>
 #include <stdio.h>
 

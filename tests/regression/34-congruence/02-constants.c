@@ -8,12 +8,6 @@ int main() {
     int c = -1;
     int d = -2;
 
-    assert (a + b == 3); assert (a + d == -1);
-    assert (a * b == 2); assert (b * c == -2);
-    assert (a / b == 0); assert (d / c == 2);
-    assert (b % a == 0); assert (d % c == 0);
-    assert (-a == -1); assert (-d == 2);
-
     // logical operators
     int zero = 0;
     int one = 1;

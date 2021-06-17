@@ -1,6 +1,5 @@
-// PARAM: --disable ana.int.def_exc --enable ana.int.interval
+// PARAM: --enable ana.int.congruence --enable ana.int.interval --disable ana.int.def_exc
 // Ensures that the cast_to function handles casting for congruences correctly.
-// TODO: Implement appropriate cast_to function, enable for congruences only and adjust test if necessary.
 #include <assert.h>
 #include <stdio.h>
 

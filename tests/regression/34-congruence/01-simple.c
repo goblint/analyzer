@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.congruence --disable ana.int.def_exc --disable ana.int.enums
+//PARAM: --enable ana.int.congruence --enable ana.int.interval --disable ana.int.def_exc --disable ana.int.enums
 
 int main() {
 	int a = 1;
@@ -22,7 +22,7 @@ int main() {
 	assert (c == 4); // UNKNOWN!
 	assert (d == 12); // UNKNOWN
 	assert (a == 6); // UNKNOWN
-	assert (b == 0);
+	assert (b == 0); // UNKNOWN
 
 	return 0;
 }
