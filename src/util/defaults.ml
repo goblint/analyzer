@@ -136,7 +136,6 @@ let _ = ()
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
       ; reg Analyses "ana.nullptr"        "false"  "Null Pointer dereferencing check"
       ; reg Analyses "ana.octapron.no_uints"    "false"  "Use OctApron without tracking unsigned integers."
-      ; reg Analyses "ana.octapron.no_floats"   "true"  "Use OctApron without tracking floats."
       ; reg Analyses "ana.octapron.no_signed_overflow" "true" "Assume there will be no signed overflow for OctApron."
       ; reg Analyses "ana.octapron.vars"    "[]"           "Variables tracked by OctApron. Empty list means all are included!"
 
