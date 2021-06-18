@@ -226,7 +226,7 @@ struct
     let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
     A.change_environment_with Man.mgr d env false
 
-  let remove_all_with nd vs =
+  let remove_vars_with nd vs =
     if not (List.is_empty vs) then
       (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
       let vars = Array.of_enum (List.enum vs) in
@@ -235,9 +235,9 @@ struct
       let env = Environment.remove (A.env nd) (Array.of_list vars_filtered) in
       A.change_environment_with Man.mgr nd env false
 
-  let remove_all d vs =
+  let remove_vars d vs =
     let nd = A.copy Man.mgr d in
-    remove_all_with nd vs;
+    remove_vars_with nd vs;
     nd
 
   let copy = A.copy Man.mgr
@@ -247,10 +247,6 @@ struct
 
   let assign_var' d v v' =
     A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
-
-  let remove_vars d vs =
-    (* TODO: remove_all which takes Var arguments instead *)
-    remove_all d vs
 
   let keep_vars d vs =
     let d' = A.copy Man.mgr d in

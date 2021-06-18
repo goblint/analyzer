@@ -74,7 +74,7 @@ struct
       List.iter (fun (v, e) -> AD.assign_var_with newd (v.vname^"'") e) arith_formals;
       AD.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
       List.iter  (fun (v,_)   -> AD.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
-      AD.remove_all_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
+      AD.remove_vars_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
       [st, {st with oct = newd}]
 
 
@@ -91,10 +91,10 @@ struct
         let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
         List.iter (fun (v, e) -> AD.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
-        AD.remove_all_with nd' vars;
+        AD.remove_vars_with nd' vars;
         AD.forget_all_with nd' [v.vname];
         AD.substitute_var_eq_with nd' (Var.to_string return_var) v.vname;
-        AD.remove_all_with nd' [return_var];
+        AD.remove_vars_with nd' [return_var];
         {fun_st with oct = A.unify Man.mgr nd nd'}
       | _ -> {fun_st with oct = AD.topE (A.env st.oct)}
 
@@ -159,7 +159,7 @@ struct
       in
       let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
       let vars = List.map (fun x -> Var.of_string x.vname) vars in
-      AD.remove_all_with nd vars;
+      AD.remove_vars_with nd vars;
       {st with oct = nd}
 
   let body ctx f =
@@ -227,7 +227,7 @@ struct
     let (st', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
     let oct' = AD.assign_var_handling_underflow_overflow st'.oct v e' in (* x = e; *)
-    let oct'' = AD.remove_all oct' (List.map (fun v -> Var.of_string v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    let oct'' = AD.remove_vars oct' (List.map (fun v -> Var.of_string v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     {st' with oct = oct''}
 
   let write_global ask getg sideg st g x =
@@ -259,7 +259,7 @@ struct
             let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
             if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
             let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-            let oct'' = AD.remove_all st'.oct [Var.of_string v_out.vname] in (* remove temporary g#out *)
+            let oct'' = AD.remove_vars st'.oct [Var.of_string v_out.vname] in (* remove temporary g#out *)
             {st' with oct = oct''}
           )
         in
