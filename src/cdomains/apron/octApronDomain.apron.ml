@@ -77,9 +77,11 @@ struct
     Texpr1.of_expr env texpr1_expr
 
   let texpr1_of_cil_exp env e =
+    let e = Cil.constFold false e in
     texpr1_of_texpr1_expr env (texpr1_expr_of_cil_exp e)
 
   let tcons1_of_cil_exp env e negate =
+    let e = Cil.constFold false e in
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
@@ -187,7 +189,6 @@ struct
   let assign_exp_with nd v e =
     if mem_var nd v then (* TODO: shouldn't be necessary *)
       try
-        let e = Cil.constFold false e in (* TODO: move into Convert *)
         let texpr1 = Convert.texpr1_of_cil_exp (A.env nd) e in
         A.assign_texpr_with Man.mgr nd v texpr1 None
       with Convert.Unsupported_CilExp ->
@@ -223,7 +224,6 @@ struct
   let substitute_exp_with nd v e =
     (* TODO: non-_with version? *)
     try
-      let e = Cil.constFold false e in (* TODO: move into Convert *)
       let texpr1 = Convert.texpr1_of_cil_exp (A.env nd) e in
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     with Convert.Unsupported_CilExp ->
@@ -425,7 +425,7 @@ struct
         end
       | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
     try
-      let texpr1 = Convert.texpr1_of_cil_exp (A.env d) (Cil.constFold false cil_exp) in
+      let texpr1 = Convert.texpr1_of_cil_exp (A.env d) cil_exp in
       let interval_of_variable = A.bound_texpr Man.mgr d texpr1 in
       let infimum = get_int_for_apron_scalar interval_of_variable.inf in
       let supremum = get_int_for_apron_scalar interval_of_variable.sup in
