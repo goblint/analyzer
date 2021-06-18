@@ -108,9 +108,136 @@ end
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
-module D =
+(** Convenience operations on A. *)
+module AOps =
 struct
   type t = Man.mt A.t
+
+  let is_chosen (v:string) =
+    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
+    if List.length oct_vars == 0 then
+      true
+    else
+      (* let () = print_endline (String.concat ", " oct_vars) in *)
+      List.mem ("\""^v^"\"") oct_vars
+
+  let get_vars d =
+    let xs, ys = Environment.vars (A.env d) in
+    assert (Array.length ys = 0); (* shouldn't ever contain floats *)
+    List.of_enum (Array.enum xs)
+
+  let var_in_env (v:string) d =
+    if (is_chosen v) then
+      let existing_vars_int = get_vars d in
+      let existing_var_names_int = List.map (fun v -> Var.to_string v) existing_vars_int in
+      List.mem v existing_var_names_int
+    else
+      false
+
+  let assign_var_eq_with d v v' =
+    if var_in_env v d then
+      A.assign_texpr_with Man.mgr d (Var.of_string v)
+        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
+
+  let substitute_var_eq_with d v v' =
+    if var_in_env v d then
+      A.substitute_texpr_with Man.mgr d (Var.of_string v)
+        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
+
+  let assign_var_with d v e =
+    (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
+    if var_in_env v d then
+      begin try
+          let exp = Cil.constFold false e in
+          let env = A.env d in
+          A.assign_texpr_with Man.mgr d (Var.of_string v)
+            (Convert.texpr1_of_cil_exp env exp) None
+        with Convert.Unsupported_CilExp ->
+          A.forget_array_with Man.mgr d [|Var.of_string v|] false
+          (* | Manager.Error q -> *)
+          (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
+          (* ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e); *)
+          (* raise (Manager.Error q) *)
+      end
+
+  let assign_var d v e =
+    if is_chosen v then
+      let newd = A.copy Man.mgr d in
+      assign_var_with newd v e;
+      newd
+    else
+      d
+
+  let forget_all_with d xs =
+    let xs = List.filter (fun elem -> var_in_env elem d) xs in
+    A.forget_array_with Man.mgr d (Array.of_enum (List.enum (List.map Var.of_string xs))) false
+
+  let forget_all d xs =
+    let newd = A.copy Man.mgr d in
+    forget_all_with newd xs;
+    newd
+
+  let substitute_var_with d v e =
+    (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
+    begin try
+        let exp = Cil.constFold false e in
+        let env = A.env d in
+        A.substitute_texpr_with Man.mgr d (Var.of_string v)
+          (Convert.texpr1_of_cil_exp env exp) None
+      with Convert.Unsupported_CilExp ->
+        A.forget_array_with Man.mgr d [|Var.of_string v|] false
+        (* | Manager.Error q ->
+           ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
+           ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
+           raise (Manager.Error q) *)
+    end
+
+  let add_vars_with newd newis =
+    (* TODO: why is this necessary? *)
+    let rec remove_duplicates list =
+      match list with
+      | [] -> []
+      | head::tail -> head::(remove_duplicates (List.filter (fun x -> x <> head) tail)) in
+    let oldis = get_vars newd in
+    let environment = (A.env newd) in
+    let newis = remove_duplicates newis in
+    (* why is this not done by remove_duplicates already? *)
+    let cis = List.filter (fun x -> not (List.mem x oldis) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in (* TODO: why is the mem_var check necessary? *)
+    let cis = Array.of_enum (List.enum cis) in
+    let newenv = Environment.add environment cis [||] in
+    A.change_environment_with Man.mgr newd newenv false
+
+  let add_vars d vars =
+    let newd = A.copy Man.mgr d in
+    add_vars_with newd vars;
+    newd
+
+  let remove_all_but_with d xs =
+    let is' = get_vars d in
+    let vs = List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is' in
+    let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
+    A.change_environment_with Man.mgr d env false
+
+  let remove_all_with d xs =
+    if not (List.is_empty xs) then
+      (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
+      let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
+      let existing_vars_int = get_vars d in
+      let vars_filtered = List.filter (fun elem -> List.mem elem existing_vars_int) (Array.to_list vars) in
+      let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
+      A.change_environment_with Man.mgr d env false
+
+  let remove_all d vars =
+    let newd = A.copy Man.mgr d in
+    remove_all_with newd vars;
+    newd
+
+  let copy = A.copy Man.mgr
+end
+
+module D =
+struct
+  include AOps
 
   let name () = "OctApron"
 
@@ -177,9 +304,6 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
   let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
-
-  (* Apron expressions of level 1 *)
-  open Texpr1
 
   let typesort =
     let f is v =
@@ -286,127 +410,6 @@ struct
         `True
       else
         `Top
-
-  let is_chosen (v:string) =
-    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
-    if List.length oct_vars == 0 then
-      true
-    else
-      (* let () = print_endline (String.concat ", " oct_vars) in *)
-      List.mem ("\""^v^"\"") oct_vars
-
-  let get_vars d =
-    let xs, ys = Environment.vars (A.env d) in
-    assert (Array.length ys = 0); (* shouldn't ever contain floats *)
-    List.of_enum (Array.enum xs)
-
-  let var_in_env (v:string) d =
-    if (is_chosen v) then
-      let existing_vars_int = get_vars d in
-      let existing_var_names_int = List.map (fun v -> Var.to_string v) existing_vars_int in
-      List.mem v existing_var_names_int
-    else
-      false
-
-  let assign_var_eq_with d v v' =
-    if var_in_env v d then
-      A.assign_texpr_with Man.mgr d (Var.of_string v)
-        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
-
-  let substitute_var_eq_with d v v' =
-    if var_in_env v d then
-      A.substitute_texpr_with Man.mgr d (Var.of_string v)
-        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
-
-  let assign_var_with d v e =
-    (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    if var_in_env v d then
-      begin try
-          let exp = Cil.constFold false e in
-          let env = A.env d in
-          A.assign_texpr_with Man.mgr d (Var.of_string v)
-            (Convert.texpr1_of_cil_exp env exp) None
-        with Convert.Unsupported_CilExp ->
-          A.forget_array_with Man.mgr d [|Var.of_string v|] false
-          (* | Manager.Error q -> *)
-          (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
-          (* ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e); *)
-          (* raise (Manager.Error q) *)
-      end
-
-  let assign_var d v e =
-    if is_chosen v then
-      let newd = A.copy Man.mgr d in
-      assign_var_with newd v e;
-      newd
-    else
-      d
-
-  let forget_all_with d xs =
-    let xs = List.filter (fun elem -> var_in_env elem d) xs in
-    A.forget_array_with Man.mgr d (Array.of_enum (List.enum (List.map Var.of_string xs))) false
-
-  let forget_all d xs =
-    let newd = A.copy Man.mgr d in
-    forget_all_with newd xs;
-    newd
-
-  let substitute_var_with d v e =
-    (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    begin try
-        let exp = Cil.constFold false e in
-        let env = A.env d in
-        A.substitute_texpr_with Man.mgr d (Var.of_string v)
-          (Convert.texpr1_of_cil_exp env exp) None
-      with Convert.Unsupported_CilExp ->
-        A.forget_array_with Man.mgr d [|Var.of_string v|] false
-        (* | Manager.Error q ->
-           ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
-           ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
-           raise (Manager.Error q) *)
-    end
-
-  let add_vars_with newd newis =
-    (* TODO: why is this necessary? *)
-    let rec remove_duplicates list =
-      match list with
-      | [] -> []
-      | head::tail -> head::(remove_duplicates (List.filter (fun x -> x <> head) tail)) in
-    let oldis = get_vars newd in
-    let environment = (A.env newd) in
-    let newis = remove_duplicates newis in
-    (* why is this not done by remove_duplicates already? *)
-    let cis = List.filter (fun x -> not (List.mem x oldis) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in (* TODO: why is the mem_var check necessary? *)
-    let cis = Array.of_enum (List.enum cis) in
-    let newenv = Environment.add environment cis [||] in
-    A.change_environment_with Man.mgr newd newenv false
-
-  let add_vars d vars =
-    let newd = A.copy Man.mgr d in
-    add_vars_with newd vars;
-    newd
-
-  let remove_all_but_with d xs =
-      let is' = get_vars d in
-      let vs = List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is' in
-      let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
-      A.change_environment_with Man.mgr d env false
-
-  let remove_all_with d xs =
-    if not (List.is_empty xs) then
-      (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
-      let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
-      let existing_vars_int = get_vars d in
-      let vars_filtered = List.filter (fun elem -> List.mem elem existing_vars_int) (Array.to_list vars) in
-      let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
-      A.change_environment_with Man.mgr d env false
-
-  let remove_all d vars =
-    let newd = A.copy Man.mgr d in
-    remove_all_with newd vars;
-    newd
-
-  let copy = A.copy Man.mgr
 
   let get_int_interval_for_cil_exp d cil_exp =
     let get_int_for_apron_scalar (scalar: Scalar.t) =
