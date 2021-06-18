@@ -183,8 +183,16 @@ struct
       | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
       | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
     in
+    (* Remove Yojson's non-standard extensions to JSON *)
+    let rec transform = function
+      | `Assoc l -> `Assoc (BatList.map (fun (n, v) -> (n, transform v)) l)
+      | ( `List l | `Tuple l ) -> `List (BatList.map transform l)
+      | `Variant (n, None) -> `List [ `String n ]
+      | `Variant (n, Some v) -> `List [ `String n; transform v ]
+      | _ as x -> x
+    in
     let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
+      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (transform (Range.to_yojson v)))
     in
     iter print_one xs
 
@@ -288,7 +296,7 @@ struct
         | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.vid
         | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.vid
       in
-      let p_fun f x = fprintf f "{\n  \"name: \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
+      let p_fun f x = fprintf f "{\n  \"name\": \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
       (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
