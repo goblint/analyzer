@@ -311,11 +311,11 @@ struct
       if isIntegralType v.vtype then
         if GobConfig.get_bool "ana.octapron.no_uints" then
           if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
-            v.vname::is
+            Var.of_string v.vname :: is
           else
             is
         else
-          v.vname::is
+          Var.of_string v.vname :: is
       else
         is
     in

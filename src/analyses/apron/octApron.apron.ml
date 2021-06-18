@@ -66,8 +66,7 @@ struct
       in
       let f = Cilfacade.getdec f in
       let is = AD.typesort f.sformals in
-      let is = is @ List.map (fun x -> x^"'") is in
-      let is = List.map Var.of_string is in
+      let is = is @ List.map (fun x -> Var.of_string ((Var.to_string x)^"'")) is in
       let newd = AD.add_vars st.oct is in
       let formargs = Goblintutil.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
@@ -177,7 +176,6 @@ struct
         ) vars
       in *)
     let vars = AD.typesort vars in
-    let vars = List.map Var.of_string vars in
     {st with oct = AD.add_vars st.oct vars}
 
   let read_global ask getg st g x =
