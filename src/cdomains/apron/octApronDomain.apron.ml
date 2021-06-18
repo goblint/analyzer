@@ -165,10 +165,17 @@ struct
     nd
 
   let keep_vars_with nd vs =
-    let is' = vars nd in
-    let vs = List.filter (fun x -> not (List.mem_cmp Var.compare x vs)) is' in
-    let env = Environment.remove (A.env nd) (Array.of_enum (List.enum vs)) in
-    A.change_environment_with Man.mgr nd env false
+    let env = A.env nd in
+    (* Instead of iterating over all vars in env and doing a linear lookup in vs just to remove them,
+       make a new env with just the desired vs. *)
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    let env' = Environment.make vs' [||] in
+    A.change_environment_with Man.mgr nd env' false
 
   let keep_vars d vs =
     let nd = copy d in
