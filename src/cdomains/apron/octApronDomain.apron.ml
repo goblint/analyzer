@@ -133,19 +133,15 @@ struct
   let mem_var d v = Environment.mem_var (A.env d) v
 
   let add_vars_with nd vs =
-    (* TODO: why is this necessary? *)
-    let rec remove_duplicates list =
-      match list with
-      | [] -> []
-      | head::tail -> head::(remove_duplicates (List.filter (fun x -> not (Var.equal x head)) tail)) in
-    let oldis = vars nd in
-    let environment = (A.env nd) in
-    let newis = remove_duplicates vs in
-    (* why is this not done by remove_duplicates already? *)
-    let cis = List.filter (fun x -> not (List.mem_cmp Var.compare x oldis) && (not (Environment.mem_var environment x))) newis in (* TODO: why is the mem_var check necessary? *)
-    let cis = Array.of_enum (List.enum cis) in
-    let newenv = Environment.add environment cis [||] in
-    A.change_environment_with Man.mgr nd newenv false
+    let env = A.env nd in
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> not (Environment.mem_var env v))
+      |> Array.of_enum
+    in
+    let env' = Environment.add env vs' [||] in
+    A.change_environment_with Man.mgr nd env' false
 
   let add_vars d vs =
     let nd = copy d in
