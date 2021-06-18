@@ -149,13 +149,15 @@ struct
     nd
 
   let remove_vars_with nd vs =
-    if not (List.is_empty vs) then
-      (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
-      let vars' = Array.of_enum (List.enum vs) in
-      let existing_vars_int = vars nd in
-      let vars_filtered = List.filter (fun elem -> List.mem_cmp Var.compare elem existing_vars_int) (Array.to_list vars') in
-      let env = Environment.remove (A.env nd) (Array.of_list vars_filtered) in
-      A.change_environment_with Man.mgr nd env false
+    let env = A.env nd in
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    let env' = Environment.remove env vs' in
+    A.change_environment_with Man.mgr nd env' false
 
   let remove_vars d vs =
     let nd = copy d in
