@@ -157,7 +157,7 @@ struct
     let x_var = Var.of_string x.vname in
     let oct_local =
       if W.mem g w then
-        AD.assign_var' oct x_var g_local_var
+        AD.assign_var oct x_var g_local_var
       else
         AD.bot ()
     in
@@ -167,7 +167,7 @@ struct
       else if is_unprotected ask g then (
         let g_unprot_var = V.unprot g in
         let oct_unprot = AD.add_vars oct [g_unprot_var] in
-        let oct_unprot = AD.assign_var' oct_unprot x_var g_unprot_var in
+        let oct_unprot = AD.assign_var oct_unprot x_var g_unprot_var in
         (* let oct_unprot' = AD.join oct_local oct_unprot in
         (* unlock *)
         let oct_unprot' = AD.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
@@ -179,7 +179,7 @@ struct
       else (
         let g_prot_var = V.prot g in
         let oct_prot = AD.add_vars oct [g_prot_var] in
-        let oct_prot = AD.assign_var' oct_prot x_var g_prot_var in
+        let oct_prot = AD.assign_var oct_prot x_var g_prot_var in
         AD.join oct_local oct_prot
       )
     in
@@ -194,9 +194,9 @@ struct
     let g_unprot_var = V.unprot g in
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars oct [g_local_var] in
-    let oct_local = AD.assign_var' oct_local g_local_var x_var in
+    let oct_local = AD.assign_var oct_local g_local_var x_var in
     let oct_side = AD.add_vars oct_local [g_unprot_var] in
-    let oct_side = AD.assign_var' oct_side g_unprot_var g_local_var in
+    let oct_side = AD.assign_var oct_side g_unprot_var g_local_var in
     let oct' = oct_side in
     let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
@@ -350,7 +350,7 @@ struct
     let g_var = V.make g in
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars oct [g_var] in
-    let oct_local = AD.assign_var' oct_local x_var g_var in
+    let oct_local = AD.assign_var oct_local x_var g_var in
     (* unlock *)
     let oct_local' =
       if is_unprotected ask g then
@@ -368,7 +368,7 @@ struct
     let g_var = V.make g in
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars oct [g_var] in
-    let oct_local = AD.assign_var' oct_local g_var x_var in
+    let oct_local = AD.assign_var oct_local g_var x_var in
     (* unlock *)
     let oct_side = AD.keep_vars oct_local [g_var] in
     sideg (mutex_global g) oct_side;

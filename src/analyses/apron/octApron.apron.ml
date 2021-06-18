@@ -73,7 +73,7 @@ struct
       let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
       List.iter (fun (v, e) -> AD.assign_exp_with newd (Var.of_string (v.vname^"'")) e) arith_formals;
       AD.forget_vars_with newd (List.map (fun (x,_) -> Var.of_string x.vname) arith_formals);
-      List.iter  (fun (v,_)   -> AD.assign_var_eq_with newd (Var.of_string v.vname) (Var.of_string (v.vname^"'"))) arith_formals;
+      List.iter  (fun (v,_)   -> AD.assign_var_with newd (Var.of_string v.vname) (Var.of_string (v.vname^"'"))) arith_formals;
       AD.remove_vars_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
       [st, {st with oct = newd}]
 
@@ -188,7 +188,7 @@ struct
       let g_var = GV.make g in
       let x_var = Var.of_string x.vname in
       let oct' = AD.add_vars oct [g_var] in
-      let oct' = AD.assign_var' oct' x_var g_var in
+      let oct' = AD.assign_var oct' x_var g_var in
       {st with oct = oct'}
     )
 
@@ -238,7 +238,7 @@ struct
       let g_var = GV.make g in
       let x_var = Var.of_string x.vname in
       let oct' = AD.add_vars oct [g_var] in
-      let oct' = AD.assign_var' oct' g_var x_var in
+      let oct' = AD.assign_var oct' g_var x_var in
       {st with oct = oct'}
     )
 

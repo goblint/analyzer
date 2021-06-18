@@ -205,13 +205,15 @@ struct
     assign_exp_with nd v e;
     nd
 
-  let assign_var_eq_with d v v' =
-    if mem_var d v then (* TODO: shouldn't be necessary *)
-      A.assign_texpr_with Man.mgr d v
-        (Texpr1.of_expr (A.env d) (Var v')) None
+  let assign_var_with nd v v' =
+    if mem_var nd v then (* TODO: shouldn't be necessary *)
+      A.assign_texpr_with Man.mgr nd v
+        (Texpr1.of_expr (A.env nd) (Var v')) None
 
-  let assign_var' d v v' =
-    A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
+  let assign_var d v v' =
+    let nd = copy d in
+    assign_var_with nd v v';
+    nd
 
   let parallel_assign_vars d vs v's =
     let env = A.env d in
