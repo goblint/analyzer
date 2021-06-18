@@ -206,9 +206,9 @@ struct
     nd
 
   let assign_var_eq_with d v v' =
-    if mem_var d (Var.of_string v) then (* TODO: shouldn't be necessary *)
-      A.assign_texpr_with Man.mgr d (Var.of_string v)
-        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
+    if mem_var d v then (* TODO: shouldn't be necessary *)
+      A.assign_texpr_with Man.mgr d v
+        (Texpr1.of_expr (A.env d) (Var v')) None
 
   let assign_var' d v v' =
     A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
