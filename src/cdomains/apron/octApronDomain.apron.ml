@@ -121,6 +121,11 @@ module AOps =
 struct
   type t = Man.mt A.t
 
+  let vars d =
+    let ivs, fvs = Environment.vars (A.env d) in
+    assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    List.of_enum (Array.enum ivs)
+
   let is_chosen (v:string) =
     let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
     if List.length oct_vars == 0 then
@@ -129,14 +134,9 @@ struct
       (* let () = print_endline (String.concat ", " oct_vars) in *)
       List.mem ("\""^v^"\"") oct_vars
 
-  let get_vars d =
-    let xs, ys = Environment.vars (A.env d) in
-    assert (Array.length ys = 0); (* shouldn't ever contain floats *)
-    List.of_enum (Array.enum xs)
-
   let var_in_env (v:string) d =
     if (is_chosen v) then
-      let existing_vars_int = get_vars d in
+      let existing_vars_int = vars d in
       let existing_var_names_int = List.map (fun v -> Var.to_string v) existing_vars_int in
       List.mem v existing_var_names_int
     else
@@ -206,7 +206,7 @@ struct
       match list with
       | [] -> []
       | head::tail -> head::(remove_duplicates (List.filter (fun x -> not (Var.equal x head)) tail)) in
-    let oldis = get_vars nd in
+    let oldis = vars nd in
     let environment = (A.env nd) in
     let newis = remove_duplicates vs in
     (* why is this not done by remove_duplicates already? *)
@@ -221,7 +221,7 @@ struct
     nd
 
   let keep_vars_with nd vs =
-    let is' = get_vars nd in
+    let is' = vars nd in
     let vs = List.filter (fun x -> not (List.mem_cmp Var.compare x vs)) is' in
     let env = Environment.remove (A.env nd) (Array.of_enum (List.enum vs)) in
     A.change_environment_with Man.mgr nd env false
@@ -234,9 +234,9 @@ struct
   let remove_vars_with nd vs =
     if not (List.is_empty vs) then
       (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
-      let vars = Array.of_enum (List.enum vs) in
-      let existing_vars_int = get_vars nd in
-      let vars_filtered = List.filter (fun elem -> List.mem_cmp Var.compare elem existing_vars_int) (Array.to_list vars) in
+      let vars' = Array.of_enum (List.enum vs) in
+      let existing_vars_int = vars nd in
+      let vars_filtered = List.filter (fun elem -> List.mem_cmp Var.compare elem existing_vars_int) (Array.to_list vars') in
       let env = Environment.remove (A.env nd) (Array.of_list vars_filtered) in
       A.change_environment_with Man.mgr nd env false
 

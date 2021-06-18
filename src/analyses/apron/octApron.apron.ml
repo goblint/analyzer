@@ -85,7 +85,7 @@ struct
       match r with
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let nd = AD.forget_vars st.oct [Var.of_string v.vname] in
-        let fis = AD.get_vars st.oct in
+        let fis = AD.vars st.oct in
         let nd' = AD.add_vars fun_st.oct fis in
         let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
