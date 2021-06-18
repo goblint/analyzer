@@ -183,8 +183,13 @@ struct
     nd
 
   let forget_vars_with nd vs =
-    let xs = List.filter (fun elem -> mem_var nd elem) vs in
-    A.forget_array_with Man.mgr nd (Array.of_enum (List.enum xs)) false
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> mem_var nd v) (* TODO: shouldn't be necessary *)
+      |> Array.of_enum
+    in
+    A.forget_array_with Man.mgr nd vs' false
 
   let forget_vars d vs =
     let nd = copy d in
