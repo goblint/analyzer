@@ -505,7 +505,7 @@ struct
           | _ -> acc
         ) []
       in
-      let to_keep = List.map (fun v -> v.vname) vars in
+      let to_keep = List.map (fun v -> Var.of_string v.vname) vars in
       let oct' = A.copy Man.mgr oct in
       AD.remove_all_but_with oct' to_keep;
       oct'

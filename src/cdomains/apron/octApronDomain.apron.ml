@@ -220,11 +220,11 @@ struct
     add_vars_with nd vs;
     nd
 
-  let remove_all_but_with d xs =
-    let is' = get_vars d in
-    let vs = List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is' in
-    let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
-    A.change_environment_with Man.mgr d env false
+  let remove_all_but_with nd vs =
+    let is' = get_vars nd in
+    let vs = List.filter (fun x -> not (List.mem_cmp Var.compare x vs)) is' in
+    let env = Environment.remove (A.env nd) (Array.of_enum (List.enum vs)) in
+    A.change_environment_with Man.mgr nd env false
 
   let remove_vars_with nd vs =
     if not (List.is_empty vs) then
@@ -251,7 +251,7 @@ struct
   let keep_vars d vs =
     let d' = A.copy Man.mgr d in
     (* TODO: remove_all_but_with which takes Var arguments instead *)
-    remove_all_but_with d' (List.map Var.to_string vs);
+    remove_all_but_with d' vs;
     d'
 
   let parallel_assign_vars d vs v's =
