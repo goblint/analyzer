@@ -93,7 +93,7 @@ struct
         let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
         AD.remove_vars_with nd' vars;
         AD.forget_vars_with nd' [Var.of_string v.vname];
-        AD.substitute_var_eq_with nd' (Var.to_string return_var) v.vname;
+        AD.substitute_var_eq_with nd' return_var (Var.of_string v.vname);
         AD.remove_vars_with nd' [return_var];
         {fun_st with oct = A.unify Man.mgr nd nd'}
       | _ -> {fun_st with oct = AD.topE (A.env st.oct)}
