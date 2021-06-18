@@ -176,13 +176,13 @@ struct
     else
       d
 
-  let forget_all_with nd vs =
+  let forget_vars_with nd vs =
     let xs = List.filter (fun elem -> var_in_env (Var.to_string elem) nd) vs in
     A.forget_array_with Man.mgr nd (Array.of_enum (List.enum xs)) false
 
-  let forget_all d vs =
+  let forget_vars d vs =
     let nd = A.copy Man.mgr d in
-    forget_all_with nd vs;
+    forget_vars_with nd vs;
     nd
 
   let substitute_var_with d v e =
@@ -263,10 +263,6 @@ struct
       |> Array.of_enum
     in
     A.assign_texpr_array Man.mgr d vs v's None
-
-  let forget_vars d vs =
-    (* TODO: forget_all which takes Var arguments instead *)
-    forget_all d vs
 end
 
 module D =
@@ -513,7 +509,7 @@ struct
       else if check_max <> `True || check_min <> `True then
         (* Unsigned overflows are defined, but for now
            the variable in question goes to top if there is a possibility of overflow. *)
-        let () = forget_all_with oct [Var.of_string v.vname] in
+        let () = forget_vars_with oct [Var.of_string v.vname] in
         oct
       else
         new_oct
