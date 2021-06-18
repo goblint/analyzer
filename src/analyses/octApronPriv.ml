@@ -119,25 +119,22 @@ struct
 
   (** Restrict environment to global invariant variables. *)
   let restrict_global oct =
-    let remove_vars = List.filter (fun var ->
+    AD.remove_filter oct (fun var ->
         match V.find_metadata var with
         | Some (Unprot _ | Prot _) -> false
         | _ -> true
-      ) (AD.vars oct)
-    in
-    AD.remove_vars oct remove_vars
+      )
 
   (** Restrict environment to local variables and still-protected global variables. *)
   let restrict_local is_unprot oct w_remove =
-    let remove_global_vars = List.filter (fun var ->
+    let remove_local_vars = List.map V.local (W.elements w_remove) in
+    let oct' = AD.remove_vars oct remove_local_vars in
+    (* remove global vars *)
+    AD.remove_filter oct' (fun var ->
         match V.find_metadata var with
         | Some (Unprot g | Prot g) -> is_unprot g
         | _ -> false
-      ) (AD.vars oct)
-    in
-    let remove_local_vars = List.map V.local (W.elements w_remove) in
-    let remove_vars = remove_local_vars @ remove_global_vars in
-    AD.remove_vars oct remove_vars
+      )
 
   let startstate () = (P.empty (), W.empty ())
 
@@ -386,7 +383,6 @@ struct
 
   let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
     let oct = st.oct in
-    let vars = AD.vars oct in
     let oct_side = AD.keep_filter oct (fun var ->
         match V.find_metadata var with
         | Some g -> is_protected_by ask m g
@@ -394,13 +390,12 @@ struct
       )
     in
     sideg (mutex_addr_to_varinfo m) oct_side;
-    let remove_vars_local = List.filter (fun var ->
+    let oct_local = AD.remove_filter oct (fun var ->
         match V.find_metadata var with
         | Some g -> is_protected_by ask m g && is_unprotected_without ask g m
         | None -> false
-      ) vars
+      )
     in
-    let oct_local = AD.remove_vars oct remove_vars_local in
     {st with oct = oct_local}
 
   let sync ask getg sideg (st: OctApronComponents (D).t) reason =
@@ -421,7 +416,7 @@ struct
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     let oct = st.oct in
-    (* Don't use keep_filter because it would duplicate find_metadata-s. *)
+    (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
         match V.find_metadata var with
         | Some _ -> true

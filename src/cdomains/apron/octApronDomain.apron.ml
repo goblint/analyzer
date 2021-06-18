@@ -148,6 +148,22 @@ struct
     add_vars_with nd vs;
     nd
 
+  let remove_filter_with nd f =
+    let env = A.env nd in
+    let vs' =
+      vars nd
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+    in
+    let env' = Environment.remove env vs' in
+    A.change_environment_with Man.mgr nd env' false
+
+  let remove_filter d f =
+    let nd = copy d in
+    remove_filter_with nd f;
+    nd
+
   let remove_vars_with nd vs =
     let env = A.env nd in
     let vs' =
