@@ -187,7 +187,7 @@ struct
       let oct = st.oct in
       let g_var = GV.make g in
       let x_var = Var.of_string x.vname in
-      let oct' = AD.add_vars_int oct [g_var] in
+      let oct' = AD.add_vars oct [g_var] in
       let oct' = AD.assign_var' oct' x_var g_var in
       {st with oct = oct'}
     )
@@ -237,7 +237,7 @@ struct
       let oct = st.oct in
       let g_var = GV.make g in
       let x_var = Var.of_string x.vname in
-      let oct' = AD.add_vars_int oct [g_var] in
+      let oct' = AD.add_vars oct [g_var] in
       let oct' = AD.assign_var' oct' g_var x_var in
       {st with oct = oct'}
     )

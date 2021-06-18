@@ -248,10 +248,6 @@ struct
   let assign_var' d v v' =
     A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
 
-  let add_vars_int d vs =
-    (* TODO: add_vars which takes Var arguments instead *)
-    add_vars d vs
-
   let remove_vars d vs =
     (* TODO: remove_all which takes Var arguments instead *)
     remove_all d (List.map Var.to_string vs)
