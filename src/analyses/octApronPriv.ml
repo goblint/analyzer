@@ -506,9 +506,7 @@ struct
         ) []
       in
       let to_keep = List.map (fun v -> Var.of_string v.vname) vars in
-      let oct' = A.copy Man.mgr oct in
-      AD.remove_all_but_with oct' to_keep;
-      oct'
+      AD.keep_vars oct to_keep
     | None ->
       (* TODO: when does this happen? *)
       if M.tracing then M.trace "apronpriv" "restrict_globals -\n";

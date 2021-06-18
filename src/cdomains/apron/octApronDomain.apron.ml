@@ -220,11 +220,16 @@ struct
     add_vars_with nd vs;
     nd
 
-  let remove_all_but_with nd vs =
+  let keep_vars_with nd vs =
     let is' = get_vars nd in
     let vs = List.filter (fun x -> not (List.mem_cmp Var.compare x vs)) is' in
     let env = Environment.remove (A.env nd) (Array.of_enum (List.enum vs)) in
     A.change_environment_with Man.mgr nd env false
+
+  let keep_vars d vs =
+    let nd = A.copy Man.mgr d in
+    keep_vars_with nd vs;
+    nd
 
   let remove_vars_with nd vs =
     if not (List.is_empty vs) then
@@ -247,12 +252,6 @@ struct
 
   let assign_var' d v v' =
     A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
-
-  let keep_vars d vs =
-    let d' = A.copy Man.mgr d in
-    (* TODO: remove_all_but_with which takes Var arguments instead *)
-    remove_all_but_with d' vs;
-    d'
 
   let parallel_assign_vars d vs v's =
     let env = A.env d in
