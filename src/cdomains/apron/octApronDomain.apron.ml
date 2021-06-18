@@ -148,22 +148,6 @@ struct
     add_vars_with nd vs;
     nd
 
-  let remove_filter_with nd f =
-    let env = A.env nd in
-    let vs' =
-      vars nd
-      |> List.enum
-      |> Enum.filter f
-      |> Array.of_enum
-    in
-    let env' = Environment.remove env vs' in
-    A.change_environment_with Man.mgr nd env' false
-
-  let remove_filter d f =
-    let nd = copy d in
-    remove_filter_with nd f;
-    nd
-
   let remove_vars_with nd vs =
     let env = A.env nd in
     let vs' =
@@ -180,21 +164,20 @@ struct
     remove_vars_with nd vs;
     nd
 
-  let keep_filter_with nd f =
-    (* Instead of removing undesired vars,
-       make a new env with just the desired vars. *)
+  let remove_filter_with nd f =
+    let env = A.env nd in
     let vs' =
       vars nd
       |> List.enum
       |> Enum.filter f
       |> Array.of_enum
     in
-    let env' = Environment.make vs' [||] in
+    let env' = Environment.remove env vs' in
     A.change_environment_with Man.mgr nd env' false
 
-  let keep_filter d f =
+  let remove_filter d f =
     let nd = copy d in
-    keep_filter_with nd f;
+    remove_filter_with nd f;
     nd
 
   let keep_vars_with nd vs =
@@ -213,6 +196,23 @@ struct
   let keep_vars d vs =
     let nd = copy d in
     keep_vars_with nd vs;
+    nd
+
+  let keep_filter_with nd f =
+    (* Instead of removing undesired vars,
+       make a new env with just the desired vars. *)
+    let vs' =
+      vars nd
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+    in
+    let env' = Environment.make vs' [||] in
+    A.change_environment_with Man.mgr nd env' false
+
+  let keep_filter d f =
+    let nd = copy d in
+    keep_filter_with nd f;
     nd
 
   let forget_vars_with nd vs =
