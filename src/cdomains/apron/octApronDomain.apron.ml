@@ -184,7 +184,7 @@ struct
     forget_vars_with nd vs;
     nd
 
-  let assign_var_with d v e =
+  let assign_exp_with d v e =
     (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
     if mem_var d (Var.of_string v) then (* TODO: shouldn't be necessary *)
       begin try
@@ -200,10 +200,10 @@ struct
           (* raise (Manager.Error q) *)
       end
 
-  let assign_var d v e =
-    let newd = copy d in
-    assign_var_with newd v e;
-    newd
+  let assign_exp d v e =
+    let nd = copy d in
+    assign_exp_with nd v e;
+    nd
 
   let assign_var_eq_with d v v' =
     if mem_var d (Var.of_string v) then (* TODO: shouldn't be necessary *)
@@ -471,7 +471,7 @@ struct
     match v.vtype with
     | TInt (ikind, _)->
       let signed = Cil.isSigned ikind in
-      let new_oct = assign_var oct v.vname e in
+      let new_oct = assign_exp oct v.vname e in
       let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in
       let check_max =
         check_assert (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) new_oct in

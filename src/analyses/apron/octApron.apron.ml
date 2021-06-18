@@ -71,7 +71,7 @@ struct
       let newd = AD.add_vars st.oct is in
       let formargs = Goblintutil.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-      List.iter (fun (v, e) -> AD.assign_var_with newd (v.vname^"'") e) arith_formals;
+      List.iter (fun (v, e) -> AD.assign_exp_with newd (v.vname^"'") e) arith_formals;
       AD.forget_vars_with newd (List.map (fun (x,_) -> Var.of_string x.vname) arith_formals);
       List.iter  (fun (v,_)   -> AD.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
       AD.remove_vars_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
@@ -152,7 +152,7 @@ struct
       let nd = match e with
         | Some e when isIntegralType (typeOf e) ->
           let nd = AD.add_vars st.oct [return_var] in
-          let () = AD.assign_var_with nd (Var.to_string return_var) e in
+          let () = AD.assign_exp_with nd (Var.to_string return_var) e in
           nd
         | None -> AD.topE (A.env st.oct)
         | _ -> AD.add_vars st.oct [return_var]
