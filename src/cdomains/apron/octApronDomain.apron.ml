@@ -226,19 +226,19 @@ struct
     let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
     A.change_environment_with Man.mgr d env false
 
-  let remove_all_with d xs =
-    if not (List.is_empty xs) then
+  let remove_all_with nd vs =
+    if not (List.is_empty vs) then
       (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
-      let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
-      let existing_vars_int = get_vars d in
-      let vars_filtered = List.filter (fun elem -> List.mem elem existing_vars_int) (Array.to_list vars) in
-      let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
-      A.change_environment_with Man.mgr d env false
+      let vars = Array.of_enum (List.enum vs) in
+      let existing_vars_int = get_vars nd in
+      let vars_filtered = List.filter (fun elem -> List.mem_cmp Var.compare elem existing_vars_int) (Array.to_list vars) in
+      let env = Environment.remove (A.env nd) (Array.of_list vars_filtered) in
+      A.change_environment_with Man.mgr nd env false
 
-  let remove_all d vars =
-    let newd = A.copy Man.mgr d in
-    remove_all_with newd vars;
-    newd
+  let remove_all d vs =
+    let nd = A.copy Man.mgr d in
+    remove_all_with nd vs;
+    nd
 
   let copy = A.copy Man.mgr
 
@@ -250,7 +250,7 @@ struct
 
   let remove_vars d vs =
     (* TODO: remove_all which takes Var arguments instead *)
-    remove_all d (List.map Var.to_string vs)
+    remove_all d vs
 
   let keep_vars d vs =
     let d' = A.copy Man.mgr d in
