@@ -232,10 +232,10 @@ struct
     begin try
         let exp = Cil.constFold false e in
         let env = A.env d in
-        A.substitute_texpr_with Man.mgr d (Var.of_string v)
+        A.substitute_texpr_with Man.mgr d v
           (Convert.texpr1_of_cil_exp env exp) None
       with Convert.Unsupported_CilExp ->
-        A.forget_array_with Man.mgr d [|Var.of_string v|] false
+        A.forget_array_with Man.mgr d [|v|] false
         (* | Manager.Error q ->
             ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
             ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
