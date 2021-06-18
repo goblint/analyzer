@@ -246,7 +246,7 @@ struct
         let g_prot_vars = List.map V.prot omega in
         let g_local_vars = List.map V.local omega in
         let oct_side1 = AD.add_vars oct g_prot_vars in
-        let oct_side1 = AD.parallel_assign_vars oct_side1 g_prot_vars g_local_vars in
+        let oct_side1 = AD.assign_var_parallel oct_side1 g_prot_vars g_local_vars in
         AD.join acc oct_side1
       ) (AD.bot ()) big_omega
     in
@@ -289,8 +289,8 @@ struct
     let g_unprot_vars = List.map V.unprot gs in
     let g_prot_vars = List.map V.prot gs in
     let oct_side = AD.add_vars oct (g_unprot_vars @ g_prot_vars) in
-    let oct_side = AD.parallel_assign_vars oct_side g_unprot_vars g_vars in
-    let oct_side = AD.parallel_assign_vars oct_side g_prot_vars g_vars in
+    let oct_side = AD.assign_var_parallel oct_side g_unprot_vars g_vars in
+    let oct_side = AD.assign_var_parallel oct_side g_prot_vars g_vars in
     let oct_side = restrict_global oct_side in
     sideg (global_varinfo ()) oct_side;
     let oct_local = AD.remove_vars oct g_vars in

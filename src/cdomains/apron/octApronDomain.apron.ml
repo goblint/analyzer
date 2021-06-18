@@ -215,7 +215,8 @@ struct
     assign_var_with nd v v';
     nd
 
-  let parallel_assign_vars d vs v's =
+  let assign_var_parallel d vs v's =
+    (* TODO: _with version? *)
     let env = A.env d in
     let vs = Array.of_list vs in
     let v's =
