@@ -89,7 +89,7 @@ struct
         let nd' = AD.add_vars fun_st.oct fis in
         let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-        List.iter (fun (v, e) -> AD.substitute_var_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
+        List.iter (fun (v, e) -> AD.substitute_exp_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
         let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
         AD.remove_vars_with nd' vars;
         AD.forget_vars_with nd' [Var.of_string v.vname];

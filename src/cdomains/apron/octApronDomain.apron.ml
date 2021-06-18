@@ -227,7 +227,8 @@ struct
     in
     A.assign_texpr_array Man.mgr d vs v's None
 
-  let substitute_var_with d v e =
+  let substitute_exp_with d v e =
+    (* TODO: non-_with version? *)
     (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
     begin try
         let exp = Cil.constFold false e in
