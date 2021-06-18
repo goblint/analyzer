@@ -1873,22 +1873,6 @@ struct
         Locmap.replace (dead_branches tv) !Tracing.next_loc false;
       refine ()
 
-
-  (* Variation of the above for yet another purpose, uhm, code reuse? *)
-  let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) =
-    let rec do_value = function
-      | `Address a when AD.equal a AD.null_ptr -> []
-      | `Address a when not (AD.is_top a) ->
-        let rble = reachable_vars ask [a] gs st in
-        if M.tracing then
-          M.trace "collect_funargs" "%a = %a\n" AD.pretty a (d_list ", " AD.pretty) rble;
-        rble
-      | `Struct s -> ValueDomain.Structs.fold (fun f v acc -> List.append (do_value v) acc) s []
-      | _ -> []
-    in
-    let do_exp e = do_value (eval_rv ask gs st e) in
-    List.concat (List.map do_exp exps)
-
   (** Library analysis: Initialization of a address with a symbolic memory block representation for the given type
       If addr is None, the heap objects will still be created, but no addr is set to point to them. *)
   let init_address_with_symbolic_value ctx (f: (* varinfo of function we analyze *) varinfo) global local (addr: address option) (t: typ) : store =
