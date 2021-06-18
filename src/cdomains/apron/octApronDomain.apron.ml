@@ -184,16 +184,14 @@ struct
     forget_vars_with nd vs;
     nd
 
-  let assign_exp_with d v e =
-    if mem_var d v then (* TODO: shouldn't be necessary *)
-      begin try
-          let exp = Cil.constFold false e in
-          let env = A.env d in
-          A.assign_texpr_with Man.mgr d v
-            (Convert.texpr1_of_cil_exp env exp) None
-        with Convert.Unsupported_CilExp ->
-          A.forget_array_with Man.mgr d [|v|] false
-      end
+  let assign_exp_with nd v e =
+    if mem_var nd v then (* TODO: shouldn't be necessary *)
+      try
+        let e = Cil.constFold false e in (* TODO: move into Convert *)
+        let texpr1 = Convert.texpr1_of_cil_exp (A.env nd) e in
+        A.assign_texpr_with Man.mgr nd v texpr1 None
+      with Convert.Unsupported_CilExp ->
+        forget_vars_with nd [v]
 
   let assign_exp d v e =
     let nd = copy d in
@@ -202,8 +200,8 @@ struct
 
   let assign_var_with nd v v' =
     if mem_var nd v then (* TODO: shouldn't be necessary *)
-      A.assign_texpr_with Man.mgr nd v
-        (Texpr1.of_expr (A.env nd) (Var v')) None
+      let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
+      A.assign_texpr_with Man.mgr nd v texpr1 None
 
   let assign_var d v v' =
     let nd = copy d in
@@ -214,30 +212,28 @@ struct
     (* TODO: _with version? *)
     let env = A.env d in
     let vs = Array.of_list vs in
-    let v's =
+    let texpr1s =
       v's
       |> List.enum
       |> Enum.map (Texpr1.var env)
       |> Array.of_enum
     in
-    A.assign_texpr_array Man.mgr d vs v's None
+    A.assign_texpr_array Man.mgr d vs texpr1s None
 
-  let substitute_exp_with d v e =
+  let substitute_exp_with nd v e =
     (* TODO: non-_with version? *)
-    begin try
-        let exp = Cil.constFold false e in
-        let env = A.env d in
-        A.substitute_texpr_with Man.mgr d v
-          (Convert.texpr1_of_cil_exp env exp) None
-      with Convert.Unsupported_CilExp ->
-        A.forget_array_with Man.mgr d [|v|] false
-    end
+    try
+      let e = Cil.constFold false e in (* TODO: move into Convert *)
+      let texpr1 = Convert.texpr1_of_cil_exp (A.env nd) e in
+      A.substitute_texpr_with Man.mgr nd v texpr1 None
+    with Convert.Unsupported_CilExp ->
+      forget_vars_with nd [v]
 
-  let substitute_var_with d v v' =
+  let substitute_var_with nd v v' =
     (* TODO: non-_with version? *)
-    if mem_var d v then (* TODO: shouldn't be necessary *)
-      A.substitute_texpr_with Man.mgr d v
-        (Texpr1.of_expr (A.env d) (Var v')) None
+    if mem_var nd v then (* TODO: shouldn't be necessary *)
+      let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
+      A.substitute_texpr_with Man.mgr nd v texpr1 None
 end
 
 module D =
