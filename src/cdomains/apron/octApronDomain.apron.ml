@@ -243,7 +243,8 @@ struct
             raise (Manager.Error q) *)
     end
 
-  let substitute_var_eq_with d v v' =
+  let substitute_var_with d v v' =
+    (* TODO: non-_with version? *)
     if mem_var d v then (* TODO: shouldn't be necessary *)
       A.substitute_texpr_with Man.mgr d v
         (Texpr1.of_expr (A.env d) (Var v')) None
