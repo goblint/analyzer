@@ -128,6 +128,62 @@ struct
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
     List.of_enum (Array.enum ivs)
 
+  let mem_var d v = Environment.mem_var (A.env d) v
+
+  let add_vars_with nd vs =
+    (* TODO: why is this necessary? *)
+    let rec remove_duplicates list =
+      match list with
+      | [] -> []
+      | head::tail -> head::(remove_duplicates (List.filter (fun x -> not (Var.equal x head)) tail)) in
+    let oldis = vars nd in
+    let environment = (A.env nd) in
+    let newis = remove_duplicates vs in
+    (* why is this not done by remove_duplicates already? *)
+    let cis = List.filter (fun x -> not (List.mem_cmp Var.compare x oldis) && (not (Environment.mem_var environment x))) newis in (* TODO: why is the mem_var check necessary? *)
+    let cis = Array.of_enum (List.enum cis) in
+    let newenv = Environment.add environment cis [||] in
+    A.change_environment_with Man.mgr nd newenv false
+
+  let add_vars d vs =
+    let nd = copy d in
+    add_vars_with nd vs;
+    nd
+
+  let remove_vars_with nd vs =
+    if not (List.is_empty vs) then
+      (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
+      let vars' = Array.of_enum (List.enum vs) in
+      let existing_vars_int = vars nd in
+      let vars_filtered = List.filter (fun elem -> List.mem_cmp Var.compare elem existing_vars_int) (Array.to_list vars') in
+      let env = Environment.remove (A.env nd) (Array.of_list vars_filtered) in
+      A.change_environment_with Man.mgr nd env false
+
+  let remove_vars d vs =
+    let nd = copy d in
+    remove_vars_with nd vs;
+    nd
+
+  let keep_vars_with nd vs =
+    let is' = vars nd in
+    let vs = List.filter (fun x -> not (List.mem_cmp Var.compare x vs)) is' in
+    let env = Environment.remove (A.env nd) (Array.of_enum (List.enum vs)) in
+    A.change_environment_with Man.mgr nd env false
+
+  let keep_vars d vs =
+    let nd = copy d in
+    keep_vars_with nd vs;
+    nd
+
+  let forget_vars_with nd vs =
+    let xs = List.filter (fun elem -> mem_var nd elem) vs in
+    A.forget_array_with Man.mgr nd (Array.of_enum (List.enum xs)) false
+
+  let forget_vars d vs =
+    let nd = copy d in
+    forget_vars_with nd vs;
+    nd
+
   let is_chosen (v:string) =
     let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
     if List.length oct_vars == 0 then
@@ -143,16 +199,6 @@ struct
       List.mem v existing_var_names_int
     else
       false
-
-  let assign_var_eq_with d v v' =
-    if var_in_env v d then
-      A.assign_texpr_with Man.mgr d (Var.of_string v)
-        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
-
-  let substitute_var_eq_with d v v' =
-    if var_in_env v d then
-      A.substitute_texpr_with Man.mgr d (Var.of_string v)
-        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
   let assign_var_with d v e =
     (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
@@ -178,77 +224,10 @@ struct
     else
       d
 
-  let forget_vars_with nd vs =
-    let xs = List.filter (fun elem -> var_in_env (Var.to_string elem) nd) vs in
-    A.forget_array_with Man.mgr nd (Array.of_enum (List.enum xs)) false
-
-  let forget_vars d vs =
-    let nd = copy d in
-    forget_vars_with nd vs;
-    nd
-
-  let substitute_var_with d v e =
-    (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    begin try
-        let exp = Cil.constFold false e in
-        let env = A.env d in
-        A.substitute_texpr_with Man.mgr d (Var.of_string v)
-          (Convert.texpr1_of_cil_exp env exp) None
-      with Convert.Unsupported_CilExp ->
-        A.forget_array_with Man.mgr d [|Var.of_string v|] false
-        (* | Manager.Error q ->
-           ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
-           ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
-           raise (Manager.Error q) *)
-    end
-
-  let add_vars_with nd vs =
-    (* TODO: why is this necessary? *)
-    let rec remove_duplicates list =
-      match list with
-      | [] -> []
-      | head::tail -> head::(remove_duplicates (List.filter (fun x -> not (Var.equal x head)) tail)) in
-    let oldis = vars nd in
-    let environment = (A.env nd) in
-    let newis = remove_duplicates vs in
-    (* why is this not done by remove_duplicates already? *)
-    let cis = List.filter (fun x -> not (List.mem_cmp Var.compare x oldis) && (not (Environment.mem_var environment x))) newis in (* TODO: why is the mem_var check necessary? *)
-    let cis = Array.of_enum (List.enum cis) in
-    let newenv = Environment.add environment cis [||] in
-    A.change_environment_with Man.mgr nd newenv false
-
-  let add_vars d vs =
-    let nd = copy d in
-    add_vars_with nd vs;
-    nd
-
-  let keep_vars_with nd vs =
-    let is' = vars nd in
-    let vs = List.filter (fun x -> not (List.mem_cmp Var.compare x vs)) is' in
-    let env = Environment.remove (A.env nd) (Array.of_enum (List.enum vs)) in
-    A.change_environment_with Man.mgr nd env false
-
-  let keep_vars d vs =
-    let nd = copy d in
-    keep_vars_with nd vs;
-    nd
-
-  let remove_vars_with nd vs =
-    if not (List.is_empty vs) then
-      (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
-      let vars' = Array.of_enum (List.enum vs) in
-      let existing_vars_int = vars nd in
-      let vars_filtered = List.filter (fun elem -> List.mem_cmp Var.compare elem existing_vars_int) (Array.to_list vars') in
-      let env = Environment.remove (A.env nd) (Array.of_list vars_filtered) in
-      A.change_environment_with Man.mgr nd env false
-
-  let remove_vars d vs =
-    let nd = copy d in
-    remove_vars_with nd vs;
-    nd
-
-  (* Extra helper functions, some just to bypass chosen vars. *)
-  let mem_var d v = Environment.mem_var (A.env d) v
+  let assign_var_eq_with d v v' =
+    if var_in_env v d then
+      A.assign_texpr_with Man.mgr d (Var.of_string v)
+        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
   let assign_var' d v v' =
     A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
@@ -263,6 +242,26 @@ struct
       |> Array.of_enum
     in
     A.assign_texpr_array Man.mgr d vs v's None
+
+  let substitute_var_with d v e =
+    (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
+    begin try
+        let exp = Cil.constFold false e in
+        let env = A.env d in
+        A.substitute_texpr_with Man.mgr d (Var.of_string v)
+          (Convert.texpr1_of_cil_exp env exp) None
+      with Convert.Unsupported_CilExp ->
+        A.forget_array_with Man.mgr d [|Var.of_string v|] false
+        (* | Manager.Error q ->
+            ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
+            ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
+            raise (Manager.Error q) *)
+    end
+
+  let substitute_var_eq_with d v v' =
+    if var_in_env v d then
+      A.substitute_texpr_with Man.mgr d (Var.of_string v)
+        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 end
 
 module D =
