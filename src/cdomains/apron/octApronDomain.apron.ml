@@ -233,6 +233,41 @@ struct
     newd
 
   let copy = A.copy Man.mgr
+
+  (* Extra helper functions, some just to bypass chosen vars. *)
+  let mem_var d v = Environment.mem_var (A.env d) v
+
+  let assign_var' d v v' =
+    A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
+
+  let add_vars_int d vs =
+    (* TODO: add_vars which takes Var arguments instead *)
+    add_vars d (List.map Var.to_string vs)
+
+  let remove_vars d vs =
+    (* TODO: remove_all which takes Var arguments instead *)
+    remove_all d (List.map Var.to_string vs)
+
+  let keep_vars d vs =
+    let d' = A.copy Man.mgr d in
+    (* TODO: remove_all_but_with which takes Var arguments instead *)
+    remove_all_but_with d' (List.map Var.to_string vs);
+    d'
+
+  let parallel_assign_vars d vs v's =
+    let env = A.env d in
+    let vs = Array.of_list vs in
+    let v's =
+      v's
+      |> List.enum
+      |> Enum.map (Texpr1.var env)
+      |> Array.of_enum
+    in
+    A.assign_texpr_array Man.mgr d vs v's None
+
+  let forget_vars d vs =
+    (* TODO: forget_all which takes Var arguments instead *)
+    forget_all d (List.map Var.to_string vs)
 end
 
 module D =
@@ -620,42 +655,6 @@ struct
 
   (* TODO: better narrow *)
   let narrow x y = x
-
-
-  (* Extra helper functions, some just to bypass chosen vars. *)
-  let mem_var d v = Environment.mem_var (A.env d) v
-
-  let assign_var' d v v' =
-    A.assign_texpr Man.mgr d v (Texpr1.var (A.env d) v') None
-
-  let add_vars_int d vs =
-    (* TODO: add_vars which takes Var arguments instead *)
-    add_vars d (List.map Var.to_string vs)
-
-  let remove_vars d vs =
-    (* TODO: remove_all which takes Var arguments instead *)
-    remove_all d (List.map Var.to_string vs)
-
-  let keep_vars d vs =
-    let d' = A.copy Man.mgr d in
-    (* TODO: remove_all_but_with which takes Var arguments instead *)
-    remove_all_but_with d' (List.map Var.to_string vs);
-    d'
-
-  let parallel_assign_vars d vs v's =
-    let env = A.env d in
-    let vs = Array.of_list vs in
-    let v's =
-      v's
-      |> List.enum
-      |> Enum.map (Texpr1.var env)
-      |> Array.of_enum
-    in
-    A.assign_texpr_array Man.mgr d vs v's None
-
-  let forget_vars d vs =
-    (* TODO: forget_all which takes Var arguments instead *)
-    forget_all d (List.map Var.to_string vs)
 end
 
 
