@@ -119,31 +119,21 @@ struct
 
   (** Restrict environment to global invariant variables. *)
   let restrict_global oct =
-    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
-    let remove_vars =
-      vars
-      |> Array.enum
-      |> Enum.filter (fun var ->
-          match V.find_metadata var with
-          | Some (Unprot _ | Prot _) -> false
-          | _ -> true
-        )
-      |> List.of_enum
+    let remove_vars = List.filter (fun var ->
+        match V.find_metadata var with
+        | Some (Unprot _ | Prot _) -> false
+        | _ -> true
+      ) (AD.vars oct)
     in
     AD.remove_vars oct remove_vars
 
   (** Restrict environment to local variables and still-protected global variables. *)
   let restrict_local is_unprot oct w_remove =
-    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
-    let remove_global_vars =
-      vars
-      |> Array.enum
-      |> Enum.filter (fun var ->
-          match V.find_metadata var with
-          | Some (Unprot g | Prot g) -> is_unprot g
-          | _ -> false
-        )
-      |> List.of_enum
+    let remove_global_vars = List.filter (fun var ->
+        match V.find_metadata var with
+        | Some (Unprot g | Prot g) -> is_unprot g
+        | _ -> false
+      ) (AD.vars oct)
     in
     let remove_local_vars = List.map V.local (W.elements w_remove) in
     let remove_vars = remove_local_vars @ remove_global_vars in
@@ -285,10 +275,9 @@ struct
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     let oct = st.oct in
-    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
     let (g_vars, gs) =
-      vars
-      |> Array.enum
+      AD.vars oct
+      |> List.enum
       |> Enum.filter_map (fun var ->
           match OctApronDomain.GV.find_metadata var with
           | Some g -> Some (var, g)
@@ -337,16 +326,11 @@ struct
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in
     let get_mutex_inits = getg (mutex_inits ()) in
-    let (mutex_inits_vars, _) = Environment.vars (A.env get_mutex_inits) in (* FIXME: floats *)
-    let keep_vars_mutex_inits =
-      mutex_inits_vars
-      |> Array.enum
-      |> Enum.filter (fun var ->
-          match V.find_metadata var with
-          | Some g -> is_protected_by ask m g
-          | None -> false
-        )
-      |> List.of_enum
+    let keep_vars_mutex_inits = List.filter (fun var ->
+        match V.find_metadata var with
+        | Some g -> is_protected_by ask m g
+        | None -> false
+      ) (AD.vars get_mutex_inits)
     in
     let get_mutex_inits' = AD.keep_vars get_mutex_inits keep_vars_mutex_inits in
     AD.join get_m get_mutex_inits'
@@ -403,28 +387,20 @@ struct
 
   let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
     let oct = st.oct in
-    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
-    let keep_vars_side =
-      vars
-      |> Array.enum
-      |> Enum.filter (fun var ->
-          match V.find_metadata var with
-          | Some g -> is_protected_by ask m g
-          | None -> false
-        )
-      |> List.of_enum
+    let vars = AD.vars oct in
+    let keep_vars_side = List.filter (fun var ->
+        match V.find_metadata var with
+        | Some g -> is_protected_by ask m g
+        | None -> false
+      ) vars
     in
     let oct_side = AD.keep_vars oct keep_vars_side in
     sideg (mutex_addr_to_varinfo m) oct_side;
-    let remove_vars_local =
-      vars
-      |> Array.enum
-      |> Enum.filter (fun var ->
-          match V.find_metadata var with
-          | Some g -> is_protected_by ask m g && is_unprotected_without ask g m
-          | None -> false
-        )
-      |> List.of_enum
+    let remove_vars_local = List.filter (fun var ->
+        match V.find_metadata var with
+        | Some g -> is_protected_by ask m g && is_unprotected_without ask g m
+        | None -> false
+      ) vars
     in
     let oct_local = AD.remove_vars oct remove_vars_local in
     {st with oct = oct_local}
@@ -447,16 +423,11 @@ struct
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     let oct = st.oct in
-    let (vars, _) = Environment.vars (A.env oct) in (* FIXME: floats *)
-    let g_vars =
-      vars
-      |> Array.enum
-      |> Enum.filter (fun var ->
-          match V.find_metadata var with
-          | Some _ -> true
-          | None -> false
-        )
-      |> List.of_enum
+    let g_vars = List.filter (fun var ->
+        match V.find_metadata var with
+        | Some _ -> true
+        | None -> false
+      ) (AD.vars oct)
     in
     let oct_side = AD.keep_vars oct g_vars in
     sideg (mutex_inits ()) oct_side;
