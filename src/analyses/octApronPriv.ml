@@ -326,13 +326,12 @@ struct
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in
     let get_mutex_inits = getg (mutex_inits ()) in
-    let keep_vars_mutex_inits = List.filter (fun var ->
+    let get_mutex_inits' = AD.keep_filter get_mutex_inits (fun var ->
         match V.find_metadata var with
         | Some g -> is_protected_by ask m g
         | None -> false
-      ) (AD.vars get_mutex_inits)
+      )
     in
-    let get_mutex_inits' = AD.keep_vars get_mutex_inits keep_vars_mutex_inits in
     AD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
@@ -388,13 +387,12 @@ struct
   let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
     let oct = st.oct in
     let vars = AD.vars oct in
-    let keep_vars_side = List.filter (fun var ->
+    let oct_side = AD.keep_filter oct (fun var ->
         match V.find_metadata var with
         | Some g -> is_protected_by ask m g
         | None -> false
-      ) vars
+      )
     in
-    let oct_side = AD.keep_vars oct keep_vars_side in
     sideg (mutex_addr_to_varinfo m) oct_side;
     let remove_vars_local = List.filter (fun var ->
         match V.find_metadata var with
@@ -423,6 +421,7 @@ struct
 
   let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     let oct = st.oct in
+    (* Don't use keep_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
         match V.find_metadata var with
         | Some _ -> true

@@ -164,6 +164,23 @@ struct
     remove_vars_with nd vs;
     nd
 
+  let keep_filter_with nd f =
+    (* Instead of removing undesired vars,
+       make a new env with just the desired vars. *)
+    let vs' =
+      vars nd
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+    in
+    let env' = Environment.make vs' [||] in
+    A.change_environment_with Man.mgr nd env' false
+
+  let keep_filter d f =
+    let nd = copy d in
+    keep_filter_with nd f;
+    nd
+
   let keep_vars_with nd vs =
     let env = A.env nd in
     (* Instead of iterating over all vars in env and doing a linear lookup in vs just to remove them,
