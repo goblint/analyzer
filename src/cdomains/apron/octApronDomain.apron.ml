@@ -121,6 +121,8 @@ module AOps =
 struct
   type t = Man.mt A.t
 
+  let copy = A.copy Man.mgr
+
   let vars d =
     let ivs, fvs = Environment.vars (A.env d) in
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
@@ -170,7 +172,7 @@ struct
 
   let assign_var d v e =
     if is_chosen v then
-      let newd = A.copy Man.mgr d in
+      let newd = copy d in
       assign_var_with newd v e;
       newd
     else
@@ -181,7 +183,7 @@ struct
     A.forget_array_with Man.mgr nd (Array.of_enum (List.enum xs)) false
 
   let forget_vars d vs =
-    let nd = A.copy Man.mgr d in
+    let nd = copy d in
     forget_vars_with nd vs;
     nd
 
@@ -216,7 +218,7 @@ struct
     A.change_environment_with Man.mgr nd newenv false
 
   let add_vars d vs =
-    let nd = A.copy Man.mgr d in
+    let nd = copy d in
     add_vars_with nd vs;
     nd
 
@@ -227,7 +229,7 @@ struct
     A.change_environment_with Man.mgr nd env false
 
   let keep_vars d vs =
-    let nd = A.copy Man.mgr d in
+    let nd = copy d in
     keep_vars_with nd vs;
     nd
 
@@ -241,11 +243,9 @@ struct
       A.change_environment_with Man.mgr nd env false
 
   let remove_vars d vs =
-    let nd = A.copy Man.mgr d in
+    let nd = copy d in
     remove_vars_with nd vs;
     nd
-
-  let copy = A.copy Man.mgr
 
   (* Extra helper functions, some just to bypass chosen vars. *)
   let mem_var d v = Environment.mem_var (A.env d) v
