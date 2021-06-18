@@ -186,14 +186,14 @@ struct
 
   let assign_exp_with d v e =
     (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    if mem_var d (Var.of_string v) then (* TODO: shouldn't be necessary *)
+    if mem_var d v then (* TODO: shouldn't be necessary *)
       begin try
           let exp = Cil.constFold false e in
           let env = A.env d in
-          A.assign_texpr_with Man.mgr d (Var.of_string v)
+          A.assign_texpr_with Man.mgr d v
             (Convert.texpr1_of_cil_exp env exp) None
         with Convert.Unsupported_CilExp ->
-          A.forget_array_with Man.mgr d [|Var.of_string v|] false
+          A.forget_array_with Man.mgr d [|v|] false
           (* | Manager.Error q -> *)
           (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
           (* ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e); *)
@@ -471,7 +471,7 @@ struct
     match v.vtype with
     | TInt (ikind, _)->
       let signed = Cil.isSigned ikind in
-      let new_oct = assign_exp oct v.vname e in
+      let new_oct = assign_exp oct (Var.of_string v.vname) e in
       let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in
       let check_max =
         check_assert (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) new_oct in
