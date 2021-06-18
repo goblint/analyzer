@@ -184,25 +184,9 @@ struct
     forget_vars_with nd vs;
     nd
 
-  let is_chosen (v:string) =
-    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
-    if List.length oct_vars == 0 then
-      true
-    else
-      (* let () = print_endline (String.concat ", " oct_vars) in *)
-      List.mem ("\""^v^"\"") oct_vars
-
-  let var_in_env (v:string) d =
-    if (is_chosen v) then
-      let existing_vars_int = vars d in
-      let existing_var_names_int = List.map (fun v -> Var.to_string v) existing_vars_int in
-      List.mem v existing_var_names_int
-    else
-      false
-
   let assign_var_with d v e =
     (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    if var_in_env v d then
+    if mem_var d (Var.of_string v) then (* TODO: shouldn't be necessary *)
       begin try
           let exp = Cil.constFold false e in
           let env = A.env d in
@@ -217,15 +201,12 @@ struct
       end
 
   let assign_var d v e =
-    if is_chosen v then
-      let newd = copy d in
-      assign_var_with newd v e;
-      newd
-    else
-      d
+    let newd = copy d in
+    assign_var_with newd v e;
+    newd
 
   let assign_var_eq_with d v v' =
-    if var_in_env v d then
+    if mem_var d (Var.of_string v) then (* TODO: shouldn't be necessary *)
       A.assign_texpr_with Man.mgr d (Var.of_string v)
         (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
@@ -259,7 +240,7 @@ struct
     end
 
   let substitute_var_eq_with d v v' =
-    if var_in_env v d then
+    if mem_var d (Var.of_string v) then (* TODO: shouldn't be necessary *)
       A.substitute_texpr_with Man.mgr d (Var.of_string v)
         (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 end
