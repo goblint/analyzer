@@ -8,14 +8,14 @@ type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving eq, ord, to_yojson]
+] [@@deriving eq, ord]
 
 type ('a,'b) offs_uk = [
   | `NoOffset
   | `UnknownOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving to_yojson]
+]
 
 
 let rec listify ofs =
@@ -26,7 +26,7 @@ let rec listify ofs =
 
 module Offset (Idx: IntDomain.Z) =
 struct
-  type t = (fieldinfo, Idx.t) offs [@@deriving to_yojson]
+  type t = (fieldinfo, Idx.t) offs
   include Printable.Std
 
   let is_first_field x = try CilType.Fieldinfo.equal (List.hd x.fcomp.cfields) x with _ -> false
@@ -135,6 +135,7 @@ struct
     | `NoOffset -> `NoOffset
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module type S =
@@ -170,12 +171,12 @@ end
 
 module Normal (Idx: IntDomain.Z) =
 struct
-  type field = fieldinfo [@@deriving to_yojson]
-  type idx = Idx.t [@@deriving to_yojson]
+  type field = fieldinfo
+  type idx = Idx.t
   module Offs = Offset (Idx)
   (* A SafePtr is a pointer that does not point to any variables of the analyzed program (assuming external functions don't return random pointers but only pointers to things they can reach).
    * UnknownPtr includes SafePtr *)
-  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving eq, ord, to_yojson]
+  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving eq, ord]
   (* TODO: StrPtr equals problematic if the same literal appears more than once *)
   include Printable.Std
   let name () = "Normal Lvals"
@@ -294,6 +295,7 @@ struct
     | `Field (f,o) -> `Field (f, remove_offset o)
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
@@ -334,6 +336,7 @@ struct
   let narrow = merge `Narrow
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module Stateless (Idx: Printable.S) =
@@ -358,6 +361,7 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module Fields =
@@ -382,6 +386,8 @@ struct
       BatPrintf.fprintf f "[%s]%a" (I.show x) printInnerXml xs
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
+
+  let to_yojson x = `String (show x)
 
   let rec prefix x y = match x,y with
     | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
@@ -476,7 +482,7 @@ end
 module CilLval =
 struct
   include Printable.Std
-  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, to_yojson]
+  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord]
 
   let hash    = Hashtbl.hash
   let name () = "simplified lval"
@@ -523,4 +529,5 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end

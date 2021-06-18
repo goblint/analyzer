@@ -87,13 +87,14 @@ struct
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
+  let to_yojson x = `String (P.show x)
 end
 
 
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
-  type t = unit [@@deriving eq, ord, yojson]
+  type t = unit [@to_yojson fun () -> `String N.name] [@@deriving eq, ord, to_yojson]
   include Std
   let hash () = 7134679
   let pretty () _ = text N.name
@@ -102,7 +103,6 @@ struct
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
-
   let arbitrary () = QCheck.unit
   let relift x = x
 end
@@ -191,7 +191,6 @@ struct
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
   let printXml f = lift_f (M.printXml f)
-
   let to_yojson = lift_f (M.to_yojson)
 
   let arbitrary () = QCheck.map ~rev:unlift lift (M.arbitrary ())
@@ -202,7 +201,7 @@ end
 
 module Lift (Base: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord, to_yojson]
+  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord]
   include Std
   include N
 
@@ -232,6 +231,11 @@ struct
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.top_name)
     | `Lifted x -> Base.printXml f x
 
+  let to_yojson = function
+    | `Bot -> `Variant ("Bot", Some (`String N.bot_name))
+    | `Top -> `Variant ("Top", Some (`String N.top_name))
+    | `Lifted x -> `Variant ("Lifted", Some (Base.to_yojson x))
+
   let invariant c = function
     | `Lifted x -> Base.invariant c x
     | `Top | `Bot -> Invariant.none
@@ -252,7 +256,7 @@ end
 
 module Either (Base1: S) (Base2: S) =
 struct
-  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, to_yojson]
+  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord]
   include Std
 
   let hash state =
@@ -279,13 +283,17 @@ struct
   let printXml f = function
     | `Left x  -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+
+  let to_yojson = function
+    | `Left x -> `Variant ("Left", Some (Base1.to_yojson x))
+    | `Right x -> `Variant ("Right", Some (Base2.to_yojson x))
 end
 
 module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, to_yojson]
+  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord]
   include Std
   include N
 
@@ -317,6 +325,12 @@ struct
     | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
     | `Lifted1 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted1\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Lifted2 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted2\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+
+  let to_yojson = function
+    | `Bot -> `Variant ("Bot", Some (`String N.bot_name))
+    | `Top -> `Variant ("Top", Some (`String N.top_name))
+    | `Lifted1 x -> `Variant ("Lifted1", Some (Base1.to_yojson x))
+    | `Lifted2 x -> `Variant ("Lifted2", Some (Base2.to_yojson x))
 end
 
 module type ProdConfiguration =
@@ -329,7 +343,7 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t [@@deriving eq, ord, to_yojson]
+  type t = Base1.t * Base2.t [@@deriving eq, ord]
 
   include Std
 
@@ -358,6 +372,9 @@ struct
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y
 
+  let to_yojson (x, y) =
+    `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y) ]
+
   let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc =
     if Base1.equal x1 y1 then
       Base2.pretty_diff () (x2,y2)
@@ -375,7 +392,7 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, to_yojson]
+  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord]
   include Std
   let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
 
@@ -401,6 +418,9 @@ struct
   let printXml f (x,y,z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z
 
+  let to_yojson (x, y, z) =
+    `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z) ]  
+
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
@@ -410,7 +430,7 @@ end
 
 module Liszt (Base: S) =
 struct
-  type t = Base.t list [@@deriving eq, ord, to_yojson]
+  type t = Base.t list [@@deriving eq, ord]
   include Std
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
@@ -433,6 +453,8 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     loop 0 xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let to_yojson xs = `List (BatList.map Base.to_yojson xs)
 end
 
 module type ChainParams = sig
@@ -442,7 +464,7 @@ end
 
 module Chain (P: ChainParams): S with type t = int =
 struct
-  type t = int [@@deriving eq, ord, yojson]
+  type t = int [@to_yojson fun x -> `String (P.names x)] [@@deriving eq, ord, to_yojson]
   include Std
 
   let show x = P.names x
@@ -458,7 +480,7 @@ end
 
 module LiftBot (Base : S) =
 struct
-  type t = [`Bot | `Lifted of Base.t ] [@@deriving eq, ord, to_yojson]
+  type t = [`Bot | `Lifted of Base.t ] [@@deriving eq, ord]
   include Std
 
   let lift x = `Lifted x
@@ -482,11 +504,15 @@ struct
   let printXml f = function
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Lifted n -> Base.printXml f n
+
+  let to_yojson = function
+    | `Bot -> `Variant ("Bot", None)
+    | `Lifted n -> `Variant ("Lifted", Some (Base.to_yojson n))
 end
 
 module LiftTop (Base : S) =
 struct
-  type t = [`Top | `Lifted of Base.t ] [@@deriving eq, ord, to_yojson]
+  type t = [`Top | `Lifted of Base.t ] [@@deriving eq, ord]
   include Std
 
   let lift x = `Lifted x
@@ -515,6 +541,10 @@ struct
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
     | `Lifted n -> Base.printXml f n
 
+  let to_yojson = function
+    | `Top -> `Variant ("Top", None)
+    | `Lifted n -> `Variant ("Lifted", Some (Base.to_yojson n))
+
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
@@ -530,7 +560,7 @@ end
 
 module Strings =
 struct
-  type t = string [@@deriving eq, to_yojson]
+  type t = string [@@deriving eq, yojson]
   include StdPolyCompare
   let hash (x:t) = Hashtbl.hash x
   let pretty () n = text n

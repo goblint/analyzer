@@ -90,7 +90,7 @@ struct
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ] [@@deriving eq, ord, to_yojson]
+  ] [@@deriving eq, ord]
 
   let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -991,6 +991,17 @@ struct
     | `List n ->  Lists.printXml f n
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
+
+  let to_yojson = function
+    | `Int n -> `Variant ("Int", Some (ID.to_yojson n))
+    | `Address n -> `Variant ("Address", Some (AD.to_yojson n))
+    | `Struct n -> `Variant ("Struct", Some (Structs.to_yojson n))
+    | `Union n -> `Variant ("Union", Some (Unions.to_yojson n))
+    | `Array n -> `Variant ("Array", Some (CArrays.to_yojson n))
+    | `Blob n -> `Variant ("Blob", Some (Blobs.to_yojson n))
+    | `List n -> `Variant ("List", Some (Lists.to_yojson n))
+    | `Bot -> `Variant ("Bot", None)
+    | `Top -> `Variant ("Top", None)
 
   let invariant c = function
     | `Int n -> ID.invariant c n
