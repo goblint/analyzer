@@ -37,7 +37,7 @@ struct
   let invalidate oct (exps: exp list) =
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     let l = List.flatten (List.map get_vnames_list exps) in
-    AD.forget_all_with oct l
+    AD.forget_all_with oct (List.map Var.of_string l)
 
   let threadenter ctx lval f args =
     let st = ctx.local in
@@ -72,7 +72,7 @@ struct
       let formargs = Goblintutil.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
       List.iter (fun (v, e) -> AD.assign_var_with newd (v.vname^"'") e) arith_formals;
-      AD.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
+      AD.forget_all_with newd (List.map (fun (x,_) -> Var.of_string x.vname) arith_formals);
       List.iter  (fun (v,_)   -> AD.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
       AD.remove_vars_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
       [st, {st with oct = newd}]
@@ -84,7 +84,7 @@ struct
       let f = Cilfacade.getdec f in
       match r with
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-        let nd = AD.forget_all st.oct [v.vname] in
+        let nd = AD.forget_all st.oct [Var.of_string v.vname] in
         let fis = AD.get_vars st.oct in
         let nd' = AD.add_vars fun_st.oct fis in
         let formargs = Goblintutil.zip f.sformals args in
@@ -92,7 +92,7 @@ struct
         List.iter (fun (v, e) -> AD.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
         AD.remove_vars_with nd' vars;
-        AD.forget_all_with nd' [v.vname];
+        AD.forget_all_with nd' [Var.of_string v.vname];
         AD.substitute_var_eq_with nd' (Var.to_string return_var) v.vname;
         AD.remove_vars_with nd' [return_var];
         {fun_st with oct = A.unify Man.mgr nd nd'}
@@ -111,13 +111,13 @@ struct
         | `Malloc size ->
           begin match r with
             | Some lv ->
-              {st with oct = AD.forget_all st.oct [f.vname]}
+              {st with oct = AD.forget_all st.oct [Var.of_string f.vname]}
             | _ -> st
           end
         | `Calloc (n, size) ->
           begin match r with
             | Some lv ->
-              {st with oct = AD.forget_all st.oct [f.vname]}
+              {st with oct = AD.forget_all st.oct [Var.of_string f.vname]}
             | _ -> st
           end
         | `ThreadJoin (id,ret_var) ->
