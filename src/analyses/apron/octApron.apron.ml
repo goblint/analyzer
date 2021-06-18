@@ -65,6 +65,7 @@ struct
       let f = Cilfacade.getdec f in
       let is = AD.typesort f.sformals in
       let is = is @ List.map (fun x -> x^"'") is in
+      let is = List.map Var.of_string is in
       let newd = AD.add_vars st.oct is in
       let formargs = Goblintutil.zip f.sformals args in
       let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
@@ -83,7 +84,6 @@ struct
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let nd = AD.forget_all st.oct [v.vname] in
         let fis = AD.get_vars st.oct in
-        let fis = List.map Var.to_string fis in
         let nd' = AD.add_vars fun_st.oct fis in
         let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
@@ -143,17 +143,19 @@ struct
       if AD.is_bot res then raise Deadcode;
       {st with oct = res}
 
+  let return_var = Var.of_string "#ret"
+
   let return ctx e f =
     let st = ctx.local in
     if AD.is_bot st.oct then D.bot () else
 
       let nd = match e with
         | Some e when isIntegralType (typeOf e) ->
-          let nd = AD.add_vars st.oct ["#ret"] in
-          let () = AD.assign_var_with nd "#ret" e in
+          let nd = AD.add_vars st.oct [return_var] in
+          let () = AD.assign_var_with nd (Var.to_string return_var) e in
           nd
         | None -> AD.topE (A.env st.oct)
-        | _ -> AD.add_vars st.oct ["#ret"]
+        | _ -> AD.add_vars st.oct [return_var]
       in
       let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
       let vars = List.map (fun x -> x.vname) vars in
@@ -163,9 +165,9 @@ struct
   let body ctx f =
     let st = ctx.local in
     (* if AD.is_bot st.oct then D.bot () else *)
-      let vars = f.slocals in
-      (* TODO: avoid adding all global (with temps) to environment *)
-      (* let vars =
+    let vars = f.slocals in
+    (* TODO: avoid adding all global (with temps) to environment *)
+    (* let vars =
         foldGlobals !Cilfacade.current_file (fun acc global ->
           match global with
           | GVar (vi, _, _) ->
@@ -174,8 +176,9 @@ struct
           | _ -> acc
         ) vars
       in *)
-      let vars = AD.typesort vars in
-      {st with oct = AD.add_vars st.oct vars}
+    let vars = AD.typesort vars in
+    let vars = List.map Var.of_string vars in
+    {st with oct = AD.add_vars st.oct vars}
 
   let read_global ask getg st g x =
     if ThreadFlag.is_multi ask then
@@ -212,7 +215,7 @@ struct
       end
     in
     let e' = visitCilExpr visitor e in
-    let st = {st with oct = AD.add_vars st.oct (List.map (fun v -> v.vname) (VH.values v_ins |> List.of_enum))} in (* add temporary g#in-s *)
+    let st = {st with oct = AD.add_vars st.oct (List.map (fun v -> Var.of_string v.vname) (VH.values v_ins |> List.of_enum))} in (* add temporary g#in-s *)
     let st' = VH.fold (fun v v_in st ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
         read_global ask getg st v v_in (* g#in = g; *)
@@ -252,7 +255,7 @@ struct
             assign_with_globals ask ctx.global st v e
           else (
             let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-            let st = {st with oct = AD.add_vars st.oct [v_out.vname]} in (* add temporary g#out *)
+            let st = {st with oct = AD.add_vars st.oct [Var.of_string v_out.vname]} in (* add temporary g#out *)
             let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
             if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
             let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)

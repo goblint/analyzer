@@ -7,6 +7,14 @@ open Apron
 module M = Messages
 
 
+module Var =
+struct
+  include Var
+
+  let equal x y = Var.compare x y = 0
+end
+
+
 module Man =
 struct
   (* Manager type, parameter for the command below *)
@@ -192,25 +200,25 @@ struct
            raise (Manager.Error q) *)
     end
 
-  let add_vars_with newd newis =
+  let add_vars_with nd vs =
     (* TODO: why is this necessary? *)
     let rec remove_duplicates list =
       match list with
       | [] -> []
-      | head::tail -> head::(remove_duplicates (List.filter (fun x -> x <> head) tail)) in
-    let oldis = get_vars newd in
-    let environment = (A.env newd) in
-    let newis = remove_duplicates newis in
+      | head::tail -> head::(remove_duplicates (List.filter (fun x -> not (Var.equal x head)) tail)) in
+    let oldis = get_vars nd in
+    let environment = (A.env nd) in
+    let newis = remove_duplicates vs in
     (* why is this not done by remove_duplicates already? *)
-    let cis = List.filter (fun x -> not (List.mem x oldis) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in (* TODO: why is the mem_var check necessary? *)
+    let cis = List.filter (fun x -> not (List.mem_cmp Var.compare x oldis) && (not (Environment.mem_var environment x))) newis in (* TODO: why is the mem_var check necessary? *)
     let cis = Array.of_enum (List.enum cis) in
     let newenv = Environment.add environment cis [||] in
-    A.change_environment_with Man.mgr newd newenv false
+    A.change_environment_with Man.mgr nd newenv false
 
-  let add_vars d vars =
-    let newd = A.copy Man.mgr d in
-    add_vars_with newd vars;
-    newd
+  let add_vars d vs =
+    let nd = A.copy Man.mgr d in
+    add_vars_with nd vs;
+    nd
 
   let remove_all_but_with d xs =
     let is' = get_vars d in
@@ -242,7 +250,7 @@ struct
 
   let add_vars_int d vs =
     (* TODO: add_vars which takes Var arguments instead *)
-    add_vars d (List.map Var.to_string vs)
+    add_vars d vs
 
   let remove_vars d vs =
     (* TODO: remove_all which takes Var arguments instead *)
@@ -726,13 +734,6 @@ struct
   let narrow = op_scheme D2.narrow PrivD.narrow
 end
 
-
-module Var =
-struct
-  include Var
-
-  let equal x y = Var.compare x y = 0
-end
 
 module type VarMetadata =
 sig
