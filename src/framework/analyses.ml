@@ -189,7 +189,7 @@ struct
       | ( `List l | `Tuple l ) -> `List (BatList.map transform l)
       | `Variant (n, None) -> `List [ `String n ]
       | `Variant (n, Some v) -> `List [ `String n; transform v ]
-      | _ as x -> x
+      | x -> x
     in
     let print_one (loc,n,fd) v =
       BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (transform (Range.to_yojson v)))

@@ -94,7 +94,7 @@ end
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
-  type t = unit [@to_yojson fun () -> `String N.name] [@@deriving eq, ord, to_yojson]
+  type t = unit [@@deriving eq, ord]
   include Std
   let hash () = 7134679
   let pretty () _ = text N.name
@@ -103,6 +103,7 @@ struct
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
+  let to_yojson () = `String N.name
   let arbitrary () = QCheck.unit
   let relift x = x
 end
@@ -430,7 +431,7 @@ end
 
 module Liszt (Base: S) =
 struct
-  type t = Base.t list [@@deriving eq, ord]
+  type t = Base.t list [@@deriving eq, ord, to_yojson]
   include Std
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
@@ -453,8 +454,6 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     loop 0 xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
-
-  let to_yojson xs = `List (BatList.map Base.to_yojson xs)
 end
 
 module type ChainParams = sig
@@ -464,7 +463,7 @@ end
 
 module Chain (P: ChainParams): S with type t = int =
 struct
-  type t = int [@to_yojson fun x -> `String (P.names x)] [@@deriving eq, ord, to_yojson]
+  type t = int [@@deriving eq, ord]
   include Std
 
   let show x = P.names x
@@ -473,6 +472,7 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
+  let to_yojson x = `String (P.names x)
 
   let arbitrary () = QCheck.int_range 0 (P.n - 1)
   let relift x = x
@@ -560,7 +560,7 @@ end
 
 module Strings =
 struct
-  type t = string [@@deriving eq, yojson]
+  type t = string [@@deriving eq, to_yojson]
   include StdPolyCompare
   let hash (x:t) = Hashtbl.hash x
   let pretty () n = text n
