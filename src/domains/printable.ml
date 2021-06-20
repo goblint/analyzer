@@ -233,9 +233,9 @@ struct
     | `Lifted x -> Base.printXml f x
 
   let to_yojson = function
-    | `Bot -> `Variant ("Bot", Some (`String N.bot_name))
-    | `Top -> `Variant ("Top", Some (`String N.top_name))
-    | `Lifted x -> `Variant ("Lifted", Some (Base.to_yojson x))
+    | `Bot -> `String N.bot_name
+    | `Top -> `String N.top_name
+    | `Lifted x -> Base.to_yojson x
 
   let invariant c = function
     | `Lifted x -> Base.invariant c x
@@ -286,8 +286,8 @@ struct
     | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
 
   let to_yojson = function
-    | `Left x -> `Variant ("Left", Some (Base1.to_yojson x))
-    | `Right x -> `Variant ("Right", Some (Base2.to_yojson x))
+    | `Left x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
+    | `Right x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
 end
 
 module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
@@ -328,10 +328,10 @@ struct
     | `Lifted2 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted2\n</key>\n%a</map>\n</value>\n" Base2.printXml x
 
   let to_yojson = function
-    | `Bot -> `Variant ("Bot", Some (`String N.bot_name))
-    | `Top -> `Variant ("Top", Some (`String N.top_name))
-    | `Lifted1 x -> `Variant ("Lifted1", Some (Base1.to_yojson x))
-    | `Lifted2 x -> `Variant ("Lifted2", Some (Base2.to_yojson x))
+    | `Bot -> `String N.bot_name
+    | `Top -> `String N.top_name
+    | `Lifted1 x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
+    | `Lifted2 x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
 end
 
 module type ProdConfiguration =
@@ -506,8 +506,8 @@ struct
     | `Lifted n -> Base.printXml f n
 
   let to_yojson = function
-    | `Bot -> `Variant ("Bot", None)
-    | `Lifted n -> `Variant ("Lifted", Some (Base.to_yojson n))
+    | `Bot -> `String "⊥"
+    | `Lifted n -> Base.to_yojson n
 end
 
 module LiftTop (Base : S) =
@@ -542,8 +542,8 @@ struct
     | `Lifted n -> Base.printXml f n
 
   let to_yojson = function
-    | `Top -> `Variant ("Top", None)
-    | `Lifted n -> `Variant ("Lifted", Some (Base.to_yojson n))
+    | `Top -> `String "⊤"
+    | `Lifted n -> Base.to_yojson n
 
   let arbitrary () =
     let open QCheck.Iter in

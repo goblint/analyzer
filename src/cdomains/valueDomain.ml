@@ -993,15 +993,15 @@ struct
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
 
   let to_yojson = function
-    | `Int n -> `Variant ("Int", Some (ID.to_yojson n))
-    | `Address n -> `Variant ("Address", Some (AD.to_yojson n))
-    | `Struct n -> `Variant ("Struct", Some (Structs.to_yojson n))
-    | `Union n -> `Variant ("Union", Some (Unions.to_yojson n))
-    | `Array n -> `Variant ("Array", Some (CArrays.to_yojson n))
-    | `Blob n -> `Variant ("Blob", Some (Blobs.to_yojson n))
-    | `List n -> `Variant ("List", Some (Lists.to_yojson n))
-    | `Bot -> `Variant ("Bot", None)
-    | `Top -> `Variant ("Top", None)
+    | `Int n -> ID.to_yojson n
+    | `Address n -> AD.to_yojson n
+    | `Struct n -> Structs.to_yojson n
+    | `Union n -> Unions.to_yojson n
+    | `Array n -> CArrays.to_yojson n
+    | `Blob n -> Blobs.to_yojson n
+    | `List n -> Lists.to_yojson n
+    | `Bot -> `String "⊥"
+    | `Top -> `String "⊤"
 
   let invariant c = function
     | `Int n -> ID.invariant c n
