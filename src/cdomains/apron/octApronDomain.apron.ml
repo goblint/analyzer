@@ -343,8 +343,17 @@ struct
     if is_bot y || is_top x then false else
       A.is_leq (Man.mgr) x y
 
-  let hash (x:t) = Hashtbl.hash x
-  let compare (x:t) y = Stdlib.compare x y
+  let hash (x:t) =
+    (* is_bot/is_top match many values (with different envs) and equal equates them,
+       so we must force same hash for them *)
+    if is_bot x then 123
+    else if is_top x then 456
+    else A.hash Man.mgr x
+
+  let compare (x:t) y: int =
+    (* TODO: specialize is_bot/is_top here as well to match equal *)
+    (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
+    Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
   let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
@@ -523,8 +532,7 @@ struct
       else if check_max <> `True || check_min <> `True then
         (* Unsigned overflows are defined, but for now
            the variable in question goes to top if there is a possibility of overflow. *)
-        let () = forget_vars_with oct [Var.of_string v.vname] in
-        oct
+        forget_vars oct [Var.of_string v.vname]
       else
         new_oct
     | _ -> oct
