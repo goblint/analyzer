@@ -564,8 +564,7 @@ struct
             if check_max <> `True || check_min <> `True then
               (* Unsigned overflows are defined, but for now
               the variable in question goes to top if there is a possibility of overflow. *)
-              let () = forget_all_with oct [v.vname] in
-              oct
+              forget_all oct [v.vname]
             else
               new_oct
         | _ -> oct)
