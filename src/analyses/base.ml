@@ -551,18 +551,23 @@ struct
       | _ -> failwith "unimplemented!"
 
   let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: Addr.t) (fun_st: store): address =
-    let get_symbolic_address base_addr_var =
-      M.tracel "concretes" "concrete address: %a\n" Addr.pretty concrete;
-      let offset_concrete = Tuple2.second @@ List.hd (Addr.to_var_offset concrete) in
-      let ts = typeSig @@ base_addr_var.vtype in
-      let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_heap_var a k && ts = (typeSig k.vtype)) fun_st.cpa in
-      let base_symb_addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
-      M.trace "concretes" "Getting symbolic address %a for concrete %a with typesig %a in state %a \n" AD.pretty base_symb_addr Addr.pretty concrete Cil.d_typsig ts D.pretty fun_st;
-      let symb_addr = AD.map (fun a -> add_offset_to_addr a offset_concrete) base_symb_addr in
-      symb_addr
-    in
     match Addr.to_var_may concrete with
-    | [base_var] -> get_symbolic_address base_var
+    | [base_var] ->
+      begin
+        let base_addr_var = base_var in
+        if base_addr_var.vglob && not (is_heap_var a base_addr_var) then
+          AD.singleton concrete
+        else begin
+          if M.tracing then M.tracel "concretes" "concrete address: %a\n" Addr.pretty concrete;
+          let offset_concrete = Tuple2.second @@ List.hd (Addr.to_var_offset concrete) in
+          let ts = typeSig @@ base_addr_var.vtype in
+          let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_heap_var a k && ts = (typeSig k.vtype)) fun_st.cpa in
+          let base_symb_addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
+          if M.tracing then M.trace "concretes" "Getting symbolic address %a for concrete %a with typesig %a in state %a \n" AD.pretty base_symb_addr Addr.pretty concrete Cil.d_typsig ts D.pretty fun_st;
+          let symb_addr = AD.map (fun a -> add_offset_to_addr a offset_concrete) base_symb_addr in
+          symb_addr
+        end
+      end
     | _ -> M.warn @@ "Could not get varinfo for address " ^ Addr.show concrete; AD.unknown_ptr
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
@@ -1267,15 +1272,15 @@ struct
     List.fold_left f st lval_value_list
 
   (* Update the state st by adding the state fun_st  *)
-  let update_reachable_written_vars (ask: Q.ask) (reachable_vars: address list) (gs:glob_fun) (st: store) (fun_st: store) (lvals: Q.LS.t): store =
-    let reachable_written_vars = (match lvals with
+  let update_reachable_written_vars (ask: Q.ask) (reachable_vars: address list) (gs:glob_fun) (st: store) (fun_st: store) (written_lvals: Q.LS.t): store =
+    let reachable_written_vars = (match written_lvals with
       | `Top -> reachable_vars
       | `Lifted s ->
-        let lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.elements lvals) in
-        let typeSigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> (typeSig v.vtype, offset) | _ -> failwith "Should never happen!") lvals in
+        let written_lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.elements written_lvals) in
+        let written_type_sigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> (typeSig v.vtype, offset) | _ -> failwith "Should never happen!") written_lvals in
         let get_addrs_with_offs addrs =
           let addr_ts = typeSig (AD.get_type addrs) in
-          let matches = Set.filter (fun (ts, offset) -> ts = addr_ts) typeSigs in
+          let matches = Set.filter (fun (ts, offset) -> ts = addr_ts) written_type_sigs in
           if M.tracing then M.tracel "update" "Found %i matches for type %a. \n" (Set.cardinal matches) Cil.d_typsig addr_ts;
           let address_with_offs = Set.map (fun (_,offset) -> AD.map (fun a -> add_offset_varinfo (Offs.from_cil_offset offset) a) addrs)
           matches |> Set.to_list in
@@ -1283,7 +1288,6 @@ struct
         in
         let addrs_with_offs = Stats.time "get_addrs_with_offs" (List.map get_addrs_with_offs) reachable_vars in
         let addrs_with_offs = List.filter_map (fun ad -> if AD.is_bot ad then None else Some ad) addrs_with_offs in
-        if M.tracing then M.tracel "update" "there are %i reachable written addresses.\n" (List.length addrs_with_offs);
         addrs_with_offs
     ) in
     let reachable_written_vars = Stats.time "concat reachable_written_vars" List.concat (Stats.time "reachable_written_vars" (List.map AD.elements) reachable_written_vars) in
@@ -2227,17 +2231,13 @@ struct
             let addresses = Stats.time "collect_funargs" (collect_funargs ask globs st) exps in
             Stats.time "update_reachable_written_vars" (update_reachable_written_vars ask addresses globs st fun_st) writtenLvals
       in
-      let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.Lval (Cil.var k))::acc else acc) st.cpa [] in
+      let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.AddrOf (Cil.var k))::acc else acc) st.cpa [] in
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
       let add_globals (st: store) (fun_st: store) =
-        if get_bool "ana.library" then
-          (* Update globals that were written by the called function *)
-          Stats.time "update_lvals" (update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global) globals
-        else
           (* Remove the return value as this is dealt with separately. *)
           let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
           let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
@@ -2263,10 +2263,9 @@ struct
         else VD.top ()
       in
       let st = if get_bool "ana.library"
-        then Stats.time "update_lvals" (update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global) args (* Update locations that are pointed to by arguments and were possibly written by the called function *)
-        else st
+        then Stats.time "update_lvals" (update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global) (args@globals) (* Update locations that are pointed to by arguments and were possibly written by the called function *)
+        else add_globals st fun_st
       in
-      let st = add_globals st fun_st in
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cil.typeOfLval lval) (return_val ())
