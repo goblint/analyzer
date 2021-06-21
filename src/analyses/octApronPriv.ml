@@ -378,7 +378,15 @@ struct
 
   let lock ask getg (st: OctApronComponents (D).t) m =
     let oct = st.oct in
-    let oct' = AD.meet oct (get_m_with_mutex_inits ask getg m) in
+    let get_m = get_m_with_mutex_inits ask getg m in
+    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+    let get_m = AD.keep_filter get_m (fun var ->
+        match V.find_metadata var with
+        | Some g -> is_protected_by ask m g
+        | None -> false
+      )
+    in
+    let oct' = AD.meet oct get_m in
     {st with oct = oct'}
 
   let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
