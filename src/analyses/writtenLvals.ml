@@ -22,27 +22,32 @@ struct
     | Some f -> ctx.sideg f.svar side
     | None -> ()
 
-  let is_arg_var ctx (v: varinfo) =
-    match ctx.ask (Q.IsHeapVar v), ctx.ask (Q.IsAllocatedVar v) with
-    | true, false -> true
-    | _ -> false
-
-
-  (* Returns the set of argument vars within the set of lvalues *)
-  let filter_arg_vars ctx (s: Q.LS.t): Q.LS.t = Q.LS.filter (fun (v,offset) -> is_arg_var ctx v) s
+  let is_allocated_var ctx (v: varinfo) = ctx.ask (Q.IsAllocatedVar v)
+  (* Returns the set of argument and global vars within the set of lvalues *)
+  let filter_outer_vars ctx (s: Q.LS.t): Q.LS.t = Q.LS.filter (fun (v,offset) -> v.vglob && not (is_allocated_var ctx v)) s
 
   let add_written_lval ctx (lval:lval): unit =
     let query e = ctx.ask (Q.MayPointTo e) in
     let side = match lval with
       | Mem e, NoOffset
-      | Mem e, Index _ -> filter_arg_vars ctx (query e)
+      | Mem e, Index _ -> filter_outer_vars ctx (query e)
       | Mem e, Field (finfo, offs) ->
         begin
           match query e with
           | `Top -> M.warn @@ "Write to top address occurs in expression " ^ (Pretty.sprint ~width:100 (Cil.d_exp () e)) ^ "\n"; Q.LS.bot ()
-          | s -> filter_arg_vars ctx s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
+          | s -> filter_outer_vars ctx s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
         end
-      | _, _ -> G.bot ()
+      | Var v, offs ->
+        if v.vglob && not (is_allocated_var ctx v) then
+          begin
+          let offs = Lval.CilLval.of_ciloffs offs in
+          Q.LS.singleton (v, offs)
+          end
+        else
+          begin
+            M.tracel "writtenLvals" "Ignoring writte to lval %a\n" Cil.d_lval lval;
+            G.bot ()
+          end
     in
     side_to_f ctx side
 
@@ -78,7 +83,7 @@ struct
       let reachable_from_exp = List.fold (fun acc exp -> Q.LS.join (reachable_exp exp) acc) (Q.LS.bot ()) args in
       match reachable_from_exp with
       | `Top -> M.warn "Top address is reachable from the expression (unhandled!)."; Q.LS.bot ()
-      | `Lifted s -> filter_arg_vars ctx (`Lifted s)
+      | `Lifted s -> filter_outer_vars ctx (`Lifted s)
     in
     let reachable_heap_var_typesigs = match reachable_heap_vars with
       | `Lifted s -> (Q.LS.elements reachable_heap_vars) |> List.map (fun (v,o) -> Cil.typeSig v.vtype) |> Set.of_list
