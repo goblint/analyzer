@@ -44,11 +44,11 @@ struct
     let l = List.flatten (List.map get_vnames_list exps) in
     D.forget_all oct l
 
-  let threadenter ctx lval f args = [D.top ()]
+  let threadenter ctx lval f args = [D.top ()] (* TODO: correct env? *)
   let threadspawn ctx lval f args fctx =
     invalidate ctx.local args
-  let exitstate  _ = D.top ()
-  let startstate _ =  D.top ()
+  let exitstate  _ = D.top () (* TODO: correct env? *)
+  let startstate _ =  D.top () (* TODO: correct env? *)
 
   let enter ctx r f args =
     if D.is_bot ctx.local then [ctx.local, D.bot ()] else
@@ -95,7 +95,7 @@ struct
         r
       | _ ->
         (* TODO: don't go to top, but just forget r *)
-        D.topE (A.env ctx.local)
+        D.top_env (A.env ctx.local)
 
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
@@ -124,7 +124,7 @@ struct
             let st =
               match LibraryFunctions.get_invalidate_action f.vname with
               | Some fnc -> invalidate ctx.local (fnc `Write  args)
-              | None -> D.topE (A.env ctx.local)
+              | None -> D.top_env (A.env ctx.local)
             in
               st
           end
@@ -135,7 +135,7 @@ struct
       D.bot ()
     else
       let res = D.assert_inv ctx.local e (not b) in
-      if D.is_bot res then raise Deadcode;
+      if D.is_bot_env res then raise Deadcode;
       res
 
   let return ctx e f =
@@ -146,7 +146,7 @@ struct
           let nd = D.add_vars ctx.local ["#ret"] in
           let () = D.assign_var_with nd "#ret" e in
           nd
-        | None -> D.topE (A.env ctx.local)
+        | None -> D.top_env (A.env ctx.local)
         | _ -> D.add_vars ctx.local ["#ret"]
       in
       let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
