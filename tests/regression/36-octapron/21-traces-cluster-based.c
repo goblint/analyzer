@@ -40,7 +40,7 @@ void *t3_fun(void *arg) {
   y = h;
   pthread_mutex_unlock(&A);
   pthread_mutex_unlock(&B);
-  assert(y == x);
+  assert(y == x); // TODO (mutex-meet succeeds, protection unknown)
   return NULL;
 }
 
@@ -57,9 +57,9 @@ int main(void) {
   x = g;
   y = h;
   pthread_mutex_lock(&B);
-  assert(y == x);
+  assert(y == x); // TODO (mutex-meet succeeds, protection unknown)
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
-  assert(y == x);
+  assert(y == x); // TODO (mutex-meet succeeds, protection unknown)
   return 0;
 }
