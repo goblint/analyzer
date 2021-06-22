@@ -51,7 +51,7 @@ The last step might need some clarifications. We first need to design the abstra
 ```
 module Signs =
 struct
-  type t = Neg | Zero | Pos [@@deriving eq, to_yojson]
+  type t = Neg | Zero | Pos [@@deriving eq, ord, to_yojson]
   let name () = "signs"
   let show x = match x with
   | Neg -> "-"
@@ -59,7 +59,7 @@ struct
   | Zero -> "0"
 
   (* We need the following to generate output... *)
-  include Printable.StdPolyCompare
+  include Printable.Std
   include Printable.PrintSimple (struct
     type t' = t
     let name = name
