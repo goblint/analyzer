@@ -1,7 +1,7 @@
-include Printable.BlankPolyCompare
+include Printable.Blank
 
 type t' = Val of int | Bot
-and t = t' * t' * t'* t' [@@deriving eq, to_yojson]
+and t = t' * t' * t'* t' [@@deriving eq, ord, to_yojson]
 
 (* lowest priority obtained over:
    1st component = critical region (between first and last variable access)

@@ -449,7 +449,7 @@ module Std (B: sig
     val show: t -> string
     val equal: t -> t -> bool
   end) = struct
-  include Printable.StdPolyCompare
+  include Printable.Std
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
   let hash = Hashtbl.hash
@@ -471,7 +471,7 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 struct
   let name () = "intervals"
   type int_t = Ints_t.t
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
 
   let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
@@ -790,7 +790,7 @@ module Integers : IkindUnawareS with type t = int64 and type int_t = int64 = (* 
 struct
   include Printable.Std
   let name () = "integers"
-  type t = int64 [@encoding `string] [@@deriving eq, to_yojson]
+  type t = int64 [@encoding `string] [@@deriving eq, ord, to_yojson]
   type int_t = int64
   let top () = raise Unknown
   let bot () = raise Error
@@ -1052,7 +1052,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of BigInt.t
     | `Bot
-  ] [@@deriving eq]
+  ] [@@deriving eq, ord]
   type int_t = BigInt.t
   let name () = "def_exc"
 
@@ -1478,7 +1478,7 @@ end
 module MakeBooleans (N: BooleansNames) =
 struct
   type int_t = IntOps.Int64Ops.t
-  type t = bool [@@deriving eq, to_yojson]
+  type t = bool [@@deriving eq, ord, to_yojson]
   let name () = "booleans"
   let top () = true
   let bot () = false
