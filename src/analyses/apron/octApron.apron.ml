@@ -117,7 +117,7 @@ struct
               D.remove_all ctx.local [f.vname]
             | _ -> ctx.local)
         | `ThreadJoin (id,ret_var) ->
-            invalidate ctx.local [ret_var]
+          invalidate ctx.local [ret_var]
         | `ThreadCreate _ -> ctx.local
         | _ ->
           begin
