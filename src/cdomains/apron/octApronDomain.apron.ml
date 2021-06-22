@@ -46,8 +46,9 @@ struct
   let relift x = x
 
   let show (x:t) =
-    A.print Legacy.Format.str_formatter x;
-    Legacy.Format.flush_str_formatter ()
+    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
+
+  let pretty () (x:t) = text (show x)
 
   let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
   let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
@@ -109,7 +110,6 @@ struct
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
 
   (* Apron expressions of level 1 *)
