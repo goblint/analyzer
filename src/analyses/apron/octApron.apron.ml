@@ -42,10 +42,11 @@ struct
   let invalidate oct (exps: exp list) =
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     let l = List.flatten (List.map get_vnames_list exps) in
-    D.forget_all_with oct l
+    D.forget_all oct l
 
   let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = let d = ctx.local in (invalidate d args); d
+  let threadspawn ctx lval f args fctx =
+    invalidate ctx.local args
   let exitstate  _ = D.top ()
   let startstate _ =  D.top ()
 
@@ -104,15 +105,13 @@ struct
               D.remove_all ctx.local [f.vname]
             | _ -> ctx.local)
         | `ThreadJoin (id,ret_var) ->
-            let nd = ctx.local in
-            invalidate nd [ret_var];
-            nd
+            invalidate ctx.local [ret_var]
         | `ThreadCreate _ -> ctx.local
         | _ ->
           begin
             let st =
               match LibraryFunctions.get_invalidate_action f.vname with
-              | Some fnc -> let () = invalidate ctx.local (fnc `Write  args) in ctx.local
+              | Some fnc -> invalidate ctx.local (fnc `Write  args)
               | None -> D.topE (A.env ctx.local)
             in
               st
