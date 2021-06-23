@@ -10,7 +10,7 @@ Create a C file in the Goblint root directory for testing.
 Here we call it `example.c`. This is the first test:
 
 
-```
+```c
 #include<assert.h>
 
 int main() {
@@ -48,7 +48,7 @@ We begin by registering and running a new analysis called "signs":
 
 The last step might need some clarifications. We first need to design the abstract domain. It may help if you have read some theoretical tutorial on abstract domains. Our first sign lattice will simply contain the elements `{-, 0, +}` with top and bottom added. For this, we define first the signs and then we lift it. Insert the following into your file just before the module `Spec` is defined.
 
-```
+```ocaml
 module Signs =
 struct
   type t = Neg | Zero | Pos [@@deriving eq, ord, to_yojson]
@@ -94,7 +94,7 @@ end
 There are some flawed definitions above to get you started, but let us first tell the analysis to actually use this domain.
 For that, we change the similar lines that currently use the unit domain to now use a map from variables to the newly created sign domains.
 
-```
+```ocaml
 module D = MapDomain.MapBot (Basetype.Variables) (SL)
 module G = Lattice.Unit
 module C = D
@@ -107,7 +107,7 @@ We will not care about the globals and the context, but it's convenient to have 
 
 The key part now is to define transfer functions for assignment. Here is a simple version that will suffice for our example. Replace the definition of `assign` in your file with the following:
 
-```
+```ocaml
 let eval (d: D.t) (exp: exp): SL.t = match exp with
 | Const (CInt64 (i, _, _)) -> SL.of_int i
 | Lval (Var x, NoOffset) -> D.find x d
@@ -128,7 +128,7 @@ At this point, it may be useful to use Goblint's HTML output to [see the result]
 
 With this in place, we should have sufficient information to tell Goblint that the assertion does hold. We need to answer assertion queries as follows:
 
-```
+```ocaml
 let assert_holds (d: D.t) (e:exp) = match e with
 | BinOp (Gt, e1, e2, t) -> SL.gt (eval d e1) (eval d e2)
 | _ -> false
