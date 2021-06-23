@@ -2151,7 +2151,7 @@ let shift_left ik x y = match x, y with
        Some (c1 *: c2, gcd (c1 *: m2) (gcd (m1 *: c2) (m1 *: m2)))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
-       Some((c1 *: c2) %: max_int ik, Ints_t.zero)
+       Some((c1 *: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
     | _ -> top ()
 
   let mul ?no_ov ik x y =
@@ -2173,7 +2173,7 @@ let shift_left ik x y = match x, y with
     | Some (c1, m1), Some (c2, m2) when no_ov -> normalize (Some (c1 +: c2, gcd m1 m2))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
-       Some((c1 +: c2) %: max_int ik, Ints_t.zero)
+       Some((c1 +: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
     | _ -> top ()
 
 
