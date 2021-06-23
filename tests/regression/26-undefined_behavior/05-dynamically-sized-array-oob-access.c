@@ -7,7 +7,7 @@
 int main() {
   int top;
   int N;
-
+// The if statement is needed, so the size is actually dynamic
   if (top) {
     N = 5;
   } else {

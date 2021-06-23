@@ -1,6 +1,6 @@
 // PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']" --set dbg.debug true --enable ana.arrayoob --enable ana.int.interval --enable ana.int.enums
 #include <stdio.h>
-
+//This is the most basic case
 int main()
 {
     int arr[] = {1, 2, 3, 4, 5, 6};
