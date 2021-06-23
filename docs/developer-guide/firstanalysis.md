@@ -116,11 +116,11 @@ let eval (d: D.t) (exp: exp): SL.t = match exp with
 let assign ctx (lval:lval) (rval:exp) : D.t =
   let d = ctx.local in
   match lval with
-  | Var x, NoOffset -> D.add x (eval d rval) d
+  | Var x, NoOffset when not x.vaddrof -> D.add x (eval d rval) d
   | _ -> D.top ()
 ```
 
-We only handle assignments of the form `x = e` where the right-hand side `e` is itself either a constant of type integer or a simple variable. For this to work, the definition of `SL.of_int` needs to be corrected to pick an appropriate sign abstraction of integers. There is no need to implement the transfer functions for branching for this example; it only relies on lattice join operations to correctly take both paths into account.
+We only handle assignments of the form `x = e` where`x` is variable whose adddress is never taken and the right-hand side `e` is itself either a constant of type integer or a plain variable. For this to work, the definition of `SL.of_int` needs to be corrected to pick an appropriate sign abstraction of integers. There is no need to implement the transfer functions for branching for this example; it only relies on lattice join operations to correctly take both paths into account.
 
 At this point, it may be useful to use Goblint's HTML output to [see the result](../user-guide/inspecting.md) of the analysis. This will also include Goblnt's base analysis, which is needed to deal with function calls, but it may be useful to turn off integer analysis with `--disable int.ana.def_exc`, so that only your implemented analysis plays a role.
 
