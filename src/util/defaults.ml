@@ -119,7 +119,7 @@ let _ = ()
       ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: (int64 * int64) option."
       ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
-      ; reg Analyses "ana.int.congruence"  "false" "Use IntDomain.Congruence: TBD"
+      ; reg Analyses "ana.int.congruence"  "false" "Use IntDomain.Congruence: (c, m) option, meaning congruent to c modulo m"
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
       ; reg Analyses "ana.pml.debug"       "true"  "Insert extra assertions into Promela code for debugging."
