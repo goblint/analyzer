@@ -96,9 +96,9 @@ end
 
 module RawStrings: Printable.S with type t = string =
 struct
-  include Printable.StdPolyCompare
+  include Printable.Std
   open Pretty
-  type t = string [@@deriving eq, to_yojson]
+  type t = string [@@deriving eq, ord, to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let show x = "\"" ^ x ^ "\""
   let pretty () x = text (show x)
@@ -115,9 +115,9 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 
 module RawBools: Printable.S with type t = bool =
 struct
-  include Printable.StdPolyCompare
+  include Printable.Std
   open Pretty
-  type t = bool [@@deriving eq, to_yojson]
+  type t = bool [@@deriving eq, ord, to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let show (x:t) =  if x then "true" else "false"
   let pretty () x = text (show x)
