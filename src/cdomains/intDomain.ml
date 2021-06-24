@@ -2446,7 +2446,7 @@ module IntDomTupleImpl = struct
     let maybe reffun domtup dom =
       match dom with Some y -> reffun domtup y | _ -> domtup
     in
-    if !GU.mutualRefinement then
+    if GobConfig.get_bool "ana.int.refinement" then
         maybe refine_with_interval (maybe refine_with_congruence (a, b, c, d) d) b
     else (a, b, c, d )
 
