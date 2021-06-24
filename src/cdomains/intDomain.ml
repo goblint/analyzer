@@ -2302,9 +2302,9 @@ struct
     if M.tracing then  M.trace "mything" "Cong. less than : %a %a becomes %a \n" pretty x pretty y pretty res;
     res
 
-  let invariant c x = failwith "unimplemented"
+  let invariant c x = None
 
-  let invariant_ikind c ik x = failwith "unimplemented"
+  let invariant_ikind c ik x = None
 
   let arbitrary () =
     let open QCheck in
