@@ -1,4 +1,4 @@
-// PARAM: --disable ana.int.def_exc --enable ana.int.interval --enable ana.int.congruence
+// PARAM: --disable ana.int.def_exc --enable ana.int.interval --enable ana.int.congruence --enable ana.int.congruence_no_overflow --enable ana.int.refinement
 #include <assert.h>
 
 int main(){
@@ -6,6 +6,7 @@ int main(){
     for (int i = 0; i < 40; i++) {
         r = r + 5;
     }
+
     // At this point r in the congr. dom should be 2 + 5Z
     int k = r;
     if (k >= 3) {
