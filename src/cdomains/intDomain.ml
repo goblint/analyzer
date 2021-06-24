@@ -2379,7 +2379,7 @@ module IntDomTupleImpl = struct
     f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3), f "congruence" @@ r.fi2 (module I4)
 
   let no_overflow ik r =
-    if GobConfig.get_bool "ana.int.congruence.no_overflow" then true
+    if GobConfig.get_bool "ana.int.congruence_no_overflow" then true
     else let ika, ikb = Size.range_big_int ik in
       match I2.minimal r, I2.maximal r with
         | Some ra, Some rb -> ika < ra && rb < ikb
