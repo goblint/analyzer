@@ -2446,9 +2446,9 @@ module IntDomTupleImpl = struct
     let maybe reffun domtup dom =
       match dom with Some y -> reffun domtup y | _ -> domtup
     in
-    maybe refine_with_interval (maybe refine_with_congruence (a, b, c, d) d) b
-
-
+    if !GU.mutualRefinement then
+        maybe refine_with_interval (maybe refine_with_congruence (a, b, c, d) d) b
+    else (a, b, c, d )
 
   (* map2 with overflow check *)
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =

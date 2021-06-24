@@ -18,6 +18,8 @@ let print_version ch =
   printf "Configuration:   tracing %a, tracking %a\n" f tracing f tracking ;
   exit 0
 
+let refine () = Goblintutil.mutualRefinement := true
+
 (** Print helpful messages. *)
 let print_help ch =
   fprintf ch "Usage: goblint [options] source-files\nOptions\n";
@@ -93,6 +95,7 @@ let option_spec_list =
   ; "--conf"               , Arg.String merge_file, ""
   ; "--writeconf"          , Arg.String (fun fn -> writeconffile := fn), ""
   ; "--version"            , Arg.Unit print_version, ""
+  ; "--refine"             , Arg.Unit refine, "" (* ToDo: improve *)
   ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; exit 0), ""
   ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; exit 0), ""
   ; "--trace"              , Arg.String set_trace, ""
