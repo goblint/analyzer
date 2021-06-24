@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.congruence --disable ana.int.def_exc
+// PARAM: --enable ana.int.congruence --enable ana.int.interval --disable ana.int.def_exc
 // This test ensures that operations on constant congr. classes (i.e. classes of the form {k} : arbitrary integer k) yield concrete vals
 
 int main() {
