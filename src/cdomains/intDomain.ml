@@ -2125,17 +2125,16 @@ struct
         d * d > n || (n mod d <> 0 && is_not_divisor (d + 1)) in
       n <> 1 && is_not_divisor 2
 
-(* ToDo: Check for negative y? *)
-let shift_left ik x y = match x, y with
-  | None, None -> None
-  | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-  | Some (c, m), Some (c', m') when c <: Ints_t.zero || c' <: Ints_t.zero -> top()
-  | Some (c, m), Some (c', m') when c >: (max_int ik) || c' >: (max_int ik) -> top()
-  | Some (c, m), Some (c', m') -> if (m =: Ints_t.zero && m' =: Ints_t.zero) then Some (Ints_t.shift_left c (Ints_t.to_int c'), Ints_t.zero)
-    else let t = m' +: Ints_t.one in let x = Ints_t.shift_left Ints_t.one (Ints_t.to_int c') in   (* 2^c' *)
-      if is_prime t then Some (x *: c, gcd (x *: m) ((c *: x) *: t)) else Some (x *: c, gcd (x *: m) (c *: x))
+(*let shift_left ik x y = match x, y with*)
+(*  | None, None -> None*)
+(*  | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))*)
+(*  | Some (c, m), Some (c', m') when c <: Ints_t.zero || c' <: Ints_t.zero -> top()*)
+(*  | Some (c, m), Some (c', m') when c >: (max_int ik) || c' >: (max_int ik) -> top()*)
+(*  | Some (c, m), Some (c', m') -> if (m =: Ints_t.zero && m' =: Ints_t.zero) then Some (Ints_t.shift_left c (Ints_t.to_int c'), Ints_t.zero)*)
+(*    else let t = m' +: Ints_t.one in let x = Ints_t.shift_left Ints_t.one (Ints_t.to_int c') in   (* 2^c' *)*)
+(*      if is_prime t then Some (x *: c, gcd (x *: m) ((c *: x) *: t)) else Some (x *: c, gcd (x *: m) (c *: x))*)
 
-(*  let shift_left _ _ _ = top()*)
+  let shift_left _ _ _ = top()
 
   let shift_left ik x y =
     let res = shift_left ik x y in
