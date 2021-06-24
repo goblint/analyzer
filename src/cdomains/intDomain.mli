@@ -196,6 +196,9 @@ sig
   val is_excl_list: t -> bool
   (* Checks if the element is an exclusion set. *)
 
+  val to_incl_list: t -> int_t list option
+  (* Gives a list representation of the included values if possible. *)
+
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
 

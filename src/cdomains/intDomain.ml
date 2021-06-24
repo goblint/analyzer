@@ -93,6 +93,8 @@ sig
   val of_excl_list: Cil.ikind -> int_t list -> t
   val is_excl_list: t -> bool
 
+  val to_incl_list: t -> int_t list option
+
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
 
@@ -201,6 +203,8 @@ struct
   let of_excl_list ik xs =
     let xs' = List.map BI.to_int64 xs in
     Old.of_excl_list ik xs'
+
+  let to_incl_list a = Option.map (List.map BI.of_int64) (Old.to_incl_list a)
 
   let maximal a = Option.map BI.of_int64 (Old.maximal a)
   let minimal a = Option.map BI.of_int64 (Old.minimal a)
@@ -312,6 +316,7 @@ struct
   let to_excl_list x = I.to_excl_list x.v
   let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
   let is_excl_list x = I.is_excl_list x.v
+  let to_incl_list x = I.to_incl_list x.v
   let of_interval ikind (lb,ub) = {v = I.of_interval ikind (lb,ub); ikind}
   let starting ikind i = {v = I.starting ikind i; ikind}
   let ending ikind i = {v = I.ending ikind i; ikind}
@@ -452,6 +457,7 @@ module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
   let to_excl_list    x = None
   let of_excl_list ik x = top_of ik
   let is_excl_list    x = false
+  let to_incl_list    x = None
   let of_interval  ik x = top_of ik
   let starting     ik x = top_of ik
   let ending       ik x = top_of ik
@@ -942,6 +948,7 @@ struct
   let to_excl_list x = None
   let of_excl_list ik x = top_of ik
   let is_excl_list x = false
+  let to_incl_list x = None
   let of_interval ik x = top_of ik
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
@@ -1315,6 +1322,11 @@ struct
   let to_excl_list x = match x with
     | `Definite _ -> None
     | `Excluded (s,r) -> Some (S.elements s)
+    | `Bot -> None
+
+  let to_incl_list x = match x with
+    | `Definite x -> Some [x]
+    | `Excluded _ -> None
     | `Bot -> None
 
   let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
@@ -1777,6 +1789,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let to_excl_list = function Exc (x,r) when not (ISet.is_empty x) -> Some (ISet.elements x) | _ -> None
   let of_excl_list t x = Exc (ISet.of_list x, size t)
   let is_excl_list = BatOption.is_some % to_excl_list
+  let to_incl_list = function Inc s when not (ISet.is_empty s) -> Some (ISet.elements s) | _ -> None
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
 
@@ -2446,6 +2459,26 @@ module IntDomTupleImpl = struct
     , opt I4.refine_with_incl_list d incl )
 
 
+    let mapp r (a, b, c, d) =
+    let map = BatOption.map in
+    ( map (r.fp (module I1)) a
+    , map (r.fp (module I2)) b
+    , map (r.fp (module I3)) c
+    , map (r.fp (module I4)) d)
+
+
+  let mapp2 r (a, b, c, d) =
+      BatOption.
+        ( map (r.fp2 (module I1)) a
+        , map (r.fp2 (module I2)) b
+        , map (r.fp2 (module I3)) c
+        , map (r.fp2 (module I4)) d )
+
+  let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
+
+  let to_excl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat List.concat
+  let to_incl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat List.concat
+
   let refine ((a, b, c, d ) : t ) : t =
     let maybe reffun domtup dom =
       match dom with Some y -> reffun domtup y | _ -> domtup
@@ -2465,67 +2498,6 @@ module IntDomTupleImpl = struct
       , intv
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) ~no_ov xd yd )
-
-
-(*let r ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with*)
-(*    | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.add i (BI.sub p i)) (BI.neg(m))*)
-(*      else BI.rem (BI.add i (BI.sub p i)) m*)
-
-(*let l ((c, i) : (BI.t * BI.t) * BI.t) : BI.t = match c with*)
-(*    | p, m ->  if BI.compare m BI.zero < 0 then BI.rem (BI.sub i (BI.sub i p)) (BI.neg(m))*)
-(*      else BI.rem (BI.sub i (BI.sub i p)) m*)
-
-(*  let refineIntCong ((i1, i2, i3, i4) : I1.t option * I2.t option * I3.t option * I4.t option)*)
-(*      : I1.t option * I2.t option * I3.t option * I4.t option =*)
-(*     match i2, i4 with*)
-(*     | Some(None), _ | _, Some(None) -> (i1, Some(None), i3, Some(None))*)
-(*     | Some(Some(x, y)), Some(Some(c, m)) ->*)
-(*        let rca = r((c, m), x) in*)
-(*        let lcb = l((c, m), y) in*)
-(*        if m = BI.zero && (c < x || c > y) then (i1, Some(None), i3, Some(None))*)
-(*        else if m = BI.zero then (i1, Some(Some(c, c)), i3, Some(Some(c, BI.zero)))*)
-(*        else if rca > lcb then (i1, Some(None), i3, Some(None))*)
-(*        else if rca < lcb then (i1, Some(Some(rca, rca)), i3, Some(Some(rca, BI.zero)))   (*ToDo: doulbe check *)*)
-(*        else (i1, i2, i3, i4)*)
-(*     | _ -> (i1, i2, i3, i4)*)
-
-  (* (\* Add refinement functions here *\)
-   * let reffuns = []
-   *
-   * let rec refine l (a, b, c, d) =
-   *   (\* match a with
-   *    * | Some defe ->
-   *    *    match defe with
-   *    *    | `Excluded -> (a, b, c, d)
-   *    *    | _ -> (a, b, c, d)
-   *    * | None -> (a, b, c, d) *\)
-   *   match l with [] -> (a, b, c, d) | h :: t -> refine t @@ h (a, b, c, d) *)
-
-
-  let mapp r (a, b, c, d) =
-    let map = BatOption.map in
-    ( map (r.fp (module I1)) a
-    , map (r.fp (module I2)) b
-    , map (r.fp (module I3)) c
-    , map (r.fp (module I4)) d)
-
-  (* let mapp r (a, b, c, d) =
-   *   (\* refine reffuns *\)
-   *   let map = BatOption.map in
-   *   let intv = map (r.fp (module I2)) b in
-   *   let cong = map (r.fp (module I4)) d in
-   *   (map (r.fp (module I1)) a
-   *   , I2.refine_with_congruence intv cong
-   *   , map (r.fp (module I3)) c
-   *   , cong) *)
-
-
-  let mapp2 r (a, b, c, d) =
-      BatOption.
-        ( map (r.fp2 (module I1)) a
-        , map (r.fp2 (module I2)) b
-        , map (r.fp2 (module I3)) c
-        , map (r.fp2 (module I4)) d )
 
   let map r (a, b, c, d) =
     refine
@@ -2586,10 +2558,8 @@ module IntDomTupleImpl = struct
       if n>1 then Messages.warn_all @@ "Inconsistent state! "^String.concat "," @@ List.map show us; (* do not want to abort, but we need some unsound category *)
       None
     )
-  let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_int }
   let to_bool = same string_of_bool % mapp { fp = fun (type a) (module I:S with type t = a) -> I.to_bool }
-  let to_excl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat List.concat
   let minimal = flat List.max % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.minimal }
   let maximal = flat List.min % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.maximal }
   (* exists/for_all *)
