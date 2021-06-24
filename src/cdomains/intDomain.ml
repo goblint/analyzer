@@ -2047,14 +2047,18 @@ struct
     | _ -> None
 
   (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
-  let cast_to ?torg ?no_ov t = function
-    | None -> None
-    | Some (c,m) -> try
-        let a = Ints_t.of_bigint @@ Size.cast_big_int t (Ints_t.to_bigint c) in
-        let b = Ints_t.of_bigint @@ Size.cast_big_int t (Ints_t.to_bigint m) in
-        let a,b = if Ints_t.compare c a <> 0 || Ints_t.compare m b <> 0 then Size.range_big_int t |> (fun (a, b) -> (Ints_t.of_bigint a, Ints_t.of_bigint b)) else a,b in
-            norm t @@ Some (a, b)
-        with Size.Not_in_int64 -> top_of t
+  let cast_to ?torg ?(no_ov=false) t x =
+    if no_ov then x
+    else match torg with
+         | (Some (Cil.TInt (ik, _)) ) when ik = t || (max_int t <= max_int ik && min_int t >= min_int ik) -> x
+         | _ -> top ()
+
+
+  let cast_to ?torg ?(no_ov=false) (t : Cil.ikind) x =
+    let pretty_bool _ x = Pretty.text (string_of_bool x) in
+    let res = cast_to ?torg ~no_ov t x in
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (ov: %a) = %a\n" pretty x Cil.d_ikind t pretty_bool no_ov pretty res;
+    res
 
   let widen = join
 
@@ -2381,7 +2385,7 @@ module IntDomTupleImpl = struct
     if GobConfig.get_bool "ana.int.congruence_no_overflow" then true
     else let ika, ikb = Size.range_big_int ik in
       match I2.minimal r, I2.maximal r with
-        | Some ra, Some rb -> ika < ra && rb < ikb
+        | Some ra, Some rb -> ika < ra || rb < ikb
         | _ -> false
 
   (* map with overflow check *)
