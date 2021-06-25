@@ -1985,7 +1985,7 @@ struct
 
   let leq x y =
     let res = leq x y in
-    if M.tracing then M.trace "mything" "Cong. leq %a %a -> %a \n" pretty x pretty y pretty (Some(Ints_t.of_int (Bool.to_int res), Ints_t.zero)) ;
+    if M.tracing then M.trace "congruence" "leq %a %a -> %a \n" pretty x pretty y pretty (Some(Ints_t.of_int (Bool.to_int res), Ints_t.zero)) ;
     res
 
   let join ik (x:t) y =
@@ -1997,7 +1997,7 @@ struct
 
   let join ik (x:t) y =
     let res = join ik x y in
-    if M.tracing then M.trace "mything" "Cong. join %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "join %a %a -> %a\n" pretty x pretty y pretty res;
     res
 
   (* if it exists, c2/a2 is solution to a*x ≡ c (mod m) *)
@@ -2023,7 +2023,7 @@ struct
 
   let meet ik x y =
     let res = meet ik x y in
-    if M.tracing then M.trace "mything" "Cong. meet %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "meet %a %a -> %a\n" pretty x pretty y pretty res;
     res
 
   let is_int = function Some (c, m) when m =: Ints_t.zero -> true | _ -> false
@@ -2043,9 +2043,6 @@ struct
     | None -> None
     | x when equal zero x -> Some false
     | x -> if leq zero x then None else Some true
-
-  let to_bool (a: t) = let res = to_bool a in  if M.tracing then M.trace "mything" "Cong. to_bool %a -> ?\n" pretty a ;
-    res
 
   let starting ik n = top()
 
@@ -2077,7 +2074,7 @@ struct
 
   let widen ik x y =
     let res = widen ik x y in
-    if M.tracing then M.trace "mything" "Cong. widen %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "widen %a %a -> %a\n" pretty x pretty y pretty res;
     res
 
   let narrow = meet
@@ -2132,7 +2129,7 @@ struct
 
   let shift_right ik x y =
     let res = shift_right ik x y in
-     if M.tracing then  M.trace "shifting" "Cong. shift_right : %a %a becomes %a \n" pretty x pretty y pretty res;
+     if M.tracing then  M.trace "congruence" "shift_right : %a %a becomes %a \n" pretty x pretty y pretty res;
      res
 
   (* Naive primility test *)
@@ -2155,7 +2152,7 @@ struct
 
   let shift_left ik x y =
     let res = shift_left ik x y in
-    if M.tracing then  M.trace "shifting" "Cong. shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
     res
 
   let mul ?(no_ov=false) ik x y =
@@ -2172,7 +2169,7 @@ struct
 
   let mul ?no_ov ik x y =
     let res = mul ?no_ov ik x y in
-    if M.tracing then  M.trace "mything" "Cong. mul : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "mul : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
   let neg ik x =
@@ -2196,7 +2193,7 @@ struct
   let add ?no_ov ik x y =
     let res = add ?no_ov ik x y in
     if M.tracing then
-      M.trace "mything" "Cong. add : %a %a becomes %a \n" pretty x pretty y
+      M.trace "congruence" "add : %a %a -> %a \n" pretty x pretty y
         pretty res ;
     res
 
@@ -2205,7 +2202,7 @@ struct
   let sub ?no_ov ik x y =
     let res = sub ?no_ov ik x y in
     if M.tracing then
-      M.trace "mything" "Cong. sub : %a %a becomes %a \n" pretty x pretty y
+      M.trace "congruence" "sub : %a %a -> %a \n" pretty x pretty y
         pretty res ;
     res
 
@@ -2242,7 +2239,7 @@ struct
         else normalize (Some(c1, gcd m1 (gcd c2 m2))))
 
   let rem ik x y = let res = rem ik x y in
-    if M.tracing then  M.trace "mything" "Cong. rem : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
   let div ?(no_ov=false) ik x y =
@@ -2259,7 +2256,7 @@ struct
   let div ?no_ov ik x y =
     let res = div ?no_ov ik x y in
     if M.tracing then
-      M.trace "mything" "Cong. div : %a %a -> %a \n" pretty x pretty y pretty
+      M.trace "congruence" "div : %a %a -> %a \n" pretty x pretty y pretty
         res ;
     res
 
@@ -2276,7 +2273,7 @@ struct
 
   let ge ik x y =
     let res = ge ik x y in
-    if M.tracing then  M.trace "mything" "Cong. greater or equal : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
   let le ik x y = match x, y with
@@ -2288,7 +2285,7 @@ struct
 
   let le ik x y =
     let res = le ik x y in
-    if M.tracing then  M.trace "mything" "Cong. less or equal : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
   let gt ik x y = match x, y with
@@ -2300,7 +2297,7 @@ struct
 
   let gt ik x y =
     let res = gt ik x y in
-    if M.tracing then  M.trace "mything" "Cong. greater than : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
   let lt ik x y = match x, y with
@@ -2312,7 +2309,7 @@ struct
 
   let lt ik x y =
     let res = lt ik x y in
-    if M.tracing then  M.trace "mything" "Cong. less than : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
   let invariant c x = None
