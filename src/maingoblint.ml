@@ -68,7 +68,7 @@ let option_spec_list =
   in
   let oil file =
     set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "['base','threadid','threadflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']";
+    set_auto "ana.activated" "['base','threadid','threadflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag','mallocWrapper']";
     set_auto "mainfun" "[]"
   in
   let configure_html () =
@@ -316,14 +316,15 @@ let do_analyze change_info merged_AST =
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
         try Control.analyze change_info ast funs
-        with x ->
+        with e ->
+          let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
           let loc = !Tracing.current_loc in
           Messages.print_msg "{RED}About to crash!" loc;
           (* trigger Generic.SolverStats...print_stats *)
           Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
           do_stats ();
           print_newline ();
-          raise x
+          Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
           (* Cilfacade.current_file := ast'; *)
       in
       (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
