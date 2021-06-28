@@ -97,9 +97,11 @@ struct
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
-  let to_yojson x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
-    [%to_yojson: Printable.json list] xs
+  let to_yojson xs =
+    let f a n (module S : Printable.S) x =
+      let name = BatList.assoc n !analyses_table in
+      (name, S.to_yojson (obj x)) :: a
+    in `Assoc (unop_fold f [] xs)
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =

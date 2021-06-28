@@ -92,10 +92,7 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
-  let iDtoIdx n =
-    match ID.to_int n with
-    | None -> IdxDom.top ()
-    | Some n -> IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) n
+  let iDtoIdx = ID.cast_to (Cilfacade.ptrdiff_ikind ())
 
   let unop_ID = function
     | Neg  -> ID.neg
