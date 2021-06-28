@@ -325,7 +325,6 @@ struct
               (*raise (CastError s)*)
             | SizeOfError (s,t) ->
               M.warn_each (M.LogEvent.may (M.EventType.Unknown ("size of error: " ^  s)));
-              (* old warning: M.warn_each("size of error: " ^  s ^ "\n");*)
               a
           end
         | x -> x (* TODO we should also keep track of the type here *)
