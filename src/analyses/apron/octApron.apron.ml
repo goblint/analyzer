@@ -164,10 +164,20 @@ struct
     let d = ctx.local in
     match q with
     | EvalInt e ->
-      begin
-        match D.get_int_val_for_cil_exp d e with
-        | Some i -> ID.of_int i
-        | _ -> `Top
+      begin match e with
+        (* constraint *)
+        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) ->
+          begin match D.check_assert e d with
+            | `True -> ID.of_bool true
+            | `False -> ID.of_bool false
+            | `Top -> ID.top ()
+          end
+        (* expression *)
+        | _ ->
+          begin match D.get_int_val_for_cil_exp d e with
+            | Some i -> ID.of_int i
+            | _ -> `Top
+          end
       end
     | _ -> Result.top q
 end
