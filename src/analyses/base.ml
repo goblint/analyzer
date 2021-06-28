@@ -11,7 +11,6 @@ module Q = Queries
 module GU = Goblintutil
 module ID = ValueDomain.ID
 module IdxDom = ValueDomain.IndexDomain
-module IntSet = SetDomain.Make (IntDomain.Integers (IntOps.Int64Ops))
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
