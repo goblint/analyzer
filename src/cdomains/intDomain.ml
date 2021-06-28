@@ -2542,7 +2542,7 @@ module IntDomTupleImpl = struct
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
-    map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.neg ?no_ov ik)}
+    mapovc ik {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.neg ?no_ov ik)}
 
   let bitnot ik =
     map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitnot ik)}
