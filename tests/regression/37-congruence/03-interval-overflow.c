@@ -4,25 +4,33 @@
 #include <stdio.h>
 
 int main(){
-  char r = -128;
+  char r;
 
-  for (int i = 0; i < 5; i++) {
-      r = r + 10;
+  if (r) {
+    r = -68;
+  } else {
+    r = -63;
   }
 
-  char k = r - 51;
+  char k = r - 80;
   assert (k == 0); //UNKNOWN!
 
+  char non_ov = r - 10;
+  assert (non_ov == -78); //UNKNOWN
+
   char m = r * 2;
+
   assert (m == 0); //UNKNOWN!
 
-  char l = r + (-51);
+  char l = r + (-80);
   assert (l == 0); //UNKNOWN!
 
-  int g = -124;
+  int g;
 
-  for (int i = 0; i < 2; i ++) {
-      g = g - 2;
+  if (g) {
+    g = -126;
+  } else {
+    g = -128;
   }
 
   char f = g / (-1);
