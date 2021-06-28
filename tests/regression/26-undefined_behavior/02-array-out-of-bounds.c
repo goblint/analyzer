@@ -7,7 +7,6 @@ int main()
     arr[2] = 0; //NOWARN
     arr[6] = 10; //WARN
     arr[-1] = 10; //WARN
-    for (int i = 0; i < 5; ++i)
 
     for (int i = 0; i < 10; ++i)
     {
