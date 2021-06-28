@@ -2269,13 +2269,17 @@ struct
     let st: store = if GobConfig.get_bool "ana.library" && not (List.is_empty forks) then
       begin
         let enter_combine st (_, forked_fun, args) =
-          let ctx = {ctx with local = st} in
-          (* As we defer the initialization to body for the library analysis, we use body instead of enter *)
-          let forked_fun_dec = Cilfacade.getdec forked_fun in
-          let entered = body ctx forked_fun_dec in
-          (* TODO: This is not really the right thing to do, because we don't obtain the state of the function at the return.
-            To do something somewhat more reasonable, one could e.g. store the analysis results for the return node in some global. *)
-          combine ctx lv () forked_fun args () entered
+          try
+            let ctx = {ctx with local = st} in
+            (* As we defer the initialization to body for the library analysis, we use body instead of enter *)
+            let forked_fun_dec = Cilfacade.getdec forked_fun in
+            let entered = body ctx forked_fun_dec in
+            (* TODO: This is not really the right thing to do, because we don't obtain the state of the function at the return.
+              To do something somewhat more reasonable, one could e.g. store the analysis results for the return node in some global. *)
+            combine ctx lv () forked_fun args () entered
+          with Not_found ->
+            M.warn "Spawning of thread with unknown function!";
+            st
         in
         M.warn "Thread creation is treated as function call!";
         List.fold enter_combine ctx.local forks
