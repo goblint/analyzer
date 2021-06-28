@@ -1,4 +1,4 @@
-// PARAM: --enable ana.nullptr --enable dbg.debug
+// PARAM: --enable ana.nullptr
 #include <stdio.h>
 int main(){    
     int *pi;     // a pointer to an integer

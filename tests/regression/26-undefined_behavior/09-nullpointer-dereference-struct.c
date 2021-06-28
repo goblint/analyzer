@@ -1,4 +1,4 @@
-// PARAM: --enable ana.nullptr --enable dbg.debug
+// PARAM: --enable ana.nullptr
 #include <stdio.h>
 struct person {
   int age;

@@ -1,4 +1,4 @@
-// PARAM: --enable ana.nullptr --enable dbg.debug
+// PARAM: --enable ana.nullptr
 
 #include <stdio.h>
 // source base:
@@ -10,7 +10,7 @@ int main() {
   a = 5;
   ok = &a;
   pi = &a; // pi points to a
-  b = *pi; // b is now 5
+  b = *pi;
   pi = NULL;
   x = *ok; //NOWARN
   c = *pi; //WARN

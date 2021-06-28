@@ -618,9 +618,7 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> 
-          let test = do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
-        in test
+        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           let rec contains_vla (t:typ) = match t with
@@ -660,6 +658,7 @@ struct
               VD.top () (* upcasts not! *)
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
+          if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v'; 
           let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
@@ -766,8 +765,8 @@ struct
         match (eval_rv a gs st n) with
         | `Address adr -> 
           if GobConfig.get_bool "ana.nullptr" then 
-            if (AD.is_null adr) then M.warn_each (M.LogEvent.may warn_type)
-            else if( AD.may_be_null adr) then M.warn_each (M.LogEvent.must warn_type);
+            if (AD.is_null adr) then M.warn_each (M.LogEvent.must warn_type)
+            else if( AD.may_be_null adr) then M.warn_each (M.LogEvent.may warn_type);
             ();
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
@@ -791,7 +790,7 @@ struct
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
-  (* Whereve  r possible, don't use this but the query system or normal eval_rv instead. *)
+  (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
   let eval_exp x (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
     let knownothing = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top q } in (* our version of ask *)

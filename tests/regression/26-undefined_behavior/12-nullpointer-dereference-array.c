@@ -1,11 +1,11 @@
-// PARAM: --enable ana.nullptr --enable dbg.debug
+// PARAM: --enable ana.nullptr
 
 #include <stdio.h>
 // source base:
 // https://stackoverflow.com/questions/4007268/what-exactly-is-meant-by-de-referencing-a-null-pointer
 int main() {
   int*  arr[] = {NULL, NULL, NULL, NULL, NULL, NULL};
-  int a, b, c, x; // some integers
+  int* a, b, c, x; // some integers
   int *pi;        // a pointer to an integer
   int *ok;
   a = arr[2];
