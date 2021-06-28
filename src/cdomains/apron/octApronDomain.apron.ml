@@ -280,14 +280,16 @@ struct
         | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
         in
       match x with
-      (* TODO: why was this ever necessary? it is unsound for 36/18 *)
-      (* | BinOp (Ne, lhd, rhs, intType) ->
+      (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
+         Join Gt and Lt versions instead. *)
+      | BinOp (Ne, lhd, rhs, intType) when not b ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-        if not (is_bot assert_gt) then
-          assert_gt
-        else
-          assert_lt *)
+        join assert_gt assert_lt
+      | BinOp (Eq, lhd, rhs, intType) when b ->
+        let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) (not b) in
+        let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) (not b) in
+        join assert_gt assert_lt
       | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
         let linecons = cil_exp_to_apron_linecons (A.env d) x b in
