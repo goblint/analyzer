@@ -239,6 +239,7 @@ sig
   val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
   val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
 
   val join: Cil.ikind -> t ->  t -> t
@@ -315,7 +316,7 @@ val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
 module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
-  val range           : Cil.ikind -> int64 * int64 
+  val range           : Cil.ikind -> int64 * int64
   val range_big_int   : Cil.ikind -> Z.t * Z.t
   val bits            : Cil.ikind -> int * int
 end

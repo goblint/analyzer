@@ -124,6 +124,7 @@ sig
   val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
   val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
 
   val join: Cil.ikind -> t -> t -> t
@@ -165,7 +166,7 @@ module OldDomainFacade (Old : IkindUnawareS) : S with type int_t = BI.t and type
 struct
   include Old
   type int_t = BI.t
-  let neg _ik = Old.neg
+  let neg ?no_ov _ik = Old.neg
   let add ?no_ov _ik = Old.add
   let sub ?no_ov _ik = Old.sub
   let mul ?no_ov _ik = Old.mul
@@ -666,7 +667,7 @@ struct
   let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
   let shift_left  = bitcomp (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
 
-  let neg ik = function None -> None | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
+  let neg ?no_ov ik = function None -> None | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
 
   let add ?no_ov ik x y = match x, y with
   | None, None -> None
@@ -1422,7 +1423,7 @@ struct
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
-  let neg ik (x :t) = norm ik @@ lift1 BigInt.neg ik x
+  let neg ?no_ov ik (x :t) = norm ik @@ lift1 BigInt.neg ik x
   let add ?no_ov ik x y = norm ik @@ lift2_inj BigInt.add ik x y
 
   let sub ?no_ov ik x y = norm ik @@ lift2_inj BigInt.sub ik x y
@@ -1726,7 +1727,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let lift2 f ikind a b =
     try lift2 f ikind a b with Division_by_zero -> top_of ikind
 
-  let neg = lift1 I.neg
+  let neg ?no_ov = lift1 I.neg
   let add ?no_ov ikind = curry @@ function
     | Inc z,x when ISet.is_singleton z && ISet.choose z = BI.zero -> x
     | x,Inc z when ISet.is_singleton z && ISet.choose z = BI.zero -> x
@@ -2172,10 +2173,10 @@ struct
     if M.tracing then  M.trace "congruence" "mul : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
-  let neg ik x =
+  let neg ?(no_ov=false) ik x =
     match x with
     | None -> bot()
-    | Some _ ->  mul ik (of_int ik (Ints_t.of_int (-1))) x
+    | Some _ ->  mul ~no_ov ik (of_int ik (Ints_t.of_int (-1))) x
 
 
   let add ?(no_ov=false) ik x y =
@@ -2412,7 +2413,7 @@ module IntDomTupleImpl = struct
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1 (module I2)) b in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> false
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow"
     in
     ( map (r.f1 (module I1)) a
     , intv
@@ -2497,7 +2498,7 @@ module IntDomTupleImpl = struct
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
     let intv = opt_map2 (r.f2 (module I2)) xb yb in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> false
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow"
     in
     refine
       ( opt_map2 (r.f2 (module I1)) xa ya
@@ -2540,8 +2541,8 @@ module IntDomTupleImpl = struct
   let of_interval ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ik }
 
   (* f1: unary ops *)
-  let neg ik =
-    map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.neg ik)}
+  let neg ?no_ov ik =
+    map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.neg ?no_ov ik)}
 
   let bitnot ik =
     map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitnot ik)}

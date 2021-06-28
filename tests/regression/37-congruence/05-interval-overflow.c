@@ -28,6 +28,9 @@ int main(){
   char f = g / (-1);
   assert (f == 1); //UNKNOWN!
 
+  char d = -g;
+  assert (d == 1); //UNKNOWN!
+
   return 0;
 
 }
