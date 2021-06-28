@@ -27,15 +27,20 @@ struct
   let filter_outer_vars ctx (s: Q.LS.t): Q.LS.t = Q.LS.filter (fun (v,offset) -> v.vglob && not (is_allocated_var ctx v)) s
 
   let add_written_lval ctx (lval:lval): unit =
-    let query e = ctx.ask (Q.MayPointTo e) in
+    (* If we write to a top address, we warn here *)
+    let query_may_point_to_handle_top e = match ctx.ask (Q.MayPointTo e) with
+      | `Top -> M.warn @@ "Write to top address occurs in expression " ^ (Pretty.sprint ~width:100 (Cil.d_exp () e)) ^ "\n"; Q.LS.bot ()
+      | s -> s
+    in
     let side = match lval with
       | Mem e, NoOffset
-      | Mem e, Index _ -> filter_outer_vars ctx (query e)
+      | Mem e, Index _ ->
+          let may_point_to = query_may_point_to_handle_top e in
+          filter_outer_vars ctx may_point_to
       | Mem e, Field (finfo, offs) ->
         begin
-          match query e with
-          | `Top -> M.warn @@ "Write to top address occurs in expression " ^ (Pretty.sprint ~width:100 (Cil.d_exp () e)) ^ "\n"; Q.LS.bot ()
-          | s -> filter_outer_vars ctx s |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
+          let may_point_to = query_may_point_to_handle_top e in
+          filter_outer_vars ctx may_point_to |> Q.LS.map (fun (v, offset) -> (v, `Field (finfo, offset)))
         end
       | Var v, offs ->
         if v.vglob && not (is_allocated_var ctx v) then
