@@ -544,11 +544,6 @@ struct
     M.tracel "concretes" "Got concrete value %a for address %a \n" VD.pretty r AD.pretty symb;
     (r, n)
 
-  let add_offset_to_addr (a: Addr.t) offs =
-    match a with
-      | Addr (x, o) -> Addr.from_var_offset (x, add_offset o offs)
-      | _ -> failwith "unimplemented!"
-
   let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: Addr.t) (fun_st: store): address =
     match Addr.to_var_may concrete with
     | [base_var] ->
@@ -563,7 +558,7 @@ struct
           let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_heap_var a k && ts = (typeSig k.vtype)) fun_st.cpa in
           let base_symb_addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
           if M.tracing then M.trace "concretes" "Getting symbolic address %a for concrete %a with typesig %a in state %a \n" AD.pretty base_symb_addr Addr.pretty concrete Cil.d_typsig ts D.pretty fun_st;
-          let symb_addr = AD.map (fun a -> add_offset_to_addr a offset_concrete) base_symb_addr in
+          let symb_addr = AD.map (add_offset_varinfo offset_concrete) base_symb_addr in
           symb_addr
         end
       end
@@ -1920,11 +1915,11 @@ struct
       | TFun (t, args, b, _) -> add_to_map (typeSig (TFun (t, args, b, []))) x m
       | TComp (c, _) ->
         let m = add_to_map (typeSig (TComp (c, []))) x m in
-        let addrs = List.map (fun field -> add_offset_to_addr x (`Field (field, `NoOffset))) c.cfields in
+        let addrs = List.map (fun field -> add_offset_varinfo (`Field (field, `NoOffset)) x) c.cfields in
         List.fold extract_type_to_addr_map_from_addr m addrs
       | TArray (t, _, _) ->
         let m = add_to_map (typeSig (TArray (t, None, []))) x m in
-        let addrs = add_offset_to_addr x (`Index (ID.top_of (Cilfacade.ptrdiff_ikind ()), `NoOffset)) in
+        let addrs = add_offset_varinfo (`Index (ID.top_of (Cilfacade.ptrdiff_ikind ()), `NoOffset)) x in
         extract_type_to_addr_map_from_addr m addrs
       | TEnum (t, _) -> add_to_map (typeSig (TEnum (t, []))) x m
       | TBuiltin_va_list _ -> M.warn "Analyzing a function that has a unhandled builtin_va_list as parameter!"; m
@@ -1943,7 +1938,7 @@ struct
       let res = match unrollType (Addr.get_type x) with
       | TPtr (t, _) -> [x]
       | TComp (c, _) when c.cstruct ->
-        let addrs = List.map (fun field -> add_offset_to_addr x (`Field (field, `NoOffset))) c.cfields in
+        let addrs = List.map (fun field -> add_offset_varinfo (`Field (field, `NoOffset)) x) c.cfields in
         List.fold extract_pointers_from_addr ([]: Addr.t list) addrs
       | _ -> []
       in
