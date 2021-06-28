@@ -315,13 +315,7 @@ struct
       | _ -> None
     in 
     match exp with
-      | Const c -> 
-        let ans =  ask.f (Q.EvalInt exp) in
-          (match ans with
-            | `Top ->  evaluate
-            | `Bot -> None
-            | `Lifted z -> let ik = Cilfacade.get_ikind (Cil.typeOf exp) in Some (`Int (ID.of_int ik z) )
-          ) 
+      | Const _
       | SizeOf _
       | Real _
       | Imag _
