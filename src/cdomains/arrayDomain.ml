@@ -138,6 +138,17 @@ struct
           <key>r</key>\n%a\n\n
         </map></value>\n" Expp.printXml e Val.printXml xl Val.printXml xm Val.printXml xr
 
+  let to_yojson ((e, (l, m, r)) as x) =
+    if is_not_partitioned x then
+      let join_over_all = Val.join (Val.join l m) r in
+      `Assoc [ ("any", Val.to_yojson join_over_all) ]
+    else
+      let e' = Expp.to_yojson e in
+      let l' = Val.to_yojson l in
+      let m' = Val.to_yojson m in
+      let r' = Val.to_yojson r in
+      `Assoc [ ("partitioned by", e'); ("l", l'); ("m", m'); ("r", r') ]
+
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) =
     match e, i with
     | `Lifted e', `Lifted i' ->
@@ -449,7 +460,7 @@ struct
         let over_all_x2 = op (op xl2 xm2) xr2 in
         let e1e_in_state_of_x2 = x2_eval_int e1e in
         let e2e_in_state_of_x1 = x1_eval_int e2e in
-        let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compareExp e1e e2e < 0 in
+        let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compare e1e e2e < 0 in (* TODO: why does this depend on exp comparison? probably to use "simpler" expression according to constructor order in compare *)
         if e1e_is_better then (* first try if the result can be partitioned by e1e *)
           if must_be_zero e1e_in_state_of_x2  then
             (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
@@ -584,7 +595,9 @@ struct
   let update_length newl (x, l) = (x, newl)
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
 
@@ -628,7 +641,9 @@ struct
   let update_length newl (x, l) = (x, newl)
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
@@ -638,7 +653,7 @@ struct
 
   type idx = Idx.t
   type value = Val.t
-  type t = P.t option * T.t option [@@deriving to_yojson]
+  type t = P.t option * T.t option
 
   let invariant _ _ = Invariant.none
   let tag _ = failwith "FlagConfiguredArrayDomain: no tag"
@@ -697,6 +712,7 @@ struct
   let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
 
   let printXml f = unop (P.printXml f) (T.printXml f)
+  let to_yojson = unop (P.to_yojson) (T.to_yojson)
 
   let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 

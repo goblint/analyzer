@@ -622,7 +622,7 @@ struct
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d =
-      if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
+      if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
          (get_bool "kernel" || get_string "ana.osek.oil" <> "")
       then toplevel_kernel_return ret fd ctx sideg
@@ -655,6 +655,7 @@ struct
         in
         sync sync_ctx
       in
+      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
       let r = S.combine {ctx with local = cd} lv e f args fc fd in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r

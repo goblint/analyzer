@@ -33,7 +33,7 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
-      (Goblintutil.escape (show x))
+      (XmlUtil.escape (show x))
 end
 
 module LabeledString =
@@ -91,33 +91,8 @@ let init (f:file) =
   in
   List.iter visit_glob f.globals
 
-(* from cil *)
-let rec compareOffset (off1: offset) (off2: offset) : bool =
-  match off1, off2 with
-  | Field (fld1, off1'), Field (fld2, off2') ->
-    fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname && compareOffset off1' off2'
-  | Index (e1, off1'), Index (e2, off2') ->
-    Basetype.CilExp.compareExp e1 e2 = 0 && compareOffset off1' off2'
-  | NoOffset, NoOffset -> true
-  | _ -> false
 
-type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
-
-let rec compareOffs (off1: offs) (off2: offs) : bool =
-  match off1, off2 with
-  | `Field (fld1, off1'), `Field (fld2, off2') ->
-    fld1.fcomp.ckey = fld2.fcomp.ckey && fld1.fname = fld2.fname && compareOffs off1' off2'
-  | `Index off1', `Index off2' ->
-    compareOffs off1' off2'
-  | `NoOffset, `NoOffset -> true
-  | _ -> false
-
-let rec offs_eq x y =
-  match x, y with
-  | `NoOffset, `NoOffset -> true
-  | `Index x, `Index y -> offs_eq x y
-  | `Field (f,x), `Field (g,y) -> f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname && offs_eq x y
-  | _ -> false
+type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq]
 
 let rec remove_idx : offset -> offs  = function
   | NoOffset    -> `NoOffset
@@ -135,7 +110,7 @@ let rec d_offs () : offs -> doc = function
   | `Index o -> dprintf "[?]%a" d_offs o
   | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
 
-type acc_typ = [ `Type of typ | `Struct of compinfo * offs ]
+type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq]
 
 let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
@@ -181,7 +156,7 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
   | Question (_,b,c,t) ->
     begin match get_type fb b, get_type fb c with
       | `Struct (s1,o1), `Struct (s2,o2)
-        when s1.ckey = s2.ckey && compareOffs o1 o2 ->
+        when CilType.Compinfo.equal s1 s2 && equal_offs o1 o2 ->
         `Struct (s1, o1)
       | _ -> `Type t
     end
@@ -241,12 +216,7 @@ end
 module Acc_typHashable
   : Hashtbl.HashedType with type t = acc_typ =
 struct
-  type t = acc_typ
-  let equal (x:t) y =
-    match x, y with
-    | `Type t, `Type v -> Basetype.CilType.equal t v
-    | `Struct (c1,o1), `Struct (c2,o2) -> c1.ckey = c2.ckey && compareOffs o1 o2
-    | _ -> false
+  type t = acc_typ [@@deriving eq]
   let hash = function
     | `Type t -> Basetype.CilType.hash t
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
@@ -256,12 +226,7 @@ module TypeHash = HtF (Acc_typHashable)
 module LvalOptHashable
   : Hashtbl.HashedType with type t = (varinfo * offs) option =
 struct
-  type t = (varinfo * offs) option
-  let equal (x:t) (y:t) =
-    match x, y with
-    | Some (v1,o1), Some (v2,o2) -> v1.vid = v2.vid && offs_eq o1 o2
-    | None, None -> true
-    | _ -> false
+  type t = (CilType.Varinfo.t * offs) option [@@deriving eq]
   let hash = function
     | None -> 435
     | Some (x,y) -> Hashtbl.hash (x.vid, Hashtbl.hash y)

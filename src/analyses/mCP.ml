@@ -95,9 +95,11 @@ struct
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
-  let to_yojson x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
-    [%to_yojson: Printable.json list] xs
+  let to_yojson xs =
+    let f a n (module S : Printable.S) x =
+      let name = BatList.assoc n !analyses_table in
+      (name, S.to_yojson (obj x)) :: a
+    in `Assoc (unop_fold f [] xs)
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
@@ -261,10 +263,10 @@ struct
   let init () =
     let map' f =
       let f x =
-        try Some (f x)
+        try f x
         with Not_found -> raise @@ ConfigError ("Analysis '"^x^"' not found. Abort!")
       in
-      List.filter_map f
+      List.map f
     in
     let xs = map Json.string @@ get_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in

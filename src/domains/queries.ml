@@ -15,6 +15,7 @@ module VI = Lattice.Flat (Basetype.Variables) (struct
 end)
 
 module PartAccessResult = Access.PartAccessResult
+module AR = Basetype.Bools (* TODO: move to BoolDomain? *)
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
@@ -64,7 +65,7 @@ type _ t =
   | IsAllocatedVar: varinfo -> MustBool.t t
   | TypeCasts: varinfo -> TypeCastMap.t t
   | VarArgSet: varinfo -> TypeSetTopped.t t
-
+  | Assert: exp -> AR.t t
 
 type 'a result = 'a
 
@@ -117,6 +118,7 @@ struct
     | PartAccess _ -> (module PartAccessResult)
     | TypeCasts _ -> (module TypeCastMap)
     | VarArgSet _ -> (module TypeSetTopped)
+    | Assert _ -> (module AR)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -168,4 +170,5 @@ struct
     | PartAccess _ -> PartAccessResult.top ()
     | TypeCasts _ -> TypeCastMap.top ()
     | VarArgSet _ -> TypeSetTopped.top  ()
+    | Assert _ -> AR.top ()
 end

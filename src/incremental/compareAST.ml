@@ -16,7 +16,7 @@ let empty_change_info () : change_info = {added = []; removed = []; changed = []
 
 type global_type = Fun | Decl | Var | Other
 
-type global_identifier = {name: string ; global_t: global_type}
+and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
 
 let identifier_of_global glob =
   match glob with
@@ -42,12 +42,7 @@ let check_file_changed (old_commit_dir: string) (current_commit_dir: string) =
   print_endline @@ "CIL-file " ^ (if old_file = current_file then "did not change." else "changed.")
 
 module GlobalMap = Map.Make(struct
-    type t = global_identifier
-    let compare a b =
-      let c = compare a.name b.name in
-      if c <> 0
-      then c
-      else compare a.global_t b.global_t
+    type t = global_identifier [@@deriving ord]
   end)
 
 let eq_list eq xs ys =

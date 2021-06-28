@@ -73,7 +73,7 @@ struct
   include Printable.Std
   type key = Domain.t
   type value = Range.t
-  type t = Range.t M.t [@@deriving to_yojson] (* key -> value  mapping *)
+  type t = Range.t M.t (* key -> value  mapping *)
 
   let trace_enabled = Domain.trace_enabled
 
@@ -169,11 +169,15 @@ struct
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Goblintutil.escape (Domain.show k)) Range.printXml v
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (Domain.show k)) Range.printXml v
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let to_yojson xs =
+    let f (k, v) = (Domain.show k, Range.to_yojson v) in
+    `Assoc (xs |> M.bindings |> List.map f)
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
 end

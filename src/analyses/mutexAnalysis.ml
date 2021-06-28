@@ -69,9 +69,9 @@ struct
 
   let rec replace_elem (v,o) q ex =
     match ex with
-    | AddrOf  (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
-    | StartOf (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
-    | Lval    (Mem e,_) when Basetype.CilExp.compareExp e q = 0 ->v, Offs.from_offset (conv_offset o)
+    | AddrOf  (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
+    | StartOf (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
+    | Lval    (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
     | CastE (_,e)           -> replace_elem (v,o) q e
     | _ -> v, Offs.from_offset (conv_offset o)
 
@@ -171,7 +171,7 @@ struct
       let conf = if includes_uk then conf - 10 else conf in
       let f (var, offs) =
         let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
+        if CilType.Varinfo.equal var dummyFunDec.svar then
           add_access conf None (Some coffs)
         else
           add_access conf (Some var) (Some coffs)
@@ -226,18 +226,27 @@ struct
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublic {global=v; write} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.filter snd ctx.local) in
-      if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then false
-      else non_overlapping held_locks (ctx.global v)
+      (* TODO: unsound in 29/24, why did we do this before? *)
+      (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
+        false
+      else *)
+        non_overlapping held_locks (ctx.global v)
     | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
       let held_locks: G.t = P.check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
-      if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then false
-      else non_overlapping held_locks (ctx.global v)
+      (* TODO: unsound in 29/24, why did we do this before? *)
+      (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
+        false
+      else *)
+         non_overlapping held_locks (ctx.global v)
     | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
       let held_locks: G.t = P.check_fun ~write mutex_lockset in
-      if LockDomain.Addr.equal mutex verifier_atomic then true
-      else G.leq (ctx.global global) held_locks
+      (* TODO: unsound in 29/24, why did we do this before? *)
+      (* if LockDomain.Addr.equal mutex verifier_atomic then
+        true
+      else *)
+        G.leq (ctx.global global) held_locks
     | Queries.CurrentLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->

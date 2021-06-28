@@ -148,7 +148,7 @@ struct
     | tb -> tb
 
   let printXml f = function
-    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (Goblintutil.escape top_name)
+    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape top_name)
     | `Bot -> ()
     | `Lifted x -> LD.printXml f x
 end
@@ -288,7 +288,7 @@ struct
         | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.vid
         | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.vid
       in
-      let p_fun f x = fprintf f "{\n  \"name: \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
+      let p_fun f x = fprintf f "{\n  \"name\": \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
       (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =

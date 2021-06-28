@@ -56,7 +56,7 @@ struct
   let rec may_be_same_offset of1 of2 =
     match of1, of2 with
     | `NoOffset , `NoOffset -> true
-    | `Field (x1,y1) , `Field (x2,y2) -> x1.fcomp.ckey = x2.fcomp.ckey && may_be_same_offset y1 y2
+    | `Field (x1,y1) , `Field (x2,y2) -> CilType.Compinfo.equal x1.fcomp x2.fcomp && may_be_same_offset y1 y2 (* TODO: why not fieldinfo equal? *)
     | `Index (x1,y1) , `Index (x2,y2)
       -> (not (IdxDom.is_int x1) || not (IdxDom.is_int x2))
          || IdxDom.equal x1 x2 && may_be_same_offset y1 y2
@@ -70,8 +70,8 @@ struct
   let remove (addr,rw) set =
     let collect_diff_varinfo_with (vi,os) (addr,rw) =
       match (Addr.to_var_offset addr) with
-      | [(v,o)] when vi.vid == v.vid -> not (may_be_same_offset o os)
-      | [(v,o)] when vi.vid != v.vid -> true
+      | [(v,o)] when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
+      | [(v,o)] -> true
       | _ -> false
     in
     match (Addr.to_var_offset addr) with
