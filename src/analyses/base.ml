@@ -500,12 +500,11 @@ struct
   let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) (reachable_vars: Addr.t list BatMap.Int.t list) =
     let sym_address_to_conretes (addr: Addr.t) = (* Returns a list of concrete addresses and a list of addresses of memory blocks that are added to the heap *)
       match addr with
-      | Addr  (v, offs) ->
+      | Addr  (v, _) ->
         if is_allocated_var a v then (* Address has been allocated within the function, we add it to our heap *)
           [addr], Some addr
         else if is_heap_var a v then
           let concretes = AD.elements (Stats.time "get_concretes" (get_concretes (v, `NoOffset) st) reachable_vars) in
-          let concretes = List.map (add_offset_varinfo offs) concretes in
           concretes, None
         else
           [addr],None
