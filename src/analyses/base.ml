@@ -492,8 +492,6 @@ struct
     List.iter (fun a -> M.tracel "concretes" "Selecting from reachable values %a" AD.pretty a) reachable_vars;
     let ts = typeSig (Addr.get_type sa) in
     let concretes = List.filter (fun a -> ts = (typeSig (AD.get_type a))) reachable_vars in
-
-    (* let concretes = List.map (fun a -> AD.map (fun addr -> Addr.add_offset addr offset) a) concrete_bases in *)
     (* Passing the address sets with smaller cardinality as the first parameter to join significantly improves performance *)
     Stats.time "fold AD.join" (List.fold (fun acc a -> AD.join a acc) (AD.bot ())) concretes
 
