@@ -456,6 +456,40 @@ struct
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
+  type counts  = {glob_count: int; heap_var_count: int; local_count: int; other_count: int}
+  type var_type = Global | HeapVar | Local | Other
+  let classify a (adr: address): var_type =
+    match AD.choose adr with
+    | Addr.Addr (v, o) ->
+      if not v.vglob then Local
+      else if is_heap_var a v then HeapVar
+      else Global
+    | _ -> Other
+
+  let filter_class vart a adr =
+    classify a adr = vart
+  let pretty_address_with_hash () (a: AD.t) =
+    let v = AD.choose a in
+    let h = Addr.hash v in
+    Pretty.concat (AD.pretty () a) (Pretty.concat (Pretty.text " ") (Pretty.num h))
+
+  let print_address_stats a (adrs: address list) : unit =
+    let count_address (count: counts) (adr: address) =
+      match classify a adr with
+       | Global -> {count with glob_count = count.glob_count + 1}
+       | HeapVar -> {count with heap_var_count = count.heap_var_count + 1}
+       | Local -> {count with local_count = count.local_count + 1}
+       | Other -> {count with other_count = count.other_count + 1}
+    in
+    let count = List.fold count_address {glob_count = 0; heap_var_count = 0; local_count = 0; other_count = 0} adrs in
+    (* M.tracel "addr_stats" "Reachable_vars produced %d addresses\n" (List.length adrs); *)
+    ignore @@ Pretty.printf "Current location: %a\n" Cil.d_loc !Tracing.current_loc;
+    ignore @@ Pretty.printf "Addresses count overall: %d.\n Global count: %d\n Heap Vars: %d\n Locals: %d\n Others: %d\n" (List.length adrs) count.glob_count count.heap_var_count count.local_count count.other_count;
+    ignore @@ Pretty.printf "Globals are:\n %a\n\n" (d_list ";\n" pretty_address_with_hash) (List.filter (filter_class Global a) adrs);
+    ignore @@ Pretty.printf "Heap_Vars are:\n %a\n\n" (d_list ";\n" pretty_address_with_hash) (List.filter (filter_class HeapVar a) adrs);
+    ignore @@ Pretty.printf "Locals are:\n %a\n\n" (d_list ";\n" pretty_address_with_hash) (List.filter (filter_class Local a) adrs);
+    ignore @@ Pretty.printf "Others are:\n %a\n\n" (d_list ";\n" pretty_address_with_hash) (List.filter (filter_class Other a) adrs)
+
   (* The code for getting the variables reachable from the list of parameters.
    * This section is very confusing, because I use the same construct, a set of
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
@@ -481,7 +515,12 @@ struct
     done;
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
-    List.map AD.singleton (AD.elements !visited)
+    let res = List.map AD.singleton (AD.elements !visited) in
+    (if List.length res > 200 then
+      (print_address_stats ask res;
+      ignore @@ Pretty.printf "State is:\n%a\n" D.pretty st)
+    );
+    res
 
   let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
     Stats.time "reachable_vars" (reachable_vars ask args gs) st
