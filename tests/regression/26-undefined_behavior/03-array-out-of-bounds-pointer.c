@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']" --set dbg.debug true --enable ana.arrayoob --enable ana.int.interval
+// PARAM:  --set dbg.debug true --enable ana.arrayoob --enable ana.int.interval
 //Pointer to arrays: out of bounds access
 #include <stdio.h>
 int main( )

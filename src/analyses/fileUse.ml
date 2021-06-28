@@ -11,7 +11,6 @@ struct
   module D = FileDomain.Dom
   module C = FileDomain.Dom
   module G = Lattice.Unit
-  module M = Messages
 
   (* special variables *)
   let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset

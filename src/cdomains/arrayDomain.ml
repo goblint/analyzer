@@ -559,7 +559,6 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
 (* For an explanation of the warning types check the Pull Request #255 *)
     let warn_type t = (M.EventType.Behavior (M.BehaviorEvent.Undefined (M.UndefinedBehavior.ArrayOutOfBounds t))) in
-    let () =
       match(idx_after_start, idx_before_end) with
       | Some true, Some true -> (* Certainly in bounds on both sides.*)
         ()
