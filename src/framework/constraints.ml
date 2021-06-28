@@ -655,6 +655,7 @@ struct
         in
         sync sync_ctx
       in
+      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
       let r = S.combine {ctx with local = cd} lv e f args fc fd in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r

@@ -67,7 +67,7 @@ type 'a basecomponents_t = {
   cpa: CPA.t;
   deps: PartDeps.t;
   priv: 'a;
-} [@@deriving eq, ord, to_yojson]
+} [@@deriving eq, ord]
 
 module BaseComponents (PrivD: Lattice.S):
 sig
@@ -75,7 +75,7 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving eq, ord, to_yojson]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord]
 
   include Printable.Std
   open Pretty
@@ -99,6 +99,9 @@ struct
 
   let printXml f r =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (CPA.name ())) CPA.printXml r.cpa (XmlUtil.escape (PartDeps.name ())) PartDeps.printXml r.deps (XmlUtil.escape (PrivD.name ())) PrivD.printXml r.priv
+
+  let to_yojson r =
+    `Assoc [ (CPA.name (), CPA.to_yojson r.cpa); (PartDeps.name (), PartDeps.to_yojson r.deps); (PrivD.name (), PrivD.to_yojson r.priv) ]
 
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ PrivD.name ()
 
