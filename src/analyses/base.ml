@@ -1259,9 +1259,6 @@ struct
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
       M.warn_each "Assignment to unknown address"; st
 
-
-
-
   let set_many ?(force_update=false) ?ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
@@ -1279,6 +1276,7 @@ struct
         let written_type_sigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> (typeSig v.vtype, offset) | _ -> failwith "Should never happen!") written_lvals in
         let get_addrs_with_offs addrs =
           let addr_ts = typeSig (AD.get_type addrs) in
+          (* For one concrete address, get the set of written (typesigs, offset) pairs, where the typesig fits with the address. *)
           let matches = Set.filter (fun (ts, offset) -> ts = addr_ts) written_type_sigs in
           if M.tracing then M.tracel "update" "Found %i matches for type %a. \n" (Set.cardinal matches) Cil.d_typsig addr_ts;
           let address_with_offs = Set.map (fun (_,offset) -> AD.map (fun a -> add_offset_varinfo (Offs.from_cil_offset offset) a) addrs)
