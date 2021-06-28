@@ -2506,13 +2506,27 @@ module IntDomTupleImpl = struct
   let to_excl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat List.concat
   let to_incl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat List.concat
 
-  let refine ((a, b, c, d ) : t ) : t =
+
+  let refine_functions : (t -> t) list =
     let maybe reffun domtup dom =
       match dom with Some y -> reffun domtup y | _ -> domtup
     in
-    if GobConfig.get_bool "ana.int.refinement" then
-        maybe refine_with_interval (maybe refine_with_congruence (a, b, c, d) d) b
-    else (a, b, c, d )
+    [(fun (a, b, c, d) -> refine_with_incl_list (a, b, c, d) (to_incl_list (a, b, c, d)));
+     (fun (a, b, c, d) -> maybe refine_with_interval (a, b, c, d) b);
+     (fun (a, b, c, d) -> maybe refine_with_congruence (a, b, c, d) d)]
+
+  let refine ((a, b, c, d ) : t ) : t =
+    if not (GobConfig.get_bool "ana.int.refinement") then (a, b, c, d )
+    else
+      let dt = ref (a, b, c, d) in
+      dt := refine_with_excl_list !dt (to_excl_list (a, b, c, d));
+      let quit_loop = ref false in
+      while not !quit_loop do
+        let old_dt = !dt in
+        List.iter (fun f -> dt := f !dt) refine_functions;
+        quit_loop := old_dt = !dt;
+      done;
+      !dt
 
   (* map2 with overflow check *)
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
