@@ -822,7 +822,7 @@ struct
         else if m = Ints_t.zero then Some (c, c)
         else let rcx = Ints_t.add x (modulo (Ints_t.sub c x) (abs(m))) in
              let lcy = Ints_t.sub y (modulo (Ints_t.sub y c) (abs(m))) in
-             if Ints_t.compare rcx lcy > 0 then intv  
+             if Ints_t.compare rcx lcy > 0 then intv
              else if Ints_t.compare rcx lcy = 0 then Some (rcx, rcx)
              else Some (rcx, lcy)
     | _ -> intv
@@ -2505,7 +2505,7 @@ module IntDomTupleImpl = struct
 
   let to_excl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat List.concat
   let to_incl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat List.concat
-
+  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
   let refine_functions : (t -> t) list =
     let maybe reffun domtup dom =
@@ -2519,12 +2519,13 @@ module IntDomTupleImpl = struct
     if not (GobConfig.get_bool "ana.int.refinement") then (a, b, c, d )
     else
       let dt = ref (a, b, c, d) in
-      dt := refine_with_excl_list !dt (to_excl_list (a, b, c, d));
+      (* dt := refine_with_excl_list !dt (to_excl_list (a, b, c, d)); *)
       let quit_loop = ref false in
       while not !quit_loop do
         let old_dt = !dt in
         List.iter (fun f -> dt := f !dt) refine_functions;
         quit_loop := old_dt = !dt;
+        if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
       done;
       !dt
 
@@ -2701,7 +2702,7 @@ module IntDomTupleImpl = struct
     % to_list
     %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.compare)} (* idea? same impl. as above... *)
 
-  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
+
   (* printing boilerplate *)
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
