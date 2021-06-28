@@ -572,7 +572,6 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
         M.warn_each (M.LogEvent.may (warn_type M.ArrayOOB.BeforeStart))
       | _ ->
         M.warn_each (M.LogEvent.may (warn_type M.ArrayOOB.Unknown))
-    in ()
     else ()
 
 
