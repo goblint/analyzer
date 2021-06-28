@@ -16,11 +16,11 @@ int main(){
 
         // After refinement with congruences, the lower bound should be 7 as the numbers 3 - 6 are not in the congr. class
         // TODO fix refinement and uncomment the following line
-        //assert (k < 7); // FAIL
+        assert (k < 7); // FAIL
     }
 
-    //if (r >= -11 && r <= -4) {
-    //    assert (r == -8);
-    //}
+//    if (r >= -11 && r <= -4) {
+//        assert (r == -8);
+//    }
     return 0;
 }

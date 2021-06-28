@@ -808,17 +808,29 @@ struct
   let abs x = let r = Ints_t.neg x
    in if Ints_t.compare x r < 0 then r else x
 
+  (*  (-n) % k = k- (n % k)  *)
+  let modulo n k = if (Ints_t.compare n Ints_t.zero < 0)
+(*  let modulo n k = if (Ints_t.compare n Ints_t.zero < 0) && (Ints_t.rem (abs(n)) k <> Ints_t.zero)*) (* ToDo: improve*)
+                        then Ints_t.sub k (Ints_t.rem (abs(n)) k)
+                   else Ints_t.rem n k
+
+ (* Use modulo instead of the reminder function *)
   let refine_with_congruence (intv : t) (cong : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
-        if m = Ints_t.zero && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
+        if (m = Ints_t.zero) && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
         else if m = Ints_t.zero then Some (c, c)
-        else let rcx = Ints_t.add x (Ints_t.rem (Ints_t.sub c x) (abs(m))) in
-             let lcy = Ints_t.sub y (Ints_t.rem (Ints_t.sub y c) (abs(m))) in
-             if Ints_t.compare rcx lcy > 0 then None
+        else let rcx = Ints_t.add x (modulo (Ints_t.sub c x) (abs(m))) in
+             let lcy = Ints_t.sub y (modulo (Ints_t.sub y c) (abs(m))) in
+             if Ints_t.compare rcx lcy > 0 then intv  
              else if Ints_t.compare rcx lcy = 0 then Some (rcx, rcx)
              else Some (rcx, lcy)
     | _ -> intv
+
+  let refine_with_congruence x y =
+    let refn = refine_with_congruence x y in
+    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a\n" pretty x pretty y pretty refn;
+    refn
 
   let refine_with_interval a b = a
 
@@ -2353,6 +2365,14 @@ struct
          else if rcx =: lcy then Some (rcx, Ints_t.zero)
          else cong
     | _ -> cong
+
+  let refine_with_interval (cong : t) (intv : (int_t * int_t) option) : t =
+    let pretty_intv _ i = (match i with
+     | Some(l, u) -> let s = "["^Ints_t.to_string l^","^Ints_t.to_string u^"]" in Pretty.text s
+     | _ -> Pretty.text ("Display Error")) in
+    let refn = refine_with_interval cong intv in
+    if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
+    refn
 
   let refine_with_congruence a b = a
   let refine_with_excl_list a b = a
