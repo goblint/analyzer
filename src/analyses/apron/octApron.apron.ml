@@ -188,8 +188,8 @@ let _ =
 let () =
   Printexc.register_printer
     (function
-      | Apron.Manager.Error e -> 
+      | Apron.Manager.Error e ->
         let () = Apron.Manager.print_exclog Format.str_formatter e in
-        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ())) 
+        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ()))
       | _ -> None (* for other exceptions *)
     )

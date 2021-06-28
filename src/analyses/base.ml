@@ -274,7 +274,7 @@ struct
 
   (* evaluate value using our "query functions" *)
   let eval_rv_pre (ask: Q.ask) exp pr =
-    let evaluate = 
+    let evaluate =
       let binop op e1 e2 =
         let equality () =
           (* TODO: just return bool? *)
@@ -313,7 +313,7 @@ struct
       match exp with
       | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
       | _ -> None
-    in 
+    in
     match exp with
       | Const _
       | SizeOf _
@@ -332,9 +332,9 @@ struct
         (match ans with
           | `Top ->  evaluate
           | `Bot -> None
-          | `Lifted z -> 
+          | `Lifted z ->
             let ik = Cilfacade.get_ikind (Cil.typeOf exp) in Some (`Int (ID.of_int ik z) )
-        ) 
+        )
       | _ ->
       evaluate
 
@@ -844,7 +844,7 @@ struct
       end
     | Q.EvalInt e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i)) 
+        | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
         | `Int i -> Queries.Result.top q
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
         | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q
@@ -871,7 +871,7 @@ struct
         | `Address a ->
           let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
-          (match r with 
+          (match r with
            | `Blob (_,s,_) -> (match ID.to_int s with Some i -> Queries.ID.of_int i | None -> Queries.Result.top q)
            | _ -> Queries.Result.top q)
         | _ -> Queries.Result.top q
