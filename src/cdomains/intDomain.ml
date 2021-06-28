@@ -836,8 +836,8 @@ struct
 
   let refine_with_excl_list (intv : t) (excl : (int_t list) option) : t =
     match intv, excl with
-    | None, _ -> None
-    | _, None -> None
+    | None, _ -> intv
+    | _, None -> intv
     | Some(l, u), Some(ls) ->
         let l' = (Ints_t.add l (Ints_t.of_int(Bool.to_int(List.mem l ls)))) in
         let u' = (Ints_t.sub u (Ints_t.of_int(Bool.to_int(List.mem u ls)))) in Some(l', u')
@@ -2519,7 +2519,7 @@ module IntDomTupleImpl = struct
     if not (GobConfig.get_bool "ana.int.refinement") then (a, b, c, d )
     else
       let dt = ref (a, b, c, d) in
-      (* dt := refine_with_excl_list !dt (to_excl_list (a, b, c, d)); *)
+      dt := refine_with_excl_list !dt (to_excl_list (a, b, c, d));
       let quit_loop = ref false in
       while not !quit_loop do
         let old_dt = !dt in
