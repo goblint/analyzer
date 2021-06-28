@@ -102,8 +102,7 @@ end
 
 module type IkindUnawareS =
 sig
-  type int_t
-  include B with type int_t := int_t
+  include B
   include Arith with type t := t
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
