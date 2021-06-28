@@ -1,4 +1,4 @@
-// PARAM: --enable ana.nullptr
+// PARAM: --enable ana.nullptr --enable dbg.debug
 #include <stdio.h>
 int main() {
   int *x = NULL;
