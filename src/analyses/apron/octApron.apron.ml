@@ -111,6 +111,13 @@ struct
         ()
     end;
     AD.remove_vars_with nd' [return_var];
+    (* remove globals from local, use invariants from function *)
+    (* TODO: keep locals+formals instead to handle priv vars *)
+    AD.remove_filter_with nd (fun var ->
+        match GV.find_metadata var with
+        | Some _ -> true
+        | None -> false
+      );
     let r = A.unify Man.mgr nd nd' in
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
     {fun_st with oct = r}
@@ -158,13 +165,23 @@ struct
 
   let return ctx e f =
     let st = ctx.local in
-    let nd = match e with
-      | Some e when isIntegralType (typeOf e) ->
+    let return_type = match f.svar.vtype with
+      | TFun (return_type, _, _, _) -> return_type
+      | _ -> assert false
+    in
+    let nd =
+      if isIntegralType return_type then (
         let nd = AD.add_vars st.oct [return_var] in
-        let () = AD.assign_exp_with nd return_var e in
+        begin match e with
+          | Some e ->
+            AD.assign_exp_with nd return_var e
+          | None ->
+            ()
+        end;
         nd
-      | None -> AD.top_env (A.env st.oct)
-      | _ -> AD.add_vars st.oct [return_var]
+      )
+      else
+        AD.copy st.oct
     in
     let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
     let vars = List.map (fun x -> Var.of_string x.vname) vars in
