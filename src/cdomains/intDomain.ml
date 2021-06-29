@@ -2209,15 +2209,7 @@ struct
         pretty res ;
     res
 
-  let sub ?(no_ov=false) ik x y =
-    match (x, y) with
-    | None, None -> bot()
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize (Some (c1 -: c2, gcd m1 m2))
-    | Some (c1, m1), Some (c2, m2)
-         when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
-       Some((c1 -: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
-    | _ -> top ()
+  let sub ?(no_ov=false) ik x y = add ~no_ov ik x (neg ~no_ov ik y)
 
 
   let sub ?no_ov ik x y =
