@@ -285,13 +285,22 @@ struct
 
   let name () = "OctApron"
 
-  let topE = A.top    Man.mgr
-  let botE = A.bottom Man.mgr
+  let lift_var = Var.of_string "##LIFT##"
 
-  let top () = topE Man.eenv
-  let bot () = botE Man.eenv
-  let is_top = A.is_top    Man.mgr
-  let is_bot = A.is_bottom Man.mgr
+  (** Environment (containing a unique variable [lift_var]) only used for lifted bot and top. *)
+  let lift_env = Environment.make [|lift_var|] [||]
+
+  (* Functions for bot and top for particular environment. *)
+  let top_env = A.top    Man.mgr
+  let bot_env = A.bottom Man.mgr
+  let is_top_env = A.is_top Man.mgr
+  let is_bot_env = A.is_bottom Man.mgr
+
+  (* Functions for lifted bot and top to implement [Lattice.S]. *)
+  let top () = top_env lift_env
+  let bot () = bot_env lift_env
+  let is_top x = Environment.equal (A.env x) lift_env && is_top_env x
+  let is_bot x = Environment.equal (A.env x) lift_env && is_bot_env x
 
   let to_yojson x = failwith "TODO implement to_yojson"
   let invariant _ _ = Invariant.none
@@ -301,6 +310,7 @@ struct
 
   let show (x:t) =
     Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
+  let pretty () (x:t) = text (show x)
 
   (* Apron can not join two abstract values have different environments.
      That hapens when we do a join with dead code and for that reason we need
@@ -313,49 +323,47 @@ struct
       y
     else if is_bot y then
       x
-    else
+    else (
+      if Messages.tracing then Messages.tracel "apron" "join %a %a\n" pretty x pretty y;
       A.join (Man.mgr) x y
+      (* TODO: return lifted top if different environments? and warn? *)
+    )
 
   let meet x y =
     if is_top x then y else
     if is_top y then x else
       A.meet Man.mgr x y
+      (* TODO: return lifted bot if different environments? and warn? *)
 
   let widen x y =
     if is_bot x then
       y
     else if is_bot y then
-      x
+      x (* TODO: is this right? *)
     else
       A.widening (Man.mgr) x y
+      (* TODO: return lifted top if different environments? and warn? *)
 
   let narrow = meet
 
   let equal x y =
-    if is_bot x then is_bot y
-    else if is_bot y then false
-    else if is_top x then is_top y
-    else if is_top y then false
-    else A.is_eq Man.mgr x y
+    Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
 
   let leq x y =
     if is_bot x || is_top y then true else
-    if is_bot y || is_top x then false else
-      A.is_leq (Man.mgr) x y
+    if is_bot y || is_top x then false else (
+      if Messages.tracing then Messages.tracel "apron" "leq %a %a\n" pretty x pretty y;
+      Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
+      (* TODO: warn if different environments? *)
+    )
 
   let hash (x:t) =
-    (* is_bot/is_top match many values (with different envs) and equal equates them,
-       so we must force same hash for them *)
-    if is_bot x then 123
-    else if is_top x then 456
-    else A.hash Man.mgr x
+    A.hash Man.mgr x
 
   let compare (x:t) y: int =
-    (* TODO: specialize is_bot/is_top here as well to match equal *)
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
-  let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
 
   let typesort =
@@ -389,7 +397,7 @@ struct
       (* | BinOp (Ne, lhd, rhs, intType) ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-        if not (is_bot assert_gt) then
+        if not (is_bot_env assert_gt) then
           assert_gt
         else
           assert_lt *)
@@ -426,7 +434,7 @@ struct
           (* FIXME: this is probably wrong here too? *)
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-          if not (is_bot assert_gt) then
+          if not (is_bot_env assert_gt) then
             assert_gt
           else
             assert_lt
@@ -457,9 +465,9 @@ struct
     | _ ->
       let result_state = (assert_inv state e false) in
       let result_state_op = (assert_op_inv state e false) in (* TODO: why not use assert_inv with true? *)
-      if is_bot result_state then
+      if is_bot_env result_state then
         `False
-      else if is_bot result_state_op then
+      else if is_bot_env result_state_op then
         `True
       else
         `Top
@@ -499,7 +507,7 @@ struct
     | _ -> None
 
   let cil_exp_equals d exp1 exp2 =
-    if (is_bot d) then false
+    if (is_bot_env d) then false
     else
       begin
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
@@ -526,7 +534,7 @@ struct
             new_oct
           else
             (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
-            topE (A.env oct)
+            top_env (A.env oct)
         else
           new_oct
       else if check_max <> `True || check_min <> `True then

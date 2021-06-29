@@ -37,7 +37,7 @@ struct
   let invalidate oct (exps: exp list) =
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     let l = List.flatten (List.map get_vnames_list exps) in
-    AD.forget_vars_with oct (List.map Var.of_string l)
+    AD.forget_vars oct (List.map Var.of_string l)
 
   let threadenter ctx lval f args =
     let st = ctx.local in
@@ -49,7 +49,9 @@ struct
       ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
     [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
 
-  let threadspawn ctx lval f args fctx = let st = ctx.local in (invalidate st.oct args); st
+  let threadspawn ctx lval f args fctx =
+    let st = ctx.local in
+    {st with oct = invalidate st.oct args}
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
   let startstate _ = { oct = AD.bot (); priv = Priv.startstate () }
 
@@ -65,6 +67,9 @@ struct
           (MyCFG.getFun ctx.prev_node).slocals
       in
       let f = Cilfacade.getdec f in
+      if Messages.tracing then Messages.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
+      if Messages.tracing then Messages.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
+      if Messages.tracing then Messages.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
       let is = AD.typesort f.sformals in
       let is = is @ List.map (fun x -> Var.of_string ((Var.to_string x)^"'")) is in
       let newd = AD.add_vars st.oct is in
@@ -74,6 +79,7 @@ struct
       AD.forget_vars_with newd (List.map (fun (x,_) -> Var.of_string x.vname) arith_formals);
       List.iter  (fun (v,_)   -> AD.assign_var_with newd (Var.of_string v.vname) (Var.of_string (v.vname^"'"))) arith_formals;
       AD.remove_vars_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
+      if Messages.tracing then Messages.tracel "combine" "apron enter newd: %a\n" AD.pretty newd;
       [st, {st with oct = newd}]
 
 
@@ -81,21 +87,29 @@ struct
     let st = ctx.local in
     if AD.is_bot st.oct then D.bot () else
       let f = Cilfacade.getdec f in
+      if Messages.tracing then Messages.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
+      if Messages.tracing then Messages.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
       match r with
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let nd = AD.forget_vars st.oct [Var.of_string v.vname] in
         let fis = AD.vars st.oct in
         let nd' = AD.add_vars fun_st.oct fis in
+        if Messages.tracing then Messages.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
         let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
         List.iter (fun (v, e) -> AD.substitute_exp_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
         let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
+        if Messages.tracing then Messages.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
         AD.remove_vars_with nd' vars;
         AD.forget_vars_with nd' [Var.of_string v.vname];
         AD.substitute_var_with nd' return_var (Var.of_string v.vname);
         AD.remove_vars_with nd' [return_var];
-        {fun_st with oct = A.unify Man.mgr nd nd'}
-      | _ -> {fun_st with oct = AD.topE (A.env st.oct)}
+        let r = A.unify Man.mgr nd nd' in
+        if Messages.tracing then Messages.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
+        {fun_st with oct = r}
+      | _ ->
+        (* TODO: don't go to top, but just forget r *)
+        {fun_st with oct = AD.top_env (A.env st.oct)}
 
   let special ctx r f args =
     let st = ctx.local in
@@ -120,16 +134,14 @@ struct
             | _ -> st
           end
         | `ThreadJoin (id,ret_var) ->
-          let nd = st.oct in
-          invalidate nd [ret_var];
-          st
+          {st with oct = invalidate st.oct [ret_var]}
         | `ThreadCreate _ -> st
         | _ ->
           begin
             let st =
               match LibraryFunctions.get_invalidate_action f.vname with
-              | Some fnc -> let () = invalidate st.oct (fnc `Write  args) in st
-              | None -> {st with oct = AD.topE (A.env st.oct)}
+              | Some fnc -> {st with oct = invalidate st.oct (fnc `Write  args)}
+              | None -> {st with oct = AD.top_env (A.env st.oct)}
             in
             st
           end
@@ -141,7 +153,7 @@ struct
       D.bot ()
     else
       let res = AD.assert_inv st.oct e (not b) in
-      if AD.is_bot res then raise Deadcode;
+      if AD.is_bot_env res then raise Deadcode;
       {st with oct = res}
 
   let return ctx e f =
@@ -153,7 +165,7 @@ struct
           let nd = AD.add_vars st.oct [return_var] in
           let () = AD.assign_exp_with nd return_var e in
           nd
-        | None -> AD.topE (A.env st.oct)
+        | None -> AD.top_env (A.env st.oct)
         | _ -> AD.add_vars st.oct [return_var]
       in
       let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
