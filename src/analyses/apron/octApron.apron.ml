@@ -61,123 +61,114 @@ struct
 
   let enter ctx r f args =
     let st = ctx.local in
-    if AD.is_bot st.oct then [st, D.bot ()] else
-      let ctx_f_locals =
-        if MyCFG.Node.equal ctx.prev_node MyCFG.dummy_node then
-          [] (* enter_with in Control *)
-        else
-          (MyCFG.getFun ctx.prev_node).slocals
-      in
-      let f = Cilfacade.getdec f in
-      if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
-      if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
-      if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
-      let is = AD.typesort f.sformals in
-      let is = is @ List.map (fun x -> Var.of_string ((Var.to_string x)^"'")) is in
-      let newd = AD.add_vars st.oct is in
-      let formargs = Goblintutil.zip f.sformals args in
-      let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-      List.iter (fun (v, e) -> AD.assign_exp_with newd (Var.of_string (v.vname^"'")) e) arith_formals;
-      AD.forget_vars_with newd (List.map (fun (x,_) -> Var.of_string x.vname) arith_formals);
-      List.iter  (fun (v,_)   -> AD.assign_var_with newd (Var.of_string v.vname) (Var.of_string (v.vname^"'"))) arith_formals;
-      AD.remove_vars_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
-      if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty newd;
-      [st, {st with oct = newd}]
+    let ctx_f_locals =
+      if MyCFG.Node.equal ctx.prev_node MyCFG.dummy_node then
+        [] (* enter_with in Control *)
+      else
+        (MyCFG.getFun ctx.prev_node).slocals
+    in
+    let f = Cilfacade.getdec f in
+    if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
+    if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
+    if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
+    let is = AD.typesort f.sformals in
+    let is = is @ List.map (fun x -> Var.of_string ((Var.to_string x)^"'")) is in
+    let newd = AD.add_vars st.oct is in
+    let formargs = Goblintutil.zip f.sformals args in
+    let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
+    List.iter (fun (v, e) -> AD.assign_exp_with newd (Var.of_string (v.vname^"'")) e) arith_formals;
+    AD.forget_vars_with newd (List.map (fun (x,_) -> Var.of_string x.vname) arith_formals);
+    List.iter  (fun (v,_)   -> AD.assign_var_with newd (Var.of_string v.vname) (Var.of_string (v.vname^"'"))) arith_formals;
+    AD.remove_vars_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
+    if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty newd;
+    [st, {st with oct = newd}]
 
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
-    if AD.is_bot st.oct then D.bot () else
-      let f = Cilfacade.getdec f in
-      if M.tracing then M.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
-      if M.tracing then M.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
-      match r with
-      | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-        let nd = AD.forget_vars st.oct [Var.of_string v.vname] in
-        let fis = AD.vars st.oct in
-        let nd' = AD.add_vars fun_st.oct fis in
-        if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
-        let formargs = Goblintutil.zip f.sformals args in
-        let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-        List.iter (fun (v, e) -> AD.substitute_exp_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
-        let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
-        if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
-        AD.remove_vars_with nd' vars;
-        AD.forget_vars_with nd' [Var.of_string v.vname];
-        AD.substitute_var_with nd' return_var (Var.of_string v.vname);
-        AD.remove_vars_with nd' [return_var];
-        let r = A.unify Man.mgr nd nd' in
-        if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
-        {fun_st with oct = r}
-      | _ ->
-        (* TODO: don't go to top, but just forget r *)
-        {fun_st with oct = AD.top_env (A.env st.oct)}
+    let f = Cilfacade.getdec f in
+    if M.tracing then M.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
+    if M.tracing then M.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
+    match r with
+    | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
+      let nd = AD.forget_vars st.oct [Var.of_string v.vname] in
+      let fis = AD.vars st.oct in
+      let nd' = AD.add_vars fun_st.oct fis in
+      if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
+      let formargs = Goblintutil.zip f.sformals args in
+      let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
+      List.iter (fun (v, e) -> AD.substitute_exp_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
+      let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
+      if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
+      AD.remove_vars_with nd' vars;
+      AD.forget_vars_with nd' [Var.of_string v.vname];
+      AD.substitute_var_with nd' return_var (Var.of_string v.vname);
+      AD.remove_vars_with nd' [return_var];
+      let r = A.unify Man.mgr nd nd' in
+      if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
+      {fun_st with oct = r}
+    | _ ->
+      (* TODO: don't go to top, but just forget r *)
+      {fun_st with oct = AD.top_env (A.env st.oct)}
 
   let special ctx r f args =
     let st = ctx.local in
-    if AD.is_bot st.oct then D.bot () else
-      begin
-        match LibraryFunctions.classify f.vname args with
-        | `Assert expression -> st
-        | `Unknown "printf" -> st
-        | `Unknown "__goblint_check" -> st
-        | `Unknown "__goblint_commit" -> st
-        | `Unknown "__goblint_assert" -> st
-        | `Malloc size ->
-          begin match r with
-            | Some lv ->
-              {st with oct = AD.forget_vars st.oct [Var.of_string f.vname]}
-            | _ -> st
-          end
-        | `Calloc (n, size) ->
-          begin match r with
-            | Some lv ->
-              {st with oct = AD.forget_vars st.oct [Var.of_string f.vname]}
-            | _ -> st
-          end
-        | `ThreadJoin (id,ret_var) ->
-          {st with oct = invalidate st.oct [ret_var]}
-        | `ThreadCreate _ -> st
-        | _ ->
-          begin
-            let st =
-              match LibraryFunctions.get_invalidate_action f.vname with
-              | Some fnc -> {st with oct = invalidate st.oct (fnc `Write  args)}
-              | None -> {st with oct = AD.top_env (A.env st.oct)}
-            in
-            st
-          end
-      end
+    begin
+      match LibraryFunctions.classify f.vname args with
+      | `Assert expression -> st
+      | `Unknown "printf" -> st
+      | `Unknown "__goblint_check" -> st
+      | `Unknown "__goblint_commit" -> st
+      | `Unknown "__goblint_assert" -> st
+      | `Malloc size ->
+        begin match r with
+          | Some lv ->
+            {st with oct = AD.forget_vars st.oct [Var.of_string f.vname]}
+          | _ -> st
+        end
+      | `Calloc (n, size) ->
+        begin match r with
+          | Some lv ->
+            {st with oct = AD.forget_vars st.oct [Var.of_string f.vname]}
+          | _ -> st
+        end
+      | `ThreadJoin (id,ret_var) ->
+        {st with oct = invalidate st.oct [ret_var]}
+      | `ThreadCreate _ -> st
+      | _ ->
+        begin
+          let st =
+            match LibraryFunctions.get_invalidate_action f.vname with
+            | Some fnc -> {st with oct = invalidate st.oct (fnc `Write  args)}
+            | None -> {st with oct = AD.top_env (A.env st.oct)}
+          in
+          st
+        end
+    end
 
   let branch ctx e b =
     let st = ctx.local in
-    if AD.is_bot st.oct then
-      D.bot ()
-    else
-      let res = AD.assert_inv st.oct e (not b) in
-      if AD.is_bot_env res then raise Deadcode;
-      {st with oct = res}
+    let res = AD.assert_inv st.oct e (not b) in
+    if AD.is_bot_env res then raise Deadcode;
+    {st with oct = res}
 
   let return ctx e f =
     let st = ctx.local in
-    if AD.is_bot st.oct then D.bot () else
-
-      let nd = match e with
-        | Some e when isIntegralType (typeOf e) ->
-          let nd = AD.add_vars st.oct [return_var] in
-          let () = AD.assign_exp_with nd return_var e in
-          nd
-        | None -> AD.top_env (A.env st.oct)
-        | _ -> AD.add_vars st.oct [return_var]
-      in
-      let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
-      let vars = List.map (fun x -> Var.of_string x.vname) vars in
-      AD.remove_vars_with nd vars;
-      {st with oct = nd}
+    let nd = match e with
+      | Some e when isIntegralType (typeOf e) ->
+        let nd = AD.add_vars st.oct [return_var] in
+        let () = AD.assign_exp_with nd return_var e in
+        nd
+      | None -> AD.top_env (A.env st.oct)
+      | _ -> AD.add_vars st.oct [return_var]
+    in
+    let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
+    let vars = List.map (fun x -> Var.of_string x.vname) vars in
+    AD.remove_vars_with nd vars;
+    {st with oct = nd}
 
   let body ctx f =
     let st = ctx.local in
-    (* if AD.is_bot st.oct then D.bot () else *)
     let vars = f.slocals in
     (* TODO: avoid adding all global (with temps) to environment *)
     (* let vars =
@@ -256,29 +247,28 @@ struct
 
   let assign ctx (lv:lval) e =
     let st = ctx.local in
-    (* if AD.is_bot st.oct then D.bot () else *)
-      match lv with
-      (* Lvals which are numbers, have no offset and their address wasn't taken *)
-      | Var v, NoOffset when isIntegralType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
-        if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
-        let ask = Analyses.ask_of_ctx ctx in
-        let r =
-          if not v.vglob then
-            assign_with_globals ask ctx.global st v e
-          else (
-            let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-            let st = {st with oct = AD.add_vars st.oct [Var.of_string v_out.vname]} in (* add temporary g#out *)
-            let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
-            if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
-            let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-            let oct'' = AD.remove_vars st'.oct [Var.of_string v_out.vname] in (* remove temporary g#out *)
-            {st' with oct = oct''}
-          )
-        in
-        if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
-        r
-      (* Ignoring all other assigns *)
-      | _ -> st
+    match lv with
+    (* Lvals which are numbers, have no offset and their address wasn't taken *)
+    | Var v, NoOffset when isIntegralType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
+      if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
+      let ask = Analyses.ask_of_ctx ctx in
+      let r =
+        if not v.vglob then
+          assign_with_globals ask ctx.global st v e
+        else (
+          let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+          let st = {st with oct = AD.add_vars st.oct [Var.of_string v_out.vname]} in (* add temporary g#out *)
+          let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
+          if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
+          let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
+          let oct'' = AD.remove_vars st'.oct [Var.of_string v_out.vname] in (* remove temporary g#out *)
+          {st' with oct = oct''}
+        )
+      in
+      if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
+      r
+    (* Ignoring all other assigns *)
+    | _ -> st
 
   let check_assert_with_globals ctx e =
     let st = ctx.local in
