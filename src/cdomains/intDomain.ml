@@ -808,13 +808,11 @@ struct
   let abs x = let r = Ints_t.neg x
    in if Ints_t.compare x r < 0 then r else x
 
-  (*  (-n) % k = k- (n % k)  *)
-  let modulo n k = if (Ints_t.compare n Ints_t.zero < 0)
-(*  let modulo n k = if (Ints_t.compare n Ints_t.zero < 0) && (Ints_t.rem (abs(n)) k <> Ints_t.zero)*) (* ToDo: improve*)
-                        then Ints_t.sub k (Ints_t.rem (abs(n)) k)
+ (* if n<0: n mod k = (n % k) + k *)
+  let modulo n k = if (Ints_t.compare n Ints_t.zero < 0) && (Ints_t.compare (Ints_t.rem n k) Ints_t.zero = 0)
+                   then Ints_t.add (Ints_t.rem n k) k
                    else Ints_t.rem n k
 
- (* Use modulo instead of the reminder function *)
   let refine_with_congruence (intv : t) (cong : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
@@ -822,7 +820,7 @@ struct
         else if m = Ints_t.zero then Some (c, c)
         else let rcx = Ints_t.add x (modulo (Ints_t.sub c x) (abs(m))) in
              let lcy = Ints_t.sub y (modulo (Ints_t.sub y c) (abs(m))) in
-             if Ints_t.compare rcx lcy > 0 then intv
+             if Ints_t.compare rcx lcy > 0 then None
              else if Ints_t.compare rcx lcy = 0 then Some (rcx, rcx)
              else Some (rcx, lcy)
     | _ -> intv
