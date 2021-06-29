@@ -28,10 +28,6 @@ struct
   let mgr = Oct.manager_alloc ()
   (* let mgr = Polka.manager_alloc_equalities () *)
   (* let mgr = Polka.manager_alloc_loose () *)
-  (* Making an environment from a set of integer and real variables.
-  Raise Failure in case of name conflict.
-  In this case the environment is empty to begin with. *)
-  let eenv = Environment.make [||] [||]
 end
 
 (** Conversion from CIL expressions to Apron. *)
@@ -628,8 +624,10 @@ struct
     if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
     j
 
+  let empty_env = Environment.make [||] [||]
+
   let bot () =
-    top_env Man.eenv
+    top_env empty_env
 
   let top () =
     failwith "D2.top"
