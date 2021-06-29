@@ -89,42 +89,31 @@ struct
     let f = Cilfacade.getdec f in
     if M.tracing then M.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
-    match r with
-    (* TODO: match conditions with assign *)
-    (* TODO: support assign to global *)
-    | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-      let nd = AD.forget_vars st.oct [Var.of_string v.vname] in
-      let fis = AD.vars st.oct in
-      let nd' = AD.add_vars fun_st.oct fis in
-      if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
-      let formargs = Goblintutil.zip f.sformals args in
-      let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-      List.iter (fun (v, e) -> AD.substitute_exp_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
-      let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
-      if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
-      AD.remove_vars_with nd' vars;
-      AD.forget_vars_with nd' [Var.of_string v.vname];
-      AD.substitute_var_with nd' return_var (Var.of_string v.vname);
-      AD.remove_vars_with nd' [return_var];
-      let r = A.unify Man.mgr nd nd' in
-      if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
-      {fun_st with oct = r}
-    | _ ->
-      (* TODO: reduce duplication *)
-      let nd = AD.copy st.oct in
-      let fis = AD.vars st.oct in
-      let nd' = AD.add_vars fun_st.oct fis in
-      if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
-      let formargs = Goblintutil.zip f.sformals args in
-      let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-      List.iter (fun (v, e) -> AD.substitute_exp_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
-      let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
-      if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
-      AD.remove_vars_with nd' vars;
-      AD.remove_vars_with nd' [return_var];
-      let r = A.unify Man.mgr nd nd' in
-      if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
-      {fun_st with oct = r}
+    let nd = AD.copy st.oct in
+    let fis = AD.vars st.oct in
+    let nd' = AD.add_vars fun_st.oct fis in
+    if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
+    let formargs = Goblintutil.zip f.sformals args in
+    let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
+    List.iter (fun (v, e) -> AD.substitute_exp_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
+    let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
+    if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
+    AD.remove_vars_with nd' vars;
+    begin match r with
+      (* TODO: match conditions with assign *)
+      (* TODO: support assign to global *)
+      | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
+        let v_var = Var.of_string v.vname in
+        AD.forget_vars_with nd [v_var];
+        AD.forget_vars_with nd' [v_var];
+        AD.substitute_var_with nd' return_var v_var;
+      | _ ->
+        ()
+    end;
+    AD.remove_vars_with nd' [return_var];
+    let r = A.unify Man.mgr nd nd' in
+    if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
+    {fun_st with oct = r}
 
   let special ctx r f args =
     let st = ctx.local in
