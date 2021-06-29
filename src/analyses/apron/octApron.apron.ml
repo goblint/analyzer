@@ -202,7 +202,7 @@ struct
       let x_var = Var.of_string x.vname in
       let oct' = AD.add_vars oct [g_var] in
       let oct' = AD.assign_var oct' x_var g_var in
-      {st with oct = oct'}
+      oct'
     )
 
   module VH = BatHashtbl.Make (Basetype.Variables)
@@ -228,20 +228,20 @@ struct
       end
     in
     let e' = visitCilExpr visitor e in
-    let st = {st with oct = AD.add_vars st.oct (List.map (fun v -> Var.of_string v.vname) (VH.values v_ins |> List.of_enum))} in (* add temporary g#in-s *)
-    let st' = VH.fold (fun v v_in st ->
+    let oct = AD.add_vars st.oct (List.map (fun v -> Var.of_string v.vname) (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
+    let oct' = VH.fold (fun v v_in oct ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
-        read_global ask getg st v v_in (* g#in = g; *)
-      ) v_ins st
+        read_global ask getg {st with oct = oct} v v_in (* g#in = g; *)
+      ) v_ins oct
     in
-    (st', e', v_ins)
+    (oct', e', v_ins)
 
   let assign_with_globals ask getg st v e =
-    let (st', e', v_ins) = read_globals_to_locals ask getg st e in
+    let (oct', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
-    let oct' = AD.assign_var_handling_underflow_overflow st'.oct v e' in (* x = e; *)
+    let oct' = AD.assign_var_handling_underflow_overflow oct' v e' in (* x = e; *)
     let oct'' = AD.remove_vars oct' (List.map (fun v -> Var.of_string v.vname) (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
-    {st' with oct = oct''}
+    {st with oct = oct''}
 
   let write_global ask getg sideg st g x =
     if ThreadFlag.is_multi ask then
@@ -282,8 +282,8 @@ struct
 
   let check_assert_with_globals ctx e =
     let st = ctx.local in
-    let (st', e', _) = read_globals_to_locals (Analyses.ask_of_ctx ctx) ctx.global st e in
-    AD.check_assert e' st'.oct
+    let (oct', e', _) = read_globals_to_locals (Analyses.ask_of_ctx ctx) ctx.global st e in
+    AD.check_assert e' oct'
     (* no need to remove g#in-s *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

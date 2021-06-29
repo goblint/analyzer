@@ -21,7 +21,7 @@ sig
   val startstate: unit -> D.t
   val should_join: OctApronComponents (D).t -> OctApronComponents (D).t -> bool
 
-  val read_global: Q.ask -> (varinfo -> G.t) -> OctApronComponents (D).t -> varinfo -> varinfo -> OctApronComponents (D).t
+  val read_global: Q.ask -> (varinfo -> G.t) -> OctApronComponents (D).t -> varinfo -> varinfo -> AD.t
 
   (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
    * the state when following conditional guards. *)
@@ -48,7 +48,7 @@ struct
   let startstate () = ()
   let should_join _ _ = true
 
-  let read_global ask getg st g x = st
+  let read_global ask getg st g x = st.OctApronDomain.oct
   let write_global ?(invariant=false) ask getg sideg st g x = st
 
   let lock ask getg st m = st
@@ -182,7 +182,7 @@ struct
     in
     let oct_local' = restrict_local (is_unprotected ask) oct_local' (W.empty ()) in
     let oct_local' = AD.meet oct_local' (getg (global_varinfo ())) in
-    {st with oct = oct_local'}
+    oct_local'
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
     let oct = st.oct in
@@ -338,7 +338,7 @@ struct
     let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
     AD.join get_mutex_global_g get_mutex_inits'
 
-  let read_global ask getg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
+  let read_global ask getg (st: OctApronComponents (D).t) g x: AD.t =
     let oct = st.oct in
     (* lock *)
     let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
@@ -354,7 +354,7 @@ struct
       else
         oct_local
     in
-    {st with oct = oct_local'}
+    oct_local'
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
     let oct = st.oct in
@@ -492,7 +492,7 @@ struct
     (* TODO: implement *)
     let oct' = AD.add_vars st.oct [Var.of_string g.vname] in
     let oct' = A.assign_texpr Man.mgr oct' (Var.of_string x.vname) (Texpr1.var (A.env oct') (Var.of_string g.vname)) None in (* TODO: unsound *)
-    {st with oct = oct'}
+    oct'
 
   let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
     let s = current_lockset ask in
@@ -559,7 +559,7 @@ struct
       r
     in
     let r = Priv.read_global ask getg st g x in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
     r
 
   let write_global ?invariant ask getg sideg st g x =
