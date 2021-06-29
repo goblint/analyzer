@@ -56,19 +56,19 @@ struct
   let exitstate  v = D.top ()
 
   type id_type = Sid of int | Vid of int
-  let heap_hash = Hashtbl.create 113
+  let heap_hash = ref (Hashtbl.create 113)
 
   let get_heap_var sideg nodeId =
     (* Use existing varinfo instead of allocating a duplicate,
        which would be equal by determinism of create_var though. *)
     (* TODO: is this poor man's hashconsing? *)
-    try Hashtbl.find heap_hash nodeId
+    try Hashtbl.find !heap_hash nodeId
     with Not_found ->
       let name = match nodeId with
         | Sid i -> "(alloc@" ^ "sid" ^ ":" ^ string_of_int i ^ ")"
         | Vid i -> "(alloc@" ^ "vid" ^ ":" ^ string_of_int i ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      Hashtbl.add heap_hash nodeId newvar;
+      Hashtbl.add !heap_hash nodeId newvar;
       sideg newvar true;
       newvar
 
@@ -86,9 +86,19 @@ struct
       ctx.global v
     | _ -> Queries.Result.top q
 
-    let init () =
-      List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
-      Hashtbl.clear heap_hash
+  let init () =
+    List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
+    Hashtbl.clear !heap_hash;
+    let incremental_mode = get_string "exp.incremental.mode" in
+    if incremental_mode <> "off" then (
+      match Serialize.load_heap_vars () with
+      | Some h -> heap_hash := h
+      | None -> ()
+    )
+
+  let finalize () =
+    let incremental_mode = get_string "exp.incremental.mode" in
+    if incremental_mode <> "off" then Serialize.save_heap_vars !heap_hash
 end
 
 let _ =

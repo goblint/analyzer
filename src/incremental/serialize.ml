@@ -6,6 +6,8 @@ let version_map_filename = "version.data"
 
 let cilFileName = "ast.data"
 
+let heapFileName = "heap.data"
+
 let src_direcotry = ref ""
 
 let gob_directory () = let src_dir = !src_direcotry in
@@ -76,3 +78,15 @@ let save_cil (file: Cil.file) = match current_commit_dir () with
     let cilFile = Filename.concat dir cilFileName in
     marshal file cilFile
   | None -> print_endline "Failed saving cil: working directory is dirty"
+
+let load_heap_vars () =
+  try
+    let dir = gob_directory () in
+    let heap = Filename.concat dir heapFileName in
+    Some (unmarshal heap)
+  with e -> None
+
+let save_heap_vars (heap_data : ('a,Cil.varinfo) Hashtbl.t) =
+  let dir = gob_directory () in
+  let heapFile = Filename.concat dir heapFileName in
+  marshal heap_data heapFile
