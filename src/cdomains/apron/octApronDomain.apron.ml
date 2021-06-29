@@ -337,7 +337,7 @@ struct
     else if is_bot y then
       x
     else (
-      if Messages.tracing then Messages.tracel "apron" "join %a %a\n" pretty x pretty y;
+      if M.tracing then M.tracel "apron" "join %a %a\n" pretty x pretty y;
       A.join (Man.mgr) x y
       (* TODO: return lifted top if different environments? and warn? *)
     )
@@ -362,7 +362,7 @@ struct
   let leq x y =
     if is_bot x || is_top y then true else
     if is_bot y || is_top x then false else (
-      if Messages.tracing then Messages.tracel "apron" "leq %a %a\n" pretty x pretty y;
+      if M.tracing then M.tracel "apron" "leq %a %a\n" pretty x pretty y;
       Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
       (* TODO: warn if different environments? *)
     )

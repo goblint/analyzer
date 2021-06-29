@@ -4,6 +4,8 @@ open Prelude.Ana
 open Analyses
 open OctApronDomain
 
+module M = Messages
+
 module SpecFunctor (Priv: OctApronPriv.S) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
@@ -35,7 +37,7 @@ struct
     | _ -> []
 
   let invalidate oct (exps: exp list) =
-    if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
+    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     let l = List.flatten (List.map get_vnames_list exps) in
     AD.forget_vars oct (List.map Var.of_string l)
 
@@ -67,9 +69,9 @@ struct
           (MyCFG.getFun ctx.prev_node).slocals
       in
       let f = Cilfacade.getdec f in
-      if Messages.tracing then Messages.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
-      if Messages.tracing then Messages.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
-      if Messages.tracing then Messages.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
+      if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
+      if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
+      if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
       let is = AD.typesort f.sformals in
       let is = is @ List.map (fun x -> Var.of_string ((Var.to_string x)^"'")) is in
       let newd = AD.add_vars st.oct is in
@@ -79,7 +81,7 @@ struct
       AD.forget_vars_with newd (List.map (fun (x,_) -> Var.of_string x.vname) arith_formals);
       List.iter  (fun (v,_)   -> AD.assign_var_with newd (Var.of_string v.vname) (Var.of_string (v.vname^"'"))) arith_formals;
       AD.remove_vars_with newd (List.map (fun x -> Var.of_string x.vname) ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
-      if Messages.tracing then Messages.tracel "combine" "apron enter newd: %a\n" AD.pretty newd;
+      if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty newd;
       [st, {st with oct = newd}]
 
 
@@ -87,25 +89,25 @@ struct
     let st = ctx.local in
     if AD.is_bot st.oct then D.bot () else
       let f = Cilfacade.getdec f in
-      if Messages.tracing then Messages.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
-      if Messages.tracing then Messages.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
+      if M.tracing then M.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
+      if M.tracing then M.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
       match r with
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let nd = AD.forget_vars st.oct [Var.of_string v.vname] in
         let fis = AD.vars st.oct in
         let nd' = AD.add_vars fun_st.oct fis in
-        if Messages.tracing then Messages.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
+        if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
         let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
         List.iter (fun (v, e) -> AD.substitute_exp_with nd' (Var.of_string (v.vname^"'")) e) arith_formals;
         let vars = List.map (fun (x,_) -> Var.of_string (x.vname^"'")) arith_formals in
-        if Messages.tracing then Messages.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
+        if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
         AD.remove_vars_with nd' vars;
         AD.forget_vars_with nd' [Var.of_string v.vname];
         AD.substitute_var_with nd' return_var (Var.of_string v.vname);
         AD.remove_vars_with nd' [return_var];
         let r = A.unify Man.mgr nd nd' in
-        if Messages.tracing then Messages.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
+        if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
         {fun_st with oct = r}
       | _ ->
         (* TODO: don't go to top, but just forget r *)
