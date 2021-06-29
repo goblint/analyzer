@@ -169,18 +169,7 @@ struct
 
   let body ctx f =
     let st = ctx.local in
-    let vars = f.slocals in
-    (* TODO: avoid adding all global (with temps) to environment *)
-    (* let vars =
-        foldGlobals !Cilfacade.current_file (fun acc global ->
-          match global with
-          | GVar (vi, _, _) ->
-            vi :: acc
-            (* TODO: what about GVarDecl? *)
-          | _ -> acc
-        ) vars
-      in *)
-    let vars = AD.typesort vars in
+    let vars = AD.typesort f.slocals in
     {st with oct = AD.add_vars st.oct vars}
 
   let read_global ask getg st g x =
