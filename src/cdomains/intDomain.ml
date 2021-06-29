@@ -2232,26 +2232,21 @@ struct
     | None -> None
     | Some (c, m) -> if (Cil.isSigned ik) then sub ik (neg ik x) one else Some (Ints_t.sub (max_int ik) c, m)
 
-  let bitand ik x y = match x, y with
+  (** The implementation of the bit operations is based on the following paper.
+      see: https://www.dsi.unive.it/~avp/domains.pdf *)
+  let bit2 f ik x y = match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c, m), Some (c', m') when m =: Ints_t.zero && m' =: Ints_t.zero -> Some (Ints_t.bitand c c', Ints_t.zero)
-    | Some (c, m), Some (c', m') -> if (c =: Ints_t.zero && c' =: Ints_t.zero && m =: Ints_t.one && m' =: Ints_t.one)
-      then top() else Some ((Ints_t.bitand c c'), Ints_t.shift_left Ints_t.one (Ints_t.to_int (min m m')))
+    | Some (c, m), Some (c', m') ->
+      if (m =: Ints_t.zero && m' =: Ints_t.zero) then Some (f c c', Ints_t.zero)
+        else if (c =: Ints_t.zero && c' =: Ints_t.zero && m =: Ints_t.one && m' =: Ints_t.one)
+        then top() else Some ((f c c'), Ints_t.shift_left Ints_t.one (Ints_t.to_int (min m m')))
 
-   let bitor ik x y = match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c, m), Some (c', m') when m =: Ints_t.zero && m' =: Ints_t.zero -> Some (Ints_t.bitor c c', Ints_t.zero)
-    | Some (c, m), Some (c', m') -> if (c =: Ints_t.zero && c' =: Ints_t.zero && m =: Ints_t.one && m' =: Ints_t.one)
-      then top() else Some ((Ints_t.bitor c c'), Ints_t.shift_left Ints_t.one (Ints_t.to_int (min m m')))
+  let bitor ik x y = bit2 Ints_t.bitor ik x y
 
-   let bitxor ik x y = match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c, m), Some (c', m') when m =: Ints_t.zero && m' =: Ints_t.zero -> Some (Ints_t.bitxor c c', Ints_t.zero)
-    | Some (c, m), Some (c', m') -> if (c =: Ints_t.zero && c' =: Ints_t.zero && m =: Ints_t.one && m' =: Ints_t.one)
-      then top() else Some ((Ints_t.bitxor c c'), Ints_t.shift_left Ints_t.one (Ints_t.to_int (min m m')))
+  let bitand ik x y = bit2 Ints_t.bitand ik x y
+
+  let bitxor ik x y = bit2 Ints_t.bitxor ik x y
 
   let rem ik x y =
     match x, y with
