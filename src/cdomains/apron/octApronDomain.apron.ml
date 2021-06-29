@@ -629,7 +629,7 @@ struct
     j
 
   let bot () =
-    top ()
+    top_env Man.eenv
 
   let top () =
     failwith "D2.top"
