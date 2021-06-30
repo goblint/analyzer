@@ -70,8 +70,8 @@ struct
     if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
     if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
-    let is = AD.typesort f.sformals in
-    let is = List.map (fun x -> Var.of_string ((Var.to_string x)^"'")) is in (* TODO: use arg_var *)
+    let is = List.filter AD.varinfo_tracked f.sformals in
+    let is = List.map V.arg is in
     let newd = AD.add_vars st.oct is in
     let formargs = Goblintutil.zip f.sformals args in
     let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
@@ -188,11 +188,10 @@ struct
 
   let body ctx f =
     let st = ctx.local in
-    let vars = AD.typesort f.slocals in
-    let formals = AD.typesort f.sformals in
-    let nd = AD.add_vars st.oct (formals @ vars) in
-    let formals' = List.filter (fun x -> isIntegralType x.vtype) f.sformals in
-    List.iter (fun x -> AD.assign_var_with nd (V.local x) (V.arg x)) formals';
+    let vars = List.filter AD.varinfo_tracked f.slocals in
+    let formals = List.filter AD.varinfo_tracked f.sformals in
+    let nd = AD.add_vars st.oct (List.map V.local (formals @ vars)) in
+    List.iter (fun x -> AD.assign_var_with nd (V.local x) (V.arg x)) formals;
     {st with oct = nd}
 
   let read_global ask getg st g x =

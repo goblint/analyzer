@@ -369,20 +369,11 @@ struct
 
   let pretty_diff () (x,y) = text "pretty_diff"
 
-  let typesort =
-    let f is v =
-      if isIntegralType v.vtype then
-        if GobConfig.get_bool "ana.octapron.no_uints" then
-          if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
-            Var.of_string v.vname :: is
-          else
-            is
-        else
-          Var.of_string v.vname :: is
-      else
-        is
-    in
-    List.fold_left f []
+  let varinfo_tracked vi =
+    (* TODO: vglob? vaddof? *)
+    isIntegralType vi.vtype
+    && (not (GobConfig.get_bool "ana.octapron.no_uints") || Cil.isSigned (Cilfacade.get_ikind vi.vtype))
+
 
   (* Assert an invariant *)
   (* Gives the result of the meet operation of the given octagon
