@@ -311,27 +311,29 @@ struct
       | _ -> None
     in
     match exp with
-      | Const _
-      | SizeOf _
-      | Real _
-      | Imag _
-      | SizeOfE _
-      | SizeOfStr _
-      | AlignOf _
-      | AlignOfE _
-      | UnOp (_, _, _)
-      | BinOp (_, _, _, _)
-      | Question (_, _, _, _)
-      | CastE (_, _)
-      | StartOf (_, _) ->
-        let ans =  ask.f (Q.EvalInt exp) in
-        (match ans with
-          | `Top ->  eval_binop exp
-          | `Bot -> None
-          | `Lifted z ->
-            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in Some (`Int (ID.of_int ik z) )
-        )
-      | _ ->
+    (* TODO: what is this selection based on? *)
+    | Const _
+    | SizeOf _
+    | Real _
+    | Imag _
+    | SizeOfE _
+    | SizeOfStr _
+    | AlignOf _
+    | AlignOfE _
+    | UnOp (_, _, _)
+    | BinOp (_, _, _, _)
+    | Question (_, _, _, _)
+    | CastE (_, _)
+    | StartOf (_, _) ->
+      (* TODO: only do EvalInt on integer expressions *)
+      begin match ask.f (Q.EvalInt exp) with
+        | `Top -> eval_binop exp
+        | `Bot -> None
+        | `Lifted z ->
+          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+          Some (`Int (ID.of_int ik z))
+      end
+    | _ ->
       eval_binop exp
 
 
