@@ -310,31 +310,13 @@ struct
       | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
       | _ -> None
     in
-    match exp with
-    (* TODO: what is this selection based on? *)
-    | Const _
-    | SizeOf _
-    | Real _
-    | Imag _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | AlignOfE _
-    | UnOp (_, _, _)
-    | BinOp (_, _, _, _)
-    | Question (_, _, _, _)
-    | CastE (_, _)
-    | StartOf (_, _) ->
-      (* TODO: only do EvalInt on integer expressions *)
-      begin match ask.f (Q.EvalInt exp) with
-        | `Top -> eval_binop exp
-        | `Bot -> None
-        | `Lifted z ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          Some (`Int (ID.of_int ik z))
-      end
-    | _ ->
-      eval_binop exp
+    (* TODO: only do EvalInt on integer expressions *)
+    match ask.f (Q.EvalInt exp) with
+    | `Top -> eval_binop exp
+    | `Bot -> None
+    | `Lifted z ->
+      let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+      Some (`Int (ID.of_int ik z))
 
 
   (**************************************************************************
