@@ -57,14 +57,6 @@ struct
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
   let startstate _ = { oct = AD.bot (); priv = Priv.startstate () }
 
-  (** Var for function local variable (or formal argument). *)
-  let local_var x = Var.of_string x.vname
-
-  (** Var for function formal argument entry value. *)
-  let arg_var x = Var.of_string (x.vname ^ "'") (* TODO: better suffix, like #arg *)
-
-  (** Var for function return value. *)
-  let return_var = Var.of_string "#ret"
 
   let enter ctx r f args =
     let st = ctx.local in
@@ -83,10 +75,10 @@ struct
     let newd = AD.add_vars st.oct is in
     let formargs = Goblintutil.zip f.sformals args in
     let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-    List.iter (fun (v, e) -> AD.assign_exp_with newd (arg_var v) e) arith_formals;
-    AD.forget_vars_with newd (List.map (fun (x,_) -> local_var x) arith_formals);
-    List.iter  (fun (v,_)   -> AD.assign_var_with newd (local_var v) (arg_var v)) arith_formals;
-    AD.remove_vars_with newd (List.map local_var ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
+    List.iter (fun (v, e) -> AD.assign_exp_with newd (V.arg v) e) arith_formals;
+    AD.forget_vars_with newd (List.map (fun (x,_) -> V.local x) arith_formals);
+    List.iter  (fun (v,_)   -> AD.assign_var_with newd (V.local v) (V.arg v)) arith_formals;
+    AD.remove_vars_with newd (List.map V.local ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
     (* TODO: also remove arg_vars/primed *)
     if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty newd;
     [st, {st with oct = newd}]
@@ -103,28 +95,28 @@ struct
     if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
     let formargs = Goblintutil.zip f.sformals args in
     let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-    List.iter (fun (v, e) -> AD.substitute_exp_with nd' (arg_var v) e) arith_formals;
-    let vars = List.map (fun (x,_) -> arg_var x) arith_formals in
+    List.iter (fun (v, e) -> AD.substitute_exp_with nd' (V.arg v) e) arith_formals;
+    let vars = List.map (fun (x,_) -> V.arg x) arith_formals in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
     AD.remove_vars_with nd' vars;
     begin match r with
       (* TODO: match conditions with assign *)
       (* TODO: support assign to global *)
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-        let v_var = local_var v in
+        let v_var = V.local v in
         AD.forget_vars_with nd [v_var];
         AD.forget_vars_with nd' [v_var];
-        AD.substitute_var_with nd' return_var v_var;
+        AD.substitute_var_with nd' V.return v_var;
       | _ ->
         ()
     end;
-    AD.remove_vars_with nd' [return_var];
+    AD.remove_vars_with nd' [V.return];
     (* remove globals from local, use invariants from function *)
     (* TODO: keep locals+formals instead to handle priv vars *)
     AD.remove_filter_with nd (fun var ->
-        match GV.find_metadata var with
-        | Some _ -> true
-        | None -> false
+        match V.find_metadata var with
+        | Some (Global _) -> true
+        | _ -> false
       );
     let r = A.unify Man.mgr nd nd' in
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
@@ -142,13 +134,13 @@ struct
       | `Malloc size ->
         begin match r with
           | Some lv ->
-            {st with oct = AD.forget_vars st.oct [local_var f]}
+            {st with oct = AD.forget_vars st.oct [V.local f]}
           | _ -> st
         end
       | `Calloc (n, size) ->
         begin match r with
           | Some lv ->
-            {st with oct = AD.forget_vars st.oct [local_var f]}
+            {st with oct = AD.forget_vars st.oct [V.local f]}
           | _ -> st
         end
       | `ThreadJoin (id,ret_var) ->
@@ -179,10 +171,10 @@ struct
     in
     let nd =
       if isIntegralType return_type then (
-        let nd = AD.add_vars st.oct [return_var] in
+        let nd = AD.add_vars st.oct [V.return] in
         begin match e with
           | Some e ->
-            AD.assign_exp_with nd return_var e
+            AD.assign_exp_with nd V.return e
           | None ->
             ()
         end;
@@ -192,7 +184,7 @@ struct
         AD.copy st.oct
     in
     let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
-    let vars = List.map local_var vars in
+    let vars = List.map V.local vars in
     AD.remove_vars_with nd vars;
     {st with oct = nd}
 
@@ -206,8 +198,8 @@ struct
       Priv.read_global ask getg st g x
     else (
       let oct = st.oct in
-      let g_var = GV.make g in
-      let x_var = local_var x in
+      let g_var = V.global g in
+      let x_var = V.local x in
       let oct' = AD.add_vars oct [g_var] in
       let oct' = AD.assign_var oct' x_var g_var in
       oct'
@@ -236,7 +228,7 @@ struct
       end
     in
     let e' = visitCilExpr visitor e in
-    let oct = AD.add_vars st.oct (List.map local_var (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
+    let oct = AD.add_vars st.oct (List.map V.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
     let oct' = VH.fold (fun v v_in oct ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
         read_global ask getg {st with oct = oct} v v_in (* g#in = g; *)
@@ -248,7 +240,7 @@ struct
     let (oct', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
     let oct' = AD.assign_var_handling_underflow_overflow oct' v e' in (* x = e; *)
-    let oct'' = AD.remove_vars oct' (List.map local_var (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    let oct'' = AD.remove_vars oct' (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     {st with oct = oct''}
 
   let write_global ask getg sideg st g x =
@@ -256,8 +248,8 @@ struct
       Priv.write_global ask getg sideg st g x
     else (
       let oct = st.oct in
-      let g_var = GV.make g in
-      let x_var = local_var x in
+      let g_var = V.global g in
+      let x_var = V.local x in
       let oct' = AD.add_vars oct [g_var] in
       let oct' = AD.assign_var oct' g_var x_var in
       {st with oct = oct'}
@@ -275,11 +267,11 @@ struct
           assign_with_globals ask ctx.global st v e
         else (
           let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-          let st = {st with oct = AD.add_vars st.oct [local_var v_out]} in (* add temporary g#out *)
+          let st = {st with oct = AD.add_vars st.oct [V.local v_out]} in (* add temporary g#out *)
           let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
           if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
           let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-          let oct'' = AD.remove_vars st'.oct [local_var v_out] in (* remove temporary g#out *)
+          let oct'' = AD.remove_vars st'.oct [V.local v_out] in (* remove temporary g#out *)
           {st' with oct = oct''}
         )
       in

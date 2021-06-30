@@ -276,8 +276,8 @@ struct
       AD.vars oct
       |> List.enum
       |> Enum.filter_map (fun var ->
-          match OctApronDomain.GV.find_metadata var with
-          | Some g -> Some (var, g)
+          match OctApronDomain.V.find_metadata var with
+          | Some (Global g) -> Some (var, g)
           | _ -> None
         )
       |> Enum.uncombine
@@ -312,7 +312,7 @@ struct
 
   let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
-  module V = OctApronDomain.GV
+  module V = OctApronDomain.V
 
   let startstate () = ()
 
@@ -325,8 +325,8 @@ struct
     let get_mutex_inits = getg (mutex_inits ()) in
     let get_mutex_inits' = AD.keep_filter get_mutex_inits (fun var ->
         match V.find_metadata var with
-        | Some g -> is_protected_by ask m g
-        | None -> false
+        | Some (Global g) -> is_protected_by ask m g
+        | _ -> false
       )
     in
     AD.join get_m get_mutex_inits'
@@ -334,7 +334,7 @@ struct
   let get_mutex_global_g_with_mutex_inits ask getg g =
     let get_mutex_global_g = getg (mutex_global g) in
     let get_mutex_inits = getg (mutex_inits ()) in
-    let g_var = V.make g in
+    let g_var = V.global g in
     let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
     AD.join get_mutex_global_g get_mutex_inits'
 
@@ -343,7 +343,7 @@ struct
     (* lock *)
     let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* read *)
-    let g_var = V.make g in
+    let g_var = V.global g in
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars oct [g_var] in
     let oct_local = AD.assign_var oct_local x_var g_var in
@@ -361,7 +361,7 @@ struct
     (* lock *)
     let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* write *)
-    let g_var = V.make g in
+    let g_var = V.global g in
     let x_var = Var.of_string x.vname in
     let oct_local = AD.add_vars oct [g_var] in
     let oct_local = AD.assign_var oct_local g_var x_var in
@@ -382,8 +382,8 @@ struct
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let get_m = AD.keep_filter get_m (fun var ->
         match V.find_metadata var with
-        | Some g -> is_protected_by ask m g
-        | None -> false
+        | Some (Global g) -> is_protected_by ask m g
+        | _ -> false
       )
     in
     let oct' = AD.meet oct get_m in
@@ -393,15 +393,15 @@ struct
     let oct = st.oct in
     let oct_side = AD.keep_filter oct (fun var ->
         match V.find_metadata var with
-        | Some g -> is_protected_by ask m g
-        | None -> false
+        | Some (Global g) -> is_protected_by ask m g
+        | _ -> false
       )
     in
     sideg (mutex_addr_to_varinfo m) oct_side;
     let oct_local = AD.remove_filter oct (fun var ->
         match V.find_metadata var with
-        | Some g -> is_protected_by ask m g && is_unprotected_without ask g m
-        | None -> false
+        | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
+        | _ -> false
       )
     in
     {st with oct = oct_local}
@@ -427,8 +427,8 @@ struct
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
         match V.find_metadata var with
-        | Some _ -> true
-        | None -> false
+        | Some (Global _) -> true
+        | _ -> false
       ) (AD.vars oct)
     in
     let oct_side = AD.keep_vars oct g_vars in

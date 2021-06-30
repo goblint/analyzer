@@ -766,8 +766,9 @@ struct
 
   let vh = VH.create 113
 
-  let make_var metadata =
-    let var = Var.of_string (VM.var_name metadata) in
+  let make_var ?name metadata =
+    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+    let var = Var.of_string name in
     VH.replace vh var metadata;
     var
 
@@ -775,15 +776,28 @@ struct
     VH.find_option vh var
 end
 
-module GVM =
+module VM =
 struct
-  include CilType.Varinfo
-  let var_name g = g.vname
+  type t =
+    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
+    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Return (** Var for function return value. *)
+    | Global of varinfo
+
+  let var_name = function
+    | Local -> failwith "var_name of Local"
+    | Arg -> failwith "var_name of Arg"
+    | Return -> "#ret"
+    | Global g -> g.vname
 end
 
-module GV =
+module V =
 struct
-  include VarMetadataTbl (GVM)
+  include VarMetadataTbl (VM)
+  open VM
 
-  let make g = make_var g
+  let local x = make_var ~name:x.vname Local
+  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let return = make_var Return
+  let global g = make_var (Global g)
 end
