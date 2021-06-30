@@ -27,6 +27,12 @@ module MustBool = BoolDomain.MustBool
 
 module Unit = Lattice.Unit
 
+(* Helper definitions for deriving complex parts of Any.compare below. *)
+type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord]
+type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord]
+type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord]
+type partaccess = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: bool} [@@deriving ord]
+
 (** GADT for queries with specific result type. *)
 type _ t =
   | EqualSet: exp -> ES.t t
@@ -36,9 +42,9 @@ type _ t =
   | Regions: exp -> LS.t t
   | MayEscape: varinfo -> MayBool.t t
   | Priority: string -> ID.t t
-  | MayBePublic: {global: varinfo; write: bool} -> MayBool.t t (* old behavior with write=false *)
-  | MayBePublicWithout: {global: varinfo; write: bool; without_mutex: PreValueDomain.Addr.t} -> MayBool.t t
-  | MustBeProtectedBy: {mutex: PreValueDomain.Addr.t; global: varinfo; write: bool} -> MustBool.t t
+  | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
+  | MayBePublicWithout: maybepublicwithout -> MayBool.t t
+  | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | CurrentLockset: LS.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
@@ -52,7 +58,7 @@ type _ t =
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | PrintFullState: Unit.t t
   | CondVars: exp -> ES.t t
-  | PartAccess: {exp: exp; var_opt: varinfo option; write: bool} -> PartAccessResult.t t
+  | PartAccess: partaccess -> PartAccessResult.t t
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | MustBeEqual: exp * exp -> MustBool.t t (* are two expression known to must-equal ? *)
@@ -210,73 +216,24 @@ struct
       | Any (Regions e1), Any (Regions e2) -> CilType.Exp.compare e1 e2
       | Any (MayEscape vi1), Any (MayEscape vi2) -> CilType.Varinfo.compare vi1 vi2
       | Any (Priority s1), Any (Priority s2) -> compare s1 s2
-      | Any (MayBePublic x1), Any (MayBePublic x2) ->
-        let r2 = CilType.Varinfo.compare x1.global x2.global in
-        if r2 <> 0 then
-          r2
-        else
-          Bool.compare x1.write x2.write
-      | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) ->
-        let r2 = CilType.Varinfo.compare x1.global x2.global in
-        if r2 <> 0 then
-          r2
-        else
-          let r3 = Bool.compare x1.write x2.write in
-          if r3 <> 0 then
-            r3
-          else
-            PreValueDomain.Addr.compare x1.without_mutex x2.without_mutex
-      | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) ->
-        let r2 = PreValueDomain.Addr.compare x1.mutex x2.mutex in
-        if r2 <> 0 then
-          r2
-        else
-          let r3 = CilType.Varinfo.compare x1.global x2.global in
-          if r3 <> 0 then
-            r3
-          else
-            Bool.compare x1.write x2.write
+      | Any (MayBePublic x1), Any (MayBePublic x2) -> compare_maybepublic x1 x2
+      | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) -> compare_maybepublicwithout x1 x2
+      | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
       | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
-      | Any (PartAccess p1), Any (PartAccess p2) ->
-        let r2 = CilType.Exp.compare p1.exp p2.exp in
-        if r2 <> 0 then
-          r2
-        else
-          let r3 = match (p1.var_opt, p2.var_opt) with
-            | (Some opt1, Some opt2) -> CilType.Varinfo.compare opt1 opt2
-            | (_, Some opt2) -> -1
-            | (Some opt1, _) -> 1
-            | (_, _)-> 0
-          in
-          if r3 <> 0 then
-            r3
-          else
-            Bool.compare p1.write p2.write
+      | Any (PartAccess p1), Any (PartAccess p2) -> compare_partaccess p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
       | Any (MustBeEqual (e1, e2)), Any (MustBeEqual (e3, e4)) ->
-        let r2 = CilType.Exp.compare e1 e3 in
-        if r2 <> 0 then
-          r2
-        else
-          CilType.Exp.compare e2 e4
+        [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (MayBeEqual (e1, e2)), Any (MayBeEqual (e3, e4)) ->
-        let r2 = CilType.Exp.compare e1 e3 in
-        if r2 <> 0 then
-          r2
-        else
-          CilType.Exp.compare e2 e4
+        [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (MayBeLess (e1, e2)), Any (MayBeEqual (e3, e4)) ->
-        let r2 = CilType.Exp.compare e1 e3 in
-        if r2 <> 0 then
-          r2
-        else
-          CilType.Exp.compare e2 e4
+        [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
