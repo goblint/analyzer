@@ -270,7 +270,7 @@ struct
 
   (* evaluate value using our "query functions" *)
   let eval_rv_pre (ask: Q.ask) exp pr =
-    let evaluate =
+    let eval_binop exp =
       let binop op e1 e2 =
         let equality () =
           (* TODO: just return bool? *)
@@ -326,13 +326,13 @@ struct
       | StartOf (_, _) ->
         let ans =  ask.f (Q.EvalInt exp) in
         (match ans with
-          | `Top ->  evaluate
+          | `Top ->  eval_binop exp
           | `Bot -> None
           | `Lifted z ->
             let ik = Cilfacade.get_ikind (Cil.typeOf exp) in Some (`Int (ID.of_int ik z) )
         )
       | _ ->
-      evaluate
+      eval_binop exp
 
 
   (**************************************************************************
