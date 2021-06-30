@@ -155,126 +155,129 @@ struct
     | PartAccess _ -> PartAccessResult.top ()
 end
 
-(* The type any_query can't be directly included in the module Any.
- This is because it refers to the t from the outer scope. *)
+(* The type any_query can't be directly defined in Any as t,
+   because it also refers to the t from the outer scope. *)
 type any_query = Any: 'a t -> any_query
 
-module Any = struct
+module Any =
+struct
   type t = any_query
+
+  (* deriving ord doesn't work for GADTs (t and any_query) so this must be done manually... *)
   let compare a b =
-    let order (q: t) = 
-      match q with
-        | Any(EqualSet _) -> 0
-        | Any(MayPointTo _) -> 1
-        | Any(ReachableFrom _) -> 2
-        | Any(ReachableUkTypes _) -> 3
-        | Any(Regions _) -> 4
-        | Any(MayEscape _) -> 5 
-        | Any(Priority _) -> 6 
-        | Any(MayBePublic _) -> 7 
-        | Any(MayBePublicWithout _) -> 8 
-        | Any(MustBeProtectedBy _) -> 9 
-        | Any(CurrentLockset) -> 10
-        | Any(MustBeAtomic) -> 11 
-        | Any(MustBeSingleThreaded) -> 12 
-        | Any(MustBeUniqueThread) -> 13
-        | Any(CurrentThreadId) -> 14
-        | Any(MayBeThreadReturn) -> 15
-        | Any(EvalFunvar _) -> 16
-        | Any(EvalInt _) -> 17
-        | Any(EvalStr _) -> 18
-        | Any(EvalLength _) -> 19
-        | Any(BlobSize _) -> 20
-        | Any(PrintFullState) -> 21
-        | Any(CondVars _) -> 22
-        | Any(PartAccess _) -> 23
-        | Any(IterPrevVars _) -> 24
-        | Any(IterVars _) -> 25
-        | Any(MustBeEqual _) -> 26
-        | Any(MayBeEqual _) -> 27
-        | Any(MayBeLess _) -> 28
-        | Any(HeapVar) -> 29
-        | Any(IsHeapVar _) -> 30
-    in 
+    let order = function
+      | Any (EqualSet _) -> 0
+      | Any (MayPointTo _) -> 1
+      | Any (ReachableFrom _) -> 2
+      | Any (ReachableUkTypes _) -> 3
+      | Any (Regions _) -> 4
+      | Any (MayEscape _) -> 5
+      | Any (Priority _) -> 6
+      | Any (MayBePublic _) -> 7
+      | Any (MayBePublicWithout _) -> 8
+      | Any (MustBeProtectedBy _) -> 9
+      | Any CurrentLockset -> 10
+      | Any MustBeAtomic -> 11
+      | Any MustBeSingleThreaded -> 12
+      | Any MustBeUniqueThread -> 13
+      | Any CurrentThreadId -> 14
+      | Any MayBeThreadReturn -> 15
+      | Any (EvalFunvar _) -> 16
+      | Any (EvalInt _) -> 17
+      | Any (EvalStr _) -> 18
+      | Any (EvalLength _) -> 19
+      | Any (BlobSize _) -> 20
+      | Any PrintFullState -> 21
+      | Any (CondVars _) -> 22
+      | Any (PartAccess _) -> 23
+      | Any (IterPrevVars _) -> 24
+      | Any (IterVars _) -> 25
+      | Any (MustBeEqual _) -> 26
+      | Any (MayBeEqual _) -> 27
+      | Any (MayBeLess _) -> 28
+      | Any HeapVar -> 29
+      | Any (IsHeapVar _) -> 30
+    in
     let r = Stdlib.compare (order a) (order b) in
-      if r <> 0 then
-        r
-      else
-        match a, b with
-        | Any(EqualSet e1), Any(EqualSet e2) -> CilType.Exp.compare e1 e2
-        | Any(MayPointTo e1), Any(MayPointTo e2) -> CilType.Exp.compare e1 e2
-        | Any(ReachableFrom e1), Any(ReachableFrom e2) -> CilType.Exp.compare e1 e2
-        | Any(ReachableUkTypes e1), Any(ReachableUkTypes e2) -> CilType.Exp.compare e1 e2
-        | Any(Regions e1), Any(Regions e2) -> CilType.Exp.compare e1 e2
-        | Any(MayEscape vi1), Any(MayEscape vi2) -> CilType.Varinfo.compare vi1 vi2
-        | Any(Priority s1), Any(Priority s2) -> compare s1 s2
-        | Any(MayBePublic x1), Any(MayBePublic x2) -> 
-          let r2 =  CilType.Varinfo.compare x1.global x2.global in
-          if r2 <> 0 then 
-            r2
+    if r <> 0 then
+      r
+    else
+      match a, b with
+      | Any (EqualSet e1), Any (EqualSet e2) -> CilType.Exp.compare e1 e2
+      | Any (MayPointTo e1), Any (MayPointTo e2) -> CilType.Exp.compare e1 e2
+      | Any (ReachableFrom e1), Any (ReachableFrom e2) -> CilType.Exp.compare e1 e2
+      | Any (ReachableUkTypes e1), Any (ReachableUkTypes e2) -> CilType.Exp.compare e1 e2
+      | Any (Regions e1), Any (Regions e2) -> CilType.Exp.compare e1 e2
+      | Any (MayEscape vi1), Any (MayEscape vi2) -> CilType.Varinfo.compare vi1 vi2
+      | Any (Priority s1), Any (Priority s2) -> compare s1 s2
+      | Any (MayBePublic x1), Any (MayBePublic x2) ->
+        let r2 = CilType.Varinfo.compare x1.global x2.global in
+        if r2 <> 0 then
+          r2
+        else
+          Bool.compare x1.write x2.write
+      | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) ->
+        let r2 = CilType.Varinfo.compare x1.global x2.global in
+        if r2 <> 0 then
+          r2
+        else
+          let r3 = Bool.compare x1.write x2.write in
+          if r3 <> 0 then
+            r3
+          else
+            PreValueDomain.Addr.compare x1.without_mutex x2.without_mutex
+      | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) ->
+        let r2 = PreValueDomain.Addr.compare x1.mutex x2.mutex in
+        if r2 <> 0 then
+          r2
+        else
+          let r3 = CilType.Varinfo.compare x1.global x2.global in
+          if r3 <> 0 then
+            r3
           else
             Bool.compare x1.write x2.write
-        | Any(MayBePublicWithout x1), Any(MayBePublicWithout x2) -> 
-          let r2 =  CilType.Varinfo.compare x1.global x2.global in
-          if r2 <> 0 then 
-            r2
+      | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
+      | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
+      | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
+      | Any (PartAccess p1), Any (PartAccess p2) ->
+        let r2 = CilType.Exp.compare p1.exp p2.exp in
+        if r2 <> 0 then
+          r2
+        else
+          let r3 = match (p1.var_opt, p2.var_opt) with
+            | (Some opt1, Some opt2) -> CilType.Varinfo.compare opt1 opt2
+            | (_, Some opt2) -> -1
+            | (Some opt1, _) -> 1
+            | (_, _)-> 0
+          in
+          if r3 <> 0 then
+            r3
           else
-            let r3 = Bool.compare x1.write x2.write in
-            if r3 <> 0 then
-              r3
-            else
-              PreValueDomain.Addr.compare x1.without_mutex x2.without_mutex
-        | Any(MustBeProtectedBy x1), Any(MustBeProtectedBy x2) -> 
-          let r2 = PreValueDomain.Addr.compare x1.mutex x2.mutex in
-          if r2 <> 0 then 
-            r2
-          else
-            let r3 = CilType.Varinfo.compare x1.global x2.global in
-            if r3 <> 0 then
-              r3
-            else
-              Bool.compare x1.write x2.write
-        | Any(EvalFunvar e1), Any(EvalFunvar e2) -> CilType.Exp.compare e1 e2
-        | Any(EvalInt e1), Any(EvalInt e2) -> CilType.Exp.compare e1 e2
-        | Any(EvalStr e1), Any(EvalStr e2) -> CilType.Exp.compare e1 e2
-        | Any(EvalLength e1), Any(EvalLength e2) -> CilType.Exp.compare e1 e2
-        | Any(BlobSize e1), Any(BlobSize e2) -> CilType.Exp.compare e1 e2
-        | Any(CondVars e1), Any(CondVars e2) -> CilType.Exp.compare e1 e2
-        | Any(PartAccess p1), Any(PartAccess p2) ->
-          let r2 = CilType.Exp.compare p1.exp p2.exp in
-          if r2 <> 0 then
-            r2
-          else
-            let r3 = match (p1.var_opt, p2.var_opt) with
-              | (Some opt1, Some opt2) -> CilType.Varinfo.compare opt1 opt2 
-              | (_, Some opt2) -> -1
-              | (Some opt1, _) -> 1
-              | (_, _)-> 0
-            in
-            if r3 <> 0 then
-              r3
-            else
-              Bool.compare p1.write p2.write
-        | Any(IterPrevVars ip1), Any(IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
-        | Any(IterVars i1), Any(IterVars i2) -> compare_itervar i1 i2
-        | Any(MustBeEqual (e1, e2)), Any(MustBeEqual (e3, e4)) -> 
-          let r2 = CilType.Exp.compare e1 e3 in
-          if r2 <> 0 then
-            r2
-          else
-            CilType.Exp.compare e2 e4
-        | Any(MayBeEqual (e1, e2)), Any(MayBeEqual (e3, e4)) -> 
-          let r2 = CilType.Exp.compare e1 e3 in
-          if r2 <> 0 then
-            r2
-          else
-            CilType.Exp.compare e2 e4
-        | Any(MayBeLess (e1, e2)), Any(MayBeEqual (e3, e4)) -> 
+            Bool.compare p1.write p2.write
+      | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
+      | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
+      | Any (MustBeEqual (e1, e2)), Any (MustBeEqual (e3, e4)) ->
         let r2 = CilType.Exp.compare e1 e3 in
-          if r2 <> 0 then
-            r2
-          else
-            CilType.Exp.compare e2 e4 
-        | Any(IsHeapVar v1), Any(IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
-        | _, _ -> Stdlib.compare (order a) (order b)
+        if r2 <> 0 then
+          r2
+        else
+          CilType.Exp.compare e2 e4
+      | Any (MayBeEqual (e1, e2)), Any (MayBeEqual (e3, e4)) ->
+        let r2 = CilType.Exp.compare e1 e3 in
+        if r2 <> 0 then
+          r2
+        else
+          CilType.Exp.compare e2 e4
+      | Any (MayBeLess (e1, e2)), Any (MayBeEqual (e3, e4)) ->
+        let r2 = CilType.Exp.compare e1 e3 in
+        if r2 <> 0 then
+          r2
+        else
+          CilType.Exp.compare e2 e4
+      | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
+      (* only argumentless queries should remain *)
+      | _, _ -> Stdlib.compare (order a) (order b)
 end
