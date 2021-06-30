@@ -310,13 +310,17 @@ struct
       | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
       | _ -> None
     in
-    (* TODO: only do EvalInt on integer expressions *)
-    match ask.f (Q.EvalInt exp) with
-    | `Top -> eval_binop exp
-    | `Bot -> None
-    | `Lifted z ->
-      let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-      Some (`Int (ID.of_int ik z))
+    match Cil.typeOf exp with
+    | typ when Cil.isIntegralType typ ->
+      begin match ask.f (Q.EvalInt exp) with
+        | `Lifted z ->
+          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+          Some (`Int (ID.of_int ik z))
+        | `Top -> eval_binop exp
+        | `Bot -> None
+      end
+    | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
+    | _ -> eval_binop exp
 
 
   (**************************************************************************
