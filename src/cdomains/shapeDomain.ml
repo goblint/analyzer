@@ -180,7 +180,7 @@ let eval_lp ask (e:exp) : lexp option =
   | _ -> None
 
 
-let warn_todo s = Messages.warn (Messages.LogEvent.may (Messages.EventType.Unknown (("NotImplemented exception! "^s))))
+let warn_todo s = Messages.warn (Messages.Warning.may (Messages.WarnType.Unknown (("NotImplemented exception! "^s))))
 
 let alias_top lp = SHMap.remove lp
 

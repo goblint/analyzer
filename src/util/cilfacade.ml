@@ -241,7 +241,7 @@ let rec get_ikind t =
   | TEnum ({ekind = ik; _},_) -> ik
   | TPtr _ -> get_ikind !Cil.upointType
   | _ ->
-    Messages.warn_each (Messages.LogEvent.may (Messages.EventType.Unknown ("Something that we expected to be an integer type has a different type, assuming it is an IInt")));
+    Messages.warn_each (Messages.Warning.may (Messages.WarnType.Unknown ("Something that we expected to be an integer type has a different type, assuming it is an IInt")));
     Cil.IInt
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType

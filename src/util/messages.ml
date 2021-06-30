@@ -31,7 +31,7 @@ struct
     | UseAfterFree -> "[Use After Free]"
 end
 
-module BehaviorEvent =
+module Behavior =
 struct
   type t =
     | Undefined of UndefinedBehavior.t
@@ -45,29 +45,29 @@ struct
     | Machine -> "[Machine]"
 end
 
-module IntegerEvent =
+module Integer =
 struct
   type t = Overflow | DivByZero
 end
 
-module CastEvent =
+module Cast =
 struct
   type t = TypeMismatch
 end
 
-module ArrayEvent =
+module Array =
 struct
   type t = OutOfBounds of int*int
 end
 
-module EventType =
+module WarnType =
 struct
   type t =
-    | Behavior of BehaviorEvent.t
-    | Integer of IntegerEvent.t
+    | Behavior of Behavior.t
+    | Integer of Integer.t
     | Race
-    | Array of ArrayEvent.t
-    | Cast of CastEvent.t
+    | Array of Array.t
+    | Cast of Cast.t
     | Unknown of string
     | Debug of string
 
@@ -86,7 +86,7 @@ struct
 
   let show e =
     match e with
-    | Behavior behavior -> Printf.sprintf "[Behavior] %s" (BehaviorEvent.show behavior)
+    | Behavior behavior -> Printf.sprintf "[Behavior] %s" (Behavior.show behavior)
     | Integer _ -> "[Integer]"
     | Race -> "[Race]"
     | Array _ -> "[Array]"
@@ -112,18 +112,18 @@ module Certainty = struct
     | Must -> "[MUST]"
 end
 
-module LogEvent =
+module Warning =
 struct
   type t = {
-    event_type : EventType.t;
+    event_type : WarnType.t;
     certainty: Certainty.t option
   }
 
   let may e = {event_type = e; certainty = Some Certainty.May}
   let must e = {event_type = e; certainty = Some Certainty.Must}
-  let debug msg = {event_type = EventType.Debug msg; certainty = None}
+  let debug msg = {event_type = WarnType.Debug msg; certainty = None}
 
-  let should_warn (e:t) = EventType.should_warn e.event_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
+  let should_warn (e:t) = WarnType.should_warn e.event_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
 
   let create e c = {event_type = e; certainty = c}
   let show {event_type; certainty} =
@@ -131,7 +131,7 @@ struct
       | Some c -> (Certainty.show c) ^ " "
       | None -> ""
     in
-    Printf.sprintf "%s%s" certainty_str (EventType.show event_type)
+    Printf.sprintf "%s%s" certainty_str (WarnType.show event_type)
 end
 
 exception Bailure of string
@@ -270,9 +270,9 @@ let warn_each_ctx ctx msg = (* cyclic dependency... *)
 *)
 
 
-let warn ?ctx (log_event: LogEvent.t) =
-  if !GU.should_warn && (LogEvent.should_warn log_event) then begin
-    let msg = LogEvent.show log_event in
+let warn ?ctx (log_event: Warning.t) =
+  if !GU.should_warn && (Warning.should_warn log_event) then begin
+    let msg = Warning.show log_event in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_str_hashtbl msg == false) then
       begin
@@ -281,10 +281,10 @@ let warn ?ctx (log_event: LogEvent.t) =
       end
   end
 
-let warn_each ?ctx (log_event: LogEvent.t) =
-  if !GU.should_warn && (LogEvent.should_warn log_event) then begin
+let warn_each ?ctx (log_event: Warning.t) =
+  if !GU.should_warn && (Warning.should_warn log_event) then begin
     let loc = !Tracing.current_loc in
-    let msg = LogEvent.show log_event in
+    let msg = Warning.show log_event in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
       begin
@@ -294,9 +294,9 @@ let warn_each ?ctx (log_event: LogEvent.t) =
   end
 
 let debug msg =
-  if (get_bool "dbg.debug") then warn (LogEvent.debug ("{BLUE}"^msg))
+  if (get_bool "dbg.debug") then warn (Warning.debug ("{BLUE}"^msg))
 
 let debug_each msg =
-  if (get_bool "dbg.debug") then warn_each (LogEvent.debug ("{blue}"^msg))
+  if (get_bool "dbg.debug") then warn_each (Warning.debug ("{blue}"^msg))
 
 include Tracing
