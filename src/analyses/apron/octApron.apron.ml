@@ -60,12 +60,6 @@ struct
 
   let enter ctx r f args =
     let st = ctx.local in
-    let ctx_f_locals =
-      if MyCFG.Node.equal ctx.prev_node MyCFG.dummy_node then
-        [] (* enter_with in Control *)
-      else
-        (MyCFG.getFun ctx.prev_node).slocals
-    in
     let f = Cilfacade.getdec f in
     if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
@@ -75,10 +69,15 @@ struct
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
-    let new_oct = AD.add_vars st.oct (List.map fst arg_assigns) in
+    let arg_vars = List.map fst arg_assigns in
+    let new_oct = AD.add_vars st.oct arg_vars in
     List.iter (fun (arg_var, e) -> AD.assign_exp_with new_oct arg_var e) arg_assigns; (* TODO: parallel assign *)
-    AD.remove_vars_with new_oct (List.map V.local ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
-    (* TODO: also remove arg_vars/primed *)
+    AD.remove_filter_with new_oct (fun var ->
+        match V.find_metadata var with
+        | Some Local -> true (* remove caller locals *)
+        | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | _ -> false (* keep everything else (just added args, globals, global privs) *)
+      );
     if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty new_oct;
     [st, {st with oct = new_oct}]
 
