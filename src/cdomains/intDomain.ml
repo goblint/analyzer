@@ -2318,9 +2318,19 @@ struct
     if M.tracing then  M.trace "congruence" "less than : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
-  let invariant c x = None
-
-  let invariant_ikind c ik x = None
+  let invariant_ikind ctxt ik x =
+    let l = Cil.(Lval (BatOption.get ctxt.Invariant.lval)) in
+    match x with
+    | Some (c, m) when m =: Ints_t.zero ->
+       let c = Cilint.Big (Ints_t.to_bigint c) in
+       Invariant.of_exp Cil.(BinOp (Eq, l, Cil.kintegerCilint ik c, TInt(ik,[])))
+    | Some (c, m) ->
+       let open Cil in
+       let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Cilint.Big (Ints_t.to_bigint a)) (c, m) in
+       (try
+          Invariant.of_exp (BinOp (Eq, (BinOp (Mod, l, m, TInt(ik,[]))), c, TInt(ik,[])))
+        with e -> None)
+    | None -> None
 
   let arbitrary () =
     let open QCheck in
