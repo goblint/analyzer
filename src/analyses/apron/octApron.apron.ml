@@ -76,7 +76,6 @@ struct
     let formargs = Goblintutil.zip f.sformals args in
     let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
     List.iter (fun (v, e) -> AD.assign_exp_with newd (V.arg v) e) arith_formals;
-    AD.forget_vars_with newd (List.map (fun (x,_) -> V.local x) arith_formals);
     List.iter  (fun (v,_)   -> AD.assign_var_with newd (V.local v) (V.arg v)) arith_formals;
     AD.remove_vars_with newd (List.map V.local ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
     (* TODO: also remove arg_vars/primed *)
