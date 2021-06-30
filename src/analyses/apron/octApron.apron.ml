@@ -70,16 +70,17 @@ struct
     if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
     if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
-    let is = List.filter AD.varinfo_tracked f.sformals in
-    let is = List.map V.arg is in
-    let newd = AD.add_vars st.oct is in
-    let formargs = Goblintutil.zip f.sformals args in
-    let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-    List.iter (fun (v, e) -> AD.assign_exp_with newd (V.arg v) e) arith_formals;
-    AD.remove_vars_with newd (List.map V.local ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
+    let arg_assigns =
+      Goblintutil.zip f.sformals args
+      |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
+      |> List.map (Tuple2.map1 V.arg)
+    in
+    let new_oct = AD.add_vars st.oct (List.map fst arg_assigns) in
+    List.iter (fun (arg_var, e) -> AD.assign_exp_with new_oct arg_var e) arg_assigns; (* TODO: parallel assign *)
+    AD.remove_vars_with new_oct (List.map V.local ctx_f_locals); (* remove caller locals, keep everything else (globals, global invariant)*)
     (* TODO: also remove arg_vars/primed *)
-    if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty newd;
-    [st, {st with oct = newd}]
+    if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty new_oct;
+    [st, {st with oct = new_oct}]
 
 
   let combine ctx r fe f args fc fun_st =
