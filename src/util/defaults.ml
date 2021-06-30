@@ -13,6 +13,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
+              | Warnings        (** Filtering warnings                            *)
               [@@deriving enum]
 
 let all_categories = min_category -- max_category |> of_enum |> map (Option.get % category_of_enum)
@@ -25,6 +26,7 @@ let catDescription = function
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
+  | Warnings        -> "Filtering of warnings"
 
 (** A place to store registered variables *)
 let registrar = ref []
@@ -228,15 +230,18 @@ let _ = ()
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
       ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
-      ; reg Debugging "dbg.warn.behavior"        "true"  "undefined behavior warnings"
-      ; reg Debugging "dbg.warn.integer"        "true"  "integer (Overflow, Div_by_zero) warnings"
-      ; reg Debugging "dbg.warn.cast"        "true"  "Cast (Type_mismatch(bug) warnings"
-      ; reg Debugging "dbg.warn.race"        "true"  "Race warnings"
-      ; reg Debugging "dbg.warn.array"        "true"  "Array (Out_of_bounds of int*int) warnings"
-      ; reg Debugging "dbg.warn.unknown"        "true"  "Unknown (of string) warnings"
-      ; reg Debugging "dbg.warn.debug"        "true"  "Debug (of string) warnings"
-      ; reg Debugging "dbg.warn.may"        "true"  "Enable or disable may warnings"
-      ; reg Debugging "dbg.warn.must"        "true"  "Enable or disable must warnings"
+
+(* {4 category [Warnings]} *)
+let _ = ()
+      ; reg Warnings "warn_filter.behavior"        "true"  "undefined behavior warnings"
+      ; reg Warnings "warn_filter.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
+      ; reg Warnings "warn_filter.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
+      ; reg Warnings "warn_filter.race"            "true"  "Race warnings"
+      ; reg Warnings "warn_filter.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
+      ; reg Warnings "warn_filter.unknown"         "true"  "Unknown (of string) warnings"
+      ; reg Warnings "warn_filter.debug"           "true"  "Debug (of string) warnings"
+      ; reg Warnings "warn_filter.may"             "true"  "Enable or disable may warnings"
+      ; reg Warnings "warn_filter.must"            "true"  "Enable or disable must warnings"
 
 let default_schema = "\
 { 'id'              : 'root'
@@ -305,6 +310,11 @@ let default_schema = "\
   , 'load_run'        : {}
   , 'compare_runs'    : {}
   , 'warn'            : {}
+  , 'warn_filter'     :
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
   }
 }"
 
