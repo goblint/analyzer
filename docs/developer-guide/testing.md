@@ -23,8 +23,8 @@ To pass additional options to Goblint with `update_suite.rb`, use the `gobopt` e
 gobopt='--sets exp.privatization write+lock' ./scripts/update_suite.rb
 ```
 
-### Writing
-* If you introduce a new warning message, you need to manually add it to `./scripts/update_suite.rb` in the declaration at line 386, otherwise it won`t be recognized as a warning
+### Annotating tests
+* If you introduce a new warning message, you need to manually add it to `./scripts/update_suite.rb` in the declaration at https://github.com/goblint/analyzer/blob/a507a97148a4c4aa2d39eaf0e5c339c582a275a1/scripts/update_suite.rb#L386-L402, otherwise it won't be recognized as a warning
     * Example: ` when /Array out of bound/        then "warn"`
 * Add parameters to a regression test in the first line: `//PARAM: --set dbg.debug true`
 * Annotate lines inside the regression test with comments: `arr[9] = 10; //WARN` 
