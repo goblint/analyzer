@@ -99,19 +99,6 @@ struct
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_oct arg_vars; (* TODO: only remove arg vars that don't also exist in caller *)
     let new_oct = AD.copy st.oct in
-    begin match r with
-      (* TODO: match conditions with assign *)
-      (* TODO: support assign to global *)
-      | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-        let v_var = V.local v in
-        (* TODO: check whether contains V.return at all *)
-        AD.forget_vars_with new_oct [v_var]; (* forget for unify *)
-        AD.forget_vars_with new_fun_oct [v_var]; (* TODO: why forget? *)
-        AD.substitute_var_with new_fun_oct V.return v_var; (* TODO: why not assign the other way around? *)
-      | _ ->
-        ()
-    end;
-    AD.remove_vars_with new_fun_oct [V.return];
     (* remove globals from local, use invariants from function *)
     (* TODO: keep locals+formals instead to handle priv vars *)
     AD.remove_filter_with new_oct (fun var ->
@@ -121,6 +108,17 @@ struct
       );
     let unify_oct = A.unify Man.mgr new_oct new_fun_oct in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_oct AD.pretty new_fun_oct AD.pretty unify_oct;
+    begin match r with
+      (* TODO: match conditions with assign *)
+      (* TODO: support assign to global *)
+      | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
+        let v_var = V.local v in
+        (* TODO: check whether contains V.return at all *)
+        AD.assign_var_with unify_oct v_var V.return;
+      | _ ->
+        ()
+    end;
+    AD.remove_vars_with unify_oct [V.return];
     {fun_st with oct = unify_oct}
 
   let special ctx r f args =
