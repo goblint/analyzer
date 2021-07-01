@@ -87,38 +87,41 @@ struct
     let f = Cilfacade.getdec f in
     if M.tracing then M.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
-    let nd = AD.copy st.oct in
-    let fis = AD.vars st.oct in
-    let nd' = AD.add_vars fun_st.oct fis in
     if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
-    let formargs = Goblintutil.zip f.sformals args in
-    let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
-    List.iter (fun (v, e) -> AD.substitute_exp_with nd' (V.arg v) e) arith_formals;
-    let vars = List.map (fun (x,_) -> V.arg x) arith_formals in
-    if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) vars;
-    AD.remove_vars_with nd' vars;
+    let new_fun_oct = AD.add_vars fun_st.oct (AD.vars st.oct) in
+    let arg_substitutes =
+      Goblintutil.zip f.sformals args
+      |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
+      |> List.map (Tuple2.map1 V.arg)
+    in
+    List.iter (fun (arg_var, e) -> AD.substitute_exp_with new_fun_oct arg_var e) arg_substitutes; (* TODO: parallel substitute *)
+    let arg_vars = List.map fst arg_substitutes in
+    if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
+    AD.remove_vars_with new_fun_oct arg_vars; (* TODO: only remove arg vars that don't also exist in caller *)
+    let new_oct = AD.copy st.oct in
     begin match r with
       (* TODO: match conditions with assign *)
       (* TODO: support assign to global *)
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let v_var = V.local v in
-        AD.forget_vars_with nd [v_var];
-        AD.forget_vars_with nd' [v_var];
-        AD.substitute_var_with nd' V.return v_var;
+        (* TODO: check whether contains V.return at all *)
+        AD.forget_vars_with new_oct [v_var]; (* forget for unify *)
+        AD.forget_vars_with new_fun_oct [v_var]; (* TODO: why forget? *)
+        AD.substitute_var_with new_fun_oct V.return v_var; (* TODO: why not assign the other way around? *)
       | _ ->
         ()
     end;
-    AD.remove_vars_with nd' [V.return];
+    AD.remove_vars_with new_fun_oct [V.return];
     (* remove globals from local, use invariants from function *)
     (* TODO: keep locals+formals instead to handle priv vars *)
-    AD.remove_filter_with nd (fun var ->
+    AD.remove_filter_with new_oct (fun var ->
         match V.find_metadata var with
         | Some (Global _) -> true
         | _ -> false
       );
-    let r = A.unify Man.mgr nd nd' in
-    if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty nd AD.pretty nd' AD.pretty r;
-    {fun_st with oct = r}
+    let unify_oct = A.unify Man.mgr new_oct new_fun_oct in (* TODO: unify_with *)
+    if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_oct AD.pretty new_fun_oct AD.pretty unify_oct;
+    {fun_st with oct = unify_oct}
 
   let special ctx r f args =
     let st = ctx.local in
