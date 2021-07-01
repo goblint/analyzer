@@ -204,17 +204,17 @@ struct
     in
     let unify_oct = A.unify Man.mgr new_oct new_fun_oct in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_oct AD.pretty new_fun_oct AD.pretty unify_oct;
-    begin match r with
-      (* TODO: match conditions with assign *)
-      (* TODO: support assign to global *)
-      | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-        let v_var = V.local v in
-        (* TODO: check whether contains V.return at all *)
-        AD.assign_var_with unify_oct v_var V.return;
-      | _ ->
-        ()
-    end;
-    AD.remove_vars_with unify_oct [V.return];
+    if AD.type_tracked (Cilfacade.fundec_return_type f) then (
+      begin match r with
+        (* TODO: match conditions with assign *)
+        (* TODO: support assign to global *)
+        | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
+          AD.assign_var_with unify_oct (V.local v) V.return;
+        | _ ->
+          ()
+      end;
+      AD.remove_vars_with unify_oct [V.return]
+    );
     {fun_st with oct = unify_oct}
 
   let rec get_vnames_list exp = match exp with
