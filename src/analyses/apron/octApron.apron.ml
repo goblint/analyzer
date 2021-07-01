@@ -213,18 +213,29 @@ struct
     in
     let unify_oct = A.unify Man.mgr new_oct new_fun_oct in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_oct AD.pretty new_fun_oct AD.pretty unify_oct;
+    let unify_st = {fun_st with oct = unify_oct} in
     if AD.type_tracked (Cilfacade.fundec_return_type f) then (
-      begin match r with
-        (* TODO: match conditions with assign *)
-        (* TODO: support assign to global *)
-        | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-          AD.assign_var_with unify_oct (V.local v) V.return;
+      let unify_st = match r with
+        | Some (Var v, NoOffset) when isIntegralType v.vtype && not v.vaddrof ->
+          if not v.vglob then
+            {unify_st with oct = AD.assign_var unify_st.oct (V.local v) V.return}
+          else (
+            let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+            let st = {unify_st with oct = AD.add_vars unify_st.oct [V.local v_out]} in (* add temporary g#out *)
+            let st' = {st with oct = AD.assign_var st.oct (V.local v_out) V.return} in (* g#out = e; *)
+            if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
+            let st' = write_global (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
+            let oct'' = AD.remove_vars st'.oct [V.local v_out] in (* remove temporary g#out *)
+            {st' with oct = oct''}
+          )
         | _ ->
-          ()
-      end;
-      AD.remove_vars_with unify_oct [V.return]
-    );
-    {fun_st with oct = unify_oct}
+          unify_st
+      in
+      AD.remove_vars_with unify_st.oct [V.return]; (* mutates! *)
+      unify_st
+    )
+    else
+      unify_st
 
   let rec get_vnames_list exp = match exp with
     | Lval lval ->
