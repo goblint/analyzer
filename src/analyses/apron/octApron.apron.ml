@@ -96,11 +96,11 @@ struct
     (* Lvals which are numbers, have no offset and their address wasn't taken *)
     | (Var v, NoOffset) when isIntegralType v.vtype && not v.vaddrof ->
       if not v.vglob then
-        f st v
+        {st with oct = f st v}
       else (
         let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
         let st = {st with oct = AD.add_vars st.oct [V.local v_out]} in (* add temporary g#out *)
-        let st' = f st v_out in (* g#out = e; *)
+        let st' = {st with oct = f st v_out} in (* g#out = e; *)
         if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
         let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
         let oct'' = AD.remove_vars st'.oct [V.local v_out] in (* remove temporary g#out *)
@@ -121,11 +121,9 @@ struct
       if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-          let oct'' = assign_from_globals_wrapper ask ctx.global st e (fun oct' e' ->
+          assign_from_globals_wrapper ask ctx.global st e (fun oct' e' ->
               AD.assign_var_handling_underflow_overflow oct' v e'
             )
-          in
-          {st with oct = oct''}
         )
       in
       if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
@@ -226,7 +224,7 @@ struct
       let unify_st' = match r with
         | Some lv ->
           assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
-              {st with oct = AD.assign_var st.oct (V.local v) V.return}
+              AD.assign_var st.oct (V.local v) V.return
             )
         | None ->
           unify_st
