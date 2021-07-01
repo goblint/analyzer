@@ -163,28 +163,28 @@ struct
 
   let return ctx e f =
     let st = ctx.local in
+    (* TODO: extract function *)
     let return_type = match f.svar.vtype with
       | TFun (return_type, _, _, _) -> return_type
       | _ -> assert false
     in
-    let nd =
-      if isIntegralType return_type then (
-        let nd = AD.add_vars st.oct [V.return] in
-        begin match e with
-          | Some e ->
-            AD.assign_exp_with nd V.return e
-          | None ->
-            ()
-        end;
-        nd
-      )
-      else
-        AD.copy st.oct
+    let new_oct = AD.copy st.oct in
+    if AD.type_tracked return_type then (
+      AD.add_vars_with new_oct [V.return];
+      match e with
+      | Some e ->
+        (* TODO: read_globals in e *)
+        AD.assign_exp_with new_oct V.return e
+      | None ->
+        ()
+    );
+    let local_vars =
+      f.sformals @ f.slocals
+      |> List.filter AD.varinfo_tracked
+      |> List.map V.local
     in
-    let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in
-    let vars = List.map V.local vars in
-    AD.remove_vars_with nd vars;
-    {st with oct = nd}
+    AD.remove_vars_with new_oct local_vars;
+    {st with oct = new_oct}
 
   let body ctx f =
     let st = ctx.local in

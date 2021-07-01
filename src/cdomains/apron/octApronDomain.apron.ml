@@ -369,10 +369,13 @@ struct
 
   let pretty_diff () (x,y) = text "pretty_diff"
 
+  let type_tracked typ =
+    isIntegralType typ
+    && (not (GobConfig.get_bool "ana.octapron.no_uints") || Cil.isSigned (Cilfacade.get_ikind typ))
+
   let varinfo_tracked vi =
     (* TODO: vglob? vaddof? *)
-    isIntegralType vi.vtype
-    && (not (GobConfig.get_bool "ana.octapron.no_uints") || Cil.isSigned (Cilfacade.get_ikind vi.vtype))
+    type_tracked vi.vtype
 
 
   (* Assert an invariant *)
