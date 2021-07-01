@@ -1,4 +1,3 @@
-// PARAM: --enable ana.nullptr --enable dbg.debug
 
 #include <stdio.h>
 // source base:

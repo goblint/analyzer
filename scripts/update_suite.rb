@@ -140,7 +140,6 @@ regs.sort.each do |d|
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
-    debug = false unless lines[0] =~ /DEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 
