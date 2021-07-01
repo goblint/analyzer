@@ -94,9 +94,12 @@ module WP =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        VS.iter (fun y ->
-          HM.remove stable y;
-          if not (HM.mem called y) then destabilize y) w
+        VS.fold (fun y b ->
+            let was_stable = HM.mem stable y in
+            HM.remove stable y;
+            if HM.mem called y then b
+            else destabilize y || was_stable && List.mem y vs || b
+          ) w false
       and solve x phase =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
@@ -126,7 +129,7 @@ module WP =
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
-            destabilize x;
+            let _ = destabilize x in
             (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then (
             (solve[@tailcall]) x Widen;
@@ -184,11 +187,8 @@ module WP =
         if not (S.Dom.leq tmp old) then (
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
-          let vs1 = List.map (HM.mem stable) vs in
-          destabilize y;
-          let vs2 = List.map (HM.mem stable) vs in
           (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
-          let destabilized_vs = vs1 <> vs2 in
+          let destabilized_vs = destabilize y in
           (* make y a widening point if ... *)
           let widen_if e = if destabilized_vs || e then HM.replace wpoint y () in
           match side_widen with
@@ -236,7 +236,7 @@ module WP =
                 ()
               else (
                 ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                destabilize v
+                ignore @@ destabilize v
               )
           | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
         ) st;
@@ -255,7 +255,7 @@ module WP =
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         (* Actually destabilize all nodes contained in changed functions. TODO only destabilize fun_... nodes *)
-        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable;
+        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then ignore @@ destabilize k) stable;
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         let add_nodes_of_fun (functions: fundec list) (nodes)=
