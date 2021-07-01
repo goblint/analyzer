@@ -96,7 +96,7 @@ module WP =
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
           HM.remove stable y;
-          destabilize y) w
+          if not (HM.mem called y) then destabilize y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
