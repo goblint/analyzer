@@ -1982,10 +1982,6 @@ struct
     if Cil.isSigned ik && !GU.in_verifying_stage then
       Goblintutil.did_overflow := true
 
-  let norm ik = function None -> None | Some (c,m) ->
-    if c <: min_int ik   || c >: max_int ik || m <: min_int ik || m >: max_int ik then (set_overflow_flag ik; top_of ik)
-    else Some (c,m)
-
   let leq (x:t) (y:t) =
     match x, y with
     | None, _ -> true
@@ -2004,7 +2000,7 @@ struct
     | None, z | z, None -> z
     | Some (c1,m1), Some (c2,m2) ->
       let m3 = gcd m1 (gcd m2 (c1 -: c2)) in
-      norm ik @@ normalize (Some (c1, m3))
+       normalize (Some (c1, m3))
 
   let join ik (x:t) y =
     let res = join ik x y in
@@ -2120,7 +2116,7 @@ struct
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_int i1, to_int i2 with
-      | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
+      | Some x, Some y -> (try  (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
       | _              -> (set_overflow_flag ik;  top_of ik)
 
   let is_power_of_two x = x >: Ints_t.zero && Ints_t.of_int 2 |: x
