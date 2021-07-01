@@ -195,14 +195,13 @@ struct
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_oct arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_oct adds them back with proper constraints *)
-    let new_oct = AD.copy st.oct in
-    (* remove globals from local, use invariants from function *)
-    (* TODO: keep locals+formals instead to handle priv vars *)
-    AD.remove_filter_with new_oct (fun var ->
+    let new_oct = AD.keep_filter st.oct (fun var ->
         match V.find_metadata var with
-        | Some (Global _) -> true
-        | _ -> false
-      );
+        | Some Local -> true (* keep caller locals *)
+        | Some Arg -> true (* keep caller args *)
+        | _ -> false (* remove everything else (globals, global privs) *)
+      )
+    in
     let unify_oct = A.unify Man.mgr new_oct new_fun_oct in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_oct AD.pretty new_fun_oct AD.pretty unify_oct;
     begin match r with
