@@ -72,6 +72,10 @@ struct
     in
     (oct', e', v_ins)
 
+  let read_from_globals_wrapper ask getg st e f =
+    let (oct', e', _) = read_globals_to_locals ask getg st e in
+    f oct' e' (* no need to remove g#in-s *)
+
   let assign_from_globals_wrapper ask getg st e f =
     let (oct', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "apron" "assign_from_globals_wrapper %a\n" d_exp e';
@@ -291,29 +295,24 @@ struct
     end
 
 
-  let check_assert_with_globals ctx e =
-    let st = ctx.local in
-    let (oct', e', _) = read_globals_to_locals (Analyses.ask_of_ctx ctx) ctx.global st e in
-    AD.check_assert e' oct'
-    (* no need to remove g#in-s *)
-
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
     match q with
     | Assert e ->
-      begin match check_assert_with_globals ctx e with
-        | `Top -> `Top
-        | `True -> `Lifted true
-        | `False -> `Lifted false
-        | _ -> `Bot
-      end
+      read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
+          match AD.check_assert e' oct' with
+          | `Top -> `Top
+          | `True -> `Lifted true
+          | `False -> `Lifted false
+          | _ -> `Bot
+        )
     | EvalInt e ->
-      begin
-        match AD.get_int_val_for_cil_exp st.oct e with
-        | Some i -> ID.of_int i
-        | _ -> `Top
-      end
+      read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
+          match AD.get_int_val_for_cil_exp oct' e' with
+          | Some i -> ID.of_int i
+          | _ -> `Top
+        )
     | _ -> Result.top q
 
 
