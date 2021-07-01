@@ -5,6 +5,5 @@ int main(){
     int a = *t; // WARN
     pi = NULL; 
     int c = *pi; // WARN
-    int d = *t; // NOWARN
     return 1;
 }
