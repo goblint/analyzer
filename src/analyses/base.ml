@@ -765,8 +765,8 @@ struct
         match (eval_rv a gs st n) with
         | `Address adr -> 
           if GobConfig.get_bool "ana.nullptr" then 
-            if (AD.is_null adr) then M.warn_each (M.LogEvent.must warn_type)
-            else if( AD.may_be_null adr) then M.warn_each (M.LogEvent.may warn_type);
+            if AD.is_null adr then M.warn_each (M.LogEvent.must warn_type)
+            else if AD.may_be_null adr then M.warn_each (M.LogEvent.may warn_type);
             ();
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
