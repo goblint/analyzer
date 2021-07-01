@@ -188,11 +188,11 @@ struct
 
   let body ctx f =
     let st = ctx.local in
-    let vars = List.filter AD.varinfo_tracked f.slocals in
     let formals = List.filter AD.varinfo_tracked f.sformals in
-    let nd = AD.add_vars st.oct (List.map V.local (formals @ vars)) in
-    List.iter (fun x -> AD.assign_var_with nd (V.local x) (V.arg x)) formals;
-    {st with oct = nd}
+    let locals = List.filter AD.varinfo_tracked f.slocals in
+    let new_oct = AD.add_vars st.oct (List.map V.local (formals @ locals)) in
+    List.iter (fun x -> AD.assign_var_with new_oct (V.local x) (V.arg x)) formals; (* TODO: parallel assign *)
+    {st with oct = new_oct}
 
   let read_global ask getg st g x =
     if ThreadFlag.is_multi ask then
