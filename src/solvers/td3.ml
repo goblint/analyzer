@@ -184,9 +184,13 @@ module WP =
         if not (S.Dom.leq tmp old) then (
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
+          let vs1 = List.map (HM.mem stable) vs in
           destabilize y;
+          let vs2 = List.map (HM.mem stable) vs in
+          (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
+          let destabilized_vs = vs1 <> vs2 in
           (* make y a widening point if ... *)
-          let widen_if e = if e then HM.replace wpoint y () in
+          let widen_if e = if destabilized_vs || e then HM.replace wpoint y () in
           match side_widen with
           | "always" -> (* any side-effect after the first one will be widened which will unnecessarily lose precision *)
             widen_if true
@@ -194,7 +198,7 @@ module WP =
             widen_if @@ not (HM.mem stable y)
           | "cycle" -> (* widen if any called var (not just y) is no longer stable *)
             widen_if @@ exists_key (neg (HM.mem stable)) called
-          | "never" | _ -> () (* will not terminate if there are side-effect cycles *)
+          | "never" | _ -> widen_if false (* on side-effect cycles, this should terminate via the outer `solver` loop *)
         )
       and init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
@@ -278,9 +282,18 @@ module WP =
       List.iter set_start st;
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
+      let i = ref 0 in
       let rec solver () = (* as while loop in paper *)
+        incr i;
         let unstable_vs = List.filter (neg (HM.mem stable)) vs in
         if unstable_vs <> [] then (
+          if GobConfig.get_bool "dbg.verbose" then (
+            if !i = 1 then print_newline ();
+            Printf.printf "Unstable solver start vars in %d. phase:\n" !i;
+            List.iter (fun v -> ignore @@ Pretty.printf "\t%a\n" S.Var.pretty_trace v) unstable_vs;
+            print_newline ();
+            flush_all ();
+          );
           List.iter (fun x -> solve x Widen) unstable_vs;
           solver ();
         )
