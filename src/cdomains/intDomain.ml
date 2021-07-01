@@ -752,8 +752,8 @@ struct
     let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      let x1 = Ints_t.to_int64 x1 in
-      Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x1, intType))
+      let x1 = Ints_t.to_bigint x1 in
+      Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik (Big x1), intType))
     | Some (x1, x2) ->
       let open Invariant in
       let (x1', x2') = BatTuple.Tuple2.mapn (fun a -> Cilint.Big (Ints_t.to_bigint a)) (x1, x2) in
