@@ -194,7 +194,7 @@ struct
     List.iter (fun (arg_var, e) -> AD.substitute_exp_with new_fun_oct arg_var e) arg_substitutes; (* TODO: parallel substitute *)
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
-    AD.remove_vars_with new_fun_oct arg_vars; (* TODO: only remove arg vars that don't also exist in caller *)
+    AD.remove_vars_with new_fun_oct arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_oct adds them back with proper constraints *)
     let new_oct = AD.copy st.oct in
     (* remove globals from local, use invariants from function *)
     (* TODO: keep locals+formals instead to handle priv vars *)
