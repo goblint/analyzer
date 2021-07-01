@@ -57,6 +57,106 @@ struct
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
   let startstate _ = { oct = AD.bot (); priv = Priv.startstate () }
 
+  (* Functions for manipulating globals as temporary locals. *)
+
+  let read_global ask getg st g x =
+    if ThreadFlag.is_multi ask then
+      Priv.read_global ask getg st g x
+    else (
+      let oct = st.oct in
+      let g_var = V.global g in
+      let x_var = V.local x in
+      let oct' = AD.add_vars oct [g_var] in
+      let oct' = AD.assign_var oct' x_var g_var in
+      oct'
+    )
+
+  module VH = BatHashtbl.Make (Basetype.Variables)
+
+  let read_globals_to_locals ask getg st e =
+    let v_ins = VH.create 10 in
+    let visitor = object
+      inherit nopCilVisitor
+      method! vvrbl (v: varinfo) =
+        if v.vglob then (
+          let v_in =
+            if VH.mem v_ins v then
+              VH.find v_ins v
+            else
+              let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+              VH.replace v_ins v v_in;
+              v_in
+          in
+          ChangeTo v_in
+        )
+        else
+          SkipChildren
+    end
+    in
+    let e' = visitCilExpr visitor e in
+    let oct = AD.add_vars st.oct (List.map V.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
+    let oct' = VH.fold (fun v v_in oct ->
+        if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
+        read_global ask getg {st with oct = oct} v v_in (* g#in = g; *)
+      ) v_ins oct
+    in
+    (oct', e', v_ins)
+
+  let assign_with_globals ask getg st v e =
+    let (oct', e', v_ins) = read_globals_to_locals ask getg st e in
+    if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
+    let oct' = AD.assign_var_handling_underflow_overflow oct' v e' in (* x = e; *)
+    let oct'' = AD.remove_vars oct' (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    {st with oct = oct''}
+
+  let write_global ask getg sideg st g x =
+    if ThreadFlag.is_multi ask then
+      Priv.write_global ask getg sideg st g x
+    else (
+      let oct = st.oct in
+      let g_var = V.global g in
+      let x_var = V.local x in
+      let oct' = AD.add_vars oct [g_var] in
+      let oct' = AD.assign_var oct' g_var x_var in
+      {st with oct = oct'}
+    )
+
+
+  (* Basic transfer functions. *)
+
+  let assign ctx (lv:lval) e =
+    let st = ctx.local in
+    match lv with
+    (* Lvals which are numbers, have no offset and their address wasn't taken *)
+    | Var v, NoOffset when isIntegralType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
+      if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
+      let ask = Analyses.ask_of_ctx ctx in
+      let r =
+        if not v.vglob then
+          assign_with_globals ask ctx.global st v e
+        else (
+          let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+          let st = {st with oct = AD.add_vars st.oct [V.local v_out]} in (* add temporary g#out *)
+          let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
+          if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
+          let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
+          let oct'' = AD.remove_vars st'.oct [V.local v_out] in (* remove temporary g#out *)
+          {st' with oct = oct''}
+        )
+      in
+      if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
+      r
+    (* Ignoring all other assigns *)
+    | _ -> st
+
+  let branch ctx e b =
+    let st = ctx.local in
+    let res = AD.assert_inv st.oct e (not b) in
+    if AD.is_bot_env res then raise Deadcode;
+    {st with oct = res}
+
+
+  (* Function call transfer functions. *)
 
   let enter ctx r f args =
     let st = ctx.local in
@@ -81,6 +181,38 @@ struct
     if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty new_oct;
     [st, {st with oct = new_oct}]
 
+  let body ctx f =
+    let st = ctx.local in
+    let formals = List.filter AD.varinfo_tracked f.sformals in
+    let locals = List.filter AD.varinfo_tracked f.slocals in
+    let new_oct = AD.add_vars st.oct (List.map V.local (formals @ locals)) in
+    List.iter (fun x -> AD.assign_var_with new_oct (V.local x) (V.arg x)) formals; (* TODO: parallel assign *)
+    {st with oct = new_oct}
+
+  let return ctx e f =
+    let st = ctx.local in
+    (* TODO: extract function *)
+    let return_type = match f.svar.vtype with
+      | TFun (return_type, _, _, _) -> return_type
+      | _ -> assert false
+    in
+    let new_oct = AD.copy st.oct in
+    if AD.type_tracked return_type then (
+      AD.add_vars_with new_oct [V.return];
+      match e with
+      | Some e ->
+        (* TODO: read_globals in e *)
+        AD.assign_exp_with new_oct V.return e
+      | None ->
+        ()
+    );
+    let local_vars =
+      f.sformals @ f.slocals
+      |> List.filter AD.varinfo_tracked
+      |> List.map V.local
+    in
+    AD.remove_vars_with new_oct local_vars;
+    {st with oct = new_oct}
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
@@ -122,6 +254,7 @@ struct
     {fun_st with oct = unify_oct}
 
   let special ctx r f args =
+    (* TODO: review all of this *)
     let st = ctx.local in
     begin
       match LibraryFunctions.classify f.vname args with
@@ -156,131 +289,6 @@ struct
         end
     end
 
-  let branch ctx e b =
-    let st = ctx.local in
-    let res = AD.assert_inv st.oct e (not b) in
-    if AD.is_bot_env res then raise Deadcode;
-    {st with oct = res}
-
-  let return ctx e f =
-    let st = ctx.local in
-    (* TODO: extract function *)
-    let return_type = match f.svar.vtype with
-      | TFun (return_type, _, _, _) -> return_type
-      | _ -> assert false
-    in
-    let new_oct = AD.copy st.oct in
-    if AD.type_tracked return_type then (
-      AD.add_vars_with new_oct [V.return];
-      match e with
-      | Some e ->
-        (* TODO: read_globals in e *)
-        AD.assign_exp_with new_oct V.return e
-      | None ->
-        ()
-    );
-    let local_vars =
-      f.sformals @ f.slocals
-      |> List.filter AD.varinfo_tracked
-      |> List.map V.local
-    in
-    AD.remove_vars_with new_oct local_vars;
-    {st with oct = new_oct}
-
-  let body ctx f =
-    let st = ctx.local in
-    let formals = List.filter AD.varinfo_tracked f.sformals in
-    let locals = List.filter AD.varinfo_tracked f.slocals in
-    let new_oct = AD.add_vars st.oct (List.map V.local (formals @ locals)) in
-    List.iter (fun x -> AD.assign_var_with new_oct (V.local x) (V.arg x)) formals; (* TODO: parallel assign *)
-    {st with oct = new_oct}
-
-  let read_global ask getg st g x =
-    if ThreadFlag.is_multi ask then
-      Priv.read_global ask getg st g x
-    else (
-      let oct = st.oct in
-      let g_var = V.global g in
-      let x_var = V.local x in
-      let oct' = AD.add_vars oct [g_var] in
-      let oct' = AD.assign_var oct' x_var g_var in
-      oct'
-    )
-
-  module VH = BatHashtbl.Make (Basetype.Variables)
-
-  let read_globals_to_locals ask getg st e =
-    let v_ins = VH.create 10 in
-    let visitor = object
-        inherit nopCilVisitor
-        method! vvrbl (v: varinfo) =
-          if v.vglob then (
-            let v_in =
-              if VH.mem v_ins v then
-                VH.find v_ins v
-              else
-                let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
-                VH.replace v_ins v v_in;
-                v_in
-            in
-            ChangeTo v_in
-          )
-          else
-            SkipChildren
-      end
-    in
-    let e' = visitCilExpr visitor e in
-    let oct = AD.add_vars st.oct (List.map V.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
-    let oct' = VH.fold (fun v v_in oct ->
-        if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
-        read_global ask getg {st with oct = oct} v v_in (* g#in = g; *)
-      ) v_ins oct
-    in
-    (oct', e', v_ins)
-
-  let assign_with_globals ask getg st v e =
-    let (oct', e', v_ins) = read_globals_to_locals ask getg st e in
-    if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
-    let oct' = AD.assign_var_handling_underflow_overflow oct' v e' in (* x = e; *)
-    let oct'' = AD.remove_vars oct' (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
-    {st with oct = oct''}
-
-  let write_global ask getg sideg st g x =
-    if ThreadFlag.is_multi ask then
-      Priv.write_global ask getg sideg st g x
-    else (
-      let oct = st.oct in
-      let g_var = V.global g in
-      let x_var = V.local x in
-      let oct' = AD.add_vars oct [g_var] in
-      let oct' = AD.assign_var oct' g_var x_var in
-      {st with oct = oct'}
-    )
-
-  let assign ctx (lv:lval) e =
-    let st = ctx.local in
-    match lv with
-    (* Lvals which are numbers, have no offset and their address wasn't taken *)
-    | Var v, NoOffset when isIntegralType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
-      if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
-      let ask = Analyses.ask_of_ctx ctx in
-      let r =
-        if not v.vglob then
-          assign_with_globals ask ctx.global st v e
-        else (
-          let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-          let st = {st with oct = AD.add_vars st.oct [V.local v_out]} in (* add temporary g#out *)
-          let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
-          if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
-          let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-          let oct'' = AD.remove_vars st'.oct [V.local v_out] in (* remove temporary g#out *)
-          {st' with oct = oct''}
-        )
-      in
-      if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
-      r
-    (* Ignoring all other assigns *)
-    | _ -> st
 
   let check_assert_with_globals ctx e =
     let st = ctx.local in
