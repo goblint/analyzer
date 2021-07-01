@@ -98,33 +98,42 @@ struct
       {st with oct = oct'}
     )
 
+  let assign_to_global_wrapper ask getg sideg st lv f =
+    match lv with
+    (* Lvals which are numbers, have no offset and their address wasn't taken *)
+    | (Var v, NoOffset) when isIntegralType v.vtype && not v.vaddrof ->
+      if not v.vglob then
+        f st v
+      else (
+        let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+        let st = {st with oct = AD.add_vars st.oct [V.local v_out]} in (* add temporary g#out *)
+        let st' = f st v_out in (* g#out = e; *)
+        if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
+        let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
+        let oct'' = AD.remove_vars st'.oct [V.local v_out] in (* remove temporary g#out *)
+        {st' with oct = oct''}
+      )
+    (* Ignoring all other assigns *)
+    | _ ->
+      st
+
 
   (* Basic transfer functions. *)
 
   let assign ctx (lv:lval) e =
     let st = ctx.local in
-    match lv with
-    (* Lvals which are numbers, have no offset and their address wasn't taken *)
-    | Var v, NoOffset when isIntegralType v.vtype && not v.vaddrof && not (!GU.global_initialization && e = MyCFG.unknown_exp) -> (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
+    if !GU.global_initialization && e = MyCFG.unknown_exp then
+      st (* ignore extern inits because there's no body before assign, so octagon env is empty... *)
+    else (
       if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
       let ask = Analyses.ask_of_ctx ctx in
-      let r =
-        if not v.vglob then
+      let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_with_globals ask ctx.global st v e
-        else (
-          let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-          let st = {st with oct = AD.add_vars st.oct [V.local v_out]} in (* add temporary g#out *)
-          let st' = assign_with_globals ask ctx.global st v_out e in (* g#out = e; *)
-          if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
-          let st' = write_global ask ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-          let oct'' = AD.remove_vars st'.oct [V.local v_out] in (* remove temporary g#out *)
-          {st' with oct = oct''}
         )
       in
       if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
       r
-    (* Ignoring all other assigns *)
-    | _ -> st
+    )
 
   let branch ctx e b =
     let st = ctx.local in
@@ -215,24 +224,16 @@ struct
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_oct AD.pretty new_fun_oct AD.pretty unify_oct;
     let unify_st = {fun_st with oct = unify_oct} in
     if AD.type_tracked (Cilfacade.fundec_return_type f) then (
-      let unify_st = match r with
-        | Some (Var v, NoOffset) when isIntegralType v.vtype && not v.vaddrof ->
-          if not v.vglob then
-            {unify_st with oct = AD.assign_var unify_st.oct (V.local v) V.return}
-          else (
-            let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-            let st = {unify_st with oct = AD.add_vars unify_st.oct [V.local v_out]} in (* add temporary g#out *)
-            let st' = {st with oct = AD.assign_var st.oct (V.local v_out) V.return} in (* g#out = e; *)
-            if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
-            let st' = write_global (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st' v v_out in (* g = g#out; *)
-            let oct'' = AD.remove_vars st'.oct [V.local v_out] in (* remove temporary g#out *)
-            {st' with oct = oct''}
-          )
-        | _ ->
+      let unify_st' = match r with
+        | Some lv ->
+          assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
+              {st with oct = AD.assign_var st.oct (V.local v) V.return}
+            )
+        | None ->
           unify_st
       in
-      AD.remove_vars_with unify_st.oct [V.return]; (* mutates! *)
-      unify_st
+      AD.remove_vars_with unify_st'.oct [V.return]; (* mutates! *)
+      unify_st'
     )
     else
       unify_st
