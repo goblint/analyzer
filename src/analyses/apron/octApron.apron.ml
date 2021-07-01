@@ -72,17 +72,10 @@ struct
     in
     (oct', e', v_ins)
 
-  let assign_with_globals ask getg st v e =
+  let assign_from_globals_wrapper ask getg st e f =
     let (oct', e', v_ins) = read_globals_to_locals ask getg st e in
-    if M.tracing then M.trace "apron" "AD.assign %a %a\n" d_varinfo v d_exp e';
-    let oct' = AD.assign_var_handling_underflow_overflow oct' v e' in (* x = e; *)
-    let oct'' = AD.remove_vars oct' (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
-    {st with oct = oct''}
-
-  let assign_exp_with_globals ask getg st v e =
-    let (oct', e', v_ins) = read_globals_to_locals ask getg st e in
-    if M.tracing then M.trace "apron" "assign_exp_with_globals %s %a\n" (Var.to_string v) d_exp e';
-    let oct' = AD.assign_exp oct' v e' in (* x = e; *)
+    if M.tracing then M.trace "apron" "assign_from_globals_wrapper %a\n" d_exp e';
+    let oct' = f oct' e' in (* x = e; *)
     let oct'' = AD.remove_vars oct' (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     oct''
 
@@ -128,7 +121,11 @@ struct
       if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-          assign_with_globals ask ctx.global st v e
+          let oct'' = assign_from_globals_wrapper ask ctx.global st e (fun oct' e' ->
+              AD.assign_var_handling_underflow_overflow oct' v e'
+            )
+          in
+          {st with oct = oct''}
         )
       in
       if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
@@ -182,7 +179,9 @@ struct
         let oct' = AD.add_vars st.oct [V.return] in
         match e with
         | Some e ->
-          assign_exp_with_globals (Analyses.ask_of_ctx ctx) ctx.global {st with oct = oct'} V.return e
+          assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with oct = oct'} e (fun oct' e' ->
+              AD.assign_exp oct' V.return e'
+            )
         | None ->
           oct' (* leaves V.return unconstrained *)
       )
