@@ -161,13 +161,8 @@ struct
 
   let return ctx e f =
     let st = ctx.local in
-    (* TODO: extract function *)
-    let return_type = match f.svar.vtype with
-      | TFun (return_type, _, _, _) -> return_type
-      | _ -> assert false
-    in
     let new_oct = AD.copy st.oct in
-    if AD.type_tracked return_type then (
+    if AD.type_tracked (Cilfacade.fundec_return_type f) then (
       AD.add_vars_with new_oct [V.return];
       match e with
       | Some e ->

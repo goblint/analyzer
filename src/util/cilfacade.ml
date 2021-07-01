@@ -361,3 +361,9 @@ let countLoc fn =
   let res = Hashtbl.length locs in
   Hashtbl.clear locs;
   res
+
+
+let fundec_return_type f =
+  match f.svar.vtype with
+  | TFun (return_type, _, _, _) -> return_type
+  | _ -> failwith "fundec_return_type: not TFun"
