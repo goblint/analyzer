@@ -92,7 +92,7 @@ let _ = ()
       ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
-      ; reg Std "warn"            "'post'"       "Output warnings: 'post'. Output warnings after solving. Best results. 'never': Do not produce warnings, 'early'. For debugging. Outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
+      ; reg Std "warn_at"         "'post'"       "Output warnings: 'post'. Output warnings after solving. Best results. 'never': Do not produce warnings, 'early'. For debugging. Outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
 
 (* {4 category [Analyses]} *)
 let _ = ()
@@ -233,15 +233,15 @@ let _ = ()
 
 (* {4 category [Warnings]} *)
 let _ = ()
-      ; reg Warnings "warn_filter.behavior"        "true"  "undefined behavior warnings"
-      ; reg Warnings "warn_filter.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
-      ; reg Warnings "warn_filter.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
-      ; reg Warnings "warn_filter.race"            "true"  "Race warnings"
-      ; reg Warnings "warn_filter.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
-      ; reg Warnings "warn_filter.unknown"         "true"  "Unknown (of string) warnings"
-      ; reg Warnings "warn_filter.debug"           "true"  "Debug (of string) warnings"
-      ; reg Warnings "warn_filter.may"             "true"  "Enable or disable may warnings"
-      ; reg Warnings "warn_filter.must"            "true"  "Enable or disable must warnings"
+      ; reg Warnings "warn.behavior"        "true"  "undefined behavior warnings"
+      ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
+      ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
+      ; reg Warnings "warn.race"            "true"  "Race warnings"
+      ; reg Warnings "warn.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
+      ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
+      ; reg Warnings "warn.debug"           "true"  "Debug (of string) warnings"
+      ; reg Warnings "warn.may"             "true"  "Enable or disable may warnings"
+      ; reg Warnings "warn.must"            "true"  "Enable or disable must warnings"
 
 let default_schema = "\
 { 'id'              : 'root'
@@ -309,8 +309,8 @@ let default_schema = "\
   , 'save_run'        : {}
   , 'load_run'        : {}
   , 'compare_runs'    : {}
-  , 'warn'            : {}
-  , 'warn_filter'     :
+  , 'warn_at'         : {}
+  , 'warn'              :
     { 'type'            : 'object'
     , 'additionalProps' : true
     , 'required'        : []

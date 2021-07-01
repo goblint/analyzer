@@ -82,7 +82,7 @@ struct
     | Debug msg -> "debug"
 
   let should_warn e =
-    get_bool ("warn_filter." ^ (to_string e))
+    get_bool ("warn." ^ (to_string e))
 
   let show e =
     match e with
@@ -104,7 +104,7 @@ module Certainty = struct
     | Must -> "must"
 
   let should_warn e =
-    get_bool ("warn_filter." ^ (to_string e))
+    get_bool ("warn." ^ (to_string e))
 
   let show c =
     match c with

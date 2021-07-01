@@ -411,7 +411,7 @@ struct
         ) else (
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
-          if get_string "warn" = "early" then Goblintutil.should_warn := true;
+          if get_string "warn_at" = "early" then Goblintutil.should_warn := true;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
             let analyses = append_opt "save_run" "analyses.marshalled" in
@@ -447,9 +447,9 @@ struct
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
       );
 
-      if (get_bool "verify" || get_string "warn" <> "never") && compare_runs = [] then (
+      if (get_bool "verify" || get_string "warn_at" <> "never") && compare_runs = [] then (
         if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
-        Goblintutil.should_warn := get_string "warn" <> "never";
+        Goblintutil.should_warn := get_string "warn_at" <> "never";
         Stats.time "verify" (Vrfyr.verify lh) gh;
       );
 
