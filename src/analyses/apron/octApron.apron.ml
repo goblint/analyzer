@@ -23,37 +23,7 @@ struct
   let val_of x = x
   let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
 
-  let rec get_vnames_list exp = match exp with
-    | Lval lval ->
-      let lhost, offset = lval in
-      begin match lhost with
-        | Var vinfo -> [vinfo.vname]
-        | _ -> []
-      end
-    | UnOp (unop, e, typ) -> get_vnames_list e
-    | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
-    | AddrOf lval -> get_vnames_list (Lval(lval))
-    | CastE(_, e) -> get_vnames_list e
-    | _ -> []
 
-  let invalidate oct (exps: exp list) =
-    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    let l = List.flatten (List.map get_vnames_list exps) in
-    AD.forget_vars oct (List.map Var.of_string l)
-
-  let threadenter ctx lval f args =
-    let st = ctx.local in
-    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-       EnterMultithreaded events only execute after threadenter and threadspawn. *)
-    if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
-      ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
-    [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
-
-  let threadspawn ctx lval f args fctx =
-    let st = ctx.local in
-    {st with oct = invalidate st.oct args}
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
   let startstate _ = { oct = AD.bot (); priv = Priv.startstate () }
 
@@ -253,6 +223,25 @@ struct
     AD.remove_vars_with unify_oct [V.return];
     {fun_st with oct = unify_oct}
 
+  let rec get_vnames_list exp = match exp with
+    | Lval lval ->
+      let lhost, offset = lval in
+      begin match lhost with
+        | Var vinfo -> [vinfo.vname]
+        | _ -> []
+      end
+    | UnOp (unop, e, typ) -> get_vnames_list e
+    | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
+    | AddrOf lval -> get_vnames_list (Lval(lval))
+    | CastE(_, e) -> get_vnames_list e
+    | _ -> []
+
+  let invalidate oct (exps: exp list) =
+    (* TODO: why does this invalidate everything? pass-by-value to unknown function doesn't allow invalidation *)
+    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
+    let l = List.flatten (List.map get_vnames_list exps) in
+    AD.forget_vars oct (List.map Var.of_string l)
+
   let special ctx r f args =
     (* TODO: review all of this *)
     let st = ctx.local in
@@ -314,6 +303,23 @@ struct
         | _ -> `Top
       end
     | _ -> Result.top q
+
+
+  (* Thread transfer functions. *)
+
+  let threadenter ctx lval f args =
+    let st = ctx.local in
+    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+       EnterMultithreaded events only execute after threadenter and threadspawn. *)
+    if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+      ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
+    [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
+
+  let threadspawn ctx lval f args fctx =
+    let st = ctx.local in
+    {st with oct = invalidate st.oct args}
 
   let event ctx e octx =
     let st = ctx.local in
