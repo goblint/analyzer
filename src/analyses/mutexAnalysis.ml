@@ -364,6 +364,18 @@ struct
     | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
       ctx.emit (Events.Unlock verifier_atomic);
       Lockset.remove (verifier_atomic, true) ctx.local
+    | _, "pthread_cond_wait"
+    | _, "pthread_cond_timedwait" ->
+      (* mutex is unlocked while waiting but relocked when returns *)
+      (* emit unlock-lock events for privatization *)
+      let m_arg = List.nth arglist 1 in
+      let ms = eval_exp_addr (Analyses.ask_of_ctx ctx) m_arg in
+      List.iter (fun m ->
+          (* unlock-lock each possible mutex as a split to be dependent *)
+          (* otherwise may-point-to {a, b} might unlock a, but relock b *)
+          ctx.split ctx.local [Events.Unlock m; Events.Lock m];
+        ) ms;
+      raise Deadcode (* splits cover all cases *)
     | _, x ->
       let arg_acc act =
         match LF.get_threadsafe_inv_ac x with
