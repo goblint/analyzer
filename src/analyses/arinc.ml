@@ -270,18 +270,18 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
     let d_caller = ctx.local in
-    let d_callee = if D.is_bot ctx.local then ctx.local else { ctx.local with pred = Pred.of_node (MyCFG.Function f.svar); ctx = Ctx.top () } in (* set predecessor set to start node of function *)
+    let d_callee = if D.is_bot ctx.local then ctx.local else { ctx.local with pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    let f = f.svar in
+  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
+    let f = fd.svar in
     if D.is_bot1 ctx.local || D.is_bot1 au then ctx.local else
       let env = get_env ctx in
       let d_caller = ctx.local in
       let d_callee = au in
       (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
       if Pred.is_bot d_callee.pred then failwith "d_callee.pred is bot!"; (* set should never be empty *)
-      if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function f)) then
+      if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function fd)) then
         { d_callee with pred = d_caller.pred; ctx = d_caller.ctx }
       else (
         (* write out edges with call to f coming from all predecessor nodes of the caller *)
@@ -650,7 +650,7 @@ struct
     );
     if GobConfig.get_bool "ana.arinc.validate" then ArincUtil.validate ()
 
-  let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar); ctx = Ctx.top () }
+  let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main")); ctx = Ctx.top () }
   let exitstate  v = D.bot ()
 
   let threadenter ctx lval f args =

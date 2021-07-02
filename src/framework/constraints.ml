@@ -558,8 +558,8 @@ struct
           match Cilfacade.getdec f with
           | fd ->
             let c = S.context d in
-            if not full_context then sidel (FunctionEntry f, c) d;
-            ignore (getl (Function f, c))
+            if not full_context then sidel (FunctionEntry fd, c) d;
+            ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
             ()
@@ -655,7 +655,7 @@ struct
         let rec sync_ctx = { ctx with
             ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
             local = fd;
-            prev_node = Function f.svar
+            prev_node = Function f
           }
         in
         sync sync_ctx
@@ -667,8 +667,8 @@ struct
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
-    let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f.svar, fc) v) paths in
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f.svar, fc))) paths in
+    let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in

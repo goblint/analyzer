@@ -64,10 +64,10 @@ struct
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* ctx.local doesn't matter here? *)
-    [ctx.local, step ctx.local ctx.prev_node (FunctionEntry f.svar)]
+    [ctx.local, step ctx.local ctx.prev_node (FunctionEntry f)]
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    step au (Function f.svar) ctx.node
+    step au (Function f) ctx.node
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     step_ctx ctx
