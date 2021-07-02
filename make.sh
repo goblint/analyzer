@@ -74,12 +74,12 @@ rule() {
       # gprof & ocamlprof (run also generates ocamlprof.dump). use: ocamlprof src/goblint.ml
       ocb -ocamlopt ocamloptp $TARGET.p.native &&
       cp _build/$TARGET.p.native goblint
-    ;; docs)
-      rm -rf doc;
-      ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
-      ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
-      rm doclist.odocl;
-      ln -sf _build/doclist.docdir doc
+#    ;; docs)
+#      rm -rf doc;
+#      ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
+#      ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
+#      rm doclist.odocl;
+#      ln -sf _build/doclist.docdir doc
     ;; tag*)
       otags -vi `find src/ -iregex [^.]*\.mli?`
     ;; poly)
