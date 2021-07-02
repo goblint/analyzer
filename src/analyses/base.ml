@@ -1798,7 +1798,7 @@ struct
     {st' with cpa = new_cpa}
 
   let enter ctx lval fn args : (D.t * D.t) list =
-    [ctx.local, make_entry ctx fn args]
+    [ctx.local, make_entry ctx fn.svar args]
 
 
 
@@ -2124,7 +2124,7 @@ struct
         (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
 
-  let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
+  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the

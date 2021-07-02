@@ -28,8 +28,8 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t = MSpec.branch ctx exp tv
   let body ctx (f:fundec) : D.t = MSpec.body ctx f
   let return ctx (exp:exp option) (f:fundec) : D.t =  MSpec.return ctx exp f
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = MSpec.enter ctx lval f args
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = MSpec.combine ctx lval fexp f args fc au
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = MSpec.enter ctx lval f args
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = MSpec.combine ctx lval fexp f args fc au
 
   let fake_unlock = Goblintutil.create_var (makeGlobalVar "pthread_mutex_unlock" intType)
 

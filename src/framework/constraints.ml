@@ -368,11 +368,11 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f m in (* S.D.bot () if not found *)
+      let v_old = M.find f.svar m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
       let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
-      v_new, M.add f v_new m
+      v_new, M.add f.svar v_new m
     in
     S.enter (conv ctx) r f args
     |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
@@ -420,11 +420,11 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f m in (* S.D.bot () if not found *)
+      let v_old = M.find f.svar m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
       let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
-      v_new, M.add f v_new m
+      v_new, M.add f.svar v_new m
     in
     S.enter (conv ctx) r f args
     |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
@@ -638,7 +638,7 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.branch ctx e tv) !r !spawns
 
-  let tf_normal_call ctx lv e f args  getl sidel getg sideg =
+  let tf_normal_call ctx lv e (f:fundec) args  getl sidel getg sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
       (* Extra sync in case function has multiple returns.
@@ -650,7 +650,7 @@ struct
         let rec sync_ctx = { ctx with
             ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
             local = fd;
-            prev_node = Function f
+            prev_node = Function f.svar
           }
         in
         sync sync_ctx
@@ -662,8 +662,8 @@ struct
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
-    let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
+    let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f.svar, fc) v) paths in
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f.svar, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
@@ -680,16 +680,13 @@ struct
       Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
-      let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
-      if has_dec then (
-        if LibraryFunctions.use_special f.vname then (
-          M.warn_each ("Using special for defined function " ^ f.vname);
-          tf_special_call ctx lv f args
-        )
-        else
-          tf_normal_call ctx lv e f args getl sidel getg sideg
-      )
-      else
+      match Cilfacade.getdec f with
+      | fd when LibraryFunctions.use_special f.vname ->
+        M.warn_each ("Using special for defined function " ^ f.vname);
+        tf_special_call ctx lv f args
+      | fd ->
+        tf_normal_call ctx lv e fd args getl sidel getg sideg
+      | exception Not_found ->
         tf_special_call ctx lv f args
     in
     if [] = functions then

@@ -323,7 +323,7 @@ struct
         }
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
-      let ents = Spec.enter ctx None fd.svar args in
+      let ents = Spec.enter ctx None fd args in
       List.map (fun (_,s) -> fd.svar, s) ents
     in
 

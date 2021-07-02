@@ -267,13 +267,14 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
     let d_caller = ctx.local in
-    let d_callee = if D.is_bot ctx.local then ctx.local else { ctx.local with pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in (* set predecessor set to start node of function *)
+    let d_callee = if D.is_bot ctx.local then ctx.local else { ctx.local with pred = Pred.of_node (MyCFG.Function f.svar); ctx = Ctx.top () } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+    let f = f.svar in
     if D.is_bot1 ctx.local || D.is_bot1 au then ctx.local else
       let env = get_env ctx in
       let d_caller = ctx.local in

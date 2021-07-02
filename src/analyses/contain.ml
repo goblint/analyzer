@@ -684,7 +684,8 @@ struct
     time_transfer "special" time_wrapper
 
   (*let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (D.t * exp * bool) list*)
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fd:fundec) (args:exp list) : (D.t * D.t) list =
+    let f = fd.svar in
     (*D.report("ENTER ZERO : "^f.vname);*)
     (*D.report("ENTER_FN : "^f.vname);*)
     (*if D.is_top ctx.local then failwith "ARGH!";*)
@@ -741,7 +742,8 @@ struct
       end else [ctx.local, ctx.local]
 
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
+    let f = fd.svar in
     (*eval_funvar ctx fexp;*)
     if danger_bot ctx then ctx.local else
       let a, b, c = ctx.local in
