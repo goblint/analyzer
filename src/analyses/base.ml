@@ -1765,12 +1765,11 @@ struct
     set_many ?ctx ask gs st invalids'
 
 
-  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
+  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in
     (* generate the entry states *)
-    let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
     let st' =
@@ -1798,7 +1797,7 @@ struct
     {st' with cpa = new_cpa}
 
   let enter ctx lval fn args : (D.t * D.t) list =
-    [ctx.local, make_entry ctx fn.svar args]
+    [ctx.local, make_entry ctx fn args]
 
 
 
@@ -2168,11 +2167,31 @@ struct
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
-    try
-      [make_entry ~thread:true ctx f args]
-    with Not_found ->
+    match Cilfacade.getdec f with
+    | fd ->
+      [make_entry ~thread:true ctx fd args]
+    | exception Not_found ->
       (* Unknown functions *)
-      [ctx.local]
+      (* Copied from special unknown invalidate *)
+      let st = ctx.local in
+      let addrs =
+        if get_bool "sem.unknown_function.invalidate.globals" then (
+          M.warn_each "INVALIDATING ALL GLOBALS!";
+          foldGlobals !Cilfacade.current_file (fun acc global ->
+              match global with
+              | GVar (vi, _, _) when not (is_static vi) ->
+                mkAddrOf (Var vi, NoOffset) :: acc
+              (* TODO: what about GVarDecl? *)
+              | _ -> acc
+            ) []
+        )
+        else
+          []
+      in
+      (* TODO: what about escaped local variables? *)
+      (* invalidate non-static globals for unknown functions *)
+      let st = invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st addrs in
+      [st]
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     begin match lval with
