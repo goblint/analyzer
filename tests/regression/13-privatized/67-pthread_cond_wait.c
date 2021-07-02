@@ -10,7 +10,7 @@ void* f1(void* ptr) {
     pthread_mutex_lock(&mut);
     g = 1;
     pthread_cond_wait(&cond,&mut);
-    assert(g == 1); //FAIL
+    assert(g == 0); // TODO (no cond-flow support)
     printf("g is %i", g);
     g = 0;
     pthread_mutex_unlock(&mut);
