@@ -554,10 +554,15 @@ struct
       (* TODO: don't repeat for all paths that spawn same *)
       let ds = S.threadenter ctx lval f args in
       List.iter (fun d ->
-          let c = S.context d in
           spawns := (lval, f, args, d) :: !spawns;
-          if not full_context then sidel (FunctionEntry f, c) d;
-          ignore (getl (Function f, c))
+          match Cilfacade.getdec f with
+          | fd ->
+            let c = S.context d in
+            if not full_context then sidel (FunctionEntry f, c) d;
+            ignore (getl (Function f, c))
+          | exception Not_found ->
+            (* unknown function *)
+            ()
         ) ds
     in
     (* ... nice, right! *)
