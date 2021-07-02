@@ -1958,7 +1958,7 @@ struct
   let is_top x = x = top ()
 
   let show = function ik -> match ik with
-    | None -> "∅"
+    | None -> "⟂"
     | Some (c, m) when (c, m) = (Ints_t.zero, Ints_t.zero) -> Ints_t.to_string c
     | Some (c, m) ->
       let a = if c =: Ints_t.zero then "" else Ints_t.to_string c in
@@ -2217,7 +2217,8 @@ struct
     | None -> None
     | Some (c, m) -> if (Cil.isSigned ik) then sub ik (neg ik x) one else Some (Ints_t.sub (max_int ik) c, m)
 
-  (** The implementation of the bit operations is based on the following paper.
+  (** The implementation of the bit operations is based on the master’s thesis
+      'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
       see: https://www.dsi.unive.it/~avp/domains.pdf *)
   let bit2 f ik x y = match x, y with
     | None, None -> None
