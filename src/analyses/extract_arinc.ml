@@ -24,7 +24,8 @@ struct
   (* set of predecessor nodes *)
   module Pred = struct
     include SetDomain.Make (Basetype.ProgLocation)
-    let of_node = singleton % MyCFG.getLoc
+    let of_loc = singleton
+    let of_node = of_loc % MyCFG.getLoc
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
     let string_of_elt = Basetype.ProgLocation.show
   end
@@ -329,7 +330,7 @@ struct
               let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
               if M.tracing then M.tracel "extract_arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-              let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_node (MyCFG.Function f) in
+              let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_loc f.vdecl in
               List.iter (fun f -> Pfuns.add name f.vname) funs;
               Prios.add name pri;
               let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
