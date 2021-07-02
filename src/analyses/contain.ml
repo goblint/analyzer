@@ -709,7 +709,6 @@ struct
         (*       printf ":: no_mainclass:%b public:%b \n" no_mainclass (D.is_public_method_name f.vname); *)
         (*D.report("ENTER_FUN : "^f.vname);*)
         let fs = D.get_tainted_fields ctx.global in
-        let fd = Cilfacade.getdec f in
         let t (v, e) = true
    (*
         let _, ds, _ = ctx.local in
@@ -782,7 +781,6 @@ struct
                   in
                   let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v rvs) rvs (a,b,c) in
 
-                  let fd = Cilfacade.getdec f in
                   let ll = match (zip fd.sformals args) with (*remove this*)
                     | [] -> []
                     | [x] -> []

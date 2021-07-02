@@ -273,15 +273,14 @@ struct
     let d_callee = if D.is_bot ctx.local then ctx.local else { ctx.local with pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
-    let f = fd.svar in
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     if D.is_bot1 ctx.local || D.is_bot1 au then ctx.local else
       let env = get_env ctx in
       let d_caller = ctx.local in
       let d_callee = au in
       (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
       if Pred.is_bot d_callee.pred then failwith "d_callee.pred is bot!"; (* set should never be empty *)
-      if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function fd)) then
+      if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function f)) then
         { d_callee with pred = d_caller.pred; ctx = d_caller.ctx }
       else (
         (* write out edges with call to f coming from all predecessor nodes of the caller *)
@@ -295,7 +294,7 @@ struct
             | Lval lval when is_return_code_type (Lval (var callee_var)) -> Some (callee_var, lval)
             | _ -> None
           in
-          let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
+          let rargs = List.combine f.sformals args |> List.filter_map check in
           let assign pred dst_node callee_var caller_dlval =
             let caller_dlval = global_dlval caller_dlval "combine" in
             let callee_dlval = callee_var, `NoOffset in
@@ -308,7 +307,7 @@ struct
           in
           (* we need to assign all lvals each caller arg may point to *)
           let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
-          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx d_callee.ctx f))
+          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx d_callee.ctx f.svar))
         );
         (* set current node as new predecessor, since something interesting happend during the call *)
         { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
