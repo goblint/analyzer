@@ -1999,8 +1999,7 @@ struct
     match x, y with
     | None, z | z, None -> z
     | Some (c1,m1), Some (c2,m2) ->
-      let m3 = gcd m1 (gcd m2 (c1 -: c2)) in
-       normalize (Some (c1, m3))
+      let m3 = gcd m1 (gcd m2 (c1 -: c2)) in if (m3 >: (max_int ik)) then top() else normalize (Some (c1, m3))
 
   let join ik (x:t) y =
     let res = join ik x y in
@@ -2116,7 +2115,7 @@ struct
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_int i1, to_int i2 with
-      | Some x, Some y -> (try  (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
+      | Some x, Some y -> (try (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
       | _              -> (set_overflow_flag ik;  top_of ik)
 
   let is_power_of_two x = x >: Ints_t.zero && Ints_t.of_int 2 |: x
@@ -2263,9 +2262,13 @@ struct
         res ;
     res
 
-  let ne ik i1 i2 = if meet ik i1 i2 = None then of_bool ik true else top_bool
+  let ne ik (x: t) (y: t) = match x, y with
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) -> of_bool ik (not (c1 =: c2 ))
+    | x, y -> if meet ik x y = None then of_bool ik true else top_bool
 
-  let eq ik (i1: t) (i2: t) = if meet ik i1 i2 <> None then top_bool else of_bool ik false
+  let eq ik (x: t) (y: t) = match x, y with
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) -> of_bool ik (c1 =: c2)
+    | x, y -> if meet ik x y <> None then top_bool else of_bool ik false
 
   let ge ik x y = match x, y with
     | None, None -> bot_of ik
