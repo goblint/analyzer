@@ -1,4 +1,4 @@
-// PARAM: --set otherfun '["magic"]'
+// SKIP PARAM: --set otherfun '["magic"]'
 #include <pthread.h>
 #include <assert.h>
 
