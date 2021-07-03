@@ -98,10 +98,18 @@ module WP =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
+        VS.iter (fun y ->
+            HM.remove stable y;
+            if not (HM.mem called y) then destabilize y
+          ) w
+      and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
+        if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
+        let w = HM.find_default infl x VS.empty in
+        HM.replace infl x VS.empty;
         VS.fold (fun y b ->
             let was_stable = HM.mem stable y in
             HM.remove stable y;
-            HM.mem called y || destabilize y || b || was_stable && List.mem y vs
+            HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
       and solve x phase =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
@@ -132,7 +140,7 @@ module WP =
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
-            let _ = destabilize x in
+            destabilize x;
             (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then (
             (solve[@tailcall]) x Widen;
@@ -191,11 +199,10 @@ module WP =
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
           let sided = VS.mem x (HM.find_default sides y VS.empty) in
-          add_sides y x;
+          if not sided then add_sides y x;
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
-          (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
-          let destabilized_vs = destabilize y in
+          if side_widen <> "cycle" then destabilize y;
           (* make y a widening point if ... This will only matter for the next side _ y.  *)
           let wpoint_if e = if e then HM.replace wpoint y () in
           match side_widen with
@@ -206,6 +213,8 @@ module WP =
           | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
           | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
+            (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
+            let destabilized_vs = destabilize_vs y in
             wpoint_if destabilized_vs
           (* TODO: The following two don't check if a vs got destabilized which may be a problem. *)
           | "unstable_self" -> (* TODO test/remove. Side to y destabilized itself via some infl-cycle. The above add_infl is only required for this option. Check for which examples this is problematic! *)
@@ -250,7 +259,7 @@ module WP =
                 ()
               else (
                 ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                ignore @@ destabilize v
+                destabilize v
               )
           | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
         ) st;
@@ -269,7 +278,7 @@ module WP =
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         (* Actually destabilize all nodes contained in changed functions. TODO only destabilize fun_... nodes *)
-        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then ignore @@ destabilize k) stable;
+        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable;
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         let add_nodes_of_fun (functions: fundec list) (nodes)=
