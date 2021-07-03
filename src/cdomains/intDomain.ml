@@ -2498,7 +2498,16 @@ module IntDomTupleImpl = struct
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
 
   let to_excl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat List.concat
-  let to_incl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat List.concat
+
+  let to_incl_list x =
+    let hd l = match l with h::t -> h | _ -> [] in
+    let tl l = match l with h::t -> t | _ -> [] in
+    let a y = BatSet.of_list (hd y) in
+    let b y = BatList.map BatSet.of_list (tl y) in
+    let merge y = BatSet.elements @@ BatList.fold BatSet.intersect (a y) (b y)
+    in
+    mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
+
   let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
   let refine_functions : (t -> t) list =
