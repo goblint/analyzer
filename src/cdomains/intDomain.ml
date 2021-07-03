@@ -2323,12 +2323,12 @@ struct
     match x with
     | Some (c, m) when m =: Ints_t.zero ->
        let c = Cilint.Big (Ints_t.to_bigint c) in
-       Invariant.of_exp Cil.(BinOp (Eq, l, Cil.kintegerCilint ik c, TInt(ik,[])))
+       Invariant.of_exp Cil.(BinOp (Eq, l, Cil.kintegerCilint ik c, intType))
     | Some (c, m) ->
        let open Cil in
        let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Cilint.Big (Ints_t.to_bigint a)) (c, m) in
        (try
-          Invariant.of_exp (BinOp (Eq, (BinOp (Mod, l, m, TInt(ik,[]))), c, TInt(ik,[])))
+          Invariant.of_exp (BinOp (Eq, (BinOp (Mod, l, m, TInt(ik,[]))), c, intType))
         with e -> None)
     | None -> None
 
