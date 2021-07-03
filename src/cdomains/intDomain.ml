@@ -2441,6 +2441,17 @@ module IntDomTupleImpl = struct
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
 
+  (* f0: constructors *)
+  let top () = create { fi = fun (type a) (module I:S with type t = a) -> I.top } ()
+  let bot () = create { fi = fun (type a) (module I:S with type t = a) -> I.bot } ()
+  let top_of = create { fi = fun (type a) (module I:S with type t = a) -> I.top_of }
+  let bot_of = create { fi = fun (type a) (module I:S with type t = a) -> I.bot_of }
+  let of_bool ik = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool ik }
+  let of_excl_list ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_excl_list ik}
+  let of_int ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_int ik }
+  let starting ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.starting ik }
+  let ending ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.ending ik }
+  let of_interval ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ik }
 
 
   let refine_with_congruence ((a, b, c, d) : t) (cong : (int_t * int_t) option) : t=
@@ -2495,6 +2506,38 @@ module IntDomTupleImpl = struct
         , map (r.fp2 (module I3)) c
         , map (r.fp2 (module I4)) d )
 
+
+  (* exists/for_all *)
+  let is_bot = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
+  let is_top = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top }
+  let is_top_of ik = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top_of ik }
+  let is_int = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_int }
+  let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
+  let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
+
+  let map2p r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+      ( opt_map2 (r.f2p (module I1)) xa ya
+      , opt_map2 (r.f2p (module I2)) xb yb
+      , opt_map2 (r.f2p (module I3)) xc yc
+      , opt_map2 (r.f2p (module I4)) xd yd )
+
+  (* f2p: binary projections *)
+  let (%%) f g x = f % (g x) (* composition for binary function g *)
+
+  let leq =
+    for_all
+    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.leq)}
+
+  let equal =
+    for_all
+    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.equal)}
+
+  let compare =
+    List.fold_left (fun a x -> if x <> 0 then x else a) 0
+    % to_list
+    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.compare)} (* idea? same impl. as above... *)
+
+
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
 
   let to_excl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat List.concat
@@ -2507,6 +2550,7 @@ module IntDomTupleImpl = struct
     let merge y = BatSet.elements @@ BatList.fold BatSet.intersect (a y) (b y)
     in
     mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
+
 
   let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
@@ -2527,7 +2571,8 @@ module IntDomTupleImpl = struct
       while not !quit_loop do
         let old_dt = !dt in
         List.iter (fun f -> dt := f !dt) refine_functions;
-        quit_loop := old_dt = !dt;
+        quit_loop := equal old_dt !dt;
+        if is_bot !dt then dt := bot (); quit_loop := true;
         if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
       done;
       !dt
@@ -2559,24 +2604,7 @@ module IntDomTupleImpl = struct
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) xd yd )
 
-  let map2p r (xa, xb, xc, xd) (ya, yb, yc, yd) =
-      ( opt_map2 (r.f2p (module I1)) xa ya
-      , opt_map2 (r.f2p (module I2)) xb yb
-      , opt_map2 (r.f2p (module I3)) xc yc
-      , opt_map2 (r.f2p (module I4)) xd yd )
   let name () = "intdomtuple"
-
-  (* f0: constructors *)
-  let top () = create { fi = fun (type a) (module I:S with type t = a) -> I.top } ()
-  let bot () = create { fi = fun (type a) (module I:S with type t = a) -> I.bot } ()
-  let top_of = create { fi = fun (type a) (module I:S with type t = a) -> I.top_of }
-  let bot_of = create { fi = fun (type a) (module I:S with type t = a) -> I.bot_of }
-  let of_bool ik = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool ik }
-  let of_excl_list ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_excl_list ik}
-  let of_int ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_int ik }
-  let starting ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.starting ik }
-  let ending ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.ending ik }
-  let of_interval ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ik }
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
@@ -2607,13 +2635,6 @@ module IntDomTupleImpl = struct
   let to_bool = same string_of_bool % mapp { fp = fun (type a) (module I:S with type t = a) -> I.to_bool }
   let minimal = flat List.max % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.minimal }
   let maximal = flat List.min % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.maximal }
-  (* exists/for_all *)
-  let is_bot = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
-  let is_top = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top }
-  let is_top_of ik = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top_of ik }
-  let is_int = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_int }
-  let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
-  let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
   (* others *)
   let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.name () ^ ":" ^ (I.show x) }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
@@ -2688,22 +2709,6 @@ module IntDomTupleImpl = struct
 
   let logor ik =
     map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.logor ik)}
-
-  (* f2p: binary projections *)
-  let (%%) f g x = f % (g x) (* composition for binary function g *)
-
-  let leq =
-    for_all
-    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.leq)}
-
-  let equal =
-    for_all
-    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.equal)}
-
-  let compare =
-    List.fold_left (fun a x -> if x <> 0 then x else a) 0
-    % to_list
-    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.compare)} (* idea? same impl. as above... *)
 
 
   (* printing boilerplate *)
