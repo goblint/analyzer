@@ -20,7 +20,7 @@ int main() {
 	b = d % 2;
 
     // c is unknown
-	assert (c == 4); // UNKNOWN!
+	assert (c == 4); // UNKNOWN
 	// d should be 12 in the concrete domain and  4Z in the congr. domain
 	assert (d != 1); assert (d != 2); assert (d != 3);
 	assert (d == 12); // UNKNOWN

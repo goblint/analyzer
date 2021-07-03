@@ -5,14 +5,14 @@ int main(){
     if (i==0){
       assert(i==0);
     } else {
-      assert(i!=0); //UNKNOWN!
+      assert(i!=0); //UNKNOWN
     }
 
     int k;
     if (k > 0) {
-      assert (k > 0); //UNKNOWN!
+      assert (k > 0); //UNKNOWN
     } else {
-      assert (k <= 0); //UNKNOWN!
+      assert (k <= 0); //UNKNOWN
     }
 
     return 0;
