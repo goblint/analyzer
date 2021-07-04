@@ -830,17 +830,30 @@ struct
     if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a\n" pretty x pretty y pretty refn;
     refn
 
-  let refine_with_interval a b = a
+  let refine_with_interval a b =
+    match a, b with
+  | None, _ | _, None -> a
+  | Some (x1,x2), Some (y1,y2) -> Some (max x1 y1, min x2 y2)
 
   let refine_with_excl_list (intv : t) (excl : (int_t list) option) : t =
     match intv, excl with
-    | None, _ -> intv
-    | _, None -> intv
+    | None, _ | _, None -> intv
     | Some(l, u), Some(ls) ->
         let l' = (Ints_t.add l (Ints_t.of_int(Bool.to_int(List.mem l ls)))) in
         let u' = (Ints_t.sub u (Ints_t.of_int(Bool.to_int(List.mem u ls)))) in Some(l', u')
 
-  let refine_with_incl_list a b = a
+  let refine_with_incl_list (intv: t) (incl : (int_t list) option) : t =
+    match intv, incl with
+    | None, _ | _, None -> intv
+    | Some(l, u), Some(ls) ->
+        let rec min m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
+              | None -> min (Some x) xs | Some m -> if Ints_t.compare m x < 0 then min (Some m) xs else min (Some x) xs in
+        let rec max m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
+              | None -> max (Some x) xs | Some m -> if Ints_t.compare m x > 0 then max (Some m) xs else max (Some x) xs in
+        match min None ls, max None ls with
+        | Some m1, Some m2 -> refine_with_interval (Some(l, u)) (Some (m1, m2))
+        | _, _-> intv
+
 
 end
 
