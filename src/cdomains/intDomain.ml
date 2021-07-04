@@ -1991,10 +1991,6 @@ struct
     | Some (a, b) when b =: Ints_t.zero -> if a = i then `Eq else `Neq
     | Some (a, b) -> if i %: b = a then `Top else `Neq
 
-  let set_overflow_flag ik =
-    if Cil.isSigned ik && !GU.in_verifying_stage then
-      Goblintutil.did_overflow := true
-
   let leq (x:t) (y:t) =
     match x, y with
     | None, _ -> true
@@ -2129,7 +2125,7 @@ struct
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
-      | _              -> (set_overflow_flag ik;  top_of ik)
+      | _              -> top_of ik
 
   let is_power_of_two x = x >: Ints_t.zero && Ints_t.of_int 2 |: x
 
