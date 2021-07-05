@@ -1997,7 +1997,7 @@ struct
     | Some _, None -> false
     | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero && m1 =: Ints_t.zero -> c1 =: c2
     | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero -> c1 =: c2 && m1 =: Ints_t.zero
-    | Some (c1,m1), Some (c2,m2) -> m2 |: (gcd (c1 -: c2) m2)
+    | Some (c1,m1), Some (c2,m2) -> m2 |: (gcd (c1 -: c2) m1)
 
   let leq x y =
     let res = leq x y in
