@@ -172,7 +172,7 @@ struct
   let mem x s = exists (B.leq x) s
   let leq a b = for_all (fun x -> mem x b) a (* mem uses B.leq! *)
   let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
-  let reduce s = filter (fun x -> not (exists (le x) s) && not (B.is_bot x)) s
+  let reduce s = filter (fun x -> not (exists (le x) s)) s
   let product_bot op a b =
     let a,b = elements a, elements b in
     List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (of_list x)
@@ -277,7 +277,7 @@ struct
   let le x y = SpecD.leq x y && not (SpecD.equal x y) && not (SpecD.leq y x)
   let reduce (s: t): t =
     (* get map with just maximal keys and their ranges *)
-    let maximals = filter (fun x -> not (exists (le x) s) && not (SpecD.is_bot x)) s in
+    let maximals = filter (fun x -> not (exists (le x) s)) s in
     (* join le ranges also *)
     let maximals =
       mapi (fun x xr ->
