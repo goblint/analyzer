@@ -676,8 +676,15 @@ struct
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
-      let ls = ctx.ask (Queries.EvalFunvar e) in
-      Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
+      match e with
+      | Lval (Var v, NoOffset) ->
+        (* Handle statically known function call directly.
+           Allows deactivating base. *)
+        [v]
+      | _ ->
+        (* Depends on base for query. *)
+        let ls = ctx.ask (Queries.EvalFunvar e) in
+        Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
