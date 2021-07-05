@@ -1832,7 +1832,14 @@ struct
         publish_all ctx `Thread;
         (* Collect the threads. *)
         let start_addr = eval_tv (Analyses.ask_of_ctx ctx) ctx.global ctx.local start in
-        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
+        let start_funvars = AD.to_var_may start_addr in
+        let start_funvars_with_unknown =
+          if AD.mem Addr.UnknownPtr start_addr then
+            dummyFunDec.svar :: start_funvars
+          else
+            start_funvars
+        in
+        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
     | `Unknown "free" -> []
     | `Unknown _ when get_bool "sem.unknown_function.spawn" -> begin
