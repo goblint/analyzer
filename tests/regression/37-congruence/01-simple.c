@@ -1,5 +1,6 @@
 //PARAM: --enable ana.int.congruence  --enable ana.int.congruence_no_overflow --disable ana.int.def_exc --disable ana.int.enums
 // Examples taken from P. Granger "Static analysis of arithmetical congruences" (1989, International Journal of Computer Mathematics)
+// https://doi.org/10.1080/00207168908803778
 
 int main() {
 	int a = 1;

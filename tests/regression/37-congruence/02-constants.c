@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.congruence --enable ana.int.congruence_no_overflow --disable ana.int.def_exc
-// This test ensures that operations on constant congr. classes (i.e. classes of the form {k} : arbitrary integer k) yield concrete vals
+// This test ensures that operations on singleton congr. classes (i.e. classes of the form {k} : arbitrary integer k) yield concrete vals
 
 int main() {
     // basic arithmetic operators
@@ -30,13 +30,6 @@ int main() {
     assert ((zero & zero) == 0); assert ((zero & one) == 0); assert ((one & zero) == 0); assert ((one & one) == 1);
     assert ((zero | zero) == 0); assert ((zero | one) == 1); assert ((one | zero) == 1); assert ((one | one) == 1);
     assert ((zero ^ zero) == 0); assert ((zero ^ one) == 1); assert ((one ^ zero) == 1); assert ((one ^ one) == 0);
-
-    // shift-left
-    // TODO Implement shift-left
-    // unsigned char m = 136;
-    // assert ((m << 1) == 16);
-
-    //shift-right missing as only top() is returned currently
 
     // comparisons
     assert ((a < b) == 1);
