@@ -1814,14 +1814,13 @@ struct
         Some (lval, v, args)
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
-        else if isFunctionType v.vtype then (
-          M.warn_each ("Creating a thread from unknown function " ^ v.vname);
+        else if isFunctionType v.vtype then
           let args = match arg with
             | Some x -> [x]
             | None -> []
           in
-          Some (lval, v,  args)
-        ) else (
+          Some (lval, v, args)
+        else (
           M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
           None
         )
@@ -1907,7 +1906,9 @@ struct
         newst
       end
 
-  let special_unknown_invalidate ctx ask gs st args =
+  let special_unknown_invalidate ctx ask gs st f args =
+    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ("Unknown function ptr called"));
     let addrs =
       if get_bool "sem.unknown_function.invalidate.globals" then (
         M.warn_each "INVALIDATING ALL GLOBALS!";
@@ -2098,17 +2099,14 @@ struct
         let st =
           match LF.get_invalidate_action f.vname with
           | Some fnc -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (fnc `Write  args)
-          | None -> (
-              (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
-              (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ("Unknown function ptr called"));
-              special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st args
-              (*
-               *  TODO: invalidate vars reachable via args
-               *  publish globals
-               *  if single-threaded: *call f*, privatize globals
-               *  else: spawn f
-               *)
-            )
+          | None ->
+            special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
+            (*
+             *  TODO: invalidate vars reachable via args
+             *  publish globals
+             *  if single-threaded: *call f*, privatize globals
+             *  else: spawn f
+             *)
         in
         (* invalidate lhs in case of assign *)
         let st = match lv with
@@ -2179,7 +2177,7 @@ struct
     | exception Not_found ->
       (* Unknown functions *)
       let st = ctx.local in
-      let st = special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) ctx.global st args in
+      let st = special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) ctx.global st f args in
       [st]
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =

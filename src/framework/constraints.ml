@@ -562,7 +562,8 @@ struct
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            ()
+            M.warn_each ("Created a thread from unknown function " ^ f.vname)
+            (* actual implementation (e.g. invalidation) is done by threadenter *)
         ) ds
     in
     (* ... nice, right! *)
