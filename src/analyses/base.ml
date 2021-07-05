@@ -764,10 +764,10 @@ struct
       let warn_type = (M.EventType.Behavior (M.BehaviorEvent.Undefined (M.UndefinedBehavior.NullPointerDereference))) in
         match (eval_rv a gs st n) with
         | `Address adr -> 
-          if AD.is_null adr 
+          (if AD.is_null adr 
             then M.warn_each (M.LogEvent.must warn_type)
           else if AD.may_be_null adr 
-            then M.warn_each (M.LogEvent.may warn_type);
+            then M.warn_each (M.LogEvent.may warn_type));
             do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
