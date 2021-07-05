@@ -1907,6 +1907,25 @@ struct
         newst
       end
 
+  let special_unknown_invalidate ctx ask gs st args =
+    let addrs =
+      if get_bool "sem.unknown_function.invalidate.globals" then (
+        M.warn_each "INVALIDATING ALL GLOBALS!";
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+            match global with
+            | GVar (vi, _, _) when not (is_static vi) ->
+              mkAddrOf (Var vi, NoOffset) :: acc
+            (* TODO: what about GVarDecl? *)
+            | _ -> acc
+          ) args
+      )
+      else
+        args
+    in
+    (* TODO: what about escaped local variables? *)
+    (* invalidate arguments and non-static globals for unknown functions *)
+    invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
+
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
@@ -2082,30 +2101,13 @@ struct
           | None -> (
               (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
               (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ("Unknown function ptr called"));
-              let addrs =
-                if get_bool "sem.unknown_function.invalidate.globals" then (
-                  M.warn_each "INVALIDATING ALL GLOBALS!";
-                  foldGlobals !Cilfacade.current_file (fun acc global ->
-                      match global with
-                      | GVar (vi, _, _) when not (is_static vi) ->
-                        mkAddrOf (Var vi, NoOffset) :: acc
-                        (* TODO: what about GVarDecl? *)
-                      | _ -> acc
-                    ) args
-                )
-                else
-                  args
-              in
-              (* TODO: what about escaped local variables? *)
-              (* invalidate arguments and non-static globals for unknown functions *)
-              let st = invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs in
+              special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st args
               (*
                *  TODO: invalidate vars reachable via args
                *  publish globals
                *  if single-threaded: *call f*, privatize globals
                *  else: spawn f
                *)
-              st
             )
         in
         (* invalidate lhs in case of assign *)
@@ -2176,25 +2178,8 @@ struct
       [make_entry ~thread:true ctx fd args]
     | exception Not_found ->
       (* Unknown functions *)
-      (* Copied from special unknown invalidate *)
       let st = ctx.local in
-      let addrs =
-        if get_bool "sem.unknown_function.invalidate.globals" then (
-          M.warn_each "INVALIDATING ALL GLOBALS!";
-          foldGlobals !Cilfacade.current_file (fun acc global ->
-              match global with
-              | GVar (vi, _, _) when not (is_static vi) ->
-                mkAddrOf (Var vi, NoOffset) :: acc
-              (* TODO: what about GVarDecl? *)
-              | _ -> acc
-            ) args
-        )
-        else
-          args
-      in
-      (* TODO: what about escaped local variables? *)
-      (* invalidate non-static globals for unknown functions *)
-      let st = invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st addrs in
+      let st = special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) ctx.global st args in
       [st]
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
