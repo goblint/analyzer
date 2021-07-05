@@ -207,9 +207,12 @@ struct
         let evil = choose (filter p s1) in
         dprintf "%a:\n" B.pretty evil
         ++
-        fold (fun other acc ->
-            (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
-          ) s2 nil
+        if is_empty s2 then
+          text "empty set s2"
+        else
+          fold (fun other acc ->
+              (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
+            ) s2 nil
       with _ ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
@@ -315,9 +318,12 @@ struct
         let evilr' = R.choose evilr in
         dprintf "%a -> %a:\n" SpecD.pretty evil R.pretty (R.singleton evilr')
         ++
-        fold' (fun other otherr acc ->
-            (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pretty other SpecD.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
-          ) s2 nil
+        if is_empty s2 then
+          text "empty set s2"
+        else
+          fold' (fun other otherr acc ->
+              (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pretty other SpecD.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
+            ) s2 nil
       with _ ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
