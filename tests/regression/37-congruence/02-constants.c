@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.congruence --enable ana.int.congruence_no_overflow --disable ana.int.def_exc
-// This test ensures that operations on singleton congr. classes (i.e. classes of the form {k} : arbitrary integer k) yield concrete vals
+// This test ensures that operations on singleton congr. classes (i.e. classes of the form {k} : arbitrary integer k) yield precise vals
 
 int main() {
     // basic arithmetic operators

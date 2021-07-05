@@ -1949,7 +1949,7 @@ struct
 
   let to_yojson t = failwith "to yojson unimplemented"
 
-  let rec gcd x y = (*TODO Double Check*)
+  let rec gcd x y =
     if y =: Ints_t.zero then x else gcd y (x %: y)
 
   let abs x = let r = Ints_t.neg x
@@ -1966,7 +1966,7 @@ struct
   let top () = Some (Ints_t.zero, Ints_t.one)
   let top_of ik = Some (Ints_t.zero, Ints_t.one)
   let bot () = None
-  let bot_of ik = bot () (* TODO: improve  *)
+  let bot_of ik = bot ()
 
   let is_top x = x = top ()
 
@@ -2043,7 +2043,6 @@ struct
 
   let is_int = function Some (c, m) when m =: Ints_t.zero -> true | _ -> false
 
-  (* TODO: change to_int signature so it returns a big_int *)
   let to_int = function Some (c, m) when m =: Ints_t.zero -> Some c | _ -> None
   let of_int ik (x: int_t) = Some (x, Ints_t.zero)
   let of_pair ik p = normalize (Some p)
@@ -2126,19 +2125,6 @@ struct
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
       | _              -> top_of ik
-
-  let is_power_of_two x = x >: Ints_t.zero && Ints_t.of_int 2 |: x
-
-  (* Not very pretty. A proper log operation might be better*)
-  let rec log2 c k = if float_of_int 2 **  float_of_int k = float_of_int c then k else log2 c (k + 1)
-
-  (*let shift_right ik x y = match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (short 80 x) (short 80 y)))
-    | Some (c, m), Some (c', m') when m =: Ints_t.zero && m' =: Ints_t.zero -> if c' <: Ints_t.zero then top() else norm ik @@ Some (Ints_t.shift_right c (Ints_t.to_int c'), Ints_t.zero)
-    | Some (c, m), Some (c', m') when m' =: Ints_t.zero && is_power_of_two m -> let n = log2 (Ints_t.to_int m) 0 in
-          if c' <: Ints_t.of_int n then norm ik @@ Some (Ints_t.shift_right c (Ints_t.to_int c'), Ints_t.of_int (int_of_float ((float_of_int 2) ** float_of_int (n - (Ints_t.to_int c'))))) else top()
-    | _, _ -> top()*)
 
   let shift_right _ _ _ = top()
 
@@ -2257,7 +2243,7 @@ struct
     match x,y with
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | _, x when leq zero x -> top () (*TODO warn about undefined behaviour when x equals zero*)
+    | _, x when leq zero x -> top ()
     | Some(c1, m1), Some(c2, m2) when not no_ov && m2 = Ints_t.zero && c2 = Ints_t.neg Ints_t.one -> top ()
     | Some(c1, m1), Some(c2, m2) when m1 =: Ints_t.zero && m2 = Ints_t.zero -> Some(c1 /: c2, Ints_t.zero)
     | Some(c1, m1), Some(c2, m2) when m2 =: Ints_t.zero ->  if (c2 |: m1) && (c2 |: c1) then Some(c1 /: c2, m1 /: c2) else top ()
@@ -2383,10 +2369,6 @@ struct
 end
 
 module Congruence = CongruenceFunctor (BI)
-
-(* module Congruence32 =
- *   IntDomWithDefaultIkind
- *     (IntDomLifter (CongruenceFunctor (IntOps.Int64Ops))) (IntIkind) *)
 
 (* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I3 below to see where you need to extend. *)
 (* discussion: https://github.com/goblint/analyzer/pull/188#issuecomment-818928540 *)
