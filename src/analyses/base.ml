@@ -1816,7 +1816,11 @@ struct
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then (
           M.warn_each ("Creating a thread from unknown function " ^ v.vname);
-          Some (lval, v, args)
+          let args = match arg with
+            | Some x -> [x]
+            | None -> []
+          in
+          Some (lval, v,  args)
         ) else (
           M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
           None
@@ -2183,10 +2187,10 @@ struct
                 mkAddrOf (Var vi, NoOffset) :: acc
               (* TODO: what about GVarDecl? *)
               | _ -> acc
-            ) []
+            ) args
         )
         else
-          []
+          args
       in
       (* TODO: what about escaped local variables? *)
       (* invalidate non-static globals for unknown functions *)
