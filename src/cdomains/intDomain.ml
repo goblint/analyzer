@@ -808,10 +808,10 @@ struct
   let abs x = let r = Ints_t.neg x
    in if Ints_t.compare x r < 0 then r else x
 
- (* if n<0: n mod k = (n % k) + k *)
-  let modulo n k = if (Ints_t.compare n Ints_t.zero < 0) && (Ints_t.compare (Ints_t.rem n k) Ints_t.zero = 0)
-                   then Ints_t.add (Ints_t.rem n k) k
-                   else Ints_t.rem n k
+  let modulo n k =
+    let result = Ints_t.rem n k in
+    if Ints_t.compare result Ints_t.zero >= 0 then result
+    else Ints_t.add result  k
 
   let refine_with_congruence (intv : t) (cong : (int_t * int_t ) option) : t =
     match intv, cong with

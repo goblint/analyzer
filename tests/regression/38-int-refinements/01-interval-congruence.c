@@ -1,4 +1,4 @@
-// PARAM: --disable ana.int.def_exc --enable ana.int.interval --enable ana.int.congruence --enable ana.int.congruence_no_overflow --enable ana.int.refinement
+// PARAM: --disable ana.int.def_exc --enable ana.int.interval --enable ana.int.congruence --enable ana.int.refinement
 #include <assert.h>
 
 int main(){
@@ -15,12 +15,19 @@ int main(){
     if (k >= 3) {
 
         // After refinement with congruences, the lower bound should be 7 as the numbers 3 - 6 are not in the congr. class
-        // TODO fix refinement and uncomment the following line
         assert (k < 7); // FAIL
     }
 
-//    if (r >= -11 && r <= -4) {
-//        assert (r == -8);
-//    }
+    int l;
+    if (l) {
+        l = 37;
+    } else {
+        l = 42;
+    }
+
+    if (l <= 41) {
+        // Similarly to before, the upper bound should be 37 now.
+        assert (l > 37); // FAIL
+    }
     return 0;
 }
