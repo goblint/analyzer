@@ -986,7 +986,7 @@ struct
 
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
-  let morphstate v d = D.map_noreduce (Spec.morphstate v) d
+  let morphstate v d = D.map (Spec.morphstate v) d
 
   let call_descr = Spec.call_descr
 
