@@ -1,4 +1,4 @@
-//PARAM: --enable ana.library --sets ana.activated[-] threadid  --sets ana.activated[+] mallocWrapperTypeBased  --sets ana.activated[+] typecasts --sets ana.activated[-] mallocWrapper --sets ana.activated[+] writtenLvals --sets ana.activated[+] varArgs
+// NOMARSHAL PARAM: --enable ana\.library --sets ana\.activated\[-\] threadid  --sets ana\.activated\[\+\] mallocWrapperTypeBased  --sets ana\.activated\[\+\] typecasts --sets ana\.activated\[-\] mallocWrapper --sets ana\.activated\[\+\] writtenLvals --sets ana\.activated\[\+\] varArgs
 
 #include<assert.h>
 #include<stdlib.h>
