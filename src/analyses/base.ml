@@ -1135,21 +1135,30 @@ struct
                 | Some ctx ->
                   (* old patched ask *)
                   (* I think this doesn't work properly because any patched.ask inside that query still goes to ctx, so the query response is incorrectly for ctx.local, not the new st *)
-                  let patched = swap_st ctx st in
-                  { Queries.f = fun (type a) (q: a Queries.t) -> query patched q }
+                  (* I think this way it also never asks any other analyses? how does MayBeLess in arrays work then using exprelation at all? *)
+                  (* let patched = swap_st ctx st in
+                     { Queries.f = fun (type a) (q: a Queries.t) -> query patched q } *)
 
                   (* new patched ask *)
                   (* attempt to fix the above issue by also changing the ask of the patched ctx via the usual recursion trick *)
                   (* this goes into stack overflow, probably because "query" here is just base's query, not MCP2.query *)
                   (* only going through the latter does cycle detection *)
-                  (* I think this way it also never asks any other analyses? how does MayBeLess in arrays work then using exprelation at all? *)
-                  (* let rec ctx' =
+                  (* so I added an ad-hoc MCP2-like query cycle detection also to here and partitioned array tests seem to pass *)
+                  let module QuerySet = Set.Make (Queries.Any) in
+                  (* this is complete mindfuck *)
+                  let rec ctx' asked =
                     { ctx with
-                      ask = (fun (type a) (q: a Queries.t) -> query ctx' q)
+                      ask = (fun (type a) (q: a Queries.t) ->
+                          if QuerySet.mem (Any q) asked then
+                            Queries.Result.top q (* query cycle *)
+                          else
+                            let asked' = QuerySet.add (Any q) asked in
+                            query (ctx' asked') q
+                        )
                     ; local = st
                     }
                   in
-                  Analyses.ask_of_ctx ctx' *)
+                  Analyses.ask_of_ctx (ctx' QuerySet.empty)
                 | _ ->
                   a
                 in
