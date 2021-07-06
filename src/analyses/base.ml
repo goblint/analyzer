@@ -1251,6 +1251,32 @@ struct
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f st lval_value_list
 
+
+  (* Given a state st of the current function and the return state fun_st of another function, the reachable vars of this function for the called function,
+     and a list of new addresses that the called function generated, compute a closure that integrates new addresses into the state st *)
+  let integrate_new_addresses ask gs st fun_st reachable_vars new_addresses =
+    let empty = AD.empty () in
+    let visited = ref empty in
+    let workset = ref (AD.of_list (List.flatten new_addresses)) in
+    let st = ref st in
+    while not (AD.is_empty !workset) do
+      visited := AD.union !visited !workset;
+      (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
+      let visit_and_collect var (acc, st) =
+        let sa = AD.singleton var in
+        let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st reachable_vars in
+        if M.tracing then M.tracel "library" "Updating new address %a to value %a\n" AD.pretty sa VD.pretty concrete_value;
+        let st = set ask gs st sa (AD.get_type sa) concrete_value in
+        let addrs = AD.union (AD.of_list new_addresses) acc in
+        (addrs, st)
+      in
+      let collected, state = AD.fold visit_and_collect !workset (empty, !st) in
+      (* Update workset with not yet visited addresses *)
+      workset := AD.diff collected !visited;
+      st := state;
+    done;
+    !st
+
   (* Update the state st by adding the state fun_st  *)
   let update_reachable_written_vars (ask: Q.ask) (reachable_vars: address list) (gs:glob_fun) (st: store) (fun_st: store) (written_lvals: Q.LS.t): store =
     let reachable_written_vars = (match written_lvals with
@@ -1282,30 +1308,7 @@ struct
       set ask gs st (AD.singleton addr) typ value, new_addresses::addr_list
     in
     let (st, new_addresses) = Stats.time "update_written_address" (List.fold update_written_address (st, [])) reachable_written_vars in
-    let integrate_new_addresses () =
-      let empty = AD.empty () in
-      let visited = ref empty in
-      let workset = ref (AD.of_list (List.flatten new_addresses)) in
-      let st = ref st in
-      while not (AD.is_empty !workset) do
-        visited := AD.union !visited !workset;
-        (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
-        let visit_and_collect var (acc, st) =
-          let sa = AD.singleton var in
-          let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st reachable_vars in
-          if M.tracing then M.tracel "library" "Updating new address %a to value %a\n" AD.pretty sa VD.pretty concrete_value;
-          let st = set ask gs st sa (AD.get_type sa) concrete_value in
-          let addrs = AD.union (AD.of_list new_addresses) acc in
-          (addrs, st)
-        in
-        let collected, state = AD.fold visit_and_collect !workset (empty, !st) in
-        (* Update workset with not yet visited addresses *)
-        workset := AD.diff collected !visited;
-        st := state;
-      done;
-      !st
-    in
-    Stats.time "integrate_new_addresses" integrate_new_addresses ()
+    Stats.time "integrate_new_addresses" (integrate_new_addresses  ask gs st fun_st reachable_vars) new_addresses
 
   let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
@@ -2235,30 +2238,34 @@ struct
           { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
-      let return_val () =
-        if CPA.mem (return_varinfo ()) fun_st.cpa
-        then
-          let return_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None in
-          if GobConfig.get_bool "ana.library" then
-            if is_non_symbolic return_val then
-              return_val
-            else
-              let ask = Analyses.ask_of_ctx ctx in
-              let reachable_addresses = collect_funargs ask ctx.global st args in
-              let reachable_addresses = (collect_funargs ask ctx.global st globals)@reachable_addresses in
-              let res = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses in
-              Tuple2.first res
-          else
-            return_val
-        else VD.top ()
-      in
       let st = if get_bool "ana.library"
         then Stats.time "update_lvals" (update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global) (args@globals) (* Update locations that are pointed to by arguments and were possibly written by the called function *)
         else add_globals st fun_st
       in
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cil.typeOfLval lval) (return_val ())
+      | Some lval ->
+        begin
+          let add_return_val r st =
+            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cil.typeOfLval lval) r
+          in
+          if CPA.mem (return_varinfo ()) fun_st.cpa
+          then
+            let return_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None in
+            if GobConfig.get_bool "ana.library" then
+              if is_non_symbolic return_val then
+                add_return_val return_val st
+              else
+                let ask = Analyses.ask_of_ctx ctx in
+                let reachable_addresses = collect_funargs ask ctx.global st args in
+                let reachable_addresses = (collect_funargs ask ctx.global st globals)@reachable_addresses in
+                let (value, new_addresses) = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses in
+                let st = add_return_val value st in
+                integrate_new_addresses ask ctx.global st fun_st reachable_addresses [new_addresses]
+            else
+              add_return_val return_val st
+          else add_return_val (VD.top ()) st
+        end
     in
     Stats.time "Base.combine" (combine_one ctx.local) after
 
