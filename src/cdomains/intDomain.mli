@@ -259,10 +259,10 @@ sig
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
 
-  val refine_with_congruence: t -> (int_t * int_t) option -> t
-  val refine_with_interval: t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: t -> int_t list option -> t
-  val refine_with_incl_list: t -> int_t list option -> t
+  val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 

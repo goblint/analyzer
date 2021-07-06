@@ -139,10 +139,10 @@ sig
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
 
-  val refine_with_congruence: t -> (int_t * int_t) option -> t
-  val refine_with_interval: t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: t -> int_t list option -> t
-  val refine_with_incl_list: t -> int_t list option -> t
+  val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -240,10 +240,10 @@ struct
 
   let cast_to ?torg ?no_ov = Old.cast_to ?torg
 
-  let refine_with_congruence a b = a
-  let refine_with_interval a b = a
-  let refine_with_excl_list a b = a
-  let refine_with_incl_list a b = a
+  let refine_with_congruence ik a b = a
+  let refine_with_interval ik a b = a
+  let refine_with_excl_list ik a b = a
+  let refine_with_incl_list ik a b = a
 end
 
 
@@ -813,7 +813,7 @@ struct
     if Ints_t.compare result Ints_t.zero >= 0 then result
     else Ints_t.add result  k
 
-  let refine_with_congruence (intv : t) (cong : (int_t * int_t ) option) : t =
+  let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
         if (m = Ints_t.zero) && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
@@ -821,28 +821,29 @@ struct
         else let rcx = Ints_t.add x (modulo (Ints_t.sub c x) (abs(m))) in
              let lcy = Ints_t.sub y (modulo (Ints_t.sub y c) (abs(m))) in
              if Ints_t.compare rcx lcy > 0 then None
-             else if Ints_t.compare rcx lcy = 0 then Some (rcx, rcx)
-             else Some (rcx, lcy)
+             else if Ints_t.compare rcx lcy = 0 then norm ik @@ Some (rcx, rcx)
+             else norm ik @@ Some (rcx, lcy)
     | _ -> intv
 
-  let refine_with_congruence x y =
-    let refn = refine_with_congruence x y in
+  let refine_with_congruence ik x y =
+    let refn = refine_with_congruence ik x y in
     if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a\n" pretty x pretty y pretty refn;
     refn
 
-  let refine_with_interval a b =
+  let refine_with_interval ik a b =
     match a, b with
   | None, _ | _, None -> a
   | Some (x1,x2), Some (y1,y2) -> Some (max x1 y1, min x2 y2)
 
-  let refine_with_excl_list (intv : t) (excl : (int_t list) option) : t =
+  let refine_with_excl_list ik (intv : t) (excl : (int_t list) option) : t =
     match intv, excl with
     | None, _ | _, None -> intv
     | Some(l, u), Some(ls) ->
-        let l' = (Ints_t.add l (Ints_t.of_int(Bool.to_int(List.mem l ls)))) in
-        let u' = (Ints_t.sub u (Ints_t.of_int(Bool.to_int(List.mem u ls)))) in Some(l', u')
+       let l' = (Ints_t.add l (Ints_t.of_int(Bool.to_int(List.mem l ls)))) in
+       let u' = (Ints_t.sub u (Ints_t.of_int(Bool.to_int(List.mem u ls)))) in
+       norm ik @@ Some(l', u')
 
-  let refine_with_incl_list (intv: t) (incl : (int_t list) option) : t =
+  let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
     match intv, incl with
     | None, _ | _, None -> intv
     | Some(l, u), Some(ls) ->
@@ -851,7 +852,7 @@ struct
         let rec max m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
               | None -> max (Some x) xs | Some m -> if Ints_t.compare m x > 0 then max (Some m) xs else max (Some x) xs in
         match min None ls, max None ls with
-        | Some m1, Some m2 -> refine_with_interval (Some(l, u)) (Some (m1, m2))
+        | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (Some (m1, m2))
         | _, _-> intv
 
 
@@ -1519,10 +1520,10 @@ struct
       1, QCheck.always `Bot
     ] (* S TODO: decide frequencies *)
 
-  let refine_with_congruence a b = a
-  let refine_with_interval a b = a
-  let refine_with_excl_list a b = a
-  let refine_with_incl_list a b = a
+  let refine_with_congruence ik a b = a
+  let refine_with_interval ik a b = a
+  let refine_with_excl_list ik a b = a
+  let refine_with_incl_list ik a b = a
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -1914,16 +1915,16 @@ module Enums : S with type int_t = BigInt.t = struct
       10, QCheck.map pos (ISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
 
-    let refine_with_congruence a b =
+    let refine_with_congruence ik a b =
       let contains c m x = if BI.equal m BI.zero then BI.equal c x else (BI.rem (BI.sub x c) m) == BI.zero in
       match a with
       | Inc e -> ( match b with
                 | None -> Inc e
                 | Some (c, m) -> Inc (ISet.filter (contains c m) e))
       | a -> a
-  let refine_with_interval a b = a
-  let refine_with_excl_list a b = a
-  let refine_with_incl_list a b = a
+  let refine_with_interval ik a b = a
+  let refine_with_excl_list ik a b = a
+  let refine_with_incl_list ik a b = a
 end
 
 module CongruenceFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -2342,7 +2343,7 @@ struct
 
   let relift x = x
 
-  let refine_with_interval (cong : t) (intv : (int_t * int_t ) option) : t =
+  let refine_with_interval ik (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
        if m =: Ints_t.zero then
@@ -2355,17 +2356,17 @@ struct
          else cong
     | _ -> cong
 
-  let refine_with_interval (cong : t) (intv : (int_t * int_t) option) : t =
+  let refine_with_interval ik (cong : t) (intv : (int_t * int_t) option) : t =
     let pretty_intv _ i = (match i with
      | Some(l, u) -> let s = "["^Ints_t.to_string l^","^Ints_t.to_string u^"]" in Pretty.text s
      | _ -> Pretty.text ("Display Error")) in
-    let refn = refine_with_interval cong intv in
+    let refn = refine_with_interval ik cong intv in
     if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
     refn
 
-  let refine_with_congruence a b = a
-  let refine_with_excl_list a b = a
-  let refine_with_incl_list a b = a
+  let refine_with_congruence ik a b = a
+  let refine_with_excl_list ik a b = a
+  let refine_with_incl_list ik a b = a
 end
 
 module Congruence = CongruenceFunctor (BI)
@@ -2384,6 +2385,8 @@ module IntDomTupleImpl = struct
 
   type t = I1.t option * I2.t option * I3.t option * I4.t option
   [@@deriving to_yojson]
+
+  let name () = "intdomtuple"
 
   (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
   let no_interval = Tuple4.map2 (const None)
@@ -2406,25 +2409,6 @@ module IntDomTupleImpl = struct
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
     f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3), f "congruence" @@ r.fi2 (module I4)
 
-  let no_overflow ik r =
-    if GobConfig.get_bool "ana.int.congruence_no_overflow" then true
-    else let ika, ikb = Size.range_big_int ik in
-      match I2.minimal r, I2.maximal r with
-        | Some ra, Some rb -> ika < ra || rb < ikb
-        | _ -> false
-
-  (* map with overflow check *)
-  let mapovc ik r (a, b, c, d) =
-    let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
-    let intv = map (r.f1 (module I2)) b in
-    let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow"
-    in
-    ( map (r.f1 (module I1)) a
-    , intv
-    , map (r.f1 (module I3)) c
-    , map (r.f1 (module I4)) ~no_ov d )
-
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
 
@@ -2445,44 +2429,44 @@ module IntDomTupleImpl = struct
   let of_interval ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ik }
 
 
-  let refine_with_congruence ((a, b, c, d) : t) (cong : (int_t * int_t) option) : t=
-    let opt f =
-      curry @@ function Some x, y -> Some (f x y) | _ -> None
+  let refine_with_congruence ik ((a, b, c, d) : t) (cong : (int_t * int_t) option) : t=
+    let opt f a =
+      curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
-    ( opt I1.refine_with_congruence a cong
-    , opt I2.refine_with_congruence b cong
-    , opt I3.refine_with_congruence c cong
-    , opt I4.refine_with_congruence d cong )
+    ( opt I1.refine_with_congruence ik a cong
+    , opt I2.refine_with_congruence ik b cong
+    , opt I3.refine_with_congruence ik c cong
+    , opt I4.refine_with_congruence ik d cong )
 
-  let refine_with_interval (a, b, c, d) intv =
-    let opt f =
-      curry @@ function Some x, y -> Some (f x y) | _ -> None
+  let refine_with_interval ik (a, b, c, d) intv =
+    let opt f a =
+      curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
-    ( opt I1.refine_with_interval a intv
-    , opt I2.refine_with_interval b intv
-    , opt I3.refine_with_interval c intv
-    , opt I4.refine_with_interval d intv )
+    ( opt I1.refine_with_interval ik a intv
+    , opt I2.refine_with_interval ik b intv
+    , opt I3.refine_with_interval ik c intv
+    , opt I4.refine_with_interval ik d intv )
 
-  let refine_with_excl_list (a, b, c, d) excl =
-    let opt f =
-      curry @@ function Some x, y -> Some (f x y) | _ -> None
+  let refine_with_excl_list ik (a, b, c, d) excl =
+    let opt f a =
+      curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
-    ( opt I1.refine_with_excl_list a excl
-    , opt I2.refine_with_excl_list b excl
-    , opt I3.refine_with_excl_list c excl
-    , opt I4.refine_with_excl_list d excl )
+    ( opt I1.refine_with_excl_list ik a excl
+    , opt I2.refine_with_excl_list ik b excl
+    , opt I3.refine_with_excl_list ik c excl
+    , opt I4.refine_with_excl_list ik d excl )
 
-  let refine_with_incl_list (a, b, c, d) incl =
-    let opt f =
-      curry @@ function Some x, y -> Some (f x y) | _ -> None
+  let refine_with_incl_list ik (a, b, c, d) incl =
+    let opt f a =
+      curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
-    ( opt I1.refine_with_incl_list a incl
-    , opt I2.refine_with_incl_list b incl
-    , opt I3.refine_with_incl_list c incl
-    , opt I4.refine_with_incl_list d incl )
+    ( opt I1.refine_with_incl_list ik a incl
+    , opt I2.refine_with_incl_list ik b incl
+    , opt I3.refine_with_incl_list ik c incl
+    , opt I4.refine_with_incl_list ik d incl )
 
 
-    let mapp r (a, b, c, d) =
+  let mapp r (a, b, c, d) =
     let map = BatOption.map in
     ( map (r.fp (module I1)) a
     , map (r.fp (module I2)) b
@@ -2491,11 +2475,11 @@ module IntDomTupleImpl = struct
 
 
   let mapp2 r (a, b, c, d) =
-      BatOption.
-        ( map (r.fp2 (module I1)) a
-        , map (r.fp2 (module I2)) b
-        , map (r.fp2 (module I3)) c
-        , map (r.fp2 (module I4)) d )
+    BatOption.
+    ( map (r.fp2 (module I1)) a
+    , map (r.fp2 (module I2)) b
+    , map (r.fp2 (module I3)) c
+    , map (r.fp2 (module I4)) d )
 
 
   (* exists/for_all *)
@@ -2545,28 +2529,48 @@ module IntDomTupleImpl = struct
 
   let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
-  let refine_functions : (t -> t) list =
-    let maybe reffun domtup dom =
-      match dom with Some y -> reffun domtup y | _ -> domtup
-    in
-    [(fun (a, b, c, d) -> refine_with_incl_list (a, b, c, d) (to_incl_list (a, b, c, d)));
-     (fun (a, b, c, d) -> maybe refine_with_interval (a, b, c, d) b);
-     (fun (a, b, c, d) -> maybe refine_with_congruence (a, b, c, d) d)]
 
-  let refine ((a, b, c, d ) : t ) : t =
+  let refine_functions ik : (t -> t) list =
+    let maybe reffun ik domtup dom =
+      match dom with Some y -> reffun ik domtup y | _ -> domtup
+    in
+    [(fun (a, b, c, d) -> refine_with_incl_list ik (a, b, c, d) (to_incl_list (a, b, c, d)));
+     (fun (a, b, c, d) -> maybe refine_with_interval ik (a, b, c, d) b);
+     (fun (a, b, c, d) -> maybe refine_with_congruence ik (a, b, c, d) d)]
+
+  let refine ik ((a, b, c, d ) : t ) : t =
     if not (GobConfig.get_bool "ana.int.refinement") then (a, b, c, d )
     else
       let dt = ref (a, b, c, d) in
-      dt := refine_with_excl_list !dt (to_excl_list (a, b, c, d));
+      dt := refine_with_excl_list ik !dt (to_excl_list (a, b, c, d));
       let quit_loop = ref false in
       while not !quit_loop do
         let old_dt = !dt in
-        List.iter (fun f -> dt := f !dt) refine_functions;
+        List.iter (fun f -> dt := f !dt) (refine_functions ik);
         quit_loop := equal old_dt !dt;
-        if is_bot !dt then dt := bot (); quit_loop := true;
+        if is_bot !dt then dt := bot_of ik; quit_loop := true;
         if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
       done;
       !dt
+
+  let no_overflow ik r =
+    if GobConfig.get_bool "ana.int.congruence_no_overflow" then true
+    else let ika, ikb = Size.range_big_int ik in
+         match I2.minimal r, I2.maximal r with
+         | Some ra, Some rb -> ika < ra || rb < ikb
+         | _ -> false
+
+  (* map with overflow check *)
+  let mapovc ik r (a, b, c, d) =
+    let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
+    let intv = map (r.f1 (module I2)) b in
+    let no_ov =
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow"
+    in refine ik
+    ( map (r.f1 (module I1)) a
+    , intv
+    , map (r.f1 (module I3)) c
+    , map (r.f1 (module I4)) ~no_ov d )
 
   (* map2 with overflow check *)
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
@@ -2574,38 +2578,36 @@ module IntDomTupleImpl = struct
     let no_ov =
       match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow"
     in
-    refine
+    refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
       , intv
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) ~no_ov xd yd )
 
-  let map r (a, b, c, d) =
-    refine
+  let map ik r (a, b, c, d) =
+    refine ik
       BatOption.
         ( map (r.f1 (module I1)) a
         , map (r.f1 (module I2)) b
         , map (r.f1 (module I3)) c
         , map (r.f1 (module I4)) d )
 
-  let map2 r (xa, xb, xc, xd) (ya, yb, yc, yd) =
-    refine
+  let map2 ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+    refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
       , opt_map2 (r.f2 (module I2)) xb yb
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) xd yd )
-
-  let name () = "intdomtuple"
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
     mapovc ik {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.neg ?no_ov ik)}
 
   let bitnot ik =
-    map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitnot ik)}
+    map ik {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitnot ik)}
 
   let lognot ik =
-    map {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.lognot ik)}
+    map ik {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.lognot ik)}
 
   let cast_to ?torg ?no_ov t =
     mapovc t {f1= (fun (type a) (module I : S with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
@@ -2632,16 +2634,16 @@ module IntDomTupleImpl = struct
 
   (* f2: binary ops *)
   let join ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
 
   let meet ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.meet ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.meet ik)}
 
   let widen ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
 
   let narrow ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.narrow ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.narrow ik)}
 
   let add ?no_ov ik =
     map2ovc ik
@@ -2660,46 +2662,46 @@ module IntDomTupleImpl = struct
       {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.div ?no_ov ik)}
 
   let rem ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.rem ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.rem ik)}
 
   let lt ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.lt ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.lt ik)}
 
   let gt ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.gt ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.gt ik)}
 
   let le ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.le ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.le ik)}
 
   let ge ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.ge ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.ge ik)}
 
   let eq ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.eq ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.eq ik)}
 
   let ne ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.ne ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.ne ik)}
 
   let bitand ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitand ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitand ik)}
 
   let bitor ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitor ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitor ik)}
 
   let bitxor ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitxor ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.bitxor ik)}
 
   let shift_left ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.shift_left ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.shift_left ik)}
 
   let shift_right ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.shift_right ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.shift_right ik)}
 
   let logand ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.logand ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.logand ik)}
 
   let logor ik =
-    map2 {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.logor ik)}
+    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.logor ik)}
 
 
   (* printing boilerplate *)
