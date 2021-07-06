@@ -259,17 +259,6 @@ let with_context msg = function
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
-
-(*
-let warn_each_ctx ctx msg = (* cyclic dependency... *)
-  if not @@ GobConfig.get_bool "dbg.warn_with_context" then warn_each msg else
-  (* let module S = (val Control.get_spec ()) in *)
-  (* warn_each (msg ^ " in context " ^ S.C.short 99999 (Obj.obj ctx.context ())) *)
-  (* warn_each (msg ^ " in context " ^ IO.to_string S.C.printXml (Obj.obj ctx.context ())) *)
-  warn_each (msg ^ " in context " ^ string_of_int (Hashtbl.hash (Obj.obj ctx.context ())))
-*)
-
-
 let warn ?ctx (log_event: Warning.t) =
   if !GU.should_warn && (Warning.should_warn log_event) then begin
     let msg = Warning.show log_event in
