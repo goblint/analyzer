@@ -177,15 +177,15 @@ struct
         (* constraint *)
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) ->
           begin match D.check_assert e d with
-            | `True -> ID.of_bool true
-            | `False -> ID.of_bool false
+            | `True -> ID.of_bool IInt true
+            | `False -> ID.of_bool IInt false
             | `Top -> ID.top ()
           end
         (* expression *)
         | _ ->
           begin match D.get_int_val_for_cil_exp d e with
-            | Some i -> ID.of_int i
-            | _ -> `Top
+            | Some i -> ID.of_int IInt i
+            | _ -> ID.top ()
           end
       end
     | _ -> Result.top q

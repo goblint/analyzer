@@ -244,7 +244,7 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | `Lifted x -> [IntOps.BigIntOps.to_string x]
+          | x when Queries.ID.is_int x -> [IntOps.BigIntOps.to_string (Option.get @@ Queries.ID.to_int x)]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =

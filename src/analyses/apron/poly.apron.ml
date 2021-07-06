@@ -110,8 +110,8 @@ struct
     | EvalInt e ->
       begin
         match D.get_int_val_for_cil_exp d e with
-        | Some i -> ID.of_int i
-        | _ -> `Top
+        | Some i -> ID.of_int IInt i
+        | _ -> ID.top ()
       end
     | MustBeEqual (e1, e2) ->
       if D.cil_exp_equals d e1 e2 then true

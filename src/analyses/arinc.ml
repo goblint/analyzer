@@ -335,7 +335,8 @@ struct
       let is_error_handler = env.pname = pname_ErrorHandler in
       let eval_int exp =
         match ctx.ask (Queries.EvalInt exp) with
-        | `Lifted i -> i
+        (* | `Lifted i -> i *)
+        | x when Queries.ID.is_int x -> Option.get @@ Queries.ID.to_int x
         | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "^f.vname
       in
       let eval_str exp =
@@ -399,7 +400,9 @@ struct
       (* Partition *)
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
           match ctx.ask (Queries.EvalInt mode) with
-          | `Lifted i ->
+          (* | `Lifted i -> *)
+          | x when Queries.ID.is_int x ->
+            let i = Option.get @@ Queries.ID.to_int x in
             let pm = partition_mode_of_enum @@ BI.to_int i in
             if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" (BI.to_int64 i) (show_partition_mode_opt pm);
             if mode_is_multi (Pmo.of_int (BI.to_int64 i)) then (
@@ -499,11 +502,11 @@ struct
         let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
         let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
         begin match name, entry_point, pri, per, cap with
-          | `Lifted name, ls, `Lifted pri, `Lifted per, `Lifted cap when not (Queries.LS.is_top ls)
-                                                                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-            let pri = BI.to_int64 pri in
-            let per = BI.to_int64 per in
-            let cap = BI.to_int64 cap in
+          | `Lifted name, ls, pri, per, cap when not (Queries.LS.is_top ls)
+                                                                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) && Queries.ID.is_int pri && Queries.ID.is_int per && Queries.ID.is_int cap ->
+            let pri = BI.to_int64 (Option.get @@ Queries.ID.to_int pri) in
+            let per = BI.to_int64 (Option.get @@ Queries.ID.to_int per) in
+            let cap = BI.to_int64 (Option.get @@ Queries.ID.to_int cap) in
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
@@ -637,7 +640,8 @@ struct
     let d = ctx.local in
     match q with
     | Queries.Priority _ ->
-      if Pri.is_int d.pri then Queries.ID.of_int @@ BI.of_int64 @@ Option.get @@ Pri.to_int d.pri
+      (* if Pri.is_int d.pri then Queries.ID.of_int @@ BI.of_int64 @@ Option.get @@ Pri.to_int d.pri *)
+      if Pri.is_int d.pri then Queries.ID.of_int IInt @@ BI.of_int64 @@ Option.get @@ Pri.to_int d.pri
       else if Pri.is_top d.pri then Queries.Result.top q else Queries.Result.bot q (* TODO: remove bot *)
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)

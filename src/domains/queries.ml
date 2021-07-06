@@ -3,7 +3,25 @@
 open Deriving.Cil
 
 module GU = Goblintutil
-module ID = IntDomain.FlattenedBI
+module ID =
+struct
+  include IntDomain.IntDomTuple
+  (* Special IntDomTuple that has _some_ top which MCP2.query can use *)
+  let top () = top_of IInt
+  let is_top x = equal (top ()) x
+  let join x y =
+    if is_top x || is_top y then
+      top ()
+    else
+      join x y
+  let meet x y =
+    if is_top x then
+      y
+    else if is_top y then
+      x
+    else
+      meet x y
+end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
