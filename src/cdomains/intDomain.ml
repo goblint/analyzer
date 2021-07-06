@@ -835,9 +835,9 @@ struct
     refn
 
   let refine_with_interval ik a b =
-    match a, b with
-  | None, _ | _, None -> a
-  | Some (x1,x2), Some (y1,y2) -> Some (max x1 y1, min x2 y2)
+    match b with
+    | None -> a
+    | b -> meet ik a b
 
   let refine_with_excl_list ik (intv : t) (excl : (int_t list) option) : t =
     match intv, excl with
@@ -1933,10 +1933,12 @@ module Enums : S with type int_t = BigInt.t = struct
   let refine_with_interval ik a b = a
   let refine_with_excl_list ik a b = match a, b with
   | _, None -> a
-  | a, Some (ls) -> meet ik a (of_excl_list ik ls)
+  | a , Some (ls) -> meet ik a (of_excl_list ik ls)
   let refine_with_incl_list ik a b = match a, b with
   | _, None -> a
-  | a, Some (ls) -> meet ik a (Inc (ISet.of_list ls))
+  | Inc x, Some (ls) -> meet ik (Inc x) (Inc (ISet.of_list ls))
+  | a, _ -> a
+
 end
 
 module CongruenceFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -2376,7 +2378,9 @@ struct
     if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
     refn
 
-  let refine_with_congruence ik a b = a
+  let refine_with_congruence ik a b = match b with
+  | None -> a
+  | b -> meet ik a b
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
 end
