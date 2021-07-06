@@ -24,3 +24,5 @@ nav:
     - developer-guide/testing.md
     - developer-guide/debugging.md
     - developer-guide/documenting.md
+  - 'Artifact descriptions':
+    - "SAS '21": artifact-descriptions/sas21.md

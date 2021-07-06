@@ -1,4 +1,4 @@
-# SAS21 Artifact Description
+# SAS '21 Artifact Description
 
 The artifact is a VirtualBox Image based on Ubuntu 20.04.1. The login is `goblint:goblint`.
 
