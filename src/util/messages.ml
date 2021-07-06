@@ -60,7 +60,7 @@ struct
   type t = OutOfBounds of int*int
 end
 
-module WarnType =
+module Warning =
 struct
   type t =
     | Behavior of Behavior.t
@@ -112,26 +112,24 @@ module Certainty = struct
     | Must -> "[MUST]"
 end
 
-module Warning =
+module WarningWithCertainty =
 struct
   type t = {
-    event_type : WarnType.t;
+    warn_type : Warning.t;
     certainty: Certainty.t option
   }
 
-  let may e = {event_type = e; certainty = Some Certainty.May}
-  let must e = {event_type = e; certainty = Some Certainty.Must}
-  let debug msg = {event_type = WarnType.Debug msg; certainty = None}
+  let should_warn (e:t) = Warning.should_warn e.warn_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
 
-  let should_warn (e:t) = WarnType.should_warn e.event_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
+  let debug msg = {warn_type = Warning.Debug msg; certainty = None}
 
-  let create e c = {event_type = e; certainty = c}
-  let show {event_type; certainty} =
+  let create ?must:(must=false) w = {warn_type = w; certainty = Some (if must then Certainty.Must else Certainty.May)}
+  let show {warn_type; certainty} =
     let certainty_str = match certainty with
       | Some c -> (Certainty.show c) ^ " "
       | None -> ""
     in
-    Printf.sprintf "%s%s" certainty_str (WarnType.show event_type)
+    Printf.sprintf "%s%s" certainty_str (Warning.show warn_type)
 end
 
 exception Bailure of string
@@ -259,9 +257,9 @@ let with_context msg = function
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
-let warn ?ctx (log_event: Warning.t) =
-  if !GU.should_warn && (Warning.should_warn log_event) then begin
-    let msg = Warning.show log_event in
+let warn_internal ?ctx (warning: WarningWithCertainty.t) =
+  if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
+    let msg = WarningWithCertainty.show warning in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_str_hashtbl msg == false) then
       begin
@@ -270,10 +268,10 @@ let warn ?ctx (log_event: Warning.t) =
       end
   end
 
-let warn_each ?ctx (log_event: Warning.t) =
-  if !GU.should_warn && (Warning.should_warn log_event) then begin
+let warn_internal_with_loc ?ctx (warning: WarningWithCertainty.t) =
+  if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
     let loc = !Tracing.current_loc in
-    let msg = Warning.show log_event in
+    let msg = WarningWithCertainty.show warning in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
       begin
@@ -282,10 +280,16 @@ let warn_each ?ctx (log_event: Warning.t) =
       end
   end
 
+let warn ?must:(must=false) ?ctx (warning: Warning.t) =
+  warn_internal ~ctx:ctx (WarningWithCertainty.create ~must:must warning)
+
+let warn_each ?must:(must=false) ?ctx (warning: Warning.t) =
+  warn_internal_with_loc ~ctx:ctx (WarningWithCertainty.create ~must:must warning)
+
 let debug msg =
-  if (get_bool "dbg.debug") then warn (Warning.debug ("{BLUE}"^msg))
+  if (get_bool "dbg.debug") then warn_internal (WarningWithCertainty.debug ("{BLUE}"^msg))
 
 let debug_each msg =
-  if (get_bool "dbg.debug") then warn_each (Warning.debug ("{blue}"^msg))
+  if (get_bool "dbg.debug") then warn_internal_with_loc (WarningWithCertainty.debug ("{blue}"^msg))
 
 include Tracing

@@ -324,7 +324,7 @@ struct
               a (* probably garbage, but this is deref's problem *)
               (*raise (CastError s)*)
             | SizeOfError (s,t) ->
-              M.warn_each (M.Warning.may (M.WarnType.Unknown ("size of error: " ^  s)));
+              M.warn_each @@ M.Warning.Unknown ("size of error: " ^  s);
               a
           end
         | x -> x (* TODO we should also keep track of the type here *)
@@ -764,14 +764,14 @@ struct
               (*hack for lists*)
               begin match f ad with
                 | `List l -> `Address (Lists.entry_rand l)
-                | _ -> M.warn (M.Warning.may (M.WarnType.Unknown ("Trying to read a field, but was not given a struct"))); top ()
+                | _ -> M.warn @@ M.Warning.Unknown "Trying to read a field, but was not given a struct"; top ()
               end
             | `Struct str ->
               let x = Structs.get str fld in
               let l', o' = shift_one_over l o in
               do_eval_offset ask f x offs exp l' o' v t
             | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
-            | _ -> M.warn (M.Warning.may (M.WarnType.Unknown ("Trying to read a field, but was not given a struct"))); top ()
+            | _ -> M.warn @@ M.Warning.Unknown "Trying to read a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
             match x with
@@ -781,7 +781,7 @@ struct
               do_eval_offset ask f x offs exp l' o' v t
             | `Union (_, valu) -> top ()
             | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
-            | _ -> M.warn (M.Warning.may (M.WarnType.Unknown ("Trying to read a field, but was not given a union"))); top ()
+            | _ -> M.warn @@ M.Warning.Unknown "Trying to read a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
@@ -795,7 +795,7 @@ struct
               end
             | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn (M.Warning.may (M.WarnType.Unknown ("Trying to read an index, but was not given an array ("^show x^")"))); top ()
+            | _ -> M.warn (M.Warning.Unknown ("Trying to read an index, but was not given an array ("^show x^")")); top ()
           end
     in
     let l, o = match exp with
@@ -856,8 +856,8 @@ struct
               let strc = init_comp fld.fcomp in
               let l', o' = shift_one_over l o in
               `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v t))
-            | `Top -> M.warn (M.Warning.may (M.WarnType.Unknown ("Trying to update a field, but the struct is unknown"))); top ()
-            | _ -> M.warn (M.Warning.may (M.WarnType.Unknown ("Trying to update a field, but was not given a struct"))); top ()
+            | `Top -> M.warn @@ M.Warning.Unknown "Trying to update a field, but the struct is unknown"; top ()
+            | _ -> M.warn @@ M.Warning.Unknown "Trying to update a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
             let t = fld.ftype in
@@ -885,14 +885,14 @@ struct
                   | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
                     (* Why does cil index unions? We'll just pick the first field. *)
                     top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
-                  | _ -> M.warn_each (M.Warning.may (M.WarnType.Unknown ("Why are you indexing on a union? Normal people give a field name.")));
+                  | _ -> M.warn_each @@ M.Warning.Unknown "Why are you indexing on a union? Normal people give a field name.";
                     top (), offs
                 end
               in
               `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
             | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v t)
-            | `Top -> M.warn (M.Warning.may (M.WarnType.Unknown ("Trying to update a field, but the union is unknown"))); top ()
-            | _ -> M.warn_each (M.Warning.may (M.WarnType.Unknown ("Trying to update a field, but was not given a union"))); top ()
+            | `Top -> M.warn @@ M.Warning.Unknown "Trying to update a field, but the union is unknown"; top ()
+            | _ -> M.warn_each @@ M.Warning.Unknown "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
@@ -914,9 +914,9 @@ struct
               let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
-            | `Top -> M.warn (M.Warning.may (M.WarnType.Unknown ("Trying to update an index, but the array is unknown"))); top ()
+            | `Top -> M.warn @@ M.Warning.Unknown "Trying to update an index, but the array is unknown"; top ()
             | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn_each (M.Warning.may (M.WarnType.Unknown ("Trying to update an index, but was not given an array("^show x^")"))); top ()
+            | _ -> M.warn_each (M.Warning.Unknown ("Trying to update an index, but was not given an array("^show x^")")); top ()
           end
       in mu result
     in

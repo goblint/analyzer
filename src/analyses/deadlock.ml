@@ -97,7 +97,7 @@ struct
     match a.f (Queries.MayPointTo exp) with
     | a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | b -> Messages.warn (Messages.Warning.may (Messages.WarnType.Unknown (("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'.")))); []
+    | b -> Messages.warn @@ Messages.Warning.Unknown ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'."); []
 
   (* Called when calling a special/unknown function *)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
