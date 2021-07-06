@@ -3,73 +3,99 @@ open Pretty
 open GobConfig
 module GU = Goblintutil
 
-module ArrayOOB =
-struct
-  type t =
-    | PastEnd
-    | BeforeStart
-    | Unknown
+type array_oob =
+  | PastEnd
+  | BeforeStart
+  | Unknown
 
-  let show e =
-    match e with
-    | PastEnd -> "Index is past the end of the array."
-    | BeforeStart -> "Index is before start of the array."
-    | Unknown -> "Not enough information about index."
-end
+type undefined_behavior =
+  | ArrayOutOfBounds of array_oob
+  | NullPointerDereference
+  | UseAfterFree
 
-module UndefinedBehavior =
-struct
-  type t =
-    | ArrayOutOfBounds of ArrayOOB.t
-    | NullPointerDereference
-    | UseAfterFree
+type behavior =
+  | Undefined of undefined_behavior
+  | Implementation
+  | Machine
 
-  let show e =
-    match e with
-    | ArrayOutOfBounds e -> Printf.sprintf "[Array out of bounds] %s" (ArrayOOB.show e)
-    | NullPointerDereference -> "[Null pointer dereference]"
-    | UseAfterFree -> "[Use After Free]"
-end
+type integer = Overflow | DivByZero
 
-module Behavior =
-struct
-  type t =
-    | Undefined of UndefinedBehavior.t
-    | Implementation
-    | Machine
+type cast = TypeMismatch
 
-  let show e =
-    match e with
-    | Undefined u -> Printf.sprintf "[Undefined] %s" (UndefinedBehavior.show u)
-    | Implementation -> "[Implementation]"
-    | Machine -> "[Machine]"
-end
+type array = OutOfBounds of int*int
 
-module Integer =
-struct
-  type t = Overflow | DivByZero
-end
-
-module Cast =
-struct
-  type t = TypeMismatch
-end
-
-module Array =
-struct
-  type t = OutOfBounds of int*int
-end
+type warning =
+  | Behavior of behavior
+  | Integer of integer
+  | Race
+  | Array of array
+  | Cast of cast
+  | Unknown of string
+  | Debug of string
+  | Analyzer
 
 module Warning =
 struct
-  type t =
-    | Behavior of Behavior.t
-    | Integer of Integer.t
-    | Race
-    | Array of Array.t
-    | Cast of Cast.t
-    | Unknown of string
-    | Debug of string
+  type t = warning
+
+  module Behavior =
+  struct
+    type t = behavior
+
+    module Undefined =
+    struct
+      type t = undefined_behavior
+
+      module ArrayOutOfBounds =
+      struct
+        type t = array_oob
+
+        let show (e: t): string =
+          match e with
+          | PastEnd -> "Index is past the end of the array."
+          | BeforeStart -> "Index is before start of the array."
+          | Unknown -> "Not enough information about index."
+      end
+
+      let create (e:t): warning = Behavior (Undefined e)
+
+      let array_out_of_bounds e: warning = create @@ ArrayOutOfBounds e
+      let nullpointer_dereference (): warning = create @@ NullPointerDereference
+      let use_after_free (): warning = create @@ UseAfterFree
+
+      let show (e: t): string =
+        match e with
+        | ArrayOutOfBounds e -> Printf.sprintf "[Array out of bounds] %s" (ArrayOutOfBounds.show e)
+        | NullPointerDereference -> "[Null pointer dereference]"
+        | UseAfterFree -> "[Use After Free]"
+    end
+
+    let create (e:t): warning = Behavior e
+    let undefined e: warning = create @@ Undefined e
+    let implementation (): warning = create @@ Implementation
+    let machine (): warning = create @@ Machine
+
+    let show (e: t): string =
+      match e with
+      | Undefined u -> Printf.sprintf "[Undefined] %s" (Undefined.show u)
+      | Implementation -> "[Implementation]"
+      | Machine -> "[Machine]"
+  end
+
+  module Integer =
+  struct
+    type t = integer
+  end
+
+  module Cast =
+  struct
+    type t = cast
+  end
+
+  module Array =
+  struct
+    type t = array
+  end
 
   let to_string e =
     match e with
@@ -80,6 +106,7 @@ struct
     | Cast _ -> "cast"
     | Unknown msg -> "unknown"
     | Debug msg -> "debug"
+    | Analyzer -> "analyzer"
 
   let should_warn e =
     get_bool ("warn." ^ (to_string e))
@@ -93,6 +120,7 @@ struct
     | Cast _ -> "[Cast]"
     | Unknown msg -> Printf.sprintf "[Unknown] %s" msg
     | Debug msg -> Printf.sprintf "[Debug] %s" msg
+    | Analyzer -> "[Analyzer]"
 end
 
 module Certainty = struct
@@ -121,7 +149,7 @@ struct
 
   let should_warn (e:t) = Warning.should_warn e.warn_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
 
-  let debug msg = {warn_type = Warning.Debug msg; certainty = None}
+  let debug msg = {warn_type = Debug msg; certainty = None}
 
   let create ?must:(must=false) w = {warn_type = w; certainty = Some (if must then Certainty.Must else Certainty.May)}
   let show {warn_type; certainty} =
@@ -291,5 +319,8 @@ let debug msg =
 
 let debug_each msg =
   if (get_bool "dbg.debug") then warn_internal_with_loc (WarningWithCertainty.debug ("{blue}"^msg))
+
+let mywarn () =
+  warn Analyzer
 
 include Tracing

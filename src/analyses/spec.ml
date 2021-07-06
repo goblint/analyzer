@@ -82,7 +82,7 @@ struct
           | b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
         )
       | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
-      | `Float a, _ -> M.warn_each @@ M.Warning.Unknown "EQUAL Float: unsupported!"; false
+      | `Float a, _ -> M.warn_each @@ M.Unknown "EQUAL Float: unsupported!"; false
       (* arg is a key. currently there can only be one key per constraint, so we already used it for lookup. TODO multiple keys? *)
       | `Var a, b  -> true
       (* arg is a identifier we use for matching constraints. TODO save in domain *)
@@ -90,7 +90,7 @@ struct
       | `Error s, b -> failwith @@ "Spec error: "^s
       (* wildcard matches anything *)
       | `Free, b    -> true
-      | a,b -> M.warn_each @@ M.Warning.Unknown "EQUAL? Unmatched case - assume true..."; true
+      | a,b -> M.warn_each @@ M.Unknown "EQUAL? Unmatched case - assume true..."; true
 
     let check_constraint ctx get_key matches m new_a old_key (a,ws,fwd,b,c as edge) =
       (* If we have come to a wildcard, we match it instantly, but since there is no way of determining a key
