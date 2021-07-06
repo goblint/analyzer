@@ -269,7 +269,7 @@ struct
     | _ -> ad
 
   (* evaluate value using our "query functions" *)
-  let eval_rv_pre (ask: Q.ask) exp pr =
+  let eval_rv_pre ?(no_query=false) (ask: Q.ask) exp pr =
     let eval_binop exp =
       let binop op e1 e2 =
         let equality () =
@@ -311,7 +311,7 @@ struct
       | _ -> None
     in
     match Cil.typeOf exp with
-    | typ when Cil.isIntegralType typ ->
+    | typ when not no_query && Cil.isIntegralType typ && not (Cil.isConstant exp) ->
       begin match ask.f (Q.EvalInt exp) with
         | `Lifted z ->
           let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
@@ -596,7 +596,7 @@ struct
     !collected
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
-  let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let rec eval_rv ?(no_query=false) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
@@ -610,14 +610,14 @@ struct
     if exp = MyCFG.unknown_exp then VD.top () else
       (* First we try with query functions --- these are currently more precise.
        * Ideally we would meet both values, but we fear types might not match. (bottom) *)
-      match eval_rv_pre a exp st with
+      match eval_rv_pre ~no_query a exp st with
       | Some x -> x
       | None ->
         (* query functions were no help ... now try with values*)
         match (if get_bool "exp.lower-constants" then constFold true exp else exp) with
         (* Integer literals *)
         (* seems like constFold already converts CChr to CInt64 *)
-        | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
+        | Const (CChr x) -> eval_rv ~no_query a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
         | Const (CInt64 (num,ikind,str)) ->
           (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind ikind x | None -> ());
           `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
@@ -676,29 +676,29 @@ struct
         (* Binary operators *)
         (* Eq/Ne when both values are equal and casted to the same type *)
         | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
-          let a1 = eval_rv a gs st e1 in
-          let a2 = eval_rv a gs st e2 in
+          let a1 = eval_rv ~no_query a gs st e1 in
+          let a2 = eval_rv ~no_query a gs st e2 in
           let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
           let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2)) && not both_arith_type in
           M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
           if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
             let e1 = if isArithmeticType (typeOf e1) then c1 else e1 in
             let e2 = if isArithmeticType (typeOf e2) then c2 else e2 in
-            eval_rv a gs st (BinOp (op, e1, e2, typ))
+            eval_rv ~no_query a gs st (BinOp (op, e1, e2, typ))
           )
           else
-            let a1 = eval_rv a gs st c1 in
-            let a2 = eval_rv a gs st c2 in
+            let a1 = eval_rv ~no_query a gs st c1 in
+            let a2 = eval_rv ~no_query a gs st c2 in
             evalbinop op t1 a1 t2 a2 typ
         | BinOp (op,arg1,arg2,typ) ->
-          let a1 = eval_rv a gs st arg1 in
-          let a2 = eval_rv a gs st arg2 in
+          let a1 = eval_rv ~no_query a gs st arg1 in
+          let a2 = eval_rv ~no_query a gs st arg2 in
           let t1 = typeOf arg1 in
           let t2 = typeOf arg2 in
           evalbinop op t1 a1 t2 a2 typ
         (* Unary operators *)
         | UnOp (op,arg1,typ) ->
-          let a1 = eval_rv a gs st arg1 in
+          let a1 = eval_rv ~no_query a gs st arg1 in
           evalunop op typ a1
         (* The &-operator: we create the address abstract element *)
         | AddrOf lval -> `Address (eval_lv a gs st lval)
@@ -712,9 +712,9 @@ struct
             | _ -> ad
           in
           `Address (AD.map array_start (eval_lv a gs st lval))
-        | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
+        | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv ~no_query a gs st (Const (CStr x)) (* TODO safe? *)
         | CastE  (t, exp) ->
-          let v = eval_rv a gs st exp in
+          let v = eval_rv ~no_query a gs st exp in
           VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()
   (* A hackish evaluation of expressions that should immediately yield an
@@ -785,9 +785,9 @@ struct
 
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
-  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let eval_rv ?(no_query=false) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     try
-      let r = eval_rv a gs st exp in
+      let r = eval_rv ~no_query a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
       if VD.is_bot r then VD.top_value (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
@@ -827,7 +827,7 @@ struct
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalInt e -> begin
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv ~no_query:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
         | `Int i -> Queries.Result.top q
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
