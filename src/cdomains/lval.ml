@@ -105,6 +105,12 @@ struct
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
     | _ -> false
 
+  let should_join a b = match a, b with
+    | `NoOffset, `NoOffset -> true
+    | `NoOffset, _
+    | _, `NoOffset -> false
+    | _ -> true
+
   let rec merge cop x y =
     let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
     match x, y with
@@ -340,7 +346,10 @@ struct
     | NullPtr   , NullPtr -> NullPtr
     | SafePtr   , SafePtr -> SafePtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
+    (* We can join if addresses refer to the same varinfo and the offsets should be joined. *)
+    (* In the Base.reachable_vars we have to keep all the v,`NoOffset addresses, because from these, all the fields can be accessed.
+       So, offsets should not be joined if exactly one of them is a `NoOffset *)
+    | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y && Offs.should_join o u -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable
 
   let join = merge `Join
