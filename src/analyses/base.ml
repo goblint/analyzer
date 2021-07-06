@@ -1815,6 +1815,7 @@ struct
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then
+          (* FromSpec warns about unknown thread creation, so we don't do it here any more *)
           let args = match arg with
             | Some x -> [x]
             | None -> []
