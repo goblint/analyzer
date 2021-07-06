@@ -2280,48 +2280,36 @@ struct
     | Some (c1, m1), Some (c2, m2) when (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) -> of_bool ik (c1 =: c2)
     | x, y -> if meet ik x y <> None then top_bool else of_bool ik false
 
-  let ge ik x y = match x, y with
+  let comparison ik op x y = match x, y with
     | None, None -> bot_of ik
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1,m1), Some (c2,m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
-        if c1 >=: c2 then of_bool ik true else of_bool ik false
+    | Some (c1, m1), Some(c2, m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
+        if op c1 c2 then of_bool ik true else of_bool ik false
       else top_bool
+
+  let ge ik x y = comparison ik (>=:) x y
 
   let ge ik x y =
     let res = ge ik x y in
     if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
-  let le ik x y = match x, y with
-    | None, None -> bot_of ik
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1,m1), Some (c2,m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
-        if c1 <=: c2 then of_bool ik true else of_bool ik false
-      else top_bool
+  let le ik x y = comparison ik (<=:) x y
 
   let le ik x y =
     let res = le ik x y in
     if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
-  let gt ik x y = match x, y with
-    | None, None -> bot_of ik
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1,m1), Some (c2,m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
-        if c1 >: c2 then of_bool ik true else of_bool ik false
-      else top_bool
+  let gt ik x y = comparison ik (>:) x y
+
 
   let gt ik x y =
     let res = gt ik x y in
     if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
-  let lt ik x y = match x, y with
-    | None, None -> bot_of ik
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1,m1), Some (c2,m2) -> if (m1 =: Ints_t.zero) && (m2 =: Ints_t.zero) then
-        if c1 <: c2 then of_bool ik true else of_bool ik false
-      else top_bool
+  let lt ik x y = comparison ik (<:) x y
 
   let lt ik x y =
     let res = lt ik x y in
