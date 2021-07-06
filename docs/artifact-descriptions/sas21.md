@@ -13,6 +13,7 @@ Navigate to the folder `~/analyzer`. All paths are given relative to it.
     1. The table cells give analysis time in seconds for each benchmark (along the left) and each analysis (along the top). These are illustrated by Figure 2 in the paper.
 
         The mapping between analysis names in the paper and in the results is given by the following table:
+
         | Name in paper    | Name in results |
         | ---------------- | --------------- |
         | Protection-Based | `protection`    |
@@ -44,6 +45,7 @@ The following description is specifically about extending one of the thread-modu
 ### Implementation of Analyses in the Paper
 The OCaml source code for the core of the analyses is found in `./src/analyses/basePriv.ml`.
 Each one is an appropriately-named module, e.g. `ProtectionBasedPriv`, with the following members:
+
 * The inner module `D` defines the domain of any analysis-specific additions to the local state on top of the σ component. (e.g., for Write-Centered Reading, this would be the `P` and `W` components of the local state).
  The rest of the implementation uses `st.priv` to access the `D` components and `st.cpa` to access the σ component of the local state.
 * The inner module `G` defines the global domain: In contrast to the paper, there is only one constraint system unknown per global in the implementation.
@@ -82,6 +84,7 @@ Lastly, we give a general outline of how code in the Goblint framework is organi
 The source code is in the directory `./src`, where the subdirectories are structured as follows:
 
 The most relevant directories are:
+
 - `./src/solvers`: Different fix-point solvers that can be used by Goblint (default is TD3)
 - `./src/domains`: Various generic abstract domains: Sets, Maps, ...
 - `./src/cdomains`: Abstract domains for C programs (e.g. Integers, Addresses, ...)
@@ -89,6 +92,7 @@ The most relevant directories are:
 - `./src/framework`: The code of the analysis framework
 
 Other, not directly relevant, directories:
+
 - `./src/extract`: Related to extracting Promela models from C code
 - `./src/incremental`: Related to Incremental Analysis
 - `./src/spec`: Related to parsing Specifications for an automata-based analysis of liveness properties
