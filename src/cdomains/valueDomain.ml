@@ -58,7 +58,7 @@ struct
   type size = Size.t
   type origin = ZeroInit.t
   let printXml f (x, y, z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
   let make v s = v, s, true
   let value (a, b, c) = a
@@ -90,7 +90,7 @@ struct
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ] [@@deriving to_yojson]
+  ] [@@deriving eq, ord]
 
   let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -202,18 +202,6 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> ID.equal x y
-    | (`Address x, `Address y) -> AD.equal x y
-    | (`Struct x, `Struct y) -> Structs.equal x y
-    | (`Union x, `Union y) -> Unions.equal x y
-    | (`Array x, `Array y) -> CArrays.equal x y
-    | (`Blob x, `Blob y) -> Blobs.equal x y
-    | _ -> false
-
   let hash x =
     match x with
     | `Int n -> 17 * ID.hash n
@@ -224,28 +212,7 @@ struct
     | `Blob n -> 37 * Blobs.hash n
     | _ -> Hashtbl.hash x
 
-  let compare x y =
-    let constr_to_int x = match x with
-      | `Bot -> 0
-      | `Int _ -> 1
-      | `Address _ -> 3
-      | `Struct _ -> 5
-      | `Union _ -> 6
-      | `Array _ -> 7
-      | `Blob _ -> 9
-      | `List _ -> 10
-      | `Top -> 100
-    in match x,y with
-    | `Int x, `Int y -> ID.compare x y
-    | `Address x, `Address y -> AD.compare x y
-    | `Struct x, `Struct y -> Structs.compare x y
-    | `Union x, `Union y -> Unions.compare x y
-    | `Array x, `Array y -> CArrays.compare x y
-    | `List x, `List y -> Lists.compare x y
-    | `Blob x, `Blob y -> Blobs.compare x y
-    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
-
-  let pretty_f _ () state =
+  let pretty () state =
     match state with
     | `Int n ->  ID.pretty () n
     | `Address n ->  AD.pretty () n
@@ -257,30 +224,18 @@ struct
     | `Bot -> text bot_name
     | `Top -> text top_name
 
-  let short w state =
+  let show state =
     match state with
-    | `Int n ->  ID.short w n
-    | `Address n ->  AD.short w n
-    | `Struct n ->  Structs.short w n
-    | `Union n ->  Unions.short w n
-    | `Array n ->  CArrays.short w n
-    | `Blob n ->  Blobs.short w n
-    | `List n ->  Lists.short w n
+    | `Int n ->  ID.show n
+    | `Address n ->  AD.show n
+    | `Struct n ->  Structs.show n
+    | `Union n ->  Unions.show n
+    | `Array n ->  CArrays.show n
+    | `Blob n ->  Blobs.show n
+    | `List n ->  Lists.show n
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let isSimple x =
-    match x with
-    | `Int n ->  ID.isSimple n
-    | `Address n ->  AD.isSimple n
-    | `Struct n ->  Structs.isSimple n
-    | `Union n ->  Unions.isSimple n
-    | `Array n ->  CArrays.isSimple n
-    | `List n ->  Lists.isSimple n
-    | `Blob n ->  Blobs.isSimple n
-    | _ -> true
-
-  let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) =
     match (x,y) with
     | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
@@ -684,7 +639,7 @@ struct
       end
     | _ -> None, None
 
-  let determine_offset ask left offset exp v =
+  let determine_offset (ask: Q.ask) left offset exp v =
     let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
       match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
@@ -710,11 +665,11 @@ struct
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
         begin
-        match ask (Q.MayPointTo (Lval lval)) with
-        | `LvalSet v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
+        match ask.f (Q.MayPointTo (Lval lval)) with
+        | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
           begin
           match Q.LS.choose v with
-          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.compareExp i Cil.zero = 0 && var.vid = arr_start_var.vid ->
+          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.equal i Cil.zero && CilType.Varinfo.equal var arr_start_var ->
             (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
             add
           | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
@@ -840,7 +795,7 @@ struct
               end
             | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
+            | _ -> M.warn ("Trying to read an index, but was not given an array ("^show x^")"); top ()
           end
     in
     let l, o = match exp with
@@ -961,7 +916,7 @@ struct
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
+            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^show x^")"); top ()
           end
       in mu result
     in
@@ -1036,6 +991,17 @@ struct
     | `List n ->  Lists.printXml f n
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
+
+  let to_yojson = function
+    | `Int n -> ID.to_yojson n
+    | `Address n -> AD.to_yojson n
+    | `Struct n -> Structs.to_yojson n
+    | `Union n -> Unions.to_yojson n
+    | `Array n -> CArrays.to_yojson n
+    | `Blob n -> Blobs.to_yojson n
+    | `List n -> Lists.to_yojson n
+    | `Bot -> `String "⊥"
+    | `Top -> `String "⊤"
 
   let invariant c = function
     | `Int n -> ID.invariant c n

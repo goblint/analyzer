@@ -63,9 +63,9 @@ struct
       end
     else Goblintutil.demangle (get_var x).vname
 
-  let short _ x = lookup x
+  let show x = lookup x
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (show x)
 
 end
 
@@ -83,11 +83,11 @@ struct
       cls^"::"^res
     with _ ->
       (*report("FAILED : "^cls^"::"^x.fname);*)
-      short 0 x
+      show x
 
-  let short _ x = lookup x
+  let show x = lookup x
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (show x)
 
 end
 
@@ -219,11 +219,7 @@ struct
 
   module StringPair =
   struct
-    type t = string * string
-    let compare (x1,x2) (y1,y2) =
-      match compare x1 y1 with
-      | 0 -> compare x2 y2
-      | x -> x
+    type t = string * string [@@deriving ord]
   end
   module InhRel = Set.Make(StringPair)
   let inc : InhRel.t ref = ref InhRel.empty
@@ -345,11 +341,11 @@ struct
 *)
   let remove_formals sformals (fd, st,df) =
     let f k s st =
-      let p y = List.exists (fun x -> x.vid = y.vid) sformals in
+      let p y = List.exists (fun x -> CilType.Varinfo.equal x y) sformals in
       if p k
       then st
       else
-        let ns = ArgSet.filter (fun x ->  ( (k.vid=return_var.vid || not (FieldVars.has_field x)) && not (p (FieldVars.get_var x)))) s in
+        let ns = ArgSet.filter (fun x ->  ( (CilType.Varinfo.equal k return_var || not (FieldVars.has_field x)) && not (p (FieldVars.get_var x)))) s in
         if ArgSet.is_bot ns
         then st
         else Danger.add k ns st
@@ -548,7 +544,7 @@ struct
       used_args st e
   (*
       match ask (Queries.MayPointTo e) with
-          | `LvalSet s when not (Queries.LS.is_top s) ->
+          | s when not (Queries.LS.is_top s) ->
               Queries.LS.fold (fun (v,_) st -> ArgSet.add (FieldVars.gen v) st) s (ArgSet.empty ())
           | _ -> ArgSet.bot ()
 		*)
@@ -890,7 +886,7 @@ struct
           (*dbg_report("danger.prop_non_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)
           ArgSet.fold (fun x y->if
                         (*dbg_report("check "^var.vname^" -> "^(FieldVars.get_var x).vname^" == "^(FieldVars.get_var fv).vname);*)
-                        not ((FieldVars.get_var x).vglob)&& not (var.vglob) &&not ((FieldVars.get_var x).vid=var.vid)
+                        not ((FieldVars.get_var x).vglob)&& not (var.vglob) &&not (CilType.Varinfo.equal (FieldVars.get_var x) var)
                         (*&&(FieldVars.get_var x).vid=(FieldVars.get_var fv).vid*)
                         && FieldVars.equal x fv
                         (*&& not (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))*)
@@ -948,7 +944,7 @@ struct
   let is_bad_reachable v st =
     let args = Danger.find v st in
     if not (ArgSet.is_bot args) then
-      ArgSet.fold (fun x y -> y || (FieldVars.get_var x).vid=v.vid) args false
+      ArgSet.fold (fun x y -> y || CilType.Varinfo.equal (FieldVars.get_var x) v) args false
     else false
 
   (*analog to may_be_.._global, prints warnings*)
@@ -977,7 +973,7 @@ struct
                       || not cft )
                 end) args false
               then
-                report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");true
+                report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.show args^".");true
             end
             else
               begin
@@ -1079,12 +1075,12 @@ struct
                 if may_be_constructed_from_this st e && not (is_loc_method (Some e) glob)then
                   begin
                     let fst = (get_field_from_this e st) in
-                    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^FieldSet.short 160 fst^".");
+                    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^FieldSet.show fst^".");
                     true
                   end
                 else
                   begin
-                    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");
+                    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.show args^".");
                     true
                   end
               end
@@ -1131,10 +1127,10 @@ struct
     let vars = get_vars exp in
     let res = List.fold_left
         (fun ags v->
-           let tmp = ArgSet.filter (fun x->(FieldVars.get_var x).vid!=v.vid) ags
+           let tmp = ArgSet.filter (fun x-> not (CilType.Varinfo.equal (FieldVars.get_var x) v)) ags
            in
            let args2 = Danger.find v st in
-           ArgSet.filter (fun x->ArgSet.fold (fun q v-> (FieldVars.get_var x).vid!=(FieldVars.get_var q).vid && v ) args2 true) tmp
+           ArgSet.filter (fun x->ArgSet.fold (fun q v-> not (CilType.Varinfo.equal (FieldVars.get_var x) (FieldVars.get_var q)) && v ) args2 true) tmp
         )
         args vars in
     (*    report ("filter "^(sprint 160 (d_exp () exp))^" , "^sprint 160 (ArgSet.pretty () (args))^" = "^sprint 160 (ArgSet.pretty () (res)));*)

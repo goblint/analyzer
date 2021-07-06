@@ -18,7 +18,7 @@ let jsonFiles : string list ref = ref []
 let has_otherfuns = ref false
 
 (** If this is true we output messages and collect accesses.
-    This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
+    This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
 
 let did_overflow = ref false
@@ -77,14 +77,7 @@ let in_verifying_stage = ref false
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
 
-let escape (x:string):string =
-  (* Safe to escape all these everywhere in XML: https://stackoverflow.com/a/1091953/854540 *)
-  Str.global_replace (Str.regexp "&") "&amp;" x |>
-  Str.global_replace (Str.regexp "<") "&lt;" |>
-  Str.global_replace (Str.regexp ">") "&gt;" |>
-  Str.global_replace (Str.regexp "\"") "&quot;" |>
-  Str.global_replace (Str.regexp "'") "&apos;" |>
-  Str.global_replace (Str.regexp "[\x0b\001\x0c\x0f\x0e]") "" (* g2html just cannot handle from some kernel benchmarks, even when escaped... *)
+let escape = XmlUtil.escape (* TODO: inline everywhere *)
 
 let trim (x:string): string =
   let len = String.length x in
@@ -366,6 +359,21 @@ exception Timeout
 
 let timeout = Timeout.timeout
 
+let seconds_of_duration_string =
+  let unit = function
+    | "" | "s" -> 1
+    | "m" -> 60
+    | "h" -> 60 * 60
+    | s -> failwith ("Unkown duration unit " ^ s ^ ". Supported units are h, m, s.")
+  in
+  let int_rest f s = Scanf.sscanf s "%u%s" f in
+  let split s = BatString.(head s 1, tail s 1) in
+  let rec f i s =
+    let u, r = split s in (* unit, rest *)
+    i * (unit u) + if r = "" then 0 else int_rest f r
+  in
+  int_rest f
+
 let vars = ref 0
 let evals = ref 0
 
@@ -386,7 +394,8 @@ let print_gc_quick_stat chn =
     (printM gc.Gc.promoted_words)
     gc.Gc.minor_collections
     gc.Gc.major_collections
-    gc.Gc.compactions
+    gc.Gc.compactions;
+  gc
 
 let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
 (* typedef struct {
@@ -410,3 +419,27 @@ let command = String.concat " " (Array.to_list Sys.argv)
 let opt_predicate (f : 'a -> bool) = function
   | Some x -> f x
   | None -> false
+
+(* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
+(* https://ocaml.github.io/ocamlunix/signals.html *)
+let signal_of_string = let open Sys in function
+  | "sigint"  -> sigint  (* Ctrl+C Interactive interrupt *)
+  | "sigtstp" -> sigtstp (* Ctrl+Z Interactive stop *)
+  | "sigquit" -> sigquit (* Ctrl+\ Interactive termination *)
+  | "sigalrm" -> sigalrm (* Timeout *)
+  | "sigkill" -> sigkill (* Termination (cannot be ignored) *)
+  | "sigsegv" -> sigsegv (* Invalid memory reference, https://github.com/goblint/analyzer/issues/206 *)
+  | "sigterm" -> sigterm (* Termination *)
+  | "sigusr1" -> sigusr1 (* Application-defined signal 1 *)
+  | "sigusr2" -> sigusr2 (* Application-defined signal 2 *)
+  | "sigstop" -> sigstop (* Stop *)
+  | "sigprof" -> sigprof (* Profiling interrupt *)
+  | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
+  | s -> failwith ("Unhandled signal " ^ s)
+
+let self_signal signal = Unix.kill (Unix.getpid ()) signal
+
+(* The normal haskell zip that throws no exception *)
+let rec zip x y = match x,y with
+  | (x::xs), (y::ys) -> (x,y) :: zip xs ys
+  | _ -> []

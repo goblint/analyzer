@@ -49,7 +49,7 @@ let var_find_fundec vi = VM.find vi (Lazy.force var_fundecs)
 let var_is_in_scope scope vi =
   match var_find_fundec vi with
   | None -> true
-  | Some fd -> fd.svar.vid = scope.svar.vid (* equal fundec *)
+  | Some fd -> CilType.Fundec.equal fd scope
 
 class exp_is_in_scope_visitor (scope: fundec) (acc: bool ref) = object
   inherit nopCilVisitor

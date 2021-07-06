@@ -53,7 +53,7 @@ module ExpEval : Transform.S =
         (* Concatenate lines into one *)
         |> List.fold_left (^) ""
 
-    class evaluator (file : Cil.file) (ask : Cil.location -> Queries.t -> Queries.Result.t) =
+    class evaluator (file : Cil.file) (ask : Cil.location -> Queries.ask) =
       object (self)
 
         val global_variables =
@@ -127,17 +127,15 @@ module ExpEval : Transform.S =
                       value_after
 
         method private try_ask location expression =
-          match ~? (fun () -> ask location (Queries.EvalInt expression)) with
+          match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
             (* Evaluable: Definite *)
-          | Some `Int value -> Some (Some (value <> Int64.zero))
+          | Some (`Lifted value) -> Some (Some (value <> Int64.zero))
             (* Evaluable: Inconclusive *)
           | Some `Top -> Some None
             (* Inapplicable: Unreachable *)
           | Some `Bot -> None
             (* Inapplicable: Unlisted *)
           | None -> None
-            (* Unexpected result *)
-          | Some _ -> raise Exit
 
       end
 
@@ -160,7 +158,7 @@ module ExpEval : Transform.S =
     let file_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.file l'.file
     let byte_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.byte l'.byte
 
-    let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
+    let transform (ask : Cil.location -> Queries.ask) (file : Cil.file) =
       let query = match !gv_query with
       | Some q -> Ok q
       | _ -> query_from_file (GobConfig.get_string transformation_query_file_name_identifier)

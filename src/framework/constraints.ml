@@ -3,7 +3,6 @@
 open Prelude
 open Cil
 open MyCFG
-open Pretty
 open Analyses
 open GobConfig
 
@@ -41,11 +40,10 @@ struct
     }
 
   let sync ctx reason =
-    let d, diff = S.sync (conv ctx) reason in
-    D.lift d, diff
+    D.lift @@ S.sync (conv ctx) reason
 
-  let query ctx q =
-    S.query (conv ctx) q
+  let query ctx =
+    S.query (conv ctx)
 
   let assign ctx lv e =
     D.lift @@ S.assign (conv ctx) lv e
@@ -117,10 +115,9 @@ struct
     { ctx with context = (fun () -> C.unlift (ctx.context ())) }
 
   let sync ctx reason =
-    let d, diff = S.sync (conv ctx) reason in
-    d, diff
+    S.sync (conv ctx) reason
 
-  let query ctx q =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
       let g i (n, c, j) e = f i (n, Obj.repr (C.lift (Obj.obj c)), j) e in
@@ -216,10 +213,6 @@ struct
   let lift_fun ctx f g h =
     f @@ h (g (conv ctx))
 
-  let sync ctx reason =
-    let liftpair (x, y) = (x, snd ctx.local), y in
-    lift_fun ctx liftpair S.sync ((|>) reason)
-
   let enter' ctx r f args =
     let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (y, snd ctx.local)) in
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
@@ -227,7 +220,9 @@ struct
   let lift ctx d = (d, snd ctx.local)
   let lift_start_level d = (d, !start_level)
 
-  let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)
+  let sync ctx reason = lift_fun ctx (lift ctx) S.sync   ((|>) reason)
+  let query' ctx (type a) (q: a Queries.t): a Queries.result =
+    lift_fun ctx identity   S.query  (fun x -> x q)
   let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx (lift ctx) S.vdecl  ((|>) v)
   let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
@@ -271,11 +266,12 @@ struct
       let d',_ = combine' ctx r fe f args fc es in
       (d', l)
 
-  let query ctx = function
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
     | Queries.EvalFunvar e ->
       let (d,l) = ctx.local in
       if leq0 l then
-        `LvalSet (Queries.LS.empty ())
+        Queries.LS.empty ()
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
@@ -354,7 +350,7 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx reason = let d, ds = S.sync (conv ctx) reason in (d, snd ctx.local), ds
+  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
@@ -372,11 +368,11 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f m in (* S.D.bot () if not found *)
+      let v_old = M.find f.svar m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
       let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
-      v_new, M.add f v_new m
+      v_new, M.add f.svar v_new m
     in
     S.enter (conv ctx) r f args
     |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
@@ -406,7 +402,7 @@ struct
     }
   let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
 
-  let sync ctx reason = let d, ds = S.sync (conv ctx) reason in (d, snd ctx.local), ds
+  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
   let query ctx       = S.query (conv ctx)
   let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
   let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
@@ -424,11 +420,11 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f m in (* S.D.bot () if not found *)
+      let v_old = M.find f.svar m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
+      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
       let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
-      v_new, M.add f v_new m
+      v_new, M.add f.svar v_new m
     in
     S.enter (conv ctx) r f args
     |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
@@ -475,15 +471,14 @@ struct
     try f @@ h (g (conv ctx))
     with Deadcode -> b
 
-  let sync ctx reason =
-    let liftpair (x,y) = D.lift x, y in
-    lift_fun ctx liftpair S.sync ((|>) reason) (`Bot, [])
+  let sync ctx reason = lift_fun ctx D.lift   S.sync   ((|>) reason)      `Bot
 
   let enter ctx r f args =
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
 
-  let query ctx q     = lift_fun ctx identity S.query  ((|>) q)            `Bot
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    lift_fun ctx identity S.query  (fun (x) -> x q)            (Queries.Result.bot q)
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
   let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
@@ -529,20 +524,16 @@ struct
   let increment = I.increment
 
   let sync ctx =
-    let (d', diff) =
-      match Cfg.prev ctx.prev_node with
-      | _ :: _ :: _ -> S.sync ctx `Join
-      | _ -> S.sync ctx `Normal
-    in
-    List.iter (uncurry ctx.sideg) diff;
-    d'
+    match Cfg.prev ctx.prev_node with
+    | _ :: _ :: _ -> S.sync ctx `Join
+    | _ -> S.sync ctx `Normal
 
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
     let rec ctx =
-      { ask     = query
+      { ask     = (fun (type a) (q: a Queries.t) -> S.query ctx q)
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
@@ -558,16 +549,21 @@ struct
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
-    and query x = S.query ctx x
     and spawn lval f args =
       (* TODO: adjust ctx node/edge? *)
       (* TODO: don't repeat for all paths that spawn same *)
       let ds = S.threadenter ctx lval f args in
       List.iter (fun d ->
-          let c = S.context d in
           spawns := (lval, f, args, d) :: !spawns;
-          if not full_context then sidel (FunctionEntry f, c) d;
-          ignore (getl (Function f, c))
+          match Cilfacade.getdec f with
+          | fd ->
+            let c = S.context d in
+            if not full_context then sidel (FunctionEntry fd, c) d;
+            ignore (getl (Function fd, c))
+          | exception Not_found ->
+            (* unknown function *)
+            M.warn_each ("Created a thread from unknown function " ^ f.vname)
+            (* actual implementation (e.g. invalidation) is done by threadenter *)
         ) ds
     in
     (* ... nice, right! *)
@@ -585,19 +581,17 @@ struct
     else
       let rec ctx' =
         { ctx with
-          ask = query'
+          ask = (fun (type a) (q: a Queries.t) -> S.query ctx' q)
         ; local = d
         }
-      and query' x = S.query ctx' x
       in
       (* TODO: don't forget path dependencies *)
       let one_spawn (lval, f, args, fd) =
         let rec fctx =
           { ctx with
-            ask = fquery
+            ask = (fun (type a) (q: a Queries.t) -> S.query fctx q)
           ; local = fd
           }
-        and fquery x = S.query fctx x
         in
         S.threadspawn ctx' lval f args fctx
       in
@@ -622,21 +616,19 @@ struct
 
   let normal_return r fd ctx sideg =
     let spawning_return = S.return ctx r fd in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } `Return in
-    List.iter (fun (x,y) -> sideg x y) ndiff;
+    let nval = S.sync { ctx with local = spawning_return } `Return in
     nval
 
   let toplevel_kernel_return r fd ctx sideg =
     let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local else S.return ctx r fd in
     let spawning_return = S.return {ctx with local = st} None MyCFG.dummy_func in
-    let nval, ndiff = S.sync { ctx with local = spawning_return } `Return in
-    List.iter (fun (x,y) -> sideg x y) ndiff;
+    let nval = S.sync { ctx with local = spawning_return } `Return in
     nval
 
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d =
-      if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
+      if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
          (get_bool "kernel" || get_string "ana.osek.oil" <> "")
       then toplevel_kernel_return ret fd ctx sideg
@@ -652,7 +644,7 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.branch ctx e tv) !r !spawns
 
-  let tf_normal_call ctx lv e f args  getl sidel getg sideg =
+  let tf_normal_call ctx lv e (f:fundec) args  getl sidel getg sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
       (* Extra sync in case function has multiple returns.
@@ -662,14 +654,14 @@ struct
       let fd =
         (* TODO: more accurate ctx? *)
         let rec sync_ctx = { ctx with
-            ask = query;
+            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
             local = fd;
             prev_node = Function f
           }
-        and query x = S.query sync_ctx x
         in
         sync sync_ctx
       in
+      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
       let r = S.combine {ctx with local = cd} lv e f args fc fd in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
@@ -690,22 +682,17 @@ struct
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
-      match ctx.ask (Queries.EvalFunvar e) with
-      | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
-      | `Bot -> []
-      | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
+      let ls = ctx.ask (Queries.EvalFunvar e) in
+      Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
-      let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
-      if has_dec then (
-        if LibraryFunctions.use_special f.vname then (
-          M.warn_each ("Using special for defined function " ^ f.vname);
-          tf_special_call ctx lv f args
-        )
-        else
-          tf_normal_call ctx lv e f args getl sidel getg sideg
-      )
-      else
+      match Cilfacade.getdec f with
+      | fd when LibraryFunctions.use_special f.vname ->
+        M.warn_each ("Using special for defined function " ^ f.vname);
+        tf_special_call ctx lv f args
+      | fd ->
+        tf_normal_call ctx lv e fd args getl sidel getg sideg
+      | exception Not_found ->
         tf_special_call ctx lv f args
     in
     if [] = functions then
@@ -772,26 +759,14 @@ module Var2 (LV:VarType) (GV:VarType)
     with type t = [ `L of LV.t  | `G of GV.t ]
 =
 struct
-  type t = [ `L of LV.t  | `G of GV.t ]
+  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord]
   let relift = function
     | `L x -> `L (LV.relift x)
     | `G x -> `G (GV.relift x)
 
-  let equal x y =
-    match x, y with
-    | `L a, `L b -> LV.equal a b
-    | `G a, `G b -> GV.equal a b
-    | _ -> false
-
   let hash = function
     | `L a -> LV.hash a
     | `G a -> 113 * GV.hash a
-
-  let compare x y =
-    match x, y with
-    | `L a, `L b -> LV.compare a b
-    | `G a, `G b -> GV.compare a b
-    | `L a, _ -> -1 | _ -> 1
 
   let category = function
     | `L a -> LV.category a
@@ -869,6 +844,7 @@ end
 
 
 (** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
+(* TODO: unused *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
@@ -948,36 +924,19 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
         (l', g')
     end
 
-module N = struct let topname = "Top" end
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = SetDomain.Hoare(Spec.D)(N).t
+    with type D.t = HoareDomain.Set(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
 =
 struct
   module D =
   struct
-    include SetDomain.Hoare (Spec.D) (N) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
     let name () = "PathSensitive (" ^ name () ^ ")"
-
-    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-      if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
-        try
-          let p t = not (mem t s2) in
-          let evil = choose (filter p s1) in
-          dprintf "%a:\n" Spec.D.pretty evil
-          ++
-          fold (fun other acc ->
-              (dprintf "not leq %a because %a\n" Spec.D.pretty other Spec.D.pretty_diff (evil, other)) ++ acc
-            ) s2 nil
-        with _ ->
-          dprintf "choose failed b/c of empty set s1: %d s2: %d"
-          (cardinal s1)
-          (cardinal s2)
-      end
 
     let printXml f x =
       let print_one x =
@@ -1023,7 +982,7 @@ struct
 
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
-  let morphstate v d = D.map' (Spec.morphstate v) d
+  let morphstate v d = D.map_noreduce (Spec.morphstate v) d
 
   let call_descr = Spec.call_descr
 
@@ -1035,10 +994,10 @@ struct
       Spec.context @@ D.choose l
 
   let conv ctx x =
-    let rec ctx' = { ctx with ask   = query
+    let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
                             ; local = x
                             ; split = (ctx.split % D.singleton) }
-    and query x = Spec.query ctx' x in
+    in
     ctx'
 
   let map ctx f g =
@@ -1081,12 +1040,12 @@ struct
     let fd1 = D.choose fctx.local in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
-  let sync ctx reason =
-    fold' ctx Spec.sync (fun h -> h reason) (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
+    let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
-  let query ctx q =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* join results so that they are sound for all paths *)
-    fold' ctx Spec.query identity (fun x f -> Queries.Result.join x (f q)) `Bot
+    let module Result = (val Queries.Result.lattice q) in
+    fold' ctx Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
 
   let enter ctx l f a =
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in
@@ -1235,8 +1194,9 @@ struct
   open S
 
   let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
+    let should_verify = get_bool "verify" in
     Goblintutil.in_verifying_stage := true;
-    Goblintutil.verified := Some true;
+    (if should_verify then Goblintutil.verified := Some true);
     let complain_l (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
@@ -1266,12 +1226,12 @@ struct
          * invariant. *)
         let check_local l lv =
           let lv' = sigma' l in
-          if not (D.leq lv lv') then
+          if should_verify && not (D.leq lv lv') then
             complain_sidel v l lv' lv
         in
         let check_glob g gv =
           let gv' = theta' g in
-          if not (G.leq gv gv') then
+          if should_verify && not (G.leq gv gv') then
             complain_sideg v g gv' gv
         in
         let d = rhs sigma' check_local theta' check_glob in

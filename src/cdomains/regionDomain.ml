@@ -9,14 +9,14 @@ module F = Lval.Fields
 module VF =
 struct
   include Printable.ProdSimple (V) (F)
-  let short w (v,fd) =
-    let v_str = V.short w v in let w = w - String.length v_str in
-    let fd_str = F.short w fd in
+  let show (v,fd) =
+    let v_str = V.show v in
+    let fd_str = F.show fd in
     v_str ^ fd_str
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (show x)
 
   let printXml f (v,fi) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (Goblintutil.escape (V.short 80 v)) F.printInnerXml fi
+    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printInnerXml fi
 
   (* Indicates if the two var * offset pairs should collapse or not. *)
   let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2

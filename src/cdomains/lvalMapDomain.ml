@@ -73,12 +73,12 @@ struct
     include Printable.Blank
     type t = { key: k; loc: location list; state: s }
     let hash = Hashtbl.hash
-    let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc && a.state = b.state
+    let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc (* FIXME: polymorphic list equal! *) && a.state = b.state
 
     let compare a b =
       let r = Lval.CilLval.compare a.key b.key in
       if r <> 0 then r else
-        let r = compare a.loc b.loc in
+        let r = compare a.loc b.loc in (* FIXME: polymorphic list compare! *)
         if r <> 0 then r else
           Impl.compare a.state b.state
 
@@ -103,7 +103,7 @@ struct
   let get_alias (x,y) = (May.choose y).key
 
   (* Printing *)
-  let string_of_key k = Lval.CilLval.short 80 k
+  let string_of_key k = Lval.CilLval.show k
   let string_of_loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs)
   let string_of_record r = Impl.string_of_state r.state^" ("^string_of_loc r.loc^")"
   let string_of (x,y) =
@@ -114,11 +114,11 @@ struct
       let z = Set.diff y x in
       "{ "^String.concat ", " (List.map string_of_record (Set.elements x))^" }, "^
       "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
-  let short i x = string_of x
+  let show x = string_of x
   include Printable.PrintSimple (struct
       type t' = t
       let name () = Impl.name
-      let short = short
+      let show = show
     end)
   (* constructing & manipulation *)
   let make_record k l s = { key=k; loc=l; state=s }
@@ -263,10 +263,10 @@ struct
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
     | _ -> Goblintutil.create_var @@ Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
 
-  let keys_from_lval lval ask = (* use MayPointTo query to get all possible pointees of &lval *)
+  let keys_from_lval lval (ask: Queries.ask) = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)
-    let query_lv ask exp = match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) -> Queries.LS.elements l
+    let query_lv (ask: Queries.ask) exp = match ask.f (Queries.MayPointTo exp) with
+      | l when not (Queries.LS.is_top l) -> Queries.LS.elements l
       | _ -> []
     in
     let exp = AddrOf lval in

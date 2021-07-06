@@ -26,7 +26,7 @@ struct
     include SetDomain.Make (Basetype.ProgLocation)
     let of_node = singleton % MyCFG.getLoc
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.short 99
+    let string_of_elt = Basetype.ProgLocation.show
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D
@@ -193,9 +193,9 @@ struct
     proc_defs
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t) =
     match q with
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -217,13 +217,13 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let d_caller = ctx.local in
     let pid, ctxh, pred = ctx.local in
     let d_callee = if D.is_bot ctx.local then ctx.local else pid, Ctx.top (), Pred.of_node (MyCFG.Function f) in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     if D.is_bot ctx.local || D.is_bot au then ctx.local else
       let pid, ctxh, pred = ctx.local in (* caller *)
       let _ , _, pred' = au in (* callee *)
@@ -244,18 +244,18 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | `Int x -> [Int64.to_string x]
+          | `Lifted x -> [Int64.to_string x]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
           match ctx.ask (Queries.EvalStr exp) with
-          | `Str x -> [x]
+          | `Lifted x -> [x]
           | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
         in
         let eval_id exp =
           let module LS = Queries.LS in
           match ctx.ask (Queries.MayPointTo exp) with
-          | `LvalSet x when not (LS.is_top x) ->
+          | x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
             if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
             let xs = LS.remove top_elt x |> LS.elements in
@@ -316,7 +316,7 @@ struct
               extract_fun ~info_args:str_args args
             ) ctx.local args_product
 
-  let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
+  let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main"))
   let threadenter ctx lval f args = [D.bot ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()

@@ -1,4 +1,13 @@
-(** Terminating top down solver that only keeps values at widening points and restores other values afterwards. *)
+(** Incremental terminating top down solver that optionally only keeps values at widening points and restores other values afterwards. *)
+(* Incremental: see paper 'Incremental Abstract Interpretation' https://link.springer.com/chapter/10.1007/978-3-030-41103-9_5 *)
+(* TD3: see paper 'Three Improvements to the Top-Down Solver' https://dl.acm.org/doi/10.1145/3236950.3236967
+ * Option exp.solver.td3.* (default) ? true : false (solver in paper):
+ * - term (true) ? use phases for widen+narrow (TDside) : use box (TDwarrow)
+ * - space (false) ? only keep values at widening points (TDspace + side) in rho : keep all values in rho
+ * - space_cache (true) ? local cache l for eval calls in each solve (TDcombined) : no cache
+ * - space_restore (true) ? eval each rhs and store all in rho : do not restore missing values
+ * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml.
+ *)
 
 open Prelude
 open Analyses
@@ -21,6 +30,7 @@ module WP =
     type solver_data = {
       mutable st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       mutable infl: VS.t HM.t;
+      mutable sides: VS.t HM.t;
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
       mutable stable: unit HM.t
@@ -29,6 +39,7 @@ module WP =
     let create_empty_data () = {
       st = [];
       infl = HM.create 10;
+      sides = HM.create 10;
       rho = HM.create 10;
       wpoint = HM.create 10;
       stable = HM.create 10
@@ -47,8 +58,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t
-      let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
+      type t = S.Var.t * S.Var.t [@@deriving eq]
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
@@ -64,11 +74,12 @@ module WP =
       let called = HM.create 10 in
 
       let infl = data.infl in
+      let sides = data.sides in
       let rho = data.rho in
       let wpoint = data.wpoint in
       let stable = data.stable in
 
-      let () = print_stats := fun () ->
+      let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
         print_context_stats rho
@@ -82,13 +93,24 @@ module WP =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
+      let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
       let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
-          HM.remove stable y;
-          destabilize y) w
+            HM.remove stable y;
+            if not (HM.mem called y) then destabilize y
+          ) w
+      and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
+        if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
+        let w = HM.find_default infl x VS.empty in
+        HM.replace infl x VS.empty;
+        VS.fold (fun y b ->
+            let was_stable = HM.mem stable y in
+            HM.remove stable y;
+            HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
+          ) w false
       and solve x phase =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
@@ -125,7 +147,8 @@ module WP =
           ) else if term && phase = Widen then (
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;
-          );
+          ) else if not space && (not term || phase = Narrow) then (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+            HM.remove wpoint x;
         )
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
@@ -161,29 +184,44 @@ module WP =
         );
         assert (S.system y = None);
         init y;
-        let op = if HM.mem wpoint y then fun a b ->
-          if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
-          let r = S.Dom.widen a (S.Dom.join a b) in
-          if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
-          r
-        else S.Dom.join in
+        if side_widen = "unstable_self" then add_infl x y;
+        let op =
+          if HM.mem wpoint y then fun a b ->
+            if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+            let r = S.Dom.widen a (S.Dom.join a b) in
+            if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+            r
+          else S.Dom.join
+        in
         let old = HM.find rho y in
         let tmp = op old d in
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
+          (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
+          let sided = VS.mem x (HM.find_default sides y VS.empty) in
+          if not sided then add_sides y x;
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
-          destabilize y;
-          (* make y a widening point if ... *)
-          let widen_if e = if e then HM.replace wpoint y () in
+          if side_widen <> "cycle" then destabilize y;
+          (* make y a widening point if ... This will only matter for the next side _ y.  *)
+          let wpoint_if e = if e then HM.replace wpoint y () in
           match side_widen with
-          | "always" -> (* any side-effect after the first one will be widened which will unnecessarily lose precision *)
-            widen_if true
-          | "cycle_self" -> (* widen if the side-effect to y destabilized itself via some infl-cycle *)
-            widen_if @@ not (HM.mem stable y)
-          | "cycle" -> (* widen if any called var (not just y) is no longer stable *)
-            widen_if @@ exists_key (neg (HM.mem stable)) called
-          | "never" | _ -> () (* will not terminate if there are side-effect cycles *)
+          | "always" -> (* Any side-effect after the first one will be widened which will unnecessarily lose precision. *)
+            wpoint_if true
+          | "never" -> (* On side-effect cycles, this should terminate via the outer `solver` loop. TODO check. *)
+            wpoint_if false
+          | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
+            wpoint_if sided
+          | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
+            (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
+            let destabilized_vs = destabilize_vs y in
+            wpoint_if destabilized_vs
+          (* TODO: The following two don't check if a vs got destabilized which may be a problem. *)
+          | "unstable_self" -> (* TODO test/remove. Side to y destabilized itself via some infl-cycle. The above add_infl is only required for this option. Check for which examples this is problematic! *)
+            wpoint_if @@ not (HM.mem stable y)
+          | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. *)
+            wpoint_if @@ exists_key (neg (HM.mem stable)) called
+          | x -> failwith ("Unknown value '" ^ x ^ "' for option exp.solver.td3.side_widen!")
         )
       and init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
@@ -266,20 +304,28 @@ module WP =
 
       List.iter set_start st;
       List.iter init vs;
-      List.iter (fun x -> solve x Widen) vs;
-      (* iterate until there are no unstable variables
-       * after termination, only those variables are stable which are
-       * - reachable from any of the queried variables vs, or
-       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses)
-       *)
-      let rec solve_sidevs () =
-        let non_stable = HM.fold (fun k _ a -> if S.system k <> None && not (HM.mem stable k) then k::a else a) rho [] in
-        if non_stable <> [] then (
-          List.iter (fun x -> solve x Widen) non_stable;
-          solve_sidevs ()
+      (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
+      let i = ref 0 in
+      let rec solver () = (* as while loop in paper *)
+        incr i;
+        let unstable_vs = List.filter (neg (HM.mem stable)) vs in
+        if unstable_vs <> [] then (
+          if GobConfig.get_bool "dbg.verbose" then (
+            if !i = 1 then print_newline ();
+            Printf.printf "Unstable solver start vars in %d. phase:\n" !i;
+            List.iter (fun v -> ignore @@ Pretty.printf "\t%a\n" S.Var.pretty_trace v) unstable_vs;
+            print_newline ();
+            flush_all ();
+          );
+          List.iter (fun x -> solve x Widen) unstable_vs;
+          solver ();
         )
       in
-      solve_sidevs ();
+      solver ();
+      (* Before we solved all unstable vars in rho with a rhs in a loop. This is unneeded overhead since it also solved unreachable vars (reachability only removes those from rho further down). *)
+      (* After termination, only those variables are stable which are
+       * - reachable from any of the queried variables vs, or
+       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses). *)
 
       (* verifies values at widening points and adds values for variables in-between *)
       let visited = HM.create 10 in
@@ -314,7 +360,7 @@ module WP =
       in
       (* restore values for non-widening-points *)
       if space && GobConfig.get_bool "exp.solver.td3.space_restore" then (
-        if (GobConfig.get_bool "dbg.verbose") then
+        if GobConfig.get_bool "dbg.verbose" then
           print_endline ("Restoring missing values.");
         let restore () =
           let get x =
@@ -325,7 +371,7 @@ module WP =
           HM.iter (fun x v -> if not (HM.mem visited x) then HM.remove rho x) rho
         in
         Stats.time "restore" restore ();
-        if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
@@ -350,7 +396,13 @@ module WP =
       stop_event ();
       print_data data "Data after solve completed";
 
-      {st; infl; rho; wpoint; stable}
+      if GobConfig.get_bool "dbg.print_wpoints" then (
+        Printf.printf "\nWidening points:\n";
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        print_newline ();
+      );
+
+      {st; infl; sides; rho; wpoint; stable}
 
     let solve box st vs =
       incremental_mode := GobConfig.get_string "exp.incremental.mode";

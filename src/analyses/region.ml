@@ -70,16 +70,16 @@ struct
       (ps, es)
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let regpart = get_regpart ctx in
     match q with
     | Queries.Regions e ->
-      if is_bullet e regpart ctx.local then `Bot else
+      if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
-        `LvalSet ls
+        ls
     | Queries.PartAccess {exp; var_opt; write} ->
-      `PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> Queries.Result.top ()
+      part_access ctx exp var_opt write
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -116,7 +116,7 @@ struct
     | x -> x
 
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fundec:fundec) (args:exp list) : (D.t * D.t) list =
     let rec fold_right2 f xs ys r =
       match xs, ys with
       | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
@@ -124,7 +124,6 @@ struct
     in
     match ctx.local with
     | `Lifted reg ->
-      let fundec = Cilfacade.getdec f in
       let f x r reg = Reg.assign (var x) r reg in
       let old_regpart = get_regpart ctx in
       let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
@@ -133,7 +132,7 @@ struct
       [ctx.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     match au with
     | `Lifted reg -> begin
       let old_regpart = get_regpart ctx in

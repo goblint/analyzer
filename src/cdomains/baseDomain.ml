@@ -67,7 +67,7 @@ type 'a basecomponents_t = {
   cpa: CPA.t;
   deps: PartDeps.t;
   priv: 'a;
-} [@@deriving to_yojson]
+} [@@deriving eq, ord]
 
 module BaseComponents (PrivD: Lattice.S):
 sig
@@ -75,30 +75,20 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving to_yojson]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord]
 
   include Printable.Std
   open Pretty
   let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + PrivD.hash r.priv * 33
-  let equal r1 r2 =
-    CPA.equal r1.cpa r2.cpa && PartDeps.equal r1.deps r2.deps && PrivD.equal r1.priv r2.priv
-  let compare r1 r2 =
-    let comp1 = CPA.compare r1.cpa r2.cpa in
-    if comp1 <> 0
-      then comp1
-      else let comp2 = PartDeps.compare r1.deps r2.deps in
-      if comp2 <> 0
-      then comp2
-      else PrivD.compare r1.priv r2.priv
 
 
-  let short w r =
-    let first  = CPA.short (w-18) r.cpa in
-    let second  = PartDeps.short (w-12- String.length first) r.deps in
-    let third  = PrivD.short (w-6- String.length first - String.length second) r.priv in
+  let show r =
+    let first  = CPA.show r.cpa in
+    let second  = PartDeps.show r.deps in
+    let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ")"
 
-  let pretty_f _ () r =
+  let pretty () r =
     text "(" ++
     CPA.pretty () r.cpa
     ++ text ", " ++
@@ -107,12 +97,12 @@ struct
     PrivD.pretty () r.priv
     ++ text ")"
 
-  let isSimple r  = CPA.isSimple r.cpa && PartDeps.isSimple r.deps && PrivD.isSimple r.priv
-
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (CPA.name ())) CPA.printXml r.cpa (Goblintutil.escape (PartDeps.name ())) PartDeps.printXml r.deps (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (CPA.name ())) CPA.printXml r.cpa (XmlUtil.escape (PartDeps.name ())) PartDeps.printXml r.deps (XmlUtil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-  let pretty () x = pretty_f short () x
+  let to_yojson r =
+    `Assoc [ (CPA.name (), CPA.to_yojson r.cpa); (PartDeps.name (), PartDeps.to_yojson r.deps); (PrivD.name (), PrivD.to_yojson r.priv) ]
+
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ PrivD.name ()
 
   let invariant c {cpa; deps; priv} =

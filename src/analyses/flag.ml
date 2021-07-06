@@ -112,11 +112,11 @@ struct
 
   (*   let eval_funvar ctx (fv:exp) =  [(ctx.local,ctx.local)] *)
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let _ = List.iter no_addr_of_flag args in
     [(D.top (),D.top ())]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     let _ = List.iter no_addr_of_flag args in
     let _ = no_addr_of_flag fexp in
     D.top ()

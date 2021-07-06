@@ -5,6 +5,8 @@ module LP = Exp.LockingPattern
 module Exp = Exp.Exp
 module VarEq = VarEq.Spec
 
+module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
+
 open Prelude.Ana
 open Analyses
 
@@ -36,7 +38,7 @@ struct
   let invalidate_lval ask lv st =
     invalidate_exp ask (mkAddrOf lv) st
 
-  let assign ctx lval rval = invalidate_lval ctx.ask lval ctx.local
+  let assign ctx lval rval = invalidate_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
   let return ctx exp fundec =
     List.fold_right D.remove_var (fundec.sformals@fundec.slocals) ctx.local
@@ -47,49 +49,45 @@ struct
   let get_locks e st =
     let add_perel x xs =
       match LP.from_exps e x with
-      | Some x -> Queries.PS.add x xs
+      | Some x -> PS.add x xs
       | None -> xs
     in
-    D.fold add_perel st (Queries.PS.empty ())
+    D.fold add_perel st (PS.empty ())
 
-  let get_all_locks ask e st : Queries.PS.t =
+  let get_all_locks (ask: Queries.ask) e st : PS.t =
     let exps =
-      match ask (Queries.EqualSet e) with
-      | `ExprSet a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
+      match ask.f (Queries.EqualSet e) with
+      | a when not (Queries.ES.is_bot a) -> Queries.ES.add e a
       | _ -> Queries.ES.singleton e
     in
-    let add_locks x xs = Queries.PS.union (get_locks x st) xs in
-    Queries.ES.fold add_locks exps (Queries.PS.empty ())
+    let add_locks x xs = PS.union (get_locks x st) xs in
+    Queries.ES.fold add_locks exps (PS.empty ())
 
-  let same_unknown_index ask exp slocks =
-    let uk_index_equal i1 i2 =
-      match ask (Queries.MustBeEqual (i1, i2)) with
-      | `Bot | `MustBool true -> true
-      | _ -> false
-    in
+  let same_unknown_index (ask: Queries.ask) exp slocks =
+    let uk_index_equal i1 i2 = ask.f (Queries.MustBeEqual (i1, i2)) in
     let lock_index ei ee x xs =
       match Exp.one_unknown_array_index x with
       | Some (true, i, e) when uk_index_equal ei i ->
-        Queries.PS.add (zero, ee, e) xs
+        PS.add (zero, ee, e) xs
       | _ -> xs
     in
     match Exp.one_unknown_array_index exp with
-    | Some (_, i, e) -> D.fold (lock_index i e) slocks (Queries.PS.empty ())
-    | _ -> Queries.PS.empty ()
+    | Some (_, i, e) -> D.fold (lock_index i e) slocks (PS.empty ())
+    | _ -> PS.empty ()
 
   let special ctx lval f arglist =
     match LF.classify f.vname arglist with
     | `Lock _ ->
-      D.add ctx.ask (List.hd arglist) ctx.local
+      D.add (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
     | `Unlock ->
-      D.remove ctx.ask (List.hd arglist) ctx.local
+      D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
     | `Unknown fn when VarEq.safe_fn fn ->
       Messages.warn ("Assume that "^fn^" does not change lockset.");
       ctx.local
     | `Unknown x -> begin
         let st =
           match lval with
-          | Some lv -> invalidate_lval ctx.ask lv ctx.local
+          | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
           | None -> ctx.local
         in
         let write_args =
@@ -97,7 +95,7 @@ struct
           | Some fnc -> fnc `Write arglist
           | _ -> arglist
         in
-        List.fold_left (fun st e -> invalidate_exp ctx.ask e st) st write_args
+        List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
       end
     | _ ->
       ctx.local
@@ -175,33 +173,33 @@ struct
       match m with
       | AddrOf (Var v,o) ->
         let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
-        LSSet.add ("i-lock",ValueDomain.Addr.short 80 lock) xs
+        LSSet.add ("i-lock",ValueDomain.Addr.show lock) xs
       | _ ->
         Messages.warn "Internal error: found a strange lockstep pattern.";
         xs
     in
     let do_perel e xs =
-      match get_all_locks ctx.ask e ctx.local with
+      match get_all_locks (Analyses.ask_of_ctx ctx) e ctx.local with
       | a
-        when not (Queries.PS.is_top a || Queries.PS.is_empty a)
-        -> Queries.PS.fold one_perelem a xs
+        when not (PS.is_top a || PS.is_empty a)
+        -> PS.fold one_perelem a xs
       | _ -> xs
     in
     let do_lockstep e xs =
-      match same_unknown_index ctx.ask e ctx.local with
+      match same_unknown_index (Analyses.ask_of_ctx ctx) e ctx.local with
       | a
-        when not (Queries.PS.is_top a || Queries.PS.is_empty a)
-        -> Queries.PS.fold one_lockstep a xs
+        when not (PS.is_top a || PS.is_empty a)
+        -> PS.fold one_lockstep a xs
       | _ -> xs
     in
     let matching_exps =
       Queries.ES.meet
         (match ctx.ask (Queries.EqualSet e) with
-         | `ExprSet es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
+         | es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
            -> Queries.ES.add e es
          | _ -> Queries.ES.singleton e)
         (match ctx.ask (Queries.Regions e) with
-         | `LvalSet ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
+         | ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
                 try Queries.ES.add (Lval.CilLval.to_exp x) xs
                 with Lattice.BotValue -> xs
@@ -219,11 +217,11 @@ struct
     (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
     (LSSSet.singleton (LSSet.empty ()), ls)
 
-  let query ctx (q:Queries.t) =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.PartAccess {exp; var_opt; write} ->
-      `PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> Queries.Result.top ()
+      part_access ctx exp var_opt write
+    | _ -> Queries.Result.top q
 end
 
 let _ =

@@ -93,7 +93,8 @@ module H = BatHashtbl.Make(Node)
 (* Dumps a statement to the standard output *)
 let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
-let stmt_index_hack = Hashtbl.create 113
+(* Map from statement id to containing fundec *)
+let stmt_fundec_map = Hashtbl.create 113
 let current_node : node option ref = ref None
 
 let do_the_params (fd: fundec) =
@@ -108,15 +109,15 @@ let do_the_params (fd: fundec) =
 
 let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)
-let dummy_node = FunctionEntry Cil.dummyFunDec.svar
+let dummy_node = FunctionEntry Cil.dummyFunDec
 
 let all_array_index_exp : exp = CastE(TInt(Cilfacade.ptrdiff_ikind (),[]), unknown_exp)
 
 let getLoc (node: node) =
   match node with
   | Statement stmt -> get_stmtLoc stmt.skind
-  | Function fv -> fv.vdecl
-  | FunctionEntry fv -> fv.vdecl
+  | Function fv -> fv.svar.vdecl
+  | FunctionEntry fv -> fv.svar.vdecl
 
 (* TODO: refactor duplication with find_loop_heads *)
 module NH = Hashtbl.Make (Node)
@@ -138,7 +139,7 @@ let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
     end
   in
 
-  let entry_node = FunctionEntry fd.svar in
+  let entry_node = FunctionEntry fd in
   iter_node NS.empty entry_node;
 
   loop_heads
@@ -201,7 +202,7 @@ let createCFG (file: file) =
           end
     in realnode is_entry [] stmt
   in
-  addCfg (Function dummy_func.svar) (Ret (None, dummy_func), FunctionEntry dummy_func.svar);
+  addCfg (Function dummy_func) (Ret (None, dummy_func), FunctionEntry dummy_func);
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob ->
       match glob with
@@ -212,7 +213,7 @@ let createCFG (file: file) =
         (* Find the first statement in the function *)
         let entrynode = realnode true (CF.getFirstStmt fd) in
         (* Add the entry edge to that node *)
-        let _ = addCfg (Statement entrynode) ((Entry fd), (FunctionEntry fd.svar)) in
+        let _ = addCfg (Statement entrynode) ((Entry fd), (FunctionEntry fd)) in
         (* Return node to be used for infinite loop connection to end of function
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
@@ -220,9 +221,9 @@ let createCFG (file: file) =
           let start_id = 10_000_000_000 in (* TODO get max_sid? *)
           let sid = Hashtbl.hash loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
           newst.sid <- if sid < start_id then sid + start_id else sid;
-          Hashtbl.add stmt_index_hack newst.sid fd;
+          Hashtbl.add stmt_fundec_map newst.sid fd;
           let newst_node = Statement newst in
-          addCfg (Function fd.svar) (Ret (None,fd), newst_node);
+          addCfg (Function fd) (Ret (None,fd), newst_node);
           newst_node
         )
         in
@@ -231,7 +232,7 @@ let createCFG (file: file) =
           (* Please ignore the next line. It creates an index of statements
            * so the Eclipse plug-in can know what function a given result
            * belongs to. *)
-          Hashtbl.add stmt_index_hack stmt.sid fd;
+          Hashtbl.add stmt_fundec_map stmt.sid fd;
           if Messages.tracing then Messages.trace "cfg" "Statement at %a.\n" d_loc (get_stmtLoc stmt.skind);
           match stmt.skind with
           (* turn pthread_exit into return? *)
@@ -259,7 +260,7 @@ let createCFG (file: file) =
             let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
             List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
-           * it's job well and we just pick out the right successors *)
+           * its job well and we just pick out the right successors *)
           | If (exp, true_block, false_block, loc) -> begin
               if isZero exp then ()
               else
@@ -286,7 +287,7 @@ let createCFG (file: file) =
                 addCfg (Lazy.force pseudo_return) (Test (one, false), Statement (realnode true stmt)) (* TODO: is this necessary anymore? maybe could just leave it out and let the general case below handle it *)
             end
           (* The return edges are connected to the function *)
-          | Return (exp,loc) -> addCfg (Function fd.svar) (Ret (exp,fd), Statement stmt)
+          | Return (exp,loc) -> addCfg (Function fd) (Ret (exp,fd), Statement stmt)
           (* Gotos are skipped over by realnode and usually not needed.
            * Except goto loops with empty bodies need the Skip edge to be identified as loop heads and connected to return.
            * This also creates some unconnected but unnecessary edges which are covered by realnode. *)
@@ -305,7 +306,7 @@ let createCFG (file: file) =
         end
         in
         let loop_heads = find_loop_heads_fun (module TmpCfg) fd in
-        let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd.svar) in
+        let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd) in
         NH.iter (fun node () ->
             if not (NH.mem reachable_return node) then
               addCfg (Lazy.force pseudo_return) (Test (one, false), node)
@@ -322,14 +323,14 @@ let print cfg  =
   let _ = Printf.fprintf out "digraph cfg {\n" in
   let p_node () = function
     | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
-    | Function f      -> Pretty.dprintf "ret%d" f.vid
-    | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
+    | Function f      -> Pretty.dprintf "ret%d" f.svar.vid
+    | FunctionEntry f -> Pretty.dprintf "fun%d" f.svar.vid
   in
   let dn_exp () e =
-    text (Goblintutil.escape (sprint 800 (dn_exp () e)))
+    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
   in
   let dn_lval () l =
-    text (Goblintutil.escape (sprint 800 (dn_lval () l)))
+    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
   in
   let p_edge () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
@@ -355,8 +356,8 @@ let print cfg  =
     match n with
     | Statement {skind=If (_,_,_,_); _} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
     | Statement stmt  -> ()
-    | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.vname)
-    | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.vname)
+    | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.svar.vname)
+    | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.svar.vname)
   in
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
     ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges);
@@ -473,13 +474,13 @@ let getCFG (file: file) : cfg * cfg =
   if get_bool "justcfg" then print cfgB;
   H.find_all cfgF, H.find_all cfgB
 
-let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt.sid
+let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_fundec_map stmt.sid
 
 let getFun (node: node) =
   match node with
   | Statement stmt -> get_containing_function stmt
-  | Function fv -> CF.getdec fv
-  | FunctionEntry fv -> CF.getdec fv
+  | Function fv -> fv
+  | FunctionEntry fv -> fv
 
 let printFun (module Cfg : CfgBidir) live fd out =
   (* let out = open_out "cfg.dot" in *)
@@ -489,14 +490,14 @@ let printFun (module Cfg : CfgBidir) live fd out =
   let _ = Printf.fprintf out "digraph cfg {\n" in
   let p_node () = function
     | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
-    | Function f      -> Pretty.dprintf "ret%d" f.vid
-    | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
+    | Function f      -> Pretty.dprintf "ret%d" f.svar.vid
+    | FunctionEntry f -> Pretty.dprintf "fun%d" f.svar.vid
   in
   let dn_exp () e =
-    text (Goblintutil.escape (sprint 800 (dn_exp () e)))
+    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
   in
   let dn_lval () l =
-    text (Goblintutil.escape (sprint 800 (dn_lval () l)))
+    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
   in
   let p_edge () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
@@ -521,8 +522,8 @@ let printFun (module Cfg : CfgBidir) live fd out =
       match n with
       | Statement {skind=If (_,_,_,_); _}  -> "shape=diamond"
       | Statement stmt  -> ""
-      | Function f      -> "label =\"return of "^f.vname^"()\",shape=box"
-      | FunctionEntry f -> "label =\""^f.vname^"()\",shape=box"
+      | Function f      -> "label =\"return of "^f.svar.vname^"()\",shape=box"
+      | FunctionEntry f -> "label =\""^f.svar.vname^"()\",shape=box"
     in
     ignore (Pretty.fprintf out ("\t%a [id=\"%a\",URL=\"javascript:show_info('\\N');\",%s,%s];\n") p_node n p_node n liveness kind_style)
   in
@@ -539,7 +540,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
       List.iter (fun (_,x) -> printNode x) prevs
     end
   in
-  printNode (Function fd.svar);
+  printNode (Function fd);
   NH.iter printNodeStyle node_table;
   Printf.fprintf out "}\n";
   flush out;

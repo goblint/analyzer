@@ -4,20 +4,13 @@ open Deriving.Cil
 
 module Exp =
 struct
-  type t = exp [@@deriving to_yojson]
-  include Printable.Std
+  include CilType.Exp
 
-  let equal a b = Basetype.CilExp.compareExp a b = 0
-  let compare = Basetype.CilExp.compareExp
-  let hash = Hashtbl.hash
   let name () = "Cil expressions"
 
-  let pretty = d_exp
-  let short w s = sprint w (d_exp () s)
-  let isSimple _ = true
-  let pretty_f _ = pretty
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
+  (* TODO: what does interesting mean? *)
   let rec interesting x =
     match x with
     | SizeOf _
@@ -58,11 +51,11 @@ struct
       | StartOf (Mem e,o)
       | Lval    (Mem e,o) -> cv true e || offs_contains o
       | CastE (_,e)           -> cv deref e
-      | Lval    (Var v2,o) -> v.vid = v2.vid || offs_contains o
+      | Lval    (Var v2,o) -> CilType.Varinfo.equal v v2 || offs_contains o
       | AddrOf  (Var v2,o)
       | StartOf (Var v2,o) ->
         if deref
-        then v.vid = v2.vid || offs_contains o
+        then CilType.Varinfo.equal v v2 || offs_contains o
         else offs_contains o
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
       | _ -> failwith "Unmatched pattern."
@@ -73,7 +66,7 @@ struct
     let rec offs_contains o =
       match o with
       | NoOffset -> false
-      | Field (f',o) -> f.fname = f'.fname
+      | Field (f',o) -> CilType.Fieldinfo.equal f f'
       | Index (e,o) -> cv e || offs_contains o
     and cv e =
       match e with
@@ -130,16 +123,16 @@ struct
   let rec off_eq x y =
     match x, y with
     | NoOffset, NoOffset -> true
-    | Field (f1, o1), Field (f2, o2) -> f1.fname = f2.fname && off_eq o1 o2
+    | Field (f1, o1), Field (f2, o2) -> CilType.Fieldinfo.equal f1 f2 && off_eq o1 o2
     | Index (e1, o1), Index (e2, o2) -> simple_eq e1 e2 && off_eq o1 o2
     | _ -> false
-  and simple_eq x y =
+  and simple_eq x y = (* TODO: is this necessary instead of equal? *)
     match x, y with
     | Const c1, Const c2 -> eq_const c1 c2
     | Lval (Var v1,o1)   , Lval (Var v2,o2)
     | AddrOf (Var v1,o1) , AddrOf (Var v2,o2)
     | StartOf (Var v1,o1), StartOf (Var v2,o2)
-      -> v1.vid = v2.vid && off_eq o1 o2
+      -> CilType.Varinfo.equal v1 v2 && off_eq o1 o2
     | Lval (Mem e1,o1)   , Lval (Mem e2,o2)
     | AddrOf (Mem e1,o1) , AddrOf (Mem e2,o2)
     | StartOf (Mem e1,o1), StartOf (Mem e2,o2)
@@ -242,33 +235,17 @@ struct
     | StartOf (Mem e, NoOffset) -> one_unknown_array_index e
     | CastE (t,e) -> one_unknown_array_index e
     | _ -> None
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
 
 module LockingPattern =
 struct
   include Printable.Std
-  type t = Exp.t * Exp.t * Exp.t [@@deriving to_yojson]
-
-  let compare (x,y,z) (a,b,c) =
-    let x = Exp.compare x a in
-    if x <> 0 then
-      x
-    else
-      let x = Exp.compare y b in
-      if x <> 0 then
-        x
-      else
-        Exp.compare z c
-  let equal a b = compare a b =0
+  type t = Exp.t * Exp.t * Exp.t [@@deriving eq, ord, to_yojson]
   let hash = Hashtbl.hash
   let name () = "Per-Element locking triple"
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
-  let short w (x,y,z) = sprint w (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
-  let isSimple _ = true
-  let pretty_f _ = pretty
+  let show (x,y,z) = sprint ~width:max_int (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   type ee = EVar of varinfo
@@ -279,10 +256,10 @@ struct
 
   let ee_equal x y =
     match x, y with
-    | EVar v1, EVar v2 -> v1.vid = v2.vid
+    | EVar v1, EVar v2 -> CilType.Varinfo.equal v1 v2
     | EAddr, EAddr -> true
     | EDeref, EDeref -> true
-    | EField f1, EField f2 -> f1.fname = f2.fname
+    | EField f1, EField f2 -> CilType.Fieldinfo.equal f1 f2
     | EIndex e1, EIndex e2 -> Exp.simple_eq e1 e2
     | _ -> false
 

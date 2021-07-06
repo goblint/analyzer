@@ -2,7 +2,7 @@
 
 # ./scripts/privPrecCompare.sh ../goblint-bench/pthread/pfscan_comb.c --enable custom_libc
 
-PRIVS=(protection write mine-W lock write+lock)
+PRIVS=(protection protection-read write mine-W lock write+lock)
 OUTDIR="privPrecCompareRes"
 
 mkdir -p $OUTDIR
