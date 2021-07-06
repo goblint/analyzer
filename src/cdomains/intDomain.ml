@@ -863,7 +863,6 @@ struct
         | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (Some (m1, m2))
         | _, _-> intv
 
-
 end
 
 
@@ -1823,6 +1822,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let of_excl_list t x = Exc (ISet.of_list x, size t)
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (ISet.is_empty s) -> Some (ISet.elements s) | _ -> None
+
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
 
@@ -1931,8 +1931,12 @@ module Enums : S with type int_t = BigInt.t = struct
                 | Some (c, m) -> Inc (ISet.filter (contains c m) e))
       | a -> a
   let refine_with_interval ik a b = a
-  let refine_with_excl_list ik a b = a
-  let refine_with_incl_list ik a b = a
+  let refine_with_excl_list ik a b = match a, b with
+  | _, None -> a
+  | a, Some (ls) -> meet ik a (of_excl_list ik ls)
+  let refine_with_incl_list ik a b = match a, b with
+  | _, None -> a
+  | a, Some (ls) -> meet ik a (Inc (ISet.of_list ls))
 end
 
 module CongruenceFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
