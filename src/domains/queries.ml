@@ -169,41 +169,41 @@ module Any =
 struct
   type t = any_query
 
+  let order = function
+  | Any (EqualSet _) -> 0
+  | Any (MayPointTo _) -> 1
+  | Any (ReachableFrom _) -> 2
+  | Any (ReachableUkTypes _) -> 3
+  | Any (Regions _) -> 4
+  | Any (MayEscape _) -> 5
+  | Any (Priority _) -> 6
+  | Any (MayBePublic _) -> 7
+  | Any (MayBePublicWithout _) -> 8
+  | Any (MustBeProtectedBy _) -> 9
+  | Any CurrentLockset -> 10
+  | Any MustBeAtomic -> 11
+  | Any MustBeSingleThreaded -> 12
+  | Any MustBeUniqueThread -> 13
+  | Any CurrentThreadId -> 14
+  | Any MayBeThreadReturn -> 15
+  | Any (EvalFunvar _) -> 16
+  | Any (EvalInt _) -> 17
+  | Any (EvalStr _) -> 18
+  | Any (EvalLength _) -> 19
+  | Any (BlobSize _) -> 20
+  | Any PrintFullState -> 21
+  | Any (CondVars _) -> 22
+  | Any (PartAccess _) -> 23
+  | Any (IterPrevVars _) -> 24
+  | Any (IterVars _) -> 25
+  | Any (MustBeEqual _) -> 26
+  | Any (MayBeEqual _) -> 27
+  | Any (MayBeLess _) -> 28
+  | Any HeapVar -> 29
+  | Any (IsHeapVar _) -> 30
+
   (* deriving ord doesn't work for GADTs (t and any_query) so this must be done manually... *)
   let compare a b =
-    let order = function
-      | Any (EqualSet _) -> 0
-      | Any (MayPointTo _) -> 1
-      | Any (ReachableFrom _) -> 2
-      | Any (ReachableUkTypes _) -> 3
-      | Any (Regions _) -> 4
-      | Any (MayEscape _) -> 5
-      | Any (Priority _) -> 6
-      | Any (MayBePublic _) -> 7
-      | Any (MayBePublicWithout _) -> 8
-      | Any (MustBeProtectedBy _) -> 9
-      | Any CurrentLockset -> 10
-      | Any MustBeAtomic -> 11
-      | Any MustBeSingleThreaded -> 12
-      | Any MustBeUniqueThread -> 13
-      | Any CurrentThreadId -> 14
-      | Any MayBeThreadReturn -> 15
-      | Any (EvalFunvar _) -> 16
-      | Any (EvalInt _) -> 17
-      | Any (EvalStr _) -> 18
-      | Any (EvalLength _) -> 19
-      | Any (BlobSize _) -> 20
-      | Any PrintFullState -> 21
-      | Any (CondVars _) -> 22
-      | Any (PartAccess _) -> 23
-      | Any (IterPrevVars _) -> 24
-      | Any (IterVars _) -> 25
-      | Any (MustBeEqual _) -> 26
-      | Any (MayBeEqual _) -> 27
-      | Any (MayBeLess _) -> 28
-      | Any HeapVar -> 29
-      | Any (IsHeapVar _) -> 30
-    in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
       r
