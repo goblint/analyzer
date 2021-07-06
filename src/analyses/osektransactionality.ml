@@ -87,10 +87,10 @@ struct
   let eval_funvar ctx (fv:exp) : varinfo list =
     []
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, Osektupel.fcon ctxr aus)

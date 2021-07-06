@@ -116,7 +116,7 @@ struct
     | x -> x
 
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fundec:fundec) (args:exp list) : (D.t * D.t) list =
     let rec fold_right2 f xs ys r =
       match xs, ys with
       | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
@@ -124,7 +124,6 @@ struct
     in
     match ctx.local with
     | `Lifted reg ->
-      let fundec = Cilfacade.getdec f in
       let f x r reg = Reg.assign (var x) r reg in
       let old_regpart = get_regpart ctx in
       let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
@@ -133,7 +132,7 @@ struct
       [ctx.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     match au with
     | `Lifted reg -> begin
       let old_regpart = get_regpart ctx in
