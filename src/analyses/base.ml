@@ -568,38 +568,11 @@ struct
         let a = a.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
         let ik = Cilfacade.get_ikind typ in
-        (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
         begin match a with
-          (* old FlattenedBI code *)
-          (* | `Lifted z ->
-            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-            Some (`Int (ID.of_int ik z))
-          | `Top -> eval_binop exp
-          | `Bot -> None *)
-
-          (* new top handling *)
-          (* | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *) *)
-
-          (* new bot handling, should be unnecessary because query should always succeed *)
           | x when Queries.ID.is_bot x -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
-
-          (* new equivalent code which only allows definite ints *)
-          (* | x when Queries.ID.is_int x -> Some (`Int (ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp)) @@ Option.get @@ Queries.ID.to_int x))
-          | _ -> None *)
-
-          (* new code which uses intervals etc from result tuple *)
           (* | x -> Some (`Int x) *)
           | x -> `Int (Queries.ID.cast_to ik x) (* TODO: cast unnecessary? *)
           (* TODO: query should guarantee right ikind already? *)
-
-          (* new code which behaves like old but outputs about non-definite ints *)
-          (* | x ->
-            if Queries.ID.is_int x then
-              Some (`Int x)
-            else (
-              ignore (Pretty.printf "EVALINT not-int (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a));
-              None
-            ) *)
         end
       | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
       | _ -> eval_next ()
@@ -862,10 +835,8 @@ struct
   let query_evalint ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
     let r = match eval_rv_no_ask_evalint ask gs st e with
-    (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
-    | `Int i -> Queries.Result.top q *)
     | `Int i -> i (* TODO: cast to right ikind here? or is it guaranteed? *)
-    | `Bot   -> Queries.ID.bot () (* TODO: remove *)
+    | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
     (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
     | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.ID.bot ()
     in
@@ -922,7 +893,6 @@ struct
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          (* (match ID.to_int d with Some i -> Queries.ID.of_int i | None -> Queries.Result.top q) *)
           d
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
@@ -935,7 +905,6 @@ struct
           let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           (* | `Blob (_,s,_) -> (match ID.to_int s with Some i -> Queries.ID.of_int i | None -> Queries.Result.top q) *)
            | `Blob (_,s,_) -> s
            | _ -> Queries.Result.top q)
         | _ -> Queries.Result.top q
@@ -1168,16 +1137,9 @@ struct
                 let patched_ask =
                 match ctx with
                 | Some ctx ->
-                  (* old patched ask *)
-                  (* I think this doesn't work properly because any patched.ask inside that query still goes to ctx, so the query response is incorrectly for ctx.local, not the new st *)
-                  (* I think this way it also never asks any other analyses? how does MayBeLess in arrays work then using exprelation at all? *)
-                  (* let patched = swap_st ctx st in
-                     { Queries.f = fun (type a) (q: a Queries.t) -> query patched q } *)
-
-                  (* new patched ask *)
-                  (* attempt to fix the above issue by also changing the ask of the patched ctx via the usual recursion trick *)
-                  (* this goes into stack overflow, probably because "query" here is just base's query, not MCP2.query *)
-                  (* only going through the latter does cycle detection *)
+                  (* The usual recursion trick for ctx. *)
+                  (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
+                  (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
                   let rec ctx' =
                     { ctx with
                       ask = (fun (type a) (q: a Queries.t) -> query ctx' q)

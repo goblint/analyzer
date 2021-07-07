@@ -6,7 +6,7 @@ module GU = Goblintutil
 module ID =
 struct
   include IntDomain.IntDomTuple
-  (* Special IntDomTuple that has _some_ top which MCP2.query can use *)
+  (* Special IntDomTuple that has _some_ top and bot which MCP2.query can use *)
   let top () = top_of IInt
   let is_top x = equal (top ()) x
   let bot () = bot_of IInt
