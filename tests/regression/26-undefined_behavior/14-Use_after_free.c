@@ -1,4 +1,4 @@
-// PARAM:  --sets ana.spec.file useafterfree.spec --set ana.activated[+] "'spec'"
+// PARAM:  --sets ana.spec.file useafterfree.spec --set ana.activated[+] "'spec'" --enable dbg.debug --disable warn.debug
 #include <stdio.h>
 #include <stdlib.h>
 
