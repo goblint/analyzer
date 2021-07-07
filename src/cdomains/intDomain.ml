@@ -2088,9 +2088,17 @@ struct
   (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
   let cast_to ?torg ?(no_ov=false) t x =
     if no_ov then x
-    else match torg with
-         | (Some (Cil.TInt (ik, _)) ) when ik = t || (max_int t <= max_int ik && min_int t >= min_int ik) -> x
-         | _ -> top ()
+    else
+      match x with
+      | None -> None
+      | Some (c, m) when m =: Ints_t.zero ->
+         let c' = Ints_t.of_bigint @@ BigInt.cast_to t (Ints_t.to_bigint c) in
+         if Cil.isSigned t && not (c =: c')
+         then top_of t (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
+         else Some (c', m)
+      | _ -> match torg with
+             | (Some (Cil.TInt (ik, _)) ) when ik = t || (max_int t <= max_int ik && min_int t >= min_int ik) -> x
+             | _ -> top ()
 
 
   let cast_to ?torg ?(no_ov=false) (t : Cil.ikind) x =
