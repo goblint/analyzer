@@ -19,7 +19,7 @@ int main() {
     c = 0;
 
     while (1) {
-        assert(-2*y*y*y*y*y*y - 6 * y*y*y*y*y - 5 * y*y*y*y + y*y + 12*x == 0);
+        assert(-2*y*y*y*y*y*y - 6 * y*y*y*y*y - 5 * y*y*y*y + y*y + 12*x == 0); // UNKNOWN (by design)
 
         if (!(c < k))
             break;
@@ -29,7 +29,7 @@ int main() {
         x = y * y * y * y * y + x;
     }
 
-    assert(-2*y*y*y*y*y*y - 6 * y*y*y*y*y - 5 * y*y*y*y + y*y + 12*x == 0);
-    assert(k*y == y*y);
+    assert(-2*y*y*y*y*y*y - 6 * y*y*y*y*y - 5 * y*y*y*y + y*y + 12*x == 0); // UNKNOWN (by design)
+    assert(k*y == y*y); // UNKNOWN (by design)
     return 0;
 }
