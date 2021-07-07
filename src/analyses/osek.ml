@@ -484,7 +484,7 @@ struct
     | Failure _ -> None
 
   let unknown_access () =
-    (*M.report "unknown access 'with lockset:'";*)
+    (*M.warn_each "unknown access 'with lockset:'";*)
     Messages.warn_all "Access to unknown address could be global"
 
   (* All else must have failed --- making a last ditch effort to generate type
@@ -618,7 +618,7 @@ struct
   let access_address (ask: Queries.ask) regs write lv : accesses =
     if is_ignorable lv then [] else
       let add_reg (v,o) =
-        (*       Messages.report ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
+        (*       Messages.warn_each @@ Messages.Unknown ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
         Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
       in
       match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
@@ -664,7 +664,7 @@ struct
     (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
     match a.f (Queries.Regions exp) with
     | regs when not (Queries.LS.is_top regs) ->
-      (*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
+      (*           Messages.warn_each @@ Messages.Unknown ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
       accs (Queries.LS.elements regs)
     | _ -> accs []
   (* Accesses during the evaluation of an lval, not the lval itself! *)

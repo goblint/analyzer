@@ -30,8 +30,8 @@ int main(void) {
   for (i = 0; i < 10000; i++) {
     pthread_create(&id1, NULL, t1, NULL);
     pthread_create(&id2, NULL, t2, NULL);
-    pthread_join (id1, NULL);
-    pthread_join (id2, NULL);
+    pthread_join(id1, NULL);
+    pthread_join(id2, NULL);
     printf("%d: g1 = %d, g2 = %d.\n", i, g1, g2);
   }
   return 0;

@@ -257,10 +257,10 @@ let warn_urgent msg =
     print_msg msg (!Tracing.current_loc)
   end
 
-let warn_all msg =
+let warn_all ?loc:(loc= !Tracing.current_loc) msg =
   if !GU.should_warn then begin
     if !warnings then
-      print_msg msg (!Tracing.current_loc);
+      print_msg msg loc;
     soundness := false
   end
 
@@ -268,17 +268,6 @@ exception StopTheWorld
 let waitWhat s =
   print_msg s (!Tracing.current_loc);
   raise StopTheWorld
-
-let report_lin_hashtbl  = Hashtbl.create 10
-
-let report ?loc:(loc= !Tracing.current_loc) msg =
-  if !GU.should_warn then begin
-    if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
-      begin
-        print_msg msg loc;
-        Hashtbl.add report_lin_hashtbl (msg,loc) true
-      end
-  end
 
 let report_error msg =
   if !GU.should_warn then begin
@@ -304,14 +293,13 @@ let warn_internal ?ctx (warning: WarningWithCertainty.t) =
       end
   end
 
-let warn_internal_with_loc ?ctx (warning: WarningWithCertainty.t) =
+let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let loc = !Tracing.current_loc in
     let msg = WarningWithCertainty.show warning in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
       begin
-        warn_all msg;
+        warn_all ~loc:loc msg;
         Hashtbl.add warn_lin_hashtbl (msg,loc) true
       end
   end
@@ -319,8 +307,10 @@ let warn_internal_with_loc ?ctx (warning: WarningWithCertainty.t) =
 let warn ?must:(must=false) ?ctx (warning: Warning.t) =
   warn_internal ~ctx:ctx (WarningWithCertainty.create ~must:must warning)
 
-let warn_each ?must:(must=false) ?ctx (warning: Warning.t) =
-  warn_internal_with_loc ~ctx:ctx (WarningWithCertainty.create ~must:must warning)
+let warn_each ?must:(must=false) ?ctx ?loc (warning: Warning.t) =
+  match loc with
+  | Some loc -> warn_internal_with_loc ~ctx:ctx ~loc:loc (WarningWithCertainty.create ~must:must warning)
+  | None -> warn_internal_with_loc ~ctx:ctx (WarningWithCertainty.create ~must:must warning)
 
 let debug msg =
   if (get_bool "dbg.debug") then warn_internal (WarningWithCertainty.debug ("{BLUE}"^msg))

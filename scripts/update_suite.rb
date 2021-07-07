@@ -183,6 +183,9 @@ regs.sort.each do |d|
       tests[-1] = "term"
       debug = true
     end
+    # always enable debugging so that the warnings would work
+    debug = true
+
     params << " --set dbg.debug true" if debug
     p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true)
     projects << p

@@ -29,9 +29,9 @@ struct
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
             let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.show e.addr) (ValueDomain.Addr.show newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
-            Messages.report msg;
+            Messages.(warn_each @@ Unknown msg);
             let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.show newLock.addr) (ValueDomain.Addr.show e.addr) b.loc.line a.loc.line e.loc.line newLock.loc.line) in
-            Messages.report ~loc:a.loc msg;
+            Messages.(warn_each ~loc:a.loc @@ Unknown msg);
           )
           else () ) !forbiddenList ) lockList;
 
