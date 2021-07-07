@@ -164,8 +164,10 @@ struct
     let certainty_str = match certainty with
       | Some c -> (Certainty.show c)
       | None -> ""
-    in
-    "[Warning]"^certainty_str^(Warning.show warn_type)
+    and warning_tag = match warn_type with
+      | Debug _ -> ""
+      | _ -> "[Warning]"
+    in warning_tag^certainty_str^(Warning.show warn_type)
 end
 
 exception Bailure of string
