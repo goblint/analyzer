@@ -182,7 +182,9 @@ let createCFG (file: file) =
   (* Function for finding the next real successor of a statement. CIL tends to
    * put a lot of junk between stuff: *)
   let realnode is_entry stmt =
+    if Messages.tracing then Messages.tracei "cfg" "realnode is_entry=%B stmt=%d\n" is_entry stmt.sid;
     let rec realnode is_entry visited stmt =
+      if Messages.tracing then Messages.trace "cfg" "realnode inner is_entry=%B visited=[%a] stmt=%d: %a\n" is_entry (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited stmt.sid dn_stmt stmt;
       if List.mem stmt.sid visited then stmt
       else match (List.hd stmt.succs) with
         | exception (Failure _) -> if is_entry then stmt else raise Not_found
@@ -200,7 +202,14 @@ let createCFG (file: file) =
             | If (exp,_,_,_) -> if isZero exp then realnode is_entry (sid::visited) next else stmt
             | _ -> stmt
           end
-    in realnode is_entry [] stmt
+    in
+    try
+      let r = realnode is_entry [] stmt in
+      if Messages.tracing then Messages.traceu "cfg" "-> %d\n" r.sid;
+      r
+    with Not_found ->
+      if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
+      raise Not_found
   in
   addCfg (Function dummy_func.svar) (Ret (None, dummy_func), FunctionEntry dummy_func.svar);
   (* We iterate over all globals looking for functions: *)
