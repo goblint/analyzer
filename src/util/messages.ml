@@ -64,23 +64,23 @@ struct
 
         let show (e: t): string =
           match e with
-          | PastEnd -> "[PastEnd]  Index is past the end of the array."
-          | BeforeStart -> "[BeforeStart] Index is before start of the array."
-          | Unknown -> "[Unknown] Not enough information about index."
+          | PastEnd -> "PastEnd]" ^ " Index is past the end of the array."
+          | BeforeStart -> "BeforeStart]" ^ " Index is before start of the array."
+          | Unknown -> "Unknown]" ^ " Not enough information about index."
       end
 
       let show (e: t): string =
         match e with
-        | ArrayOutOfBounds e -> Printf.sprintf "[Array out of bounds] %s" (ArrayOutOfBounds.show e)
-        | NullPointerDereference -> "[Null pointer dereference]"
-        | UseAfterFree -> "[Use After Free]"
+        | ArrayOutOfBounds e -> "ArrayOutOfBounds > "^(ArrayOutOfBounds.show e)
+        | NullPointerDereference -> "NullPointerDereference]"
+        | UseAfterFree -> "UseAfterFree]"
     end
 
     let show (e: t): string =
       match e with
-      | Undefined u -> Printf.sprintf "[Undefined] %s" (Undefined.show u)
-      | Implementation -> "[Implementation]"
-      | Machine -> "[Machine]"
+      | Undefined u -> "Undefined > "^(Undefined.show u)
+      | Implementation -> "Implementation > "
+      | Machine -> "Machine > "
   end
 
   module Integer =
@@ -93,8 +93,8 @@ struct
 
     let show (e: t): string =
       match e with
-      | Overflow -> "[Overflow]"
-      | DivByZero -> "[DivByZero]"
+      | Overflow -> "Overflow]"
+      | DivByZero -> "DivByZero]"
   end
 
   module Cast =
@@ -106,7 +106,7 @@ struct
 
     let show (e: t): string =
       match e with
-      | TypeMismatch -> "[TypeMismatch]"
+      | TypeMismatch -> "TypeMismatch]"
   end
 
   let should_warn e =
@@ -123,12 +123,12 @@ struct
 
   let show e =
     match e with
-    | Behavior x -> "[Behavior] "^(Behavior.show x)
-    | Integer x -> "[Integer] "^(Integer.show x)
+    | Behavior x -> "[Behavior > " ^ (Behavior.show x)
+    | Integer x -> "[Integer > " ^ (Integer.show x)
     | Race -> "[Race]"
-    | Cast x -> "[Cast] "^(Cast.show x)
-    | Unknown msg -> "[Unknown] "^msg
-    | Debug msg -> "[Debug] "^msg
+    | Cast x -> "[Cast > " ^ (Cast.show x)
+    | Unknown msg -> "[Unknown]" ^ " " ^ msg
+    | Debug msg -> "[Debug]" ^ " " ^ msg
     | Analyzer -> "[Analyzer]"
 end
 
@@ -144,8 +144,8 @@ module Certainty = struct
 
   let show c =
     match c with
-    | May -> "[MAY]"
-    | Must -> "[MUST]"
+    | May -> "[May]"
+    | Must -> "[Must]"
 end
 
 module WarningWithCertainty =
@@ -162,10 +162,10 @@ struct
   let create ?must:(must=false) w = {warn_type = w; certainty = Some (if must then Certainty.Must else Certainty.May)}
   let show {warn_type; certainty} =
     let certainty_str = match certainty with
-      | Some c -> (Certainty.show c) ^ " "
+      | Some c -> (Certainty.show c)
       | None -> ""
     in
-    certainty_str^(Warning.show warn_type)
+    "[Warning]"^certainty_str^(Warning.show warn_type)
 end
 
 exception Bailure of string

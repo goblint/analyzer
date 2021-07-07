@@ -393,14 +393,7 @@ File.open(theresultfile, "w") do |f|
                     when /Assertion .* will fail/    then "fail"
                     when /Assertion .* will succeed/ then "success"
                     when /Assertion .* is unknown/   then "unknown"
-                    when /Uninitialized/             then "warn"
-                    when /dereferencing of null/     then "warn"
-                    when /CW:/                       then "warn"
-                    when /Fixpoint not reached/      then "warn"
-                    when /.*file handle.*/           then "warn"
-                    when /.*file is never closed/    then "warn"
-                    when /.*unclosed files: .*/      then "warn"
-                    when /changed pointer .*/        then "warn"
+                    when /^\[Warning\]/              then "warn"
                     else "other"
                   end
       oldwarn = warnings[i]
