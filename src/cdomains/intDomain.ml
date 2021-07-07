@@ -2555,19 +2555,25 @@ module IntDomTupleImpl = struct
      (fun (a, b, c, d) -> maybe refine_with_congruence ik (a, b, c, d) d)]
 
   let refine ik ((a, b, c, d ) : t ) : t =
-    if not (GobConfig.get_bool "ana.int.refinement") then (a, b, c, d )
-    else
-      let dt = ref (a, b, c, d) in
-      dt := refine_with_excl_list ik !dt (to_excl_list (a, b, c, d));
-      let quit_loop = ref false in
-      while not !quit_loop do
-        let old_dt = !dt in
-        List.iter (fun f -> dt := f !dt) (refine_functions ik);
-        quit_loop := equal old_dt !dt;
-        if is_bot !dt then dt := bot_of ik; quit_loop := true;
-        if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
-      done;
-      !dt
+    let dt = ref (a, b, c, d) in
+    let _ = match GobConfig.get_string "ana.int.refinement" with
+      | "never" -> ()
+      | "once" ->
+         dt := refine_with_excl_list ik !dt (to_excl_list (a, b, c, d));
+         List.iter (fun f -> dt := f !dt) (refine_functions ik);
+      | "fixpoint" ->
+         dt := refine_with_excl_list ik !dt (to_excl_list (a, b, c, d));
+         let quit_loop = ref false in
+         while not !quit_loop do
+           let old_dt = !dt in
+           List.iter (fun f -> dt := f !dt) (refine_functions ik);
+           quit_loop := equal old_dt !dt;
+           if is_bot !dt then dt := bot_of ik; quit_loop := true;
+           if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
+         done;
+      | _ -> ()
+    in
+    !dt
 
   let no_overflow ik r =
     if GobConfig.get_bool "ana.int.congruence_no_overflow" then true
