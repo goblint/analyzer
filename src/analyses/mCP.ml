@@ -558,6 +558,10 @@ struct
       | Queries.PrintFullState ->
         ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
         ()
+      (* | EvalInt e ->
+        (* TODO: only query others that actually respond to EvalInt *)
+        (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
+        f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
       | _ ->
         fold_left f (Result.top ()) @@ spec_list ctx.local
 
