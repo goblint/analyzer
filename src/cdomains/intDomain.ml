@@ -2032,14 +2032,15 @@ struct
     if M.tracing then M.trace "congruence" "join %a %a -> %a\n" pretty x pretty y pretty res;
     res
 
-  (* if it exists, c2/a2 is solution to a*x ≡ c (mod m) *)
-  let congruence_series a c m =
-    let rec next a1 c1 a2 c2 =
-      if a2 |: a1 then (a2, c2)
-      else next a2 c2 (a1 %: a2) ((c1 -: c2) *: (a1 /: a2))
-    in next m Ints_t.zero a c
 
   let meet ik x y =
+    (* if it exists, c2/a2 is solution to a*x ≡ c (mod m) *)
+    let congruence_series a c m =
+      let rec next a1 c1 a2 c2 =
+        if a2 |: a1 then (a2, c2)
+        else next a2 c2 (a1 %: a2) ((c1 -: c2) *: (a1 /: a2))
+      in next m Ints_t.zero a c
+    in
     let simple_case i c m =
       if m |: (i -: c)
       then Some (i, Ints_t.zero) else None
@@ -2062,7 +2063,6 @@ struct
 
   let to_int = function Some (c, m) when m =: Ints_t.zero -> Some c | _ -> None
   let of_int ik (x: int_t) = Some (x, Ints_t.zero)
-  let of_pair ik p = normalize (Some p)
   let zero = Some (Ints_t.zero, Ints_t.zero)
   let one  = Some (Ints_t.one, Ints_t.zero)
   let top_bool = top()
@@ -2158,14 +2158,15 @@ struct
      if M.tracing then  M.trace "congruence" "shift_right : %a %a becomes %a \n" pretty x pretty y pretty res;
      res
 
-  (* Naive primility test *)
+  let shift_left ik x y =
+    (* Naive primility test *)
   let is_prime n =
-      let n = Ints_t.to_int (abs n) in
-      let rec is_not_divisor d =
-        d * d > n || (n mod d <> 0 && is_not_divisor (d + 1)) in
-      n <> 1 && is_not_divisor 2
-
-  let shift_left ik x y = match x, y with
+    let n = Ints_t.to_int (abs n) in
+    let rec is_not_divisor d =
+      d * d > n || (n mod d <> 0 && is_not_divisor (d + 1)) in
+    n <> 1 && is_not_divisor 2
+    in
+    match x, y with
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top()
@@ -2348,6 +2349,7 @@ struct
     let bot_arb = make ~print:show (Gen.return (bot ())) in
     let int_cong_arb = pair int_arb (make (Gen.return Ints_t.zero)) in
     let cong_arb = pair int_arb int_arb in
+    let of_pair ik p = normalize (Some p) in
     oneof
       ((set_print show @@ map (of_pair ik) cong_arb)::
          (set_print show @@ map (of_pair ik) int_cong_arb)::
