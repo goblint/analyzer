@@ -186,22 +186,24 @@ let createCFG (file: file) =
     let rec realnode is_entry visited stmt =
       if Messages.tracing then Messages.trace "cfg" "realnode inner is_entry=%B visited=[%a] stmt=%d: %a\n" is_entry (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited stmt.sid dn_stmt stmt;
       if List.mem stmt.sid visited then stmt
-      else match (List.hd stmt.succs) with
-        | exception (Failure _) -> if is_entry then stmt else raise Not_found
-        | next -> begin
-            let sid = stmt.sid in
-            match stmt.skind with
-            | Block _ -> realnode is_entry (sid::visited) next
-            | Goto _ -> realnode is_entry (sid::visited) next
-            | Instr [] -> begin
-                if next.sid == stmt.sid
-                then stmt
-                else realnode is_entry (sid::visited) next
-              end
-            | Loop _ -> realnode is_entry (sid::visited) next
-            | If (exp,_,_,_) -> if isZero exp then realnode is_entry (sid::visited) next else stmt
-            | _ -> stmt
+      else
+        let next () = match (List.hd stmt.succs) with
+          | exception (Failure _) -> if is_entry then stmt else raise Not_found
+          | next -> next
+        in
+        let sid = stmt.sid in
+        match stmt.skind with
+        | Block _ -> realnode is_entry (sid::visited) (next ())
+        | Goto _ -> realnode is_entry (sid::visited) (next ())
+        | Instr [] -> begin
+            let next = next () in
+            if next.sid == stmt.sid
+            then stmt
+            else realnode is_entry (sid::visited) next
           end
+        | Loop _ -> realnode is_entry (sid::visited) (next ())
+        | If (exp,_,_,_) -> if isZero exp then realnode is_entry (sid::visited) (next ()) else stmt
+        | _ -> stmt
     in
     try
       let r = realnode is_entry [] stmt in
