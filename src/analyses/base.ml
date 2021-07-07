@@ -336,7 +336,7 @@ struct
           | `Bot -> None *)
 
           (* new top handling *)
-          | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *)
+          (* | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *) *)
 
           (* new bot handling, should be unnecessary because query should always succeed *)
           (* | x when Queries.ID.is_bot x -> None *)
