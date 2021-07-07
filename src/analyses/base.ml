@@ -270,7 +270,9 @@ struct
 
   (* evaluate value using our "query functions" *)
   let eval_rv_pre (ask: Q.ask) exp pr =
+    if M.tracing then M.traceli "evalint" "base eval_rv_pre %a\n" d_exp exp;
     let eval_binop exp =
+      if M.tracing then M.traceli "evalint" "base eval_binop %a\n" d_exp exp;
       let binop op e1 e2 =
         let equality () =
           (* TODO: just return bool? *)
@@ -306,13 +308,20 @@ struct
             Some (`Int (ID.of_bool ik (not tv))) | None -> None)
         | _ -> None
       in
+      let r =
       match exp with
       | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
       | _ -> None
+      in
+      if M.tracing then M.traceu "evalint" "base eval_binop %a -> %a\n" d_exp exp (docOpt (VD.pretty ())) r;
+      r
     in
+    let r =
     match Cil.typeOf exp with
     | typ when Cil.isIntegralType typ ->
+      if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
       let a = ask.f (Q.EvalInt exp) in
+      if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
       let ik = (Cilfacade.get_ikind (Cil.typeOf exp)) in
       (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
       begin match a with
@@ -348,6 +357,9 @@ struct
       end
     | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
     | _ -> eval_binop exp
+    in
+    if M.tracing then M.traceu "evalint" "base eval_rv_pre %a -> %a\n" d_exp exp (docOpt (VD.pretty ())) r;
+    r
 
 
   (**************************************************************************
@@ -624,6 +636,7 @@ struct
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+    if M.tracing then M.traceli "evalint" "base eval_rv %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
@@ -741,6 +754,13 @@ struct
           VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()
       in
+      let rest () =
+        if M.tracing then M.traceli "evalint" "base eval_rv rest %a\n" d_exp exp;
+        let r = rest () in
+        if M.tracing then M.traceu "evalint" "base eval_rv rest %a -> %a\n" d_exp exp VD.pretty r;
+        r
+      in
+      let r =
       (* First we try with query functions --- these are currently more precise.
        * Ideally we would meet both values, but we fear types might not match. (bottom) *)
 
@@ -759,6 +779,9 @@ struct
         );
         x
       | None -> r
+      in
+      if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
+      r
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =
@@ -869,12 +892,16 @@ struct
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalInt e -> begin
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        if M.tracing then M.traceli "evalint" "base query EvalInt %a\n" d_exp e;
+        let r = match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
         | `Int i -> Queries.Result.top q *)
         | `Int i -> i
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
         | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q
+        in
+        if M.tracing then M.traceu "evalint" "base query EvalInt %a -> %a\n" d_exp e Queries.ID.pretty r;
+        r
       end
     | Q.EvalLength e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
