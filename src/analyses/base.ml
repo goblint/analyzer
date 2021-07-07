@@ -765,12 +765,12 @@ struct
        * Ideally we would meet both values, but we fear types might not match. (bottom) *)
 
       (* old code *)
-      (* match eval_rv_pre a exp st with
+      match eval_rv_pre a exp st with
       | Some x -> x
-      | None -> rest () *)
+      | None -> rest ()
 
       (* new debugging code which always does rest, just to see when same result via query is less precise for some unknown reason *)
-      let r = rest () in
+      (* let r = rest () in
       match eval_rv_pre a exp st with
       | Some x ->
         if VD.leq r x && not (VD.equal r x) then (
@@ -778,7 +778,7 @@ struct
           (* assert false *)
         );
         x
-      | None -> r
+      | None -> r *)
       in
       if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
       r
