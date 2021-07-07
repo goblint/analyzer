@@ -124,12 +124,12 @@ struct
 
   let show e =
     match e with
-    | Behavior behavior -> Printf.sprintf "[Behavior] %s" (Behavior.show behavior)
-    | Integer _ -> "[Integer]"
+    | Behavior x -> "[Behavior] "^(Behavior.show x)
+    | Integer x -> "[Integer] "^(Integer.show x)
     | Race -> "[Race]"
-    | Cast _ -> "[Cast]"
-    | Unknown msg -> Printf.sprintf "[Unknown] %s" msg
-    | Debug msg -> Printf.sprintf "[Debug] %s" msg
+    | Cast x -> "[Cast] "^(Cast.show x)
+    | Unknown msg -> "[Unknown] "^msg
+    | Debug msg -> "[Debug] "^msg
     | Analyzer -> "[Analyzer]"
 end
 
@@ -167,7 +167,7 @@ struct
       | Some c -> (Certainty.show c) ^ " "
       | None -> ""
     in
-    Printf.sprintf "%s%s" certainty_str (Warning.show warn_type)
+    certainty_str^(Warning.show warn_type)
 end
 
 exception Bailure of string
