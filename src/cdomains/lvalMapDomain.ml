@@ -253,7 +253,13 @@ struct
 
   (*TODO: get the warning category*)
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
-    Messages.warn_each ~must:(not may) ~loc:(List.last loc) @@ Messages.Unknown msg
+    let parse_warning msg =
+      match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
+      | [] ->
+        Messages.Unknown msg
+      | h :: _ ->
+        Messages.Warning.from_string_list (h |> Str.split (Str.regexp "[.]"))
+    in Messages.warn_each ~must:(not may) ~loc:(List.last loc) @@ parse_warning msg
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)
