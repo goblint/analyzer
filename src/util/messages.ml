@@ -114,7 +114,6 @@ struct
     | Behavior _ -> "behavior"
     | Integer _ -> "integer"
     | Race -> "race"
-    | Array _ -> "array"
     | Cast _ -> "cast"
     | Unknown msg -> "unknown"
     | Debug msg -> "debug"
@@ -128,7 +127,6 @@ struct
     | Behavior behavior -> Printf.sprintf "[Behavior] %s" (Behavior.show behavior)
     | Integer _ -> "[Integer]"
     | Race -> "[Race]"
-    | Array _ -> "[Array]"
     | Cast _ -> "[Cast]"
     | Unknown msg -> Printf.sprintf "[Unknown] %s" msg
     | Debug msg -> Printf.sprintf "[Debug] %s" msg
