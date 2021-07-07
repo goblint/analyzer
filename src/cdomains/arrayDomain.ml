@@ -568,22 +568,21 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
-(* For an explanation of the warning types check the Pull Request #255 *)
-    let warn_type t = (M.EventType.Behavior (M.BehaviorEvent.Undefined (M.UndefinedBehavior.ArrayOutOfBounds t))) in
-      match(idx_after_start, idx_before_end) with
-      | Some true, Some true -> (* Certainly in bounds on both sides.*)
-        ()
-      | Some true, Some false -> (* The following matching differentiates the must and may cases*)
-        M.warn_each (M.LogEvent.must (warn_type M.ArrayOOB.PastEnd))
-      | Some true, None ->
-        M.warn_each (M.LogEvent.may (warn_type M.ArrayOOB.PastEnd))
-      | Some false, Some true ->
-        M.warn_each (M.LogEvent.must (warn_type M.ArrayOOB.BeforeStart))
-      | None, Some true ->
-        M.warn_each (M.LogEvent.may (warn_type M.ArrayOOB.BeforeStart))
-      | _ ->
-        M.warn_each (M.LogEvent.may (warn_type M.ArrayOOB.Unknown))
-    else ()
+    (* For an explanation of the warning types check the Pull Request #255 *)
+    match(idx_after_start, idx_before_end) with
+    | Some true, Some true -> (* Certainly in bounds on both sides.*)
+      ()
+    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+      M.warn_each ~must:true @@ M.Warning.Behavior.Undefined.ArrayOutOfBounds.past_end ()
+    | Some true, None ->
+      M.warn_each @@ M.Warning.Behavior.Undefined.ArrayOutOfBounds.past_end ()
+    | Some false, Some true ->
+      M.warn_each ~must:true @@ M.Warning.Behavior.Undefined.ArrayOutOfBounds.before_start ()
+    | None, Some true ->
+      M.warn_each @@ M.Warning.Behavior.Undefined.ArrayOutOfBounds.before_start ()
+    | _ ->
+      M.warn_each @@ M.Warning.Behavior.Undefined.ArrayOutOfBounds.unknown ()
+  else ()
 
 
 module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
