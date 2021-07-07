@@ -542,7 +542,7 @@ struct
     !collected
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
-  let rec eval_rv ?(outer_query=true) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv %a\n" d_exp exp;
     let r =
       (* we have a special expression that should evaluate to top ... *)
@@ -551,18 +551,15 @@ struct
       else
         (* First we try with query functions --- these are currently more precise.
          * Ideally we would meet both values, but we fear types might not match. (bottom) *)
-        eval_rv_ask_evalint ~outer_query a gs st exp
+        eval_rv_ask_evalint a gs st exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
     r
   (* evaluate value using our "query functions" *)
-  and eval_rv_ask_evalint ?(outer_query=true) a gs st exp =
-    let eval_next () = eval_rv_no_ask_evalint ~outer_query a gs st exp in
+  and eval_rv_ask_evalint a gs st exp =
+    let eval_next () = eval_rv_no_ask_evalint a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" d_exp exp;
     let r =
-    if not outer_query then
-      eval_next ()
-    else
       match Cil.typeOf exp with
       | typ when Cil.isIntegralType typ ->
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
@@ -607,10 +604,10 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_ask_evalint %a -> %a\n" d_exp exp VD.pretty r;
     r
-  and eval_rv_no_ask_evalint ?(outer_query=true) a gs st exp =
-    eval_rv_ask_mustbeequal ~outer_query a gs st exp
-  and eval_rv_ask_mustbeequal ?(outer_query=true) a gs st exp =
-    let eval_next () = eval_rv_base ~outer_query a gs st exp in
+  and eval_rv_no_ask_evalint a gs st exp =
+    eval_rv_ask_mustbeequal a gs st exp
+  and eval_rv_ask_mustbeequal a gs st exp =
+    let eval_next () = eval_rv_base a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
     let binop op e1 e2 =
       let equality () =
@@ -654,7 +651,7 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
     r
-  and eval_rv_base ?(outer_query=true) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  and eval_rv_base (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
@@ -841,9 +838,9 @@ struct
 
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
-  let eval_rv ?(outer_query=true) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     try
-      let r = eval_rv ~outer_query a gs st exp in
+      let r = eval_rv a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
       if VD.is_bot r then VD.top_value (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
@@ -851,7 +848,7 @@ struct
 
   let query_evalint ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
-    let r = match eval_rv_no_ask_evalint ~outer_query:false ask gs st e with
+    let r = match eval_rv_no_ask_evalint ask gs st e with
     (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
     | `Int i -> Queries.Result.top q *)
     | `Int i -> i (* TODO: cast to right ikind here? or is it guaranteed? *)
