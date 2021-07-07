@@ -262,20 +262,20 @@ let createCFG (file: file) =
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
-            let handle_instrs' skip_empty = function
-              (* Empty Instrs are weird: they have edges without any label or transfer function.
-               * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
-              | [] when skip_empty -> [Cil.locUnknown, Skip] (* TODO: better loc from somewhere? *)
-              | xs -> List.map handle_instr xs
-            in
             let handle_instrs succ =
-              (* empty Loop-s contain an Instr [] with its own successor, put skip edge there but not for other Instr [] *)
-              let skip_empty = match succ with
-                | Statement s -> s.sid = stmt.sid
-                | _ -> false
-              in
-              if xs <> [] || skip_empty then
-                mkEdges (Statement stmt) (handle_instrs' skip_empty xs) succ
+              match xs with
+              | [] ->
+                (* Empty Instrs are weird: they have edges without any label or transfer function.
+                 * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
+                (* empty Loop-s contain an Instr [] with its own successor, put skip edge there but not for other Instr [] *)
+                begin match succ with
+                  | Statement s when s.sid = stmt.sid ->
+                    mkEdges (Statement stmt) [Cil.locUnknown, Skip] succ (* TODO: better loc from somewhere? *)
+                  | _ ->
+                    ()
+                end
+              | _ :: _ ->
+                mkEdges (Statement stmt) (List.map handle_instr xs) succ
             in
             (* Sometimes a statement might not have a successor.
              * This can happen if the last statement of a function is a call to exit. *)
