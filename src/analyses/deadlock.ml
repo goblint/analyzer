@@ -76,11 +76,11 @@ struct
     ctx.local
 
   (* Calls/Enters a function *)
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [D.bot (),ctx.local]
 
   (* Leaves a function *)
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)

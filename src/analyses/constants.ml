@@ -70,8 +70,7 @@ struct
     (* Do nothing, as we are not interested in return values for now. *)
     ctx.local
 
-  let enter ctx (lval: lval option) (fv:varinfo) (args:exp list) : (D.t * D.t) list =
-    let f = Cilfacade.getdec fv in
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* Set the formal int arguments to top *)
     let callee_state = List.fold (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals in
     [(ctx.local, callee_state)]
@@ -85,7 +84,7 @@ struct
         )
       |_ -> state
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* If we have a function call with assignment
         x = f (e1, ... , ek)
       with a local int variable x on the left, we set it to top *)

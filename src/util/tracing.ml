@@ -26,8 +26,8 @@ let getLoc (node: node) =
   with e ->
     match node with
     | Statement stmt -> get_stmtLoc stmt.skind
-    | Function fv -> fv.vdecl
-    | FunctionEntry fv -> fv.vdecl
+    | Function fv -> fv.svar.vdecl
+    | FunctionEntry fv -> fv.svar.vdecl
 
 let addsystem sys = trace_sys := Strs.add sys !trace_sys
 let activate (sys:string) (subsys: string list): unit =

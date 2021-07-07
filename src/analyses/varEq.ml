@@ -470,7 +470,6 @@ struct
       let rm = remove (Analyses.ask_of_ctx ctx) (Var lv, NoOffset) st in
       add_eq (Analyses.ask_of_ctx ctx) (Var lv, NoOffset) exp rm
     in
-    let f = Cilfacade.getdec f in
     let nst =
       try fold_left2 assign_one_param ctx.local f.sformals args
       with SetDomain.Unsupported _ -> (* ignore varargs fr now *) D.top ()

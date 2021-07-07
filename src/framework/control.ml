@@ -323,15 +323,15 @@ struct
         }
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
-      let ents = Spec.enter ctx None fd.svar args in
-      List.map (fun (_,s) -> fd.svar, s) ents
+      let ents = Spec.enter ctx None fd args in
+      List.map (fun (_,s) -> fd, s) ents
     in
 
     (try MyCFG.dummy_func.svar.vdecl <- (List.hd otherfuns).svar.vdecl with Failure _ -> ());
 
     let startvars =
       if startfuns = []
-      then [[MyCFG.dummy_func.svar, startstate]]
+      then [[MyCFG.dummy_func, startstate]]
       else
         let morph f = Spec.morphstate f startstate in
         List.map (enter_with morph) startfuns
@@ -461,8 +461,8 @@ struct
 
       let out = M.get_out "uncalled" Legacy.stdout in
       let insrt k _ s = match k with
-        | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-        | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+        | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
+        | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
         | _ -> s
       in
       (* set of ids of called functions *)
