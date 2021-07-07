@@ -864,11 +864,27 @@ struct
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
-  let eval_exp x (exp:exp) =
+  let eval_exp st (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
-    let knownothing = { Queries.f = fun (type a) (q: a Queries.t) -> Queries.Result.top q } in (* our version of ask *)
-    let gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
-    match (eval_rv knownothing gs x exp) with
+    let rec query: type a. a Queries.t -> a Queries.result = fun q ->
+      match q with
+      (* copied from query *)
+      | EvalInt e ->
+        if M.tracing then M.traceli "evalint" "base eval_exp EvalInt %a\n" d_exp e;
+        let r = match eval_rv ~outer_query:false ask gs st e with
+        (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
+        | `Int i -> Queries.Result.top q *)
+        | `Int i -> i
+        | `Bot   -> Queries.Result.bot q (* TODO: remove *)
+        (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
+        | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.bot q
+        in
+        if M.tracing then M.traceu "evalint" "base eval_exp EvalInt %a -> %a\n" d_exp e Queries.ID.pretty r;
+        r
+      | _ -> Queries.Result.top q
+    and ask = { Queries.f = fun (type a) (q: a Queries.t) -> query q } (* our version of ask *)
+    and gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
+    match (eval_rv ask gs st exp) with
     | `Int x -> ValueDomain.ID.to_int x
     | _ -> None
 
