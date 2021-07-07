@@ -261,13 +261,21 @@ let createCFG (file: file) =
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
-            let handle_instrs' = function
+            let handle_instrs' skip_empty = function
               (* Empty Instrs are weird: they have edges without any label or transfer function.
                * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
-              | [] -> [Cil.locUnknown, Skip] (* TODO: better loc from somewhere? *)
+              | [] when skip_empty -> [Cil.locUnknown, Skip] (* TODO: better loc from somewhere? *)
               | xs -> List.map handle_instr xs
             in
-            let handle_instrs succ = mkEdges (Statement stmt) (handle_instrs' xs) succ in
+            let handle_instrs succ =
+              (* empty Loop-s contain an Instr [] with its own successor, put skip edge there but not for other Instr [] *)
+              let skip_empty = match succ with
+                | Statement s -> s.sid = stmt.sid
+                | _ -> false
+              in
+              if xs <> [] || skip_empty then
+                mkEdges (Statement stmt) (handle_instrs' skip_empty xs) succ
+            in
             (* Sometimes a statement might not have a successor.
              * This can happen if the last statement of a function is a call to exit. *)
             let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
