@@ -109,18 +109,17 @@ struct
       | TypeMismatch -> "[TypeMismatch]"
   end
 
-  let to_string e =
-    match e with
-    | Behavior _ -> "behavior"
-    | Integer _ -> "integer"
-    | Race -> "race"
-    | Cast _ -> "cast"
-    | Unknown msg -> "unknown"
-    | Debug msg -> "debug"
-    | Analyzer -> "analyzer"
-
   let should_warn e =
-    get_bool ("warn." ^ (to_string e))
+    let to_string e =
+      match e with
+      | Behavior _ -> "behavior"
+      | Integer _ -> "integer"
+      | Race -> "race"
+      | Cast _ -> "cast"
+      | Unknown _ -> "unknown"
+      | Debug _ -> "debug"
+      | Analyzer -> "analyzer"
+    in get_bool ("warn." ^ (to_string e))
 
   let show e =
     match e with
@@ -136,13 +135,12 @@ end
 module Certainty = struct
   type t = May | Must
 
-  let to_string e =
-    match e with
-    | May -> "may"
-    | Must -> "must"
-
   let should_warn e =
-    get_bool ("warn." ^ (to_string e))
+    let to_string e =
+      match e with
+      | May -> "may"
+      | Must -> "must"
+    in get_bool ("warn." ^ (to_string e))
 
   let show c =
     match c with
