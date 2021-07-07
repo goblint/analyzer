@@ -1165,22 +1165,13 @@ struct
                   (* attempt to fix the above issue by also changing the ask of the patched ctx via the usual recursion trick *)
                   (* this goes into stack overflow, probably because "query" here is just base's query, not MCP2.query *)
                   (* only going through the latter does cycle detection *)
-                  (* so I added an ad-hoc MCP2-like query cycle detection also to here and partitioned array tests seem to pass *)
-                  let module QuerySet = Set.Make (Queries.Any) in
-                  (* this is complete mindfuck *)
-                  let rec ctx' asked =
+                  let rec ctx' =
                     { ctx with
-                      ask = (fun (type a) (q: a Queries.t) ->
-                          if QuerySet.mem (Any q) asked then
-                            Queries.Result.top q (* query cycle *)
-                          else
-                            let asked' = QuerySet.add (Any q) asked in
-                            query (ctx' asked') q
-                        )
+                      ask = (fun (type a) (q: a Queries.t) -> query ctx' q)
                     ; local = st
                     }
                   in
-                  Analyses.ask_of_ctx (ctx' QuerySet.empty)
+                  Analyses.ask_of_ctx ctx'
                 | _ ->
                   a
                 in
