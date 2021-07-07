@@ -22,13 +22,10 @@ type integer = Overflow | DivByZero
 
 type cast = TypeMismatch
 
-type array = OutOfBounds of int*int
-
 type warning =
   | Behavior of behavior
   | Integer of integer
   | Race
-  | Array of array
   | Cast of cast
   | Unknown of string
   | Debug of string
@@ -42,26 +39,35 @@ struct
   struct
     type t = behavior
 
+    let create (e: t): warning = Behavior e
+    let undefined e: warning = create @@ Undefined e
+    let implementation (): warning = create @@ Implementation
+    let machine (): warning = create @@ Machine
+
     module Undefined =
     struct
       type t = undefined_behavior
+
+      let create (e: t): warning = undefined e
+      let array_out_of_bounds e: warning = create @@ ArrayOutOfBounds e
+      let nullpointer_dereference (): warning = create @@ NullPointerDereference
+      let use_after_free (): warning = create @@ UseAfterFree
 
       module ArrayOutOfBounds =
       struct
         type t = array_oob
 
+        let create (e: t): warning = array_out_of_bounds e
+        let past_end (): warning = create PastEnd
+        let before_start (): warning = create BeforeStart
+        let unknown (): warning = create Unknown
+
         let show (e: t): string =
           match e with
-          | PastEnd -> "Index is past the end of the array."
-          | BeforeStart -> "Index is before start of the array."
-          | Unknown -> "Not enough information about index."
+          | PastEnd -> "[PastEnd]  Index is past the end of the array."
+          | BeforeStart -> "[BeforeStart] Index is before start of the array."
+          | Unknown -> "[Unknown] Not enough information about index."
       end
-
-      let create (e:t): warning = Behavior (Undefined e)
-
-      let array_out_of_bounds e: warning = create @@ ArrayOutOfBounds e
-      let nullpointer_dereference (): warning = create @@ NullPointerDereference
-      let use_after_free (): warning = create @@ UseAfterFree
 
       let show (e: t): string =
         match e with
@@ -69,11 +75,6 @@ struct
         | NullPointerDereference -> "[Null pointer dereference]"
         | UseAfterFree -> "[Use After Free]"
     end
-
-    let create (e:t): warning = Behavior e
-    let undefined e: warning = create @@ Undefined e
-    let implementation (): warning = create @@ Implementation
-    let machine (): warning = create @@ Machine
 
     let show (e: t): string =
       match e with
@@ -85,16 +86,27 @@ struct
   module Integer =
   struct
     type t = integer
+
+    let create (e: t): warning = Integer e
+    let overflow (): warning = create Overflow
+    let div_by_zero (): warning = create DivByZero
+
+    let show (e: t): string =
+      match e with
+      | Overflow -> "[Overflow]"
+      | DivByZero -> "[DivByZero]"
   end
 
   module Cast =
   struct
     type t = cast
-  end
 
-  module Array =
-  struct
-    type t = array
+    let create (e: t): warning = Cast e
+    let type_mismatch (): warning = create TypeMismatch
+
+    let show (e: t): string =
+      match e with
+      | TypeMismatch -> "[TypeMismatch]"
   end
 
   let to_string e =
@@ -321,6 +333,6 @@ let debug_each msg =
   if (get_bool "dbg.debug") then warn_internal_with_loc (WarningWithCertainty.debug ("{blue}"^msg))
 
 let mywarn () =
-  warn Analyzer
+  warn (Warning.Behavior.Undefined.nullpointer_dereference ())
 
 include Tracing
