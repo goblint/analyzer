@@ -288,6 +288,7 @@ let createCFG (file: file) =
            * problem for side-effecting demand driven solvers. I add one
            * extra edge that is always false to the exit of the loop. *)
           | Loop (bl,loc,Some cont, Some brk) -> begin
+            if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
               (* try
                     mkEdge (realnode true stmt) (Test (one, false)) (realnode false brk);
                   with
