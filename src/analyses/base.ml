@@ -861,6 +861,19 @@ struct
     with IntDomain.ArithmeticOnIntegerBot _ ->
     ValueDomain.Compound.top_value (typeOf exp)
 
+  let query_evalint ask gs st e =
+    if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
+    let r = match eval_rv ~outer_query:false ask gs st e with
+    (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
+    | `Int i -> Queries.Result.top q *)
+    | `Int i -> i
+    | `Bot   -> Queries.ID.bot () (* TODO: remove *)
+    (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
+    | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.ID.bot ()
+    in
+    if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
+    r
+
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
@@ -868,19 +881,7 @@ struct
     (* Since ctx is not available here, we need to make some adjustments *)
     let rec query: type a. a Queries.t -> a Queries.result = fun q ->
       match q with
-      (* copied from query *)
-      | EvalInt e ->
-        if M.tracing then M.traceli "evalint" "base eval_exp EvalInt %a\n" d_exp e;
-        let r = match eval_rv ~outer_query:false ask gs st e with
-        (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
-        | `Int i -> Queries.Result.top q *)
-        | `Int i -> i
-        | `Bot   -> Queries.Result.bot q (* TODO: remove *)
-        (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
-        | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.bot q
-        in
-        if M.tracing then M.traceu "evalint" "base eval_exp EvalInt %a -> %a\n" d_exp e Queries.ID.pretty r;
-        r
+      | EvalInt e -> query_evalint ask gs st e (* mimic EvalInt query since eval_rv needs it *)
       | _ -> Queries.Result.top q
     and ask = { Queries.f = fun (type a) (q: a Queries.t) -> query q } (* our version of ask *)
     and gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
@@ -910,19 +911,8 @@ struct
         (*          Messages.report ("Base: I should know it! "^string_of_int (List.length fs));*)
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
-    | Q.EvalInt e -> begin
-        if M.tracing then M.traceli "evalint" "base query EvalInt %a\n" d_exp e;
-        let r = match eval_rv ~outer_query:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-        (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
-        | `Int i -> Queries.Result.top q *)
-        | `Int i -> i
-        | `Bot   -> Queries.Result.bot q (* TODO: remove *)
-        (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
-        | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.bot q
-        in
-        if M.tracing then M.traceu "evalint" "base query EvalInt %a -> %a\n" d_exp e Queries.ID.pretty r;
-        r
-      end
+    | Q.EvalInt e ->
+      query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.EvalLength e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
