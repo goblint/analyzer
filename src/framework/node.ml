@@ -8,9 +8,9 @@ open Pretty
 type node =
   | Statement of stmt
   (** The statements as identified by CIL *)
-  | FunctionEntry of varinfo
+  | FunctionEntry of fundec
   (** *)
-  | Function of varinfo
+  | Function of fundec
   (** The variable information associated with the function declaration. *)
 [@@deriving to_yojson]
 
@@ -18,32 +18,32 @@ let write_cfgs : ((node -> bool) -> unit) ref = ref (fun _ -> ())
 
 let pretty_node () = function
   | Statement s -> text "Statement " ++ dn_stmt () s
-  | Function f -> text "Function " ++ text f.vname
-  | FunctionEntry f -> text "FunctionEntry " ++ text f.vname
+  | Function f -> text "Function " ++ text f.svar.vname
+  | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
 
 let pretty_short_node () = function
   | Statement s -> text "Statement @ " ++ d_loc () (get_stmtLoc s.skind)
-  | Function f -> text "Function " ++ text f.vname
-  | FunctionEntry f -> text "FunctionEntry " ++ text f.vname
+  | Function f -> text "Function " ++ text f.svar.vname
+  | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
 let node_compare n1 n2 =
   match n1, n2 with
-  | FunctionEntry f, FunctionEntry g -> compare f.vid g.vid
+  | FunctionEntry f, FunctionEntry g -> compare f.svar.vid g.svar.vid
   | _                    , FunctionEntry g -> -1
   | FunctionEntry g, _                     -> 1
   | Statement _, Function _  -> -1
   | Function  _, Statement _ -> 1
   | Statement s, Statement l -> compare s.sid l.sid
-  | Function  f, Function g  -> compare f.vid g.vid
+  | Function  f, Function g  -> compare f.svar.vid g.svar.vid
 
 let compare_node = node_compare
 
 let equal_node x y =
   match x,y with
   | Statement s1, Statement s2 -> CilType.Stmt.equal s1 s2
-  | Function f1, Function f2 -> CilType.Varinfo.equal f1 f2
-  | FunctionEntry f1, FunctionEntry f2 -> CilType.Varinfo.equal f1 f2
+  | Function f1, Function f2 -> CilType.Fundec.equal f1 f2
+  | FunctionEntry f1, FunctionEntry f2 -> CilType.Fundec.equal f1 f2
   | _ -> false
 
 let print doc =
@@ -64,6 +64,6 @@ struct
   let hash x =
     match x with
     | Statement s     -> s.sid * 17
-    | Function f      -> f.vid
-    | FunctionEntry f -> -f.vid
+    | Function f      -> f.svar.vid
+    | FunctionEntry f -> -f.svar.vid
 end

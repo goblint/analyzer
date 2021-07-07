@@ -42,16 +42,19 @@ struct
   let invalidate oct (exps: exp list) =
     if Messages.tracing && exps <> [] then Messages.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     let l = List.flatten (List.map get_vnames_list exps) in
-    D.forget_all_with oct l
+    D.forget_all oct l
 
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = let d = ctx.local in (invalidate d args); d
-  let exitstate  _ = D.top ()
-  let startstate _ =  D.top ()
+  let threadenter ctx lval f args = [D.top ()] (* TODO: correct env? *)
+  let threadspawn ctx lval f args fctx =
+    invalidate ctx.local args
+  let exitstate  _ = D.top () (* TODO: correct env? *)
+  let startstate _ =  D.top () (* TODO: correct env? *)
 
   let enter ctx r f args =
-    if D.is_bot ctx.local then [ctx.local, D.bot ()] else
-      let f = Cilfacade.getdec f in
+    if D.is_bot ctx.local then [ctx.local, D.bot ()] else (
+      if Messages.tracing then Messages.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
+      if Messages.tracing then Messages.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
+      if Messages.tracing then Messages.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
       let is = D.typesort f.sformals in
       let is = is @ List.map (fun x -> x^"'") is in
       let newd = D.add_vars ctx.local is in
@@ -61,28 +64,38 @@ struct
       D.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
       List.iter  (fun (v,_)   -> D.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
       D.remove_all_but_with newd (is);
+      if Messages.tracing then Messages.tracel "combine" "apron enter newd: %a\n" D.pretty newd;
       [ctx.local, newd]
+    )
 
 
   let combine ctx r fe f args fc d =
-    if D.is_bot ctx.local || D.is_bot d then D.bot () else
-      let f = Cilfacade.getdec f in
+    if D.is_bot ctx.local || D.is_bot d then D.bot () else (
+      if Messages.tracing then Messages.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
+      if Messages.tracing then Messages.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
       match r with
       | Some (Var v, NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
         let nd = D.forget_all ctx.local [v.vname] in
         let fis = D.get_vars ctx.local in
         let fis = List.map Var.to_string fis in
         let nd' = D.add_vars d fis in
+        if Messages.tracing then Messages.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
         let formargs = Goblintutil.zip f.sformals args in
         let arith_formals = List.filter (fun (x,_) -> isIntegralType x.vtype) formargs in
         List.iter (fun (v, e) -> D.substitute_var_with nd' (v.vname^"'") e) arith_formals;
         let vars = List.map (fun (x,_) -> x.vname^"'") arith_formals in
+        if Messages.tracing then Messages.tracel "combine" "apron remove vars: %a\n" (docList Pretty.text) vars;
         D.remove_all_with nd' vars;
         D.forget_all_with nd' [v.vname];
         D.substitute_var_eq_with nd' "#ret" v.vname;
         D.remove_all_with nd' ["#ret"];
-        A.unify Man.mgr nd nd'
-      | _ -> D.topE (A.env ctx.local)
+        let r = A.unify Man.mgr nd nd' in
+        if Messages.tracing then Messages.tracel "combine" "apron unifying %a %a = %a\n" D.pretty nd D.pretty nd' D.pretty r;
+        r
+      | _ ->
+        (* TODO: don't go to top, but just forget r *)
+        D.top_env (A.env ctx.local)
+    )
 
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
@@ -104,16 +117,14 @@ struct
               D.remove_all ctx.local [f.vname]
             | _ -> ctx.local)
         | `ThreadJoin (id,ret_var) ->
-            let nd = ctx.local in
-            invalidate nd [ret_var];
-            nd
+          invalidate ctx.local [ret_var]
         | `ThreadCreate _ -> ctx.local
         | _ ->
           begin
             let st =
               match LibraryFunctions.get_invalidate_action f.vname with
-              | Some fnc -> let () = invalidate ctx.local (fnc `Write  args) in ctx.local
-              | None -> D.topE (A.env ctx.local)
+              | Some fnc -> invalidate ctx.local (fnc `Write  args)
+              | None -> D.top_env (A.env ctx.local)
             in
               st
           end
@@ -124,7 +135,7 @@ struct
       D.bot ()
     else
       let res = D.assert_inv ctx.local e (not b) in
-      if D.is_bot res then raise Deadcode;
+      if D.is_bot_env res then raise Deadcode;
       res
 
   let return ctx e f =
@@ -135,7 +146,7 @@ struct
           let nd = D.add_vars ctx.local ["#ret"] in
           let () = D.assign_var_with nd "#ret" e in
           nd
-        | None -> D.topE (A.env ctx.local)
+        | None -> D.top_env (A.env ctx.local)
         | _ -> D.add_vars ctx.local ["#ret"]
       in
       let vars = List.filter (fun x -> isIntegralType x.vtype) (f.slocals @ f.sformals) in

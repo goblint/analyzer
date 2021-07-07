@@ -206,13 +206,12 @@ struct
     tryReallyHard (Analyses.ask_of_ctx ctx) gl upd (fun st -> return_ld (Analyses.ask_of_ctx ctx) gl upd st exp f) st,
     Re.return (re_context ctx re) exp f
 
-  let enter_func_ld ask gl dup (lval: lval option) (f:varinfo) (args:exp list) st : LD.t =
+  let enter_func_ld ask gl dup (lval: lval option) (fd:fundec) (args:exp list) st : LD.t =
     let rec zip xs ys =
       match xs, ys with
       | x::xs, y::ys -> (x, y) :: zip xs ys
       | _ -> []
     in
-    let fd = Cilfacade.getdec f in
     let asg (v,e) d = assign_ld ask gl dup (Var v,NoOffset) e d in
     List.fold_right asg (zip fd.sformals args) st
 
@@ -224,7 +223,7 @@ struct
     let es' = Re.enter (re_context ctx re) lval f args in
     List.map (fun (x,y) -> (st,x),(es,y)) es'
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st  =
