@@ -9,13 +9,21 @@ struct
   (* Special IntDomTuple that has _some_ top which MCP2.query can use *)
   let top () = top_of IInt
   let is_top x = equal (top ()) x
+  let bot () = bot_of IInt
+  let is_bot x = equal (bot ()) x
   let join x y =
     if is_top x || is_top y then
       top ()
+    else if is_bot x then
+      y
+    else if is_bot y then
+      x
     else
       join x y
   let meet x y =
-    if is_top x then
+    if is_bot x || is_bot y then
+      bot ()
+    else if is_top x then
       y
     else if is_top y then
       x

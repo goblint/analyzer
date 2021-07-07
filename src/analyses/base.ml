@@ -339,7 +339,7 @@ struct
           (* | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *) *)
 
           (* new bot handling, should be unnecessary because query should always succeed *)
-          (* | x when Queries.ID.is_bot x -> None *)
+          | x when Queries.ID.is_bot x -> None
 
           (* new equivalent code which only allows definite ints *)
           (* | x when Queries.ID.is_int x -> Some (`Int (ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp)) @@ Option.get @@ Queries.ID.to_int x))
@@ -901,7 +901,8 @@ struct
         | `Int i -> Queries.Result.top q *)
         | `Int i -> i
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
-        | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q
+        (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
+        | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.bot q
         in
         if M.tracing then M.traceu "evalint" "base query EvalInt %a -> %a\n" d_exp e Queries.ID.pretty r;
         r
