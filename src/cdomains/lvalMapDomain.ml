@@ -251,8 +251,9 @@ struct
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 
+  (*TODO: get the warning category*)
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
-    Messages.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
+    Messages.warn_each ~must:(not may) ~loc:(List.last loc) @@ Messages.Unknown msg
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)

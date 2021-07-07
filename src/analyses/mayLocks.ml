@@ -17,8 +17,8 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
   let body ctx (f:fundec) : D.t = ctx.local
   let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = au
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
@@ -34,7 +34,7 @@ struct
     match a.f (Queries.MayPointTo exp) with
     | a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | b -> Messages.warn (Messages.LogEvent.may (Messages.EventType.Unknown (("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'.")))); []
+    | b -> Messages.warn @@ Messages.Unknown ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'."); []
 
   (* locking logic -- add all locks we can add *)
   let lock ctx rw may_fail return_value_on_success a lv arglist ls : D.ReverseAddrSet.t =

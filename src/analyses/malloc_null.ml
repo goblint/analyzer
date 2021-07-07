@@ -47,7 +47,7 @@ struct
       if D.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then
         let var = Addr.from_var_offset v in
-        Messages.report ("Possible dereferencing of null on variable '" ^ (Addr.show var) ^ "'.")
+        Messages.warn_each @@ Messages.Unknown ("Possible dereferencing of null on variable '" ^ (Addr.show var) ^ "'.")
     with SetDomain.Unsupported _ -> ()
 
   (* Warn null-lval dereferences, but not normal (null-) lvals*)
@@ -188,13 +188,13 @@ struct
     warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local fv;
     []
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
     List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) args;
     [ctx.local,nst]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in
     let new_u =
