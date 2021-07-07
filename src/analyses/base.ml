@@ -348,6 +348,7 @@ struct
           (* new code which uses intervals etc from result tuple *)
           (* | x -> Some (`Int x) *)
           | x -> Some (`Int (Queries.ID.cast_to ik x)) (* TODO: cast unnecessary? *)
+          (* TODO: query should guarantee right ikind already? *)
 
           (* new code which behaves like old but outputs about non-definite ints *)
           (* | x ->
@@ -866,7 +867,7 @@ struct
     let r = match eval_rv ~outer_query:false ask gs st e with
     (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
     | `Int i -> Queries.Result.top q *)
-    | `Int i -> i
+    | `Int i -> i (* TODO: cast to right ikind here? or is it guaranteed? *)
     | `Bot   -> Queries.ID.bot () (* TODO: remove *)
     (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
     | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.ID.bot ()

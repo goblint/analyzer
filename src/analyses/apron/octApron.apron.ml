@@ -173,18 +173,19 @@ struct
     let d = ctx.local in
     match q with
     | EvalInt e ->
+      let ik = Cilfacade.get_ikind (Cil.typeOf e) in
       begin match e with
         (* constraint *)
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) ->
           begin match D.check_assert e d with
-            | `True -> ID.of_bool IInt true
-            | `False -> ID.of_bool IInt false
+            | `True -> ID.of_bool ik true
+            | `False -> ID.of_bool ik false
             | `Top -> ID.top ()
           end
         (* expression *)
         | _ ->
           begin match D.get_int_val_for_cil_exp d e with
-            | Some i -> ID.of_int IInt i
+            | Some i -> ID.of_int ik i
             | _ -> ID.top ()
           end
       end
