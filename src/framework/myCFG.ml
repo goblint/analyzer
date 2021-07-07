@@ -289,14 +289,16 @@ let createCFG (file: file) =
            * extra edge that is always false to the exit of the loop. *)
           | Loop (bl,loc,Some cont, Some brk) -> begin
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
-              (* try
-                    mkEdge (realnode true stmt) (Test (one, false)) (realnode false brk);
-                  with
-                  (* The [realnode brk] fails when the break label is at the end
-                  * of the function. In that case, we need to connect it to
-                  * the [Call] node. *)
-                  | Not_found ->
-                    addCfg (Lazy.force pseudo_return) (Test (one, false), Statement (realnode true stmt)) (* TODO: is this necessary anymore? maybe could just leave it out and let the general case below handle it *) *)
+              try
+                mkEdge (realnode true stmt) (Test (one, false)) (realnode false brk);
+              with
+              (* The [realnode brk] fails when the break label is at the end
+              * of the function. In that case, we need to connect it to
+              * the [Call] node. *)
+              | Not_found ->
+                (* addCfg (Lazy.force pseudo_return) (Test (one, false), Statement (realnode true stmt)) *)
+                ()
+                (* TODO: is this necessary anymore? maybe could just leave it out and let the general case below handle it *)
 
             end
           (* The return edges are connected to the function *)
