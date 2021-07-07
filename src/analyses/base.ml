@@ -551,23 +551,22 @@ struct
       else
         (* First we try with query functions --- these are currently more precise.
          * Ideally we would meet both values, but we fear types might not match. (bottom) *)
-        match eval_rv_pre ~query:outer_query a exp st with
-        | Some x -> x
-        | None -> eval_rv_ask_mustbeequal ~outer_query a gs st exp
+        eval_rv_ask_evalint ~outer_query a gs st exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
     r
   (* evaluate value using our "query functions" *)
-  and eval_rv_pre ~query (ask: Q.ask) exp pr =
-    if M.tracing then M.traceli "evalint" "base eval_rv_pre %a\n" d_exp exp;
+  and eval_rv_ask_evalint ?(outer_query=true) a gs st exp =
+    let eval_next () = eval_rv_ask_mustbeequal ~outer_query a gs st exp in
+    if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" d_exp exp;
     let r =
-    if not query then
-      None
+    if not outer_query then
+      eval_next ()
     else
       match Cil.typeOf exp with
       | typ when Cil.isIntegralType typ ->
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
-        let a = ask.f (Q.EvalInt exp) in
+        let a = a.f (Q.EvalInt exp) in
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
         let ik = (Cilfacade.get_ikind (Cil.typeOf exp)) in
         (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
@@ -583,7 +582,7 @@ struct
           (* | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *) *)
 
           (* new bot handling, should be unnecessary because query should always succeed *)
-          | x when Queries.ID.is_bot x -> None
+          | x when Queries.ID.is_bot x -> eval_next ()
 
           (* new equivalent code which only allows definite ints *)
           (* | x when Queries.ID.is_int x -> Some (`Int (ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp)) @@ Option.get @@ Queries.ID.to_int x))
@@ -591,7 +590,7 @@ struct
 
           (* new code which uses intervals etc from result tuple *)
           (* | x -> Some (`Int x) *)
-          | x -> Some (`Int (Queries.ID.cast_to ik x)) (* TODO: cast unnecessary? *)
+          | x -> `Int (Queries.ID.cast_to ik x) (* TODO: cast unnecessary? *)
           (* TODO: query should guarantee right ikind already? *)
 
           (* new code which behaves like old but outputs about non-definite ints *)
@@ -604,9 +603,9 @@ struct
             ) *)
         end
       | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
-      | _ -> None
+      | _ -> eval_next ()
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv_pre %a -> %a\n" d_exp exp (docOpt (VD.pretty ())) r;
+    if M.tracing then M.traceu "evalint" "base eval_rv_ask_evalint %a -> %a\n" d_exp exp VD.pretty r;
     r
   and eval_rv_ask_mustbeequal ?(outer_query=true) a gs st exp =
     let eval_next () = eval_rv_base ~outer_query a gs st exp in
