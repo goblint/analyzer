@@ -268,103 +268,6 @@ struct
     | [x,ofs] -> Addr.from_var_offset (x, add_offset ofs add)
     | _ -> ad
 
-  (* evaluate value using our "query functions" *)
-  let eval_rv_pre ~query (ask: Q.ask) exp pr =
-    if M.tracing then M.traceli "evalint" "base eval_rv_pre %a\n" d_exp exp;
-    let eval_binop exp =
-      if M.tracing then M.traceli "evalint" "base eval_binop %a\n" d_exp exp;
-      let binop op e1 e2 =
-        let equality () =
-          (* TODO: just return bool? *)
-          if ask.f (Q.MustBeEqual (e1,e2)) then (
-            if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
-            Some true
-          )
-          else
-            None
-        in
-        let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
-        match op with
-        | MinusA when equality () = Some true ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          Some (`Int (ID.of_int ik BI.zero))
-        | MinusPI
-        | MinusPP when equality () = Some true -> Some (`Int (ID.of_int ptrdiff_ikind BI.zero))
-        | MinusPI
-        | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list ptrdiff_ikind [BI.zero]))
-        | Le
-        | Ge when equality () = Some true ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          Some (`Int (ID.of_bool ik true))
-        | Lt
-        | Gt when equality () = Some true ->
-            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-            Some (`Int (ID.of_bool ik false))
-        | Eq -> (match equality () with Some tv ->
-            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-            Some (`Int (ID.of_bool ik tv)) | None -> None)
-        | Ne -> (match equality () with Some tv ->
-            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-            Some (`Int (ID.of_bool ik (not tv))) | None -> None)
-        | _ -> None
-      in
-      let r =
-      match exp with
-      | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
-      | _ -> None
-      in
-      if M.tracing then M.traceu "evalint" "base eval_binop %a -> %a\n" d_exp exp (docOpt (VD.pretty ())) r;
-      r
-    in
-    let r =
-    if not query then
-      eval_binop exp
-    else
-      match Cil.typeOf exp with
-      | typ when Cil.isIntegralType typ ->
-        if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
-        let a = ask.f (Q.EvalInt exp) in
-        if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
-        let ik = (Cilfacade.get_ikind (Cil.typeOf exp)) in
-        (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
-        begin match a with
-          (* old FlattenedBI code *)
-          (* | `Lifted z ->
-            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-            Some (`Int (ID.of_int ik z))
-          | `Top -> eval_binop exp
-          | `Bot -> None *)
-
-          (* new top handling *)
-          (* | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *) *)
-
-          (* new bot handling, should be unnecessary because query should always succeed *)
-          | x when Queries.ID.is_bot x -> None
-
-          (* new equivalent code which only allows definite ints *)
-          (* | x when Queries.ID.is_int x -> Some (`Int (ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp)) @@ Option.get @@ Queries.ID.to_int x))
-          | _ -> None *)
-
-          (* new code which uses intervals etc from result tuple *)
-          (* | x -> Some (`Int x) *)
-          | x -> Some (`Int (Queries.ID.cast_to ik x)) (* TODO: cast unnecessary? *)
-          (* TODO: query should guarantee right ikind already? *)
-
-          (* new code which behaves like old but outputs about non-definite ints *)
-          (* | x ->
-            if Queries.ID.is_int x then
-              Some (`Int x)
-            else (
-              ignore (Pretty.printf "EVALINT not-int (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a));
-              None
-            ) *)
-        end
-      | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
-      | _ -> eval_binop exp
-    in
-    if M.tracing then M.traceu "evalint" "base eval_rv_pre %a -> %a\n" d_exp exp (docOpt (VD.pretty ())) r;
-    r
-
 
   (**************************************************************************
    * State functions
@@ -653,6 +556,102 @@ struct
         | None -> eval_rv_base ~outer_query a gs st exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
+    r
+  (* evaluate value using our "query functions" *)
+  and eval_rv_pre ~query (ask: Q.ask) exp pr =
+    if M.tracing then M.traceli "evalint" "base eval_rv_pre %a\n" d_exp exp;
+    let eval_binop exp =
+      if M.tracing then M.traceli "evalint" "base eval_binop %a\n" d_exp exp;
+      let binop op e1 e2 =
+        let equality () =
+          (* TODO: just return bool? *)
+          if ask.f (Q.MustBeEqual (e1,e2)) then (
+            if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
+            Some true
+          )
+          else
+            None
+        in
+        let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
+        match op with
+        | MinusA when equality () = Some true ->
+          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+          Some (`Int (ID.of_int ik BI.zero))
+        | MinusPI
+        | MinusPP when equality () = Some true -> Some (`Int (ID.of_int ptrdiff_ikind BI.zero))
+        | MinusPI
+        | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list ptrdiff_ikind [BI.zero]))
+        | Le
+        | Ge when equality () = Some true ->
+          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+          Some (`Int (ID.of_bool ik true))
+        | Lt
+        | Gt when equality () = Some true ->
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+            Some (`Int (ID.of_bool ik false))
+        | Eq -> (match equality () with Some tv ->
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+            Some (`Int (ID.of_bool ik tv)) | None -> None)
+        | Ne -> (match equality () with Some tv ->
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+            Some (`Int (ID.of_bool ik (not tv))) | None -> None)
+        | _ -> None
+      in
+      let r =
+      match exp with
+      | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
+      | _ -> None
+      in
+      if M.tracing then M.traceu "evalint" "base eval_binop %a -> %a\n" d_exp exp (docOpt (VD.pretty ())) r;
+      r
+    in
+    let r =
+    if not query then
+      eval_binop exp
+    else
+      match Cil.typeOf exp with
+      | typ when Cil.isIntegralType typ ->
+        if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
+        let a = ask.f (Q.EvalInt exp) in
+        if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
+        let ik = (Cilfacade.get_ikind (Cil.typeOf exp)) in
+        (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
+        begin match a with
+          (* old FlattenedBI code *)
+          (* | `Lifted z ->
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+            Some (`Int (ID.of_int ik z))
+          | `Top -> eval_binop exp
+          | `Bot -> None *)
+
+          (* new top handling *)
+          (* | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *) *)
+
+          (* new bot handling, should be unnecessary because query should always succeed *)
+          | x when Queries.ID.is_bot x -> None
+
+          (* new equivalent code which only allows definite ints *)
+          (* | x when Queries.ID.is_int x -> Some (`Int (ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp)) @@ Option.get @@ Queries.ID.to_int x))
+          | _ -> None *)
+
+          (* new code which uses intervals etc from result tuple *)
+          (* | x -> Some (`Int x) *)
+          | x -> Some (`Int (Queries.ID.cast_to ik x)) (* TODO: cast unnecessary? *)
+          (* TODO: query should guarantee right ikind already? *)
+
+          (* new code which behaves like old but outputs about non-definite ints *)
+          (* | x ->
+            if Queries.ID.is_int x then
+              Some (`Int x)
+            else (
+              ignore (Pretty.printf "EVALINT not-int (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a));
+              None
+            ) *)
+        end
+      | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
+      | _ -> eval_binop exp
+    in
+    if M.tracing then M.traceu "evalint" "base eval_rv_pre %a -> %a\n" d_exp exp (docOpt (VD.pretty ())) r;
     r
   and eval_rv_base ?(outer_query=true) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
