@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 int main() {
-  struct student {
+  /*struct student {
     char name[100];
     int roll;
     float marks;
@@ -16,7 +16,7 @@ int main() {
       {"david", 17, 90.0f},
   }; 
   free(student);
-  stu[0].roll = 2; //should warn
+  stu[0].roll = 2; //should warn in the future*/
 
   return 0;
 }
