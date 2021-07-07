@@ -330,7 +330,4 @@ let debug msg =
 let debug_each msg =
   if (get_bool "dbg.debug") then warn_internal_with_loc (WarningWithCertainty.debug ("{blue}"^msg))
 
-let mywarn () =
-  warn (Warning.Behavior.Undefined.nullpointer_dereference ())
-
 include Tracing
