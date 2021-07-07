@@ -16,7 +16,7 @@ int main() {
       {"david", 17, 90.0f},
   }; 
   free(student);
-  stu[0].roll = 2; //WARN
+  stu[0].roll = 2; //should warn
 
   return 0;
 }

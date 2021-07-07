@@ -3,10 +3,14 @@
 #include <stdlib.h>
 
 int main() {
-  int *p1 = malloc(sizeof (int));
-  int *p2 = p1;
-  int *p3 = p2;
-  free(p2);
-  *p3 = 7; //WARN
+  int *a = malloc(sizeof(int));
+  if (a != NULL) {
+    *a = 1;
+    int *p1 = a;
+    int *p2 = p1;
+    int *p3 = p2;
+    free(p2); // detects the free even when the pointer is aliased to b
+    *p3 = 7;  // WARN
+  }
   return 0;
 }
