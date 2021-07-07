@@ -294,7 +294,9 @@ let createCFG (file: file) =
           (* Gotos are skipped over by realnode and usually not needed.
            * Except goto loops with empty bodies need the Skip edge to be identified as loop heads and connected to return.
            * This also creates some unconnected but unnecessary edges which are covered by realnode. *)
-          | Goto (target_ref, loc) -> addCfg (Statement !target_ref) (Skip, Statement stmt)
+          | Goto (target_ref, loc) ->
+            if !target_ref.sid = stmt.sid then
+              addCfg (Statement !target_ref) (Skip, Statement stmt)
           | _ ->
             if Messages.tracing then Messages.trace "cfg" "Unknown stmtkind for %a\n" d_stmt stmt
         in
