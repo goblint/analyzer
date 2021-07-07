@@ -37,6 +37,8 @@ let parse ?repl:(repl=false) ?print:(print=false) ?dot:(dot=false) cin =
         (List.length !defs) (List.length nodes) (List.length edges);
     if save_dot && not dot then (
       let dotgraph = SpecCore.to_dot_graph !defs in
+      (*FIXME: (HACK) this is just a hotfix, the path where it's saving the graph is wrong, it should probably be saved in goblint-root/result and not in tests/regresssion/*/result *)
+      if not @@ Sys.file_exists "result" then Unix.mkdir "result" 0o755;
       output_file "result/graph.dot" dotgraph;
       print_endline ("saved graph as "^Sys.getcwd ()^"/result/graph.dot");
     );
