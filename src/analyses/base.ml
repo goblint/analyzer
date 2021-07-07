@@ -269,7 +269,7 @@ struct
     | _ -> ad
 
   (* evaluate value using our "query functions" *)
-  let eval_rv_pre (ask: Q.ask) exp pr =
+  let eval_rv_pre ~query (ask: Q.ask) exp pr =
     if M.tracing then M.traceli "evalint" "base eval_rv_pre %a\n" d_exp exp;
     let eval_binop exp =
       if M.tracing then M.traceli "evalint" "base eval_binop %a\n" d_exp exp;
@@ -317,46 +317,49 @@ struct
       r
     in
     let r =
-    match Cil.typeOf exp with
-    | typ when Cil.isIntegralType typ ->
-      if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
-      let a = ask.f (Q.EvalInt exp) in
-      if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
-      let ik = (Cilfacade.get_ikind (Cil.typeOf exp)) in
-      (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
-      begin match a with
-        (* old FlattenedBI code *)
-        (* | `Lifted z ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          Some (`Int (ID.of_int ik z))
-        | `Top -> eval_binop exp
-        | `Bot -> None *)
+    if not query then
+      eval_binop exp
+    else
+      match Cil.typeOf exp with
+      | typ when Cil.isIntegralType typ ->
+        if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
+        let a = ask.f (Q.EvalInt exp) in
+        if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
+        let ik = (Cilfacade.get_ikind (Cil.typeOf exp)) in
+        (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
+        begin match a with
+          (* old FlattenedBI code *)
+          (* | `Lifted z ->
+            let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+            Some (`Int (ID.of_int ik z))
+          | `Top -> eval_binop exp
+          | `Bot -> None *)
 
-        (* new top handling *)
-        | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *)
+          (* new top handling *)
+          | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *)
 
-        (* new bot handling, should be unnecessary because query should always succeed *)
-        (* | x when Queries.ID.is_bot x -> None *)
+          (* new bot handling, should be unnecessary because query should always succeed *)
+          (* | x when Queries.ID.is_bot x -> None *)
 
-        (* new equivalent code which only allows definite ints *)
-        (* | x when Queries.ID.is_int x -> Some (`Int (ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp)) @@ Option.get @@ Queries.ID.to_int x))
-        | _ -> None *)
+          (* new equivalent code which only allows definite ints *)
+          (* | x when Queries.ID.is_int x -> Some (`Int (ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp)) @@ Option.get @@ Queries.ID.to_int x))
+          | _ -> None *)
 
-        (* new code which uses intervals etc from result tuple *)
-        (* | x -> Some (`Int x) *)
-        | x -> Some (`Int (Queries.ID.cast_to ik x)) (* TODO: cast unnecessary? *)
+          (* new code which uses intervals etc from result tuple *)
+          (* | x -> Some (`Int x) *)
+          | x -> Some (`Int (Queries.ID.cast_to ik x)) (* TODO: cast unnecessary? *)
 
-        (* new code which behaves like old but outputs about non-definite ints *)
-        (* | x ->
-          if Queries.ID.is_int x then
-            Some (`Int x)
-          else (
-            ignore (Pretty.printf "EVALINT not-int (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a));
-            None
-          ) *)
-      end
-    | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
-    | _ -> eval_binop exp
+          (* new code which behaves like old but outputs about non-definite ints *)
+          (* | x ->
+            if Queries.ID.is_int x then
+              Some (`Int x)
+            else (
+              ignore (Pretty.printf "EVALINT not-int (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a));
+              None
+            ) *)
+        end
+      | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
+      | _ -> eval_binop exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_pre %a -> %a\n" d_exp exp (docOpt (VD.pretty ())) r;
     r
@@ -635,7 +638,7 @@ struct
     !collected
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
-  let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let rec eval_rv ?(outer_query=true) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
@@ -765,13 +768,13 @@ struct
        * Ideally we would meet both values, but we fear types might not match. (bottom) *)
 
       (* old code *)
-      match eval_rv_pre a exp st with
+      match eval_rv_pre ~query:outer_query a exp st with
       | Some x -> x
       | None -> rest ()
 
       (* new debugging code which always does rest, just to see when same result via query is less precise for some unknown reason *)
       (* let r = rest () in
-      match eval_rv_pre a exp st with
+      match eval_rv_pre ~query:outer_query a exp st with
       | Some x ->
         if VD.leq r x && not (VD.equal r x) then (
           ignore (Pretty.printf "rest le pre %a (%a): %a le %a\n" d_exp exp d_loc !Tracing.current_loc VD.pretty r VD.pretty x);
@@ -850,9 +853,9 @@ struct
 
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
-  let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+  let eval_rv ?(outer_query=true) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     try
-      let r = eval_rv a gs st exp in
+      let r = eval_rv ~outer_query a gs st exp in
       if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
       if VD.is_bot r then VD.top_value (typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
@@ -893,7 +896,7 @@ struct
       end
     | Q.EvalInt e -> begin
         if M.tracing then M.traceli "evalint" "base query EvalInt %a\n" d_exp e;
-        let r = match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        let r = match eval_rv ~outer_query:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
         | `Int i -> Queries.Result.top q *)
         | `Int i -> i
