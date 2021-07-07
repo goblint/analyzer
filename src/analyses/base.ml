@@ -557,7 +557,7 @@ struct
     r
   (* evaluate value using our "query functions" *)
   and eval_rv_ask_evalint ?(outer_query=true) a gs st exp =
-    let eval_next () = eval_rv_ask_mustbeequal ~outer_query a gs st exp in
+    let eval_next () = eval_rv_no_ask_evalint ~outer_query a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" d_exp exp;
     let r =
     if not outer_query then
@@ -607,6 +607,8 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_ask_evalint %a -> %a\n" d_exp exp VD.pretty r;
     r
+  and eval_rv_no_ask_evalint ?(outer_query=true) a gs st exp =
+    eval_rv_ask_mustbeequal ~outer_query a gs st exp
   and eval_rv_ask_mustbeequal ?(outer_query=true) a gs st exp =
     let eval_next () = eval_rv_base ~outer_query a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
@@ -849,7 +851,7 @@ struct
 
   let query_evalint ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
-    let r = match eval_rv ~outer_query:false ask gs st e with
+    let r = match eval_rv_no_ask_evalint ~outer_query:false ask gs st e with
     (* | `Int i when ID.is_int i -> Queries.ID.of_int (Option.get (ID.to_int i))
     | `Int i -> Queries.Result.top q *)
     | `Int i -> i (* TODO: cast to right ikind here? or is it guaranteed? *)
