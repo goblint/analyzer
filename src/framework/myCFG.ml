@@ -233,7 +233,7 @@ let createCFG (file: file) =
            * so the Eclipse plug-in can know what function a given result
            * belongs to. *)
           Hashtbl.add stmt_fundec_map stmt.sid fd;
-          if Messages.tracing then Messages.trace "cfg" "Statement at %a.\n" d_loc (get_stmtLoc stmt.skind);
+          if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (get_stmtLoc stmt.skind);
           match stmt.skind with
           (* turn pthread_exit into return? *)
           (* | Instr [Call (_, Lval (Var {vname="pthread_exit"}, _), [ret_exp], _)] -> addCfg (Function fd.svar) (Ret (Some ret_exp,fd), Statement stmt) *)
@@ -296,6 +296,8 @@ let createCFG (file: file) =
             if Messages.tracing then Messages.trace "cfg" "Unknown stmtkind for %a\n" d_stmt stmt
         in
         List.iter handle fd.sallstmts;
+
+        if Messages.tracing then Messages.trace "cfg" "Over\n";
 
         (* Connect remaining infinite loops (e.g made using goto) to end of function
          * via pseudo return node for demand driven solvers *)
