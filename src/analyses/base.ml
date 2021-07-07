@@ -641,6 +641,21 @@ struct
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv ?(outer_query=true) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv %a\n" d_exp exp;
+    let r =
+      (* we have a special expression that should evaluate to top ... *)
+      if exp = MyCFG.unknown_exp then
+        VD.top ()
+      else
+        (* First we try with query functions --- these are currently more precise.
+         * Ideally we would meet both values, but we fear types might not match. (bottom) *)
+        match eval_rv_pre ~query:outer_query a exp st with
+        | Some x -> x
+        | None -> eval_rv_base ~outer_query a gs st exp
+    in
+    if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
+    r
+  and eval_rv_base ?(outer_query=true) (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+    if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
@@ -650,142 +665,114 @@ struct
       | Index (_, offs) -> do_offs def offs
       | NoOffset -> def
     in
-    (* we have a special expression that should evaluate to top ... *)
-    if exp = MyCFG.unknown_exp then VD.top () else
-      let rest () =
-        (* query functions were no help ... now try with values*)
-        match (if get_bool "exp.lower-constants" then constFold true exp else exp) with
-        (* Integer literals *)
-        (* seems like constFold already converts CChr to CInt64 *)
-        | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
-        | Const (CInt64 (num,ikind,str)) ->
-          (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind ikind x | None -> ());
-          `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
-        (* String literals *)
-        | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
-        | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
-          let x = Pretty.sprint 80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
-          let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
-          `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
-        (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
-        (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
-        | Lval (Mem e, ofs) ->
-          (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
-          let rec contains_vla (t:typ) = match t with
-            | TPtr (t, _) -> contains_vla t
-            | TArray(t, None, args) -> true
-            | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
-            | TArray(t, Some exp, args) -> true
+    let r =
+      (* query functions were no help ... now try with values*)
+      match (if get_bool "exp.lower-constants" then constFold true exp else exp) with
+      (* Integer literals *)
+      (* seems like constFold already converts CChr to CInt64 *)
+      | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
+      | Const (CInt64 (num,ikind,str)) ->
+        (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind ikind x | None -> ());
+        `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
+      (* String literals *)
+      | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
+      | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
+        let x = Pretty.sprint 80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
+        `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
+      (* Variables and address expressions *)
+      | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
+      (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
+      | Lval (Mem e, ofs) ->
+        (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+        let rec contains_vla (t:typ) = match t with
+          | TPtr (t, _) -> contains_vla t
+          | TArray(t, None, args) -> true
+          | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
+          | TArray(t, Some exp, args) -> true
+          | _ -> false
+        in
+        let b = Mem e, NoOffset in (* base pointer *)
+        let t = typeOfLval b in (* static type of base *)
+        let p = eval_lv a gs st b in (* abstract base addresses *)
+        let v = (* abstract base value *)
+          let open Addr in
+          (* pre VLA: *)
+          (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
+          let cast_ok = function
+            | Addr a ->
+              begin
+                match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
+                | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
+                | _ ->
+                  if contains_vla t || contains_vla (get_type_addr a) then
+                    begin
+                      (* TODO: Is this ok? *)
+                      M.warn "Casting involving a VLA is assumed to work";
+                      true
+                    end
+                  else
+                    false
+              end
             | _ -> false
           in
-          let b = Mem e, NoOffset in (* base pointer *)
-          let t = typeOfLval b in (* static type of base *)
-          let p = eval_lv a gs st b in (* abstract base addresses *)
-          let v = (* abstract base value *)
-            let open Addr in
-            (* pre VLA: *)
-            (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
-            let cast_ok = function
-              | Addr a ->
-                begin
-                  match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
-                  | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
-                  | _ ->
-                    if contains_vla t || contains_vla (get_type_addr a) then
-                      begin
-                        (* TODO: Is this ok? *)
-                        M.warn "Casting involving a VLA is assumed to work";
-                        true
-                      end
-                    else
-                      false
-                end
-              | _ -> false
-            in
-            if AD.for_all cast_ok p then
-              get a gs st p (Some exp)  (* downcasts are safe *)
-            else
-              VD.top () (* upcasts not! *)
-          in
-          let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-          M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-          let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
-          let v' = do_offs v' ofs in (* handle blessed fields? *)
-          v'
-        (* Binary operators *)
-        (* Eq/Ne when both values are equal and casted to the same type *)
-        | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
-          let a1 = eval_rv a gs st e1 in
-          let a2 = eval_rv a gs st e2 in
-          let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
-          let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2)) && not both_arith_type in
-          M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
-          if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
-            let e1 = if isArithmeticType (typeOf e1) then c1 else e1 in
-            let e2 = if isArithmeticType (typeOf e2) then c2 else e2 in
-            eval_rv a gs st (BinOp (op, e1, e2, typ))
-          )
+          if AD.for_all cast_ok p then
+            get a gs st p (Some exp)  (* downcasts are safe *)
           else
-            let a1 = eval_rv a gs st c1 in
-            let a2 = eval_rv a gs st c2 in
-            evalbinop op t1 a1 t2 a2 typ
-        | BinOp (op,arg1,arg2,typ) ->
-          let a1 = eval_rv a gs st arg1 in
-          let a2 = eval_rv a gs st arg2 in
-          let t1 = typeOf arg1 in
-          let t2 = typeOf arg2 in
+            VD.top () (* upcasts not! *)
+        in
+        let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
+        M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+        let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+        let v' = do_offs v' ofs in (* handle blessed fields? *)
+        v'
+      (* Binary operators *)
+      (* Eq/Ne when both values are equal and casted to the same type *)
+      | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
+        let a1 = eval_rv a gs st e1 in
+        let a2 = eval_rv a gs st e2 in
+        let both_arith_type = isArithmeticType (typeOf e1) && isArithmeticType (typeOf e2) in
+        let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2)) && not both_arith_type in
+        M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
+        if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
+          let e1 = if isArithmeticType (typeOf e1) then c1 else e1 in
+          let e2 = if isArithmeticType (typeOf e2) then c2 else e2 in
+          eval_rv a gs st (BinOp (op, e1, e2, typ))
+        )
+        else
+          let a1 = eval_rv a gs st c1 in
+          let a2 = eval_rv a gs st c2 in
           evalbinop op t1 a1 t2 a2 typ
-        (* Unary operators *)
-        | UnOp (op,arg1,typ) ->
-          let a1 = eval_rv a gs st arg1 in
-          evalunop op typ a1
-        (* The &-operator: we create the address abstract element *)
-        | AddrOf lval -> `Address (eval_lv a gs st lval)
-        (* CIL's very nice implicit conversion of an array name [a] to a pointer
-         * to its first element [&a[0]]. *)
-        | StartOf lval ->
-          let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
-          let array_start ad =
-            match Addr.to_var_offset ad with
-            | [x, offs] -> Addr.from_var_offset (x, add_offset offs array_ofs)
-            | _ -> ad
-          in
-          `Address (AD.map array_start (eval_lv a gs st lval))
-        | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
-        | CastE  (t, exp) ->
-          let v = eval_rv a gs st exp in
-          VD.cast ~torg:(typeOf exp) t v
-        | _ -> VD.top ()
-      in
-      let rest () =
-        if M.tracing then M.traceli "evalint" "base eval_rv rest %a\n" d_exp exp;
-        let r = rest () in
-        if M.tracing then M.traceu "evalint" "base eval_rv rest %a -> %a\n" d_exp exp VD.pretty r;
-        r
-      in
-      let r =
-      (* First we try with query functions --- these are currently more precise.
-       * Ideally we would meet both values, but we fear types might not match. (bottom) *)
-
-      (* old code *)
-      match eval_rv_pre ~query:outer_query a exp st with
-      | Some x -> x
-      | None -> rest ()
-
-      (* new debugging code which always does rest, just to see when same result via query is less precise for some unknown reason *)
-      (* let r = rest () in
-      match eval_rv_pre ~query:outer_query a exp st with
-      | Some x ->
-        if VD.leq r x && not (VD.equal r x) then (
-          ignore (Pretty.printf "rest le pre %a (%a): %a le %a\n" d_exp exp d_loc !Tracing.current_loc VD.pretty r VD.pretty x);
-          (* assert false *)
-        );
-        x
-      | None -> r *)
-      in
-      if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
-      r
+      | BinOp (op,arg1,arg2,typ) ->
+        let a1 = eval_rv a gs st arg1 in
+        let a2 = eval_rv a gs st arg2 in
+        let t1 = typeOf arg1 in
+        let t2 = typeOf arg2 in
+        evalbinop op t1 a1 t2 a2 typ
+      (* Unary operators *)
+      | UnOp (op,arg1,typ) ->
+        let a1 = eval_rv a gs st arg1 in
+        evalunop op typ a1
+      (* The &-operator: we create the address abstract element *)
+      | AddrOf lval -> `Address (eval_lv a gs st lval)
+      (* CIL's very nice implicit conversion of an array name [a] to a pointer
+        * to its first element [&a[0]]. *)
+      | StartOf lval ->
+        let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
+        let array_start ad =
+          match Addr.to_var_offset ad with
+          | [x, offs] -> Addr.from_var_offset (x, add_offset offs array_ofs)
+          | _ -> ad
+        in
+        `Address (AD.map array_start (eval_lv a gs st lval))
+      | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
+      | CastE  (t, exp) ->
+        let v = eval_rv a gs st exp in
+        VD.cast ~torg:(typeOf exp) t v
+      | _ -> VD.top ()
+    in
+    if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
+    r
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =
