@@ -549,13 +549,15 @@ struct
       if exp = MyCFG.unknown_exp then
         VD.top ()
       else
-        (* First we try with query functions --- these are currently more precise.
-         * Ideally we would meet both values, but we fear types might not match. (bottom) *)
         eval_rv_ask_evalint a gs st exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
     r
-  (* evaluate value using our "query functions" *)
+
+  (** Evaluate expression using EvalInt query.
+      Base itself also answers EvalInt, so recursion goes indirectly through queries.
+      This allows every subexpression to also meet more precise value from other analyses.
+      Non-integer expression just delegate to next eval_rv function. *)
   and eval_rv_ask_evalint a gs st exp =
     let eval_next () = eval_rv_no_ask_evalint a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" d_exp exp;
@@ -563,7 +565,7 @@ struct
       match Cil.typeOf exp with
       | typ when Cil.isIntegralType typ && not (Cil.isConstant exp) -> (* don't EvalInt integer constants, base can do them precisely itself *)
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
-        let a = a.f (Q.EvalInt exp) in
+        let a = a.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
         let ik = Cilfacade.get_ikind typ in
         (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
@@ -579,7 +581,7 @@ struct
           (* | x when Queries.ID.is_top x || Queries.ID.is_top_of ik x -> eval_binop exp (* TODO: is_top_of unnecessary? *) *)
 
           (* new bot handling, should be unnecessary because query should always succeed *)
-          | x when Queries.ID.is_bot x -> eval_next ()
+          | x when Queries.ID.is_bot x -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
 
           (* new equivalent code which only allows definite ints *)
           (* | x when Queries.ID.is_int x -> Some (`Int (ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp)) @@ Option.get @@ Queries.ID.to_int x))
@@ -604,8 +606,15 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_ask_evalint %a -> %a\n" d_exp exp VD.pretty r;
     r
+
+  (** Evaluate expression without EvalInt query on outermost expression.
+      This is used by base responding to EvalInt to immediately directly avoid EvalInt query cycle, which would return top.
+      Recursive [eval_rv] calls on subexpressions still go through [eval_rv_ask_evalint]. *)
   and eval_rv_no_ask_evalint a gs st exp =
-    eval_rv_ask_mustbeequal a gs st exp
+    eval_rv_ask_mustbeequal a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_ask_mustbeequal *)
+
+  (** Evaluate expression using MustBeEqual query.
+      Otherwise just delegate to next eval_rv function. *)
   and eval_rv_ask_mustbeequal a gs st exp =
     let eval_next () = eval_rv_base a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
@@ -651,6 +660,10 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
     r
+
+  (** Evaluate expression structurally by base.
+      This handles constants directly and variables using CPA.
+      Subexpressions delegate to [eval_rv], which may use queries on them. *)
   and eval_rv_base (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
