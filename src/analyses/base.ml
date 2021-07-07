@@ -565,7 +565,7 @@ struct
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
         let a = a.f (Q.EvalInt exp) in
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
-        let ik = (Cilfacade.get_ikind (Cil.typeOf exp)) in
+        let ik = Cilfacade.get_ikind typ in
         (* ignore (Pretty.printf "EVALINT (%a) %a = %a (%B)\n" d_loc !Tracing.current_loc d_exp exp Queries.ID.pretty a (Queries.ID.is_top a)); *)
         begin match a with
           (* old FlattenedBI code *)
