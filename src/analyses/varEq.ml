@@ -203,8 +203,8 @@ struct
     let rec type_may_change_apt a =
       (* With abstract points-to (like in type invariants in accesses).
          Here we implement it in part --- minimum to protect local integers. *)
-      (*       Messages.report ("a: "^sprint 80 (d_plainexp () a)); *)
-      (*       Messages.report ("b: "^sprint 80 (d_plainexp () b)); *)
+      (*       Messages.warn_each @@ Messages.Unknown ("a: "^sprint 80 (d_plainexp () a)); *)
+      (*       Messages.warn_each @@ Messages.Unknown ("b: "^sprint 80 (d_plainexp () b)); *)
       (* ignore (printf "may_change %a %a\n*%a\n*%a\n\n" d_exp a d_exp b d_plainexp a d_plainexp b); *)
       match a, b with
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
@@ -227,7 +227,7 @@ struct
         | TPtr (t,a) -> t
         | at -> at
       in
-      (*      Messages.report
+      (*      Messages.warn_each
               ( sprint 80 (d_type () at)
               ^ " : "
               ^ sprint 80 (d_type () bt)
@@ -245,9 +245,9 @@ struct
               | Lval (Var _,o)
               | AddrOf (Var _,o)
               | StartOf (Var _,o) -> may_change_t_offset o
-              | Lval (Mem e,o)    -> (*Messages.report "Lval" ;*) may_change_t_offset o || type_may_change_t true e
-              | AddrOf (Mem e,o)  -> (*Messages.report "Addr" ;*) may_change_t_offset o || type_may_change_t false e
-              | StartOf (Mem e,o) -> (*Messages.report "Start";*) may_change_t_offset o || type_may_change_t false e
+              | Lval (Mem e,o)    -> (*Messages.warn_each "Lval" ;*) may_change_t_offset o || type_may_change_t true e
+              | AddrOf (Mem e,o)  -> (*Messages.warn_each "Addr" ;*) may_change_t_offset o || type_may_change_t false e
+              | StartOf (Mem e,o) -> (*Messages.warn_each "Start";*) may_change_t_offset o || type_may_change_t false e
               | CastE (t,e) -> type_may_change_t deref e
               | Question _ -> failwith "Logical operations should be compiled away by CIL."
               | _ -> failwith "Unmatched pattern."
@@ -289,7 +289,7 @@ struct
           let als = pt e in
           (als, lval_is_not_disjoint bl als)
       in
-      (*      Messages.report
+      (*      Messages.warn_each
               ( sprint 80 (Lval.CilLval.pretty () bl)
               ^ " in PT("
               ^ sprint 80 (d_exp () a)
@@ -320,13 +320,13 @@ struct
     in
     let r =
       if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
-      then ((*Messages.report "No PT-set: switching to types ";*) type_may_change_apt a )
+      then ((*Messages.warn_each "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
     (*    if r
-          then (Messages.report ("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
-          else (Messages.report ("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
-          Messages.report (sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls));
+          then (Messages.warn_each @@ Messages.Unknown ("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
+          else (Messages.warn_each @@ Messages.Unknown ("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
+          Messages.warn_each @@ Messages.Unknown (sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls));
     *)    r
 
   (* Remove elements, that would change if the given lval would change.*)
@@ -376,7 +376,7 @@ struct
           in
           let st =
     *)  let lvt = unrollType @@ typeOf (Lval lv) in
-    (*     Messages.report (sprint 80 (d_type () lvt)); *)
+    (*     Messages.warn_each @@ Messages.Unknown (sprint 80 (d_type () lvt)); *)
     if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv
     && is_global_var ask rv = Some false
@@ -577,7 +577,7 @@ struct
       true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
-      (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
+      (*          Messages.warn_each @@ Messages.Unknown ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
       r
     | _ -> Queries.Result.top x
 

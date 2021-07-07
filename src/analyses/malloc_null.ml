@@ -47,7 +47,7 @@ struct
       if D.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then
         let var = Addr.from_var_offset v in
-        Messages.report ("Possible dereferencing of null on variable '" ^ (Addr.show var) ^ "'.")
+        Messages.warn_each @@ Messages.Unknown ("Possible dereferencing of null on variable '" ^ (Addr.show var) ^ "'.")
     with SetDomain.Unsupported _ -> ()
 
   (* Warn null-lval dereferences, but not normal (null-) lvals*)
