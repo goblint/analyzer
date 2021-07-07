@@ -240,6 +240,7 @@ let createCFG (file: file) =
           newst_node
         )
         in
+        let loop_head_neg1 = NH.create 3 in
         (* So for each statement in the function body, we do the following: *)
         let handle stmt =
           (* Please ignore the next line. It creates an index of statements
@@ -300,7 +301,8 @@ let createCFG (file: file) =
           | Loop (bl,loc,Some cont, Some brk) -> begin
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
               try
-                mkEdge (realnode true stmt) (Test (one, false)) (realnode false brk);
+                (* instead of immediately adding Neg(1) edge to brk, remember and use it later only when unconnected *)
+                NH.add loop_head_neg1 (Statement (realnode true stmt)) (Statement (realnode false brk));
               with
               (* The [realnode brk] fails when the break label is at the end
               * of the function. In that case, we need to connect it to
@@ -337,8 +339,15 @@ let createCFG (file: file) =
         let loop_heads = find_loop_heads_fun (module TmpCfg) fd in
         let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd.svar) in
         NH.iter (fun node () ->
-            if not (NH.mem reachable_return node) then
-              addCfg (Lazy.force pseudo_return) (Test (one, false), node)
+            if not (NH.mem reachable_return node) then (
+              match NH.find_all loop_head_neg1 node with
+              | [] -> addCfg (Lazy.force pseudo_return) (Test (one, false), node)
+              | targets ->
+                (* single loop head may have multiple neg1-s, e.g. test 03/22 *)
+                List.iter (fun target ->
+                    addCfg target (Test (one, false), node)
+                  ) targets
+            )
           ) loop_heads
       | _ -> ()
     );
