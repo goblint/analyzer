@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'file'" 
+// PARAM:  --sets ana.spec.file useafterfree.spec --set ana.activated[+] "'spec'"
 #include<stdio.h>
 #include<stdlib.h>
 

@@ -1,4 +1,4 @@
-// PARAM:  --sets ana.spec.file file.spec
+// PARAM:  --sets ana.spec.file useafterfree.spec --set ana.activated[+] "'spec'"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -8,7 +8,7 @@ int main() {
     *a = 1;
     int *b = a;
     free(b); // detects the free even when the pointer is aliased to b
-    return *a; // WARN
+    *b = 7;  // WARN
   }
   return 0;
 }
