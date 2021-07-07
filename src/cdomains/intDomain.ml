@@ -1529,7 +1529,9 @@ struct
 
   let refine_with_congruence ik a b = a
   let refine_with_interval ik a b = a
-  let refine_with_excl_list ik a b = a
+  let refine_with_excl_list ik a b = match a, b with
+  | `Excluded (s, r), Some(ls) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls)
+  | _ -> a
   let refine_with_incl_list ik a b = a
 end
 
