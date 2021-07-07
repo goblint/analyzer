@@ -62,6 +62,15 @@ struct
         let before_start (): warning = create BeforeStart
         let unknown (): warning = create Unknown
 
+        let from_string_list (s: string list): warning =
+          match s with
+          | [] -> Unknown ""
+          | h :: t -> match h with
+            | "past_end" -> past_end ()
+            | "before_start" -> before_start ()
+            | "unknown" -> unknown ()
+            | _ -> Unknown ""
+
         let show (e: t): string =
           match e with
           | PastEnd -> "PastEnd]" ^ " Index is past the end of the array."
@@ -69,12 +78,30 @@ struct
           | Unknown -> "Unknown]" ^ " Not enough information about index."
       end
 
+      let from_string_list (s: string list): warning =
+        match s with
+        | [] -> Unknown ""
+        | h :: t -> match h with
+          | "array_out_of_bounds" -> ArrayOutOfBounds.from_string_list t
+          | "nullpointer_dereference" -> nullpointer_dereference ()
+          | "use_after_free" -> use_after_free ()
+          | _ -> Unknown ""
+
       let show (e: t): string =
         match e with
         | ArrayOutOfBounds e -> "ArrayOutOfBounds > "^(ArrayOutOfBounds.show e)
         | NullPointerDereference -> "NullPointerDereference]"
         | UseAfterFree -> "UseAfterFree]"
     end
+
+    let from_string_list (s: string list): warning =
+      match s with
+      | [] -> Unknown ""
+      | h :: t -> ();match h with
+        | "undefined" -> Undefined.from_string_list t
+        | "implementation" -> implementation ()
+        | "machine" -> machine ()
+        | _ -> Unknown ""
 
     let show (e: t): string =
       match e with
@@ -91,6 +118,14 @@ struct
     let overflow (): warning = create Overflow
     let div_by_zero (): warning = create DivByZero
 
+    let from_string_list (s: string list): warning =
+      match s with
+      | [] -> Unknown ""
+      | h :: t -> ();match h with
+        | "overflow" -> overflow ()
+        | "div_by_zero" -> div_by_zero ()
+        | _ -> Unknown ""
+
     let show (e: t): string =
       match e with
       | Overflow -> "Overflow]"
@@ -103,6 +138,13 @@ struct
 
     let create (e: t): warning = Cast e
     let type_mismatch (): warning = create TypeMismatch
+
+    let from_string_list (s: string list): warning =
+      match s with
+      | [] -> Unknown ""
+      | h :: t -> ();match h with
+        | "type_mismatch" -> type_mismatch ()
+        | _ -> Unknown ""
 
     let show (e: t): string =
       match e with
@@ -130,6 +172,18 @@ struct
     | Unknown msg -> "[Unknown]" ^ " " ^ msg
     | Debug msg -> "[Debug]" ^ " " ^ msg
     | Analyzer -> "[Analyzer]"
+
+  let from_string_list (s: string list) =
+    match s with
+    | [] -> Unknown ""
+    | h :: t -> match h with
+      | "behavior" -> Behavior.from_string_list t
+      | "integer" -> Integer.from_string_list t
+      | "race" -> Race
+      | "cast" -> Cast.from_string_list t
+      | "debug" -> Debug ""
+      | "analyzer" -> Analyzer
+      | _ -> Unknown ""
 end
 
 module Certainty = struct
