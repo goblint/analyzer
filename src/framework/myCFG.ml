@@ -183,27 +183,36 @@ let createCFG (file: file) =
    * put a lot of junk between stuff: *)
   let find_real_stmt (source: stmt option) is_entry stmt =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt is_entry=%B stmt=%d\n" is_entry stmt.sid;
-    let rec find is_entry visited stmt =
-      if Messages.tracing then Messages.trace "cfg" "find_real_stmt inner is_entry=%B visited=[%a] stmt=%d: %a\n" is_entry (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited stmt.sid dn_stmt stmt;
-      if List.mem stmt.sid visited then stmt
+    let rec find is_entry visited_sids stmt =
+      if Messages.tracing then Messages.trace "cfg" "find_real_stmt inner is_entry=%B visited=[%a] stmt=%d: %a\n" is_entry (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited_sids stmt.sid dn_stmt stmt;
+      if List.mem stmt.sid visited_sids then stmt
       else
-        let next () = match (List.hd stmt.succs) with
-          | exception (Failure _) -> if is_entry then stmt else raise Not_found
-          | next -> next
-        in
-        let sid = stmt.sid in
         match stmt.skind with
-        | Block _ -> find is_entry (sid::visited) (next ())
-        | Goto _ -> find is_entry (sid::visited) (next ())
-        | Instr [] -> begin
-            let next = next () in
-            if next.sid == stmt.sid
-            then stmt
-            else find is_entry (sid::visited) next
-          end
-        | Loop _ -> find is_entry (sid::visited) (next ())
-        | If (exp,_,_,_) -> stmt
-        | _ -> stmt
+        | Goto _
+        | Instr [] (* CIL inserts like unlabelled goto *)
+        | Block _ (* just container for stmts *)
+        | Loop _ -> (* just container for (prepared) body *)
+          let succ = match stmt.succs with
+            | [] -> if is_entry then stmt else raise Not_found
+            | next :: _ -> next
+          in
+          find is_entry (stmt.sid :: visited_sids) succ
+
+        | Instr _
+        | If _
+        | Return _ ->
+          stmt
+
+        | Continue _
+        | Break _
+        | Switch _ ->
+          (* Should be removed by Cil.prepareCFG. *)
+          failwith "MyCFG.createCFG: unprepared stmt"
+
+        | ComputedGoto _
+        | TryExcept _
+        | TryFinally _ ->
+          failwith "MyCFG.createCFG: unsupported stmt"
     in
     try
       let r = find is_entry (match source with Some s -> [s.sid] | None -> []) stmt in
