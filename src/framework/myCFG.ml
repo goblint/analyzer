@@ -320,7 +320,10 @@ let createCFG (file: file) =
                 (* pseudo return is used instead by default, so nothing to do here *)
                 ()
             end
-            (* TODO: what about Loop with None cont/brk? *)
+
+          | Loop (_, _, _, _) ->
+            (* CIL's xform_switch_stmt (via prepareCFG) always adds both continue and break statements to all Loops. *)
+            failwith "MyCFG.createCFG: unprepared Loop"
 
           | Return (exp, loc) -> (* TODO: use loc directly instead of going through getLoc stmt *)
             addCfg (Function fd) (Ret (exp, fd), Statement stmt)
