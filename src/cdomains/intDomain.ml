@@ -2019,6 +2019,8 @@ struct
     | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero && m1 =: Ints_t.zero -> c1 =: c2
     | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero -> c1 =: c2 && m1 =: Ints_t.zero
     | Some (c1,m1), Some (c2,m2) -> m2 |: (gcd (c1 -: c2) m1)
+     (* Typo in original equation of P. Granger (m2 instead of m1): gcd (c1 -: c2) m2
+     Reference: https://doi.org/10.1080/00207168908803778 Page 171 corollary 3.3*)
 
   let leq x y =
     let res = leq x y in
