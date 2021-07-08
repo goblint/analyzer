@@ -843,12 +843,16 @@ struct
     match intv, excl with
     | None, _ | _, None -> intv
     | Some(l, u), Some(ls) ->
+      let rec shrink op b =
+        let new_b = (op b (Ints_t.of_int(Bool.to_int(List.mem b ls)))) in
+           if not (Ints_t.equal b new_b) then shrink op new_b else new_b
+          in
        let l' =
        if Ints_t.equal l (min_int ik) then l else
-       (Ints_t.add l (Ints_t.of_int(Bool.to_int(List.mem l ls)))) in
+       shrink Ints_t.add l  in
        let u' =
        if Ints_t.equal u (max_int ik) then u else
-       (Ints_t.sub u (Ints_t.of_int(Bool.to_int(List.mem u ls)))) in
+       shrink Ints_t.sub u in
        norm ik @@ Some(l', u')
 
   let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
