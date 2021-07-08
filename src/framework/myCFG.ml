@@ -181,10 +181,10 @@ let createCFG (file: file) =
   let mkEdges fromNode edges toNode = addCfg' toNode edges fromNode in
   (* Function for finding the next real successor of a statement. CIL tends to
    * put a lot of junk between stuff: *)
-  let realnode (source: stmt option) is_entry stmt =
-    if Messages.tracing then Messages.tracei "cfg" "realnode is_entry=%B stmt=%d\n" is_entry stmt.sid;
-    let rec realnode is_entry visited stmt =
-      if Messages.tracing then Messages.trace "cfg" "realnode inner is_entry=%B visited=[%a] stmt=%d: %a\n" is_entry (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited stmt.sid dn_stmt stmt;
+  let find_real_stmt (source: stmt option) is_entry stmt =
+    if Messages.tracing then Messages.tracei "cfg" "find_real_stmt is_entry=%B stmt=%d\n" is_entry stmt.sid;
+    let rec find is_entry visited stmt =
+      if Messages.tracing then Messages.trace "cfg" "find_real_stmt inner is_entry=%B visited=[%a] stmt=%d: %a\n" is_entry (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited stmt.sid dn_stmt stmt;
       if List.mem stmt.sid visited then stmt
       else
         let next () = match (List.hd stmt.succs) with
@@ -193,20 +193,20 @@ let createCFG (file: file) =
         in
         let sid = stmt.sid in
         match stmt.skind with
-        | Block _ -> realnode is_entry (sid::visited) (next ())
-        | Goto _ -> realnode is_entry (sid::visited) (next ())
+        | Block _ -> find is_entry (sid::visited) (next ())
+        | Goto _ -> find is_entry (sid::visited) (next ())
         | Instr [] -> begin
             let next = next () in
             if next.sid == stmt.sid
             then stmt
-            else realnode is_entry (sid::visited) next
+            else find is_entry (sid::visited) next
           end
-        | Loop _ -> realnode is_entry (sid::visited) (next ())
+        | Loop _ -> find is_entry (sid::visited) (next ())
         | If (exp,_,_,_) -> stmt
         | _ -> stmt
     in
     try
-      let r = realnode is_entry (match source with Some s -> [s.sid] | None -> []) stmt in
+      let r = find is_entry (match source with Some s -> [s.sid] | None -> []) stmt in
       if Messages.tracing then Messages.traceu "cfg" "-> %d\n" r.sid;
       r
     with Not_found ->
@@ -226,7 +226,7 @@ let createCFG (file: file) =
         (* Walk through the parameters and pre-process them a bit... *)
         do_the_params fd;
         (* Find the first statement in the function *)
-        let entrynode = realnode None true (CF.getFirstStmt fd) in
+        let entrynode = find_real_stmt None true (CF.getFirstStmt fd) in
         (* Add the entry edge to that node *)
         let _ = addCfg (Statement entrynode) ((Entry fd), (FunctionEntry fd)) in
         (* Return node to be used for infinite loop connection to end of function
@@ -255,14 +255,14 @@ let createCFG (file: file) =
             (* CIL sometimes inserts empty Instr, which is like a goto without label. *)
             (* Without this special case, CFG would contain edges without label or transfer function,
                which is unwanted because such flow is undetectable by the analysis (especially for witness generation). *)
-            (* Generally these are unnecessary and unwanted because realnode skips over these. *)
+            (* Generally these are unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses empty Instr self-loop for empty Loop, so a Skip self-loop must be added to not lose the loop. *)
             let add_succ succ =
               if CilType.Stmt.equal succ stmt then (* self-loop *)
                 mkEdges (Statement stmt) [Cil.locUnknown, Skip] (Statement succ) (* TODO: better loc from somewhere? *)
             in
             (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-            let succs = List.map (realnode (Some stmt) true) stmt.succs in (* TODO: can there even be multiple succs for Instr []? *)
+            let succs = List.map (find_real_stmt (Some stmt) true) stmt.succs in (* TODO: can there even be multiple succs for Instr []? *)
             List.iter add_succ succs
 
           | Instr instrs -> (* non-empty Instr *)
@@ -276,7 +276,7 @@ let createCFG (file: file) =
             let add_succ_node succ_node = mkEdges (Statement stmt) edges succ_node in
             let succ_nodes = match stmt.succs with
               | [] -> [Lazy.force pseudo_return] (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
-              | succs -> List.map (fun x -> Statement (realnode (Some stmt) true x)) succs (* TODO: can there even be multiple succs? *)
+              | succs -> List.map (fun x -> Statement (find_real_stmt (Some stmt) true x)) succs (* TODO: can there even be multiple succs? *)
             in
             List.iter add_succ_node succ_nodes
 
@@ -289,11 +289,11 @@ let createCFG (file: file) =
                CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
             let (true_stmt, false_stmt) = match stmt.succs with
               | [false_stmt; true_stmt] ->
-                let true_stmt = realnode (Some stmt) true true_stmt in
-                let false_stmt = realnode (Some stmt) true false_stmt in
+                let true_stmt = find_real_stmt (Some stmt) true true_stmt in
+                let false_stmt = find_real_stmt (Some stmt) true false_stmt in
                 (true_stmt, false_stmt)
               | [same_stmt] ->
-                let same_stmt = realnode (Some stmt) true same_stmt in
+                let same_stmt = find_real_stmt (Some stmt) true same_stmt in
                 (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
@@ -307,16 +307,16 @@ let createCFG (file: file) =
                Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
                An extra Neg(1) edge is added in such case. *)
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
-            begin match realnode (Some stmt) false brk with
+            begin match find_real_stmt (Some stmt) false brk with
               | break_stmt ->
                 (* break statement is what follows the (constant true) Loop *)
                 (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
                    so break statement is just remembered here *)
-                let loop_stmt = realnode None true stmt in
+                let loop_stmt = find_real_stmt None true stmt in
                 NH.add loop_head_neg1 (Statement loop_stmt) (Statement break_stmt)
               | exception Not_found ->
                 (* if the (constant true) Loop and its break statement are at the end of the function,
-                   then realnode doesn't find a non-empty statement. *)
+                   then find_real_stmt doesn't find a non-empty statement. *)
                 (* pseudo return is used instead by default, so nothing to do here *)
                 ()
             end
@@ -329,13 +329,13 @@ let createCFG (file: file) =
             addCfg (Function fd) (Ret (exp, fd), Statement stmt)
 
           | Goto (target_ref, loc) -> (* TODO: use loc directly instead of going through getLoc stmt *)
-            (* Gotos are generally unnecessary and unwanted because realnode skips over these. *)
+            (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
             if CilType.Stmt.equal !target_ref stmt then
               addCfg (Statement !target_ref) (Skip, Statement stmt)
 
           | Block _ ->
-            (* Nothing to do for Blocks, realnode skips over these. *)
+            (* Nothing to do for Blocks, find_real_stmt skips over these. *)
             ()
 
           | Continue _
