@@ -254,35 +254,35 @@ let createCFG (file: file) =
           (* turn pthread_exit into return? *)
           (* | Instr [Call (_, Lval (Var {vname="pthread_exit"}, _), [ret_exp], _)] -> addCfg (Function fd.svar) (Ret (Some ret_exp,fd), Statement stmt) *)
           (* | Instr [Call (lval, ((Lval (Var {vname="pthread_exit"}, _)) as func), ([ret_exp] as args), loc)] -> addCfg (Function fd.svar) (Proc (lval, func, args), Statement stmt) *)
-          (* Normal instructions are easy. They should be a list of a single
-           * instruction, either Set, Call or ASM: *)
-          | Instr xs ->
+          | Instr [] ->
+            (* Empty Instrs are weird: they have edges without any label or transfer function.
+             * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
+            (* empty Loop-s contain an Instr [] with its own successor, put skip edge there but not for other Instr [] *)
+            let add_succ succ =
+              if CilType.Stmt.equal succ stmt then (* self-loop *)
+                mkEdges (Statement stmt) [Cil.locUnknown, Skip] (Statement succ) (* TODO: better loc from somewhere? *)
+            in
+            let succs = List.map (realnode (Some stmt) true) stmt.succs in
+            List.iter add_succ succs
+          | Instr instrs -> (* non-empty Instr *)
+            (* Normal instructions are easy. They should be a list of a single
+             * instruction, either Set, Call or ASM: *)
             (* We need to add an edge to each of the successors of the current statement *)
-            let handle_instr = function
+            let edge_of_instr = function
               | Set (lval,exp,loc) -> loc, Assign (lval, exp)
               | Call (lval,func,args,loc) -> loc, Proc (lval,func,args)
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
-            let handle_instrs succ =
-              match xs with
-              | [] ->
-                (* Empty Instrs are weird: they have edges without any label or transfer function.
-                 * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
-                (* empty Loop-s contain an Instr [] with its own successor, put skip edge there but not for other Instr [] *)
-                begin match succ with
-                  | Statement s when s.sid = stmt.sid ->
-                    mkEdges (Statement stmt) [Cil.locUnknown, Skip] succ (* TODO: better loc from somewhere? *)
-                  | _ ->
-                    ()
-                end
-              | _ :: _ ->
-                mkEdges (Statement stmt) (List.map handle_instr xs) succ
-            in
+            let edges = List.map edge_of_instr instrs in
+            let add_succ_node succ_node = mkEdges (Statement stmt) edges succ_node in
             (* Sometimes a statement might not have a successor.
              * This can happen if the last statement of a function is a call to exit. *)
-            let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode (Some stmt) true x)) stmt.succs in
-            List.iter handle_instrs succs
+            let succ_nodes = match stmt.succs with
+              | [] -> [Lazy.force pseudo_return]
+              | succs -> List.map (fun x -> Statement (realnode (Some stmt) true x)) succs
+            in
+            List.iter add_succ_node succ_nodes
           (* If expressions are a bit more interesting, but CIL has done
            * its job well and we just pick out the right successors *)
           | If (exp, true_block, false_block, loc) ->
