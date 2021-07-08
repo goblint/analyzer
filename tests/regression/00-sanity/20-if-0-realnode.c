@@ -13,7 +13,6 @@ int main() {
     }
     else {
         goto bar; // direct realnode to If via goto
-        stuff(); // something non-empty
     }
     return 0;
 }
