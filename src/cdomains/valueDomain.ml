@@ -185,14 +185,14 @@ struct
             | v -> `Address v, l
             | exception Not_found ->
               begin
-                let types = TypeSet.singleton (pointed_to_t) in
-                let types = match TypeCastMap.find_opt (TPtr (pointed_to_t, [])) map with
+                let types = TypeSet.singleton pointed_to_t in
+                let types = match TypeCastMap.find_opt (TPtr (pointed_to_t, attr)) map with
                   | Some casted_to_types -> TypeSet.join types casted_to_types
                   | None -> types
                 in
                 (* Creates the memory abstraction for type t, collects memory
                  that is directly and indirectly reachable from the pointer to this types abstraction *)
-                let do_typ t (acc_dir,acc_ind)  =
+                let do_typ t (acc_dir,acc_ind) =
                   let heap_var = heap_var t in
                   let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
                   Hashtbl.add type_to_symbolic_address t heap_var_or_NULL;
