@@ -165,20 +165,18 @@ let createCFG (file: file) =
   let cfgB = H.create 113 in
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
-  (* Utility function to add stmt edges to the cfg *)
-  let addCfg' t xs f =
+  let addEdges fromNode edges toNode =
     if Messages.tracing then
       Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
-        pretty_edges xs
-        pretty_short_node f
-        pretty_short_node t;
-    H.add cfgB t (xs,f);
-    H.add cfgF f (xs,t);
+        pretty_edges edges
+        pretty_short_node fromNode
+        pretty_short_node toNode;
+    H.add cfgB toNode (edges,fromNode);
+    H.add cfgF fromNode (edges,toNode);
     Messages.trace "cfg" "done\n\n"
   in
-  let addCfg t (e,f) = addCfg' t [getLoc f,e] f in
-  let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
-  let mkEdges fromNode edges toNode = addCfg' toNode edges fromNode in
+  let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
+  let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (getLoc fromNode, edge) toNode in
 
   (* Find real (i.e. non-empty) successor of statement.
      CIL CFG contains some unnecessary intermediate statements.
@@ -238,11 +236,11 @@ let createCFG (file: file) =
       if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
       raise Not_found
   in
-  addCfg (Function dummy_func) (Ret (None, dummy_func), FunctionEntry dummy_func);
+  addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob ->
       match glob with
-      | GFun (fd,loc) ->
+      | GFun (fd, fd_loc) ->
         if Messages.tracing then Messages.trace "cfg" "Looking at the function %s.\n" fd.svar.vname;
 
         if get_bool "dbg.cilcfgdot" then
@@ -253,17 +251,17 @@ let createCFG (file: file) =
         (* Find the first statement in the function *)
         let entrynode = find_real_stmt (CF.getFirstStmt fd) in
         (* Add the entry edge to that node *)
-        let _ = addCfg (Statement entrynode) ((Entry fd), (FunctionEntry fd)) in
+        addEdge (FunctionEntry fd) (fd_loc, Entry fd) (Statement entrynode);
         (* Return node to be used for infinite loop connection to end of function
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
-          let newst = mkStmt (Return (None, loc)) in
+          let newst = mkStmt (Return (None, fd_loc)) in
           let start_id = 10_000_000_000 in (* TODO get max_sid? *)
-          let sid = Hashtbl.hash loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
+          let sid = Hashtbl.hash fd_loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
           newst.sid <- if sid < start_id then sid + start_id else sid;
           Hashtbl.add stmt_fundec_map newst.sid fd;
           let newst_node = Statement newst in
-          addCfg (Function fd) (Ret (None,fd), newst_node);
+          addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);
           newst_node
         )
         in
@@ -289,7 +287,7 @@ let createCFG (file: file) =
               | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
               | [succ] ->
                 if CilType.Stmt.equal succ stmt then (* self-loop *)
-                  mkEdges (Statement stmt) [Cil.locUnknown, Skip] (Statement succ) (* TODO: better loc from somewhere? *)
+                  addEdge (Statement stmt) (Cil.locUnknown, Skip) (Statement succ) (* TODO: better loc from somewhere? *)
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
@@ -301,7 +299,7 @@ let createCFG (file: file) =
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in
-            let add_succ_node succ_node = mkEdges (Statement stmt) edges succ_node in
+            let add_succ_node succ_node = addEdges (Statement stmt) edges succ_node in
             begin match real_succs () with
               | [] -> add_succ_node (Lazy.force pseudo_return) (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
               | [succ] -> add_succ_node (Statement succ)
@@ -320,9 +318,8 @@ let createCFG (file: file) =
               | [same_stmt] -> (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
-            (* TODO: use loc directly instead of going through getLoc stmt *)
-            mkEdge stmt (Test (exp, true )) true_stmt;
-            mkEdge stmt (Test (exp, false)) false_stmt
+            addEdge (Statement stmt) (loc, Test (exp, true )) (Statement true_stmt);
+            addEdge (Statement stmt) (loc, Test (exp, false)) (Statement false_stmt)
 
           | Loop (_, loc, Some cont, Some brk) -> (* TODO: use loc for something? *)
             (* CIL already converts Loop logic to Gotos and If. *)
@@ -348,14 +345,14 @@ let createCFG (file: file) =
             (* CIL's xform_switch_stmt (via prepareCFG) always adds both continue and break statements to all Loops. *)
             failwith "MyCFG.createCFG: unprepared Loop"
 
-          | Return (exp, loc) -> (* TODO: use loc directly instead of going through getLoc stmt *)
-            addCfg (Function fd) (Ret (exp, fd), Statement stmt)
+          | Return (exp, loc) ->
+            addEdge (Statement stmt) (loc, Ret (exp, fd)) (Function fd)
 
-          | Goto (target_ref, loc) -> (* TODO: use loc directly instead of going through getLoc stmt *)
+          | Goto (target_ref, loc) ->
             (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
             if CilType.Stmt.equal !target_ref stmt then
-              addCfg (Statement !target_ref) (Skip, Statement stmt)
+              addEdge (Statement stmt) (loc, Skip) (Statement !target_ref)
 
           | Block _ ->
             (* Nothing to do for Blocks, find_real_stmt skips over these. *)
@@ -394,7 +391,7 @@ let createCFG (file: file) =
               in
               (* single loop head may have multiple neg1-s, e.g. test 03/22 *)
               List.iter (fun target ->
-                  addCfg target (Test (one, false), node)
+                  addEdge_fromLoc node (Test (one, false)) target
                 ) targets
             )
           ) loop_heads;
