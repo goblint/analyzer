@@ -153,9 +153,9 @@ struct
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
   (* D.only_globals au *)
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)
-    let m = if f.vname <> "main" then
+    let m = if f.svar.vname <> "main" then
         (* push current location onto stack *)
         D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
       else ctx.local in
@@ -176,7 +176,7 @@ struct
       D.extend_value unclosed_var (mustOpen, mayOpen) m
     ) else m
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^string_of_callstack au; *)
     let m = ctx.local in
     (* pop the last location off the stack *)

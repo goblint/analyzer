@@ -35,8 +35,8 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let calleeofinterest = Hashtbl.mem wrappers f.vname in
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    let calleeofinterest = Hashtbl.mem wrappers f.svar.vname in
     let calleectx = if calleeofinterest then
        if ctx.local = `Top then
         `Lifted (MyCFG.getLoc ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
@@ -44,7 +44,7 @@ struct
       else D.top () in  (* if an uninteresting callee is called, then we forget what was called before *)
     [(ctx.local, calleectx)]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

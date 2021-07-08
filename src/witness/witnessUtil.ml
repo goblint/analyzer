@@ -8,7 +8,7 @@ let find_main_entry entrystates =
     entrystates
     |> List.map fst
     |> List.partition (function
-        | FunctionEntry f, _ -> f.vname = "main"
+        | FunctionEntry f, _ -> f.svar.vname = "main"
         | _, _ -> false
       )
   in
@@ -37,7 +37,7 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
 
   Cil.iterGlobals file (function
       | GFun (fd, _) ->
-        let entry_node = FunctionEntry fd.svar in
+        let entry_node = FunctionEntry fd in
         iter_node NS.empty entry_node
       | _ -> ()
     );
