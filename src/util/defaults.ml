@@ -228,6 +228,7 @@ let _ = ()
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
       ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
+      ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
 
 let default_schema = "\
 { 'id'              : 'root'

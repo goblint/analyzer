@@ -220,7 +220,9 @@ let createCFG (file: file) =
       | GFun (fd,loc) ->
         if Messages.tracing then Messages.trace "cfg" "Looking at the function %s.\n" fd.svar.vname;
 
-        (* Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd; *)
+        if get_bool "dbg.cilcfgdot" then
+          Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
+
         (* Walk through the parameters and pre-process them a bit... *)
         do_the_params fd;
         (* Find the first statement in the function *)
