@@ -1,4 +1,4 @@
-w1 "use after free [undefined behavior]"
+w1 "behavior.undefined.use_after_free"
 
 1 -> 2 $p = malloc(_)
 2 -> 3 free($p)
