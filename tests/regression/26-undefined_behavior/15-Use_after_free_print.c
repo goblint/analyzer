@@ -11,7 +11,7 @@ int main() {
   free(a);
 
   for(int i = 0; i < 10; i++) {
-    printf("%d ", a[i]); // WARN
+    printf("%d ", a[i]); // print is handled differently. Should also warn in the future
   }
   printf("\n");
   return 0;
