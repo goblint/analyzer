@@ -275,6 +275,9 @@ let createCFG (file: file) =
            * belongs to. *)
           Hashtbl.add stmt_fundec_map stmt.sid fd;
           if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (get_stmtLoc stmt.skind);
+
+          let real_succs () = List.map (find_real_stmt ~parent:stmt) stmt.succs in
+
           match stmt.skind with
           | Instr [] ->
             (* CIL sometimes inserts empty Instr, which is like a goto without label. *)
@@ -287,8 +290,7 @@ let createCFG (file: file) =
                 mkEdges (Statement stmt) [Cil.locUnknown, Skip] (Statement succ) (* TODO: better loc from somewhere? *)
             in
             (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-            let succs = List.map (find_real_stmt ~parent:stmt) stmt.succs in (* TODO: can there even be multiple succs for Instr []? *)
-            List.iter add_succ succs
+            List.iter add_succ (real_succs ()) (* TODO: can there even be multiple succs for Instr []? *)
 
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
@@ -299,9 +301,9 @@ let createCFG (file: file) =
             in
             let edges = List.map edge_of_instr instrs in
             let add_succ_node succ_node = mkEdges (Statement stmt) edges succ_node in
-            let succ_nodes = match stmt.succs with
+            let succ_nodes = match real_succs () with
               | [] -> [Lazy.force pseudo_return] (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
-              | succs -> List.map (fun x -> Statement (find_real_stmt ~parent:stmt x)) succs (* TODO: can there even be multiple succs? *)
+              | succs -> List.map (fun succ -> Statement succ) succs (* TODO: can there even be multiple succs? *)
             in
             List.iter add_succ_node succ_nodes
 
@@ -312,14 +314,9 @@ let createCFG (file: file) =
                First, true branch's succ is consed (to empty succs list).
                Second, false branch's succ is consed (to previous succs list).
                CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
-            let (true_stmt, false_stmt) = match stmt.succs with
-              | [false_stmt; true_stmt] ->
-                let true_stmt = find_real_stmt ~parent:stmt true_stmt in
-                let false_stmt = find_real_stmt ~parent:stmt false_stmt in
-                (true_stmt, false_stmt)
-              | [same_stmt] ->
-                let same_stmt = find_real_stmt ~parent:stmt same_stmt in
-                (same_stmt, same_stmt)
+            let (true_stmt, false_stmt) = match real_succs () with
+              | [false_stmt; true_stmt] -> (true_stmt, false_stmt)
+              | [same_stmt] -> (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
             (* TODO: use loc directly instead of going through getLoc stmt *)
