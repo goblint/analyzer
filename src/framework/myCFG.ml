@@ -192,11 +192,16 @@ let createCFG (file: file) =
         | Instr [] (* CIL inserts like unlabelled goto *)
         | Block _ (* just container for stmts *)
         | Loop _ -> (* just container for (prepared) body *)
-          let succ = match stmt.succs with
-            | [] -> if is_entry then stmt else raise Not_found
-            | next :: _ -> next
-          in
-          find is_entry (stmt.sid :: visited_sids) succ
+          begin match stmt.succs with
+            | [] ->
+              if is_entry then
+                stmt
+              else
+                raise Not_found
+            | next :: _ ->
+              find is_entry (stmt.sid :: visited_sids) next
+            (* TODO: what about non-first succs? can these stmtkinds not have multiple? *)
+          end
 
         | Instr _
         | If _
