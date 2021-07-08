@@ -202,9 +202,7 @@ let createCFG (file: file) =
             else realnode is_entry (sid::visited) next
           end
         | Loop _ -> realnode is_entry (sid::visited) (next ())
-        | If (exp,_,_,_) ->
-          if isZero exp then realnode is_entry (sid::visited) (next ()) else
-            stmt
+        | If (exp,_,_,_) -> stmt
         | _ -> stmt
     in
     try
@@ -285,16 +283,13 @@ let createCFG (file: file) =
             List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
            * its job well and we just pick out the right successors *)
-          | If (exp, true_block, false_block, loc) -> begin
-              if isZero exp then ()
-              else
-                let false_stmt = realnode (Some stmt) true (List.nth stmt.succs 0) in
-                let true_stmt = try
-                    realnode (Some stmt) true (List.nth stmt.succs 1)
-                  with Failure _ -> realnode (Some stmt) true (List.hd stmt.succs) in
-                mkEdge stmt (Test (exp, true )) true_stmt;
-                mkEdge stmt (Test (exp, false)) false_stmt
-            end
+          | If (exp, true_block, false_block, loc) ->
+            let false_stmt = realnode (Some stmt) true (List.nth stmt.succs 0) in
+            let true_stmt = try
+                realnode (Some stmt) true (List.nth stmt.succs 1)
+              with Failure _ -> realnode (Some stmt) true (List.hd stmt.succs) in
+            mkEdge stmt (Test (exp, true )) true_stmt;
+            mkEdge stmt (Test (exp, false)) false_stmt
           (* Loops can generally be ignored because CIL creates gotos for us,
            * except constant conditions are eliminated, so non-terminating
            * loops are not connected to the rest of the code. This is a
