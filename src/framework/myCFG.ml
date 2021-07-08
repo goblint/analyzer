@@ -181,7 +181,7 @@ let createCFG (file: file) =
   let mkEdges fromNode edges toNode = addCfg' toNode edges fromNode in
   (* Function for finding the next real successor of a statement. CIL tends to
    * put a lot of junk between stuff: *)
-  let realnode is_entry stmt =
+  let realnode (source: stmt option) is_entry stmt =
     if Messages.tracing then Messages.tracei "cfg" "realnode is_entry=%B stmt=%d\n" is_entry stmt.sid;
     let rec realnode is_entry visited stmt =
       if Messages.tracing then Messages.trace "cfg" "realnode inner is_entry=%B visited=[%a] stmt=%d: %a\n" is_entry (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited stmt.sid dn_stmt stmt;
@@ -202,11 +202,13 @@ let createCFG (file: file) =
             else realnode is_entry (sid::visited) next
           end
         | Loop _ -> realnode is_entry (sid::visited) (next ())
-        | If (exp,_,_,_) -> if isZero exp then realnode is_entry (sid::visited) (next ()) else stmt
+        | If (exp,_,_,_) ->
+          if isZero exp then realnode is_entry (sid::visited) (next ()) else
+            stmt
         | _ -> stmt
     in
     try
-      let r = realnode is_entry [] stmt in
+      let r = realnode is_entry (match source with Some s -> [s.sid] | None -> []) stmt in
       if Messages.tracing then Messages.traceu "cfg" "-> %d\n" r.sid;
       r
     with Not_found ->
@@ -224,7 +226,7 @@ let createCFG (file: file) =
         (* Walk through the parameters and pre-process them a bit... *)
         do_the_params fd;
         (* Find the first statement in the function *)
-        let entrynode = realnode true (CF.getFirstStmt fd) in
+        let entrynode = realnode None true (CF.getFirstStmt fd) in
         (* Add the entry edge to that node *)
         let _ = addCfg (Statement entrynode) ((Entry fd), (FunctionEntry fd.svar)) in
         (* Return node to be used for infinite loop connection to end of function
@@ -279,17 +281,17 @@ let createCFG (file: file) =
             in
             (* Sometimes a statement might not have a successor.
              * This can happen if the last statement of a function is a call to exit. *)
-            let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
+            let succs = if stmt.succs = [] then [Lazy.force pseudo_return] else List.map (fun x -> Statement (realnode (Some stmt) true x)) stmt.succs in
             List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
            * its job well and we just pick out the right successors *)
           | If (exp, true_block, false_block, loc) -> begin
               if isZero exp then ()
               else
-                let false_stmt = realnode true (List.nth stmt.succs 0) in
+                let false_stmt = realnode (Some stmt) true (List.nth stmt.succs 0) in
                 let true_stmt = try
-                    realnode true (List.nth stmt.succs 1)
-                  with Failure _ -> realnode true (List.hd stmt.succs) in
+                    realnode (Some stmt) true (List.nth stmt.succs 1)
+                  with Failure _ -> realnode (Some stmt) true (List.hd stmt.succs) in
                 mkEdge stmt (Test (exp, true )) true_stmt;
                 mkEdge stmt (Test (exp, false)) false_stmt
             end
@@ -302,7 +304,7 @@ let createCFG (file: file) =
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
               try
                 (* instead of immediately adding Neg(1) edge to brk, remember and use it later only when unconnected *)
-                NH.add loop_head_neg1 (Statement (realnode true stmt)) (Statement (realnode false brk));
+                NH.add loop_head_neg1 (Statement (realnode None true stmt)) (Statement (realnode (Some stmt) false brk));
               with
               (* The [realnode brk] fails when the break label is at the end
               * of the function. In that case, we need to connect it to
