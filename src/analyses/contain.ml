@@ -100,7 +100,7 @@ struct
     | [] -> ()
     | f :: _ ->
       try
-        Messages.warn_each @@ Messages.Unknown "Problems for safe objects from SAFE.json are suppressed!";
+        Messages.warn_each ~msg:"Problems for safe objects from SAFE.json are suppressed!" ();
         let safe_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
         Object.iter (add_htbl_re D.safe_vars) !(objekt !(field safe_tbl "variables"));
         Object.iter (add_htbl_re D.safe_methods) !(objekt !(field safe_tbl "methods"));
@@ -286,12 +286,12 @@ struct
       end
     else
       begin
-        (*Messages.warn_each @@ Messages.Unknown ("CHECK METHOD : "^f.svar.vname);*)
+        (*Messages.warn_each ~msg:("CHECK METHOD : "^f.svar.vname) ();*)
         (*if D.is_top st then failwith "ARGH!";*)
         if (D.is_public_method_name f.svar.vname) (*|| is_fptr f.svar ctx*) then
           begin
             (*printf ("P");*)
-            (*Messages.warn_each @@ Messages.Unknown ("PUBLIC METHOD : "^f.svar.vname);*)
+            (*Messages.warn_each ~msg:("PUBLIC METHOD : "^f.svar.vname) ();*)
             add_analyzed_fun f D.analyzed_funs; (*keep track of analyzed funs*)
             if D.is_bot ctx.local && not (islocal_notmain f.svar.vname ctx.global)
             then
@@ -302,7 +302,7 @@ struct
         else
           begin
             (*rintf ("p");*)
-            (*Messages.warn_each @@ Messages.Unknown ("PRIVATE METHOD : "^f.svar.vname);*)
+            (*Messages.warn_each ~msg:("PRIVATE METHOD : "^f.svar.vname) ();*)
             (*D.report("Dom : "^sprint 80 (D.pretty () ctx.local)^"\n");*)
             if not (danger_bot ctx) then
               begin
@@ -496,7 +496,7 @@ struct
     end
 
   let eval_funvar ctx fval: varinfo list = (*also called for ignore funs*)
-    (*Messages.warn_each @@ Messages.Unknown (sprint 160 (d_exp () fval) );*)
+    (*Messages.warn_each ~msg:(sprint 160 (d_exp () fval) ) ();*)
     if danger_bot ctx then [] else
       let fd,st,gd = ctx.local in
       match fval with
@@ -504,11 +504,11 @@ struct
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
         if not ((get_bool "ana.cont.localclass")) then [D.unresFunDec.svar]
         else
-          (*Messages.warn_each @@ Messages.Unknown ("fcheck vtbl : "^sprint 160 (d_exp () e));*)
+          (*Messages.warn_each ~msg:("fcheck vtbl : "^sprint 160 (d_exp () e)) ();*)
           let vtbl_lst = get_vtbl e (fd,st,gd) ctx.global in
           if not (vtbl_lst=[]) then
             begin
-              (*List.iter (fun x -> Messages.warn_each @@ Messages.Unknown ("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;*)
+              (*List.iter (fun x -> Messages.warn_each ~msg:("VFUNC_CALL_RESOLVED : "^x.vname) ()) vtbl_lst;*)
               vtbl_lst
             end
           else
@@ -517,18 +517,18 @@ struct
             let flds_bot = ContainDomain.FieldSet.is_bot flds in
             if cft && flds_bot then
               begin
-                (*Messages.warn_each @@ Messages.Unknown ("fptr cft : "^string_of_bool cft);*)
+                (*Messages.warn_each ~msg:("fptr cft : "^string_of_bool cft) ();*)
                 let fns = D.get_fptr_items ctx.global in
                 let add_svar x y =
                   match ContainDomain.FuncName.from_fun_name x with
-                  | Some x -> Messages.warn_each @@ Messages.Unknown ("fptr check: "^x.vname );(x)::y
+                  | Some x -> Messages.warn_each ~msg:("fptr check: "^x.vname ) ();(x)::y
                   | _ -> y
                 in
                 ContainDomain.VarNameSet.fold (fun x y ->  add_svar x y) fns []
               end
             else
               begin
-                (*Messages.warn_each @@ Messages.Unknown ("VARS:");*)
+                (*Messages.warn_each ~msg:("VARS:") ();*)
                 let vars = D.get_vars e in
                 let rvs =
                   List.fold_left (fun y x -> ContainDomain.ArgSet.join (D.Danger.find x st) y)  (ContainDomain.ArgSet.bot ()) vars
