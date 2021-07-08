@@ -334,8 +334,20 @@ let createCFG (file: file) =
             if CilType.Stmt.equal !target_ref stmt then
               addCfg (Statement !target_ref) (Skip, Statement stmt)
 
-          | _ ->
-            if Messages.tracing then Messages.trace "cfg" "Unknown stmtkind for %a\n" d_stmt stmt
+          | Block _ ->
+            (* Nothing to do for Blocks, realnode skips over these. *)
+            ()
+
+          | Continue _
+          | Break _
+          | Switch _ ->
+            (* Should be removed by Cil.prepareCFG. *)
+            failwith "MyCFG.createCFG: unprepared stmt"
+
+          | ComputedGoto _
+          | TryExcept _
+          | TryFinally _ ->
+            failwith "MyCFG.createCFG: unsupported stmt"
         in
         List.iter handle fd.sallstmts;
 
