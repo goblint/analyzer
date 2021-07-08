@@ -1966,7 +1966,8 @@ struct
   let (<=:) x y = Ints_t.compare x y <= 0
   let (>=:) x y = Ints_t.compare x y >= 0
   (* a divides b *)
-  let ( |: ) a b = (b %: a) =: Ints_t.zero
+  let ( |: ) a b =
+    if a =: Ints_t.zero then false else (b %: a) =: Ints_t.zero
 
   let to_yojson t = failwith "to yojson unimplemented"
 
