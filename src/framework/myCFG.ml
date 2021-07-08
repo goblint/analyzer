@@ -251,9 +251,6 @@ let createCFG (file: file) =
           Hashtbl.add stmt_fundec_map stmt.sid fd;
           if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (get_stmtLoc stmt.skind);
           match stmt.skind with
-          (* turn pthread_exit into return? *)
-          (* | Instr [Call (_, Lval (Var {vname="pthread_exit"}, _), [ret_exp], _)] -> addCfg (Function fd.svar) (Ret (Some ret_exp,fd), Statement stmt) *)
-          (* | Instr [Call (lval, ((Lval (Var {vname="pthread_exit"}, _)) as func), ([ret_exp] as args), loc)] -> addCfg (Function fd.svar) (Proc (lval, func, args), Statement stmt) *)
           | Instr [] ->
             (* Empty Instrs are weird: they have edges without any label or transfer function.
              * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
