@@ -241,6 +241,7 @@ sig
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
   val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+  (** @param no_ov If true, assume no overflow can occur. *)
 
   val join: Cil.ikind -> t ->  t -> t
   val meet: Cil.ikind -> t -> t -> t
