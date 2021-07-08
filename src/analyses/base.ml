@@ -812,7 +812,7 @@ struct
     | Q.EvalFunvar e ->
       begin
         let fs = eval_funvar ctx e in
-        (*          Messages.warn_each @@ Messages.Unknown ("Base: I should know it! "^string_of_int (List.length fs));*)
+        (*          Messages.warn_each ~msg:("Base: I should know it! "^string_of_int (List.length fs)) ();*)
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalInt e -> begin
@@ -1910,7 +1910,7 @@ struct
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
         (* if check_assert e newst <> `Lifted true then
-            M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
+            M.warn_each ~msg:("Invariant \"" ^ expr ^ "\" does not stick.") (); *)
         newst
       end
 
