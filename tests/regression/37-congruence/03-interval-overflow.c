@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 int main(){
-  char r;
+  signed char r;
 
   if (r) {
     r = -68;
@@ -12,17 +12,17 @@ int main(){
     r = -63;
   }
 
-  char k = r - 80;
+  signed char k = r - 80;
   assert (k == 0); //UNKNOWN!
 
-  char non_ov = r - 10;
-  assert (non_ov == -78); //UNKNOWN
+  signed char non_ov = r - 10;
+  assert (non_ov == -78); //UNKNOWN!
 
-  char m = r * 2;
+  signed char m = r * 2;
 
   assert (m == 0); //UNKNOWN!
 
-  char l = r + (-80);
+  signed char l = r + (-80);
   assert (l == 0); //UNKNOWN!
 
   int g;
@@ -33,10 +33,10 @@ int main(){
     g = -128;
   }
 
-  char f = g / (-1);
+  signed char f = g / (-1);
   assert (f == 1); //UNKNOWN!
 
-  char d = -g;
+  signed char d = -g;
   assert (d == 1); //UNKNOWN!
 
   return 0;
