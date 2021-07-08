@@ -91,6 +91,7 @@ let _ = ()
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
       ; reg Std "warn"            "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
+      ; reg Std "gobview"         "false"        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'."
 
 (* {4 category [Analyses]} *)
 let _ = ()
@@ -295,6 +296,7 @@ let default_schema = "\
   , 'save_run'        : {}
   , 'load_run'        : {}
   , 'compare_runs'    : {}
+  , 'gobview'         : {}
   , 'warn'            : {}
   }
 }"
