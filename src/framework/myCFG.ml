@@ -285,12 +285,13 @@ let createCFG (file: file) =
                which is unwanted because such flow is undetectable by the analysis (especially for witness generation). *)
             (* Generally these are unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses empty Instr self-loop for empty Loop, so a Skip self-loop must be added to not lose the loop. *)
-            let add_succ succ =
-              if CilType.Stmt.equal succ stmt then (* self-loop *)
-                mkEdges (Statement stmt) [Cil.locUnknown, Skip] (Statement succ) (* TODO: better loc from somewhere? *)
-            in
-            (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-            List.iter add_succ (real_succs ()) (* TODO: can there even be multiple succs for Instr []? *)
+            begin match real_succs () with
+              | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  mkEdges (Statement stmt) [Cil.locUnknown, Skip] (Statement succ) (* TODO: better loc from somewhere? *)
+              | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
+            end
 
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
@@ -301,11 +302,11 @@ let createCFG (file: file) =
             in
             let edges = List.map edge_of_instr instrs in
             let add_succ_node succ_node = mkEdges (Statement stmt) edges succ_node in
-            let succ_nodes = match real_succs () with
-              | [] -> [Lazy.force pseudo_return] (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
-              | succs -> List.map (fun succ -> Statement succ) succs (* TODO: can there even be multiple succs? *)
-            in
-            List.iter add_succ_node succ_nodes
+            begin match real_succs () with
+              | [] -> add_succ_node (Lazy.force pseudo_return) (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
+              | [succ] -> add_succ_node (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 non-empty Instr succ"
+            end
 
           | If (exp, _, _, loc) ->
             (* Cannot use true and false blocks from If constructor, because blocks don't have succs (stmts do).
