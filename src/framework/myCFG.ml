@@ -339,13 +339,14 @@ let createCFG (file: file) =
         let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd) in
         NH.iter (fun node () ->
             if not (NH.mem reachable_return node) then (
-              match NH.find_all loop_head_neg1 node with
-              | [] -> addCfg (Lazy.force pseudo_return) (Test (one, false), node)
-              | targets ->
-                (* single loop head may have multiple neg1-s, e.g. test 03/22 *)
-                List.iter (fun target ->
-                    addCfg target (Test (one, false), node)
-                  ) targets
+              let targets = match NH.find_all loop_head_neg1 node with
+                | [] -> [Lazy.force pseudo_return]
+                | targets -> targets
+              in
+              (* single loop head may have multiple neg1-s, e.g. test 03/22 *)
+              List.iter (fun target ->
+                  addCfg target (Test (one, false), node)
+                ) targets
             )
           ) loop_heads;
 
