@@ -301,26 +301,27 @@ let createCFG (file: file) =
             mkEdge stmt (Test (exp, true )) true_stmt;
             mkEdge stmt (Test (exp, false)) false_stmt
 
-          (* Loops can generally be ignored because CIL creates gotos for us,
-           * except constant conditions are eliminated, so non-terminating
-           * loops are not connected to the rest of the code. This is a
-           * problem for side-effecting demand driven solvers. I add one
-           * extra edge that is always false to the exit of the loop. *)
-          | Loop (bl,loc,Some cont, Some brk) -> begin
+          | Loop (_, loc, Some cont, Some brk) -> (* TODO: use loc for something? *)
+            (* CIL already converts Loop logic to Gotos and If. *)
+            (* CIL eliminates the constant true If corresponding to constant true Loop.
+               Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
+               An extra Neg(1) edge is added in such case. *)
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
-              try
-                (* instead of immediately adding Neg(1) edge to brk, remember and use it later only when unconnected *)
-                NH.add loop_head_neg1 (Statement (realnode None true stmt)) (Statement (realnode (Some stmt) false brk));
-              with
-              (* The [realnode brk] fails when the break label is at the end
-              * of the function. In that case, we need to connect it to
-              * the [Call] node. *)
-              | Not_found ->
-                (* addCfg (Lazy.force pseudo_return) (Test (one, false), Statement (realnode true stmt)) *)
+            begin match realnode (Some stmt) false brk with
+              | break_stmt ->
+                (* break statement is what follows the (constant true) Loop *)
+                (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
+                   so break statement is just remembered here *)
+                let loop_stmt = realnode None true stmt in
+                NH.add loop_head_neg1 (Statement loop_stmt) (Statement break_stmt)
+              | exception Not_found ->
+                (* if the (constant true) Loop and its break statement are at the end of the function,
+                   then realnode doesn't find a non-empty statement. *)
+                (* pseudo return is used instead by default, so nothing to do here *)
                 ()
-                (* TODO: is this necessary anymore? maybe could just leave it out and let the general case below handle it *)
-
             end
+            (* TODO: what about Loop with None cont/brk? *)
+
           (* The return edges are connected to the function *)
           | Return (exp,loc) -> addCfg (Function fd) (Ret (exp,fd), Statement stmt)
           (* Gotos are skipped over by realnode and usually not needed.
