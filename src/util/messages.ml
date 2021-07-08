@@ -27,8 +27,8 @@ type warning =
   | Integer of integer
   | Race
   | Cast of cast
-  | Unknown of string
-  | Debug of string
+  | Unknown
+  | Debug
   | Analyzer
 
 module Warning =
@@ -62,6 +62,15 @@ struct
         let before_start (): warning = create BeforeStart
         let unknown (): warning = create Unknown
 
+        let from_string_list (s: string list): warning =
+          match s with
+          | [] -> Unknown
+          | h :: t -> match h with
+            | "past_end" -> past_end ()
+            | "before_start" -> before_start ()
+            | "unknown" -> unknown ()
+            | _ -> Unknown
+
         let show (e: t): string =
           match e with
           | PastEnd -> "PastEnd]" ^ " Index is past the end of the array."
@@ -69,12 +78,30 @@ struct
           | Unknown -> "Unknown]" ^ " Not enough information about index."
       end
 
+      let from_string_list (s: string list): warning =
+        match s with
+        | [] -> Unknown
+        | h :: t -> match h with
+          | "array_out_of_bounds" -> ArrayOutOfBounds.from_string_list t
+          | "nullpointer_dereference" -> nullpointer_dereference ()
+          | "use_after_free" -> use_after_free ()
+          | _ -> Unknown
+
       let show (e: t): string =
         match e with
         | ArrayOutOfBounds e -> "ArrayOutOfBounds > "^(ArrayOutOfBounds.show e)
         | NullPointerDereference -> "NullPointerDereference]"
         | UseAfterFree -> "UseAfterFree]"
     end
+
+    let from_string_list (s: string list): warning =
+      match s with
+      | [] -> Unknown
+      | h :: t -> ();match h with
+        | "undefined" -> Undefined.from_string_list t
+        | "implementation" -> implementation ()
+        | "machine" -> machine ()
+        | _ -> Unknown
 
     let show (e: t): string =
       match e with
@@ -91,6 +118,14 @@ struct
     let overflow (): warning = create Overflow
     let div_by_zero (): warning = create DivByZero
 
+    let from_string_list (s: string list): warning =
+      match s with
+      | [] -> Unknown
+      | h :: t -> ();match h with
+        | "overflow" -> overflow ()
+        | "div_by_zero" -> div_by_zero ()
+        | _ -> Unknown
+
     let show (e: t): string =
       match e with
       | Overflow -> "Overflow]"
@@ -104,6 +139,13 @@ struct
     let create (e: t): warning = Cast e
     let type_mismatch (): warning = create TypeMismatch
 
+    let from_string_list (s: string list): warning =
+      match s with
+      | [] -> Unknown
+      | h :: t -> ();match h with
+        | "type_mismatch" -> type_mismatch ()
+        | _ -> Unknown
+
     let show (e: t): string =
       match e with
       | TypeMismatch -> "TypeMismatch]"
@@ -116,8 +158,8 @@ struct
       | Integer _ -> "integer"
       | Race -> "race"
       | Cast _ -> "cast"
-      | Unknown _ -> "unknown"
-      | Debug _ -> "debug"
+      | Unknown -> "unknown"
+      | Debug -> "debug"
       | Analyzer -> "analyzer"
     in get_bool ("warn." ^ (to_string e))
 
@@ -127,9 +169,21 @@ struct
     | Integer x -> "[Integer > " ^ (Integer.show x)
     | Race -> "[Race]"
     | Cast x -> "[Cast > " ^ (Cast.show x)
-    | Unknown msg -> "[Unknown]" ^ " " ^ msg
-    | Debug msg -> "[Debug]" ^ " " ^ msg
+    | Unknown -> "[Unknown]"
+    | Debug -> "[Debug]"
     | Analyzer -> "[Analyzer]"
+
+  let from_string_list (s: string list) =
+    match s with
+    | [] -> Unknown
+    | h :: t -> match h with
+      | "behavior" -> Behavior.from_string_list t
+      | "integer" -> Integer.from_string_list t
+      | "race" -> Race
+      | "cast" -> Cast.from_string_list t
+      | "debug" -> Debug
+      | "analyzer" -> Analyzer
+      | _ -> Unknown
 end
 
 module Certainty = struct
@@ -157,7 +211,7 @@ struct
 
   let should_warn (e:t) = Warning.should_warn e.warn_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
 
-  let debug msg = {warn_type = Debug msg; certainty = None}
+  let debug () = {warn_type = Debug; certainty = None}
 
   let create ?must:(must=false) w = {warn_type = w; certainty = Some (if must then Certainty.Must else Certainty.May)}
   let show {warn_type; certainty} =
@@ -165,7 +219,7 @@ struct
       | Some c -> (Certainty.show c)
       | None -> ""
     and warning_tag = match warn_type with
-      | Debug _ -> ""
+      | Debug -> ""
       | _ -> "[Warning]"
     in warning_tag^certainty_str^(Warning.show warn_type)
 end
@@ -284,9 +338,9 @@ let with_context msg = function
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
-let warn_internal ?ctx (warning: WarningWithCertainty.t) =
+let warn_internal ?ctx ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let msg = WarningWithCertainty.show warning in
+    let msg = (WarningWithCertainty.show warning)^(if msg != "" then " "^msg else "") in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_str_hashtbl msg == false) then
       begin
@@ -295,9 +349,9 @@ let warn_internal ?ctx (warning: WarningWithCertainty.t) =
       end
   end
 
-let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) (warning: WarningWithCertainty.t) =
+let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let msg = WarningWithCertainty.show warning in
+    let msg = (WarningWithCertainty.show warning)^(if msg != "" then " "^msg else "") in
     let msg = with_context msg ctx in
     if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
       begin
@@ -306,18 +360,18 @@ let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) (warning: Warni
       end
   end
 
-let warn ?must:(must=false) ?ctx (warning: Warning.t) =
-  warn_internal ~ctx:ctx (WarningWithCertainty.create ~must:must warning)
+let warn ?must:(must=false) ?ctx ?msg:(msg="") ?warning:(warning=Unknown) () =
+  warn_internal ~ctx:ctx ~msg:msg (WarningWithCertainty.create ~must:must warning)
 
-let warn_each ?must:(must=false) ?ctx ?loc (warning: Warning.t) =
+let warn_each ?must:(must=false) ?ctx ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
   match loc with
-  | Some loc -> warn_internal_with_loc ~ctx:ctx ~loc:loc (WarningWithCertainty.create ~must:must warning)
-  | None -> warn_internal_with_loc ~ctx:ctx (WarningWithCertainty.create ~must:must warning)
+  | Some loc -> warn_internal_with_loc ~ctx:ctx ~loc:loc ~msg:msg (WarningWithCertainty.create ~must:must warning)
+  | None -> warn_internal_with_loc ~ctx:ctx ~msg:msg (WarningWithCertainty.create ~must:must warning)
 
 let debug msg =
-  if (get_bool "dbg.debug") then warn_internal (WarningWithCertainty.debug ("{BLUE}"^msg))
+  if (get_bool "dbg.debug") then warn_internal ~msg:("{BLUE}"^msg) @@ WarningWithCertainty.debug ()
 
 let debug_each msg =
-  if (get_bool "dbg.debug") then warn_internal_with_loc (WarningWithCertainty.debug ("{blue}"^msg))
+  if (get_bool "dbg.debug") then warn_internal_with_loc ~msg:("{blue}"^msg) @@ WarningWithCertainty.debug ()
 
 include Tracing

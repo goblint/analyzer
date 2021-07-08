@@ -34,7 +34,7 @@ struct
     match a.f (Queries.MayPointTo exp) with
     | a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | b -> Messages.warn @@ Messages.Unknown ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'."); []
+    | b -> Messages.warn ~msg:("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'.") (); []
 
   (* locking logic -- add all locks we can add *)
   let lock ctx rw may_fail return_value_on_success a lv arglist ls : D.ReverseAddrSet.t =

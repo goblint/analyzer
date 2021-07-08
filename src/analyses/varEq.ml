@@ -203,8 +203,8 @@ struct
     let rec type_may_change_apt a =
       (* With abstract points-to (like in type invariants in accesses).
          Here we implement it in part --- minimum to protect local integers. *)
-      (*       Messages.warn_each @@ Messages.Unknown ("a: "^sprint 80 (d_plainexp () a)); *)
-      (*       Messages.warn_each @@ Messages.Unknown ("b: "^sprint 80 (d_plainexp () b)); *)
+      (*       Messages.warn_each ~msg:("a: "^sprint 80 (d_plainexp () a)) (); *)
+      (*       Messages.warn_each ~msg:("b: "^sprint 80 (d_plainexp () b)) (); *)
       (* ignore (printf "may_change %a %a\n*%a\n*%a\n\n" d_exp a d_exp b d_plainexp a d_plainexp b); *)
       match a, b with
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
@@ -324,9 +324,9 @@ struct
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
     (*    if r
-          then (Messages.warn_each @@ Messages.Unknown ("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
-          else (Messages.warn_each @@ Messages.Unknown ("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
-          Messages.warn_each @@ Messages.Unknown (sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls));
+          then (Messages.warn_each ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          else (Messages.warn_each ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          Messages.warn_each ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
     *)    r
 
   (* Remove elements, that would change if the given lval would change.*)
@@ -376,7 +376,7 @@ struct
           in
           let st =
     *)  let lvt = unrollType @@ typeOf (Lval lv) in
-    (*     Messages.warn_each @@ Messages.Unknown (sprint 80 (d_type () lvt)); *)
+    (*     Messages.warn_each ~msg:(sprint 80 (d_type () lvt)) (); *)
     if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv
     && is_global_var ask rv = Some false
@@ -577,7 +577,7 @@ struct
       true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
-      (*          Messages.warn_each @@ Messages.Unknown ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
+      (*          Messages.warn_each ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
       r
     | _ -> Queries.Result.top x
 
