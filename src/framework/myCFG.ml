@@ -252,19 +252,20 @@ let createCFG (file: file) =
           if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (get_stmtLoc stmt.skind);
           match stmt.skind with
           | Instr [] ->
-            (* Empty Instrs are weird: they have edges without any label or transfer function.
-             * Instead turn them into Skips, which keep them in Goblint's CFG for witness use. *)
-            (* empty Loop-s contain an Instr [] with its own successor, put skip edge there but not for other Instr [] *)
+            (* CIL sometimes inserts empty Instr, which is like a goto without label. *)
+            (* Without this special case, CFG would contain edges without label or transfer function,
+               which is unwanted because such flow is undetectable by the analysis (especially for witness generation). *)
+            (* Generally these are unnecessary and unwanted because realnode skips over these. *)
+            (* CIL uses empty Instr self-loop for empty Loop, so a Skip self-loop must be added to not lose the loop. *)
             let add_succ succ =
               if CilType.Stmt.equal succ stmt then (* self-loop *)
                 mkEdges (Statement stmt) [Cil.locUnknown, Skip] (Statement succ) (* TODO: better loc from somewhere? *)
             in
-            let succs = List.map (realnode (Some stmt) true) stmt.succs in
+            (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
+            let succs = List.map (realnode (Some stmt) true) stmt.succs in (* TODO: can there even be multiple succs for Instr []? *)
             List.iter add_succ succs
+
           | Instr instrs -> (* non-empty Instr *)
-            (* Normal instructions are easy. They should be a list of a single
-             * instruction, either Set, Call or ASM: *)
-            (* We need to add an edge to each of the successors of the current statement *)
             let edge_of_instr = function
               | Set (lval,exp,loc) -> loc, Assign (lval, exp)
               | Call (lval,func,args,loc) -> loc, Proc (lval,func,args)
@@ -273,13 +274,12 @@ let createCFG (file: file) =
             in
             let edges = List.map edge_of_instr instrs in
             let add_succ_node succ_node = mkEdges (Statement stmt) edges succ_node in
-            (* Sometimes a statement might not have a successor.
-             * This can happen if the last statement of a function is a call to exit. *)
             let succ_nodes = match stmt.succs with
-              | [] -> [Lazy.force pseudo_return]
-              | succs -> List.map (fun x -> Statement (realnode (Some stmt) true x)) succs
+              | [] -> [Lazy.force pseudo_return] (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
+              | succs -> List.map (fun x -> Statement (realnode (Some stmt) true x)) succs (* TODO: can there even be multiple succs? *)
             in
             List.iter add_succ_node succ_nodes
+
           (* If expressions are a bit more interesting, but CIL has done
            * its job well and we just pick out the right successors *)
           | If (exp, true_block, false_block, loc) ->
