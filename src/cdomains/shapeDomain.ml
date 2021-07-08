@@ -180,7 +180,7 @@ let eval_lp ask (e:exp) : lexp option =
   | _ -> None
 
 
-let warn_todo s = Messages.warn (Messages.LogEvent.may (Messages.EventType.Unknown (("NotImplemented exception! "^s))))
+let warn_todo s = Messages.warn ~msg:("NotImplemented exception! "^s) ()
 
 let alias_top lp = SHMap.remove lp
 
@@ -526,7 +526,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
         (blab (not (lpv'.vglob)) (fun () -> Pretty.printf "global %s is never dead\n" lpv'.vname) &&
          let killer = ref dummyFunDec.svar in
          blab (if Usedef.VS.exists (fun x -> if CilType.Varinfo.equal lpv' x then (killer := x; true) else false) alive
-               then ((*ignore (Messages.report ("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname));*)false)
+               then ((*ignore (Messages.warn_each ~msg:("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname) ());*)false)
                else true) (fun () -> Pretty.printf "%s in alive list\n" lpv'.vname ))
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
@@ -546,7 +546,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
     else
       let isbroken = not (proper_list k) in
       (*if isbroken then Messages.waitWhat (ListPtr.short 80 k) ;*)
-      (*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
+      (*       Messages.warn_each ~msg:("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list") (); *)
       (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, reg_for k :: rms)
   in
   SHMap.fold f sm (sm,[],[])

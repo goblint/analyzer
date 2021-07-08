@@ -39,16 +39,16 @@ struct
   let hash x =
     match x with
     | MyCFG.Statement     s -> Hashtbl.hash (s.sid, 0)
-    | MyCFG.Function      f -> Hashtbl.hash (f.vid, 1)
-    | MyCFG.FunctionEntry f -> Hashtbl.hash (f.vid, 2)
+    | MyCFG.Function      f -> Hashtbl.hash (f.svar.vid, 1)
+    | MyCFG.FunctionEntry f -> Hashtbl.hash (f.svar.vid, 2)
 
   let getLocation n = MyCFG.getLoc n
 
   let pretty () x =
     match x with
     | MyCFG.Statement     s -> dprintf "node %d \"%a\"" s.sid Basetype.CilStmt.pretty s
-    | MyCFG.Function      f -> dprintf "call of %s" f.vname
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
+    | MyCFG.Function      f -> dprintf "call of %s" f.svar.vname
+    | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.svar.vname
 
   let pretty_trace () x =  dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 
@@ -61,8 +61,8 @@ struct
     let id ch n =
       match n with
       | MyCFG.Statement s     -> BatPrintf.fprintf ch "%d" s.sid
-      | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.vid
-      | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.vid
+      | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.svar.vid
+      | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.svar.vid
     in
     let l = MyCFG.getLoc n in
     BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
@@ -70,8 +70,8 @@ struct
   let var_id n =
     match n with
     | MyCFG.Statement s     -> string_of_int s.sid
-    | MyCFG.Function f      -> "ret" ^ string_of_int f.vid
-    | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.vid
+    | MyCFG.Function f      -> "ret" ^ string_of_int f.svar.vid
+    | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.svar.vid
 
   let line_nr n = (MyCFG.getLoc n).line
   let file_name n = (MyCFG.getLoc n).file
@@ -95,16 +95,16 @@ struct
   let hash x =
     match x with
     | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
-    | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
-    | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23)
+    | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.svar.vid*19)
+    | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.svar.vid*23)
 
   let getLocation (n,d) = MyCFG.getLoc n
 
   let pretty () x =
     match x with
     | (MyCFG.Statement     s,d) -> dprintf "node %d \"%a\"" s.sid Basetype.CilStmt.pretty s
-    | (MyCFG.Function      f,d) -> dprintf "call of %s" f.vname
-    | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
+    | (MyCFG.Function      f,d) -> dprintf "call of %s" f.svar.vname
+    | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.svar.vname
 
   let pretty_trace () (n,c as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
@@ -168,8 +168,8 @@ struct
   let printXml f xs =
     let print_id f = function
       | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
-      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
+      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
     in
     let print_one (loc,n,fd) v =
       BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
@@ -180,8 +180,8 @@ struct
   let printJson f xs =
     let print_id f = function
       | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
-      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
+      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
     in
     let print_one (loc,n,fd) v =
       BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
@@ -229,8 +229,8 @@ struct
         );
       let p_node f = function
         | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-        | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
-        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+        | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
+        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
       in
       let p_nodes f xs =
         List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
@@ -285,10 +285,10 @@ struct
       (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
       let p_node f = function
         | MyCFG.Statement stmt  -> fprintf f "\"%d\"" stmt.sid
-        | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.vid
-        | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.vid
+        | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.svar.vid
+        | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.svar.vid
       in
-      let p_fun f x = fprintf f "{\n  \"name: \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
+      let p_fun f x = fprintf f "{\n  \"name\": \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
       (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
@@ -417,8 +417,8 @@ sig
 
 
   val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
-  val enter   : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> varinfo -> exp list -> C.t -> D.t -> D.t
+  val enter   : (D.t, G.t, C.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
+  val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t -> D.t -> D.t
 
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t list
@@ -551,7 +551,7 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    ignore (M.warn (M.LogEvent.may (M.EventType.Unknown "ASM statement ignored.")));
+    ignore (M.warn ~msg:"ASM statement ignored." ());
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)

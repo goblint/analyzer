@@ -214,9 +214,9 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f ->
-            [("enterFunction", f.vname)]
+            [("enterFunction", f.svar.vname)]
           | Function f, _ ->
-            [("returnFromFunction", f.vname)]
+            [("returnFromFunction", f.svar.vname)]
           | _, _ -> []
         end;
         begin match edge with
@@ -353,8 +353,8 @@ struct
         let i_str = string_of_int i in
         match n with
         | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
-        | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.vid f.vname c_tag i_str
-        | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.vid f.vname c_tag i_str
+        | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
+        | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
 
       (* TODO: less hacky way (without ask_indices) to move node *)
       let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
@@ -435,7 +435,7 @@ struct
         LHT.fold (fun (n, c) v acc ->
             match n with
             (* FunctionEntry isn't used for extern __VERIFIER_error... *)
-            | FunctionEntry f when Svcomp.is_error_function f ->
+            | FunctionEntry f when Svcomp.is_error_function f.svar ->
               let is_dead = Spec.D.is_bot v in
               acc && is_dead
             | _ -> acc
@@ -455,7 +455,7 @@ struct
         (module TaskResult:WitnessTaskResult)
       ) else (
         let is_violation = function
-          | FunctionEntry f, _, _ when Svcomp.is_error_function f -> true
+          | FunctionEntry f, _, _ when Svcomp.is_error_function f.svar -> true
           | _, _, _ -> false
         in
         (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)

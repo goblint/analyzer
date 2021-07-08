@@ -387,12 +387,12 @@ struct
   let get_ptrs (vals: value list): address list =
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs ->
-        M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Unknown address given as function argument"))); acc
+        M.warn_each ~msg:"Unknown address given as function argument" (); acc
       | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs ->
         let typ = AD.get_type adrs in
         if isFunctionType typ then acc else adrs :: acc
-      | `Top -> M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Unknown value type given as function argument"))); acc
+      | `Top -> M.warn_each ~msg:"Unknown value type given as function argument" (); acc
       | _ -> acc
     in
     List.fold_right f vals []
@@ -403,11 +403,11 @@ struct
     match value with
     | `Top ->
       let warning = "Unknown value in " ^ description ^ " could be an escaped pointer address!" in
-      if VD.is_immediate_type t then () else M.warn_each (M.LogEvent.may (M.EventType.Unknown (warning))); empty
+      if VD.is_immediate_type t then () else M.warn_each ~msg:warning (); empty
     | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
     | `Address adrs when AD.is_top adrs ->
       let warning = "Unknown address in " ^ description ^ " has escaped." in
-      M.warn_each (M.LogEvent.may (M.EventType.Unknown (warning))); AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+      M.warn_each ~msg:warning (); AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
     | `Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
@@ -644,7 +644,7 @@ struct
                     if contains_vla t || contains_vla (get_type_addr a) then
                       begin
                         (* TODO: Is this ok? *)
-                        M.warn (M.LogEvent.may (M.EventType.Unknown ("Casting involving a VLA is assumed to work")));
+                        M.warn ~msg:"Casting involving a VLA is assumed to work" ();
                         true
                       end
                     else
@@ -761,14 +761,13 @@ struct
      * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
      * and then add the subfield to it: { (x,field.subfield) }. *)
     | Mem n, ofs -> begin
-      let warn_type = (M.EventType.Behavior (M.BehaviorEvent.Undefined (M.UndefinedBehavior.NullPointerDereference))) in
         match (eval_rv a gs st n) with
-        | `Address adr -> 
-          (if AD.is_null adr 
-            then M.warn_each (M.LogEvent.must warn_type)
-          else if AD.may_be_null adr 
-            then M.warn_each (M.LogEvent.may warn_type));
-            do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
+        | `Address adr ->
+          (if AD.is_null adr
+           then M.warn_each ~must:true ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ()
+           else if AD.may_be_null adr
+           then M.warn_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ());
+          do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
@@ -803,12 +802,12 @@ struct
     try
       let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
       if AD.mem Addr.UnknownPtr fp then begin
-        M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Function pointer " ^ sprint d_exp fval ^ " may contain unknown functions.")));
+        M.warn_each ~msg:("Function pointer " ^ sprint d_exp fval ^ " may contain unknown functions.") ();
         dummyFunDec.svar :: AD.to_var_may fp
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ ->
-      M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Unknown call to function " ^ sprint d_exp fval ^ ".")));
+      M.warn_each ~msg:("Unknown call to function " ^ sprint d_exp fval ^ ".") ();
       [dummyFunDec.svar]
 
   (* interpreter end *)
@@ -819,14 +818,14 @@ struct
     | Q.EvalFunvar e ->
       begin
         let fs = eval_funvar ctx e in
-        (*          Messages.report ("Base: I should know it! "^string_of_int (List.length fs));*)
+        (*          Messages.warn_each ~msg:("Base: I should know it! "^string_of_int (List.length fs)) ();*)
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalInt e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Int i when ID.is_int i -> Queries.ID.of_int (to_int (Option.get (ID.to_int i)))
         | `Bot   -> Queries.Result.bot q (* TODO: remove *)
-        | v      -> M.warn (M.LogEvent.may (M.EventType.Unknown ("Query function answered " ^ (VD.show v)))); Queries.Result.top q
+        | v      -> M.warn ~msg:("Query function answered " ^ (VD.show v)) (); Queries.Result.top q
       end
     | Q.EvalLength e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
@@ -1021,7 +1020,7 @@ struct
             with _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-              M.warn (M.LogEvent.may (M.EventType.Unknown ("Cil.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset))));
+              M.warn ~msg:("Cil.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset)) ();
               lval_type
       in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype D.pretty st;
@@ -1120,7 +1119,7 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
-      M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Assignment to unknown address"))); st
+      M.warn_each ~msg:"Assignment to unknown address" (); st
 
   let set_many ?ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -1317,7 +1316,7 @@ struct
         else set a gs st addr (Cil.typeOfLval lval) new_val ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.")));
+      M.warn_each ~msg:("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.") ();
       st
 
   let invariant ctx a gs st exp tv: store =
@@ -1331,7 +1330,7 @@ struct
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if GU.opt_predicate (BI.equal BI.zero) (ID.to_int x) then
-          (M.warn (M.LogEvent.may (M.EventType.Unknown ("Must Undefined Behavior: Second argument of div or mod is 0, continuing with top")));
+          (M.warn ~msg:"Must Undefined Behavior: Second argument of div or mod is 0, continuing with top" ();
           ID.top_of ikind)
         else
           x
@@ -1706,7 +1705,7 @@ struct
       | None -> nst
       | Some exp ->
         let t_override = match fundec.svar.vtype with
-          | TFun(TVoid _, _, _, _) -> M.warn (M.LogEvent.may (M.EventType.Unknown ("Returning a value from a void function"))); assert false
+          | TFun(TVoid _, _, _, _) -> M.warn ~msg:"Returning a value from a void function" (); assert false
           | TFun(ret, _, _, _) -> ret
           | _ -> assert false
         in
@@ -1744,7 +1743,7 @@ struct
 
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    if exps <> [] then M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps)));
+    if exps <> [] then M.warn_each ~msg:("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps) ();
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
@@ -1772,12 +1771,11 @@ struct
     set_many ?ctx ask gs st invalids'
 
 
-  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
+  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in
     (* generate the entry states *)
-    let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
     let st' =
@@ -1822,11 +1820,15 @@ struct
         Some (lval, v, args)
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
-        else if isFunctionType v.vtype then (
-          M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Creating a thread from unknown function " ^ v.vname)));
+        else if isFunctionType v.vtype then
+          (* FromSpec warns about unknown thread creation, so we don't do it here any more *)
+          let args = match arg with
+            | Some x -> [x]
+            | None -> []
+          in
           Some (lval, v, args)
-        ) else (
-          M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype)));
+        else (
+          M.warn_each ~msg:("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype) ();
           None
         )
     in
@@ -1837,7 +1839,14 @@ struct
         publish_all ctx `Thread;
         (* Collect the threads. *)
         let start_addr = eval_tv (Analyses.ask_of_ctx ctx) ctx.global ctx.local start in
-        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
+        let start_funvars = AD.to_var_may start_addr in
+        let start_funvars_with_unknown =
+          if AD.mem Addr.UnknownPtr start_addr then
+            dummyFunDec.svar :: start_funvars
+          else
+            start_funvars
+        in
+        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
     | `Unknown "free" -> []
     | `Unknown _ when get_bool "sem.unknown_function.spawn" -> begin
@@ -1848,7 +1857,7 @@ struct
         in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        if addrs <> [] then M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Spawning functions from unknown function: " ^ sprint (d_list ", " d_varinfo) addrs)));
+        if addrs <> [] then M.warn_each ~msg:("Spawning functions from unknown function: " ^ sprint (d_list ", " d_varinfo) addrs) ();
         List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
@@ -1878,10 +1887,10 @@ struct
             (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
-            M.warn_each ~ctx:ctx.control_context (M.LogEvent.may (M.EventType.Unknown (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)))
+            M.warn_each ~ctx:ctx.control_context ~msg:(msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result) ()
           )
         ) else
-          M.warn_each ~ctx:ctx.control_context (M.LogEvent.may (M.EventType.Unknown msg))
+          M.warn_each ~ctx:ctx.control_context ~msg:msg ()
     in
     let base_result = check_assert e ctx.local in
     let result =
@@ -1899,7 +1908,7 @@ struct
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.warn_each ~ctx:ctx.control_context (M.LogEvent.may (M.EventType.Unknown ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)")));
+      M.warn_each ~ctx:ctx.control_context ~msg:("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)") ();
       ctx.local
     | `Top ->
       warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
@@ -1907,9 +1916,30 @@ struct
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
         (* if check_assert e newst <> `Lifted true then
-            M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
+            M.warn_each ~msg:("Invariant \"" ^ expr ^ "\" does not stick.") (); *)
         newst
       end
+
+  let special_unknown_invalidate ctx ask gs st f args =
+    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ~msg:("Function definition missing for " ^ f.vname) ());
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ~msg:"Unknown function ptr called" ());
+    let addrs =
+      if get_bool "sem.unknown_function.invalidate.globals" then (
+        M.warn_each ~msg:"INVALIDATING ALL GLOBALS!" ();
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+            match global with
+            | GVar (vi, _, _) when not (is_static vi) ->
+              mkAddrOf (Var vi, NoOffset) :: acc
+            (* TODO: what about GVarDecl? *)
+            | _ -> acc
+          ) args
+      )
+      else
+        args
+    in
+    (* TODO: what about escaped local variables? *)
+    (* invalidate arguments and non-static globals for unknown functions *)
+    invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
@@ -2083,34 +2113,14 @@ struct
         let st =
           match LF.get_invalidate_action f.vname with
           | Some fnc -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (fnc `Write  args)
-          | None -> (
-              (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Function definition missing for " ^ f.vname))));
-              (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each (M.LogEvent.may (M.EventType.Unknown ("Unknown function ptr called"))));
-              let addrs =
-                if get_bool "sem.unknown_function.invalidate.globals" then (
-                  M.warn_each (M.LogEvent.may (M.EventType.Unknown ("INVALIDATING ALL GLOBALS!")));
-                  foldGlobals !Cilfacade.current_file (fun acc global ->
-                      match global with
-                      | GVar (vi, _, _) when not (is_static vi) ->
-                        mkAddrOf (Var vi, NoOffset) :: acc
-                        (* TODO: what about GVarDecl? *)
-                      | _ -> acc
-                    ) args
-                )
-                else
-                  args
-              in
-              (* TODO: what about escaped local variables? *)
-              (* invalidate arguments and non-static globals for unknown functions *)
-              let st = invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs in
-              (*
-               *  TODO: invalidate vars reachable via args
-               *  publish globals
-               *  if single-threaded: *call f*, privatize globals
-               *  else: spawn f
-               *)
-              st
-            )
+          | None ->
+            special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
+            (*
+             *  TODO: invalidate vars reachable via args
+             *  publish globals
+             *  if single-threaded: *call f*, privatize globals
+             *  else: spawn f
+             *)
         in
         (* invalidate lhs in case of assign *)
         let st = match lv with
@@ -2131,7 +2141,7 @@ struct
         (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cil.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
 
-  let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
+  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2175,11 +2185,14 @@ struct
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
-    try
-      [make_entry ~thread:true ctx f args]
-    with Not_found ->
+    match Cilfacade.getdec f with
+    | fd ->
+      [make_entry ~thread:true ctx fd args]
+    | exception Not_found ->
       (* Unknown functions *)
-      [ctx.local]
+      let st = ctx.local in
+      let st = special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) ctx.global st f args in
+      [st]
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     begin match lval with

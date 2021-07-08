@@ -82,7 +82,7 @@ struct
           | b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
         )
       | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
-      | `Float a, _ -> M.warn_each (M.LogEvent.may (M.EventType.Unknown ("EQUAL Float: unsupported!"))); false
+      | `Float a, _ -> M.warn_each ~msg:"EQUAL Float: unsupported!" (); false
       (* arg is a key. currently there can only be one key per constraint, so we already used it for lookup. TODO multiple keys? *)
       | `Var a, b  -> true
       (* arg is a identifier we use for matching constraints. TODO save in domain *)
@@ -90,7 +90,7 @@ struct
       | `Error s, b -> failwith @@ "Spec error: "^s
       (* wildcard matches anything *)
       | `Free, b    -> true
-      | a,b -> M.warn_each @@ (M.LogEvent.may (M.EventType.Unknown ("EQUAL? Unmatched case - assume true..."))); true
+      | a,b -> M.warn_each ~msg:"EQUAL? Unmatched case - assume true..." (); true
 
     let check_constraint ctx get_key matches m new_a old_key (a,ws,fwd,b,c as edge) =
       (* If we have come to a wildcard, we match it instantly, but since there is no way of determining a key
@@ -417,14 +417,14 @@ struct
     (* TODO only keep globals like in fileUse *)
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* M.debug_each @@ "entering function "^f.vname^D.string_of_callstack ctx.local; *)
-    if f.vname = "main" then load_specfile ();
-    let m = if f.vname <> "main" then
+    if f.svar.vname = "main" then load_specfile ();
+    let m = if f.svar.vname <> "main" then
         D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
       else ctx.local in [m, m]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^D.string_of_callstack au; *)
     let au = D.edit_callstack List.tl au in
     let return_val = D.find_option return_var au in

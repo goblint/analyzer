@@ -252,7 +252,11 @@ struct
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
-    Messages.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
+    match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
+    | [] -> Messages.warn_each ~must:(not may) ~loc:(List.last loc) ~msg:msg ()
+    | h :: t ->
+      let warn_type = Messages.Warning.from_string_list (h |> Str.split (Str.regexp "[.]"))
+      in Messages.warn_each ~must:(not may) ~loc:(List.last loc) ~msg:(String.concat " " t) ~warning:warn_type ()
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -272,6 +276,6 @@ struct
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     Messages.debug @@ "MayPointTo "^sprint d_exp exp^" = ["
-               ^String.concat ", " (List.map string_of_key xs)^"]";
+                      ^String.concat ", " (List.map string_of_key xs)^"]";
     xs
 end
