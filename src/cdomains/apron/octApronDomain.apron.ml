@@ -31,13 +31,22 @@ struct
 
   let name () = "APRON octagon numerical abstract domain"
 
-  let topE = A.top    Man.mgr
-  let botE = A.bottom Man.mgr
+  let lift_var = Var.of_string "##LIFT##"
 
-  let top () = topE Man.eenv
-  let bot () = botE Man.eenv
-  let is_top = A.is_top    Man.mgr
-  let is_bot = A.is_bottom Man.mgr
+  (** Environment (containing a unique variable [lift_var]) only used for lifted bot and top. *)
+  let lift_env = Environment.make [|lift_var|] [||]
+
+  (* Functions for bot and top for particular environment. *)
+  let top_env = A.top    Man.mgr
+  let bot_env = A.bottom Man.mgr
+  let is_top_env = A.is_top Man.mgr
+  let is_bot_env = A.is_bottom Man.mgr
+
+  (* Functions for lifted bot and top to implement [Lattice.S]. *)
+  let top () = top_env lift_env
+  let bot () = bot_env lift_env
+  let is_top x = Environment.equal (A.env x) lift_env && is_top_env x
+  let is_bot x = Environment.equal (A.env x) lift_env && is_bot_env x
 
   let to_yojson x = failwith "TODO implement to_yojson"
   let invariant _ _ = Invariant.none
@@ -46,8 +55,9 @@ struct
   let relift x = x
 
   let show (x:t) =
-    A.print Legacy.Format.str_formatter x;
-    Legacy.Format.flush_str_formatter ()
+    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
+
+  let pretty () (x:t) = text (show x)
 
   let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
   let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
@@ -64,43 +74,51 @@ struct
       y
     else if is_bot y then
       x
-    else
-      A.join (Man.mgr) x y in
+    else (
+      if Messages.tracing then Messages.tracel "apron" "join %a %a\n" pretty x pretty y;
+      A.join (Man.mgr) x y
+      (* TODO: return lifted top if different environments? and warn? *)
+    )
+    in
     ret
 
   let meet x y =
     let ret = if is_top x then y else
     if is_top y then x else
       A.meet Man.mgr x y in
+    (* TODO: return lifted bot if different environments? and warn? *)
     ret
 
   let widen x y =
     let ret = if is_bot x then
       y
     else if is_bot y then
-      x
+      x (* TODO: is this right? *)
     else
       A.widening (Man.mgr) x y in
+    (* TODO: return lifted top if different environments? and warn? *)
     ret
 
   let narrow = meet
 
   let equal x y =
-    if is_bot x then is_bot y
-    else if is_bot y then false
-    else if is_top x then is_top y
-    else if is_top y then false
-    else A.is_eq Man.mgr x y
+    Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
 
   let leq x y =
     if is_bot x || is_top y then true else
-    if is_bot y || is_top x then false else
-      A.is_leq (Man.mgr) x y
+    if is_bot y || is_top x then false else (
+      if Messages.tracing then Messages.tracel "apron" "leq %a %a\n" pretty x pretty y;
+      Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
+      (* TODO: warn if different environments? *)
+    )
 
-  let hash (x:t) = Hashtbl.hash x
-  let compare (x:t) y = Stdlib.compare x y
+  let hash (x:t) =
+    A.hash Man.mgr x
+
+  let compare (x:t) y: int =
+    (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
+    Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let pretty () (x:t) = text (show x)
   let pretty_diff () (x,y) = text "pretty_diff"
 
   (* Apron expressions of level 1 *)
@@ -260,7 +278,7 @@ struct
       | BinOp (Ne, lhd, rhs, intType) ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-        if not (is_bot assert_gt) then
+        if not (is_bot_env assert_gt) then
           assert_gt
         else
           assert_lt
@@ -299,7 +317,7 @@ struct
         | BinOp (Eq, lhd, rhs, intType) ->
           let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
           let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-          if not (is_bot assert_gt) then
+          if not (is_bot_env assert_gt) then
             assert_gt
           else
             assert_lt
@@ -330,9 +348,9 @@ struct
     | _ ->
       let result_state = (assert_inv state e false) in
       let result_state_op = (assert_op_inv state e false) in
-      if is_bot result_state then
+      if is_bot_env result_state then
         `False
-      else if is_bot result_state_op then
+      else if is_bot_env result_state_op then
         `True
       else
         `Top
@@ -481,7 +499,7 @@ struct
       (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
       let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
       let existing_vars_int = get_vars d in
-      let vars_filtered = List.filter (fun elem -> List.mem elem existing_vars_int) (Array.to_list vars) in
+      let vars_filtered = List.filter (fun elem -> List.mem_cmp Var.compare elem existing_vars_int) (Array.to_list vars) in
       let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
       A.change_environment_with Man.mgr d env false
 
@@ -530,7 +548,7 @@ struct
     | _ -> None
 
   let cil_exp_equals d exp1 exp2 =
-    if (is_bot d) then false
+    if (is_bot_env d) then false
     else
       begin
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
@@ -557,15 +575,14 @@ struct
                 new_oct
               else
                 (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
-                topE (A.env oct)
+                top_env (A.env oct)
             else
               new_oct
           else
             if check_max <> `True || check_min <> `True then
               (* Unsigned overflows are defined, but for now
               the variable in question goes to top if there is a possibility of overflow. *)
-              let () = forget_all_with oct [v.vname] in
-              oct
+              forget_all oct [v.vname]
             else
               new_oct
         | _ -> oct)

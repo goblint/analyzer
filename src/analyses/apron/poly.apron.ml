@@ -26,7 +26,6 @@ struct
 
   let enter ctx r f args =
     if D.is_bot ctx.local then [ctx.local, D.bot ()] else
-      let f = Cilfacade.getdec f in
       let is, fs = D.typesort f.sformals in
       let is = is @ List.map (fun x -> x^"'") is in
       let fs = fs @ List.map (fun x -> x^"'") fs in
@@ -42,7 +41,6 @@ struct
 
   let combine ctx r fe f args fc d =
     if D.is_bot ctx.local || D.is_bot d then D.bot () else
-      let f = Cilfacade.getdec f in
       match r with
       | Some (Var v, NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
         let nd = D.forget_all ctx.local [v.vname] in

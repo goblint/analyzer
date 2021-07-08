@@ -267,13 +267,13 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
     let d_caller = ctx.local in
     let d_callee = if D.is_bot ctx.local then ctx.local else { ctx.local with pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     if D.is_bot1 ctx.local || D.is_bot1 au then ctx.local else
       let env = get_env ctx in
       let d_caller = ctx.local in
@@ -294,7 +294,7 @@ struct
             | Lval lval when is_return_code_type (Lval (var callee_var)) -> Some (callee_var, lval)
             | _ -> None
           in
-          let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
+          let rargs = List.combine f.sformals args |> List.filter_map check in
           let assign pred dst_node callee_var caller_dlval =
             let caller_dlval = global_dlval caller_dlval "combine" in
             let callee_dlval = callee_var, `NoOffset in
@@ -307,7 +307,7 @@ struct
           in
           (* we need to assign all lvals each caller arg may point to *)
           let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
-          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx d_callee.ctx f))
+          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx d_callee.ctx f.svar))
         );
         (* set current node as new predecessor, since something interesting happend during the call *)
         { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
@@ -502,7 +502,7 @@ struct
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-            let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in
+            let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
             let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
             ctx.sideg tasks_var tasks;
             let pid' = Process, name in
@@ -613,7 +613,7 @@ struct
             let pid = get_pid pname_ErrorHandler in
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-            let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in
+            let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
             let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
             ctx.sideg tasks_var tasks;
             add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
@@ -649,7 +649,7 @@ struct
     );
     if GobConfig.get_bool "ana.arinc.validate" then ArincUtil.validate ()
 
-  let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar); ctx = Ctx.top () }
+  let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main")); ctx = Ctx.top () }
   let exitstate  v = D.bot ()
 
   let threadenter ctx lval f args =

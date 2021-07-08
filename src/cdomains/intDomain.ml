@@ -487,6 +487,7 @@ module Std (B: sig
   let pretty () x = text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
+  let to_yojson x = `String (show x)
 
   include StdTop (B)
 end
@@ -496,7 +497,6 @@ struct
   let name () = "intervals"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) option [@@deriving eq]
-  let to_yojson t = failwith "to yojson unimplemented"
 
   let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
@@ -777,8 +777,8 @@ struct
     let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      let x1 = Ints_t.to_int64 x1 in
-      Invariant.of_exp Cil.(BinOp (Eq, c, kinteger64 IInt x1, intType))
+      let x1 = Ints_t.to_bigint x1 in
+      Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik (Big x1), intType))
     | Some (x1, x2) ->
       let open Invariant in
       let (x1', x2') = BatTuple.Tuple2.mapn (fun a -> Cilint.Big (Ints_t.to_bigint a)) (x1, x2) in
@@ -878,7 +878,7 @@ module Integers : IkindUnawareS with type t = int64 and type int_t = int64 = (* 
 struct
   include Printable.Std
   let name () = "integers"
-  type t = int64 [@@deriving eq, to_yojson]
+  type t = int64 [@encoding `string] [@@deriving eq, to_yojson]
   type int_t = int64
   let top () = raise Unknown
   let bot () = raise Error
@@ -1112,7 +1112,6 @@ module BigInt = struct
   let hash x = (BI.to_int x) * 2147483647
   let show x = BI.to_string x
   let pretty _ x = Pretty.text (BI.to_string x)
-  let to_yojson x = failwith "to_yojson not implemented for BigIntPrintable"
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
@@ -1142,7 +1141,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of BigInt.t
     | `Bot
-  ] [@@deriving eq, to_yojson]
+  ] [@@deriving eq]
   type int_t = BigInt.t
   let name () = "def_exc"
 
@@ -1649,7 +1648,7 @@ module Enums : S with type int_t = BigInt.t = struct
     include SetDomain.Make(I)
     let is_singleton s = cardinal s = 1
   end
-  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving eq, ord, to_yojson] (* inclusion/exclusion set *)
+  type t = Inc of ISet.t | Exc of ISet.t * R.t [@@deriving eq, ord] (* inclusion/exclusion set *)
 
   type int_t = BI.t
   let name () = "enums"
@@ -2658,6 +2657,7 @@ module IntDomTupleImpl = struct
   let maximal = flat List.min % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.maximal }
   (* others *)
   let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.name () ^ ":" ^ (I.show x) }
+  let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.to_yojson x }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   (* f2: binary ops *)
