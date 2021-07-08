@@ -179,9 +179,12 @@ let createCFG (file: file) =
   let addCfg t (e,f) = addCfg' t [getLoc f,e] f in
   let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
   let mkEdges fromNode edges toNode = addCfg' toNode edges fromNode in
-  (* Function for finding the next real successor of a statement. CIL tends to
-   * put a lot of junk between stuff: *)
-  let find_real_stmt (source: stmt option) is_entry stmt =
+
+  (* Find real (i.e. non-empty) successor of statement.
+     CIL CFG contains some unnecessary intermediate statements.
+     If stmt is succ of parent, then optional argument parent must be passed
+     to also detect cycle ending with parent itself. *)
+  let find_real_stmt ?parent is_entry stmt =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt is_entry=%B stmt=%d\n" is_entry stmt.sid;
     let rec find is_entry visited_sids stmt =
       if Messages.tracing then Messages.trace "cfg" "find_real_stmt inner is_entry=%B visited=[%a] stmt=%d: %a\n" is_entry (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited_sids stmt.sid dn_stmt stmt;
@@ -221,7 +224,11 @@ let createCFG (file: file) =
           failwith "MyCFG.createCFG: unsupported stmt"
     in
     try
-      let r = find is_entry (match source with Some s -> [s.sid] | None -> []) stmt in
+      let initial_visited_sids = match parent with
+        | Some parent -> [parent.sid]
+        | None -> []
+      in
+      let r = find is_entry initial_visited_sids stmt in
       if Messages.tracing then Messages.traceu "cfg" "-> %d\n" r.sid;
       r
     with Not_found ->
@@ -241,7 +248,7 @@ let createCFG (file: file) =
         (* Walk through the parameters and pre-process them a bit... *)
         do_the_params fd;
         (* Find the first statement in the function *)
-        let entrynode = find_real_stmt None true (CF.getFirstStmt fd) in
+        let entrynode = find_real_stmt true (CF.getFirstStmt fd) in
         (* Add the entry edge to that node *)
         let _ = addCfg (Statement entrynode) ((Entry fd), (FunctionEntry fd)) in
         (* Return node to be used for infinite loop connection to end of function
@@ -277,7 +284,7 @@ let createCFG (file: file) =
                 mkEdges (Statement stmt) [Cil.locUnknown, Skip] (Statement succ) (* TODO: better loc from somewhere? *)
             in
             (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-            let succs = List.map (find_real_stmt (Some stmt) true) stmt.succs in (* TODO: can there even be multiple succs for Instr []? *)
+            let succs = List.map (find_real_stmt ~parent:stmt true) stmt.succs in (* TODO: can there even be multiple succs for Instr []? *)
             List.iter add_succ succs
 
           | Instr instrs -> (* non-empty Instr *)
@@ -291,7 +298,7 @@ let createCFG (file: file) =
             let add_succ_node succ_node = mkEdges (Statement stmt) edges succ_node in
             let succ_nodes = match stmt.succs with
               | [] -> [Lazy.force pseudo_return] (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
-              | succs -> List.map (fun x -> Statement (find_real_stmt (Some stmt) true x)) succs (* TODO: can there even be multiple succs? *)
+              | succs -> List.map (fun x -> Statement (find_real_stmt ~parent:stmt true x)) succs (* TODO: can there even be multiple succs? *)
             in
             List.iter add_succ_node succ_nodes
 
@@ -304,11 +311,11 @@ let createCFG (file: file) =
                CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
             let (true_stmt, false_stmt) = match stmt.succs with
               | [false_stmt; true_stmt] ->
-                let true_stmt = find_real_stmt (Some stmt) true true_stmt in
-                let false_stmt = find_real_stmt (Some stmt) true false_stmt in
+                let true_stmt = find_real_stmt ~parent:stmt true true_stmt in
+                let false_stmt = find_real_stmt ~parent:stmt true false_stmt in
                 (true_stmt, false_stmt)
               | [same_stmt] ->
-                let same_stmt = find_real_stmt (Some stmt) true same_stmt in
+                let same_stmt = find_real_stmt ~parent:stmt true same_stmt in
                 (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
@@ -322,12 +329,12 @@ let createCFG (file: file) =
                Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
                An extra Neg(1) edge is added in such case. *)
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
-            begin match find_real_stmt (Some stmt) false brk with
+            begin match find_real_stmt ~parent:stmt false brk with
               | break_stmt ->
                 (* break statement is what follows the (constant true) Loop *)
                 (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
                    so break statement is just remembered here *)
-                let loop_stmt = find_real_stmt None true stmt in
+                let loop_stmt = find_real_stmt true stmt in
                 NH.add loop_head_neg1 (Statement loop_stmt) (Statement break_stmt)
               | exception Not_found ->
                 (* if the (constant true) Loop and its break statement are at the end of the function,
