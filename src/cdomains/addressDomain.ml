@@ -40,6 +40,7 @@ struct
   let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
   let is_null x      = is_element Addr.NullPtr x
   let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
+  let may_be_null x = exists (fun e -> e = Addr.NullPtr) x
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
   let has_unknown x  = mem Addr.UnknownPtr x
 
