@@ -325,12 +325,12 @@ let createCFG (file: file) =
           | Return (exp, loc) -> (* TODO: use loc directly instead of going through getLoc stmt *)
             addCfg (Function fd) (Ret (exp, fd), Statement stmt)
 
-          (* Gotos are skipped over by realnode and usually not needed.
-           * Except goto loops with empty bodies need the Skip edge to be identified as loop heads and connected to return.
-           * This also creates some unconnected but unnecessary edges which are covered by realnode. *)
-          | Goto (target_ref, loc) ->
-            if !target_ref.sid = stmt.sid then
+          | Goto (target_ref, loc) -> (* TODO: use loc directly instead of going through getLoc stmt *)
+            (* Gotos are generally unnecessary and unwanted because realnode skips over these. *)
+            (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
+            if CilType.Stmt.equal !target_ref stmt then
               addCfg (Statement !target_ref) (Skip, Statement stmt)
+
           | _ ->
             if Messages.tracing then Messages.trace "cfg" "Unknown stmtkind for %a\n" d_stmt stmt
         in
