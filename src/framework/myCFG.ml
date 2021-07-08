@@ -348,7 +348,12 @@ let createCFG (file: file) =
                     addCfg target (Test (one, false), node)
                   ) targets
             )
-          ) loop_heads
+          ) loop_heads;
+
+        (* Verify that function is now connected *)
+        let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd.svar) in
+        if not (NH.mem reachable_return' (FunctionEntry fd.svar)) then
+          failwith "MyCFG.createCFG: FunctionEntry not connected to Function (return)"
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
