@@ -322,8 +322,9 @@ let createCFG (file: file) =
             end
             (* TODO: what about Loop with None cont/brk? *)
 
-          (* The return edges are connected to the function *)
-          | Return (exp,loc) -> addCfg (Function fd) (Ret (exp,fd), Statement stmt)
+          | Return (exp, loc) -> (* TODO: use loc directly instead of going through getLoc stmt *)
+            addCfg (Function fd) (Ret (exp, fd), Statement stmt)
+
           (* Gotos are skipped over by realnode and usually not needed.
            * Except goto loops with empty bodies need the Skip edge to be identified as loop heads and connected to return.
            * This also creates some unconnected but unnecessary edges which are covered by realnode. *)
