@@ -15,7 +15,7 @@ struct
     | Closed -> "closed"
     | Error  -> "error"
 
-  (* properties of records (e.g. used by Dom.report) *)
+  (* properties of records (e.g. used by Dom.warn_each) *)
   let opened   s = s <> Closed && s <> Error
   let closed   s = s = Closed
   let writable s = match s with Open((_,Write)) -> true | _ -> false
