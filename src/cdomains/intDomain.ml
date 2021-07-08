@@ -2554,7 +2554,8 @@ module IntDomTupleImpl = struct
     let maybe reffun ik domtup dom =
       match dom with Some y -> reffun ik domtup y | _ -> domtup
     in
-    [(fun (a, b, c, d) -> refine_with_incl_list ik (a, b, c, d) (to_incl_list (a, b, c, d)));
+    [(fun (a, b, c, d) -> refine_with_excl_list ik (a, b, c, d) (to_excl_list (a, b, c, d)));
+     (fun (a, b, c, d) -> refine_with_incl_list ik (a, b, c, d) (to_incl_list (a, b, c, d)));
      (fun (a, b, c, d) -> maybe refine_with_interval ik (a, b, c, d) b);
      (fun (a, b, c, d) -> maybe refine_with_congruence ik (a, b, c, d) d)]
 
@@ -2563,10 +2564,8 @@ module IntDomTupleImpl = struct
     let _ = match GobConfig.get_string "ana.int.refinement" with
       | "never" -> ()
       | "once" ->
-         dt := refine_with_excl_list ik !dt (to_excl_list (a, b, c, d));
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
       | "fixpoint" ->
-         dt := refine_with_excl_list ik !dt (to_excl_list (a, b, c, d));
          let quit_loop = ref false in
          while not !quit_loop do
            let old_dt = !dt in
