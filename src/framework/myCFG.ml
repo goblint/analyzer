@@ -280,15 +280,27 @@ let createCFG (file: file) =
             in
             List.iter add_succ_node succ_nodes
 
-          (* If expressions are a bit more interesting, but CIL has done
-           * its job well and we just pick out the right successors *)
-          | If (exp, true_block, false_block, loc) ->
-            let false_stmt = realnode (Some stmt) true (List.nth stmt.succs 0) in
-            let true_stmt = try
-                realnode (Some stmt) true (List.nth stmt.succs 1)
-              with Failure _ -> realnode (Some stmt) true (List.hd stmt.succs) in
+          | If (exp, _, _, loc) ->
+            (* Cannot use true and false blocks from If constructor, because blocks don't have succs (stmts do).
+               Cannot use first stmt in block either, because block may be empty (e.g. missing branch). *)
+            (* Hence we rely on implementation detail of the If case in CIL's succpred_stmt.
+               First, true branch's succ is consed (to empty succs list).
+               Second, false branch's succ is consed (to previous succs list).
+               CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
+            let (true_stmt, false_stmt) = match stmt.succs with
+              | [false_stmt; true_stmt] ->
+                let true_stmt = realnode (Some stmt) true true_stmt in
+                let false_stmt = realnode (Some stmt) true false_stmt in
+                (true_stmt, false_stmt)
+              | [same_stmt] ->
+                let same_stmt = realnode (Some stmt) true same_stmt in
+                (same_stmt, same_stmt)
+              | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
+            in
+            (* TODO: use loc directly instead of going through getLoc stmt *)
             mkEdge stmt (Test (exp, true )) true_stmt;
             mkEdge stmt (Test (exp, false)) false_stmt
+
           (* Loops can generally be ignored because CIL creates gotos for us,
            * except constant conditions are eliminated, so non-terminating
            * loops are not connected to the rest of the code. This is a
