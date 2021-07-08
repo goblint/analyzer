@@ -190,7 +190,8 @@ let createCFG (file: file) =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
     let rec find visited_sids stmt =
       if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited_sids stmt.sid dn_stmt stmt;
-      if List.mem stmt.sid visited_sids then stmt
+      if List.mem stmt.sid visited_sids then (* mem uses structural equality on ints, which is fine *)
+        stmt (* cycle *)
       else
         match stmt.skind with
         | Goto _ (* 1 succ *)
