@@ -188,19 +188,20 @@ let createCFG (file: file) =
       if List.mem stmt.sid visited_sids then stmt
       else
         match stmt.skind with
-        | Goto _
-        | Instr [] (* CIL inserts like unlabelled goto *)
-        | Block _ (* just container for stmts *)
-        | Loop _ -> (* just container for (prepared) body *)
+        | Goto _ (* 1 succ *)
+        | Instr [] (* CIL inserts like unlabelled goto, 0-1 succs *)
+        | Block _ (* just container for stmts, 0-1 succs *)
+        | Loop _ -> (* just container for (prepared) body, 1 succ *)
           begin match stmt.succs with
             | [] ->
               if is_entry then
                 stmt
               else
                 raise Not_found
-            | next :: _ ->
+            | [next] ->
               find is_entry (stmt.sid :: visited_sids) next
-            (* TODO: what about non-first succs? can these stmtkinds not have multiple? *)
+            | _ -> (* >1 succ *)
+              failwith "MyCFG.createCFG.find_real_stmt: >1 succ"
           end
 
         | Instr _
