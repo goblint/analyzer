@@ -1946,9 +1946,10 @@ module Enums : S with type int_t = BigInt.t = struct
 
 end
 
-module CongruenceFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
+module Congruence : S with type int_t = BI.t and type t = (BI.t * BI.t) option =
 struct
   let name () = "congruences"
+  module Ints_t = BI
   type int_t = Ints_t.t
 
   (* represents congruence class of c mod m *)
@@ -2390,8 +2391,6 @@ struct
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
 end
-
-module Congruence = CongruenceFunctor (BI)
 
 (* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I3 below to see where you need to extend. *)
 (* discussion: https://github.com/goblint/analyzer/pull/188#issuecomment-818928540 *)

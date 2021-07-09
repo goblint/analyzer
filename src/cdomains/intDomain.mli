@@ -360,8 +360,6 @@ module BigInt : Printable.S (* TODO: why doesn't this have a more useful signatu
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
 
-module CongruenceFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
-
 module Congruence : S with type int_t = IntOps.BigIntOps.t
 
 module DefExc : S with type int_t = IntOps.BigIntOps.t
