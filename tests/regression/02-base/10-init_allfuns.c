@@ -1,4 +1,4 @@
-// PARAM: --enable allfuns --set ana.activated "['base','threadid','threadflag','escape','mutexEvents','mutex','access','mallocWrapper']"
+// PARAM: --enable allfuns --set ana.activated "['base','threadid','threadflag','escape','mutexEvents','mutex','access','mallocWrapper','assert']"
 #include <assert.h>
 
 int glob1 = 5;
