@@ -362,7 +362,7 @@ struct
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then INV.to_int inv |> Option.get |> Queries.ID.of_int (Cilfacade.get_ikind (Cilfacade.typeOf exp))
+      then INV.to_int inv |> Option.get |> Queries.ID.of_int (Cilfacade.get_ikind_exp exp)
       else Queries.Result.top q
     | _ -> Queries.Result.top q
 

@@ -349,6 +349,10 @@ and typeOffset basetyp =
       blendAttributes baseAttrs fieldType
     | _ -> raise (TypeOfError Field_NonCompound)
 
+
+let get_ikind_exp e = get_ikind (typeOf e)
+
+
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200
 

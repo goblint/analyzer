@@ -604,7 +604,7 @@ struct
       let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
       match op with
       | MinusA when equality () = Some true ->
-        let ik = Cilfacade.get_ikind (Cilfacade.typeOf exp) in
+        let ik = Cilfacade.get_ikind_exp exp in
         `Int (ID.of_int ik BI.zero)
       | MinusPI
       | MinusPP when equality () = Some true -> `Int (ID.of_int ptrdiff_ikind BI.zero)
@@ -612,17 +612,17 @@ struct
       | MinusPP when equality () = Some false -> `Int (ID.of_excl_list ptrdiff_ikind [BI.zero])
       | Le
       | Ge when equality () = Some true ->
-        let ik = Cilfacade.get_ikind (Cilfacade.typeOf exp) in
+        let ik = Cilfacade.get_ikind_exp exp in
         `Int (ID.of_bool ik true)
       | Lt
       | Gt when equality () = Some true ->
-          let ik = Cilfacade.get_ikind (Cilfacade.typeOf exp) in
+          let ik = Cilfacade.get_ikind_exp exp in
           `Int (ID.of_bool ik false)
       | Eq -> (match equality () with Some tv ->
-          let ik = Cilfacade.get_ikind (Cilfacade.typeOf exp) in
+          let ik = Cilfacade.get_ikind_exp exp in
           `Int (ID.of_bool ik tv) | None -> eval_next ())
       | Ne -> (match equality () with Some tv ->
-          let ik = Cilfacade.get_ikind (Cilfacade.typeOf exp) in
+          let ik = Cilfacade.get_ikind_exp exp in
           `Int (ID.of_bool ik (not tv)) | None -> eval_next ())
       | _ -> eval_next ()
     in
@@ -772,7 +772,7 @@ struct
   and eval_int a gs st exp =
     match eval_rv a gs st exp with
     | `Int x -> x
-    | _ -> ID.top_of (Cilfacade.get_ikind (Cilfacade.typeOf exp))
+    | _ -> ID.top_of (Cilfacade.get_ikind_exp exp)
   (* A function to convert the offset to our abstract representation of
    * offsets, i.e.  evaluate the index expression to the integer domain. *)
   and convert_offset a (gs:glob_fun) (st: store) (ofs: offset) =
@@ -989,8 +989,8 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             (* This should behave like == and also work on different int types, hence the cast (just like with == in C) *)
-            let e1_ik = Cilfacade.get_ikind (Cilfacade.typeOf e1) in
-            let e2_ik = Cilfacade.get_ikind (Cilfacade.typeOf e2) in
+            let e1_ik = Cilfacade.get_ikind_exp e1 in
+            let e2_ik = Cilfacade.get_ikind_exp e2 in
             let ik= Cil.commonIntKind e1_ik e2_ik in
             if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
               begin
@@ -1244,7 +1244,7 @@ struct
         if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
         (match value with
         | `Int n ->
-          let ikind = Cilfacade.get_ikind (Cilfacade.typeOf (Lval lval)) in
+          let ikind = Cilfacade.get_ikind_exp (Lval lval) in
           Some (x, `Int (ID.cast_to ikind n))
         | _ -> Some(x, value))
       (* The false-branch for x == value: *)
@@ -1255,7 +1255,7 @@ struct
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
                 if M.tracing then M.tracec "invariant" "Yes, %a is not %s\n" d_lval x (BI.to_string n);
-                let ikind = Cilfacade.get_ikind (Cilfacade.typeOf (Lval lval)) in
+                let ikind = Cilfacade.get_ikind_exp (Lval lval) in
                 Some (x, `Int (ID.of_excl_list ikind [n]))
               | None -> None
             end
@@ -1281,7 +1281,7 @@ struct
       | Lt, x, value, _ -> begin
           match value with
           | `Int n -> begin
-            let ikind = Cilfacade.get_ikind (Cilfacade.typeOf (Lval lval)) in
+            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
             let n = ID.cast_to ikind n in
             let range_from x = if tv then ID.ending ikind (BI.sub x BI.one) else ID.starting ikind x in
             let limit_from = if tv then ID.maximal else ID.minimal in
@@ -1296,7 +1296,7 @@ struct
       | Le, x, value, _ -> begin
           match value with
           | `Int n -> begin
-            let ikind = Cilfacade.get_ikind (Cilfacade.typeOf (Lval lval)) in
+            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
             let n = ID.cast_to ikind n in
             let range_from x = if tv then ID.ending ikind x else ID.starting ikind (BI.add x BI.one) in
             let limit_from = if tv then ID.maximal else ID.minimal in
@@ -1512,15 +1512,15 @@ struct
       if ID.is_bot c then raise Deadcode;
       match exp with
       | UnOp (LNot, e, _) ->
+        let ikind = Cilfacade.get_ikind_exp e in
         let c' =
           match ID.to_bool (unop_ID LNot c) with
           | Some true ->
             (* i.e. e should evaluate to [1,1] *)
             (* LNot x is 0 for any x != 0 *)
-            let ikind = Cilfacade.get_ikind @@ Cilfacade.typeOf e in
             ID.of_excl_list ikind [BI.zero]
-          | Some false -> ID.of_bool (Cilfacade.get_ikind (Cilfacade.typeOf e)) false
-          | _ -> ID.top_of (Cilfacade.get_ikind (Cilfacade.typeOf e))
+          | Some false -> ID.of_bool ikind false
+          | _ -> ID.top_of ikind
         in
         inv_exp c' e st
       | UnOp ((BNot|Neg) as op, e, _) -> inv_exp (unop_ID op c) e st
@@ -1530,7 +1530,7 @@ struct
         if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1 st) (show_binop op) VD.pretty (eval e2 st) ID.pretty c;
         (match eval e1 st, eval e2 st with
         | `Int a, `Int b ->
-          let ikind = Cilfacade.get_ikind @@ Cilfacade.typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
+          let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
           let a', b' = inv_bin_int (a, b) ikind c op in
           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
           let st' = inv_exp a' e1 st in
@@ -1578,11 +1578,10 @@ struct
         | _ -> false
       in
       let itv = (* int abstraction for tv *)
+        let ik = Cilfacade.get_ikind_exp exp in
         if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
-          let ik = Cilfacade.get_ikind (Cilfacade.typeOf exp) in
           ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
         else
-          let ik = Cilfacade.get_ikind (Cilfacade.typeOf exp) in
           ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
       in
       inv_exp itv exp st

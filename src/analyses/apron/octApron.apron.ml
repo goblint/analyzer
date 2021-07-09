@@ -173,7 +173,7 @@ struct
     let d = ctx.local in
     match q with
     | EvalInt e ->
-      let ik = Cilfacade.get_ikind (Cilfacade.typeOf e) in
+      let ik = Cilfacade.get_ikind_exp e in
       begin match e with
         (* constraint *)
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) ->

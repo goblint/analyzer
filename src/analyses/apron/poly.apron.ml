@@ -108,7 +108,7 @@ struct
     let d = ctx.local in
     match q with
     | EvalInt e ->
-      let ik = Cilfacade.get_ikind (Cilfacade.typeOf e) in
+      let ik = Cilfacade.get_ikind_exp e in
       begin
         match D.get_int_val_for_cil_exp d e with
         | Some i -> ID.of_int ik i
