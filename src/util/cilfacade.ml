@@ -246,6 +246,20 @@ let rec get_ikind t =
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
 
+
+(** Cil.typeOf, etc reimplemented to raise sensible exceptions
+    instead of printing all errors directly... *)
+
+type typeOfError =
+  | RealImag_NonNumerical (** unexpected non-numerical type for argument to __real__ *) (* TODO: or __imag__? *)
+  | StartOf_NonArray (** typeOf: StartOf on a non-array *)
+  | Mem_NonPointer of exp (** typeOfLval: Mem on a non-pointer (exp) *)
+  | Index_NonArray (** typeOffset: Index on a non-array *)
+  | Field_NonCompound (** typeOffset: Field on a non-compound *)
+
+(* TODO: add exception printer *)
+exception TypeOfError of typeOfError
+
 (* Cil doesn't expose this *)
 let stringLiteralType = ref charPtrType
 
@@ -262,7 +276,7 @@ let typeOfRealAndImagComponents t =
       | FComplexLongDouble -> FLongDouble
     in
     TFloat (newfkind fkind, attrs)
-  | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__")
+  | _ -> raise (TypeOfError RealImag_NonNumerical)
 
 let rec typeOf (e: exp) : typ =
   match e with
@@ -297,7 +311,7 @@ let rec typeOf (e: exp) : typ =
   | StartOf (lv) -> begin
       match unrollType (typeOfLval lv) with
         TArray (t,_, a) -> TPtr(t, a)
-      | _ -> raise Not_found
+      | _ -> raise (TypeOfError StartOf_NonArray)
     end
 
 and typeOfInit (i: init) : typ =
@@ -310,7 +324,7 @@ and typeOfLval = function
   | Mem addr, off -> begin
       match unrollType (typeOf addr) with
         TPtr (t, _) -> typeOffset t off
-      | _ -> raise Not_found
+      | _ -> raise (TypeOfError (Mem_NonPointer addr))
     end
 
 and typeOffset basetyp =
@@ -326,14 +340,14 @@ and typeOffset basetyp =
         TArray (t, _, baseAttrs) ->
         let elementType = typeOffset t o in
         blendAttributes baseAttrs elementType
-      | t -> raise Not_found
+      | t -> raise (TypeOfError Index_NonArray)
     end
   | Field (fi, o) ->
     match unrollType basetyp with
       TComp (_, baseAttrs) ->
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
-    | _ -> raise Not_found
+    | _ -> raise (TypeOfError Field_NonCompound)
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200
