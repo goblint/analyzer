@@ -10,7 +10,7 @@ int main() {
     else {
         g = 2; // state: {bot}, because Hoare set add (in PathSensitive2 map) keeps bot, while reduce would remove
     }
-    // state: {}, because reduce is applied after join and that removes bot
-    g = 3; // state: {} and PathSensitive2 map raises Deadcode
+    // old broken state: {}, because reduce is applied after join and that (old broken) removed bot
+    g = 3; // old broken state: {} and PathSensitive2 map raises Deadcode
     return 0;
 }
