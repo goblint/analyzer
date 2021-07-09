@@ -1,4 +1,4 @@
-#/usr/bin/env bash
+#/bin/bash
 make gen
 scripts/set_version.sh
 grep -q 'tracing = false' src/config.ml && \

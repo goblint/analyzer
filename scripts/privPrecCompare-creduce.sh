@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # creduce ./scripts/privPrecCompare-creduce.sh ./pfscan_comb.c
 

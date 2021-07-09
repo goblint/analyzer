@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 if [ $# -lt 2 ]; then
     echo "Usage: $0 group-nr test-nr [extra options]"
     exit 1

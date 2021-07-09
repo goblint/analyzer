@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #git bisect start HEAD {last known good revision}
 #git bisect run ./scripts/bisect.sh
 ./make.sh opt || exit 125

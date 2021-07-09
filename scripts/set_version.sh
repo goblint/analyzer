@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 VERSION=$(git describe --all --long --dirty 2> /dev/null)
 CILVERSION=$(git --git-dir=../cil/.git describe --tags 2> /dev/null | sed s@^cil-@@)
 
