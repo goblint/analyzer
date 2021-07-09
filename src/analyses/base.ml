@@ -186,9 +186,10 @@ struct
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
+      let ik = Cilfacade.get_ikind t in
       `Int (match ID.to_bool n, AD.to_bool p with
-          | Some a, Some b -> ID.of_bool (Cilfacade.get_ikind t) (op=Eq && a=b || op=Ne && a<>b)
-          | _ -> bool_top (Cilfacade.get_ikind t))
+          | Some a, Some b -> ID.of_bool ik (op=Eq && a=b || op=Ne && a<>b)
+          | _ -> bool_top ik)
     | `Address p, `Int n  -> begin
         match op with
         (* For array indexing e[i] and pointer addition e + i we have: *)
@@ -205,7 +206,7 @@ struct
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result in most cases, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
-        let result_ik = Cilfacade.get_ikind t in
+        let ik = Cilfacade.get_ikind t in
         let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.Addr.equal (AD.choose x) (AD.choose y)) else None in
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
@@ -221,29 +222,26 @@ struct
               | `Index (i, `NoOffset), `Index(j, `NoOffset) ->
                 begin
                   let diff = ValueDomain.IndexDomain.sub i j in
-                  let ik = Cilfacade.get_ikind t in
                   match ValueDomain.IndexDomain.to_int diff with
                   | Some z -> `Int(ID.of_int ik z)
                   | _ -> `Int (ID.top_of ik)
                 end
               | `Index (xi, xo), `Index(yi, yo) when xi = yi -> (* TODO: ID.equal? *)
                 calculateDiffFromOffset xo yo
-              | _ -> `Int (ID.top_of result_ik)
+              | _ -> `Int (ID.top_of ik)
             in
             if AD.is_definite p1 && AD.is_definite p2 then
               match Addr.to_var_offset (AD.choose p1), Addr.to_var_offset (AD.choose p2) with
               | [x, xo], [y, yo] when CilType.Varinfo.equal x y ->
                 calculateDiffFromOffset xo yo
               | _ ->
-                `Int (ID.top_of result_ik)
+                `Int (ID.top_of ik)
             else
-              `Int (ID.top_of result_ik)
+              `Int (ID.top_of ik)
           end
         | Eq ->
-          let ik = Cilfacade.get_ikind t in
           `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.zero else match eq p1 p2 with Some x when x -> ID.of_int ik BI.one | _ -> bool_top ik)
         | Ne ->
-          let ik = Cilfacade.get_ikind t in
           `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik BI.one else match eq p1 p2 with Some x when x -> ID.of_int ik BI.zero | _ -> bool_top ik)
         | _ -> VD.top ()
       end
