@@ -246,6 +246,24 @@ let rec get_ikind t =
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
 
+(* Cil doesn't expose this *)
+let stringLiteralType = ref charPtrType
+
+let typeOfRealAndImagComponents t =
+  match unrollType t with
+  | TInt _ -> t
+  | TFloat (fkind, attrs) ->
+    let newfkind = function
+      | FFloat -> FFloat      (* [float] *)
+      | FDouble -> FDouble     (* [double] *)
+      | FLongDouble -> FLongDouble (* [long double] *)
+      | FComplexFloat -> FFloat
+      | FComplexDouble -> FDouble
+      | FComplexLongDouble -> FLongDouble
+    in
+    TFloat (newfkind fkind, attrs)
+  | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__")
+
 let rec typeOf (e: exp) : typ =
   match e with
   | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
@@ -258,28 +276,29 @@ let rec typeOf (e: exp) : typ =
   (* The type of a string is a pointer to characters ! The only case when
    * you would want it to be an array is as an argument to sizeof, but we
    * have SizeOfStr for that *)
-  | Const(CStr s) -> charPtrType
+  | Const(CStr s) -> !stringLiteralType
 
   | Const(CWStr s) -> TPtr(!wcharType,[])
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
   | Const(CEnum(tag, _, ei)) -> typeOf tag
-
+  | Real e -> typeOfRealAndImagComponents @@ typeOf e
+  | Imag e -> typeOfRealAndImagComponents @@ typeOf e
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
-  | UnOp (_, _, t) -> t
-  | BinOp (_, _, _, t) -> t
+  | UnOp (_, _, t)
+  | BinOp (_, _, _, t)
+  | Question (_, _, _, t)
   | CastE (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
+  | AddrOfLabel (lv) -> voidPtrType
   | StartOf (lv) -> begin
       match unrollType (typeOfLval lv) with
         TArray (t,_, a) -> TPtr(t, a)
       | _ -> raise Not_found
     end
-  | Question _ -> failwith "Logical operations should be compiled away by CIL."
-  | _ -> failwith "Unmatched pattern."
 
 and typeOfInit (i: init) : typ =
   match i with
