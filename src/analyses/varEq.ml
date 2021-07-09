@@ -210,7 +210,7 @@ struct
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
         (* lval *.field changes -> local var stays the same *)
         false
-      (*         | dr, Lval (Var lv,NoOffset) when (isIntegralType (Cilfacade.typeOf dr)) && (isPointerType (lv.vtype)) && not (isIntegralType (Cilfacade.typeOf (Lval (Mem (Lval (Var lv,NoOffset)),NoOffset)))) ->
+      (*         | dr, Lval (Var lv,NoOffset) when (isIntegralType (Cilfacade.typeOf dr)) && (isPointerType (lv.vtype)) && not (isIntegralType (Cilfacade.typeOfLval (Mem (Lval (Var lv,NoOffset)),NoOffset))) ->
                   (* lval *x changes -> local var stays the same *)
                   false*)
       | _ ->
@@ -375,7 +375,7 @@ struct
           match x with (Var v,_) -> not v.vglob | _ -> false
           in
           let st =
-    *)  let lvt = unrollType @@ Cilfacade.typeOf (Lval lv) in
+    *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     (*     Messages.report (sprint 80 (d_type () lvt)); *)
     if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv

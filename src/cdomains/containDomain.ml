@@ -1473,7 +1473,7 @@ struct
             )
           in
           report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () flds)^" via "^str^ (sprint 160 (ArgSet.pretty () ars)));
-          (*report ("isPtr "^string_of_bool (isPointerType (Cilfacade.typeOf (Lval lval)))^" mayderef "^string_of_bool (maybe_deref (Lval lval))^" direct_this "^ string_of_bool (may_be_constructed_from_this_direct st (Lval lval)));*)
+          (*report ("isPtr "^string_of_bool (isPointerType (Cilfacade.typeOfLval lval))^" mayderef "^string_of_bool (maybe_deref (Lval lval))^" direct_this "^ string_of_bool (may_be_constructed_from_this_direct st (Lval lval)));*)
           (fd,st, Diff.add (taintedFunDec, (flds,VarNameSet.bot (),ClassNameSet.bot ()))  df)
         end
       else

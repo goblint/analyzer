@@ -699,7 +699,7 @@ struct
           | Some (v') ->
             begin
               (* This should mean the entire expression we have here is a pointer into the array *)
-              if Cil.isArrayType (Cilfacade.typeOf (Lval v')) then
+              if Cil.isArrayType (Cilfacade.typeOfLval v') then
                 let expr = ptr in
                 let start_of_array = StartOf v' in
                 let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
