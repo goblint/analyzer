@@ -165,8 +165,9 @@ class loopInstrVisitor (fd : fundec) = object(self)
            | _ ->
              (* otherwise diff is e - counter *)
              let t = makeVar fd cur_loop "t" in
-             let dt1 = mkStmtOneInstr @@ Set (var d1, BinOp (MinusA, Lval x, Lval (var t), Cilfacade.typeOf e), loc) in
-             let dt2 = mkStmtOneInstr @@ Set (var d2, BinOp (MinusA, Lval x, Lval (var t), Cilfacade.typeOf e), loc) in
+             let te = Cilfacade.typeOf e in
+             let dt1 = mkStmtOneInstr @@ Set (var d1, BinOp (MinusA, Lval x, Lval (var t), te), loc) in
+             let dt2 = mkStmtOneInstr @@ Set (var d2, BinOp (MinusA, Lval x, Lval (var t), te), loc) in
              let nb = mkBlock [mkStmt s.skind; dt1; dt2] in
              s.skind <- Block nb;
              s

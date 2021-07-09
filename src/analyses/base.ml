@@ -714,12 +714,14 @@ struct
       | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
-        let both_arith_type = isArithmeticType (Cilfacade.typeOf e1) && isArithmeticType (Cilfacade.typeOf e2) in
-        let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2)) && not both_arith_type in
+        let te1 = Cilfacade.typeOf e1 in
+        let te2 = Cilfacade.typeOf e2 in
+        let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
+        let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
         M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
         if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
-          let e1 = if isArithmeticType (Cilfacade.typeOf e1) then c1 else e1 in
-          let e2 = if isArithmeticType (Cilfacade.typeOf e2) then c2 else e2 in
+          let e1 = if isArithmeticType te1 then c1 else e1 in
+          let e2 = if isArithmeticType te2 then c2 else e2 in
           eval_rv a gs st (BinOp (op, e1, e2, typ))
         )
         else
@@ -1109,13 +1111,14 @@ struct
           in
           let movement_for_expr l' r' currentE' =
             let are_equal e1 e2 = a.f (Q.MustBeEqual (e1, e2)) in
-            let ik = Cilfacade.get_ikind (Cilfacade.typeOf currentE') in
+            let t = Cilfacade.typeOf currentE' in
+            let ik = Cilfacade.get_ikind t in
             let newE = Basetype.CilExp.replace l' r' currentE' in
-            let currentEPlusOne = BinOp (PlusA, currentE', Cil.kinteger ik 1, Cilfacade.typeOf currentE') in
+            let currentEPlusOne = BinOp (PlusA, currentE', Cil.kinteger ik 1, t) in
             if are_equal newE currentEPlusOne then
               Some 1
             else
-              let currentEMinusOne = BinOp (MinusA, currentE', Cil.kinteger ik 1, Cilfacade.typeOf currentE') in
+              let currentEMinusOne = BinOp (MinusA, currentE', Cil.kinteger ik 1, t) in
               if are_equal newE currentEMinusOne then
                 Some (-1)
               else
@@ -1365,7 +1368,8 @@ struct
       else
         let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
         let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
-        let state_with_excluded = set a gs st addr (Cilfacade.typeOfLval lval) value ~effect:false ~change_array:false ~ctx:(Some ctx) in
+        let t_lval = Cilfacade.typeOfLval lval in
+        let state_with_excluded = set a gs st addr t_lval value ~effect:false ~change_array:false ~ctx:(Some ctx) in
         let value =  get a gs state_with_excluded addr None in
         let new_val = apply_invariant oldval value in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -1375,8 +1379,8 @@ struct
           raise Analyses.Deadcode
         )
         else if VD.is_bot new_val
-        then set a gs st addr (Cilfacade.typeOfLval lval) value ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
-        else set a gs st addr (Cilfacade.typeOfLval lval) new_val ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
+        then set a gs st addr t_lval value ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
+        else set a gs st addr t_lval new_val ~effect:false ~change_array:false ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
