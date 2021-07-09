@@ -326,7 +326,8 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp"
+            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
+            "assert"
           ]
         },
         "path_sens": {
