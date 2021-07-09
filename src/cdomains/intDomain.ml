@@ -1486,7 +1486,7 @@ struct
       let (b : int) = BI.to_int b in
       shift_op a b
     in
-    (* If one of the parameters of the shift is negative, the result is undedined *)
+    (* If one of the parameters of the shift is negative, the result is undefined *)
     let x_min = minimal x in
     let y_min = minimal y in
     if x_min = None || y_min = None || BI.compare (Option.get x_min) BI.zero < 0 || BI.compare (Option.get y_min) BI.zero < 0 then
@@ -2165,7 +2165,7 @@ struct
      res
 
   let shift_left ik x y =
-    (* Naive primility test *)
+    (* Naive primality test *)
   let is_prime n =
     let n = Ints_t.to_int (abs n) in
     let rec is_not_divisor d =
