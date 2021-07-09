@@ -827,17 +827,14 @@ struct
              if Ints_t.compare rcx lcy > 0 then None
              else if Ints_t.compare rcx lcy = 0 then norm ik @@ Some (rcx, rcx)
              else norm ik @@ Some (rcx, lcy)
-    | _ -> intv
+    | _ -> None
 
   let refine_with_congruence ik x y =
     let refn = refine_with_congruence ik x y in
     if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a\n" pretty x pretty y pretty refn;
     refn
 
-  let refine_with_interval ik a b =
-    match b with
-    | None -> a
-    | b -> meet ik a b
+  let refine_with_interval ik a b = meet ik a b
 
   let refine_with_excl_list ik (intv : t) (excl : (int_t list) option) : t =
     match intv, excl with
@@ -1932,7 +1929,7 @@ module Enums : S with type int_t = BigInt.t = struct
       let contains c m x = if BI.equal m BI.zero then BI.equal c x else (BI.rem (BI.sub x c) m) == BI.zero in
       match a with
       | Inc e -> ( match b with
-                | None -> Inc e
+                | None -> bot_of ik
                 | Some (c, m) -> Inc (ISet.filter (contains c m) e))
       | a -> a
   let refine_with_interval ik a b = a
@@ -2375,7 +2372,7 @@ struct
          if rcx >: lcy then None
          else if rcx =: lcy then Some (rcx, Ints_t.zero)
          else cong
-    | _ -> cong
+    | _ -> None
 
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t) option) : t =
     let pretty_intv _ i = (match i with
@@ -2385,9 +2382,7 @@ struct
     if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
     refn
 
-  let refine_with_congruence ik a b = match b with
-  | None -> a
-  | b -> meet ik a b
+  let refine_with_congruence ik a b = meet ik a b
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
 end
