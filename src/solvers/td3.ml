@@ -76,15 +76,10 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
-      let print_called () =
-        ignore @@ Pretty.printf "Called elements are %a\n" (Pretty.d_list "\n" S.Var.pretty_trace) (HM.fold (fun k v acc -> k::acc) called [])
-      in
-
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
-        print_context_stats rho;
-        print_called ()
+        print_context_stats rho
       in
 
       if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
