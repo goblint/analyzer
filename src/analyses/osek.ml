@@ -29,7 +29,7 @@ let is_atomic_type (t: typ): bool =
 
 let is_atomic lval =
   let (lval, _) = removeOffsetLval lval in
-  let typ = typeOfLval lval in
+  let typ = Cilfacade.typeOfLval lval in
   is_atomic_type typ
 
 let is_ignorable lval =
@@ -471,7 +471,7 @@ struct
       match fs with
       | LockingPattern.EField f :: _ -> (e,f.fcomp,fs) :: xs
       | _ -> xs
-      (*      match unrollType (typeOf (LockingPattern.fromEl e dummy)) with
+      (*      match unrollType (Cilfacade.typeOf (LockingPattern.fromEl e dummy)) with
               | TComp (c,_) -> (e,c,fs) :: xs
               | _ -> xs*)
     in

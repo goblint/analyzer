@@ -377,8 +377,8 @@ struct
               | false -> Val.bot()
               | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
               (
-                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
+                let ik = Cilfacade.get_ikind (Cilfacade.typeOf e') in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cilfacade.typeOf e'),i')) with
                 | true -> xm
                 | _ ->
                   begin
@@ -394,8 +394,8 @@ struct
               | _ -> xm)
 
               (
-                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
+                let ik = Cilfacade.get_ikind (Cilfacade.typeOf e') in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cilfacade.typeOf e'),i')) with
                 | true -> xm
                 | _ ->
                   begin

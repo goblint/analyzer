@@ -251,11 +251,11 @@ type off_o = offset  option
 type part  = LSSSet.t * LSSet.t
 
 let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
-  try (* FIXME: Cil's typeOf fails on our fake variables: (struct s).data *)
+  try (* FIXME: Cilfacade.typeOf fails on our fake variables: (struct s).data *)
     match vo, oo with
-    | Some v, Some o -> get_type (typeOf e) (AddrOf (Var v, o))
-    | Some v, None -> get_type (typeOf e) (AddrOf (Var v, NoOffset))
-    | _ -> get_type (typeOf e) e
+    | Some v, Some o -> get_type (Cilfacade.typeOf e) (AddrOf (Var v, o))
+    | Some v, None -> get_type (Cilfacade.typeOf e) (AddrOf (Var v, NoOffset))
+    | _ -> get_type (Cilfacade.typeOf e) e
   with _ -> get_type voidType e
 
 let some_accesses = ref false

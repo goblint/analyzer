@@ -200,7 +200,7 @@ struct
 
   let assign (lval: lval) (rval: exp) (st: t): t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
-    if isPointerType (typeOf rval) then begin
+    if isPointerType (Cilfacade.typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
       (* TODO: should offs_x matter? *)
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
@@ -227,7 +227,7 @@ struct
               add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
           end
       | _ -> st
-    end else if isIntegralType (typeOf rval) then begin
+    end else if isIntegralType (Cilfacade.typeOf rval) then begin
       match lval with
       | Var x, NoOffset -> update x rval st
       | _ -> st

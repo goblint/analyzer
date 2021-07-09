@@ -134,7 +134,7 @@ struct
     (* update domain by replacing the set of pred. nodes with the current node *)
     if List.is_empty xs then env.d else D.pred (const @@ Pred.of_node env.node) env.d
   (* is exp of the return code type (pointers are not considered!) *)
-  let is_return_code_type exp = typeOf exp |> unrollTypeDeep |> function
+  let is_return_code_type exp = Cilfacade.typeOf exp |> unrollTypeDeep |> function
     | TEnum(ei, _) when ei.ename = "T13" -> true
     | _ -> false
   let return_code_is_success = function 0L | 1L -> true | _ -> false
@@ -176,7 +176,7 @@ struct
         else output edge that non-det. sets the lhs to a value from the range *)
     (* things to note:
        1. is_return_code_type must be checked on the result of mayPointTo and not on lval! otherwise we have problems with pointers
-       2. Cil.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
+       2. Cilfacade.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
        3. mayPointTo also returns pointers if there's a top element in the set (outputs warning), so that we don't miss anything *)
     if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
       (* OPT: this matching is just for speed up to avoid querying on every assign *)
@@ -188,7 +188,7 @@ struct
           let edges_added = ref false in
           let f dlval =
             (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
-            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
+            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with Cilfacade.TypeOfError Index_NonArray -> M.debug_each @@ "assign: Cilfacade.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
             if (not is_ret_type) || Lval.CilLval.has_index dlval then () else
               let dlval = global_dlval dlval "assign" in
               edges_added := true;
@@ -380,7 +380,7 @@ struct
       in
       let add_action action = add_actions [action] in
       (*
-         let assert_ptr e = match unrollType (typeOf e) with
+         let assert_ptr e = match unrollType (Cilfacade.typeOf e) with
            | TPtr _ -> ()
            | _ -> failwith @@ f.vname ^ " expects arguments to be some pointer, but got "^sprint d_exp e^" which is "^sprint d_plainexp e
          in
@@ -478,7 +478,7 @@ struct
         *)
       (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
-        let cm = match unrollType (typeOfLval attr) with
+        let cm = match unrollType (Cilfacade.typeOfLval attr) with
           | TComp (c,_) -> c
           | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
         in
@@ -505,7 +505,7 @@ struct
             let pri = BI.to_int64 (Option.get @@ Queries.ID.to_int pri) in
             let per = BI.to_int64 (Option.get @@ Queries.ID.to_int per) in
             let cap = BI.to_int64 (Option.get @@ Queries.ID.to_int cap) in
-            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
+            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
             let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in
@@ -617,7 +617,7 @@ struct
         begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
           | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let pid = get_pid pname_ErrorHandler in
-            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in
+            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
             let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in
             let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
