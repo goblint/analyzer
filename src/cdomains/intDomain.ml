@@ -2575,7 +2575,7 @@ module IntDomTupleImpl = struct
     !dt
 
   let no_overflow ik r =
-    if GobConfig.get_bool "ana.int.congruence_no_overflow" then true
+    if GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik then true
     else let ika, ikb = Size.range_big_int ik in
          match I2.minimal r, I2.maximal r with
          | Some ra, Some rb -> ika < ra || rb < ikb
@@ -2586,7 +2586,7 @@ module IntDomTupleImpl = struct
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1 (module I2)) b in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow"
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik 
     in refine ik
     ( map (r.f1 (module I1)) a
     , intv
@@ -2597,7 +2597,7 @@ module IntDomTupleImpl = struct
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
     let intv = opt_map2 (r.f2 (module I2)) xb yb in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow"
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik 
     in
     refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
