@@ -2237,7 +2237,7 @@ struct
     | None -> None
     | Some (c, m) -> if (Cil.isSigned ik) then sub ik (neg ik x) one else Some (Ints_t.sub (max_int ik) c, m)
 
-  (** The implementation of the bit operations is based on the master’s thesis
+  (** The implementation of the bit operations could be improved based on the master’s thesis
       'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
       see: https://www.dsi.unive.it/~avp/domains.pdf *)
   let bit2 f ik x y = match x, y with
@@ -2245,8 +2245,7 @@ struct
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c, m), Some (c', m') ->
       if (m =: Ints_t.zero && m' =: Ints_t.zero) then Some (f c c', Ints_t.zero)
-        else if (c =: Ints_t.zero && c' =: Ints_t.zero && m =: Ints_t.one && m' =: Ints_t.one)
-        then top() else Some ((f c c'), Ints_t.shift_left Ints_t.one (Ints_t.to_int (min m m')))
+      else top ()
 
   let bitor ik x y = bit2 Ints_t.bitor ik x y
 
