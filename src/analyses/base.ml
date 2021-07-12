@@ -567,12 +567,10 @@ struct
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
         let a = a.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
-        let ik = Cilfacade.get_ikind typ in
         begin match a with
           | x when Queries.ID.is_bot x -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (`Int x) *)
-          | x -> `Int (Queries.ID.cast_to ik x) (* TODO: cast unnecessary? *)
-          (* TODO: query should guarantee right ikind already? *)
+          | x -> `Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
         end
       | exception Errormsg.Error (* Bug: typeOffset: Field on a non-compound *)
       | _ -> eval_next ()
@@ -835,7 +833,7 @@ struct
   let query_evalint ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
     let r = match eval_rv_no_ask_evalint ask gs st e with
-    | `Int i -> i (* TODO: cast to right ikind here? or is it guaranteed? *)
+    | `Int i -> i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
     | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
     (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
     | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.ID.bot ()
