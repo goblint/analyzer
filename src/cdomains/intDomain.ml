@@ -346,7 +346,7 @@ struct
   let logand = lift2 I.logand
   let logor = lift2 I.logor
 
-  let cast_to ?torg ikind x = {v = I.cast_to ?torg ikind x.v; ikind}
+  let cast_to ?torg ikind x = {v = I.cast_to ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
@@ -1184,9 +1184,6 @@ struct
       `Excluded (
         if R.leq r r' then (* upcast -> no change *)
           s, r
-        else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
-          let s' = S.map (BigInt.cast_to ik) s in
-          s', r'
         else (* downcast: may overflow *)
           (* let s' = S.map (BigInt.cast_to ik) s in *)
           (* We want to filter out all i in s' where (t)x with x in r could be i. *)
@@ -1699,9 +1696,6 @@ module Enums : S with type int_t = BigInt.t = struct
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
         Exc (s, r)
-      else if torg = None then (* same static type -> no overflows for r, but we need to cast s since it may be out of range after lift2_inj *)
-        let s' = ISet.map (I.cast_to ik) s in
-        Exc (s', r')
       else (* downcast: may overflow *)
         Exc ((ISet.empty ()), r')
     | Inc xs ->
@@ -2093,24 +2087,25 @@ struct
 
   (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
   let cast_to ?torg ?(no_ov=false) t x =
-    if no_ov then x
-    else
-      match x with
-      | None -> None
-      | Some (c, m) when m =: Ints_t.zero ->
-         let c' = Ints_t.of_bigint @@ BigInt.cast_to t (Ints_t.to_bigint c) in
-         if Cil.isSigned t && not (c =: c')
-         then top_of t (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
-         else Some (c', m)
-      | _ -> match torg with
-             | (Some (Cil.TInt (ikorg, _)) ) when ikorg = t || (max_int t >= max_int ikorg && min_int t <= min_int ikorg) -> x
-             | _ -> top ()
+    match x with
+    | None -> None
+    | Some (c, m) when m =: Ints_t.zero ->
+      let c' = Ints_t.of_bigint @@ BigInt.cast_to t (Ints_t.to_bigint c) in
+      (* When casting into a signed type and the result does not fit, the behavior is implementation-defined. (C90 6.2.1.2, C99 and C11 6.3.1.3) *)
+      (* We go with GCC behavior here: *)
+      (*  For conversion to a type of width N, the value is reduced modulo 2^N to be within range of the type; no signal is raised. *)
+      (*   (https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html)   *)
+      (* Clang behaves the same but they never document that anywhere *)
+      Some (c', m)
+    | _ -> match torg with
+      | (Some (Cil.TInt (ikorg, _)) ) when ikorg = t || (max_int t >= max_int ikorg && min_int t <= min_int ikorg) -> if M.tracing then M.trace "cong-cast" "some case"; x
+      | _ -> top ()
 
 
   let cast_to ?torg ?(no_ov=false) (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
     let res = cast_to ?torg ~no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (ov: %a) = %a\n" pretty x Cil.d_ikind t pretty_bool no_ov pretty res;
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t pretty_bool no_ov pretty res;
     res
 
   let widen = join
@@ -2586,7 +2581,7 @@ module IntDomTupleImpl = struct
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1 (module I2)) b in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik 
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik
     in refine ik
     ( map (r.f1 (module I1)) a
     , intv
@@ -2597,7 +2592,7 @@ module IntDomTupleImpl = struct
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
     let intv = opt_map2 (r.f2 (module I2)) xb yb in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik 
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik
     in
     refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
