@@ -2103,7 +2103,7 @@ struct
          then top_of t (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
          else Some (c', m)
       | _ -> match torg with
-             | (Some (Cil.TInt (ik, _)) ) when ik = t || (max_int t <= max_int ik && min_int t >= min_int ik) -> x
+             | (Some (Cil.TInt (ikorg, _)) ) when ikorg = t || (max_int t >= max_int ikorg && min_int t <= min_int ikorg) -> x
              | _ -> top ()
 
 
