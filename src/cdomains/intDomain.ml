@@ -2023,7 +2023,8 @@ struct
     match x, y with
     | None, z | z, None -> z
     | Some (c1,m1), Some (c2,m2) ->
-      let m3 = gcd m1 (gcd m2 (c1 -: c2)) in if (m3 >: (max_int ik)) then top() else normalize (Some (c1, m3))
+      let m3 = gcd m1 (gcd m2 (c1 -: c2)) in
+      normalize (Some (c1, m3))
 
   let join ik (x:t) y =
     let res = join ik x y in
