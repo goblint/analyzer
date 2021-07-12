@@ -38,6 +38,14 @@ struct
 
   exception Unsupported_CilExp
 
+  module BI = IntOps.BigIntOps
+
+  (* TODO: move this into some general place *)
+  let is_cast_injective from_type to_type =
+    let (from_min, from_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind from_type) in
+    let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
+    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+
   let rec texpr1_expr_of_cil_exp = function
     | Lval (Var v, NoOffset) when isIntegralType v.vtype && not v.vglob ->
       Var (Var.of_string v.vname)
@@ -55,8 +63,8 @@ struct
       Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
     | BinOp (Mod, e1, e2, _) ->
       Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-    | CastE (TInt _, e) ->
-      Unop(Cast, texpr1_expr_of_cil_exp e, Int, Zero)
+    | CastE (TInt _ as t, e) when is_cast_injective (typeOf e) t ->
+      Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
     | _ ->
       raise Unsupported_CilExp
 
