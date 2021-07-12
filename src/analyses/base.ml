@@ -2681,9 +2681,7 @@ struct
     (* Handling the assertions *)
     | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) false
-    | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) true
-    | Assert e, _ -> assert_fn ctx e (not (get_bool "dbg.debug")) (* __goblint_assert previously had [true true] and Assert should too, but cannot until #278 *)
+    | Assert { exp; change; _ }, _ -> assert_fn ctx exp change (* __goblint_assert previously had [true true] and Assert should too, but cannot until #278 *)
     | _, _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args

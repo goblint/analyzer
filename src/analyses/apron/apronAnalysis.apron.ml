@@ -421,9 +421,7 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | Assert e, _ -> assert_fn ctx e (not (get_bool "dbg.debug"))
-    | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) false
-    | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) true
+    | Assert { exp; change; _ }, _ -> assert_fn ctx exp change
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (
         (* Forget value that thread return is assigned to *)
