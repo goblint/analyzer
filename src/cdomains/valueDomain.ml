@@ -163,6 +163,9 @@ struct
     | _ -> `Top
 
     let arg_value (map: TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
+      let ts (t: Cil.typ): Cil.typsig =
+        typeSigWithAttrs (fun _ -> []) t
+      in
       (* Record mapping from types to addresses created for blocks with corresponding type *)
       let type_to_symbolic_address = Hashtbl.create 113 in
       let rec arg_comp compinfo l : Structs.t * (address * typ * t) list =
@@ -181,7 +184,7 @@ struct
              and recursively construct a value for the pointed to type.
           *)
           begin
-            match Hashtbl.find type_to_symbolic_address pointed_to_t with
+            match Hashtbl.find type_to_symbolic_address (ts pointed_to_t) with
             | v -> `Address v, l
             | exception Not_found ->
               begin
@@ -195,7 +198,7 @@ struct
                 let do_typ t (acc_dir,acc_ind) =
                   let heap_var = heap_var t in
                   let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
-                  Hashtbl.add type_to_symbolic_address t heap_var_or_NULL;
+                  Hashtbl.add type_to_symbolic_address (ts t) heap_var_or_NULL;
                   let (tval, l2) = arg_val t l in
                   (heap_var, t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::acc_dir, l2@acc_ind
                 in
