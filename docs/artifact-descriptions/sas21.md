@@ -24,6 +24,19 @@ Navigate to the folder `~/analyzer`. All paths are given relative to it.
 
     2. The last column of the table links to the automatic pairwise precision comparison output of the analyses for each benchmark. These are described in Section 5 in the paper.
 
+        For example, consider the following comparison output:
+
+            pfscan_comb.c:1269 pqb: protection more precise than mine-W
+              protection: [FULL OUTPUT OMITTED HERE]
+              more precise than
+              mine-W: [FULL OUTPUT OMITTED HERE]
+              reverse diff: {Map: occupied =
+                            (Unknown int([-31,31]),not {} ([-31,31])) instead of (Not {0}([-31,31]),not {} ([-31,31])) ...}
+
+        This means that in `pfscan_comb.c` on line 1269 for the global variable `pqb` Protection-Based reads a more precise value than Miné.
+        Skipping over the full output of the struct in both cases, the "reverse diff" line highlights the difference:
+        for the field `occupied` Protection-Based can exclude the value 0 (indicated by `Not {0}`) while Miné cannot (indicated by `Unknown int`).
+
     3. The last number (after `=`) in parenthesis in the table cells gives the logical LoC. These are mentioned in Section 5 in the paper.
 
         The column "Size" of the table only gives physical LoC, which includes excessive struct and extern function declarations.
