@@ -591,37 +591,31 @@ struct
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
     let binop op e1 e2 =
       let equality () =
-        (* TODO: just return bool? *)
-        if a.f (Q.MustBeEqual (e1,e2)) then (
-          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
-          Some true
-        )
-        else
-          None
+        let r = a.f (Q.MustBeEqual (e1, e2)) in
+        if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
+        r
       in
       let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
       match op with
-      | MinusA when equality () = Some true ->
+      | MinusA when equality () ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         `Int (ID.of_int ik BI.zero)
       | MinusPI
-      | MinusPP when equality () = Some true -> `Int (ID.of_int ptrdiff_ikind BI.zero)
-      | MinusPI
-      | MinusPP when equality () = Some false -> `Int (ID.of_excl_list ptrdiff_ikind [BI.zero])
+      | MinusPP when equality () -> `Int (ID.of_int ptrdiff_ikind BI.zero)
       | Le
-      | Ge when equality () = Some true ->
+      | Ge when equality () ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         `Int (ID.of_bool ik true)
       | Lt
-      | Gt when equality () = Some true ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          `Int (ID.of_bool ik false)
-      | Eq -> (match equality () with Some tv ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          `Int (ID.of_bool ik tv) | None -> eval_next ())
-      | Ne -> (match equality () with Some tv ->
-          let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-          `Int (ID.of_bool ik (not tv)) | None -> eval_next ())
+      | Gt when equality () ->
+        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+        `Int (ID.of_bool ik false)
+      | Eq when equality () ->
+        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+        `Int (ID.of_bool ik true)
+      | Ne when equality () ->
+        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
+        `Int (ID.of_bool ik false)
       | _ -> eval_next ()
     in
     let r =
