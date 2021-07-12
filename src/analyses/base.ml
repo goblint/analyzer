@@ -2426,7 +2426,7 @@ struct
       if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
       List.filter_map (create_thread None None) addrs
 
-  let assert_fn ctx e should_warn change =
+  let assert_fn ctx e change =
     (* make the state meet the assertion in the rest of the code *)
     if not change then ctx.local else begin
       let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
@@ -2681,9 +2681,9 @@ struct
     (* Handling the assertions *)
     | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) true false
-    | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) false true
-    | Assert e, _ -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug")) (* __goblint_assert previously had [true true] and Assert should too, but cannot until #278 *)
+    | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) false
+    | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) true
+    | Assert e, _ -> assert_fn ctx e (not (get_bool "dbg.debug")) (* __goblint_assert previously had [true true] and Assert should too, but cannot until #278 *)
     | _, _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args

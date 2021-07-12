@@ -401,7 +401,7 @@ struct
         invalidate_one ask ctx st lval
       ) st rs
 
-  let assert_fn ctx e should_warn change =
+  let assert_fn ctx e change =
     if not change then
       ctx.local
     else
@@ -421,9 +421,9 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | Assert e, _ -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
-    | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) true false
-    | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) false true
+    | Assert e, _ -> assert_fn ctx e (not (get_bool "dbg.debug"))
+    | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) false
+    | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) true
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (
         (* Forget value that thread return is assigned to *)
