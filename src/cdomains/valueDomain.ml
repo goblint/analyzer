@@ -196,15 +196,20 @@ struct
                 (* Creates the memory abstraction for type t, collects memory
                  that is directly and indirectly reachable from the pointer to this types abstraction *)
                 let do_typ t (acc_dir,acc_ind) =
-                  let heap_var = heap_var t in
-                  let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
-                  Hashtbl.add type_to_symbolic_address (ts t) heap_var_or_NULL;
-                  let (tval, l2) = arg_val t l in
-                  (heap_var, t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::acc_dir, l2@acc_ind
+                  try
+                    let heap_var = heap_var t in
+                    let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
+                    Hashtbl.add type_to_symbolic_address (ts t) heap_var_or_NULL;
+                    let (tval, l2) = arg_val t l in
+                    (heap_var, t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::acc_dir, l2@acc_ind
+                  with Stack_overflow as e ->
+                    ignore @@ Pretty.printf "Stackoverflow. Values in hashtable were %a.\n" (d_list ", " Cil.d_typsig) (Hashtbl.fold (fun key value acc -> key::acc) type_to_symbolic_address []);
+                    ignore @@ Pretty.printf "Currently queried type was %a, pointed_to_type was %a\n" d_type t d_type pointed_to_t;
+                    Prelude.raise e
                 in
-                let (direct, indirect) = TypeSet.fold do_typ types ([],[]) in
-                let addr = List.fold_left (fun acc (ad,_,_) -> AD.join acc ad) AD.null_ptr direct in
-                `Address addr, direct@indirect
+                  let (direct, indirect) = TypeSet.fold do_typ types ([],[]) in
+                  let addr = List.fold_left (fun acc (ad,_,_) -> AD.join acc ad) AD.null_ptr direct in
+                  `Address addr, direct@indirect
               end
             end
         | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
