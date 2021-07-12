@@ -590,30 +590,27 @@ struct
     let eval_next () = eval_rv_base a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
     let binop op e1 e2 =
-      let equality () =
+      let must_be_equal () =
         let r = a.f (Q.MustBeEqual (e1, e2)) in
         if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
         r
       in
-      let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
       match op with
-      | MinusA when equality () ->
+      | MinusA when must_be_equal () ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         `Int (ID.of_int ik BI.zero)
       | MinusPI
-      | MinusPP when equality () -> `Int (ID.of_int ptrdiff_ikind BI.zero)
+      | MinusPP when must_be_equal () ->
+        let ik = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
+        `Int (ID.of_int ik BI.zero)
+      | Eq
       | Le
-      | Ge when equality () ->
+      | Ge when must_be_equal () ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         `Int (ID.of_bool ik true)
+      | Ne
       | Lt
-      | Gt when equality () ->
-        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        `Int (ID.of_bool ik false)
-      | Eq when equality () ->
-        let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
-        `Int (ID.of_bool ik true)
-      | Ne when equality () ->
+      | Gt when must_be_equal () ->
         let ik = Cilfacade.get_ikind (Cil.typeOf exp) in
         `Int (ID.of_bool ik false)
       | _ -> eval_next ()
