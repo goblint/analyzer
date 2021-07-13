@@ -75,9 +75,9 @@ struct
   let return ctx e f =
     if D.is_bot ctx.local then D.bot () else
       match e with
-      | Some e when isArithmeticType (typeOf e) ->
+      | Some e when isArithmeticType (Cilfacade.typeOf e) ->
         let nd =
-          if isIntegralType (typeOf e) then
+          if isIntegralType (Cilfacade.typeOf e) then
             D.add_vars ctx.local (["#ret"],[])
           else
             D.add_vars ctx.local (["#ret"],[])
@@ -106,7 +106,7 @@ struct
     let d = ctx.local in
     match q with
     | EvalInt e ->
-      let ik = Cilfacade.get_ikind (Cil.typeOf e) in
+      let ik = Cilfacade.get_ikind_exp e in
       begin
         match D.get_int_val_for_cil_exp d e with
         | Some i -> ID.of_int ik i

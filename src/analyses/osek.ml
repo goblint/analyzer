@@ -29,13 +29,13 @@ let is_atomic_type (t: typ): bool =
 
 let is_atomic lval =
   let (lval, _) = removeOffsetLval lval in
-  let typ = typeOfLval lval in
+  let typ = Cilfacade.typeOfLval lval in
   is_atomic_type typ
 
 let is_ignorable lval =
   (*  ignore (printf "Var %a\n" d_lval lval);*)
   try ValueDomain.Compound.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
-  with Not_found -> false
+  with Cilfacade.TypeOfError _ -> false
 
 
 module Flag =
@@ -471,7 +471,7 @@ struct
       match fs with
       | LockingPattern.EField f :: _ -> (e,f.fcomp,fs) :: xs
       | _ -> xs
-      (*      match unrollType (typeOf (LockingPattern.fromEl e dummy)) with
+      (*      match unrollType (Cilfacade.typeOf (LockingPattern.fromEl e dummy)) with
               | TComp (c,_) -> (e,c,fs) :: xs
               | _ -> xs*)
     in

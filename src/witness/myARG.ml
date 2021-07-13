@@ -317,7 +317,7 @@ struct
       (* avoid unnecessary ternary *)
       e_cond
     else
-      Question(e_cond, e_true, e_false, typeOf e_false)
+      Question(e_cond, e_true, e_false, Cilfacade.typeOf e_false)
 
   let next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.witness.uncil" ->

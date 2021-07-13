@@ -142,7 +142,7 @@ struct
     if D.is_bot ctx.local then D.bot () else
 
       let nd = match e with
-        | Some e when isIntegralType (typeOf e) ->
+        | Some e when isIntegralType (Cilfacade.typeOf e) ->
           let nd = D.add_vars ctx.local ["#ret"] in
           let () = D.assign_var_with nd "#ret" e in
           nd
@@ -173,7 +173,7 @@ struct
     let d = ctx.local in
     match q with
     | EvalInt e ->
-      let ik = Cilfacade.get_ikind (Cil.typeOf e) in
+      let ik = Cilfacade.get_ikind_exp e in
       begin match e with
         (* constraint *)
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) ->
