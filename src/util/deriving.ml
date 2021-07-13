@@ -46,7 +46,7 @@ module Cil = struct
   and init = [%import: Cil.init]
   and typsig = [%import: Cil.typsig]
   and fundec = [%import: Cil.fundec]
-  [@@deriving to_yojson, show]
+  [@@deriving to_yojson]
 
   (* To fix this properly, the types above should be annotated with sth like @to_yojson to give a custom function to  *)
   (* create json from them. This is however currently not supported by ppx_derving. This should work in the meanwhile *)
