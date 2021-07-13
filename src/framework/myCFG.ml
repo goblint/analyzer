@@ -28,7 +28,7 @@ type edge =
   | ASM of string list * asm_out * asm_in
   (** Inline assembly statements, and the annotations for output and input
     * variables. *)
-  | VDecl of varinfo
+  | VDecl of CilType.Varinfo.t
   (** VDecl edge for the variable in varinfo. Whether such an edge is there for all
     * local variables or only when it is not possible to pull the declaration up, is
     * determined by alwaysGenerateVarDecl in cabs2cil.ml in CIL. One case in which a VDecl

@@ -1,6 +1,5 @@
 module GU = Goblintutil
 open Cil
-open Deriving.Cil
 open Pretty
 
 module ProgLines : Printable.S with type t = location =
@@ -253,7 +252,7 @@ module FieldVariables =
 struct
   include Printable.Std
 
-  type t = varinfo*CilType.Fieldinfo.t option [@@deriving to_yojson]
+  type t = CilType.Varinfo.t*CilType.Fieldinfo.t option [@@deriving to_yojson]
 
   let gen v = (v,None)
   let gen_f v f = (v,Some f)
