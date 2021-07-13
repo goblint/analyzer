@@ -364,6 +364,7 @@ struct
       if INV.is_int inv
       then INV.to_int inv |> Option.get |> Queries.ID.of_int (Cilfacade.get_ikind (Cil.typeOf exp))
       else Queries.Result.top q
+    (* TODO: support interval return based on removed InInterval in commit 8c4d6f261f7b007c19e6464419a43ea195d56a6c *)
     | _ -> Queries.Result.top q
 
   let threadspawn ctx lval f args fctx = ctx.local
