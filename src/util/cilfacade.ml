@@ -251,14 +251,26 @@ let ptrdiff_ikind () = get_ikind !ptrdiffType
     instead of printing all errors directly... *)
 
 type typeOfError =
-  | RealImag_NonNumerical (** unexpected non-numerical type for argument to __real__ *) (* TODO: or __imag__? *)
+  | RealImag_NonNumerical (** unexpected non-numerical type for argument to __real__/__imag__ *) (* TODO: CIL's own output forgets __imag__ *)
   | StartOf_NonArray (** typeOf: StartOf on a non-array *)
   | Mem_NonPointer of exp (** typeOfLval: Mem on a non-pointer (exp) *)
   | Index_NonArray (** typeOffset: Index on a non-array *)
   | Field_NonCompound (** typeOffset: Field on a non-compound *)
 
-(* TODO: add exception printer *)
 exception TypeOfError of typeOfError
+
+let () = Printexc.register_printer (function
+    | TypeOfError error ->
+      let msg = match error with
+        | RealImag_NonNumerical -> "unexpected non-numerical type for argument to __real__/__imag__"
+        | StartOf_NonArray -> "typeOf: StartOf on a non-array"
+        | Mem_NonPointer exp -> Printf.sprintf "typeOfLval: Mem on a non-pointer (%s)" (CilType.Exp.show exp)
+        | Index_NonArray -> "typeOffset: Index on a non-array"
+        | Field_NonCompound -> "typeOffset: Field on a non-compound"
+      in
+      Some (Printf.sprintf "Cilfacade.TypeOfError(%s)" msg)
+    | _ -> None (* for other exceptions *)
+  )
 
 (* Cil doesn't expose this *)
 let stringLiteralType = ref charPtrType
