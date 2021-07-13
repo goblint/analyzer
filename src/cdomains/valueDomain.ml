@@ -162,6 +162,8 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
+
+    let abort = ref false
     let arg_value (map: TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
       let ts (t: Cil.typ): Cil.typsig =
         typeSigWithAttrs (fun _ -> []) t
@@ -196,6 +198,7 @@ struct
                 (* Creates the memory abstraction for type t, collects memory
                  that is directly and indirectly reachable from the pointer to this types abstraction *)
                 let do_typ t (acc_dir,acc_ind) =
+                  if !abort then failwith "aborted";
                   try
                     let heap_var = heap_var t in
                     let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
@@ -205,6 +208,7 @@ struct
                   with Stack_overflow as e ->
                     ignore @@ Pretty.printf "Stackoverflow. Values in hashtable were %a.\n" (d_list ", " Cil.d_typsig) (Hashtbl.fold (fun key value acc -> key::acc) type_to_symbolic_address []);
                     ignore @@ Pretty.printf "Currently queried type was %a, pointed_to_type was %a\n" d_type t d_type pointed_to_t;
+                    abort := true;
                     Prelude.raise e
                 in
                   let (direct, indirect) = TypeSet.fold do_typ types ([],[]) in
