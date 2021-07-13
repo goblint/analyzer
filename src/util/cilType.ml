@@ -14,7 +14,11 @@ struct
   let pretty_diff () (_, _) = nil
 end
 
-module Varinfo: S with type t = varinfo =
+module Varinfo:
+sig
+  include S with type t = varinfo
+  val pp: Format.formatter -> t -> unit (* for deriving show *)
+end =
 struct
   include Std
 
@@ -33,6 +37,7 @@ struct
   let pretty () x = Pretty.text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String x.vname
+  let pp fmt x = Format.fprintf fmt "%s" x.vname (* for deriving show *)
 end
 
 module Stmt: S with type t = stmt =

@@ -34,7 +34,7 @@ let pname_ErrorHandler = "ErrorHandler"
 
 module Action = (* encapsulate types because some process field names are also used for D.t -> use local opening of modules (since OCaml 4.00) for output *)
 struct
-  type process = { pid: id; f: varinfo; pri: int64; per: time; cap: time } [@@deriving show]
+  type process = { pid: id; f: CilType.Varinfo.t; pri: int64; per: time; cap: time } [@@deriving show]
   type semaphore = { sid: id; cur: int64; max: int64; queuing: int64 } [@@deriving show]
 end
 type action =
@@ -43,7 +43,7 @@ type action =
   | Assign of string * string (* var_callee = var_caller *)
   | Call of string
   | LockPreemption | UnlockPreemption | SetPartitionMode of partition_mode option
-  | CreateProcess of Action.process | CreateErrorHandler of id * varinfo | Start of id | Stop of id | Suspend of id | SuspendSelf of id * time | Resume of id
+  | CreateProcess of Action.process | CreateErrorHandler of id * CilType.Varinfo.t | Start of id | Stop of id | Suspend of id | SuspendSelf of id * time | Resume of id
   | CreateBlackboard of id | DisplayBlackboard of id | ReadBlackboard of id * time | ClearBlackboard of id
   | CreateSemaphore of Action.semaphore | WaitSemaphore of id * time | SignalSemaphore of id
   | CreateEvent of id | WaitEvent of id * time | SetEvent of id | ResetEvent of id

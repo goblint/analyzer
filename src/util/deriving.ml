@@ -18,6 +18,5 @@ module Cil = struct
   (* create json from them. This is however currently not supported by ppx_derving. This should work in the meanwhile *)
   (* see also https://github.com/ocaml-ppx/ppx_deriving/issues/184 *)
 
-  let pp_varinfo fmt v = Format.fprintf fmt "%s" v.vname
   let show_varinfo v = v.vname
 end
