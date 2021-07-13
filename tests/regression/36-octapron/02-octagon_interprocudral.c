@@ -12,13 +12,16 @@ int f1() {
     one = two;
 
     assert(one - two == 0);
+    assert(one == two);
     x = f2(one,two);
     assert(one - two == 0);
+    assert(one == two);
     assert(x == 48);
 }
 
 int f2(int a, int b) {
     assert(a-b == 0);
+    assert(a == b);
 
     return 48;
 }

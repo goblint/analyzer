@@ -106,10 +106,11 @@ struct
     let d = ctx.local in
     match q with
     | EvalInt e ->
+      let ik = Cilfacade.get_ikind (Cil.typeOf e) in
       begin
         match D.get_int_val_for_cil_exp d e with
-        | Some i -> ID.of_int i
-        | _ -> `Top
+        | Some i -> ID.of_int ik i
+        | _ -> ID.top ()
       end
     | MustBeEqual (e1, e2) ->
       if D.cil_exp_equals d e1 e2 then true

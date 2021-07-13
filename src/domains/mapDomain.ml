@@ -68,7 +68,7 @@ module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = Deriving.Map.Make (Domain)
+  module M = Map.Make (Domain)
 
   include Printable.Std
   type key = Domain.t

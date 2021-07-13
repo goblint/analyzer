@@ -41,8 +41,7 @@ depends: [
   "ppx_deriving" {= "4.5"}
   "ppx_deriving_yojson" {= "3.5.3"}
   "ppx_distr_guards" {= "0.2"}
-  "ppx_import" {= "1.8.0"}
-  "ppx_tools" {= "6.3"}
+  "ppx_tools" {= "6.2"}
   "ppx_tools_versioned" {= "5.4.0"}
   "ppxfind" {= "1.4"}
   "qcheck-core" {= "0.17"}
