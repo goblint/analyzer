@@ -6,7 +6,7 @@ open Pretty
  * the function node as last node that all the returning nodes point to.  So
  * the result of the function call is contained in the function node. *)
 type node =
-  | Statement of stmt
+  | Statement of CilType.Stmt.t
   (** The statements as identified by CIL *)
   | FunctionEntry of fundec
   (** *)

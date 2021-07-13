@@ -8,13 +8,13 @@ open Pretty
 open GobConfig
 include Node
 
-type asm_out = (string option * string * lval) list [@@deriving to_yojson]
+type asm_out = (string option * string * CilType.Lval.t) list [@@deriving to_yojson]
 type asm_in  = (string option * string * exp ) list [@@deriving to_yojson]
 
 type edge =
-  | Assign of lval * exp
+  | Assign of CilType.Lval.t * exp
   (** Assignments lval = exp *)
-  | Proc of lval option * exp * exp list
+  | Proc of CilType.Lval.t option * exp * exp list
   (** Function calls of the form lva = fexp (e1, e2, ...) *)
   | Entry of fundec
   (** Entry edge that relates function declaration to function body. You can use

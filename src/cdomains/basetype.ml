@@ -6,7 +6,7 @@ open Pretty
 module ProgLines : Printable.S with type t = location =
 struct
   include Printable.Std
-  type t = location [@@deriving to_yojson]
+  type t = location
   let copy x = x
   let equal x y =
     x.line = y.line && x.file = y.file (* ignores byte field *)
@@ -17,6 +17,7 @@ struct
   let name () = "proglines"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module ProgLocation : Printable.S with type t = location =
@@ -24,7 +25,7 @@ struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Pretty
-  type t = location [@@deriving to_yojson]
+  type t = location
   let equal = (=)
   let compare = compare
   let hash = Hashtbl.hash
@@ -37,12 +38,13 @@ struct
   let name () = "proglines_byte"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
 struct
   include Printable.Std
-  type t = location * MyCFG.node * fundec [@@deriving to_yojson]
+  type t = location * MyCFG.node * fundec
   let copy x = x
   let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b (* ignores fundec component *)
   let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x (* ignores fundec component *)
@@ -58,6 +60,7 @@ struct
   let name () = "proglinesfun"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module Variables =

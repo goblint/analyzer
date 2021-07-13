@@ -33,7 +33,7 @@ end
 type inline_edge =
   | CFGEdge of edge
   | InlineEntry of Deriving.Cil.exp list
-  | InlineReturn of Deriving.Cil.lval option
+  | InlineReturn of CilType.Lval.t option
   [@@deriving to_yojson]
 
 let pretty_inline_edge () = function
