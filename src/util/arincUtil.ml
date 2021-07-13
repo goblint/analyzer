@@ -1,6 +1,5 @@
 open Prelude
 open Cil
-open Deriving.Cil
 (* we don't want to use M.debug_each because everything here should be done after the analysis, so the location would be some old value for all invocations *)
 let debug_each msg = print_endline @@ Messages.colorize @@ "{blue}"^msg
 
@@ -112,7 +111,7 @@ let get_globals () = Hashtbl.values return_vars |> Set.of_enum |> flatten_set |>
 (* ARINC output *)
 (* console and dot *)
 let str_resource id =
-  let str_funs fs = "["^(List.map show_varinfo fs |> String.concat ", ")^"]" in
+  let str_funs fs = "["^(List.map CilType.Varinfo.show fs |> String.concat ", ")^"]" in
   match id with
   | Process, "mainfun" ->
     "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
@@ -125,7 +124,7 @@ let str_action pid = function
   | Cond (r, cond) -> "If "^cond
   | SetPartitionMode m -> "SetPartitionMode "^show_partition_mode_opt m
   | CreateProcess x ->
-    Action.("CreateProcess "^str_resource x.pid^" (fun "^show_varinfo x.f^", prio "^Int64.to_string x.pri^", period "^show_time x.per^", capacity "^show_time x.cap^")")
+    Action.("CreateProcess "^str_resource x.pid^" (fun "^CilType.Varinfo.show x.f^", prio "^Int64.to_string x.pri^", period "^show_time x.per^", capacity "^show_time x.cap^")")
   | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
   | CreateSemaphore x ->
     Action.("CreateSemaphore "^str_resource x.sid^" ("^Int64.to_string x.cur^"/"^Int64.to_string x.max^", "^string_of_queuing_discipline x.queuing^")")

@@ -11,12 +11,3 @@ module Map = struct
     let to_yojson poly_v x = [%to_yojson: (K.t * 'v) list] poly_v (bindings x)
   end
 end
-module Cil = struct
-  open Cil
-
-  (* To fix this properly, the types above should be annotated with sth like @to_yojson to give a custom function to  *)
-  (* create json from them. This is however currently not supported by ppx_derving. This should work in the meanwhile *)
-  (* see also https://github.com/ocaml-ppx/ppx_deriving/issues/184 *)
-
-  let show_varinfo v = v.vname
-end
