@@ -5,6 +5,8 @@ open Analyses
 open Apron
 open OctApronDomain
 
+module BI = IntOps.BigIntOps
+
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
@@ -184,9 +186,12 @@ struct
           end
         (* expression *)
         | _ ->
-          begin match D.get_int_val_for_cil_exp d e with
-            | Some i -> ID.of_int ik i
-            | _ -> ID.top ()
+          (* TODO: change get_int_interval_for_cil_exp to return BI instead of int64 *)
+          begin match D.get_int_interval_for_cil_exp d e with
+            | (Some min, Some max) -> ID.of_interval ik (BI.of_int64 min, BI.of_int64 max)
+            | (Some min, None) -> ID.starting ik (BI.of_int64 min)
+            | (None, Some max) -> ID.ending ik (BI.of_int64 max)
+            | (None, None) -> ID.top ()
           end
       end
     | _ -> Result.top q
