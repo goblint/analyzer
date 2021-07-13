@@ -684,7 +684,8 @@ struct
     time_transfer "special" time_wrapper
 
   (*let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (D.t * exp * bool) list*)
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fd:fundec) (args:exp list) : (D.t * D.t) list =
+    let f = fd.svar in
     (*D.report("ENTER ZERO : "^f.vname);*)
     (*D.report("ENTER_FN : "^f.vname);*)
     (*if D.is_top ctx.local then failwith "ARGH!";*)
@@ -708,7 +709,6 @@ struct
         (*       printf ":: no_mainclass:%b public:%b \n" no_mainclass (D.is_public_method_name f.vname); *)
         (*D.report("ENTER_FUN : "^f.vname);*)
         let fs = D.get_tainted_fields ctx.global in
-        let fd = Cilfacade.getdec f in
         let t (v, e) = true
    (*
         let _, ds, _ = ctx.local in
@@ -741,7 +741,8 @@ struct
       end else [ctx.local, ctx.local]
 
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
+    let f = fd.svar in
     (*eval_funvar ctx fexp;*)
     if danger_bot ctx then ctx.local else
       let a, b, c = ctx.local in
@@ -780,7 +781,6 @@ struct
                   in
                   let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v rvs) rvs (a,b,c) in
 
-                  let fd = Cilfacade.getdec f in
                   let ll = match (zip fd.sformals args) with (*remove this*)
                     | [] -> []
                     | [x] -> []

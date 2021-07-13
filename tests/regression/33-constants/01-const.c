@@ -1,4 +1,4 @@
-//PARAM: --sets ana.activated[+] constants
+//PARAM: --set ana.activated '["constants"]'
 int f(int a, int b){
     int d = 3;
     int z = a + d;

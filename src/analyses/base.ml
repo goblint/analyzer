@@ -565,12 +565,10 @@ struct
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
         let a = a.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
-        let ik = Cilfacade.get_ikind typ in
         begin match a with
           | x when Queries.ID.is_bot x -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (`Int x) *)
-          | x -> `Int (Queries.ID.cast_to ik x) (* TODO: cast unnecessary? *)
-          (* TODO: query should guarantee right ikind already? *)
+          | x -> `Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
         end
       | exception Cilfacade.TypeOfError _ (* Bug: typeOffset: Field on a non-compound *)
       | _ -> eval_next ()
@@ -590,38 +588,29 @@ struct
     let eval_next () = eval_rv_base a gs st exp in
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
     let binop op e1 e2 =
-      let equality () =
-        (* TODO: just return bool? *)
-        if a.f (Q.MustBeEqual (e1,e2)) then (
-          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 true;
-          Some true
-        )
-        else
-          None
+      let must_be_equal () =
+        let r = a.f (Q.MustBeEqual (e1, e2)) in
+        if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
+        r
       in
-      let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
       match op with
-      | MinusA when equality () = Some true ->
+      | MinusA when must_be_equal () ->
         let ik = Cilfacade.get_ikind_exp exp in
         `Int (ID.of_int ik BI.zero)
       | MinusPI
-      | MinusPP when equality () = Some true -> `Int (ID.of_int ptrdiff_ikind BI.zero)
-      | MinusPI
-      | MinusPP when equality () = Some false -> `Int (ID.of_excl_list ptrdiff_ikind [BI.zero])
+      | MinusPP when must_be_equal () ->
+        let ik = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
+        `Int (ID.of_int ik BI.zero)
+      | Eq
       | Le
-      | Ge when equality () = Some true ->
+      | Ge when must_be_equal () ->
         let ik = Cilfacade.get_ikind_exp exp in
         `Int (ID.of_bool ik true)
+      | Ne
       | Lt
-      | Gt when equality () = Some true ->
-          let ik = Cilfacade.get_ikind_exp exp in
-          `Int (ID.of_bool ik false)
-      | Eq -> (match equality () with Some tv ->
-          let ik = Cilfacade.get_ikind_exp exp in
-          `Int (ID.of_bool ik tv) | None -> eval_next ())
-      | Ne -> (match equality () with Some tv ->
-          let ik = Cilfacade.get_ikind_exp exp in
-          `Int (ID.of_bool ik (not tv)) | None -> eval_next ())
+      | Gt when must_be_equal () ->
+        let ik = Cilfacade.get_ikind_exp exp in
+        `Int (ID.of_bool ik false)
       | _ -> eval_next ()
     in
     let r =
@@ -835,7 +824,7 @@ struct
   let query_evalint ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
     let r = match eval_rv_no_ask_evalint ask gs st e with
-    | `Int i -> i (* TODO: cast to right ikind here? or is it guaranteed? *)
+    | `Int i -> i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
     | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
     (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
     | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.ID.bot ()
@@ -1835,12 +1824,11 @@ struct
     set_many ?ctx ask gs st invalids'
 
 
-  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fn args: D.t =
+  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in
     (* generate the entry states *)
-    let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
     let st' =
@@ -1885,10 +1873,14 @@ struct
         Some (lval, v, args)
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
-        else if isFunctionType v.vtype then (
-          M.warn_each ("Creating a thread from unknown function " ^ v.vname);
+        else if isFunctionType v.vtype then
+          (* FromSpec warns about unknown thread creation, so we don't do it here any more *)
+          let args = match arg with
+            | Some x -> [x]
+            | None -> []
+          in
           Some (lval, v, args)
-        ) else (
+        else (
           M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
           None
         )
@@ -1900,7 +1892,14 @@ struct
         publish_all ctx `Thread;
         (* Collect the threads. *)
         let start_addr = eval_tv (Analyses.ask_of_ctx ctx) ctx.global ctx.local start in
-        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) (AD.to_var_may start_addr)
+        let start_funvars = AD.to_var_may start_addr in
+        let start_funvars_with_unknown =
+          if AD.mem Addr.UnknownPtr start_addr then
+            dummyFunDec.svar :: start_funvars
+          else
+            start_funvars
+        in
+        List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
     | `Unknown "free" -> []
     | `Unknown _ when get_bool "sem.unknown_function.spawn" -> begin
@@ -1965,6 +1964,27 @@ struct
             M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
         newst
       end
+
+  let special_unknown_invalidate ctx ask gs st f args =
+    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ("Unknown function ptr called"));
+    let addrs =
+      if get_bool "sem.unknown_function.invalidate.globals" then (
+        M.warn_each "INVALIDATING ALL GLOBALS!";
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+            match global with
+            | GVar (vi, _, _) when not (is_static vi) ->
+              mkAddrOf (Var vi, NoOffset) :: acc
+            (* TODO: what about GVarDecl? *)
+            | _ -> acc
+          ) args
+      )
+      else
+        args
+    in
+    (* TODO: what about escaped local variables? *)
+    (* invalidate arguments and non-static globals for unknown functions *)
+    invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
@@ -2138,34 +2158,14 @@ struct
         let st =
           match LF.get_invalidate_action f.vname with
           | Some fnc -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (fnc `Write  args)
-          | None -> (
-              (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
-              (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ("Unknown function ptr called"));
-              let addrs =
-                if get_bool "sem.unknown_function.invalidate.globals" then (
-                  M.warn_each "INVALIDATING ALL GLOBALS!";
-                  foldGlobals !Cilfacade.current_file (fun acc global ->
-                      match global with
-                      | GVar (vi, _, _) when not (is_static vi) ->
-                        mkAddrOf (Var vi, NoOffset) :: acc
-                        (* TODO: what about GVarDecl? *)
-                      | _ -> acc
-                    ) args
-                )
-                else
-                  args
-              in
-              (* TODO: what about escaped local variables? *)
-              (* invalidate arguments and non-static globals for unknown functions *)
-              let st = invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs in
-              (*
-               *  TODO: invalidate vars reachable via args
-               *  publish globals
-               *  if single-threaded: *call f*, privatize globals
-               *  else: spawn f
-               *)
-              st
-            )
+          | None ->
+            special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
+            (*
+             *  TODO: invalidate vars reachable via args
+             *  publish globals
+             *  if single-threaded: *call f*, privatize globals
+             *  else: spawn f
+             *)
         in
         (* invalidate lhs in case of assign *)
         let st = match lv with
@@ -2186,7 +2186,7 @@ struct
         (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cilfacade.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
 
-  let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) fc (after: D.t) : D.t =
+  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2230,11 +2230,14 @@ struct
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
-    try
-      [make_entry ~thread:true ctx f args]
-    with Not_found ->
+    match Cilfacade.getdec f with
+    | fd ->
+      [make_entry ~thread:true ctx fd args]
+    | exception Not_found ->
       (* Unknown functions *)
-      [ctx.local]
+      let st = ctx.local in
+      let st = special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) ctx.global st f args in
+      [st]
 
   let threadspawn ctx (lval: lval option) (f: varinfo) (args: exp list) fctx: D.t =
     begin match lval with

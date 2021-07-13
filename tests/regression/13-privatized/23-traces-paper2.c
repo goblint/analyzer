@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --sets exp.solver.td3.side_widen cycle_self
+// PARAM: --enable ana.int.interval
 #include <pthread.h>
 #include <assert.h>
 

@@ -51,8 +51,7 @@ struct
   let startstate _ =  D.top () (* TODO: correct env? *)
 
   let enter ctx r f args =
-    if D.is_bot ctx.local then [ctx.local, D.bot ()] else
-      let f = Cilfacade.getdec f in
+    if D.is_bot ctx.local then [ctx.local, D.bot ()] else (
       if Messages.tracing then Messages.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
       if Messages.tracing then Messages.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
       if Messages.tracing then Messages.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
@@ -67,11 +66,11 @@ struct
       D.remove_all_but_with newd (is);
       if Messages.tracing then Messages.tracel "combine" "apron enter newd: %a\n" D.pretty newd;
       [ctx.local, newd]
+    )
 
 
   let combine ctx r fe f args fc d =
-    if D.is_bot ctx.local || D.is_bot d then D.bot () else
-      let f = Cilfacade.getdec f in
+    if D.is_bot ctx.local || D.is_bot d then D.bot () else (
       if Messages.tracing then Messages.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
       if Messages.tracing then Messages.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
       match r with
@@ -96,6 +95,7 @@ struct
       | _ ->
         (* TODO: don't go to top, but just forget r *)
         D.top_env (A.env ctx.local)
+    )
 
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
