@@ -251,7 +251,7 @@ let ptrdiff_ikind () = get_ikind !ptrdiffType
     instead of printing all errors directly... *)
 
 type typeOfError =
-  | RealImag_NonNumerical (** unexpected non-numerical type for argument to __real__/__imag__ *) (* TODO: CIL's own output forgets __imag__ *)
+  | RealImag_NonNumerical (** unexpected non-numerical type for argument to __real__/__imag__ *)
   | StartOf_NonArray (** typeOf: StartOf on a non-array *)
   | Mem_NonPointer of exp (** typeOfLval: Mem on a non-pointer (exp) *)
   | Index_NonArray (** typeOffset: Index on a non-array *)
