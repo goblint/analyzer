@@ -1,5 +1,4 @@
 open Cil
-open Deriving.Cil
 open Pretty
 
 (** A node in the Control Flow Graph is either a statement or function. Think of
@@ -8,9 +7,9 @@ open Pretty
 type node =
   | Statement of CilType.Stmt.t
   (** The statements as identified by CIL *)
-  | FunctionEntry of fundec
+  | FunctionEntry of CilType.Fundec.t
   (** *)
-  | Function of fundec
+  | Function of CilType.Fundec.t
   (** The variable information associated with the function declaration. *)
 [@@deriving to_yojson]
 

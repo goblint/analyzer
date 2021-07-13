@@ -16,10 +16,10 @@ type edge =
   (** Assignments lval = exp *)
   | Proc of CilType.Lval.t option * exp * exp list
   (** Function calls of the form lva = fexp (e1, e2, ...) *)
-  | Entry of fundec
+  | Entry of CilType.Fundec.t
   (** Entry edge that relates function declaration to function body. You can use
     * this to initialize the local variables. *)
-  | Ret of exp option * fundec
+  | Ret of exp option * CilType.Fundec.t
   (** Return edge is between the return statement, which may optionally contain
     * a return value, and the function. The result of the call is then
     * transferred to the function node! *)

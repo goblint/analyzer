@@ -17,8 +17,7 @@ module Cil = struct
   (* To fix this properly, the types above should be annotated with sth like @to_yojson to give a custom function to  *)
   (* create json from them. This is however currently not supported by ppx_derving. This should work in the meanwhile *)
   (* see also https://github.com/ocaml-ppx/ppx_deriving/issues/184 *)
-  let rec fundec_to_yojson (x:fundec) = varinfo_to_yojson x.svar
-  and fieldinfo_to_yojson (f:fieldinfo) = `String (f.fname)
+  let rec fieldinfo_to_yojson (f:fieldinfo) = `String (f.fname)
   and varinfo_to_yojson (v:varinfo) = `String(v.vname)
   and exp_to_yojson (l:exp) = `String(Pretty.sprint ~width:80 (Cil.d_exp () l))
 
