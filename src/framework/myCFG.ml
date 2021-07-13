@@ -3,27 +3,26 @@
 module GU = Goblintutil
 module CF = Cilfacade
 open Cil
-open Deriving.Cil
 open Pretty
 open GobConfig
 include Node
 
 type asm_out = (string option * string * CilType.Lval.t) list [@@deriving to_yojson]
-type asm_in  = (string option * string * exp ) list [@@deriving to_yojson]
+type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving to_yojson]
 
 type edge =
-  | Assign of CilType.Lval.t * exp
+  | Assign of CilType.Lval.t * CilType.Exp.t
   (** Assignments lval = exp *)
-  | Proc of CilType.Lval.t option * exp * exp list
+  | Proc of CilType.Lval.t option * CilType.Exp.t * CilType.Exp.t list
   (** Function calls of the form lva = fexp (e1, e2, ...) *)
   | Entry of CilType.Fundec.t
   (** Entry edge that relates function declaration to function body. You can use
     * this to initialize the local variables. *)
-  | Ret of exp option * CilType.Fundec.t
+  | Ret of CilType.Exp.t option * CilType.Fundec.t
   (** Return edge is between the return statement, which may optionally contain
     * a return value, and the function. The result of the call is then
     * transferred to the function node! *)
-  | Test of exp * bool
+  | Test of CilType.Exp.t * bool
   (** The true-branch or false-branch of a conditional exp *)
   | ASM of string list * asm_out * asm_in
   (** Inline assembly statements, and the annotations for output and input
