@@ -11,11 +11,6 @@ module Map = struct
     let to_yojson poly_v x = [%to_yojson: (K.t * 'v) list] poly_v (bindings x)
   end
 end
-module Pretty = struct
-  include Pretty
-  let doc_to_yojson x = assert false
-  let pp_doc x = assert false
-end
 module Cil = struct
   open Cil
 
