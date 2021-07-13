@@ -1,5 +1,4 @@
 open Cil
-open Deriving.Cil
 open Pretty
 
 module type S =

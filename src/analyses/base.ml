@@ -1372,7 +1372,6 @@ struct
       st
 
   let invariant ctx a gs st exp tv: store =
-    let open Deriving.Cil in
     let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
       invariant ctx a gs st exp tv

@@ -32,7 +32,7 @@ end
 
 type inline_edge =
   | CFGEdge of edge
-  | InlineEntry of Deriving.Cil.exp list
+  | InlineEntry of CilType.Exp.t list
   | InlineReturn of CilType.Lval.t option
   [@@deriving to_yojson]
 

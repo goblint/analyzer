@@ -1,6 +1,6 @@
 (** Structures for the querying subsystem. *)
 
-open Deriving.Cil
+open Cil
 
 module GU = Goblintutil
 module ID =
