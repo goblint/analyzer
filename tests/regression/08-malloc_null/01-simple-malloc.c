@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper','assert']" --disable sem.assert.refine
 #include <stdlib.h>
 
 void *smalloc(size_t x){

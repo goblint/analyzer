@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['escape', 'base','threadid','threadflag','mallocWrapper']" --set ana.ctx_insens[+] "'base'"
+// PARAM: --set ana.activated "['escape', 'base','threadid','threadflag','mallocWrapper','assert']" --set ana.ctx_insens[+] "'base'"
 void f(int v, int i){
   assert(v   == 2);
   assert(i*i == 9); // UNKNOWN

@@ -9,7 +9,7 @@ type categories = [
   | `Malloc       of exp
   | `Calloc       of exp * exp
   | `Realloc      of exp * exp
-  | `Assert       of exp
+  | `Assert       of exp * bool * bool (* exp, should_warn?, change? *) (* TODO: change to non-poly variants to inline record can be used *)
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
   | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
@@ -52,7 +52,22 @@ let classify' fn exps =
     end
   | "assert" ->
     begin match exps with
-      | [e] -> `Assert e
+      | [e] -> `Assert (e, get_bool "dbg.debug", get_bool "sem.assert.refine")
+      | _ -> M.bailwith "Assert argument mismatch!"
+    end
+  | "__goblint_check" ->
+    begin match exps with
+      | [e] -> `Assert (e, true, false)
+      | _ -> M.bailwith "Assert argument mismatch!"
+    end
+  | "__goblint_commit" ->
+    begin match exps with
+      | [e] -> `Assert (e, false, true)
+      | _ -> M.bailwith "Assert argument mismatch!"
+    end
+  | "__goblint_assert" ->
+    begin match exps with
+      | [e] -> `Assert (e, true, true)
       | _ -> M.bailwith "Assert argument mismatch!"
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"

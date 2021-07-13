@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.def_exc  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper']"
+// PARAM: --sets solver td3 --enable ana.int.def_exc  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper','assert']"
 int main(void) {
     // Minimal and maximal in def_exc were broken. They are not directly used, but used in the MayBeLess and MayBeEqual queries, that
     // are in turn used by the partitioning arrays. This is why we run the arrays in combination with def_exc.

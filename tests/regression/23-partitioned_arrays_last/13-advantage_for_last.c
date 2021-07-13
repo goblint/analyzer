@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval  --sets exp.partition-arrays.keep-expr "last" --enable exp.partition-arrays.enabled --set ana.activated "['base','threadid','threadflag','escape','expRelation','octagon','mallocWrapper']"
+// PARAM: --sets solver td3 --enable ana.int.interval  --sets exp.partition-arrays.keep-expr "last" --enable exp.partition-arrays.enabled --set ana.activated "['base','threadid','threadflag','escape','expRelation','octagon','mallocWrapper','assert']"
 void main(void) {
   example1();
 }

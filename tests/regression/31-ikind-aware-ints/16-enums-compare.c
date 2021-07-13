@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.enums --disable ana.int.def_exc
+//PARAM: --enable ana.int.enums --disable ana.int.def_exc --disable sem.assert.refine
 int main(){
     int top = rand();
     int top2 = rand();

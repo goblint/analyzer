@@ -1,4 +1,4 @@
-// NOMARSHAL PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --sets ana.osek.oil 07-flags.oil --sets ana.osek.flags[+] flag
+// NOMARSHAL PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper','assert']" --sets ana.osek.oil 07-flags.oil --sets ana.osek.flags[+] flag
 
 int flag = 0;
 int var = 0;

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated ["'base'","'mallocWrapper'"]
+// PARAM: --set ana.activated ["'base'","'mallocWrapper','assert'"]
 static long main(void)
 {
   unsigned int cmd;

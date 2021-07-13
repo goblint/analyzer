@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --disable ana.int.def_exc --disable ana.int.enums
+// PARAM: --enable ana.int.interval --disable ana.int.def_exc --disable ana.int.enums --disable sem.assert.refine
 #include <assert.h>
 
 void main(){

@@ -63,7 +63,7 @@ struct
     if D.is_bot ctx.local then D.bot () else
       begin
         match LibraryFunctions.classify f.vname args with
-        | `Assert expression -> D.assert_inv ctx.local expression false
+        | `Assert (expression, _, _) -> D.assert_inv ctx.local expression false
         | `Unknown "printf" -> ctx.local
         | _ -> D.topE (A.env ctx.local)
       end

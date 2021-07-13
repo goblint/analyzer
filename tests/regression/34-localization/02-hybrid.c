@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --sets solver slr4
+// PARAM: --enable ana.int.interval --sets solver slr4 --disable sem.assert.refine
 // Example from Amato-Scozzari, SAS 2013
 // Localized narrowing with restart policy should be able to prove that
 // 0 <= i <= 10 inside the inner loop.

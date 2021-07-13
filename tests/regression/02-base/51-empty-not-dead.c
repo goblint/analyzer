@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated '["base", "mallocWrapper"]'
+//PARAM: --set ana.activated '["base", "mallocWrapper","assert"]'
 // Copied & modified from 33/04.
 #include <assert.h>
 

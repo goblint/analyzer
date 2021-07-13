@@ -1,3 +1,4 @@
+// PARAM: --disable sem.assert.refine
 // Making sure unknown conditions result in evaluating both branches.
 #include<assert.h>
 

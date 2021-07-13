@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.def_exc --enable ana.int.interval
+// PARAM: --enable ana.int.def_exc --enable ana.int.interval --disable sem.assert.refine
 int main(void) {
     int i = 1;
     int v = 8;

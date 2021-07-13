@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.def_exc --enable ana.sv-comp.functions --set ana.activated "['base','threadid','threadflag','mallocWrapper','var_eq','region','expRelation']"
+// PARAM: --enable ana.int.interval --enable ana.int.def_exc --enable ana.sv-comp.functions --set ana.activated "['base','threadid','threadflag','mallocWrapper','assert','var_eq','region','expRelation']"
 #include <assert.h>
 
 int isNan(float arg) {

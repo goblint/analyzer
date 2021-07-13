@@ -97,15 +97,21 @@ struct
         D.top_env (A.env ctx.local)
     )
 
+
+  let assert_fn ctx e change =
+    if not change then
+      ctx.local
+    else
+      let res = D.assert_inv ctx.local e false in
+      if D.is_bot_env res then raise Deadcode;
+      res
+
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
       begin
         match LibraryFunctions.classify f.vname args with
-        | `Assert expression -> ctx.local
         | `Unknown "printf" -> ctx.local
-        | `Unknown "__goblint_check" -> ctx.local
-        | `Unknown "__goblint_commit" -> ctx.local
-        | `Unknown "__goblint_assert" -> ctx.local
+        | `Assert (e, _, change) -> assert_fn ctx e change
         | `Malloc size ->
           (match r with
             | Some lv ->

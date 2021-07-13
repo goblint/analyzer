@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper','assert']"
 extern void f_everything_up();
 
 struct s {

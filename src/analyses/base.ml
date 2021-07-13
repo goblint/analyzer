@@ -825,7 +825,10 @@ struct
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
     let r = match eval_rv_no_ask_evalint ask gs st e with
     | `Int i -> i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
-    | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
+    | `Bot (* if uninitialized (float?) array element, like eval_rv wrapper *)
+    | exception (IntDomain.ArithmeticOnIntegerBot _) (* like eval_rv wrapper *)
+    | `Top -> (* if float or unknown_exp *)
+      Queries.ID.top_of (Cilfacade.get_ikind (typeOf e)) (* TODO: get_ikind_exp *)
     (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
     | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.ID.bot ()
     in
@@ -1914,55 +1917,14 @@ struct
       end
     | _ ->  []
 
-  let assert_fn ctx e should_warn change =
-
-    let check_assert e st =
-      match eval_rv (Analyses.ask_of_ctx ctx) ctx.global st e with
-      | `Int v when ID.is_bool v ->
-        begin match ID.to_bool v with
-          | Some false ->  `Lifted false
-          | Some true  ->  `Lifted true
-          | _ -> `Top
-        end
-      | `Bot -> `Bot
-      | _ -> `Top
-    in
-    let expr = sprint d_exp e in
-    let warn ?annot msg = if should_warn then
-        if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
-          let loc = !M.current_loc in
-          let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
-          let open Str in
-          let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
-          if expected <> annot then (
-            let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
-            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
-            let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
-            let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
-            M.warn_each ~ctx:ctx.control_context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
-          )
-        ) else
-          M.warn_each ~ctx:ctx.control_context msg
-    in
-    match check_assert e ctx.local with
-    | `Lifted false ->
-      warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
-      if change then raise Analyses.Deadcode else ctx.local
-    | `Lifted true ->
-      warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
-      ctx.local
-    | `Bot ->
-      M.warn_each ~ctx:ctx.control_context ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
-      ctx.local
-    | `Top ->
-      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
-      (* make the state meet the assertion in the rest of the code *)
-      if not change then ctx.local else begin
-        let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
-        (* if check_assert e newst <> `Lifted true then
-            M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
-        newst
-      end
+  let assert_fn ctx e change =
+    (* make the state meet the assertion in the rest of the code *)
+    if not change then ctx.local else begin
+      let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
+      (* if check_assert e newst <> `Lifted true then
+          M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
+      newst
+    end
 
   let special_unknown_invalidate ctx ask gs st f args =
     (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
@@ -2149,10 +2111,7 @@ struct
       end
     (* Handling the assertions *)
     | `Unknown "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
-    | `Unknown "__goblint_check" -> assert_fn ctx (List.hd args) true false
-    | `Unknown "__goblint_commit" -> assert_fn ctx (List.hd args) false true
-    | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true
-    | `Assert e -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
+    | `Assert (e, _, change) -> assert_fn ctx e change
     | _ -> begin
         let st =
           match LF.get_invalidate_action f.vname with

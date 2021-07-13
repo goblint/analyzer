@@ -1,4 +1,4 @@
-// PARAM: --set ana.int.interval true --set solver "'td3'"
+// PARAM: --set ana.int.interval true --set solver "'td3'" --disable sem.assert.refine
 #include<pthread.h>
 #include<assert.h>
 

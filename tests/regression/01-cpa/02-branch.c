@@ -1,3 +1,4 @@
+// PARAM: --disable sem.assert.refine
 #include<stdio.h>
 #include<assert.h>
 
@@ -24,9 +25,9 @@ int main() {
   assert(i != 0);
   assert(j == 10);
 
-  if (j) 
+  if (j)
     k = 7;
-  else 
+  else
     k = 8;
   assert(k == 7);
 
