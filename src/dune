@@ -32,7 +32,7 @@
     )
   )
   (preprocess
-    (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson
+    (staged_pps ppx_deriving.std ppx_deriving_yojson
       ppx_distr_guards ocaml-monadic))
 )
 
@@ -48,7 +48,7 @@
   (modes native js) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules goblint mainarinc maindomaintest mainspec)
   (libraries goblint.lib)
-  (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
   (flags :standard -linkall)
 )
 
@@ -56,7 +56,7 @@
   (name privPrecCompare)
   (modules privPrecCompare)
   (libraries goblint.lib)
-  (preprocess (staged_pps ppx_import ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
   (flags :standard -linkall)
 )
 

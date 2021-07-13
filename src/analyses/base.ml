@@ -1372,7 +1372,6 @@ struct
       st
 
   let invariant ctx a gs st exp tv: store =
-    let open Deriving.Cil in
     let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
       invariant ctx a gs st exp tv
@@ -1482,11 +1481,11 @@ struct
           | _, _ -> a, b)
         | _ -> a, b)
       | BOr | BXor as op->
-        if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
+        if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         a, b
       | op ->
-        if M.tracing then M.tracel "inv" "Unhandled operator %s\n" (show_binop op);
+        if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         a, b
     in
     let eval e st = eval_rv a gs st e in
@@ -1512,7 +1511,7 @@ struct
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig (typeOf c1) = typeSig (typeOf c2) && VD.is_safe_cast t1 (typeOf c1) && VD.is_safe_cast t2 (typeOf c2) ->
         inv_exp c (BinOp (op, c1, c2, t)) st
       | BinOp (op, e1, e2, _) as e ->
-        if M.tracing then M.tracel "inv" "binop %a with %a %s %a == %a\n" d_exp e VD.pretty (eval e1 st) (show_binop op) VD.pretty (eval e2 st) ID.pretty c;
+        if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) ID.pretty c;
         (match eval e1 st, eval e2 st with
         | `Int a, `Int b ->
           let ikind = Cilfacade.get_ikind @@ typeOf e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
