@@ -50,8 +50,8 @@ struct
   let pretty_node () (l,x) =
     match x with
     | MyCFG.Statement     s -> dprintf "statement \"%a\" at %a" dn_stmt s ProgLines.pretty l
-    | MyCFG.Function      f -> dprintf "result of %s at %a" f.vname ProgLines.pretty l
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.vname ProgLines.pretty l
+    | MyCFG.Function      f -> dprintf "result of %s at %a" f.svar.vname ProgLines.pretty l
+    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.svar.vname ProgLines.pretty l
 
   let show (x,a,f) = ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
@@ -88,7 +88,7 @@ struct
   let loopSep _ = true
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let var_id _ = "globals"
-  let node _ = MyCFG.Function Cil.dummyFunDec.svar
+  let node _ = MyCFG.Function Cil.dummyFunDec
 
   let arbitrary () = MyCheck.Arbitrary.varinfo
 end

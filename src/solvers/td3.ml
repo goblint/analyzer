@@ -30,6 +30,7 @@ module WP =
     type solver_data = {
       mutable st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       mutable infl: VS.t HM.t;
+      mutable sides: VS.t HM.t;
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
       mutable stable: unit HM.t
@@ -38,6 +39,7 @@ module WP =
     let create_empty_data () = {
       st = [];
       infl = HM.create 10;
+      sides = HM.create 10;
       rho = HM.create 10;
       wpoint = HM.create 10;
       stable = HM.create 10
@@ -72,6 +74,7 @@ module WP =
       let called = HM.create 10 in
 
       let infl = data.infl in
+      let sides = data.sides in
       let rho = data.rho in
       let wpoint = data.wpoint in
       let stable = data.stable in
@@ -90,13 +93,24 @@ module WP =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
+      let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
       let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
-          HM.remove stable y;
-          destabilize y) w
+            HM.remove stable y;
+            if not (HM.mem called y) then destabilize y
+          ) w
+      and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
+        if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
+        let w = HM.find_default infl x VS.empty in
+        HM.replace infl x VS.empty;
+        VS.fold (fun y b ->
+            let was_stable = HM.mem stable y in
+            HM.remove stable y;
+            HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
+          ) w false
       and solve x phase =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
@@ -170,6 +184,7 @@ module WP =
         );
         assert (S.system y = None);
         init y;
+        if side_widen = "unstable_self" then add_infl x y;
         let op =
           if HM.mem wpoint y then fun a b ->
             if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
@@ -182,19 +197,31 @@ module WP =
         let tmp = op old d in
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
+          (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
+          let sided = VS.mem x (HM.find_default sides y VS.empty) in
+          if not sided then add_sides y x;
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
-          destabilize y;
-          (* make y a widening point if ... *)
-          let widen_if e = if e then HM.replace wpoint y () in
+          if side_widen <> "cycle" then destabilize y;
+          (* make y a widening point if ... This will only matter for the next side _ y.  *)
+          let wpoint_if e = if e then HM.replace wpoint y () in
           match side_widen with
-          | "always" -> (* any side-effect after the first one will be widened which will unnecessarily lose precision *)
-            widen_if true
-          | "cycle_self" -> (* widen if the side-effect to y destabilized itself via some infl-cycle *)
-            widen_if @@ not (HM.mem stable y)
-          | "cycle" -> (* widen if any called var (not just y) is no longer stable *)
-            widen_if @@ exists_key (neg (HM.mem stable)) called
-          | "never" | _ -> () (* will not terminate if there are side-effect cycles *)
+          | "always" -> (* Any side-effect after the first one will be widened which will unnecessarily lose precision. *)
+            wpoint_if true
+          | "never" -> (* On side-effect cycles, this should terminate via the outer `solver` loop. TODO check. *)
+            wpoint_if false
+          | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
+            wpoint_if sided
+          | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
+            (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
+            let destabilized_vs = destabilize_vs y in
+            wpoint_if destabilized_vs
+          (* TODO: The following two don't check if a vs got destabilized which may be a problem. *)
+          | "unstable_self" -> (* TODO test/remove. Side to y destabilized itself via some infl-cycle. The above add_infl is only required for this option. Check for which examples this is problematic! *)
+            wpoint_if @@ not (HM.mem stable y)
+          | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. *)
+            wpoint_if @@ exists_key (neg (HM.mem stable)) called
+          | x -> failwith ("Unknown value '" ^ x ^ "' for option exp.solver.td3.side_widen!")
         )
       and init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
@@ -278,9 +305,18 @@ module WP =
       List.iter set_start st;
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
+      let i = ref 0 in
       let rec solver () = (* as while loop in paper *)
+        incr i;
         let unstable_vs = List.filter (neg (HM.mem stable)) vs in
         if unstable_vs <> [] then (
+          if GobConfig.get_bool "dbg.verbose" then (
+            if !i = 1 then print_newline ();
+            Printf.printf "Unstable solver start vars in %d. phase:\n" !i;
+            List.iter (fun v -> ignore @@ Pretty.printf "\t%a\n" S.Var.pretty_trace v) unstable_vs;
+            print_newline ();
+            flush_all ();
+          );
           List.iter (fun x -> solve x Widen) unstable_vs;
           solver ();
         )
@@ -324,7 +360,7 @@ module WP =
       in
       (* restore values for non-widening-points *)
       if space && GobConfig.get_bool "exp.solver.td3.space_restore" then (
-        if (GobConfig.get_bool "dbg.verbose") then
+        if GobConfig.get_bool "dbg.verbose" then
           print_endline ("Restoring missing values.");
         let restore () =
           let get x =
@@ -335,7 +371,7 @@ module WP =
           HM.iter (fun x v -> if not (HM.mem visited x) then HM.remove rho x) rho
         in
         Stats.time "restore" restore ();
-        if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
@@ -366,7 +402,7 @@ module WP =
         print_newline ();
       );
 
-      {st; infl; rho; wpoint; stable}
+      {st; infl; sides; rho; wpoint; stable}
 
     let solve box st vs =
       incremental_mode := GobConfig.get_string "exp.incremental.mode";

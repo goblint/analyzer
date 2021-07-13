@@ -426,7 +426,7 @@ File.open(theresultfile, "w") do |f|
       }
       case type
       when "unknown"
-        check.call ["deadlock", "race", "fail", "unknown", "noterm", "term", "warn", "success"].include? warnings[idx] 
+        check.call ["deadlock", "race", "fail", "unknown", "noterm", "term", "warn", "success"].include? warnings[idx]
       when "deadlock", "race", "fail", "noterm", "unknown!", "term", "warn"
         check.call warnings[idx] == type.tr('!', '')
       when "nowarn"
