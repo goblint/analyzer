@@ -253,7 +253,7 @@ module FieldVariables =
 struct
   include Printable.Std
 
-  type t = varinfo*fieldinfo option [@@deriving to_yojson]
+  type t = varinfo*CilType.Fieldinfo.t option [@@deriving to_yojson]
 
   let gen v = (v,None)
   let gen_f v f = (v,Some f)
