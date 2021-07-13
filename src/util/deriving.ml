@@ -1,7 +1,5 @@
 type json = Yojson.Safe.t
-module Stdlib = struct (* since ocaml 4.07, Stdlib (which includes Pervasives) is opened by default, since 4.08 Pervasives is deprectated in favor of just Stdlib *)
-  type 'a ref = [%import: 'a Stdlib.ref] [@@deriving yojson, show]
-end
+
 module Map = struct
   (* include all of Map but Make *)
   include (Map : module type of Map with module Make := Map.Make)
