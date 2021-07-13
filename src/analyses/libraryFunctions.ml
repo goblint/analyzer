@@ -48,7 +48,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_unknown", unknown [drop' [w]]);
     ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp; should_warn = true; change = false });
     ("__goblint_commit", special [__ "exp" []] @@ fun exp -> Assert { exp; should_warn = false; change = true });
-    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; should_warn = get_bool "dbg.debug"; change = not (get_bool "dbg.debug") }); (* TODO: no dbg.debug dependency *)
+    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; should_warn = get_bool "dbg.debug"; change = get_bool "sem.assert.refine" }); (* TODO: no dbg.debug dependency *)
   ]
 
 (** zstd functions.

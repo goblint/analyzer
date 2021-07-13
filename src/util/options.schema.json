@@ -1126,6 +1126,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "assert": {
+          "title": "sem.assert",
+          "type": "object",
+          "properties": {
+            "refine": {
+              "title": "sem.assert.refine",
+              "description": "Standard assert refines state",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

@@ -15,8 +15,8 @@ int main(){
   assert(n==0); // SUCCESS
 
   unknown(&i);
-  assert(i==8); // UNKNOWN
-  assert(i==8); // TODO: SUCCESS (refine with assert)
+  assert(i==8); // UNKNOWN (refines)
+  assert(i==8); // SUCCESS
 
   j=3;
   check(j==3); // assert

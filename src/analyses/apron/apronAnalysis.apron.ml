@@ -420,7 +420,6 @@ struct
     let st = ctx.local in
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
     | Assert { exp; change; _ }, _ -> assert_fn ctx exp change
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (

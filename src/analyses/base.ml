@@ -2680,8 +2680,7 @@ struct
       end
     (* Handling the assertions *)
     | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
-    (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | Assert { exp; change; _ }, _ -> assert_fn ctx exp change (* __goblint_assert previously had [true true] and Assert should too, but cannot until #278 *)
+    | Assert { exp; change; _ }, _ -> assert_fn ctx exp change
     | _, _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args

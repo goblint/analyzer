@@ -78,7 +78,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    | Assert { exp; should_warn; change }, _ -> assert_fn ctx exp should_warn change (* TODO: __goblint_assert previously had [true true] and Assert should too *)
+    | Assert { exp; should_warn; change }, _ -> assert_fn ctx exp should_warn change
     | _, _ -> ctx.local
 
   let startstate v = D.bot ()
