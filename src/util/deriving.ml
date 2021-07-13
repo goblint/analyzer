@@ -1,11 +1,1 @@
 type json = Yojson.Safe.t
-
-module Map = struct
-  (* include all of Map but Make *)
-  include (Map : module type of Map with module Make := Map.Make)
-  (* define Map.Make with to_yojson *)
-  module Make (K : sig include OrderedType val to_yojson : t -> json end) = struct
-    include Map.Make (K)
-    let to_yojson poly_v x = [%to_yojson: (K.t * 'v) list] poly_v (bindings x)
-  end
-end
