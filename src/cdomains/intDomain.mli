@@ -196,6 +196,9 @@ sig
   val is_excl_list: t -> bool
   (* Checks if the element is an exclusion set. *)
 
+  val to_incl_list: t -> int_t list option
+  (* Gives a list representation of the included values if possible. *)
+
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
 
@@ -231,6 +234,15 @@ module type S =
 sig
   include B
   include ArithIkind with type t:= t
+
+  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+  (** @param no_ov If true, assume no overflow can occur. *)
+
   val join: Cil.ikind -> t ->  t -> t
   val meet: Cil.ikind -> t -> t -> t
   val narrow: Cil.ikind -> t -> t -> t
@@ -247,6 +259,11 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
+
+  val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -300,7 +317,7 @@ val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
 module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
-  val range           : Cil.ikind -> int64 * int64 
+  val range           : Cil.ikind -> int64 * int64
   val range_big_int   : Cil.ikind -> Z.t * Z.t
   val bits            : Cil.ikind -> int * int
 end
@@ -345,6 +362,9 @@ module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) op
 module BigInt : Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
+
+module Congruence : S with type int_t = IntOps.BigIntOps.t
+
 module DefExc : S with type int_t = IntOps.BigIntOps.t
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
