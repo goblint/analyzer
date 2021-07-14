@@ -50,7 +50,8 @@ end
 module type IntOps =
 sig
   include IntOpsBase
-  (* Logical *)
+  (* Logical: These are intended to be the logical operations in the C sense!   *)
+  (* Int64 calls its bit-wise operations e.g. logand, we call those e.g. bitand *)
   val logand : t -> t -> t
   val logor : t -> t -> t
   val logxor : t -> t -> t
@@ -116,11 +117,11 @@ struct
 
   let shift_left = Int32.shift_left
   let shift_right = Int32.shift_right_logical
-  let bitand = Int32.logand
-  let bitor = Int32.logor
-  let bitxor = Int32.logxor
+  let bitand = Int32.logand (* Int32 calls bitwise operations 'log' *)
+  let bitor = Int32.logor (* Int32 calls bitwise operations 'log' *)
+  let bitxor = Int32.logxor (* Int32 calls bitwise operations 'log' *)
 
-  let bitnot = Int32.lognot
+  let bitnot = Int32.lognot (* Int32 calls bitwise operations 'log' *)
 
   let compare = Int32.compare
   let equal = Int32.equal
@@ -155,11 +156,11 @@ struct
 
   let shift_left = Int64.shift_left
   let shift_right = Int64.shift_right_logical
-  let bitand = Int64.logand
-  let bitor = Int64.logor
-  let bitxor = Int64.logxor
+  let bitand = Int64.logand (* Int64 calls bitwise operations 'log' *)
+  let bitor = Int64.logor (* Int64 calls bitwise operations 'log' *)
+  let bitxor = Int64.logxor (* Int64 calls bitwise operations 'log' *)
 
-  let bitnot = Int64.lognot
+  let bitnot = Int64.lognot (* Int64 calls bitwise operations 'log' *)
 
   let compare = Int64.compare
   let equal = Int64.equal
@@ -232,6 +233,8 @@ struct
   let pred x = sub x one
   let of_bool x = if x then one else zero
   let to_bool x = x <> zero
+
+  (* These are logical operations in the C sense! *)
   let log_op op a b = of_bool @@ op (to_bool a) (to_bool b)
   let lognot x = of_bool (x = zero)
   let logand = log_op (&&)
