@@ -32,8 +32,8 @@ end
 
 type inline_edge =
   | CFGEdge of edge
-  | InlineEntry of Deriving.Cil.exp list
-  | InlineReturn of Deriving.Cil.lval option
+  | InlineEntry of CilType.Exp.t list
+  | InlineReturn of CilType.Lval.t option
   [@@deriving to_yojson]
 
 let pretty_inline_edge () = function
@@ -317,7 +317,7 @@ struct
       (* avoid unnecessary ternary *)
       e_cond
     else
-      Question(e_cond, e_true, e_false, typeOf e_false)
+      Question(e_cond, e_true, e_false, Cilfacade.typeOf e_false)
 
   let next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.witness.uncil" ->

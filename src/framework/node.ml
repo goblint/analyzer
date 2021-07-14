@@ -1,16 +1,15 @@
 open Cil
-open Deriving.Cil
 open Pretty
 
 (** A node in the Control Flow Graph is either a statement or function. Think of
  * the function node as last node that all the returning nodes point to.  So
  * the result of the function call is contained in the function node. *)
 type node =
-  | Statement of stmt
+  | Statement of CilType.Stmt.t
   (** The statements as identified by CIL *)
-  | FunctionEntry of fundec
+  | FunctionEntry of CilType.Fundec.t
   (** *)
-  | Function of fundec
+  | Function of CilType.Fundec.t
   (** The variable information associated with the function declaration. *)
 [@@deriving to_yojson]
 

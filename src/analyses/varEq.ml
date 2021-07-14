@@ -132,7 +132,7 @@ struct
         | Index (e,o) -> type_may_change_t e bt || may_change_t_offset o
         | Field (_,o) -> may_change_t_offset o
       in
-      let at = typeOf a in
+      let at = Cilfacade.typeOf a in
       (isIntegralType at && isIntegralType bt) || (typ_equal at bt) ||
       match a with
       | Const _
@@ -153,7 +153,7 @@ struct
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
       | _ -> failwith "Unmatched pattern."
     in
-    let bt =  unrollTypeDeep (typeOf b) in
+    let bt =  unrollTypeDeep (Cilfacade.typeOf b) in
     type_may_change_t a bt
 
   let may_change_pt ask (b:exp) (a:exp) : bool =
@@ -196,7 +196,7 @@ struct
     let pt e = ask.f (Queries.MayPointTo e) in
     let bls = pt b in
     let bt =
-      match unrollTypeDeep (typeOf b) with
+      match unrollTypeDeep (Cilfacade.typeOf b) with
       | TPtr (t,_) -> t
       | _ -> voidType
     in (* type of thing that changed: typeof( *b ) *)
@@ -210,7 +210,7 @@ struct
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
         (* lval *.field changes -> local var stays the same *)
         false
-      (*         | dr, Lval (Var lv,NoOffset) when (isIntegralType (typeOf dr)) && (isPointerType (lv.vtype)) && not (isIntegralType (typeOf (Lval (Mem (Lval (Var lv,NoOffset)),NoOffset)))) ->
+      (*         | dr, Lval (Var lv,NoOffset) when (isIntegralType (Cilfacade.typeOf dr)) && (isPointerType (lv.vtype)) && not (isIntegralType (Cilfacade.typeOfLval (Mem (Lval (Var lv,NoOffset)),NoOffset))) ->
                   (* lval *x changes -> local var stays the same *)
                   false*)
       | _ ->
@@ -223,7 +223,7 @@ struct
         | Field (_,o) -> may_change_t_offset o
       in
       let at =
-        match unrollTypeDeep (typeOf a) with
+        match unrollTypeDeep (Cilfacade.typeOf a) with
         | TPtr (t,a) -> t
         | at -> at
       in
@@ -375,7 +375,7 @@ struct
           match x with (Var v,_) -> not v.vglob | _ -> false
           in
           let st =
-    *)  let lvt = unrollType @@ typeOf (Lval lv) in
+    *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     (*     Messages.report (sprint 80 (d_type () lvt)); *)
     if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv
@@ -540,7 +540,7 @@ struct
     | None -> Queries.ES.empty ()
     | Some es when D.B.is_bot es -> Queries.ES.bot ()
     | Some es ->
-      let et = typeOf e in
+      let et = Cilfacade.typeOf e in
       let add x xs =
         Queries.ES.add (CastE (et,x)) xs
       in

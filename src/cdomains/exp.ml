@@ -1,6 +1,5 @@
 open Pretty
 open Cil
-open Deriving.Cil
 
 module Exp =
 struct
