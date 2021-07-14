@@ -1080,8 +1080,16 @@ struct
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-        let var = Priv.read_global a gs st x in
-        let r = Priv.write_global ~invariant:(not effect) a gs (Option.get ctx).sideg st x (VD.update_offset a var offs value lval_raw (Var x, cil_offset) t) in
+        let old_value = Priv.read_global a gs st x in
+        let new_value = VD.update_offset a old_value offs value lval_raw (Var x, cil_offset) t in
+        let new_value =
+          (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
+          if not effect then
+            VD.meet old_value new_value
+          else
+            new_value
+        in
+        let r = Priv.write_global ~invariant:(not effect) a gs (Option.get ctx).sideg st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
       end else begin
