@@ -29,7 +29,7 @@ int main(){
   // filtering out the null pointer possibility
   if (x){    
     // assert(x != 0);
-    assert(*x = 1);
+    assert(*x == 1);
     b = 2;
     assert(*x != 0);
     b = 0;
