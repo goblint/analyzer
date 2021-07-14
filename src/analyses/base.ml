@@ -1087,7 +1087,15 @@ struct
       end else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        let new_value = VD.update_offset a (CPA.find x st.cpa) offs value lval_raw ((Var x), cil_offset) t in
+        let old_value = CPA.find x st.cpa in
+        let new_value = VD.update_offset a old_value offs value lval_raw ((Var x), cil_offset) t in
+        let new_value =
+          if not effect then
+            (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
+            VD.meet old_value new_value
+          else
+            new_value
+        in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
