@@ -1067,6 +1067,14 @@ struct
               M.warn ("Cilfacade.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset));
               lval_type
       in
+      let update_offset old_value =
+        let new_value = VD.update_offset a old_value offs value lval_raw ((Var x), cil_offset) t in
+        if not effect then
+          (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
+          VD.meet old_value new_value
+        else
+          new_value
+      in
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype D.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
@@ -1080,30 +1088,14 @@ struct
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-        let old_value = Priv.read_global a gs st x in
-        let new_value = VD.update_offset a old_value offs value lval_raw (Var x, cil_offset) t in
-        let new_value =
-          (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
-          if not effect then
-            VD.meet old_value new_value
-          else
-            new_value
-        in
+        let new_value = update_offset (Priv.read_global a gs st x) in
         let r = Priv.write_global ~invariant:(not effect) a gs (Option.get ctx).sideg st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
       end else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        let old_value = CPA.find x st.cpa in
-        let new_value = VD.update_offset a old_value offs value lval_raw ((Var x), cil_offset) t in
-        let new_value =
-          if not effect then
-            (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
-            VD.meet old_value new_value
-          else
-            new_value
-        in
+        let new_value = update_offset (CPA.find x st.cpa) in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
