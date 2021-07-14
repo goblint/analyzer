@@ -917,10 +917,10 @@ struct
   let ge n1 n2 = of_bool (n1 >= n2)
   let eq n1 n2 = of_bool (n1 =  n2)
   let ne n1 n2 = of_bool (n1 <> n2)
-  let bitnot = Ints_t.lognot
-  let bitand = Ints_t.logand
-  let bitor  = Ints_t.logor
-  let bitxor = Ints_t.logxor
+  let bitnot = Ints_t.bitnot
+  let bitand = Ints_t.bitand
+  let bitor  = Ints_t.bitor
+  let bitxor = Ints_t.bitxor
   let shift_left  n1 n2 = Ints_t.shift_left n1 (Ints_t.to_int n2)
   let shift_right n1 n2 = Ints_t.shift_right n1 (Ints_t.to_int n2)
   let lognot n1    = of_bool (not (to_bool' n1))
