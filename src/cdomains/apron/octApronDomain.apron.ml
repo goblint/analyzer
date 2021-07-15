@@ -389,7 +389,7 @@ struct
   (* Assert an invariant *)
   (* Gives the result of the meet operation of the given octagon
   with the linear constraints coming from the given expression *)
-  let assert_inv d x b =
+  let rec assert_inv d x b =
     try
       let x = match x with
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> x
@@ -398,14 +398,16 @@ struct
         | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
         in
       match x with
-      (* TODO: why was this ever necessary? it is unsound for 36/18 *)
-      (* | BinOp (Ne, lhd, rhs, intType) ->
+      (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
+         Join Gt and Lt versions instead. *)
+      | BinOp (Ne, lhd, rhs, intType) when not b ->
         let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
         let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-        if not (is_bot_env assert_gt) then
-          assert_gt
-        else
-          assert_lt *)
+        join assert_gt assert_lt
+      | BinOp (Eq, lhd, rhs, intType) when b ->
+        let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) (not b) in
+        let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) (not b) in
+        join assert_gt assert_lt
       | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
         let tcons1 = Convert.tcons1_of_cil_exp (A.env d) x b in
@@ -422,46 +424,6 @@ struct
         A.meet_tcons_array Man.mgr d ea
     with Convert.Unsupported_CilExp -> d
 
-  (* Creates the opposite invariant and assters it *)
-  (* TODO: why is this necessary if assert_inv has boolean argument? *)
-  let assert_op_inv d x b =
-    (* if assert(x) then convert it to assert(x != 0) *)
-    let x = match x with
-    | Lval (Var v,NoOffset) when isIntegralType v.vtype ->
-      BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
-    | _ -> x in
-    try
-      match x with
-        | BinOp (Ne, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
-
-        | BinOp (Eq, lhd, rhs, intType) ->
-          (* FIXME: this is probably wrong here too? *)
-          let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
-          let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-          if not (is_bot_env assert_gt) then
-            assert_gt
-          else
-            assert_lt
-
-        | BinOp (Lt, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Ge, lhd, rhs, intType)) b
-
-        | BinOp (Gt, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Le, lhd, rhs, intType)) b
-
-        | BinOp (Le, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
-
-        | BinOp (Ge, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
-
-        | UnOp(LNot, e, t) ->
-          assert_inv d e b
-
-        | _ ->  assert_inv d x b
-    with Convert.Unsupported_CilExp -> d
-
   let check_assert (e:exp) state =
     match e with
     | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
@@ -469,7 +431,7 @@ struct
     | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
     | _ ->
       let result_state = (assert_inv state e false) in
-      let result_state_op = (assert_op_inv state e false) in (* TODO: why not use assert_inv with true? *)
+      let result_state_op = (assert_inv state e true) in
       if is_bot_env result_state then
         `False
       else if is_bot_env result_state_op then
@@ -479,16 +441,20 @@ struct
 
   let get_int_interval_for_cil_exp d cil_exp =
     let get_int_for_apron_scalar (scalar: Scalar.t) =
-      match scalar with
-      | Float scalar -> Some (Stdlib.int_of_float scalar)
-      | Mpqf scalar ->
-        begin
-          match Mpqf.to_string scalar with
-          (* apron has an internal representation of -1/0 as -infinity and 1/0 as infinity.*)
-          | "-1/0" | "1/0" -> None
-          | _ -> Some (Stdlib.int_of_float (Mpqf.to_float scalar))
-        end
-      | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
+      (* Check infinity because infinite float returns 0 from int_of_float *)
+      if Scalar.is_infty scalar <> 0 then
+        None
+      else
+        match scalar with
+        | Float scalar -> Some (Stdlib.int_of_float scalar)
+        | Mpqf scalar ->
+          begin
+            match Mpqf.to_string scalar with
+            (* apron has an internal representation of -1/0 as -infinity and 1/0 as infinity.*)
+            | "-1/0" | "1/0" -> None
+            | _ -> Some (Stdlib.int_of_float (Mpqf.to_float scalar))
+          end
+        | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
     try
       let texpr1 = Convert.texpr1_of_cil_exp (A.env d) cil_exp in
       let interval_of_variable = A.bound_texpr Man.mgr d texpr1 in
@@ -506,7 +472,7 @@ struct
     | Some infimum, Some supremum ->
       begin
         if (supremum = infimum) then
-          (Some infimum)
+          (Some (IntOps.BigIntOps.of_int64 infimum))
         else None
       end
     | _ -> None

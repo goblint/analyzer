@@ -26,7 +26,6 @@ struct
 
   let enter ctx r f args =
     if D.is_bot ctx.local then [ctx.local, D.bot ()] else
-      let f = Cilfacade.getdec f in
       let is, fs = D.typesort f.sformals in
       let is = is @ List.map (fun x -> x^"'") is in
       let fs = fs @ List.map (fun x -> x^"'") fs in
@@ -42,7 +41,6 @@ struct
 
   let combine ctx r fe f args fc d =
     if D.is_bot ctx.local || D.is_bot d then D.bot () else
-      let f = Cilfacade.getdec f in
       match r with
       | Some (Var v, NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
         let nd = D.forget_all ctx.local [v.vname] in
@@ -77,9 +75,9 @@ struct
   let return ctx e f =
     if D.is_bot ctx.local then D.bot () else
       match e with
-      | Some e when isArithmeticType (typeOf e) ->
+      | Some e when isArithmeticType (Cilfacade.typeOf e) ->
         let nd =
-          if isIntegralType (typeOf e) then
+          if isIntegralType (Cilfacade.typeOf e) then
             D.add_vars ctx.local (["#ret"],[])
           else
             D.add_vars ctx.local (["#ret"],[])
@@ -108,10 +106,11 @@ struct
     let d = ctx.local in
     match q with
     | EvalInt e ->
+      let ik = Cilfacade.get_ikind_exp e in
       begin
         match D.get_int_val_for_cil_exp d e with
-        | Some i -> ID.of_int i
-        | _ -> `Top
+        | Some i -> ID.of_int ik i
+        | _ -> ID.top ()
       end
     | MustBeEqual (e1, e2) ->
       if D.cil_exp_equals d e1 e2 then true

@@ -24,7 +24,8 @@ struct
   (* set of predecessor nodes *)
   module Pred = struct
     include SetDomain.Make (Basetype.ProgLocation)
-    let of_node = singleton % MyCFG.getLoc
+    let of_loc = singleton
+    let of_node = of_loc % MyCFG.getLoc
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
     let string_of_elt = Basetype.ProgLocation.show
   end
@@ -223,19 +224,19 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let d_caller = ctx.local in
     let pid, ctxh, pred = ctx.local in
     let d_callee = if D.is_bot ctx.local then ctx.local else pid, Ctx.top (), Pred.of_node (MyCFG.Function f) in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
     if D.is_bot ctx.local || D.is_bot au then ctx.local else
       let pid, ctxh, pred = ctx.local in (* caller *)
       let _ , _, pred' = au in (* callee *)
       (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
       if Pred.is_bot pred' then failwith "d_callee.pred is bot!"; (* set should never be empty *)
-      if Pred.equal pred' (Pred.of_node (MyCFG.Function f)) then
+      if Pred.equal pred' (Pred.of_node (MyCFG.Function fd)) then
         ctx.local
       else (
         (* set current node as new predecessor, since something interesting happend during the call *)
@@ -250,7 +251,7 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | `Lifted x -> [Int64.to_string x]
+          | x when Queries.ID.is_int x -> [IntOps.BigIntOps.to_string (Option.get @@ Queries.ID.to_int x)]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
@@ -301,7 +302,7 @@ struct
         in
         match fname, arglist with (* first some special cases *)
         | "CreateProcess", [AddrOf attr; pid'; r] ->
-          let cm = match unrollType (typeOfLval attr) with
+          let cm = match unrollType (Cilfacade.typeOfLval attr) with
             | TComp (c,_) -> c
             | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
           in
@@ -323,12 +324,13 @@ struct
           let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
           let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
           begin match name, entry_point, pri, per, cap with
-            | `Lifted name, ls, `Lifted pri, `Lifted per, `Lifted cap when not (Queries.LS.is_top ls)
-                                                                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-              let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
+            | `Lifted name, ls, pri, per, cap when not (Queries.LS.is_top ls)
+                                                                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) && Queries.ID.is_int pri && Queries.ID.is_int per && Queries.ID.is_int cap ->
+              let pri = (IntOps.BigIntOps.to_int64 (Option.get @@ Queries.ID.to_int pri)) in
+              let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
               if M.tracing then M.tracel "extract_arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-              let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_node (MyCFG.Function f) in
+              let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_loc f.vdecl in
               List.iter (fun f -> Pfuns.add name f.vname) funs;
               Prios.add name pri;
               let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
@@ -370,7 +372,7 @@ struct
                 extract_fun ~info_args:str_args args
               ) ctx.local args_product
 
-  let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
+  let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main"))
   let exitstate  v = D.bot ()
 
   let init () = (* registers which functions to extract and writes out their definitions *)

@@ -699,11 +699,11 @@ struct
           | Some (v') ->
             begin
               (* This should mean the entire expression we have here is a pointer into the array *)
-              if Cil.isArrayType (Cil.typeOf (Lval v')) then
+              if Cil.isArrayType (Cilfacade.typeOfLval v') then
                 let expr = ptr in
                 let start_of_array = StartOf v' in
-                let start_type = typeSigWithoutArraylen (Cil.typeOf start_of_array) in
-                let expr_type = typeSigWithoutArraylen (Cil.typeOf ptr) in
+                let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
+                let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
                 (* Comparing types for structural equality is incorrect here, use typeSig *)
                 (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
                 if start_type = expr_type then

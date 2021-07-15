@@ -21,7 +21,6 @@ depends: [
   "qcheck-core"
   # "z3"
   "ppx_distr_guards" {>= "0.2"}
-  "ppx_import"
   "ppx_deriving"
   "ppx_deriving_yojson"
   "ocaml-monadic"
@@ -49,5 +48,5 @@ build: [
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 pin-depends: [
-  [ "goblint-cil.1.7.8" "git+https://github.com/goblint/cil.git#5fdf44c42b194130fefabbbe8a7a29818ad3f539" ]
+  [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#d61cfa6a403f4d278c86344091bc07dccd8b549b" ]
 ]

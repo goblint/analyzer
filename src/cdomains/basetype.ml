@@ -1,12 +1,11 @@
 module GU = Goblintutil
 open Cil
-open Deriving.Cil
 open Pretty
 
 module ProgLines : Printable.S with type t = location =
 struct
   include Printable.Std
-  type t = location [@@deriving to_yojson]
+  type t = location
   let copy x = x
   let equal x y =
     x.line = y.line && x.file = y.file (* ignores byte field *)
@@ -17,6 +16,7 @@ struct
   let name () = "proglines"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module ProgLocation : Printable.S with type t = location =
@@ -24,7 +24,7 @@ struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Pretty
-  type t = location [@@deriving to_yojson]
+  type t = location
   let equal = (=)
   let compare = compare
   let hash = Hashtbl.hash
@@ -37,12 +37,13 @@ struct
   let name () = "proglines_byte"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
 struct
   include Printable.Std
-  type t = location * MyCFG.node * fundec [@@deriving to_yojson]
+  type t = location * MyCFG.node * fundec
   let copy x = x
   let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b (* ignores fundec component *)
   let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x (* ignores fundec component *)
@@ -50,14 +51,15 @@ struct
   let pretty_node () (l,x) =
     match x with
     | MyCFG.Statement     s -> dprintf "statement \"%a\" at %a" dn_stmt s ProgLines.pretty l
-    | MyCFG.Function      f -> dprintf "result of %s at %a" f.vname ProgLines.pretty l
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.vname ProgLines.pretty l
+    | MyCFG.Function      f -> dprintf "result of %s at %a" f.svar.vname ProgLines.pretty l
+    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.svar.vname ProgLines.pretty l
 
   let show (x,a,f) = ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
   let name () = "proglinesfun"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module Variables =
@@ -88,7 +90,7 @@ struct
   let loopSep _ = true
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let var_id _ = "globals"
-  let node _ = MyCFG.Function Cil.dummyFunDec.svar
+  let node _ = MyCFG.Function Cil.dummyFunDec
 
   let arbitrary () = MyCheck.Arbitrary.varinfo
 end
@@ -250,7 +252,7 @@ module FieldVariables =
 struct
   include Printable.Std
 
-  type t = varinfo*fieldinfo option [@@deriving to_yojson]
+  type t = CilType.Varinfo.t*CilType.Fieldinfo.t option [@@deriving to_yojson]
 
   let gen v = (v,None)
   let gen_f v f = (v,Some f)

@@ -10,7 +10,7 @@ void main(void) {
   }
 
   assert(X-N == 0);
-  // assert(X == N); // Currently not able to assert this because octagon doesn't handle it
+  assert(X == N);
 
   if(X == N) {
     N = 8;

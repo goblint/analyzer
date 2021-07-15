@@ -19,7 +19,7 @@ struct
 
   let eval_int (ask: Queries.ask) exp =
     match ask.f (Queries.EvalInt exp) with
-    | `Lifted l -> Some l
+    | x when Queries.ID.is_int x -> Some (Option.get @@ Queries.ID.to_int x)
     | _      -> None
 
   (* transfer functions *)
@@ -32,12 +32,12 @@ struct
               ctx.local
             end else begin
               match eval_int (Analyses.ask_of_ctx ctx) rval with
-              | Some ex -> D.add f (`Lifted (false,true,ex)) ctx.local
+              | Some ex -> D.add f (`Lifted (false,true, IntOps.BigIntOps.to_int64 ex)) ctx.local
               | _ -> D.remove f ctx.local
             end
           end else begin
             match eval_int (Analyses.ask_of_ctx ctx) rval with
-            | Some ex -> D.add f (`Lifted (false,true,ex)) ctx.local
+            | Some ex -> D.add f (`Lifted (false,true, IntOps.BigIntOps.to_int64 ex)) ctx.local
             | _ -> D.remove f ctx.local
           end
         end
@@ -60,6 +60,7 @@ struct
           let temp = eval_int (Analyses.ask_of_ctx ctx) ex in
           match temp with
           | Some value -> begin (*guard == value = (true true value*)
+              let value = IntOps.BigIntOps.to_int64 value in
               try
                 match (D.find f ctx.local) with
                 | `Lifted (false,_,old_val) -> if value <> old_val then D.add f `Bot ctx.local else ctx.local
@@ -100,6 +101,7 @@ struct
           let temp = eval_int (Analyses.ask_of_ctx ctx) ex in
           match temp with
           | Some value -> begin
+              let value = IntOps.BigIntOps.to_int64 value in
               try
                 match (D.find f ctx.local) with
                 | `Lifted (false,_,old_val) -> if value <> old_val then ctx.local else D.add f `Bot ctx.local
@@ -120,10 +122,10 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

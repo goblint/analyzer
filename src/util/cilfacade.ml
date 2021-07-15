@@ -246,6 +246,50 @@ let rec get_ikind t =
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
 
+
+(** Cil.typeOf, etc reimplemented to raise sensible exceptions
+    instead of printing all errors directly... *)
+
+type typeOfError =
+  | RealImag_NonNumerical (** unexpected non-numerical type for argument to __real__/__imag__ *)
+  | StartOf_NonArray (** typeOf: StartOf on a non-array *)
+  | Mem_NonPointer of exp (** typeOfLval: Mem on a non-pointer (exp) *)
+  | Index_NonArray (** typeOffset: Index on a non-array *)
+  | Field_NonCompound (** typeOffset: Field on a non-compound *)
+
+exception TypeOfError of typeOfError
+
+let () = Printexc.register_printer (function
+    | TypeOfError error ->
+      let msg = match error with
+        | RealImag_NonNumerical -> "unexpected non-numerical type for argument to __real__/__imag__"
+        | StartOf_NonArray -> "typeOf: StartOf on a non-array"
+        | Mem_NonPointer exp -> Printf.sprintf "typeOfLval: Mem on a non-pointer (%s)" (CilType.Exp.show exp)
+        | Index_NonArray -> "typeOffset: Index on a non-array"
+        | Field_NonCompound -> "typeOffset: Field on a non-compound"
+      in
+      Some (Printf.sprintf "Cilfacade.TypeOfError(%s)" msg)
+    | _ -> None (* for other exceptions *)
+  )
+
+(* Cil doesn't expose this *)
+let stringLiteralType = ref charPtrType
+
+let typeOfRealAndImagComponents t =
+  match unrollType t with
+  | TInt _ -> t
+  | TFloat (fkind, attrs) ->
+    let newfkind = function
+      | FFloat -> FFloat      (* [float] *)
+      | FDouble -> FDouble     (* [double] *)
+      | FLongDouble -> FLongDouble (* [long double] *)
+      | FComplexFloat -> FFloat
+      | FComplexDouble -> FDouble
+      | FComplexLongDouble -> FLongDouble
+    in
+    TFloat (newfkind fkind, attrs)
+  | _ -> raise (TypeOfError RealImag_NonNumerical)
+
 let rec typeOf (e: exp) : typ =
   match e with
   | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
@@ -258,28 +302,29 @@ let rec typeOf (e: exp) : typ =
   (* The type of a string is a pointer to characters ! The only case when
    * you would want it to be an array is as an argument to sizeof, but we
    * have SizeOfStr for that *)
-  | Const(CStr s) -> charPtrType
+  | Const(CStr s) -> !stringLiteralType
 
   | Const(CWStr s) -> TPtr(!wcharType,[])
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
   | Const(CEnum(tag, _, ei)) -> typeOf tag
-
+  | Real e -> typeOfRealAndImagComponents @@ typeOf e
+  | Imag e -> typeOfRealAndImagComponents @@ typeOf e
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
-  | UnOp (_, _, t) -> t
-  | BinOp (_, _, _, t) -> t
+  | UnOp (_, _, t)
+  | BinOp (_, _, _, t)
+  | Question (_, _, _, t)
   | CastE (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
+  | AddrOfLabel (lv) -> voidPtrType
   | StartOf (lv) -> begin
       match unrollType (typeOfLval lv) with
         TArray (t,_, a) -> TPtr(t, a)
-      | _ -> raise Not_found
+      | _ -> raise (TypeOfError StartOf_NonArray)
     end
-  | Question _ -> failwith "Logical operations should be compiled away by CIL."
-  | _ -> failwith "Unmatched pattern."
 
 and typeOfInit (i: init) : typ =
   match i with
@@ -291,7 +336,7 @@ and typeOfLval = function
   | Mem addr, off -> begin
       match unrollType (typeOf addr) with
         TPtr (t, _) -> typeOffset t off
-      | _ -> raise Not_found
+      | _ -> raise (TypeOfError (Mem_NonPointer addr))
     end
 
 and typeOffset basetyp =
@@ -307,14 +352,18 @@ and typeOffset basetyp =
         TArray (t, _, baseAttrs) ->
         let elementType = typeOffset t o in
         blendAttributes baseAttrs elementType
-      | t -> raise Not_found
+      | t -> raise (TypeOfError Index_NonArray)
     end
   | Field (fi, o) ->
     match unrollType basetyp with
       TComp (_, baseAttrs) ->
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
-    | _ -> raise Not_found
+    | _ -> raise (TypeOfError Field_NonCompound)
+
+
+let get_ikind_exp e = get_ikind (typeOf e)
+
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200

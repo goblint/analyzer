@@ -211,7 +211,7 @@ end
 
 module type IkindUnawareS =
 sig
-  include B with type int_t = int64
+  include B 
   include Arith with type t:= t
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
@@ -250,7 +250,7 @@ sig
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
-module OldDomainFacade (Old : IkindUnawareS) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
+module OldDomainFacade (Old : IkindUnawareS with type int_t = int64) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
 (** Facade for IntDomain implementations that do not implement the interface where arithmetic functions take an ikind parameter. *)
 
 module type Y =
@@ -319,20 +319,23 @@ exception Error
 exception IncompatibleIKinds of string
 
 (** {b Predefined domains} *)
-
-module Integers : IkindUnawareS with type t = int64
+module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t
 (** The integers with their natural orderings. Calling [top] and [bot] will
   * raise exceptions. *)
 
-module FlatPureIntegers : IkindUnawareS with type t = int64
+module FlatPureIntegers: IkindUnawareS with type t = IntOps.Int64Ops.t and type int_t = IntOps.Int64Ops.t
 (** The integers with flattened orderings. Calling [top] and [bot] or [join]ing
     or [meet]ing inequal elements will raise exceptions. *)
 
-module Flattened : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot]
+module Flattened : IkindUnawareS with type t = [`Top | `Lifted of IntOps.Int64Ops.t | `Bot] and type int_t = IntOps.Int64Ops.t
 (** This is the typical flattened integer domain used in Kildall's constant
   * propagation. *)
 
-module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot]
+module FlattenedBI : IkindUnawareS with type t = [`Top | `Lifted of IntOps.BigIntOps.t | `Bot] and type int_t = IntOps.BigIntOps.t
+(** This is the typical flattened integer domain used in Kildall's constant
+  * propagation, using Big_int instead of int64. *)
+
+module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and type int_t = int64
 (** Artificially bounded integers in their natural ordering. *)
 
 module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
@@ -348,16 +351,16 @@ module DefExc : S with type int_t = IntOps.BigIntOps.t
 
 (** {b Domain constructors} *)
 
-module Flat (Base: IkindUnawareS): IkindUnawareS
+module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t 
 (** Creates a flat value domain, where all ordering is lost. Arithmetic
   * operations are lifted such that only lifted values can be evaluated
   * otherwise the top/bot is simply propagated with bot taking precedence over
   * top. *)
 
-module Lift (Base: IkindUnawareS): IkindUnawareS
+module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t 
 (** Just like {!Value.Flat} except the order is preserved. *)
 
-module Reverse (Base: IkindUnawareS): IkindUnawareS
+module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and type int_t = Base.int_t 
 (** Reverses bot, top, leq, join, meet *)
 
 (* module Interval : S *)

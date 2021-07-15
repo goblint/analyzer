@@ -131,8 +131,8 @@ sig
   val strong_closure  : t -> t
   val map_to_matrix   : t -> elt array array * (BV.t, int) Hashtbl.t
   val matrix_to_map   : elt array array -> (BV.t, int) Hashtbl.t -> t
-  val get_relation    : Deriving.Cil.varinfo -> Deriving.Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option * bool
-  val keep_only       : Deriving.Cil.varinfo list -> t -> t
+  val get_relation    : Cil.varinfo -> Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option * bool
+  val keep_only       : Cil.varinfo list -> t -> t
   (* TODO: Currently last bool indicates if it was necessary to switch the order of vars and therefore multiplying diff by -1 in consumers may be necessary. *)
   (* This is ugly and needs to be fixed *)
 end

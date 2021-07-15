@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/usr/bin/env bash
 set -e # exit immediately if a command fails
 set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
@@ -15,7 +15,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-base-compiler.4.11.1 --locked
+  opam switch -y create . --deps-only ocaml-base-compiler.4.12.0 --locked
   # opam install camlp4 mongo # camlp4 needed for mongo
 }
 

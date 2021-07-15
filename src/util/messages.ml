@@ -13,6 +13,10 @@ let warn_out = ref stdout
 let tracing = Config.tracing
 let xml_file_name = ref ""
 
+let push_warning w =
+  if get_string "result" = "fast_xml" || get_bool "gobview" then
+    warning_table := w :: !warning_table
+
 let track m =
   let loc = !Tracing.current_loc in
   Printf.fprintf !warn_out "Track (%s:%d); %s\n" loc.file loc.line m
@@ -54,7 +58,7 @@ let colorize ?on:(on=colors_on ()) msg =
 let print_msg msg loc =
   let msgc = colorize msg in
   let msg  = colorize ~on:false msg in
-  if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
+  push_warning (`text (msg, loc));
   if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
   else
@@ -63,7 +67,7 @@ let print_msg msg loc =
     Printf.fprintf !warn_out "%s\n%!" (colorize s)
 
 let print_err msg loc =
-  if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
+  push_warning (`text (msg, loc));
   if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
   else
@@ -72,7 +76,7 @@ let print_err msg loc =
 
 let print_group group_name errors =
   (* Add warnings to global warning list *)
-  if (get_string "result") = "fast_xml" then warning_table := (`group (group_name,errors))::!warning_table;
+  push_warning (`group (group_name, errors));
   let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
   if (get_bool "ana.osek.warnfiles") then begin
     match (String.sub group_name 0 6) with

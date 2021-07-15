@@ -396,7 +396,7 @@ struct
       (*D.report ("before assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
       let nctx = D.assign_to_local (Analyses.ask_of_ctx ctx) lval (Some rval) ctx.local fs ctx.global in
       let nctx,uses_fp = handle_func_ptr rval nctx fs ctx.global in (*warn/error on ret of fptr to priv fun, fptrs don't have ptr type :(; *)
-      if uses_fp||isPointerType (typeOf (stripCasts rval)) then
+      if uses_fp||isPointerType (Cilfacade.typeOf (stripCasts rval)) then
         begin
           (*D.report ("assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
           (*let a,b,c=nctx in D.dangerDump "BF ASS:" b;*)
@@ -639,7 +639,7 @@ struct
               let (fn,st,gd),uses_fp = List.fold_left (fun (lctx,y) globa -> let (mlctx,my)=handle_func_ptr globa lctx fs ctx.global in (mlctx,y||my) ) ((fn,st,gd),false) arglist  in
               let (fn,st,gd),_ =  List.fold_left
                   (fun (lctx,arg_num) globa -> (*D.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)
-                     if uses_fp||isPointerType (typeOf (stripCasts globa))  then
+                     if uses_fp||isPointerType (Cilfacade.typeOf (stripCasts globa))  then
                        begin
                          (assign_lvals globa lctx arg_num,arg_num+1)
                        end
@@ -648,7 +648,7 @@ struct
               in
               let (fn,st,gd),_ =
                 List.fold_right
-                  (fun globa (lctx,arg_num) -> if (*uses_fp||isPointerType (typeOf (stripCasts globa))*) true  then
+                  (fun globa (lctx,arg_num) -> if (*uses_fp||isPointerType (Cilfacade.typeOf (stripCasts globa))*) true  then
                       begin (assign_lvals globa lctx arg_num,arg_num+1) end
                     else (lctx,arg_num+1)
                   )
@@ -658,12 +658,12 @@ struct
             end
           else ctx.local
         in
-        (*List.iter (fun x->if isPointerType (typeOf (stripCasts rval))&&(D.is_tainted fs )then ) arglist*)
+        (*List.iter (fun x->if isPointerType (Cilfacade.typeOf (stripCasts rval))&&(D.is_tainted fs )then ) arglist*)
         (*let fn,st,gd = nctx in*)
         begin match lval with (*handle retval*)
           | Some v ->
             let fn,st,gd =
-              if isPointerType (typeOfLval v)
+              if isPointerType (Cilfacade.typeOfLval v)
               then begin
                 if not (D.is_safe_name f.vname) then
                   let fn,st,gd = D.assign_to_local (Analyses.ask_of_ctx ctx) v from nctx fs ctx.global in
@@ -684,7 +684,8 @@ struct
     time_transfer "special" time_wrapper
 
   (*let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (D.t * exp * bool) list*)
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fd:fundec) (args:exp list) : (D.t * D.t) list =
+    let f = fd.svar in
     (*D.report("ENTER ZERO : "^f.vname);*)
     (*D.report("ENTER_FN : "^f.vname);*)
     (*if D.is_top ctx.local then failwith "ARGH!";*)
@@ -708,7 +709,6 @@ struct
         (*       printf ":: no_mainclass:%b public:%b \n" no_mainclass (D.is_public_method_name f.vname); *)
         (*D.report("ENTER_FUN : "^f.vname);*)
         let fs = D.get_tainted_fields ctx.global in
-        let fd = Cilfacade.getdec f in
         let t (v, e) = true
    (*
         let _, ds, _ = ctx.local in
@@ -741,7 +741,8 @@ struct
       end else [ctx.local, ctx.local]
 
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
+    let f = fd.svar in
     (*eval_funvar ctx fexp;*)
     if danger_bot ctx then ctx.local else
       let a, b, c = ctx.local in
@@ -756,7 +757,7 @@ struct
         | Some v ->
           D.warn_glob (Lval v) ("return val of "^GU.demangle f.vname);
           D.warn_tainted fs (*ctx.local*) au (Lval v) ("return val of "^(GU.demangle f.vname));
-          if isPointerType (typeOfLval v)
+          if isPointerType (Cilfacade.typeOfLval v)
           then
             if is_ext f.vname ctx.global then
               begin
@@ -780,7 +781,6 @@ struct
                   in
                   let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v rvs) rvs (a,b,c) in
 
-                  let fd = Cilfacade.getdec f in
                   let ll = match (zip fd.sformals args) with (*remove this*)
                     | [] -> []
                     | [x] -> []

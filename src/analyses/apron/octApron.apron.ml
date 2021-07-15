@@ -145,7 +145,6 @@ struct
 
   let enter ctx r f args =
     let st = ctx.local in
-    let f = Cilfacade.getdec f in
     if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
     if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
@@ -200,7 +199,6 @@ struct
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
-    let f = Cilfacade.getdec f in
     if M.tracing then M.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
     if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
@@ -299,19 +297,23 @@ struct
     let open Queries in
     let st = ctx.local in
     match q with
-    | Assert e ->
-      read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
-          match AD.check_assert e' oct' with
-          | `Top -> `Top
-          | `True -> `Lifted true
-          | `False -> `Lifted false
-          | _ -> `Bot
-        )
     | EvalInt e ->
       read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
-          match AD.get_int_val_for_cil_exp oct' e' with
-          | Some i -> ID.of_int i
-          | _ -> `Top
+          let ik = Cilfacade.get_ikind_exp e' in
+          match e' with
+          (* constraint *)
+          | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) ->
+            begin match AD.check_assert e' oct' with
+              | `True -> ID.of_bool ik true
+              | `False -> ID.of_bool ik false
+              | `Top -> ID.top ()
+            end
+          (* expression *)
+          | _ ->
+            begin match AD.get_int_val_for_cil_exp oct' e' with
+              | Some i -> ID.of_int ik i
+              | _ -> ID.top ()
+            end
         )
     | _ -> Result.top q
 

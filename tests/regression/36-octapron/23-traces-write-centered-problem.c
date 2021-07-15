@@ -1,5 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] octApron --sets exp.solver.td3.side_widen cycle_self
-// requires cycle_self to pass with protection
+// SKIP PARAM: --sets ana.activated[+] octApron
 #include <pthread.h>
 #include <assert.h>
 

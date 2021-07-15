@@ -15,8 +15,8 @@ struct
     let open MyCFG in
     match x with
     | Statement stmt  -> string_of_int stmt.sid
-    | Function f      -> "return of " ^ f.vname ^ "()"
-    | FunctionEntry f -> f.vname ^ "()"
+    | Function f      -> "return of " ^ f.svar.vname ^ "()"
+    | FunctionEntry f -> f.svar.vname ^ "()"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
   let invariant _ _ = Invariant.none
@@ -166,7 +166,7 @@ struct
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
-  let morphstate v (d, _) = (Dom.map_noreduce (Spec.morphstate v) d, Sync.bot ())
+  let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot ())
 
   let call_descr = Spec.call_descr
 

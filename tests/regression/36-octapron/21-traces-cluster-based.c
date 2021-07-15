@@ -1,5 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] octApron --sets exp.solver.td3.side_widen cycle_self
-// requires cycle_self to pass
+// SKIP PARAM: --sets ana.activated[+] octApron
 #include <pthread.h>
 #include <assert.h>
 
@@ -28,7 +27,7 @@ void *t2_fun(void *arg) {
   x = g;
   y = h;
   pthread_mutex_unlock(&A);
-  assert(y <= x); // requires cycle_self
+  assert(y <= x);
   return NULL;
 }
 

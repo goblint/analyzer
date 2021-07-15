@@ -54,7 +54,7 @@ end
 module IntegerSet =
 struct
   (* TODO: base this on BI instead *)
-  module Base = IntDomain.Integers
+  module Base = IntDomain.Integers(IntOps.Int64Ops)
 
   include SetDomain.Make(Base)
 
