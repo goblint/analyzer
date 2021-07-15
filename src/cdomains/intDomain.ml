@@ -2552,7 +2552,7 @@ module IntDomTupleImpl = struct
 
   let refine ik ((a, b, c, d ) : t ) : t =
     let dt = ref (a, b, c, d) in
-    let _ = match GobConfig.get_string "ana.int.refinement" with
+    (match GobConfig.get_string "ana.int.refinement" with
       | "never" -> ()
       | "once" ->
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
@@ -2566,8 +2566,7 @@ module IntDomTupleImpl = struct
            if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
          done;
       | _ -> ()
-    in
-    !dt
+    ); !dt
 
   let no_overflow ik r =
     if GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik then true
