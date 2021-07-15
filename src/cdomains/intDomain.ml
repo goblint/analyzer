@@ -2574,9 +2574,9 @@ module IntDomTupleImpl = struct
   let no_overflow ik r =
     if GobConfig.get_bool "ana.int.congruence_no_overflow" && Cil.isSigned ik then true
     else let ika, ikb = Size.range_big_int ik in
-         match I2.minimal r, I2.maximal r with
-         | Some ra, Some rb -> ika < ra || rb < ikb
-         | _ -> false
+      match I2.minimal r, I2.maximal r with
+      | Some ra, Some rb -> BI.compare ika ra < 0 || BI.compare rb ikb < 0
+      | _ -> false
 
   (* map with overflow check *)
   let mapovc ik r (a, b, c, d) =
