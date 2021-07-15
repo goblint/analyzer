@@ -444,6 +444,7 @@ struct
 end
 
 (** Write-Centered Reading. *)
+(* TODO: uncompleted, only W, P components from basePriv *)
 module WriteCenteredPriv: S =
 struct
   open Locksets
@@ -660,7 +661,7 @@ let priv_module: (module S) Lazy.t =
         | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
         | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
         | "mutex-meet" -> (module PerMutexMeetPriv)
-        | "write" -> (module WriteCenteredPriv)
+        (* | "write" -> (module WriteCenteredPriv) *)
         | _ -> failwith "exp.octapron.privatization: illegal value"
       )
     in
