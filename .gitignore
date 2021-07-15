@@ -42,6 +42,7 @@ ocamlprof.dump
 arinc
 
 .vscode
+.idea
 _opam/
 cfgs/
 cfg.dot
