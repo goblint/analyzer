@@ -816,17 +816,17 @@ struct
   let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
-        if (m = Ints_t.zero) && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
-        else if m = Ints_t.zero then Some (c, c)
-        else let rcx =
-             if Ints_t.equal x (min_int ik) then x else
-             Ints_t.add x (modulo (Ints_t.sub c x) (abs(m))) in
-             let lcy =
-              if Ints_t.equal y (max_int ik) then y else
-              Ints_t.sub y (modulo (Ints_t.sub y c) (abs(m))) in
-             if Ints_t.compare rcx lcy > 0 then None
-             else if Ints_t.compare rcx lcy = 0 then norm ik @@ Some (rcx, rcx)
-             else norm ik @@ Some (rcx, lcy)
+      if Ints_t.equal m Ints_t.zero && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
+      else if Ints_t.equal m Ints_t.zero then
+        Some (c, c)
+      else
+        let rcx = if Ints_t.equal x (min_int ik) then x else
+            Ints_t.add x (modulo (Ints_t.sub c x) (abs(m))) in
+        let lcy = if Ints_t.equal y (max_int ik) then y else
+            Ints_t.sub y (modulo (Ints_t.sub y c) (abs(m))) in
+        if Ints_t.compare rcx lcy > 0 then None
+        else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx)
+        else norm ik @@ Some (rcx, lcy)
     | _ -> None
 
   let refine_with_congruence ik x y =
