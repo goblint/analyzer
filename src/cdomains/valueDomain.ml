@@ -186,9 +186,9 @@ struct
              and recursively construct a value for the pointed to type.
           *)
           begin
-            match Hashtbl.find type_to_symbolic_address (ts pointed_to_t) with
-            | v -> `Address v, l
-            | exception Not_found ->
+            match Hashtbl.find_opt type_to_symbolic_address (ts pointed_to_t) with
+            | Some v -> `Address v, l
+            | None ->
               begin
                 let types = TypeSet.singleton pointed_to_t in
                 let types = match TypeCastMap.find_opt (TPtr (pointed_to_t, attr)) map with
