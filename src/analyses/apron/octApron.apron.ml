@@ -298,7 +298,8 @@ struct
     let st = ctx.local in
     match q with
     | EvalInt e ->
-      read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
+      if M.tracing then M.traceli "evalint" "octapron query %a\n" d_exp e;
+      let r = read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
           let ik = Cilfacade.get_ikind_exp e' in
           match e' with
           (* constraint *)
@@ -315,6 +316,9 @@ struct
               | _ -> ID.top ()
             end
         )
+      in
+      if M.tracing then M.traceu "evalint" "octapron query %a -> %a\n" d_exp e ID.pretty r;
+      r
     | _ -> Result.top q
 
 
