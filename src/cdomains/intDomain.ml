@@ -1943,7 +1943,7 @@ struct
   module Ints_t = BI
   type int_t = Ints_t.t
 
-  (* represents congruence class of c mod m *)
+  (* represents congruence class of c mod m, None is bot *)
   type t = (Ints_t.t * Ints_t.t) option
 
   let ( *: ) = Ints_t.mul
