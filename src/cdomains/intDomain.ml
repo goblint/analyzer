@@ -2001,8 +2001,8 @@ struct
 
   let equal_to i = function
     | None -> failwith "unsupported: equal_to with bottom"
-    | Some (a, b) when b =: Ints_t.zero -> if a = i then `Eq else `Neq
-    | Some (a, b) -> if i %: b = a then `Top else `Neq
+    | Some (a, b) when b =: Ints_t.zero -> if a =: i then `Eq else `Neq
+    | Some (a, b) -> if i %: b =: a then `Top else `Neq
 
   let leq (x:t) (y:t) =
     match x, y with
@@ -2099,7 +2099,7 @@ struct
       (* Clang behaves the same but they never document that anywhere *)
       Some (c', m)
     | _ -> match torg with
-      | (Some (Cil.TInt (ikorg, _)) ) when ikorg = t || (max_int t >= max_int ikorg && min_int t <= min_int ikorg) -> if M.tracing then M.trace "cong-cast" "some case"; x
+      | (Some (Cil.TInt (ikorg, _)) ) when ikorg = t || (max_int t >=: max_int ikorg && min_int t <=: min_int ikorg) -> if M.tracing then M.trace "cong-cast" "some case"; x
       | _ -> top ()
 
 
@@ -2269,8 +2269,8 @@ struct
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, x when leq zero x -> top ()
-    | Some(c1, m1), Some(c2, m2) when not no_ov && m2 = Ints_t.zero && c2 = Ints_t.neg Ints_t.one -> top ()
-    | Some(c1, m1), Some(c2, m2) when m1 =: Ints_t.zero && m2 = Ints_t.zero -> Some(c1 /: c2, Ints_t.zero)
+    | Some(c1, m1), Some(c2, m2) when not no_ov && m2 =: Ints_t.zero && c2 =: Ints_t.neg Ints_t.one -> top ()
+    | Some(c1, m1), Some(c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero -> Some(c1 /: c2, Ints_t.zero)
     | Some(c1, m1), Some(c2, m2) when m2 =: Ints_t.zero ->  if (c2 |: m1) && (c2 |: c1) then Some(c1 /: c2, m1 /: c2) else top ()
     | _, _ -> top ()
 
