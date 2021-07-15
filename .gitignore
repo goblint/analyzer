@@ -44,6 +44,8 @@ arinc
 .vscode
 _opam/
 cfgs/
+cfg.dot
+cilcfg.*.dot
 
 *.graphml
 goblint.bc.js
