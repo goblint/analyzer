@@ -2168,7 +2168,7 @@ struct
     let is_prime n =
       let n = abs n in
       let rec is_prime' d =
-        (d *: d >: n) || (((n %: d) =: Ints_t.zero) && (is_prime' [@tailcall]) (d +: Ints_t.one))
+        (d *: d >: n) || ((not ((n %: d) =: Ints_t.zero)) && (is_prime' [@tailcall]) (d +: Ints_t.one))
       in
       not (n =: Ints_t.one) && is_prime' (Ints_t.of_int 2)
     in
