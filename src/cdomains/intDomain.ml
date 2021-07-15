@@ -805,8 +805,11 @@ struct
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
   let relift x = x
 
-  let abs x = let r = Ints_t.neg x
-   in if Ints_t.compare x r < 0 then r else x
+  let abs x =
+    if Ints_t.compare x Ints_t.zero < 0 then
+      Ints_t.neg x
+    else
+      x
 
   let modulo n k =
     let result = Ints_t.rem n k in
@@ -1964,9 +1967,11 @@ struct
 
   let rec gcd x y =
     if y =: Ints_t.zero then x else gcd y (x %: y)
-
-  let abs x = let r = Ints_t.neg x
-    in if x <: r then r else x
+  let abs x =
+    if x <: Ints_t.zero then
+      Ints_t.neg x
+    else
+      x
 
   let normalize x =
     match x with
