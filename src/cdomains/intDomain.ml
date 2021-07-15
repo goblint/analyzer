@@ -1922,22 +1922,24 @@ module Enums : S with type int_t = BigInt.t = struct
       10, QCheck.map pos (ISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
 
-    let refine_with_congruence ik a b =
-      let contains c m x = if BI.equal m BI.zero then BI.equal c x else (BI.rem (BI.sub x c) m) == BI.zero in
-      match a with
-      | Inc e -> ( match b with
-                | None -> bot_of ik
-                | Some (c, m) -> Inc (ISet.filter (contains c m) e))
-      | a -> a
-  let refine_with_interval ik a b = a
-  let refine_with_excl_list ik a b = match a, b with
-  | _, None -> a
-  | a , Some (ls) -> meet ik a (of_excl_list ik ls)
-  let refine_with_incl_list ik a b = match a, b with
-  | _, None -> a
-  | Inc x, Some (ls) -> meet ik (Inc x) (Inc (ISet.of_list ls))
-  | a, _ -> a
+  let refine_with_congruence ik a b =
+    let contains c m x = if BI.equal m BI.zero then BI.equal c x else BI.equal (BI.rem (BI.sub x c) m) BI.zero in
+    match a, b with
+    | Inc e, None -> bot_of ik
+    | Inc e, Some (c, m) -> Inc (ISet.filter (contains c m) e)
+    | _ -> a
 
+  let refine_with_interval ik a b = a
+
+  let refine_with_excl_list ik a b =
+    match b with
+    | Some (ls) -> meet ik a (of_excl_list ik ls)
+    | _ -> a
+
+  let refine_with_incl_list ik a b =
+    match a, b with
+    | Inc x, Some (ls) -> meet ik (Inc x) (Inc (ISet.of_list ls))
+    | _ -> a
 end
 
 module Congruence : S with type int_t = BI.t and type t = (BI.t * BI.t) option =
