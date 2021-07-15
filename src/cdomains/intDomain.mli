@@ -188,16 +188,16 @@ sig
     * returns [true], the above [to_bool] should return a real value. *)
 
   val to_excl_list: t -> int_t list option
-  (* Gives a list representation of the excluded values if possible. *)
+  (** Gives a list representation of the excluded values if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
-  (* Creates a exclusion set from a given list of integers. *)
+  (** Creates an exclusion set from a given list of integers. *)
 
   val is_excl_list: t -> bool
-  (* Checks if the element is an exclusion set. *)
+  (** Checks if the element is an exclusion set. *)
 
   val to_incl_list: t -> int_t list option
-  (* Gives a list representation of the included values if possible. *)
+  (** Gives a list representation of the included values if possible. *)
 
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
@@ -214,7 +214,7 @@ end
 
 module type IkindUnawareS =
 sig
-  include B 
+  include B
   include Arith with type t:= t
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
@@ -371,16 +371,16 @@ module DefExc : S with type int_t = IntOps.BigIntOps.t
 
 (** {b Domain constructors} *)
 
-module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t 
+module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
 (** Creates a flat value domain, where all ordering is lost. Arithmetic
   * operations are lifted such that only lifted values can be evaluated
   * otherwise the top/bot is simply propagated with bot taking precedence over
   * top. *)
 
-module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t 
+module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
 (** Just like {!Value.Flat} except the order is preserved. *)
 
-module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and type int_t = Base.int_t 
+module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and type int_t = Base.int_t
 (** Reverses bot, top, leq, join, meet *)
 
 (* module Interval : S *)
