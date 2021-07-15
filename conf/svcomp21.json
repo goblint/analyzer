@@ -7,10 +7,7 @@
     "int": {
       "def_exc": true,
       "enums": false,
-      "interval": true,
-      "congruence": false,
-      "congruence_no_overflow": false,
-      "refinement": "never"
+      "interval": true
     },
     "activated": [
       "base",
