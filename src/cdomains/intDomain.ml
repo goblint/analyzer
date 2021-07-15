@@ -1963,8 +1963,6 @@ struct
   let ( |: ) a b =
     if a =: Ints_t.zero then false else (b %: a) =: Ints_t.zero
 
-  let to_yojson t = failwith "to yojson unimplemented"
-
   let rec gcd x y =
     if y =: Ints_t.zero then x else gcd y (x %: y)
   let abs x =
