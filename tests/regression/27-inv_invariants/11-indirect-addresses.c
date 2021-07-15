@@ -1,4 +1,4 @@
-// extracted from 01/22
+// modified from 27/09
 #include <assert.h>
 
 int main() {
@@ -16,8 +16,9 @@ int main() {
   b = 2;
 
   assert(a == 1);
-  if (*x != 0) { // invariant shouldn't make less precise!
-    assert(a == 1);
+  if (*x > 1) { // invariant rules out x == &a
+    assert(x == &b); // TODO
+    assert(*x == 2); // TODO
   }
   return 0;
 }
