@@ -464,13 +464,10 @@ struct
 
   let get_int_val_for_cil_exp d cil_exp =
     match get_int_interval_for_cil_exp d cil_exp with
-    | Some infimum, Some supremum ->
-      begin
-        if (supremum = infimum) then
-          (Some (infimum))
-        else None
-      end
-    | _ -> None
+    | Some infimum, Some supremum when IntOps.BigIntOps.equal infimum supremum ->
+      Some infimum
+    | _ ->
+      None
 
   let cil_exp_equals d exp1 exp2 =
     if (is_bot_env d) then false
