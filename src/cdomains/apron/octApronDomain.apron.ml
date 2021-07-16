@@ -447,24 +447,25 @@ struct
         None
       else
         match scalar with
-        | Float scalar -> Some (Stdlib.int_of_float scalar)
+        | Float scalar -> Some (IntOps.BigIntOps.of_int (Stdlib.int_of_float scalar))
         | Mpqf scalar ->
-          begin
+          (* begin
             match Mpqf.to_string scalar with
             (* apron has an internal representation of -1/0 as -infinity and 1/0 as infinity.*)
             | "-1/0" | "1/0" -> None
             | _ -> Some (Stdlib.int_of_float (Mpqf.to_float scalar))
-          end
-        | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
+          end *)
+          Some (IntOps.BigIntOps.of_string (Mpqf.to_string scalar))
+        | Mpfrf scalar -> Some (IntOps.BigIntOps.of_int (Stdlib.int_of_float (Mpfrf.to_float scalar))) in
     try
       let texpr1 = Convert.texpr1_of_cil_exp (A.env d) cil_exp in
       let interval_of_variable = A.bound_texpr Man.mgr d texpr1 in
       let infimum = get_int_for_apron_scalar interval_of_variable.inf in
       let supremum = get_int_for_apron_scalar interval_of_variable.sup in
       match infimum, supremum with
-      | Some infimum, Some supremum -> Some (Int64.of_int (infimum)),  Some (Int64.of_int (supremum))
-      | Some infimum, None -> Some (Int64.of_int (-infimum)), None
-      | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
+      | Some infimum, Some supremum -> Some (infimum),  Some (supremum)
+      | Some infimum, None -> Some (infimum), None
+      | None, Some supremum ->  None, Some (supremum)
       | _, _ -> None, None
     with Convert.Unsupported_CilExp -> None, None
 
@@ -473,7 +474,7 @@ struct
     | Some infimum, Some supremum ->
       begin
         if (supremum = infimum) then
-          (Some (IntOps.BigIntOps.of_int64 infimum))
+          (Some (infimum))
         else None
       end
     | _ -> None
