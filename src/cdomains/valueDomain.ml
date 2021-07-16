@@ -217,7 +217,7 @@ struct
           (`Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) v)), adrs
         | TNamed ({ttype=t; _}, _) -> arg_val t l
         | _ -> `Top, l
-      in arg_val t []
+      in arg_val (Cil.unrollTypeDeep t) []
 
     let rec zero_init_value (t:typ): t =
       let zero_init_comp compinfo: Structs.t =
