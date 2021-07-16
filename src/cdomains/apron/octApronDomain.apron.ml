@@ -49,9 +49,12 @@ struct
   let rec texpr1_expr_of_cil_exp = function
     | Lval (Var v, NoOffset) when isIntegralType v.vtype && not v.vglob ->
       Var (Var.of_string v.vname)
-    | Const (CInt64 (i, _, _)) ->
-      (* TODO: bigint *)
-      Cst (Coeff.s_of_mpqf (Mpqf.of_string (Int64.to_string i)))
+    | Const (CInt64 (i, _, s)) ->
+      let str = match s with
+        | Some s -> s
+        | None -> Int64.to_string i
+      in
+      Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
     | UnOp (Neg, e, _) ->
       Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
     | BinOp (PlusA, e1, e2, _) ->
