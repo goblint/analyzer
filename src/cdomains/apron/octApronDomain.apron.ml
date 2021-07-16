@@ -445,32 +445,22 @@ struct
 
   let get_int_interval_for_cil_exp d cil_exp =
     let get_int_for_apron_scalar (scalar: Scalar.t) =
-      (* Check infinity because infinite float returns 0 from int_of_float *)
-      if Scalar.is_infty scalar <> 0 then
+      if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
         None
       else
         match scalar with
-        | Float scalar -> Some (IntOps.BigIntOps.of_int (Stdlib.int_of_float scalar))
-        | Mpqf scalar ->
-          (* begin
-            match Mpqf.to_string scalar with
-            (* apron has an internal representation of -1/0 as -infinity and 1/0 as infinity.*)
-            | "-1/0" | "1/0" -> None
-            | _ -> Some (Stdlib.int_of_float (Mpqf.to_float scalar))
-          end *)
+        | Mpqf scalar when Mpzf.cmp_int (Mpqf.get_den scalar) 1 = 0 -> (* rational must be integer (denominator 1) *)
           Some (IntOps.BigIntOps.of_string (Mpqf.to_string scalar))
-        | Mpfrf scalar -> Some (IntOps.BigIntOps.of_int (Stdlib.int_of_float (Mpfrf.to_float scalar))) in
+        | _ ->
+          failwith "get_int_for_apron_scalar: not integer"
+    in
     try
       let texpr1 = Convert.texpr1_of_cil_exp (A.env d) cil_exp in
       let interval_of_variable = A.bound_texpr Man.mgr d texpr1 in
       let infimum = get_int_for_apron_scalar interval_of_variable.inf in
       let supremum = get_int_for_apron_scalar interval_of_variable.sup in
-      match infimum, supremum with
-      | Some infimum, Some supremum -> Some (infimum),  Some (supremum)
-      | Some infimum, None -> Some (infimum), None
-      | None, Some supremum ->  None, Some (supremum)
-      | _, _ -> None, None
-    with Convert.Unsupported_CilExp -> None, None
+      (infimum, supremum)
+    with Convert.Unsupported_CilExp -> (None, None)
 
   let get_int_val_for_cil_exp d cil_exp =
     match get_int_interval_for_cil_exp d cil_exp with
