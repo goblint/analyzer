@@ -50,7 +50,8 @@ struct
     | Lval (Var v, NoOffset) when isIntegralType v.vtype && not v.vglob ->
       Var (Var.of_string v.vname)
     | Const (CInt64 (i, _, _)) ->
-      Cst (Coeff.s_of_int (Int64.to_int i))
+      (* TODO: bigint *)
+      Cst (Coeff.s_of_mpqf (Mpqf.of_string (Int64.to_string i)))
     | UnOp (Neg, e, _) ->
       Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
     | BinOp (PlusA, e1, e2, _) ->
