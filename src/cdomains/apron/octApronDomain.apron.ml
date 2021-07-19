@@ -528,9 +528,9 @@ end
 module D = DWithOps (DLift)
 
 (** With heterogeneous environments. *)
-module D2 =
+module DHetero: SLattice =
 struct
-  include D
+  include DBase
 
   let gce (x: Environment.t) (y: Environment.t): Environment.t =
     let (xi, xf) = Environment.vars x in
@@ -661,6 +661,8 @@ struct
   (* TODO: better narrow *)
   let narrow x y = x
 end
+
+module D2 = DWithOps (DHetero)
 
 
 (* Copy-paste from BaseDomain... *)
