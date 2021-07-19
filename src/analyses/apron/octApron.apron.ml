@@ -300,16 +300,7 @@ struct
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "octapron query %a\n" d_exp e;
       let r = read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
-          let ik = Cilfacade.get_ikind_exp e' in
-          if AD.exp_is_cons e' then
-            match AD.check_assert e' oct' with
-            | `True -> ID.of_bool ik true
-            | `False -> ID.of_bool ik false
-            | `Top -> ID.top ()
-          else
-            match AD.get_int_val_for_cil_exp oct' e' with
-            | Some i -> ID.of_int ik i
-            | _ -> ID.top ()
+          AD.eval_int oct' e'
         )
       in
       if M.tracing then M.traceu "evalint" "octapron query %a -> %a\n" d_exp e ID.pretty r;

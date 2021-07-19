@@ -430,6 +430,20 @@ struct
     | _ ->
       None
 
+  (** Evaluate constraint or non-constraint as integer. *)
+  let eval_int d e =
+    let module ID = Queries.ID in
+    let ik = Cilfacade.get_ikind_exp e in
+    if exp_is_cons e then
+      match check_assert e d with
+      | `True -> ID.of_bool ik true
+      | `False -> ID.of_bool ik false
+      | `Top -> ID.top ()
+    else
+      match get_int_val_for_cil_exp d e with
+      | Some i -> ID.of_int ik i
+      | _ -> ID.top ()
+
   let cil_exp_equals d exp1 exp2 =
     if (is_bot_env d) then false
     else
