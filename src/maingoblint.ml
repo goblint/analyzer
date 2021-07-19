@@ -367,7 +367,7 @@ let check_arguments () =
   let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
   if ctx_insens && get_bool "exp.full-context" then warn "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
-  if get_bool "ana.library" && get_bool "allfuns" then warn "Both ana.library and allfuns are activated. This is not recommended.";
+  if get_bool "ana.library.enabled" && get_bool "allfuns" then warn "Both ana.library and allfuns are activated. This is not recommended.";
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization")
 

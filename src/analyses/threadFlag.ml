@@ -7,7 +7,7 @@ open Prelude.Ana
 open Analyses
 
 let is_multi (ask: Queries.ask): bool =
-  if !GU.global_initialization || GobConfig.get_bool "ana.library" then false else
+  if !GU.global_initialization || GobConfig.get_bool "ana.library.enabled" then false else
   not (ask.f Queries.MustBeSingleThreaded)
 
 

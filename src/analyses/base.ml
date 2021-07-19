@@ -813,7 +813,7 @@ struct
         | CastE  (t, exp) ->
           let v = eval_rv a gs st exp in
           let cast = VD.cast ~torg:(typeOf exp) t v in
-          if GobConfig.get_bool "ana.library" then
+          if GobConfig.get_bool "ana.library.enabled" then
             begin
               match v, t with
               | `Address adrs, TPtr (pointed_to_t,_) ->
@@ -1163,7 +1163,7 @@ struct
       end else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* If we do library analysis, we always have to do non-destructive updates for globals, so join with value here. *)
-        let value = if get_bool "ana.library" && x.vglob && not force_update then VD.join value @@ get a gs st lval None else value in
+        let value = if get_bool "ana.library.enabled" && x.vglob && not force_update then VD.join value @@ get a gs st lval None else value in
         (* Normal update of the local state *)
         let new_value = VD.update_offset a (CPA.find x st.cpa) offs value lval_raw ((Var x), cil_offset) t in
         (* what effect does changing this local variable have on arrays -
@@ -1974,7 +1974,7 @@ struct
 
   let body ctx (f: fundec) =
     let args = List.map (fun v -> Lval (var v)) f.sformals in
-    let st = if GobConfig.get_bool "ana.library" then body_library ctx f.svar args else ctx.local in
+    let st = if GobConfig.get_bool "ana.library.enabled" then body_library ctx f.svar args else ctx.local in
     let ctx = {ctx with local = st} in
     (* First we create a variable-initvalue pair for each variable *)
     let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
@@ -2100,7 +2100,7 @@ struct
 
   let enter ctx lval fn args : (D.t * D.t) list =
     (* make_entry has special treatment for args that are equal to MyCFG.unknown_exp *)
-    let callee_st = if GobConfig.get_bool "ana.library" then D.bot () else make_entry ctx fn args in
+    let callee_st = if GobConfig.get_bool "ana.library.enabled" then D.bot () else make_entry ctx fn args in
     [ctx.local, callee_st]
 
   let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
@@ -2238,7 +2238,7 @@ struct
           { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
-      let st = if get_bool "ana.library"
+      let st = if get_bool "ana.library.enabled"
         then Stats.time "update_lvals" (update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global) (args@globals) (* Update locations that are pointed to by arguments and were possibly written by the called function *)
         else add_globals st fun_st
       in
@@ -2252,7 +2252,7 @@ struct
           if CPA.mem (return_varinfo ()) fun_st.cpa
           then
             let return_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None in
-            if GobConfig.get_bool "ana.library" then
+            if GobConfig.get_bool "ana.library.enabled" then
               if is_non_symbolic return_val then
                 add_return_val return_val st
               else
@@ -2273,7 +2273,7 @@ struct
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
-    let st: store = if GobConfig.get_bool "ana.library" && not (List.is_empty forks) then
+    let st: store = if GobConfig.get_bool "ana.library.enabled" && not (List.is_empty forks) then
       begin
         let enter_combine st (_, forked_fun, args) =
           try
@@ -2427,7 +2427,7 @@ struct
             then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
             else AD.from_var (heap_var ctx)
           in
-          if get_bool "ana.library" then
+          if get_bool "ana.library.enabled" then
             let typ = AD.get_type heap_var in
             set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, typ, `Blob (VD.bot_value typ, eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
                                     (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cil.typeOfLval lv), `Address heap_var)]
@@ -2464,7 +2464,7 @@ struct
     | `Unknown "__goblint_commit" -> assert_fn ctx (List.hd args) false true
     | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true
     | `Assert e -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
-    | `Unknown "__builtin_va_arg" when GobConfig.get_bool "ana.library" ->
+    | `Unknown "__builtin_va_arg" when GobConfig.get_bool "ana.library.enabled" ->
       if List.length args <> 3 then
         begin
           M.warn "Unexpected number of arguments passed to __builtin_va_arg.";
