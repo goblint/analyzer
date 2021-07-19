@@ -266,9 +266,28 @@ struct
     | `Unknown "__goblint_commit" -> st
     | `Unknown "__goblint_assert" -> st
     | _ ->
+      (* TODO: invalidate r *)
+      let ask = Analyses.ask_of_ctx ctx in
       begin match LibraryFunctions.get_invalidate_action f.vname with
-        | Some fnc -> {st with oct = invalidate st.oct (fnc `Write  args)} (* TODO: do nothing because only AddrOf arguments may be invalidated? *)
-        | None -> {st with oct = AD.top_env (A.env st.oct)} (* TODO: invalidate globals via Priv *)
+        | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
+        | None ->
+          if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
+            let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
+                match global with
+                | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+                  (Var vi, NoOffset) :: acc
+                (* TODO: what about GVarDecl? *)
+                | _ -> acc
+              ) []
+            in
+            List.fold_left (fun st lv ->
+                assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+                    AD.forget_vars st.oct [V.local v]
+                  )
+              ) st globals
+          )
+          else
+            st
       end
 
 
