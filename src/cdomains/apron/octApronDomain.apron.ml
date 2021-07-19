@@ -91,13 +91,14 @@ struct
       | BinOp (r, e1, e2, _) ->
         let texpr1_1 = texpr1_expr_of_cil_exp env e1 in
         let texpr1_2 = texpr1_expr_of_cil_exp env e2 in
+        (* Apron constraints always compare with 0 and only have comparisons one way *)
         begin match r with
-          | Lt -> (texpr1_2, texpr1_1, SUP)
-          | Gt -> (texpr1_1, texpr1_2, SUP)
-          | Le -> (texpr1_2, texpr1_1, SUPEQ)
-          | Ge -> (texpr1_1, texpr1_2, SUPEQ)
-          | Eq -> (texpr1_1, texpr1_2, EQ)
-          | Ne -> (texpr1_1, texpr1_2, DISEQ)
+          | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)
+          | Gt -> (texpr1_1, texpr1_2, SUP)   (* e1 > e2   ==>  e1 - e2 > 0  *)
+          | Le -> (texpr1_2, texpr1_1, SUPEQ) (* e1 <= e2  ==>  e2 - e1 >= 0 *)
+          | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
+          | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
+          | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
           | _ -> raise Unsupported_CilExp
         end
       | _ -> raise Unsupported_CilExp
