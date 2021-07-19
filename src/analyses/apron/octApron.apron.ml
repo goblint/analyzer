@@ -238,25 +238,6 @@ struct
     else
       unify_st
 
-  let rec get_vnames_list exp = match exp with
-    | Lval lval ->
-      let lhost, offset = lval in
-      begin match lhost with
-        | Var vinfo -> [vinfo.vname]
-        | _ -> []
-      end
-    | UnOp (unop, e, typ) -> get_vnames_list e
-    | BinOp (binop, e1, e2, typ) -> (get_vnames_list e1) @ (get_vnames_list e2)
-    | AddrOf lval -> get_vnames_list (Lval(lval))
-    | CastE(_, e) -> get_vnames_list e
-    | _ -> []
-
-  let invalidate oct (exps: exp list) =
-    (* TODO: why does this invalidate everything? pass-by-value to unknown function doesn't allow invalidation *)
-    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    let l = List.flatten (List.map get_vnames_list exps) in
-    AD.forget_vars oct (List.map Var.of_string l)
-
   let special ctx r f args =
     let st = ctx.local in
     match LibraryFunctions.classify f.vname args with
@@ -323,8 +304,7 @@ struct
     [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
 
   let threadspawn ctx lval f args fctx =
-    let st = ctx.local in
-    {st with oct = invalidate st.oct args}
+    ctx.local
 
   let event ctx e octx =
     let st = ctx.local in
