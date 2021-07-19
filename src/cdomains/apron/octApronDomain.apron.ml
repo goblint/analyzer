@@ -335,64 +335,6 @@ sig
   include Lattice.S with type t := t
 end
 
-module DLift: SLattice =
-struct
-  include DBase
-
-  let lift_var = Var.of_string "##LIFT##"
-
-  (** Environment (containing a unique variable [lift_var]) only used for lifted bot and top. *)
-  let lift_env = Environment.make [|lift_var|] [||]
-
-  (* Functions for lifted bot and top to implement [Lattice.S]. *)
-  let top () = top_env lift_env
-  let bot () = bot_env lift_env
-  let is_top x = Environment.equal (A.env x) lift_env && is_top_env x
-  let is_bot x = Environment.equal (A.env x) lift_env && is_bot_env x
-
-  (* Apron can not join two abstract values have different environments.
-     That hapens when we do a join with dead code and for that reason we need
-     to handle joining with bottom manually.
-     A similar if-based structure with is_top and is_bottom is also there for:
-     meet, widen, narrow, equal, leq.*)
-
-  let join x y =
-    if is_bot x then
-      y
-    else if is_bot y then
-      x
-    else (
-      if M.tracing then M.tracel "apron" "join %a %a\n" pretty x pretty y;
-      A.join (Man.mgr) x y
-      (* TODO: return lifted top if different environments? and warn? *)
-    )
-
-  let meet x y =
-    if is_top x then y else
-    if is_top y then x else
-      A.meet Man.mgr x y
-      (* TODO: return lifted bot if different environments? and warn? *)
-
-  let widen x y =
-    if is_bot x then
-      y
-    else if is_bot y then
-      x (* TODO: is this right? *)
-    else
-      A.widening (Man.mgr) x y
-      (* TODO: return lifted top if different environments? and warn? *)
-
-  let narrow = meet
-
-  let leq x y =
-    if is_bot x || is_top y then true else
-    if is_bot y || is_top x then false else (
-      if M.tracing then M.tracel "apron" "leq %a %a\n" pretty x pretty y;
-      Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
-      (* TODO: warn if different environments? *)
-    )
-end
-
 module DWithOps (D: SLattice) =
 struct
   include D
@@ -525,7 +467,67 @@ struct
       new_oct
 end
 
+
+module DLift: SLattice =
+struct
+  include DBase
+
+  let lift_var = Var.of_string "##LIFT##"
+
+  (** Environment (containing a unique variable [lift_var]) only used for lifted bot and top. *)
+  let lift_env = Environment.make [|lift_var|] [||]
+
+  (* Functions for lifted bot and top to implement [Lattice.S]. *)
+  let top () = top_env lift_env
+  let bot () = bot_env lift_env
+  let is_top x = Environment.equal (A.env x) lift_env && is_top_env x
+  let is_bot x = Environment.equal (A.env x) lift_env && is_bot_env x
+
+  (* Apron can not join two abstract values have different environments.
+     That hapens when we do a join with dead code and for that reason we need
+     to handle joining with bottom manually.
+     A similar if-based structure with is_top and is_bottom is also there for:
+     meet, widen, narrow, equal, leq.*)
+
+  let join x y =
+    if is_bot x then
+      y
+    else if is_bot y then
+      x
+    else (
+      if M.tracing then M.tracel "apron" "join %a %a\n" pretty x pretty y;
+      A.join (Man.mgr) x y
+      (* TODO: return lifted top if different environments? and warn? *)
+    )
+
+  let meet x y =
+    if is_top x then y else
+    if is_top y then x else
+      A.meet Man.mgr x y
+      (* TODO: return lifted bot if different environments? and warn? *)
+
+  let widen x y =
+    if is_bot x then
+      y
+    else if is_bot y then
+      x (* TODO: is this right? *)
+    else
+      A.widening (Man.mgr) x y
+      (* TODO: return lifted top if different environments? and warn? *)
+
+  let narrow = meet
+
+  let leq x y =
+    if is_bot x || is_top y then true else
+    if is_bot y || is_top x then false else (
+      if M.tracing then M.tracel "apron" "leq %a %a\n" pretty x pretty y;
+      Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
+      (* TODO: warn if different environments? *)
+    )
+end
+
 module D = DWithOps (DLift)
+
 
 (** With heterogeneous environments. *)
 module DHetero: SLattice =
