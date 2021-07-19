@@ -416,13 +416,6 @@ struct
       (infimum, supremum)
     with Convert.Unsupported_CilExp -> (None, None)
 
-  let get_int_val_for_cil_exp d cil_exp =
-    match get_int_interval_for_cil_exp d cil_exp with
-    | Some infimum, Some supremum when IntOps.BigIntOps.equal infimum supremum ->
-      Some infimum
-    | _ ->
-      None
-
   (** Evaluate constraint or non-constraint as integer. *)
   let eval_int d e =
     let module ID = Queries.ID in
