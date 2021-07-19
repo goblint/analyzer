@@ -281,8 +281,19 @@ struct
     assign_var_with nd v v';
     nd
 
+  let assign_var_parallel_with nd vv's =
+    let env = A.env nd in
+    let (vs, texpr1s) =
+      vv's
+      |> List.enum
+      |> Enum.map (Tuple2.map2 (Texpr1.var env))
+      |> Enum.uncombine
+      |> Tuple2.map Array.of_enum Array.of_enum
+    in
+    A.assign_texpr_array_with Man.mgr nd vs texpr1s None
+
   let assign_var_parallel d vs v's =
-    (* TODO: _with version? *)
+    (* TODO: make compatible with assign_var_parallel_with *)
     let env = A.env d in
     let vs = Array.of_list vs in
     let texpr1s =

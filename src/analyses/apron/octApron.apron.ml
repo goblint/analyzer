@@ -170,7 +170,8 @@ struct
     let formals = List.filter AD.varinfo_tracked f.sformals in
     let locals = List.filter AD.varinfo_tracked f.slocals in
     let new_oct = AD.add_vars st.oct (List.map V.local (formals @ locals)) in
-    List.iter (fun x -> AD.assign_var_with new_oct (V.local x) (V.arg x)) formals; (* TODO: parallel assign *)
+    let local_assigns = List.map (fun x -> (V.local x, V.arg x)) formals in
+    AD.assign_var_parallel_with new_oct local_assigns;
     {st with oct = new_oct}
 
   let return ctx e f =
