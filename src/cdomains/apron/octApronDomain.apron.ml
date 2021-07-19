@@ -352,51 +352,42 @@ struct
     (* expression *)
     | _ -> false
 
-  (* Assert an invariant *)
-  (* Gives the result of the meet operation of the given octagon
-  with the linear constraints coming from the given expression *)
-  let rec assert_cons d x b =
-    try
-      match x with
-      (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
-         Join Gt and Lt versions instead. *)
-      | BinOp (Ne, lhd, rhs, intType) when not b ->
-        let assert_gt = assert_cons d (BinOp (Gt, lhd, rhs, intType)) b in
-        let assert_lt = assert_cons d (BinOp (Lt, lhd, rhs, intType)) b in
-        join assert_gt assert_lt
-      | BinOp (Eq, lhd, rhs, intType) when b ->
-        let assert_gt = assert_cons d (BinOp (Gt, lhd, rhs, intType)) (not b) in
-        let assert_lt = assert_cons d (BinOp (Lt, lhd, rhs, intType)) (not b) in
-        join assert_gt assert_lt
-      | _ ->
-        (* Linear constraints from an expression x in an environment of octagon d *)
-        let tcons1 = Convert.tcons1_of_cil_exp (A.env d) x b in
-        (* Get the underlying linear constraint of level 0.
-           Modifying the constraint of level 0 (not advisable)
-           modifies correspondingly the linear constraint and conversely,
-           except for changes of environments *)
-        let ea = { Tcons1.tcons0_array = [|Tcons1.get_tcons0 tcons1 |]
-                 ; array_env = A.env d
-                 }
-        in
-        (* We perform a meet of the current octagon with the linear constraints
-           that come from the expression we wish to assert. *)
-        A.meet_tcons_array Man.mgr d ea
-    with Convert.Unsupported_CilExp -> d
+  (** Assert a constraint expression. *)
+  let rec assert_cons d e negate =
+    match e with
+    (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
+       Join Gt and Lt versions instead. *)
+    | BinOp (Ne, lhs, rhs, intType) when not negate ->
+      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) negate in
+      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) negate in
+      join assert_gt assert_lt
+    | BinOp (Eq, lhs, rhs, intType) when negate ->
+      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) in
+      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) in
+      join assert_gt assert_lt
+    | _ ->
+      let env = A.env d in
+      begin match Convert.tcons1_of_cil_exp env e negate with
+        | tcons1 ->
+          let ea = { Tcons1.tcons0_array = [|Tcons1.get_tcons0 tcons1 |]
+                    ; array_env = env
+                    }
+          in
+          A.meet_tcons_array Man.mgr d ea
+        | exception Convert.Unsupported_CilExp ->
+          d
+      end
 
-  (* Assert an invariant *)
-  (* Gives the result of the meet operation of the given octagon
-  with the linear constraints coming from the given expression *)
-  let assert_inv d x b =
+  (** Assert any expression. *)
+  let assert_inv d e negate =
     let x =
-      if exp_is_cons x then
-        x
+      if exp_is_cons e then
+        e
       else
-        (* For expressions x that aren't a BinOp with a comparison operator,
-           assert(x) will be converted it to assert(x != 0) *)
-        BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
+        (* convert non-constraint expression, such that we assert(e != 0) *)
+        BinOp (Ne, e, zero, intType)
     in
-    assert_cons d x b
+    assert_cons d x negate
 
   let check_assert (e:exp) state =
     match e with
