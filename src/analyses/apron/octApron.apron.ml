@@ -266,9 +266,13 @@ struct
     | `Unknown "__goblint_commit" -> st
     | `Unknown "__goblint_assert" -> st
     | _ ->
-      (* TODO: invalidate r *)
       let ask = Analyses.ask_of_ctx ctx in
-      begin match LibraryFunctions.get_invalidate_action f.vname with
+      let invalidate_one st lv =
+        assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+            AD.forget_vars st.oct [V.local v]
+          )
+      in
+      let st' = match LibraryFunctions.get_invalidate_action f.vname with
         | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
         | None ->
           if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
@@ -280,15 +284,15 @@ struct
                 | _ -> acc
               ) []
             in
-            List.fold_left (fun st lv ->
-                assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-                    AD.forget_vars st.oct [V.local v]
-                  )
-              ) st globals
+            List.fold_left invalidate_one st globals
           )
           else
             st
-      end
+      in
+      (* invalidate lval if present *)
+      match r with
+      | Some lv -> invalidate_one st' lv
+      | None -> st'
 
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
