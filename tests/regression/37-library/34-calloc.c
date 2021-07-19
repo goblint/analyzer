@@ -1,6 +1,8 @@
 // NOMARSHAL PARAM: --enable ana.library.enabled --enable ana.library.all --sets ana.activated[-] threadid  --sets ana.activated[+] mallocWrapperTypeBased  --sets ana.activated[+] typecasts --sets ana.activated[-] mallocWrapper --sets ana.activated[+] writtenLvals --sets ana.activated[+] varArgs
 #include <stdlib.h>
 
+// extract from milc_comb.c that crashed the analyzer
+
 typedef int int32type;
 typedef unsigned int u_int32type;
 typedef int field_offset;
