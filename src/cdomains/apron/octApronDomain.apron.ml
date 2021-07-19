@@ -280,9 +280,23 @@ struct
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 end
 
-module DBase =
+
+module type SPrintable =
+sig
+  include Printable.S with type t = Man.mt A.t
+
+  (* Functions for bot and top for particular environment. *)
+  val top_env: Environment.t -> t
+  val bot_env: Environment.t -> t
+  val is_top_env: t -> bool
+  val is_bot_env: t -> bool
+end
+
+module DBase: SPrintable =
 struct
   type t = Man.mt A.t
+
+  let name () = "OctApron"
 
   (* Functions for bot and top for particular environment. *)
   let top_env = A.top    Man.mgr
@@ -310,14 +324,20 @@ struct
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
+
+  let pretty_diff () (x,y) = text "pretty_diff"
 end
 
-module DLift =
+
+module type SLattice =
+sig
+  include SPrintable
+  include Lattice.S with type t := t
+end
+
+module DLift: SLattice =
 struct
   include DBase
-  (* include AOps *)
-
-  let name () = "OctApron"
 
   let lift_var = Var.of_string "##LIFT##"
 
@@ -371,22 +391,12 @@ struct
       Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
       (* TODO: warn if different environments? *)
     )
-
-  let pretty_diff () (x,y) = text "pretty_diff"
 end
 
-module type DLat =
-sig
-  include Lattice.S with type t = Man.mt A.t
-  val top_env: Environment.t -> t
-  val bot_env: Environment.t -> t
-  val is_top_env: t -> bool
-  val is_bot_env: t -> bool
-end
-
-module DFunctor (DLift: DLat) =
+module DWithOps (D: SLattice) =
 struct
-  include DLift
+  include D
+
   include AOps
 
   let type_tracked typ =
@@ -515,7 +525,7 @@ struct
       new_oct
 end
 
-module D = DFunctor (DLift)
+module D = DWithOps (DLift)
 
 (** With heterogeneous environments. *)
 module D2 =
