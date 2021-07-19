@@ -437,17 +437,6 @@ struct
       | Some i -> ID.of_int ik i
       | _ -> ID.top ()
 
-  let cil_exp_equals d exp1 exp2 =
-    if (is_bot_env d) then false
-    else
-      begin
-        let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
-        (* We compare the octagon with the octagon we get by performing meet of it with the linear constraints coming from the expression *)
-        let resulting_oct = (assert_inv d compare_expression false) in
-        let comp_result = equal d resulting_oct in
-        comp_result
-      end
-
 
   let assign_var_handling_underflow_overflow oct v e =
     let ikind = Cilfacade.get_ikind v.vtype in
