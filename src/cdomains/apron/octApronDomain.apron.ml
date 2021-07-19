@@ -389,20 +389,13 @@ struct
     in
     assert_cons d x negate
 
-  let check_assert (e:exp) state =
-    match e with
-    | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
-    | CastE(t, e) -> `Top (* Octagon doesn't handle casts as assertions *)
-    | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
-    | _ ->
-      let result_state = (assert_inv state e false) in
-      let result_state_op = (assert_inv state e true) in
-      if is_bot_env result_state then
-        `False
-      else if is_bot_env result_state_op then
-        `True
-      else
-        `Top
+  let check_assert d e =
+    if is_bot_env (assert_inv d e false) then
+      `False
+    else if is_bot_env (assert_inv d e true) then
+      `True
+    else
+      `Top
 
   let get_int_interval_for_cil_exp d cil_exp =
     let get_int_for_apron_scalar (scalar: Scalar.t) =
@@ -435,7 +428,7 @@ struct
     let module ID = Queries.ID in
     let ik = Cilfacade.get_ikind_exp e in
     if exp_is_cons e then
-      match check_assert e d with
+      match check_assert d e with
       | `True -> ID.of_bool ik true
       | `False -> ID.of_bool ik false
       | `Top -> ID.top ()
@@ -462,9 +455,9 @@ struct
     let new_oct = assign_exp oct (Var.of_string v.vname) e in
     let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in
     let check_max =
-      check_assert (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) new_oct in
+      check_assert new_oct (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) in
     let check_min =
-      check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
+      check_assert new_oct (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) in
     if signed then
       if check_max <> `True || check_min <> `True then
         if GobConfig.get_bool "ana.octapron.no_signed_overflow" then
