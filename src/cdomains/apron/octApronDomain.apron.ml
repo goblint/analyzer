@@ -433,9 +433,11 @@ struct
       | `False -> ID.of_bool ik false
       | `Top -> ID.top ()
     else
-      match get_int_val_for_cil_exp d e with
-      | Some i -> ID.of_int ik i
-      | _ -> ID.top ()
+      match get_int_interval_for_cil_exp d e with
+      | (Some min, Some max) -> ID.of_interval ik (min, max)
+      | (Some min, None) -> ID.starting ik min
+      | (None, Some max) -> ID.ending ik max
+      | (None, None) -> ID.top ()
 
 
   let assign_var_handling_underflow_overflow oct v e =
