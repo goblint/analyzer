@@ -275,6 +275,13 @@ struct
     (* TODO: non-_with version? *)
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.substitute_texpr_with Man.mgr nd v texpr1 None
+
+  let meet_tcons d tcons1 =
+    let ea = { Tcons1.tcons0_array = [|Tcons1.get_tcons0 tcons1 |]
+              ; array_env = A.env d
+              }
+    in
+    A.meet_tcons_array Man.mgr d ea
 end
 
 
@@ -366,14 +373,9 @@ struct
       let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) in
       join assert_gt assert_lt
     | _ ->
-      let env = A.env d in
-      begin match Convert.tcons1_of_cil_exp env e negate with
+      begin match Convert.tcons1_of_cil_exp (A.env d) e negate with
         | tcons1 ->
-          let ea = { Tcons1.tcons0_array = [|Tcons1.get_tcons0 tcons1 |]
-                    ; array_env = env
-                    }
-          in
-          A.meet_tcons_array Man.mgr d ea
+          meet_tcons d tcons1
         | exception Convert.Unsupported_CilExp ->
           d
       end
