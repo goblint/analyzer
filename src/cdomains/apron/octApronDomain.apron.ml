@@ -111,7 +111,7 @@ struct
       | DISEQ -> EQ
       | SUPEQ -> SUP
       | SUP -> SUPEQ
-      | EQMOD x -> EQMOD x
+      | EQMOD _ -> failwith "tcons1_of_cil_exp: cannot invert EQMOD"
     in
     let (texpr1_plus, texpr1_minus, typ) =
       if negate then
