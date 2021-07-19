@@ -277,11 +277,9 @@ struct
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 
   let meet_tcons d tcons1 =
-    let ea = { Tcons1.tcons0_array = [|Tcons1.get_tcons0 tcons1 |]
-              ; array_env = A.env d
-              }
-    in
-    A.meet_tcons_array Man.mgr d ea
+    let earray = Tcons1.array_make (A.env d) 1 in
+    Tcons1.array_set earray 0 tcons1;
+    A.meet_tcons_array Man.mgr d earray
 end
 
 
