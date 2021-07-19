@@ -355,26 +355,18 @@ struct
   (* Assert an invariant *)
   (* Gives the result of the meet operation of the given octagon
   with the linear constraints coming from the given expression *)
-  let rec assert_inv d x b =
+  let rec assert_cons d x b =
     try
-      let x =
-        if exp_is_cons x then
-          x
-        else
-          (* For expressions x that aren't a BinOp with a comparison operator,
-             assert(x) will be converted it to assert(x != 0) *)
-          BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
-      in
       match x with
       (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
          Join Gt and Lt versions instead. *)
       | BinOp (Ne, lhd, rhs, intType) when not b ->
-        let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
-        let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
+        let assert_gt = assert_cons d (BinOp (Gt, lhd, rhs, intType)) b in
+        let assert_lt = assert_cons d (BinOp (Lt, lhd, rhs, intType)) b in
         join assert_gt assert_lt
       | BinOp (Eq, lhd, rhs, intType) when b ->
-        let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) (not b) in
-        let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) (not b) in
+        let assert_gt = assert_cons d (BinOp (Gt, lhd, rhs, intType)) (not b) in
+        let assert_lt = assert_cons d (BinOp (Lt, lhd, rhs, intType)) (not b) in
         join assert_gt assert_lt
       | _ ->
         (* Linear constraints from an expression x in an environment of octagon d *)
@@ -391,6 +383,20 @@ struct
            that come from the expression we wish to assert. *)
         A.meet_tcons_array Man.mgr d ea
     with Convert.Unsupported_CilExp -> d
+
+  (* Assert an invariant *)
+  (* Gives the result of the meet operation of the given octagon
+  with the linear constraints coming from the given expression *)
+  let assert_inv d x b =
+    let x =
+      if exp_is_cons x then
+        x
+      else
+        (* For expressions x that aren't a BinOp with a comparison operator,
+           assert(x) will be converted it to assert(x != 0) *)
+        BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
+    in
+    assert_cons d x b
 
   let check_assert (e:exp) state =
     match e with
