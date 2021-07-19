@@ -315,7 +315,7 @@ end
 module DLift =
 struct
   include DBase
-  include AOps
+  (* include AOps *)
 
   let name () = "OctApron"
 
@@ -375,9 +375,19 @@ struct
   let pretty_diff () (x,y) = text "pretty_diff"
 end
 
-module D =
+module type DLat =
+sig
+  include Lattice.S with type t = Man.mt A.t
+  val top_env: Environment.t -> t
+  val bot_env: Environment.t -> t
+  val is_top_env: t -> bool
+  val is_bot_env: t -> bool
+end
+
+module DFunctor (DLift: DLat) =
 struct
   include DLift
+  include AOps
 
   let type_tracked typ =
     isIntegralType typ
@@ -504,6 +514,8 @@ struct
     else
       new_oct
 end
+
+module D = DFunctor (DLift)
 
 (** With heterogeneous environments. *)
 module D2 =
