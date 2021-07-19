@@ -258,40 +258,18 @@ struct
     AD.forget_vars oct (List.map Var.of_string l)
 
   let special ctx r f args =
-    (* TODO: review all of this *)
     let st = ctx.local in
-    begin
-      match LibraryFunctions.classify f.vname args with
-      | `Assert expression -> st
-      | `Unknown "printf" -> st
-      | `Unknown "__goblint_check" -> st
-      | `Unknown "__goblint_commit" -> st
-      | `Unknown "__goblint_assert" -> st
-      | `Malloc size ->
-        begin match r with
-          | Some lv ->
-            {st with oct = AD.forget_vars st.oct [V.local f]}
-          | _ -> st
-        end
-      | `Calloc (n, size) ->
-        begin match r with
-          | Some lv ->
-            {st with oct = AD.forget_vars st.oct [V.local f]}
-          | _ -> st
-        end
-      | `ThreadJoin (id,ret_var) ->
-        {st with oct = invalidate st.oct [ret_var]}
-      | `ThreadCreate _ -> st
-      | _ ->
-        begin
-          let st =
-            match LibraryFunctions.get_invalidate_action f.vname with
-            | Some fnc -> {st with oct = invalidate st.oct (fnc `Write  args)}
-            | None -> {st with oct = AD.top_env (A.env st.oct)}
-          in
-          st
-        end
-    end
+    match LibraryFunctions.classify f.vname args with
+    (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
+    | `Assert expression -> st
+    | `Unknown "__goblint_check" -> st
+    | `Unknown "__goblint_commit" -> st
+    | `Unknown "__goblint_assert" -> st
+    | _ ->
+      begin match LibraryFunctions.get_invalidate_action f.vname with
+        | Some fnc -> {st with oct = invalidate st.oct (fnc `Write  args)} (* TODO: do nothing because only AddrOf arguments may be invalidated? *)
+        | None -> {st with oct = AD.top_env (A.env st.oct)} (* TODO: invalidate globals via Priv *)
+      end
 
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
