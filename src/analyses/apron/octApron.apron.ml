@@ -155,7 +155,7 @@ struct
     in
     let arg_vars = List.map fst arg_assigns in
     let new_oct = AD.add_vars st.oct arg_vars in
-    List.iter (fun (arg_var, e) -> AD.assign_exp_with new_oct arg_var e) arg_assigns; (* TODO: parallel assign *)
+    AD.assign_exp_parallel_with new_oct arg_assigns;
     AD.remove_filter_with new_oct (fun var ->
         match V.find_metadata var with
         | Some Local -> true (* remove caller locals *)

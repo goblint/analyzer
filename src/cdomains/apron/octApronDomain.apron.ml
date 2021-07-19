@@ -242,6 +242,36 @@ struct
     assign_exp_with nd v e;
     nd
 
+  let assign_exp_parallel_with nd ves =
+    (* TODO: non-_with version? *)
+    let env = A.env nd in
+    (* partition assigns with supported and unsupported exps *)
+    let (supported, unsupported) =
+      ves
+      |> List.enum
+      |> Enum.map (Tuple2.map2 (fun e ->
+          match Convert.texpr1_of_cil_exp env e with
+          | texpr1 -> Some texpr1
+          | exception Convert.Unsupported_CilExp -> None
+        ))
+      |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
+    in
+    (* parallel assign supported *)
+    let (supported_vs, texpr1s) =
+      supported
+      |> Enum.map (Tuple2.map2 Option.get)
+      |> Enum.uncombine
+      |> Tuple2.map Array.of_enum Array.of_enum
+    in
+    A.assign_texpr_array_with Man.mgr nd supported_vs texpr1s None;
+    (* forget unsupported *)
+    let unsupported_vs =
+      unsupported
+      |> Enum.map fst
+      |> Array.of_enum
+    in
+    A.forget_array_with Man.mgr nd unsupported_vs false
+
   let assign_var_with nd v v' =
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.assign_texpr_with Man.mgr nd v texpr1 None
