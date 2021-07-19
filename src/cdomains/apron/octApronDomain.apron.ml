@@ -312,7 +312,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
 end
 
-module D =
+module DLift =
 struct
   include DBase
   include AOps
@@ -373,6 +373,11 @@ struct
     )
 
   let pretty_diff () (x,y) = text "pretty_diff"
+end
+
+module D =
+struct
+  include DLift
 
   let type_tracked typ =
     isIntegralType typ
