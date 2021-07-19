@@ -224,12 +224,8 @@ struct
     nd
 
   let forget_vars_with nd vs =
-    let vs' =
-      vs
-      |> List.enum
-      |> Enum.filter (fun v -> mem_var nd v) (* TODO: shouldn't be necessary *)
-      |> Array.of_enum
-    in
+    (* Unlike keep_vars_with, this doesn't check mem_var, but assumes valid vars, like assigns *)
+    let vs' = Array.of_list vs in
     A.forget_array_with Man.mgr nd vs' false
 
   let forget_vars d vs =
@@ -238,12 +234,11 @@ struct
     nd
 
   let assign_exp_with nd v e =
-    if mem_var nd v then (* TODO: shouldn't be necessary *)
-      try
-        let texpr1 = Convert.texpr1_of_cil_exp (A.env nd) e in
-        A.assign_texpr_with Man.mgr nd v texpr1 None
-      with Convert.Unsupported_CilExp ->
-        forget_vars_with nd [v]
+    try
+      let texpr1 = Convert.texpr1_of_cil_exp (A.env nd) e in
+      A.assign_texpr_with Man.mgr nd v texpr1 None
+    with Convert.Unsupported_CilExp ->
+      forget_vars_with nd [v]
 
   let assign_exp d v e =
     let nd = copy d in
@@ -251,9 +246,8 @@ struct
     nd
 
   let assign_var_with nd v v' =
-    if mem_var nd v then (* TODO: shouldn't be necessary *)
-      let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
-      A.assign_texpr_with Man.mgr nd v texpr1 None
+    let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
+    A.assign_texpr_with Man.mgr nd v texpr1 None
 
   let assign_var d v v' =
     let nd = copy d in
@@ -282,9 +276,8 @@ struct
 
   let substitute_var_with nd v v' =
     (* TODO: non-_with version? *)
-    if mem_var nd v then (* TODO: shouldn't be necessary *)
-      let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
-      A.substitute_texpr_with Man.mgr nd v texpr1 None
+    let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
+    A.substitute_texpr_with Man.mgr nd v texpr1 None
 end
 
 module DBase =
