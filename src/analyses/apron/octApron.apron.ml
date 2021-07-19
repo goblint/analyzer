@@ -155,7 +155,7 @@ struct
     in
     let arg_vars = List.map fst arg_assigns in
     let new_oct = AD.add_vars st.oct arg_vars in
-    AD.assign_exp_parallel_with new_oct arg_assigns;
+    AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *)
     AD.remove_filter_with new_oct (fun var ->
         match V.find_metadata var with
         | Some Local -> true (* remove caller locals *)
@@ -171,7 +171,7 @@ struct
     let locals = List.filter AD.varinfo_tracked f.slocals in
     let new_oct = AD.add_vars st.oct (List.map V.local (formals @ locals)) in
     let local_assigns = List.map (fun x -> (V.local x, V.arg x)) formals in
-    AD.assign_var_parallel_with new_oct local_assigns;
+    AD.assign_var_parallel_with new_oct local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
     {st with oct = new_oct}
 
   let return ctx e f =
@@ -209,7 +209,7 @@ struct
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
-    AD.substitute_exp_parallel_with new_fun_oct arg_substitutes;
+    AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *)
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_oct arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_oct adds them back with proper constraints *)
