@@ -190,7 +190,10 @@ struct
               begin
                 let types = TypeSet.singleton pointed_to_t in
                 let types = match TypeCastMap.find_opt (TPtr (pointed_to_t, attr)) map with
-                  | Some casted_to_types -> TypeSet.join types casted_to_types
+                  | Some casted_to_types ->
+                    (* If there was a cast a* -> b*, b* will be in the casted_to_types; we now extract the b (i.e. remove the pointer type around it) *)
+                    let casted_to_types = TypeSet.elements casted_to_types |> List.filter_map (fun t -> match t with TPtr (pt, a) -> Some pt | _ -> None) |> TypeSet.of_list in
+                    TypeSet.join types casted_to_types
                   | None -> types
                 in
                 (* Creates the memory abstraction for type t, collects memory
