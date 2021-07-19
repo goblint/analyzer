@@ -731,15 +731,21 @@ struct
           let p = eval_lv a gs st b in (* abstract base addresses *)
           let v = (* abstract base value *)
             let open Addr in
-            (* pre VLA: *)
-            (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
+            (* check whether dereferencing one address casted to the type t might yield something better than top *)
             let cast_ok = function
               | Addr a ->
                 begin
-                  match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
-                  | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
-                  | _ ->
-                    if contains_vla t || contains_vla (get_type_addr a) then
+                  let addrType = get_type_addr a in
+                  (* If the types are the same, the cast is fine *)
+                  if typeSig t = typeSig addrType then
+                    true
+                  else
+                    let is_integer_or_ptr t = Cil.isIntegralType t || Cil.isPointerType t in
+                    if is_integer_or_ptr t && is_integer_or_ptr addrType then
+                      match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf addrType) with
+                      | Some i1, Some i2 -> Int64.compare i1 i2 <= 0 (* Check that the type t we read with is not larger than the object type -- this ensures that we don't read garbage values *)
+                      | _ -> false
+                    else if contains_vla t || contains_vla addrType then (* TODO: This check seems insufficient? *)
                       begin
                         (* TODO: Is this ok? *)
                         M.warn "Casting involving a VLA is assumed to work";
