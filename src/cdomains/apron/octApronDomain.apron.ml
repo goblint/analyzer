@@ -46,55 +46,51 @@ struct
     let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
-  let rec texpr1_expr_of_cil_exp = function
-    | Lval (Var v, NoOffset) when isIntegralType v.vtype && not v.vglob ->
-      Var (Var.of_string v.vname)
-    | Const (CInt64 (i, _, s)) ->
-      let str = match s with
-        | Some s -> s
-        | None -> Int64.to_string i
-      in
-      Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
-    | UnOp (Neg, e, _) ->
-      Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
-    | BinOp (PlusA, e1, e2, _) ->
-      Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-    | BinOp (MinusA, e1, e2, _) ->
-      Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-    | BinOp (Mult, e1, e2, _) ->
-      Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-    | BinOp (Div, e1, e2, _) ->
-      Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
-    | BinOp (Mod, e1, e2, _) ->
-      Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-    | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t ->
-      Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
-    | _ ->
-      raise Unsupported_CilExp
-
-  let rec env_mem_texpr1_expr env = function
-    | Cst _ -> true
-    | Var var -> Environment.mem_var env var
-    | Unop (_, e, _, _) -> env_mem_texpr1_expr env e
-    | Binop (_, e1, e2, _, _) -> env_mem_texpr1_expr env e1 && env_mem_texpr1_expr env e2
-
-  let texpr1_of_texpr1_expr env texpr1_expr =
-    (* TODO: move this check right into texpr1_expr_of_cil_exp? *)
-    if not (env_mem_texpr1_expr env texpr1_expr) then
-      raise Unsupported_CilExp;
-    Texpr1.of_expr env texpr1_expr
+  let texpr1_expr_of_cil_exp env =
+    (* recurse without env argument *)
+    let rec texpr1_expr_of_cil_exp = function
+      | Lval (Var v, NoOffset) when isIntegralType v.vtype && not v.vglob ->
+        let var = Var.of_string v.vname in
+        if Environment.mem_var env var then
+          Var var
+        else
+          raise Unsupported_CilExp
+      | Const (CInt64 (i, _, s)) ->
+        let str = match s with
+          | Some s -> s
+          | None -> Int64.to_string i
+        in
+        Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
+      | UnOp (Neg, e, _) ->
+        Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
+      | BinOp (PlusA, e1, e2, _) ->
+        Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+      | BinOp (MinusA, e1, e2, _) ->
+        Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+      | BinOp (Mult, e1, e2, _) ->
+        Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+      | BinOp (Div, e1, e2, _) ->
+        Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
+      | BinOp (Mod, e1, e2, _) ->
+        Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+      | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t ->
+        Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
+      | _ ->
+        raise Unsupported_CilExp
+    in
+    texpr1_expr_of_cil_exp
 
   let texpr1_of_cil_exp env e =
     let e = Cil.constFold false e in
-    texpr1_of_texpr1_expr env (texpr1_expr_of_cil_exp e)
+    Texpr1.of_expr env (texpr1_expr_of_cil_exp env e)
 
   let tcons1_of_cil_exp env e negate =
     let e = Cil.constFold false e in
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp e1 in
-        let texpr1_2 = texpr1_expr_of_cil_exp e2 in
+        let texpr1_1 = texpr1_expr_of_cil_exp env e1 in
+        let texpr1_2 = texpr1_expr_of_cil_exp env e2 in
         begin match r with
           | Lt -> (texpr1_2, texpr1_1, SUP)
           | Gt -> (texpr1_1, texpr1_2, SUP)
@@ -120,7 +116,7 @@ struct
         (texpr1_plus, texpr1_minus, typ)
     in
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
-    Tcons1.make (texpr1_of_texpr1_expr env texpr1') typ
+    Tcons1.make (Texpr1.of_expr env texpr1') typ
 end
 
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
