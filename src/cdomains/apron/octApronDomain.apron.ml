@@ -282,6 +282,7 @@ struct
     nd
 
   let assign_var_parallel_with nd vv's =
+    (* TODO: non-_with version? *)
     let env = A.env nd in
     let (vs, texpr1s) =
       vv's
@@ -292,8 +293,8 @@ struct
     in
     A.assign_texpr_array_with Man.mgr nd vs texpr1s None
 
-  let assign_var_parallel d vs v's =
-    (* TODO: make compatible with assign_var_parallel_with *)
+  let assign_var_parallel' d vs v's = (* unpaired parallel assigns *)
+    (* TODO: _with version? *)
     let env = A.env d in
     let vs = Array.of_list vs in
     let texpr1s =
