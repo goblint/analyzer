@@ -209,7 +209,7 @@ struct
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
-    List.iter (fun (arg_var, e) -> AD.substitute_exp_with new_fun_oct arg_var e) arg_substitutes; (* TODO: parallel substitute *)
+    AD.substitute_exp_parallel_with new_fun_oct arg_substitutes;
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_oct arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_oct adds them back with proper constraints *)
