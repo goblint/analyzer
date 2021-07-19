@@ -346,18 +346,25 @@ struct
     (* TODO: vglob? vaddof? *)
     type_tracked vi.vtype
 
+  let exp_is_cons = function
+    (* constraint *)
+    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+    (* expression *)
+    | _ -> false
 
   (* Assert an invariant *)
   (* Gives the result of the meet operation of the given octagon
   with the linear constraints coming from the given expression *)
   let rec assert_inv d x b =
     try
-      let x = match x with
-        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> x
-        (* For expressions x that aren't a BinOp with a comparison operator,
-         assert(x) will be converted it to assert(x != 0) *)
-        | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
-        in
+      let x =
+        if exp_is_cons x then
+          x
+        else
+          (* For expressions x that aren't a BinOp with a comparison operator,
+             assert(x) will be converted it to assert(x != 0) *)
+          BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
+      in
       match x with
       (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
          Join Gt and Lt versions instead. *)
