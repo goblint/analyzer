@@ -397,26 +397,28 @@ struct
     else
       `Top
 
-  let get_int_interval_for_cil_exp d cil_exp =
-    let get_int_for_apron_scalar (scalar: Scalar.t) =
-      if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
-        None
-      else
-        match scalar with
-        | Mpqf scalar when Mpzf.cmp_int (Mpqf.get_den scalar) 1 = 0 -> (* rational must be integer (denominator 1) *)
-          Some (IntOps.BigIntOps.of_string (Mpqf.to_string scalar))
-        | _ ->
-          failwith "get_int_for_apron_scalar: not integer"
-    in
-    try
-      let texpr1 = Convert.texpr1_of_cil_exp (A.env d) cil_exp in
-      let interval_of_variable = A.bound_texpr Man.mgr d texpr1 in
-      let infimum = get_int_for_apron_scalar interval_of_variable.inf in
-      let supremum = get_int_for_apron_scalar interval_of_variable.sup in
-      (infimum, supremum)
-    with Convert.Unsupported_CilExp -> (None, None)
+  let int_of_scalar (scalar: Scalar.t) =
+    if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
+      None
+    else
+      match scalar with
+      | Mpqf scalar when Mpzf.cmp_int (Mpqf.get_den scalar) 1 = 0 -> (* rational must be integer (denominator 1) *)
+        Some (IntOps.BigIntOps.of_string (Mpqf.to_string scalar))
+      | _ ->
+        failwith "int_of_scalar: not integer"
 
-  (** Evaluate constraint or non-constraint as integer. *)
+  (** Evaluate non-constraint expression as interval. *)
+  let eval_interval_expr d e =
+    match Convert.texpr1_of_cil_exp (A.env d) e with
+    | texpr1 ->
+      let bounds = A.bound_texpr Man.mgr d texpr1 in
+      let min = int_of_scalar bounds.inf in
+      let max = int_of_scalar bounds.sup in
+      (min, max)
+    | exception Convert.Unsupported_CilExp ->
+      (None, None)
+
+  (** Evaluate constraint or non-constraint expression as integer. *)
   let eval_int d e =
     let module ID = Queries.ID in
     let ik = Cilfacade.get_ikind_exp e in
@@ -426,7 +428,7 @@ struct
       | `False -> ID.of_bool ik false
       | `Top -> ID.top ()
     else
-      match get_int_interval_for_cil_exp d e with
+      match eval_interval_expr d e with
       | (Some min, Some max) -> ID.of_interval ik (min, max)
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max
