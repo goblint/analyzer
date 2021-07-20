@@ -4,7 +4,7 @@ open Pretty
 type asm_out = (string option * string * CilType.Lval.t) list [@@deriving to_yojson]
 type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving to_yojson]
 
-type edge =
+type t =
   | Assign of CilType.Lval.t * CilType.Exp.t
   (** Assignments lval = exp *)
   | Proc of CilType.Lval.t option * CilType.Exp.t * CilType.Exp.t list
