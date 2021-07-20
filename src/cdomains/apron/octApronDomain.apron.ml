@@ -32,8 +32,14 @@ struct
   (* let mgr = Polka.manager_alloc_loose () *)
 end
 
+module type Tracked =
+sig
+  val type_tracked: typ -> bool
+  val varinfo_tracked: varinfo -> bool
+end
+
 (** Conversion from CIL expressions to Apron. *)
-module Convert =
+module Convert (Tracked: Tracked) =
 struct
   open Texpr1
   open Tcons1
@@ -124,8 +130,10 @@ end
 module A = Abstract1
 
 (** Convenience operations on A. *)
-module AOps =
+module AOps (Tracked: Tracked) =
 struct
+  module Convert = Convert (Tracked)
+
   type t = Man.mt A.t
 
   let copy = A.copy Man.mgr
@@ -413,15 +421,20 @@ module DWithOps (D: SLattice) =
 struct
   include D
 
-  include AOps
+  module Tracked =
+  struct
+    let type_tracked typ =
+      isIntegralType typ
+      && (not (GobConfig.get_bool "ana.octapron.no_uints") || Cil.isSigned (Cilfacade.get_ikind typ))
 
-  let type_tracked typ =
-    isIntegralType typ
-    && (not (GobConfig.get_bool "ana.octapron.no_uints") || Cil.isSigned (Cilfacade.get_ikind typ))
+    let varinfo_tracked vi =
+      (* TODO: vglob? vaddof? *)
+      type_tracked vi.vtype
+  end
 
-  let varinfo_tracked vi =
-    (* TODO: vglob? vaddof? *)
-    type_tracked vi.vtype
+  include AOps (Tracked)
+
+  include Tracked
 
   let exp_is_cons = function
     (* constraint *)
