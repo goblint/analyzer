@@ -8,6 +8,13 @@ module BI = IntOps.BigIntOps
 
 module M = Messages
 
+(** Resources for working with Apron:
+    - OCaml API docs: https://antoinemine.github.io/Apron/doc/api/ocaml/index.html
+    - C API docs (better function descriptions): https://antoinemine.github.io/Apron/doc/api/c/index.html
+    - CEA 2007 slides (overview, mathematical descriptions): https://antoinemine.github.io/Apron/doc/papers/expose_CEA_2007.pdf
+    - C API docs PDF (alternative mathematical descriptions): https://antoinemine.github.io/Apron/doc/api/c/apron.pdf
+    - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
+
 
 module Var =
 struct
