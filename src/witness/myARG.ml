@@ -31,7 +31,7 @@ struct
 end
 
 type inline_edge =
-  | CFGEdge of edge
+  | CFGEdge of Edge.t
   | InlineEntry of CilType.Exp.t list
   | InlineReturn of CilType.Lval.t option
   [@@deriving to_yojson]

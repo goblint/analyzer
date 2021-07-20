@@ -42,7 +42,6 @@ type edge = Edge.t =
   (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop
   (** This for interrupt edges.! *)
-[@@deriving to_yojson]
 
 let rec pretty_edges () = function
   | [] -> Pretty.dprintf ""
