@@ -26,7 +26,7 @@ let pretty_short_node () = function
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
-let node_compare n1 n2 =
+let compare_node n1 n2 =
   match n1, n2 with
   | FunctionEntry f, FunctionEntry g -> compare f.svar.vid g.svar.vid
   | _                    , FunctionEntry g -> -1
@@ -35,8 +35,6 @@ let node_compare n1 n2 =
   | Function  _, Statement _ -> 1
   | Statement s, Statement l -> compare s.sid l.sid
   | Function  f, Function g  -> compare f.svar.vid g.svar.vid
-
-let compare_node = node_compare
 
 let equal_node x y =
   match x,y with
