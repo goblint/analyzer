@@ -598,7 +598,7 @@ struct
 end
 
 let compute_cfg file =
-  let cfgF, cfgB = MyCFG.getCFG file in
+  let cfgF, cfgB = CfgTools.getCFG file in
   let cfgB' = function
     | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n
