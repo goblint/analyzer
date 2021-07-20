@@ -9,7 +9,7 @@ module Strs = Set.Make (String)
 module NodeMap = Hashtbl.Make(Node)
 
 let location_map = ref (NodeMap.create 103: location NodeMap.t)
-let current_node = ref (None: Node.t option)
+
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
