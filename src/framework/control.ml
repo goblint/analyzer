@@ -138,7 +138,7 @@ struct
           | _ -> ()
       in
       if get_bool "dbg.print_dead_code" then (
-        let by_fst (a,_) (b,_) = compare a b in
+        let by_fst (a,_) (b,_) = Stdlib.compare a b in
         Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
         Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
         Deadcode.Locmap.clear Deadcode.dead_branches_then;
