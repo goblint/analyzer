@@ -156,7 +156,7 @@ struct
       let add_local_var (n,es) state =
         let loc = UpdateCil.getLoc n in
         if loc <> locUnknown then try
-            let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
+            let (_,_, fundec) as p = loc, n, Node.find_fundec n in
             if Result.mem res p then
               (* If this source location has been added before, we look it up
                * and add another node to it information to it. *)
@@ -511,7 +511,7 @@ struct
         (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =
           let open Batteries in let open Enum in
-          let e = LHT.enum lh |> map (Tuple2.map1 (MyCFG.getLoc % fst)) in (* drop context from key and get location from node *)
+          let e = LHT.enum lh |> map (Tuple2.map1 (Node.location % fst)) in (* drop context from key and get location from node *)
           let h = Hashtbl.create (if fast_count e then count e else 123) in
           iter (fun (k,v) ->
             (* join values for the same location *)

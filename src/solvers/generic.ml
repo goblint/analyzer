@@ -238,7 +238,7 @@ struct
   let update_var_event_local hl hg x o n =
     if !enabled && not (D.is_bot n) then begin
       let node = LVar.node x in
-      let file = (MyCFG.getFun node).svar in
+      let file = (Node.find_fundec node).svar in
       NH.replace updated_l node ();
       NH.replace liveness node ();
       SSH.replace funs file.vdecl.file (Set.add file.vname (SSH.find_default funs file.vdecl.file Set.empty));

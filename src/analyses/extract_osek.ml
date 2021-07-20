@@ -24,7 +24,7 @@ struct
   (* set of predecessor nodes *)
   module Pred = struct
     include SetDomain.Make (Basetype.ProgLocation)
-    let of_node = singleton % MyCFG.getLoc
+    let of_node = singleton % Node.location
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
     let string_of_elt = Basetype.ProgLocation.show
   end
@@ -284,13 +284,13 @@ struct
             Some [string_of_int i]
         in
         let node = Option.get !MyCFG.current_node in
-        let fundec = MyCFG.getFun node in
+        let fundec = Node.find_fundec node in
         let id = pname, fundec.svar.vname in
         let extract_fun ?(info_args=[]) args =
           let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
           let action = fname^"("^String.concat ", " args^");"^comment in
           print_endline @@ "EXTRACT in "^pname^": "^action;
-          Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
+          Pred.iter (fun pred -> add_edge id (pred, Sys action, Node.location node)) pred;
           pid, ctx_hash, Pred.of_node node
         in
         match Pml.special_fun fname with

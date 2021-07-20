@@ -79,7 +79,7 @@ let createCFG (file: file) =
     Messages.trace "cfg" "done\n\n"
   in
   let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
-  let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (getLoc fromNode, edge) toNode in
+  let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
 
   (* Find real (i.e. non-empty) successor of statement.
      CIL CFG contains some unnecessary intermediate statements.

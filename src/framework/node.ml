@@ -29,3 +29,15 @@ let hash x =
   | Statement s     -> s.sid * 17
   | Function f      -> f.svar.vid
   | FunctionEntry f -> -f.svar.vid
+
+let location (node: t) =
+  match node with
+  | Statement stmt -> get_stmtLoc stmt.skind
+  | Function fd -> fd.svar.vdecl
+  | FunctionEntry fd -> fd.svar.vdecl
+
+let find_fundec (node: t) =
+  match node with
+  | Statement stmt -> Cilfacade.find_stmt_fundec stmt
+  | Function fd -> fd
+  | FunctionEntry fd -> fd

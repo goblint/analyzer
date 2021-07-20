@@ -741,7 +741,7 @@ struct
 
   let tf (v,c) (edges, u) getl sidel getg sideg =
     let pval = getl (u,c) in
-    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (getLoc v,[]) in
+    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
     List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg u) edges) locs
 
   let tf (v,c) (e,u) getl sidel getg sideg =
@@ -1126,11 +1126,11 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty k d_loc (getLoc k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty k d_loc (Node.location k) D.pretty_diff (v1,v2));
           incr le
         end else if b2 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty k d_loc (getLoc k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty k d_loc (Node.location k) D.pretty_diff (v1,v2));
           incr gr
         end else
           incr uk

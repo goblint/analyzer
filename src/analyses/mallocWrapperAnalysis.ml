@@ -39,7 +39,7 @@ struct
     let calleeofinterest = Hashtbl.mem wrappers f.svar.vname in
     let calleectx = if calleeofinterest then
        if ctx.local = `Top then
-        `Lifted (MyCFG.getLoc ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        `Lifted (Node.location ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
         else ctx.local (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
       else D.top () in  (* if an uninteresting callee is called, then we forget what was called before *)
     [(ctx.local, calleectx)]
@@ -72,7 +72,7 @@ struct
     | Q.HeapVar ->
       let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
-      | _ -> MyCFG.getLoc ctx.node in
+      | _ -> Node.location ctx.node in
       `Lifted (get_heap_var loc)
     | Q.IsHeapVar v ->
       Hashtbl.mem heap_vars v.vid

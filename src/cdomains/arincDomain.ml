@@ -22,7 +22,7 @@ module Pred = struct
   module Base = Basetype.ProgLocation
   include SetDomain.Make (Base)
   let of_loc = singleton
-  let of_node = of_loc % MyCFG.getLoc
+  let of_node = of_loc % Node.location
   let of_current_node () = of_node @@ Option.get !MyCFG.current_node
   let string_of_elt = Basetype.ProgLocation.show
 end

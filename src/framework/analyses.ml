@@ -42,7 +42,7 @@ struct
     | MyCFG.Function      f -> Hashtbl.hash (f.svar.vid, 1)
     | MyCFG.FunctionEntry f -> Hashtbl.hash (f.svar.vid, 2)
 
-  let getLocation n = MyCFG.getLoc n
+  let getLocation n = Node.location n
 
   let pretty () x =
     match x with
@@ -64,8 +64,8 @@ struct
       | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.svar.vid
       | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.svar.vid
     in
-    let l = MyCFG.getLoc n in
-    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
+    let l = Node.location n in
+    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (Node.find_fundec n).svar.vname l.line l.byte
 
   let var_id n =
     match n with
@@ -73,8 +73,8 @@ struct
     | MyCFG.Function f      -> "ret" ^ string_of_int f.svar.vid
     | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.svar.vid
 
-  let line_nr n = (MyCFG.getLoc n).line
-  let file_name n = (MyCFG.getLoc n).file
+  let line_nr n = (Node.location n).line
+  let file_name n = (Node.location n).file
   let description n = sprint 80 (pretty () n)
   let context () _ = Pretty.nil
   let node n = n
@@ -98,7 +98,7 @@ struct
     | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.svar.vid*19)
     | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.svar.vid*23)
 
-  let getLocation (n,d) = MyCFG.getLoc n
+  let getLocation (n,d) = Node.location n
 
   let pretty () x =
     match x with
@@ -118,8 +118,8 @@ struct
 
   let var_id (n,_) = Var.var_id n
 
-  let line_nr (n,_) = (MyCFG.getLoc n).line
-  let file_name (n,_) = (MyCFG.getLoc n).file
+  let line_nr (n,_) = (Node.location n).line
+  let file_name (n,_) = (Node.location n).file
   let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
   let node (n,_) = n
@@ -222,7 +222,7 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun (_,n,_) _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
@@ -274,7 +274,7 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun (_,n,_) _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()

@@ -322,7 +322,7 @@ struct
   let next_opt' n = match n with
     | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.witness.uncil" ->
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
-      if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
+      if Node.location if_true_next_n = loc && Node.location if_false_next_n = loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
         | [(Assign (v_true, e_true), if_true_next_next_n)], [(Assign (v_false, e_false), if_false_next_next_n)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
           let exp = ternary e_cond e_true e_false in
