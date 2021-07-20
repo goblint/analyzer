@@ -452,14 +452,14 @@ struct
 
   (** Assert any expression. *)
   let assert_inv d e negate =
-    let x =
+    let e' =
       if exp_is_cons e then
         e
       else
         (* convert non-constraint expression, such that we assert(e != 0) *)
         BinOp (Ne, e, zero, intType)
     in
-    assert_cons d x negate
+    assert_cons d e' negate
 
   let check_assert d e =
     if is_bot_env (assert_inv d e false) then
