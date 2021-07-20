@@ -548,7 +548,7 @@ struct
       lh, gh
     in
 
-    Generic.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
+    Generic.write_cfgs := CfgTools.dead_code_cfg file (module Cfg:CfgBidir);
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
@@ -574,7 +574,7 @@ struct
       WResult.write lh gh entrystates;
 
     if get_bool "exp.cfgdot" then
-      MyCFG.dead_code_cfg file (module Cfg : CfgBidir) liveness;
+      CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
     Spec.finalize ();
 

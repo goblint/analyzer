@@ -133,7 +133,7 @@ let createCFG (file: file) =
         (* Walk through the parameters and pre-process them a bit... *)
         do_the_params fd;
         (* Find the first statement in the function *)
-        let entrynode = find_real_stmt (CF.getFirstStmt fd) in
+        let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
         (* Add the entry edge to that node *)
         addEdge (FunctionEntry fd) (fd_loc, Entry fd) (Statement entrynode);
         (* Return node to be used for infinite loop connection to end of function
@@ -290,6 +290,37 @@ let createCFG (file: file) =
   cfgF, cfgB
 
 
+let minimizeCFG (fw,bw) =
+  let keep = H.create 113 in
+  let comp_keep t (_,f) =
+    if (List.length (H.find_all bw t)<>1) || (List.length (H.find_all fw t)<>1) then
+      H.replace keep t ();
+    if (List.length (H.find_all bw f)<>1) || (List.length (H.find_all fw f)<>1) then
+      H.replace keep f ()
+  in
+  H.iter comp_keep bw;
+  (* H.iter comp_keep fw; *)
+  let cfgB = H.create 113 in
+  let cfgF = H.create 113 in
+  let ready = H.create 113 in
+  let rec add a b t (e,f)=
+    if H.mem keep f then begin
+      H.add cfgB b (e@a,f);
+      H.add cfgF f (e@a,b);
+      if H.mem ready b then begin
+        H.replace ready f ();
+        List.iter (add [] f f) (H.find_all bw f)
+      end
+    end else begin
+      List.iter (add (e@a) b f) (H.find_all bw f)
+    end
+  in
+  H.iter (fun k _ -> List.iter (add [] k k) (H.find_all bw k)) keep;
+  H.clear ready;
+  H.clear keep;
+  cfgF, cfgB
+
+
 let print cfg  =
   let out = open_out "cfg.dot" in
   let module NH = Hashtbl.Make (Node) in
@@ -355,6 +386,95 @@ let getCFG (file: file) : cfg * cfg =
   in
   if get_bool "justcfg" then print cfgB;
   H.find_all cfgF, H.find_all cfgB
+
+
+(* TODO: unused *)
+let generate_irpt_edges cfg =
+  let make_irpt_edge toNode (_, fromNode) =
+    match toNode with
+    | FunctionEntry f -> let _ = print_endline ( " Entry " ) in ()
+    | _ -> H.add cfg toNode (SelfLoop, toNode)
+  in
+  H.iter make_irpt_edge cfg
+
+
+let printFun (module Cfg : CfgBidir) live fd out =
+  (* let out = open_out "cfg.dot" in *)
+  let module NH = Hashtbl.Make (Node) in
+  let ready      = NH.create 113 in
+  let node_table = NH.create 113 in
+  let _ = Printf.fprintf out "digraph cfg {\n" in
+  let p_node () = function
+    | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
+    | Function f      -> Pretty.dprintf "ret%d" f.svar.vid
+    | FunctionEntry f -> Pretty.dprintf "fun%d" f.svar.vid
+  in
+  let dn_exp () e =
+    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
+  in
+  let dn_lval () l =
+    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
+  in
+  let p_edge () = function
+    | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
+    | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
+    | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
+    | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
+    | Entry (f) -> Pretty.text "(body)"
+    | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
+    | Ret (None,f) -> Pretty.dprintf "return"
+    | ASM (_,_,_) -> Pretty.text "ASM ..."
+    | Skip -> Pretty.text "skip"
+    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
+    | SelfLoop -> Pretty.text "SelfLoop"
+  in
+  let rec p_edges () = function
+    | [] -> Pretty.dprintf ""
+    | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
+  in
+  let printNodeStyle (n:node) () =
+    let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
+    let kind_style =
+      match n with
+      | Statement {skind=If (_,_,_,_); _}  -> "shape=diamond"
+      | Statement stmt  -> ""
+      | Function f      -> "label =\"return of "^f.svar.vname^"()\",shape=box"
+      | FunctionEntry f -> "label =\""^f.svar.vname^"()\",shape=box"
+    in
+    ignore (Pretty.fprintf out ("\t%a [id=\"%a\",URL=\"javascript:show_info('\\N');\",%s,%s];\n") p_node n p_node n liveness kind_style)
+  in
+  let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
+    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges);
+    NH.replace node_table toNode ();
+    NH.replace node_table fromNode ()
+  in
+  let rec printNode (toNode : node) =
+    if not (NH.mem ready toNode) then begin
+      NH.add ready toNode ();
+      let prevs = Cfg.prev toNode in
+      List.iter (printEdge toNode) prevs;
+      List.iter (fun (_,x) -> printNode x) prevs
+    end
+  in
+  printNode (Function fd);
+  NH.iter printNodeStyle node_table;
+  Printf.fprintf out "}\n";
+  flush out;
+  close_out_noerr out
+
+let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
+  iterGlobals file (fun glob ->
+      match glob with
+      | GFun (fd,loc) ->
+        (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
+        let base_dir = Goblintutil.create_dir ((if get_bool "interact.enabled" then get_string "interact.out"^"/" else "")^"cfgs") in
+        let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") fd.svar.vdecl.file in
+        let dot_file_name = fd.svar.vname^".dot" in
+        let file_dir = Goblintutil.create_dir (Filename.concat base_dir c_file_name) in
+        let fname = Filename.concat file_dir dot_file_name in
+        printFun (module Cfg : CfgBidir) live fd (open_out fname)
+      | _ -> ()
+    )
 
 
 let getGlobalInits (file: file) : (edge * location) list  =
