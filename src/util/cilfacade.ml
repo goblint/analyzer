@@ -142,18 +142,6 @@ let callConstructors ast =
   visitCilFileSameGlobals (new addConstructors constructors) ast;
   ast
 
-exception Found of fundec
-let getFun fun_name =
-  try
-    iterGlobals !current_file (fun glob ->
-        match glob with
-        | GFun({svar={vname=vn; _}; _} as def,_) when vn = fun_name -> raise (Found def)
-        | _ -> ()
-      );
-    failwith ("Function "^ fun_name ^ " not found!")
-  with
-  | Found def -> def
-
 let in_section check attr_list =
   let f attr = match attr with
     | Attr ("section", [AStr str]) -> check str
@@ -427,3 +415,19 @@ let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
   )
 
 let find_varinfo_fundec vi = VarinfoH.find (Lazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+module StringH = Hashtbl.Make (Printable.Strings)
+
+let name_fundecs: fundec StringH.t Lazy.t =
+  lazy (
+    let h = StringH.create 111 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          StringH.replace h fd.svar.vname fd
+        | _ -> ()
+      );
+    h
+  )
+
+let find_name_fundec name = StringH.find (Lazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)

@@ -432,7 +432,7 @@ struct
                  (ArgSet.for_all
                     (fun v -> (FieldVars.get_var v).vname = this_name
                               || Str.string_match (Str.regexp "_ZTV.*") ((FieldVars.get_var v).vname) 0
-                              (*|| try Cilfacade.getFun ((FieldVars.get_var v).vname);true with _ -> false*)
+                              (*|| try Cilfacade.find_name_fundec ((FieldVars.get_var v).vname);true with _ -> false*)
                     )
                     x)
         in (*ignore(if res1||res2 then ignore(printf "--- exp:%a - %s(%b,%b)\n" d_exp e (sprint 160 (ArgSet.pretty () x)) res1 res2));*)
@@ -1361,7 +1361,7 @@ struct
                   (*report("DIRECT_VTBL_ACCESS : "^vi.vname^"["^string_of_int64 offs^"]");*)
                   let ((fd, st, df),vfs) = get_vfunc_set vi.vname ((Int64.to_int offs)+2) (fd, st, df) in
                   (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
-                  let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs  in
+                  let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.find_name_fundec x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs  in
                   let set = ArgSet.join fun_set s in
                   assign_to_lval fs lval (fd, st, df) set must_assign glob "L1353"
                 | _ -> no_vtbl
@@ -1374,7 +1374,7 @@ struct
                     let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) glob in
                     let ((fd, st, df),vfs) = get_vfunc_set vtn ((Int64.to_int offs)+1) (fd, st, df) in
                     (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
-                    let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
+                    let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.find_name_fundec x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
                     let set = ArgSet.join fun_set s in
                     assign_to_lval fs lval (fd, st, df) set must_assign glob "1366"
                     (*no_vtbl*)
@@ -1410,7 +1410,7 @@ struct
                   let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) glob in
                   let ((fd, st, df),vfs) = get_vfunc_set vtn ((Int64.to_int offs)+1) (fd, st, df) in
                   (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
-                  let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
+                  let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.find_name_fundec x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
                   (*let set = ArgSet.join fun_set s in*)
                   assign_to_lval_no_prop fs lval (fd, st, df) fun_set must_assign glob
                   (*no_vtbl*)
