@@ -98,7 +98,7 @@ struct
   let assign_to_global_wrapper ask getg sideg st lv f =
     match lv with
     (* Lvals which are numbers, have no offset and their address wasn't taken *)
-    | (Var v, NoOffset) when isIntegralType v.vtype && not v.vaddrof ->
+    | (Var v, NoOffset) when AD.varinfo_tracked v ->
       if not v.vglob then
         {st with oct = f st v}
       else (

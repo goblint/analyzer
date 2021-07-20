@@ -55,12 +55,15 @@ struct
   let texpr1_expr_of_cil_exp env =
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
-      | Lval (Var v, NoOffset) when isIntegralType v.vtype && not v.vglob ->
-        let var = Var.of_string v.vname in
-        if Environment.mem_var env var then
-          Var var
+      | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
+        if not v.vglob then
+          let var = Var.of_string v.vname in
+          if Environment.mem_var env var then
+            Var var
+          else
+            raise Unsupported_CilExp
         else
-          raise Unsupported_CilExp
+          failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
       | Const (CInt64 (i, _, s)) ->
         let str = match s with
           | Some s -> s
@@ -428,8 +431,8 @@ struct
       && (not (GobConfig.get_bool "ana.octapron.no_uints") || Cil.isSigned (Cilfacade.get_ikind typ))
 
     let varinfo_tracked vi =
-      (* TODO: vglob? vaddof? *)
-      type_tracked vi.vtype
+      (* no vglob check here, because globals are allowed in octApron, but just have to be handled separately *)
+      type_tracked vi.vtype && not vi.vaddrof
   end
 
   include AOps (Tracked)
