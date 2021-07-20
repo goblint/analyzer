@@ -39,11 +39,6 @@ type edge = Edge.t =
   | SelfLoop
   (** This for interrupt edges.! *)
 
-let rec pretty_edges () = function
-  | [] -> Pretty.dprintf ""
-  | [_,x] -> Edge.pretty () x
-  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty x pretty_edges xs
-
 
 type cfg = node -> ((location * edge) list * node) list
 

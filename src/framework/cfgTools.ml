@@ -56,6 +56,13 @@ let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
   iter_node node;
   reachable
 
+
+let rec pretty_edges () = function
+  | [] -> Pretty.dprintf ""
+  | [_,x] -> Edge.pretty () x
+  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty x pretty_edges xs
+
+
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
