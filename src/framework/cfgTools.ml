@@ -162,7 +162,7 @@ let createCFG (file: file) =
           let start_id = 10_000_000_000 in (* TODO get max_sid? *)
           let sid = Hashtbl.hash fd_loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
           newst.sid <- if sid < start_id then sid + start_id else sid;
-          Hashtbl.add stmt_fundec_map newst.sid fd;
+          (* Hashtbl.add stmt_fundec_map newst.sid fd; *) (* TODO: add to fundec *)
           let newst_node = Statement newst in
           addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);
           newst_node
@@ -171,10 +171,6 @@ let createCFG (file: file) =
         let loop_head_neg1 = NH.create 3 in
         (* So for each statement in the function body, we do the following: *)
         let handle stmt =
-          (* Please ignore the next line. It creates an index of statements
-           * so the Eclipse plug-in can know what function a given result
-           * belongs to. *)
-          Hashtbl.add stmt_fundec_map stmt.sid fd;
           if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (get_stmtLoc stmt.skind);
 
           let real_succs () = List.map (find_real_stmt ~parent:stmt) stmt.succs in

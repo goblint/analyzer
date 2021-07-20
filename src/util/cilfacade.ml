@@ -410,3 +410,22 @@ let countLoc fn =
   let res = Hashtbl.length locs in
   Hashtbl.clear locs;
   res
+
+
+
+module StmtH = Hashtbl.Make (CilType.Stmt)
+
+let stmt_fundecs: fundec StmtH.t Lazy.t =
+  lazy (
+    let h = StmtH.create 113 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          List.iter (fun stmt ->
+              StmtH.replace h stmt fd
+            ) fd.sallstmts
+        | _ -> ()
+      );
+    h
+  )
+
+let find_stmt_fundec stmt = StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)

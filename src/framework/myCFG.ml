@@ -61,8 +61,6 @@ end
 module H = BatHashtbl.Make(Node)
 
 
-(* Map from statement id to containing fundec *)
-let stmt_fundec_map = Hashtbl.create 113
 let current_node : node option ref = ref None
 
 let unknown_exp : exp = mkString "__unknown_value__"
@@ -77,11 +75,8 @@ let getLoc (node: node) =
   | Function fv -> fv.svar.vdecl
   | FunctionEntry fv -> fv.svar.vdecl
 
-
-let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_fundec_map stmt.sid
-
 let getFun (node: node) =
   match node with
-  | Statement stmt -> get_containing_function stmt
+  | Statement stmt -> Cilfacade.find_stmt_fundec stmt
   | Function fv -> fv
   | FunctionEntry fv -> fv
