@@ -49,8 +49,11 @@ type edge = Edge.t =
   (** This for interrupt edges.! *)
 [@@deriving to_yojson]
 
-let pretty_edges = Edge.pretty_edges
-let pretty_edge = Edge.pretty_edge
+let pretty_edge = Edge.pretty
+let rec pretty_edges () = function
+  | [] -> Pretty.dprintf ""
+  | [_,x] -> pretty_edge () x
+  | (_,x)::xs -> Pretty.dprintf "%a; %a" pretty_edge x pretty_edges xs
 
 
 type cfg = node -> ((location * edge) list * node) list

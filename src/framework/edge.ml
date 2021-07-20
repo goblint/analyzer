@@ -34,7 +34,7 @@ type t =
 [@@deriving to_yojson]
 
 
-let pretty_edge () = function
+let pretty () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
   | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars
   | Proc (Some r,f,ars) -> dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (d_list ", " d_exp) ars
@@ -47,12 +47,8 @@ let pretty_edge () = function
   | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
   | SelfLoop -> text "SelfLoop"
 
-let rec pretty_edges () = function
-  | [] -> Pretty.dprintf ""
-  | [_,x] -> pretty_edge () x
-  | (_,x)::xs -> Pretty.dprintf "%a; %a" pretty_edge x pretty_edges xs
-
-let pretty_edge_kind () = function
+(* TODO: unused *)
+let pretty_kind () = function
   | Assign (lv,rv) -> dprintf "Assign"
   | Proc (_  ,f,ars) -> dprintf "Proc"
   | Entry f -> dprintf "Entry %s" f.svar.vname
