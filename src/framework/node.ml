@@ -13,13 +13,13 @@ type t =
   (** The variable information associated with the function declaration. *)
 [@@deriving eq, ord, to_yojson]
 
-let pretty_node () = function
+let pretty () = function
   | Statement s -> text "Statement " ++ dn_stmt () s
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
 
-let pretty_short_node () = function
+let pretty_short () = function
   | Statement s -> text "Statement @ " ++ d_loc () (get_stmtLoc s.skind)
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
