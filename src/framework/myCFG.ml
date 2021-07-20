@@ -19,7 +19,6 @@ type node = Node.t =
 let pretty_node = Node.pretty
 let pretty_short_node = Node.pretty_short
 
-include Edge (* TODO: remove include *)
 
 type edge = Edge.t =
   | Assign of CilType.Lval.t * CilType.Exp.t
@@ -35,7 +34,7 @@ type edge = Edge.t =
     * transferred to the function node! *)
   | Test of CilType.Exp.t * bool
   (** The true-branch or false-branch of a conditional exp *)
-  | ASM of string list * asm_out * asm_in
+  | ASM of string list * Edge.asm_out * Edge.asm_in
   (** Inline assembly statements, and the annotations for output and input
     * variables. *)
   | VDecl of CilType.Varinfo.t
@@ -49,6 +48,9 @@ type edge = Edge.t =
   | SelfLoop
   (** This for interrupt edges.! *)
 [@@deriving to_yojson]
+
+let pretty_edges = Edge.pretty_edges
+let pretty_edge = Edge.pretty_edge
 
 
 type cfg = node -> ((location * edge) list * node) list
