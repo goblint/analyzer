@@ -5,7 +5,20 @@ module CF = Cilfacade
 open Cil
 open Pretty
 open GobConfig
-include Node
+
+(* Instead of including all of Node (which pollutes with type t, etc), include explicit aliases (with constructors) *)
+type node = Node.t =
+  | Statement of CilType.Stmt.t
+  (** The statements as identified by CIL *)
+  | FunctionEntry of CilType.Fundec.t
+  (** *)
+  | Function of CilType.Fundec.t
+  (** The variable information associated with the function declaration. *)
+[@@deriving eq, ord, to_yojson]
+
+let pretty_node = Node.pretty_node
+let pretty_short_node = Node.pretty_short_node
+
 
 type asm_out = (string option * string * CilType.Lval.t) list [@@deriving to_yojson]
 type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving to_yojson]
