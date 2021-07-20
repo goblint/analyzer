@@ -555,7 +555,7 @@ struct
       let ds = S.threadenter ctx lval f args in
       List.iter (fun d ->
           spawns := (lval, f, args, d) :: !spawns;
-          match Cilfacade.getdec f with
+          match Cilfacade.find_varinfo_fundec f with
           | fd ->
             let c = S.context d in
             if not full_context then sidel (FunctionEntry fd, c) d;
@@ -693,7 +693,7 @@ struct
         Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
-      match Cilfacade.getdec f with
+      match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
         M.warn_each ("Using special for defined function " ^ f.vname);
         tf_special_call ctx lv f args

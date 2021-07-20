@@ -207,24 +207,6 @@ let getFuns fileAST : startfuns =
   in
   foldGlobals fileAST f ([],[],[])
 
-let dec_table_ok = ref false
-let dec_table = Hashtbl.create 111
-let dec_make () : unit =
-  dec_table_ok := true ;
-  Hashtbl.clear dec_table;
-  iterGlobals !current_file (fun glob ->
-      match glob with
-      | GFun({svar={vid=vid; _}; _} as def,_) -> Hashtbl.add dec_table vid def
-      | _ -> ()
-    )
-
-let rec getdec fv =
-  if !dec_table_ok then
-    Hashtbl.find dec_table fv.vid
-  else begin
-    dec_make ();
-    getdec fv
-  end
 
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
@@ -429,3 +411,19 @@ let stmt_fundecs: fundec StmtH.t Lazy.t =
   )
 
 let find_stmt_fundec stmt = StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+
+
+module VarinfoH = Hashtbl.Make (CilType.Varinfo)
+
+let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
+  lazy (
+    let h = VarinfoH.create 111 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          VarinfoH.replace h fd.svar fd
+        | _ -> ()
+      );
+    h
+  )
+
+let find_varinfo_fundec vi = VarinfoH.find (Lazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)

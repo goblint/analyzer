@@ -1870,7 +1870,7 @@ struct
     let create_thread lval arg v =
       try
         (* try to get function declaration *)
-        let fd = Cilfacade.getdec v in
+        let fd = Cilfacade.find_varinfo_fundec v in
         let args =
           match arg with
           | Some x -> [x]
@@ -2236,7 +2236,7 @@ struct
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
-    match Cilfacade.getdec f with
+    match Cilfacade.find_varinfo_fundec f with
     | fd ->
       [make_entry ~thread:true ctx fd args]
     | exception Not_found ->

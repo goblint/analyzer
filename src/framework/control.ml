@@ -250,7 +250,7 @@ struct
           (match lval, exp with
             | (Var v,o), (AddrOf (Var f,NoOffset))
               when v.vstorage <> Static && isFunctionType f.vtype ->
-              (try funs := Cilfacade.getdec f :: !funs with Not_found -> ())
+              (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
             | _ -> ()
           );
           Spec.assign {ctx with local = st} lval exp
