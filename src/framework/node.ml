@@ -15,8 +15,6 @@ type t =
 
 type node = t [@@deriving eq, ord, to_yojson] (* TODO: remove after properly transitioning to t *)
 
-let write_cfgs : ((node -> bool) -> unit) ref = ref (fun _ -> ())
-
 let pretty_node () = function
   | Statement s -> text "Statement " ++ dn_stmt () s
   | Function f -> text "Function " ++ text f.svar.vname

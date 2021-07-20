@@ -548,7 +548,7 @@ struct
       lh, gh
     in
 
-    MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
+    Generic.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =

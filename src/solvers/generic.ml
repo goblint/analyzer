@@ -2,6 +2,9 @@ open Prelude
 open GobConfig
 open Analyses
 
+let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
+
+
 (** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
 module SimpleSysConverter (S:IneqConstrSys)
   : sig include EqConstrSys val conv : S.v -> S.v end
@@ -228,7 +231,7 @@ struct
     if !stopped then
       write_updates ();
     writeXmlWarnings (); (* must be after write_update! *)
-    !MyCFG.write_cfgs (NH.mem liveness);
+    !write_cfgs (NH.mem liveness);
     NH.clear updated_l;
     GH.clear updated_g
 
