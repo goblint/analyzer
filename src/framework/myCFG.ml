@@ -16,7 +16,6 @@ type node = Node.t =
   (** The variable information associated with the function declaration. *)
 [@@deriving eq, ord, to_yojson]
 
-let pretty_node = Node.pretty
 let pretty_short_node = Node.pretty_short
 
 
