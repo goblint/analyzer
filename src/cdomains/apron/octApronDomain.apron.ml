@@ -4,6 +4,8 @@ open Pretty
 (* For Apron implementation of octagons *)
 open Apron
 
+module BI = IntOps.BigIntOps
+
 module M = Messages
 
 
@@ -37,8 +39,6 @@ struct
   open Tcons1
 
   exception Unsupported_CilExp
-
-  module BI = IntOps.BigIntOps
 
   (* TODO: move this into some general place *)
   let is_cast_injective from_type to_type =
@@ -475,7 +475,7 @@ struct
     else
       match scalar with
       | Mpqf scalar when Mpzf.cmp_int (Mpqf.get_den scalar) 1 = 0 -> (* rational must be integer (denominator 1) *)
-        Some (IntOps.BigIntOps.of_string (Mpqf.to_string scalar))
+        Some (BI.of_string (Mpqf.to_string scalar))
       | _ ->
         failwith "int_of_scalar: not integer"
 
