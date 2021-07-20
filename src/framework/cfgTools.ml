@@ -3,6 +3,18 @@ open Cil
 open Pretty
 open GobConfig
 
+
+let do_the_params (fd: fundec) =
+  (* This function used to create extra variables, but now it just sets the
+   * vdecl to -3, lovely... *)
+  let create_extra_var (p: varinfo): unit =
+    match p.vtype with
+    | TPtr (t,_) -> p.vdecl <- {p.vdecl with line = -3 }
+    | _ -> p.vdecl <- {p.vdecl with line = -3 }
+  in
+  List.iter create_extra_var fd.sformals
+
+
 (* TODO: refactor duplication with find_loop_heads *)
 module NH = Hashtbl.Make (Node)
 module NS = Set.Make (Node)
