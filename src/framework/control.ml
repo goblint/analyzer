@@ -67,7 +67,7 @@ struct
     (* print out information about dead code *)
     let print_dead_code (xs:Result.t) uncalled_fn_loc =
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
-      let module NH = Hashtbl.Make (MyCFG.Node) in
+      let module NH = Hashtbl.Make (Node) in
       let live_nodes : unit NH.t = NH.create 10 in
       let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
       let module StringMap = BatMap.Make (String) in

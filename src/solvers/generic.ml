@@ -159,7 +159,7 @@ struct
 
   module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end)
   let funs = SSH.create 100
-  module NH = Hashtbl.Make (MyCFG.Node)
+  module NH = Hashtbl.Make (Node)
   let liveness = NH.create 100
   let updated_l = NH.create 100
   let updated_g = GH.create 100

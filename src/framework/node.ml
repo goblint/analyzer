@@ -28,16 +28,8 @@ let pretty_short_node () = function
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
-module Node :
-sig
-  include Hashtbl.HashedType with type t = node
-  include Set.OrderedType with type t := node
-end =
-struct
-  type t = node [@@deriving eq, ord]
-  let hash x =
-    match x with
-    | Statement s     -> s.sid * 17
-    | Function f      -> f.svar.vid
-    | FunctionEntry f -> -f.svar.vid
-end
+let hash x =
+  match x with
+  | Statement s     -> s.sid * 17
+  | Function f      -> f.svar.vid
+  | FunctionEntry f -> -f.svar.vid

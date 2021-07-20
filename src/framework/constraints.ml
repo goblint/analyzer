@@ -1087,7 +1087,7 @@ module Compare
 struct
   open S
 
-  module PP = Hashtbl.Make (MyCFG.Node)
+  module PP = Hashtbl.Make (Node)
 
   let compare_globals g1 g2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
