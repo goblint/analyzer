@@ -97,62 +97,7 @@ let getLoc (node: node) =
   | Statement stmt -> get_stmtLoc stmt.skind
   | Function fv -> fv.svar.vdecl
   | FunctionEntry fv -> fv.svar.vdecl
-  
 
-let getGlobalInits (file: file) : (edge * location) list  =
-  (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
-  let inits = Hashtbl.create 13 in
-  let fast_global_inits = get_bool "exp.fast_global_inits" in
-  let rec doInit lval loc init is_zero =
-    let initoffs offs init typ lval =
-      doInit (addOffsetLval offs lval) loc init is_zero;
-      lval
-    in
-    let rec all_index = function
-      | Index (e,o) -> Index (all_array_index_exp, all_index o)
-      | Field (f,o) -> Field (f, all_index o)
-      | NoOffset -> NoOffset
-    in
-    let all_index (lh,offs) = lh, all_index offs in
-    match init with
-    | SingleInit exp ->
-      let assign lval = Assign (lval, exp), loc in
-      (* This is an optimization so that we don't get n*m assigns for an array a[n][m].
-         Instead, we get one assign for each distinct value in the array *)
-      if not fast_global_inits then
-        Hashtbl.add inits (assign lval) ()
-      else if not (Hashtbl.mem inits (assign (all_index lval))) then
-        Hashtbl.add inits (assign (all_index lval)) ()
-      else
-        ()
-    | CompoundInit (typ, lst) ->
-      let ntyp = match typ, lst with
-        | TArray(t, None, attr), [] -> TArray(t, Some zero, attr) (* set initializer type to t[0] for flexible array members of structs that are intialized with {} *)
-        | _, _ -> typ
-      in
-      ignore (foldLeftCompound ~implicit:true ~doinit:initoffs ~ct:ntyp ~initl:lst ~acc:lval)
-  in
-  let f glob =
-    match glob with
-    | GVar ({vtype=vtype; _} as v, init, loc) -> begin
-        let init, is_zero = match init.init with
-          | None -> makeZeroInit vtype, true
-          | Some x -> x, false
-        in
-        doInit (var v) loc init is_zero
-      end
-    | _ -> ()
-  in
-  iterGlobals file f;
-  let initfun = emptyFunction "__goblint_dummy_init" in
-  (* order is not important since only compile-time constants can be assigned *)
-  (Entry initfun, {line = 0; file="initfun"; byte= 0} ) :: (BatHashtbl.keys inits |> BatList.of_enum)
-
-let numGlobals file =
-  let n = ref 0 in
-  (* GVar Cannot have storage Extern or function type *)
-  Cil.iterGlobals file (function GVar _ -> incr n | _ -> ());
-  !n
 
 let generate_irpt_edges cfg =
   let make_irpt_edge toNode (_, fromNode) =

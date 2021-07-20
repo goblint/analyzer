@@ -232,7 +232,7 @@ struct
         ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         }
       in
-      let edges = MyCFG.getGlobalInits file in
+      let edges = CfgTools.getGlobalInits file in
       if (get_bool "dbg.verbose") then print_endline ("Executing "^string_of_int (List.length edges)^" assigns.");
       let funs = ref [] in
       (*let count = ref 0 in*)
@@ -296,7 +296,7 @@ struct
     in
 
     let startstate, more_funs =
-      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
+      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (CfgTools.numGlobals file)^" globals.");
       Stats.time "global_inits" do_global_inits file
     in
 
