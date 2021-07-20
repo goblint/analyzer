@@ -450,3 +450,19 @@ let scope_fundecs: fundec option VarinfoH.t Lazy.t =
   )
 
 let find_scope_fundec vi = VarinfoH.find (Lazy.force scope_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+let original_names: string VarinfoH.t Lazy.t =
+  (* only invert environment map when necessary (e.g. witnesses) *)
+  lazy (
+    let h = VarinfoH.create 113 in
+    Hashtbl.iter (fun original_name (envdata, _) ->
+        match envdata with
+        | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
+          VarinfoH.replace h vi original_name
+        | _ -> ()
+      ) Cabs2cil.environment;
+    h
+  )
+
+let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
