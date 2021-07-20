@@ -14,7 +14,6 @@ type node = Node.t =
   (** *)
   | Function of CilType.Fundec.t
   (** The variable information associated with the function declaration. *)
-[@@deriving eq, ord, to_yojson]
 
 type edge = Edge.t =
   | Assign of CilType.Lval.t * CilType.Exp.t

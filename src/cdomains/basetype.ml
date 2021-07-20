@@ -46,7 +46,7 @@ struct
   type t = location * MyCFG.node * fundec
   let copy x = x
   let equal (x,a,_) (y,b,_) = ProgLines.equal x y && Node.equal a b (* ignores fundec component *)
-  let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.compare_node a b | x -> x (* ignores fundec component *)
+  let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> Node.compare a b | x -> x (* ignores fundec component *)
   let hash (x,a,f) = ProgLines.hash x * Node.hash a (* ignores fundec component *)
   let pretty_node () (l,x) =
     match x with

@@ -28,7 +28,7 @@ end
 
 module Var =
 struct
-  type t = MyCFG.node [@@deriving eq, ord]
+  type t = Node.t [@@deriving eq, ord]
   let relift x = x
 
   let category = function
@@ -83,7 +83,7 @@ end
 
 module VarF (LD: Printable.S) =
 struct
-  type t = MyCFG.node * LD.t [@@deriving eq, ord]
+  type t = Node.t * LD.t [@@deriving eq, ord]
   let relift (n,x) = n, LD.relift x
 
   let category = function

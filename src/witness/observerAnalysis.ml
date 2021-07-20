@@ -88,7 +88,7 @@ module MakePathSpec (Arg: PathArg) : Analyses.MCPSpec =
 struct
   module KMP = ObserverAutomaton.KMP (
     struct
-      type t = node * node [@@deriving eq]
+      type t = Node.t * Node.t [@@deriving eq]
       let pattern = Array.of_list Arg.path
     end
   )

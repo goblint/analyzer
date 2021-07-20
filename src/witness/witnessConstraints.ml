@@ -6,7 +6,7 @@ open Analyses
 module Node: Printable.S with type t = MyCFG.node =
 struct
   include Var
-  let to_yojson = MyCFG.node_to_yojson
+  let to_yojson = Node.to_yojson
 
   let pretty_diff () (x,y) = dprintf "Unsupported"
   (* let short n x = Pretty.sprint n (pretty () x) *)
