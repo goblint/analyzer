@@ -65,8 +65,6 @@ end
 
 module H = BatHashtbl.Make(Node)
 
-(* Dumps a statement to the standard output *)
-let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
 (* Map from statement id to containing fundec *)
 let stmt_fundec_map = Hashtbl.create 113
