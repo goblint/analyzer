@@ -29,25 +29,8 @@ let exp_replace_original_name e =
   visitCilExpr visitor e
 
 
-let var_fundecs: fundec option VM.t Lazy.t =
-  lazy (
-    foldGlobals !Cilfacade.current_file (fun acc global ->
-        match global with
-        | GFun (fd, _) ->
-          let acc = VM.add fd.svar None acc in (* function itself can be used as a variable (function pointer) *)
-          let acc = List.fold_left (fun acc vi -> VM.add vi (Some fd) acc) acc fd.sformals in
-          let acc = List.fold_left (fun acc vi -> VM.add vi (Some fd) acc) acc fd.slocals in
-          acc
-        | GVar (vi, _, _)
-        | GVarDecl (vi, _) ->
-          VM.add vi None acc
-        | _ -> acc
-      ) VM.empty
-  )
-
-let var_find_fundec vi = VM.find vi (Lazy.force var_fundecs)
 let var_is_in_scope scope vi =
-  match var_find_fundec vi with
+  match Cilfacade.find_scope_fundec vi with
   | None -> true
   | Some fd -> CilType.Fundec.equal fd scope
 

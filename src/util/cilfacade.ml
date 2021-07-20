@@ -431,3 +431,22 @@ let name_fundecs: fundec StringH.t Lazy.t =
   )
 
 let find_name_fundec name = StringH.find (Lazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
+
+
+let scope_fundecs: fundec option VarinfoH.t Lazy.t =
+  lazy (
+    let h = VarinfoH.create 113 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          VarinfoH.replace h fd.svar None; (* function itself can be used as a variable (function pointer) *)
+          List.iter (fun vi -> VarinfoH.replace h vi (Some fd)) fd.sformals;
+          List.iter (fun vi -> VarinfoH.replace h vi (Some fd)) fd.slocals
+        | GVar (vi, _, _)
+        | GVarDecl (vi, _) ->
+          VarinfoH.replace h vi None
+        | _ -> ()
+      );
+    h
+  )
+
+let find_scope_fundec vi = VarinfoH.find (Lazy.force scope_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
