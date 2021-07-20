@@ -231,10 +231,10 @@ struct
     nd
 
   let assign_exp_with nd v e =
-    try
-      let texpr1 = Convert.texpr1_of_cil_exp (A.env nd) e in
+    match Convert.texpr1_of_cil_exp (A.env nd) e with
+    | texpr1 ->
       A.assign_texpr_with Man.mgr nd v texpr1 None
-    with Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp ->
       forget_vars_with nd [v]
 
   let assign_exp d v e =
@@ -307,10 +307,10 @@ struct
 
   let substitute_exp_with nd v e =
     (* TODO: non-_with version? *)
-    try
-      let texpr1 = Convert.texpr1_of_cil_exp (A.env nd) e in
+    match Convert.texpr1_of_cil_exp (A.env nd) e with
+    | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
-    with Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp ->
       forget_vars_with nd [v]
 
   let substitute_exp_parallel_with nd ves =
