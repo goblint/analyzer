@@ -3,7 +3,8 @@
 
 let escape (x:string):string =
   (* Safe to escape all these everywhere in XML: https://stackoverflow.com/a/1091953/854540 *)
-  Str.global_replace (Str.regexp "&") "&amp;" x |>
+  String.escaped x |>(* Needed to escape byte sequences that are not valid utf8 code points *)
+  Str.global_replace (Str.regexp "&") "&amp;" |>
   Str.global_replace (Str.regexp "<") "&lt;" |>
   Str.global_replace (Str.regexp ">") "&gt;" |>
   Str.global_replace (Str.regexp "\"") "&quot;" |>
