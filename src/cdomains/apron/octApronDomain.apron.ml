@@ -617,6 +617,12 @@ struct
     let j_env = Environment.lce x_env y_env in
     A.change_environment Man.mgr join_c j_env false
 
+  (* TODO: move to AOps *)
+  let meet_lincons d lincons1 =
+    let earray = Lincons1.array_make (A.env d) 1 in
+    Lincons1.array_set earray 0 lincons1;
+    A.meet_lincons_array Man.mgr d earray
+
   let strengthening j x y =
     if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
     let x_env = A.env x in
@@ -627,10 +633,8 @@ struct
     let x_cons = A.to_lincons_array Man.mgr x_j in
     let y_cons = A.to_lincons_array Man.mgr y_j in
     let try_add_con j con1 =
-      let con0: Lincons0.t = con1.Lincons1.lincons0 in
-      let cons1: Lincons1.earray = {lincons0_array = [|con0|]; array_env = j_env} in
-      if M.tracing then M.tracei "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.array_print: Format.formatter -> Lincons1.earray -> unit) cons1);
-      let t = A.meet_lincons_array Man.mgr j cons1 in
+      if M.tracing then M.tracei "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.print: Format.formatter -> Lincons1.t -> unit) con1);
+      let t = meet_lincons j con1 in
       let t_x = A.change_environment Man.mgr t x_env false in
       let t_y = A.change_environment Man.mgr t y_env false in
       let leq_x = A.is_leq Man.mgr x t_x in
@@ -647,14 +651,11 @@ struct
         j
       )
     in
-    let x_cons1 = Array.map (fun con0 ->
-        {Lincons1.lincons0 = con0; env = x_cons.array_env}
-      ) x_cons.lincons0_array
+    let lincons1_array_of_earray (earray: Lincons1.earray) =
+      Array.init (Lincons1.array_length earray) (Lincons1.array_get earray)
     in
-    let y_cons1 = Array.map (fun con0 ->
-        {Lincons1.lincons0 = con0; env = y_cons.array_env}
-      ) y_cons.lincons0_array
-    in
+    let x_cons1 = lincons1_array_of_earray x_cons in
+    let y_cons1 = lincons1_array_of_earray y_cons in
     let cons1 =
       (* Whether [con1] contains a var in [env]. *)
       let env_exists_mem_con1 env con1 =
