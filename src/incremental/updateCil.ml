@@ -1,10 +1,9 @@
 open Cil
-open Node
 open Tracing
 open CompareAST
 open VersionLookup
 
-let store_node_location (n: node) (l: location): unit =
+let store_node_location (n: Node.t) (l: location): unit =
   NodeMap.add !location_map n l
 
 let zero_ids = {max_sid = 0; max_vid = 0}

@@ -13,8 +13,6 @@ type t =
   (** The variable information associated with the function declaration. *)
 [@@deriving eq, ord, to_yojson]
 
-type node = t [@@deriving eq, ord, to_yojson] (* TODO: remove after properly transitioning to t *)
-
 let pretty_node () = function
   | Statement s -> text "Statement " ++ dn_stmt () s
   | Function f -> text "Function " ++ text f.svar.vname

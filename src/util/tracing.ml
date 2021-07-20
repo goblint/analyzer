@@ -4,13 +4,12 @@
 
 open Pretty
 open Cil
-open Node
 
 module Strs = Set.Make (String)
 module NodeMap = Hashtbl.Make(Node)
 
 let location_map = ref (NodeMap.create 103: location NodeMap.t)
-let current_node = ref (None: node option)
+let current_node = ref (None: Node.t option)
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
@@ -19,7 +18,7 @@ let active_dep = Hashtbl.create 9
 let tracevars = ref ([]: string list)
 let tracelocs = ref ([]: int list)
 
-let getLoc (node: node) =
+let getLoc (node: Node.t) =
   (* In case this belongs to a changed function, we will find the true location in the map*)
   try
     NodeMap.find !location_map node
