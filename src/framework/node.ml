@@ -45,14 +45,6 @@ let equal_node x y =
   | FunctionEntry f1, FunctionEntry f2 -> CilType.Fundec.equal f1 f2
   | _ -> false
 
-let print doc =
-  print_string @@ Pretty.sprint max_int doc
-
-let to_str doc =
-  Pretty.sprint max_int doc
-let print_b bool =
-  print_endline (if bool then "true" else "false"); bool
-
 module Node :
 sig
   include Hashtbl.HashedType with type t = node
