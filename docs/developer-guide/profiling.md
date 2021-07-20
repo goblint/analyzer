@@ -9,8 +9,9 @@
     Following keys can be used for navigation:
 
     * Arrows for moving around.
-    * `+` for expanding/collapsing one callstack level
-    * `e` for expanding/collapsing all callstack levels
+    * `+` for expanding/collapsing one callstack level.
+    * `e` for expanding/collapsing all callstack levels.
+    * `q` for quitting.
 
     Function names are mangled: they contain the top-level OCaml module name and function name (or just `fun` for lambdas).
     Due to inlining some callstack levels might be skipped, making it difficult to follow.
