@@ -16,9 +16,6 @@ type node = Node.t =
   (** The variable information associated with the function declaration. *)
 [@@deriving eq, ord, to_yojson]
 
-let pretty_short_node = Node.pretty_short
-
-
 type edge = Edge.t =
   | Assign of CilType.Lval.t * CilType.Exp.t
   (** Assignments lval = exp *)
@@ -154,8 +151,8 @@ let createCFG (file: file) =
     if Messages.tracing then
       Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
         pretty_edges edges
-        pretty_short_node fromNode
-        pretty_short_node toNode;
+        Node.pretty_short fromNode
+        Node.pretty_short toNode;
     H.add cfgB toNode (edges,fromNode);
     H.add cfgF fromNode (edges,toNode);
     Messages.trace "cfg" "done\n\n"
