@@ -295,7 +295,7 @@ struct
   let h = H.create 13
   let incr k =
     H.modify_def 1 k (fun v ->
-        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint Node.pretty_short (Option.get !MyCFG.current_node));
+        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint Node.pretty_plain_short (Option.get !MyCFG.current_node));
         v+1
       ) h;
   module D = struct
@@ -1126,11 +1126,11 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty k d_loc (Node.location k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k d_loc (Node.location k) D.pretty_diff (v1,v2));
           incr le
         end else if b2 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty k d_loc (Node.location k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k d_loc (Node.location k) D.pretty_diff (v1,v2));
           incr gr
         end else
           incr uk

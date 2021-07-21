@@ -74,8 +74,8 @@ let createCFG (file: file) =
     if Messages.tracing then
       Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
         pretty_edges edges
-        Node.pretty_short fromNode
-        Node.pretty_short toNode;
+        Node.pretty_plain_short fromNode
+        Node.pretty_plain_short toNode;
     H.add cfgB toNode (edges,fromNode);
     H.add cfgF fromNode (edges,toNode);
     Messages.trace "cfg" "done\n\n"
