@@ -420,7 +420,8 @@ let print cfg  =
   end
   in
   let out = open_out "cfg.dot" in
-  printGeneric (module CfgPrinters (NoExtraNodeStyles)) (fun f -> H.iter f cfg) out
+  let iter_edges f = H.iter f cfg in
+  printGeneric (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
 
 
 let getCFG (file: file) : cfg * cfg =
@@ -445,15 +446,7 @@ let generate_irpt_edges cfg =
   H.iter make_irpt_edge cfg
 
 
-let printFun (module Cfg : CfgBidir) live fd out =
-  let module HtmlExtraNodeStyles =
-  struct
-    let extraNodeStyles n =
-      let liveness = if live n then "fillcolor=white" else "fillcolor=orange" in
-      (* \N is graphviz special for node ID *)
-      ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; liveness]
-  end
-  in
+let iter_fd_edges (module Cfg : CfgBackward) fd =
   let ready      = NH.create 113 in
   let rec printNode (toNode : node) f =
     if not (NH.mem ready toNode) then begin
@@ -463,7 +456,19 @@ let printFun (module Cfg : CfgBidir) live fd out =
       List.iter (fun (_,x) -> printNode x f) prevs
     end
   in
-  printGeneric (module CfgPrinters (HtmlExtraNodeStyles)) (printNode (Function fd)) out
+  printNode (Function fd)
+
+let printFun (module Cfg : CfgBidir) live fd out =
+  let module HtmlExtraNodeStyles =
+  struct
+    let extraNodeStyles n =
+      let liveness = if live n then "fillcolor=white" else "fillcolor=orange" in
+      (* \N is graphviz special for node ID *)
+      ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; liveness]
+  end
+  in
+  let iter_edges = iter_fd_edges (module Cfg) fd in
+  printGeneric (module CfgPrinters (HtmlExtraNodeStyles)) iter_edges out
 
 let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
   iterGlobals file (fun glob ->
