@@ -21,16 +21,18 @@ type edge = Edge.t =
   | SelfLoop
 
 
-type cfg = node -> ((location * edge) list * node) list
+type edges = (location * edge) list
+
+type cfg = node -> (edges * node) list
 
 module type CfgBackward =
 sig
-  val prev : node -> ((location * edge) list * node) list
+  val prev: cfg
 end
 
 module type CfgForward =
 sig
-  val next : node -> ((location * edge) list * node) list
+  val next: cfg
 end
 
 module type CfgBidir =
