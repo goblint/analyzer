@@ -24,7 +24,9 @@ jobs:
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
-          OPAMLOCKED: locked # otherwise setup-ocaml pins non-locked dependencies
+          # otherwise setup-ocaml pins non-locked dependencies
+          # https://github.com/ocaml/setup-ocaml/issues/166
+          OPAMLOCKED: locked
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
