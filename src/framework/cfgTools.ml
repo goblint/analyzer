@@ -376,9 +376,8 @@ end
 
 let print cfg  =
   let out = open_out "cfg.dot" in
-  let module NH = Hashtbl.Make (Node) in
   let node_table = NH.create 113 in
-  let _ = Printf.fprintf out "digraph cfg {\n" in
+  Printf.fprintf out "digraph cfg {\n";
   let open CfgPrinters in
   let printNodeStyle (n:node) () =
     match n with
@@ -422,11 +421,9 @@ let generate_irpt_edges cfg =
 
 
 let printFun (module Cfg : CfgBidir) live fd out =
-  (* let out = open_out "cfg.dot" in *)
-  let module NH = Hashtbl.Make (Node) in
   let ready      = NH.create 113 in
   let node_table = NH.create 113 in
-  let _ = Printf.fprintf out "digraph cfg {\n" in
+  Printf.fprintf out "digraph cfg {\n";
   let open CfgPrinters in
   let printNodeStyle (n:node) () =
     let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
