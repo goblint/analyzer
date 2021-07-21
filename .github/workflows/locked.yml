@@ -23,6 +23,8 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          OPAMLOCKED: locked # otherwise setup-ocaml pins non-locked dependencies
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
