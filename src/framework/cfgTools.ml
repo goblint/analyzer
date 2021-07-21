@@ -344,7 +344,12 @@ sig
   val printEdgeStyle: out_channel -> node -> (edges * node) -> unit
 end
 
-module CfgPrintersBase =
+module type ExtraNodeStyles =
+sig
+  val extraNodeStyles: node -> string list
+end
+
+module CfgPrinters (ExtraNodeStyles: ExtraNodeStyles) =
 struct
   let p_node () = function
     | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
@@ -381,6 +386,17 @@ struct
 
   let printEdgeStyle out (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
     ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges)
+
+  let printNodeStyle out (n:node) =
+    let kind_styles =
+      match n with
+      | Statement {skind=If (_,_,_,_); _}  -> ["shape=diamond"]
+      | Statement stmt  -> []
+      | Function f      -> ["label =\"return of "^f.svar.vname^"()\""; "shape=box"]
+      | FunctionEntry f -> ["label =\""^f.svar.vname^"()\""; "shape=box"]
+    in
+    let styles = String.concat "," (kind_styles @ ExtraNodeStyles.extraNodeStyles n) in
+    ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node n styles)
 end
 
 let printGeneric (module CfgPrinters: CfgPrinters) iter_edges out =
@@ -398,20 +414,13 @@ let printGeneric (module CfgPrinters: CfgPrinters) iter_edges out =
   close_out_noerr out
 
 let print cfg  =
-  let module CfgPrinters =
+  let module NoExtraNodeStyles =
   struct
-    include CfgPrintersBase
-
-    let printNodeStyle out (n:node) =
-      match n with
-      | Statement {skind=If (_,_,_,_); _} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
-      | Statement stmt  -> ()
-      | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.svar.vname)
-      | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.svar.vname)
+    let extraNodeStyles node = []
   end
   in
   let out = open_out "cfg.dot" in
-  printGeneric (module CfgPrinters) (fun f -> H.iter f cfg) out
+  printGeneric (module CfgPrinters (NoExtraNodeStyles)) (fun f -> H.iter f cfg) out
 
 
 let getCFG (file: file) : cfg * cfg =
@@ -437,20 +446,12 @@ let generate_irpt_edges cfg =
 
 
 let printFun (module Cfg : CfgBidir) live fd out =
-  let module CfgPrinters =
+  let module HtmlExtraNodeStyles =
   struct
-    include CfgPrintersBase
-
-    let printNodeStyle out (n:node) =
-      let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
-      let kind_style =
-        match n with
-        | Statement {skind=If (_,_,_,_); _}  -> "shape=diamond"
-        | Statement stmt  -> ""
-        | Function f      -> "label =\"return of "^f.svar.vname^"()\",shape=box"
-        | FunctionEntry f -> "label =\""^f.svar.vname^"()\",shape=box"
-      in
-      ignore (Pretty.fprintf out ("\t%a [id=\"%a\",URL=\"javascript:show_info('\\N');\",%s,%s];\n") p_node n p_node n liveness kind_style)
+    let extraNodeStyles n =
+      let liveness = if live n then "fillcolor=white" else "fillcolor=orange" in
+      (* \N is graphviz special for node ID *)
+      ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; liveness]
   end
   in
   let ready      = NH.create 113 in
@@ -462,7 +463,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
       List.iter (fun (_,x) -> printNode x f) prevs
     end
   in
-  printGeneric (module CfgPrinters) (printNode (Function fd)) out
+  printGeneric (module CfgPrinters (HtmlExtraNodeStyles)) (printNode (Function fd)) out
 
 let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
   iterGlobals file (fun glob ->
