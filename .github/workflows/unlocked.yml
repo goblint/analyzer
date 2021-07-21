@@ -17,6 +17,9 @@ jobs:
           - 4.11.x
           - 4.09.x
           - 4.07.x
+        apron:
+          - false
+          - true
 
 
     runs-on: ${{ matrix.os }}
@@ -33,6 +36,12 @@ jobs:
       - name: Install dependencies
         run: opam install . --deps-only
 
+      - name: Install Apron dependencies
+        if: ${{ matrix.apron }}
+        run: |
+          opam depext apron
+          opam install apron
+
       - name: Build
         run: ./make.sh nat
 
@@ -40,4 +49,5 @@ jobs:
         run: ./make.sh headers testci
 
       - name: Test octApron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group octapron -s
