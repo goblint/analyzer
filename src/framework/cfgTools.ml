@@ -338,7 +338,7 @@ let minimizeCFG (fw,bw) =
   cfgF, cfgB
 
 
-module CfgPrinters =
+module CfgPrintersBase =
 struct
   let p_node () = function
     | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
@@ -372,27 +372,34 @@ struct
   let rec p_edges () = function
     | [] -> Pretty.dprintf ""
     | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
+
+  let printEdgeStyle out (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
+    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges)
 end
 
 let print cfg  =
   let out = open_out "cfg.dot" in
   let node_table = NH.create 113 in
   Printf.fprintf out "digraph cfg {\n";
-  let open CfgPrinters in
-  let printNodeStyle (n:node) () =
-    match n with
-    | Statement {skind=If (_,_,_,_); _} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
-    | Statement stmt  -> ()
-    | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.svar.vname)
-    | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.svar.vname)
+  let module CfgPrinters =
+  struct
+    include CfgPrintersBase
+
+    let printNodeStyle (n:node) () =
+      match n with
+      | Statement {skind=If (_,_,_,_); _} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
+      | Statement stmt  -> ()
+      | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.svar.vname)
+      | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.svar.vname)
+  end
   in
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
-    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges);
+    CfgPrinters.printEdgeStyle out toNode (edges, fromNode);
     NH.add node_table toNode ();
     NH.add node_table fromNode ()
   in
   H.iter printEdge cfg;
-  NH.iter printNodeStyle node_table;
+  NH.iter CfgPrinters.printNodeStyle node_table;
   Printf.fprintf out "}\n";
   flush out;
   close_out_noerr out
@@ -424,20 +431,24 @@ let printFun (module Cfg : CfgBidir) live fd out =
   let ready      = NH.create 113 in
   let node_table = NH.create 113 in
   Printf.fprintf out "digraph cfg {\n";
-  let open CfgPrinters in
-  let printNodeStyle (n:node) () =
-    let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
-    let kind_style =
-      match n with
-      | Statement {skind=If (_,_,_,_); _}  -> "shape=diamond"
-      | Statement stmt  -> ""
-      | Function f      -> "label =\"return of "^f.svar.vname^"()\",shape=box"
-      | FunctionEntry f -> "label =\""^f.svar.vname^"()\",shape=box"
-    in
-    ignore (Pretty.fprintf out ("\t%a [id=\"%a\",URL=\"javascript:show_info('\\N');\",%s,%s];\n") p_node n p_node n liveness kind_style)
+  let module CfgPrinters =
+  struct
+    include CfgPrintersBase
+
+    let printNodeStyle (n:node) () =
+      let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
+      let kind_style =
+        match n with
+        | Statement {skind=If (_,_,_,_); _}  -> "shape=diamond"
+        | Statement stmt  -> ""
+        | Function f      -> "label =\"return of "^f.svar.vname^"()\",shape=box"
+        | FunctionEntry f -> "label =\""^f.svar.vname^"()\",shape=box"
+      in
+      ignore (Pretty.fprintf out ("\t%a [id=\"%a\",URL=\"javascript:show_info('\\N');\",%s,%s];\n") p_node n p_node n liveness kind_style)
+  end
   in
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
-    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges);
+    CfgPrinters.printEdgeStyle out toNode (edges, fromNode);
     NH.replace node_table toNode ();
     NH.replace node_table fromNode ()
   in
@@ -450,7 +461,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
     end
   in
   printNode (Function fd);
-  NH.iter printNodeStyle node_table;
+  NH.iter CfgPrinters.printNodeStyle node_table;
   Printf.fprintf out "}\n";
   flush out;
   close_out_noerr out
