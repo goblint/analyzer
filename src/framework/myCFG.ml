@@ -2,42 +2,23 @@
 
 open Cil
 
-(* Instead of including all of Node (which pollutes with type t, etc), include explicit aliases (with constructors) *)
+(** Re-exported [Node.t] with constructors. See [Node.t] for documentation. *)
 type node = Node.t =
   | Statement of CilType.Stmt.t
-  (** The statements as identified by CIL *)
   | FunctionEntry of CilType.Fundec.t
-  (** *)
   | Function of CilType.Fundec.t
-  (** The variable information associated with the function declaration. *)
 
+(** Re-exported [Edge.t] with constructors. See [Edge.t] for documentation. *)
 type edge = Edge.t =
   | Assign of CilType.Lval.t * CilType.Exp.t
-  (** Assignments lval = exp *)
   | Proc of CilType.Lval.t option * CilType.Exp.t * CilType.Exp.t list
-  (** Function calls of the form lva = fexp (e1, e2, ...) *)
   | Entry of CilType.Fundec.t
-  (** Entry edge that relates function declaration to function body. You can use
-    * this to initialize the local variables. *)
   | Ret of CilType.Exp.t option * CilType.Fundec.t
-  (** Return edge is between the return statement, which may optionally contain
-    * a return value, and the function. The result of the call is then
-    * transferred to the function node! *)
   | Test of CilType.Exp.t * bool
-  (** The true-branch or false-branch of a conditional exp *)
   | ASM of string list * Edge.asm_out * Edge.asm_in
-  (** Inline assembly statements, and the annotations for output and input
-    * variables. *)
   | VDecl of CilType.Varinfo.t
-  (** VDecl edge for the variable in varinfo. Whether such an edge is there for all
-    * local variables or only when it is not possible to pull the declaration up, is
-    * determined by alwaysGenerateVarDecl in cabs2cil.ml in CIL. One case in which a VDecl
-    * is always there is for VLA. If there is a VDecl edge, it is where the declaration originally
-    * appeared *)
   | Skip
-  (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop
-  (** This for interrupt edges.! *)
 
 
 type cfg = node -> ((location * edge) list * node) list
