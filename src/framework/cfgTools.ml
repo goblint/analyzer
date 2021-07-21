@@ -382,6 +382,7 @@ struct
 
   let rec p_edges () = function
     | [] -> Pretty.dprintf ""
+    | [(_, x)] -> p_edge () x
     | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
 
   let printEdgeStyle out (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
