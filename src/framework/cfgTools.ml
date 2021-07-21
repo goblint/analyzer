@@ -338,22 +338,20 @@ let minimizeCFG (fw,bw) =
   cfgF, cfgB
 
 
-let print cfg  =
-  let out = open_out "cfg.dot" in
-  let module NH = Hashtbl.Make (Node) in
-  let node_table = NH.create 113 in
-  let _ = Printf.fprintf out "digraph cfg {\n" in
+module CfgPrinters =
+struct
   let p_node () = function
     | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
     | Function f      -> Pretty.dprintf "ret%d" f.svar.vid
     | FunctionEntry f -> Pretty.dprintf "fun%d" f.svar.vid
-  in
+
+  (* TODO: why escape these individually instead of escaping the entire label? *)
   let dn_exp () e =
     text (XmlUtil.escape (sprint 800 (dn_exp () e)))
-  in
+
   let dn_lval () l =
     text (XmlUtil.escape (sprint 800 (dn_lval () l)))
-  in
+
   let p_edge () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
     | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
@@ -366,14 +364,22 @@ let print cfg  =
     | Skip -> Pretty.text "skip"
     | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
     | SelfLoop -> Pretty.text "SelfLoop"
-  in
+
   (* escape string in label, otherwise dot might fail *)
   (* Weirdly, this actually causes xdot to fail with \v in string literals. *)
   (* let p_edge_escaped () x = Pretty.text (String.escaped (Pretty.sprint ~width:0 (Pretty.dprintf "%a" p_edge x))) in *)
+
   let rec p_edges () = function
     | [] -> Pretty.dprintf ""
     | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
-  in
+end
+
+let print cfg  =
+  let out = open_out "cfg.dot" in
+  let module NH = Hashtbl.Make (Node) in
+  let node_table = NH.create 113 in
+  let _ = Printf.fprintf out "digraph cfg {\n" in
+  let open CfgPrinters in
   let printNodeStyle (n:node) () =
     match n with
     | Statement {skind=If (_,_,_,_); _} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
@@ -421,34 +427,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
   let ready      = NH.create 113 in
   let node_table = NH.create 113 in
   let _ = Printf.fprintf out "digraph cfg {\n" in
-  let p_node () = function
-    | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
-    | Function f      -> Pretty.dprintf "ret%d" f.svar.vid
-    | FunctionEntry f -> Pretty.dprintf "fun%d" f.svar.vid
-  in
-  let dn_exp () e =
-    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
-  in
-  let dn_lval () l =
-    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
-  in
-  let p_edge () = function
-    | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
-    | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
-    | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
-    | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
-    | Entry (f) -> Pretty.text "(body)"
-    | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
-    | Ret (None,f) -> Pretty.dprintf "return"
-    | ASM (_,_,_) -> Pretty.text "ASM ..."
-    | Skip -> Pretty.text "skip"
-    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
-    | SelfLoop -> Pretty.text "SelfLoop"
-  in
-  let rec p_edges () = function
-    | [] -> Pretty.dprintf ""
-    | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
-  in
+  let open CfgPrinters in
   let printNodeStyle (n:node) () =
     let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
     let kind_style =
