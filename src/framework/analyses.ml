@@ -58,20 +58,10 @@ struct
     | _ -> `Other
 
   let printXml f n =
-    let id ch n =
-      match n with
-      | MyCFG.Statement s     -> BatPrintf.fprintf ch "%d" s.sid
-      | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.svar.vid
-      | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.svar.vid
-    in
     let l = Node.location n in
-    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (Node.find_fundec n).svar.vname l.line l.byte
+    BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" (Node.show_id n) l.file (Node.find_fundec n).svar.vname l.line l.byte
 
-  let var_id n =
-    match n with
-    | MyCFG.Statement s     -> string_of_int s.sid
-    | MyCFG.Function f      -> "ret" ^ string_of_int f.svar.vid
-    | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.svar.vid
+  let var_id = Node.show_id
 
   let line_nr n = (Node.location n).line
   let file_name n = (Node.location n).file
@@ -166,25 +156,15 @@ struct
   include C
 
   let printXml f xs =
-    let print_id f = function
-      | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
-      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
-    in
     let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
+      BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\">\n" (Node.show_id n) loc.file loc.line loc.byte;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
     iter print_one xs
 
   let printJson f xs =
-    let print_id f = function
-      | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
-      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
-    in
     let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
+      BatPrintf.fprintf f "{\n\"id\": \"%s\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" (Node.show_id n) loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
     in
     iter print_one xs
 
@@ -227,11 +207,7 @@ struct
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
         );
-      let p_node f = function
-        | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-        | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
-        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
-      in
+      let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
       let p_nodes f xs =
         List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
       in
@@ -283,11 +259,7 @@ struct
       let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
       (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
       (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
-      let p_node f = function
-        | MyCFG.Statement stmt  -> fprintf f "\"%d\"" stmt.sid
-        | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.svar.vid
-        | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.svar.vid
-      in
+      let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
       let p_fun f x = fprintf f "{\n  \"name\": \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
       (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in

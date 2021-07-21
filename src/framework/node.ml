@@ -41,3 +41,8 @@ let find_fundec (node: t) =
   | Statement stmt -> Cilfacade.find_stmt_fundec stmt
   | Function fd -> fd
   | FunctionEntry fd -> fd
+
+let show_id = function
+  | Statement stmt   -> string_of_int stmt.sid
+  | Function fd      -> "ret" ^ string_of_int fd.svar.vid
+  | FunctionEntry fd -> "fun" ^ string_of_int fd.svar.vid

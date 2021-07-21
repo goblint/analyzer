@@ -351,10 +351,7 @@ end
 
 module CfgPrinters (ExtraNodeStyles: ExtraNodeStyles) =
 struct
-  let p_node () = function
-    | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
-    | Function f      -> Pretty.dprintf "ret%d" f.svar.vid
-    | FunctionEntry f -> Pretty.dprintf "fun%d" f.svar.vid
+  let p_node () n = text (Node.show_id n)
 
   (* TODO: why escape these individually instead of escaping the entire label? *)
   let dn_exp () e =
