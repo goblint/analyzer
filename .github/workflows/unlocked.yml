@@ -21,6 +21,9 @@ jobs:
           - false
           - true
 
+    # customize name to use readable string for apron instead of just a boolean
+    # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
+    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }})
 
     runs-on: ${{ matrix.os }}
 
