@@ -41,7 +41,8 @@ sig
   include CfgForward
 end
 
-module H = BatHashtbl.Make(Node)
+
+module NodeH = BatHashtbl.Make (Node)
 
 
 let current_node : node option ref = ref None

@@ -3,6 +3,9 @@ open Cil
 open Pretty
 open GobConfig
 
+module H = NodeH
+module NH = NodeH
+
 
 let do_the_params (fd: fundec) =
   (* This function used to create extra variables, but now it just sets the
@@ -16,7 +19,6 @@ let do_the_params (fd: fundec) =
 
 
 (* TODO: refactor duplication with find_loop_heads *)
-module NH = Hashtbl.Make (Node)
 module NS = Set.Make (Node)
 let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
   let loop_heads = NH.create 100 in

@@ -291,7 +291,7 @@ struct
     limit := get_int "dbg.limit.widen";
     S.init ()
 
-  module H = MyCFG.H
+  module H = MyCFG.NodeH
   let h = H.create 13
   let incr k =
     H.modify_def 1 k (fun v ->
