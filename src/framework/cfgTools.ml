@@ -388,8 +388,8 @@ let printGeneric (module CfgPrinters: CfgPrinters) iter_edges out =
   Printf.fprintf out "digraph cfg {\n";
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
     CfgPrinters.printEdgeStyle out toNode (edges, fromNode);
-    NH.add node_table toNode ();
-    NH.add node_table fromNode ()
+    NH.replace node_table toNode ();
+    NH.replace node_table fromNode ()
   in
   iter_edges printEdge;
   NH.iter (fun node _ -> CfgPrinters.printNodeStyle out node) node_table;
@@ -456,7 +456,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
   let ready      = NH.create 113 in
   let rec printNode (toNode : node) f =
     if not (NH.mem ready toNode) then begin
-      NH.add ready toNode ();
+      NH.replace ready toNode ();
       let prevs = Cfg.prev toNode in
       List.iter (f toNode) prevs;
       List.iter (fun (_,x) -> printNode x f) prevs
