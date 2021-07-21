@@ -35,3 +35,6 @@ jobs:
 
       - name: Test regression
         run: ./make.sh headers testci
+
+      - name: Test octApron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group octapron -s
