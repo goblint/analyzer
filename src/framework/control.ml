@@ -236,7 +236,7 @@ struct
       if (get_bool "dbg.verbose") then print_endline ("Executing "^string_of_int (List.length edges)^" assigns.");
       let funs = ref [] in
       (*let count = ref 0 in*)
-      let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t =
+      let transfer_func (st : Spec.D.t) (loc, edge) : Spec.D.t =
         if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)

@@ -494,7 +494,7 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
     )
 
 
-let getGlobalInits (file: file) : (edge * location) list  =
+let getGlobalInits (file: file) : edges  =
   (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
   let inits = Hashtbl.create 13 in
   let fast_global_inits = get_bool "exp.fast_global_inits" in
@@ -511,7 +511,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
     let all_index (lh,offs) = lh, all_index offs in
     match init with
     | SingleInit exp ->
-      let assign lval = Assign (lval, exp), loc in
+      let assign lval = (loc, Assign (lval, exp)) in
       (* This is an optimization so that we don't get n*m assigns for an array a[n][m].
          Instead, we get one assign for each distinct value in the array *)
       if not fast_global_inits then
@@ -541,7 +541,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
-  (Entry initfun, {line = 0; file="initfun"; byte= 0} ) :: (BatHashtbl.keys inits |> BatList.of_enum)
+  ({line = 0; file="initfun"; byte= 0}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
 
 
 let numGlobals file =
