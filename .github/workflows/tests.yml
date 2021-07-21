@@ -7,6 +7,8 @@ on:
 
 jobs:
   tests:
+    if: ${{ false }}  # disable for now
+
     strategy:
       fail-fast: false
       matrix:
