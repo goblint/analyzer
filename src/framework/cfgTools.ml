@@ -399,7 +399,7 @@ struct
     ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node n styles)
 end
 
-let printGeneric (module CfgPrinters: CfgPrinters) iter_edges out =
+let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
   let node_table = NH.create 113 in
   Printf.fprintf out "digraph cfg {\n";
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
@@ -413,7 +413,7 @@ let printGeneric (module CfgPrinters: CfgPrinters) iter_edges out =
   flush out;
   close_out_noerr out
 
-let print cfg  =
+let fprint_hash_dot cfg  =
   let module NoExtraNodeStyles =
   struct
     let extraNodeStyles node = []
@@ -421,7 +421,7 @@ let print cfg  =
   in
   let out = open_out "cfg.dot" in
   let iter_edges f = H.iter f cfg in
-  printGeneric (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
+  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
 
 
 let getCFG (file: file) : cfg * cfg =
@@ -432,7 +432,7 @@ let getCFG (file: file) : cfg * cfg =
     else
       (cfgF, cfgB)
   in
-  if get_bool "justcfg" then print cfgB;
+  if get_bool "justcfg" then fprint_hash_dot cfgB;
   H.find_all cfgF, H.find_all cfgB
 
 
@@ -458,7 +458,7 @@ let iter_fd_edges (module Cfg : CfgBackward) fd =
   in
   printNode (Function fd)
 
-let printFun (module Cfg : CfgBidir) live fd out =
+let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let module HtmlExtraNodeStyles =
   struct
     let extraNodeStyles n =
@@ -468,7 +468,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
   end
   in
   let iter_edges = iter_fd_edges (module Cfg) fd in
-  printGeneric (module CfgPrinters (HtmlExtraNodeStyles)) iter_edges out
+  fprint_dot (module CfgPrinters (HtmlExtraNodeStyles)) iter_edges out
 
 let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
   iterGlobals file (fun glob ->
@@ -480,7 +480,7 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = Goblintutil.create_dir (Filename.concat base_dir c_file_name) in
         let fname = Filename.concat file_dir dot_file_name in
-        printFun (module Cfg : CfgBidir) live fd (open_out fname)
+        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd (open_out fname)
       | _ -> ()
     )
 
