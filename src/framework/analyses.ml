@@ -50,7 +50,7 @@ struct
     | MyCFG.Function      f -> dprintf "call of %s" f.svar.vname
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.svar.vname
 
-  let pretty_trace () x =  dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
+  let pretty_trace () x =  dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
 
   let kind = function
     | MyCFG.Function f                         -> `ExitOfProc f
@@ -107,8 +107,8 @@ struct
     | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.svar.vname
 
   let pretty_trace () (n,c as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
-    else dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c CilType.Location.pretty (getLocation x)
+    else dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
 
   let printXml f (n,c) =
     Var.printXml f n;
@@ -321,6 +321,7 @@ struct
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
 
+(* TODO: unused *)
 module ComposeResults (R1: Printable.S) (R2: Printable.S) (C: ResultConf) =
 struct
   module R = Printable.Either (R1) (R2)

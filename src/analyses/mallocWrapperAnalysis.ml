@@ -8,7 +8,7 @@ module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = Lattice.Flat (Basetype.ProgLines) (struct
+  module PL = Lattice.Flat (CilType.Location) (struct
     let top_name = "Unknown line"
     let bot_name = "Unreachable line"
   end)

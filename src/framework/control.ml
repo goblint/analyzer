@@ -491,7 +491,7 @@ struct
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "dbg.uncalled" then (
               let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int cnt  ^ "LoC" in
-              ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+              ignore (Pretty.fprintf out "%s (%a)\n" msg CilType.Location.pretty loc)
             )
         | _ -> ()
       in

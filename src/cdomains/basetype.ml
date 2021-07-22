@@ -70,7 +70,7 @@ struct
   let copy x = x
   let show x = GU.demangle x.vname
   let pretty () x = Pretty.text (show x)
-  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
+  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
   let get_location x = x.vdecl
   type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
@@ -286,7 +286,7 @@ struct
 
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = let name = show x in
-    Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
+    Pretty.dprintf "%s on %a" name CilType.Location.pretty (get_var x).vdecl
 
   let get_location x = (get_var x).vdecl
   let to_group x = Variables.to_group (get_var x)

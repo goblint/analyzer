@@ -576,7 +576,7 @@ let print_accesses_xml () =
     let h (conf,w,loc,e,lp) =
       let atyp = if w then "write" else "read" in
       BatPrintf.printf "  <access type=\"%s\" loc=\"%s\" conf=\"%d\">\n"
-        atyp (Basetype.ProgLines.show loc) conf;
+        atyp (Basetype.ProgLines.show loc) conf; (* TODO: can loc attribute contain column now? what is this output used for? *)
 
       let d_lp f (t,id) = BatPrintf.fprintf f "type=\"%s\" id=\"%s\"" t id in
 
