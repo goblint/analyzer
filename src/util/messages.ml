@@ -60,10 +60,10 @@ let print_msg msg loc =
   let msg  = colorize ~on:false msg in
   push_warning (`text (msg, loc));
   if get_bool "gccwarn" then
-    Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
+    Printf.printf "%s: warning: %s\n" (CilType.Location.show loc) msg
   else
     let color = if colors_on () then "{violet}" else "" in
-    let s = Printf.sprintf "%s %s(%s:%d)" msgc color loc.file loc.line in
+    let s = Printf.sprintf "%s %s(%s)" msgc color (CilType.Location.show loc) in
     Printf.fprintf !warn_out "%s\n%!" (colorize s)
 
 let print_err msg loc =

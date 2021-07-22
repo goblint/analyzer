@@ -28,7 +28,11 @@ struct
   let hash x = Hashtbl.hash x (* struct of primitives, so this is fine *)
 
   (* Output *)
-  let show x = x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column (* TODO: add special output for locUnknown *)
+  let show x =
+    (* Also used for gccwarn, so should be the GCC format *)
+    (* TODO: add special output for locUnknown *)
+    x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column
+
   let pretty () x = Pretty.text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
