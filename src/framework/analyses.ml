@@ -342,24 +342,6 @@ struct
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
 
-(* TODO: unused *)
-module ComposeResults (R1: Printable.S) (R2: Printable.S) (C: ResultConf) =
-struct
-  module R = Printable.Either (R1) (R2)
-  module H1 = Hash.Printable (ProgLinesFun) (R1)
-  module H2 = Hash.Printable (ProgLinesFun) (R2)
-
-  include Result (R) (C)
-
-  let merge h1 h2 =
-    let hash = create 113 in
-    let f k v = add hash k (`Left v) in
-    let g k v = add hash k (`Right v) in
-    H1.iter f h1;
-    H2.iter g h2;
-    hash
-end
-
 
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
