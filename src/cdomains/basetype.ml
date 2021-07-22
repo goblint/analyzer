@@ -3,22 +3,15 @@ open Cil
 open Pretty
 
 
-module ProgLocation : Printable.S with type t = location =
+(** Location with special alphanumeric output for extraction. *)
+module ExtractLocation : Printable.S with type t = location =
 struct
-  include Printable.Std (* for default invariant, tag, ... *)
+  include CilType.Location
 
-  open Pretty
-  type t = location
-  let equal = (=)
-  let compare = compare
-  let hash = Hashtbl.hash
-  (* let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S" *)
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let show x = show x
   let pretty () x = text (show x)
-  let name () = "proglines_byte"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
