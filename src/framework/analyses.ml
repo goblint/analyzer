@@ -154,7 +154,7 @@ struct
 end
 
 
-module ProgLinesFun: Printable.S with type t = MyCFG.node =
+module ResultNode: Printable.S with type t = MyCFG.node =
 struct
   include Printable.Std
   type t = MyCFG.node
@@ -168,7 +168,7 @@ struct
     let f = MyCFG.getFun a in
     Basetype.ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
-  let name () = "proglinesfun"
+  let name () = "resultnode"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
@@ -181,7 +181,7 @@ end
 
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
-  include Hash.Printable (ProgLinesFun) (Range)
+  include Hash.Printable (ResultNode) (Range)
   include C
 
   let printXml f xs =
