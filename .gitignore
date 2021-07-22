@@ -59,5 +59,8 @@ sv-comp/goblint.zip
 privPrecCompare*
 tests/regression/*/run
 
+# csmith
+runtime/*
+
 # perf
 perf.data*
