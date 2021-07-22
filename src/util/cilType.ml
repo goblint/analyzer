@@ -14,6 +14,26 @@ struct
   let pretty_diff () (_, _) = nil
 end
 
+module Location: S with type t = location =
+struct
+  include Std
+
+  type t = location
+
+  let name () = "location"
+
+  (* Identity *)
+  let compare x y = Cil.compareLoc x y
+  let equal x y = compare x y = 0
+  let hash x = Hashtbl.hash x (* struct of primitives, so this is fine *)
+
+  (* Output *)
+  let show x = x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column (* TODO: add special output for locUnknown *)
+  let pretty () x = Pretty.text (show x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
 module Varinfo:
 sig
   include S with type t = varinfo
