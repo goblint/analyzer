@@ -1,6 +1,5 @@
-// SKIP PARAM: --enable ana.int.congruence --enable ana.int.congruence_no_overflow
+// PARAM: --enable ana.int.congruence --enable ana.int.congruence_no_overflow
 // from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/implicitunsignedconversion-1.c
-// TODO fix issues and unskip
 int main() {
   unsigned int plus_one = 1;
   int minus_one = -1;
@@ -45,7 +44,7 @@ int main() {
     v3=3;
   }
 
-  assert(v3==3); // UNKNOWN
+  assert(v3==3);
 
   // from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/signextension2-2.c
   unsigned int allOne = -1;
@@ -60,7 +59,7 @@ int main() {
     v4=4;
   }
 
-  assert(v4==4); //UNKNOWN
+  assert(v4==4);
 
   return (0);
 }
