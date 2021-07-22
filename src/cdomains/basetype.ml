@@ -41,21 +41,19 @@ struct
   let to_yojson x = `String (show x)
 end
 
-module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
+module ProgLinesFun: Printable.S with type t = MyCFG.node =
 struct
   include Printable.Std
-  type t = location * MyCFG.node * fundec
+  type t = MyCFG.node
   let copy x = x
-  let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b (* ignores fundec component *)
-  let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x (* ignores fundec component *)
-  let hash (x,a,f) = ProgLines.hash x * MyCFG.Node.hash a (* ignores fundec component *)
-  let pretty_node () (l,x) =
-    match x with
-    | MyCFG.Statement     s -> dprintf "statement \"%a\" at %a" dn_stmt s ProgLines.pretty l
-    | MyCFG.Function      f -> dprintf "result of %s at %a" f.svar.vname ProgLines.pretty l
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.svar.vname ProgLines.pretty l
+  let equal a b = MyCFG.Node.equal a b
+  let compare a b = MyCFG.node_compare a b
+  let hash a = MyCFG.Node.hash a
 
-  let show (x,a,f) = ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
+  let show a =
+    let x = Tracing.getLoc a in
+    let f = MyCFG.getFun a in
+    ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
   let name () = "proglinesfun"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

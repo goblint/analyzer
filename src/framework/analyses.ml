@@ -171,7 +171,8 @@ struct
       | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
       | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
     in
-    let print_one (loc,n,fd) v =
+    let print_one n v =
+      let loc = Tracing.getLoc n in
       BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
@@ -183,7 +184,8 @@ struct
       | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
       | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
     in
-    let print_one (loc,n,fd) v =
+    let print_one n v =
+      let loc = Tracing.getLoc n in
       BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
     in
     iter print_one xs
@@ -222,7 +224,7 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
@@ -274,7 +276,7 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()

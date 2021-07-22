@@ -74,7 +74,9 @@ struct
       let open BatPrintf in
       let live_lines = ref StringMap.empty in
       let dead_lines = ref StringMap.empty in
-      let add_one (l,n,f) v =
+      let add_one n v =
+        let l = Tracing.getLoc n in
+        let f = MyCFG.getFun n in
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
         let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
@@ -156,14 +158,14 @@ struct
       let add_local_var (n,es) state =
         let loc = Tracing.getLoc n in
         if loc <> locUnknown then try
-            let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
-            if Result.mem res p then
+            let fundec = MyCFG.getFun n in
+            if Result.mem res n then
               (* If this source location has been added before, we look it up
                * and add another node to it information to it. *)
-              let prev = Result.find res p in
-              Result.replace res p (LT.add (es,state,fundec) prev)
+              let prev = Result.find res n in
+              Result.replace res n (LT.add (es,state,fundec) prev)
             else
-              Result.add res p (LT.singleton (es,state,fundec))
+              Result.add res n (LT.singleton (es,state,fundec))
           (* If the function is not defined, and yet has been included to the
            * analysis result, we generate a warning. *)
           with Not_found ->
