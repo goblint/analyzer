@@ -86,7 +86,7 @@ let compare_dumps {name = name1; lvh = lvh1} {name = name2; lvh = lvh2} =
   (c, msg)
 
 let count_locations dumps =
-  let module LH = Hashtbl.Make (Basetype.ProgLines) in
+  let module LH = Hashtbl.Make (CilType.Location) in
   let locations = LH.create 113 in
   let location_vars = LVH.create 113 in
   List.iter (fun {lvh; _} ->

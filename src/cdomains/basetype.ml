@@ -2,6 +2,7 @@ module GU = Goblintutil
 open Cil
 open Pretty
 
+(* TODO: remove *)
 module ProgLines : Printable.S with type t = location =
 struct
   include Printable.Std
