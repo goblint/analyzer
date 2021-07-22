@@ -2,23 +2,6 @@ module GU = Goblintutil
 open Cil
 open Pretty
 
-(* TODO: remove *)
-module ProgLines : Printable.S with type t = location =
-struct
-  include Printable.Std
-  type t = location
-  let copy x = x
-  let equal x y =
-    x.line = y.line && x.file = y.file (* ignores byte field *)
-  let compare x y = compare (x.file, x.line) (y.file, y.line) (* ignores byte field *)
-  let hash x = Hashtbl.hash (x.line, x.file)
-  let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
-  let pretty () x = text (show x)
-  let name () = "proglines"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-end
 
 module ProgLocation : Printable.S with type t = location =
 struct

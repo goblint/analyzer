@@ -165,7 +165,7 @@ struct
   let show a =
     let x = Tracing.getLoc a in
     let f = MyCFG.getFun a in
-    Basetype.ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
+    (if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??") ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
