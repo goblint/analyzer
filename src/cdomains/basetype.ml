@@ -41,25 +41,6 @@ struct
   let to_yojson x = `String (show x)
 end
 
-module ProgLinesFun: Printable.S with type t = MyCFG.node =
-struct
-  include Printable.Std
-  type t = MyCFG.node
-  let copy x = x
-  let equal a b = MyCFG.Node.equal a b
-  let compare a b = MyCFG.node_compare a b
-  let hash a = MyCFG.Node.hash a
-
-  let show a =
-    let x = Tracing.getLoc a in
-    let f = MyCFG.getFun a in
-    ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty () x = text (show x)
-  let name () = "proglinesfun"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-end
 
 module Variables =
 struct
