@@ -154,6 +154,8 @@ struct
 
       (* Adding the state at each system variable to the final result *)
       let add_local_var (n,es) state =
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
         let loc = UpdateCil.getLoc n in
         if loc <> locUnknown then try
             let (_,_, fundec) as p = loc, n, Node.find_fundec n in
