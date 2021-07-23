@@ -398,6 +398,7 @@ let stmt_fundecs: fundec StmtH.t Lazy.t =
     h
   )
 
+(** Find [fundec] which the [stmt] is in. *)
 let find_stmt_fundec stmt = StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
 
 
@@ -414,6 +415,7 @@ let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
     h
   )
 
+(** Find [fundec] by the function's [varinfo] (has the function name and type). *)
 let find_varinfo_fundec vi = VarinfoH.find (Lazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
 
@@ -430,6 +432,7 @@ let name_fundecs: fundec StringH.t Lazy.t =
     h
   )
 
+(** Find [fundec] by the function's name. *)
 let find_name_fundec name = StringH.find (Lazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
 
 
@@ -449,6 +452,9 @@ let scope_fundecs: fundec option VarinfoH.t Lazy.t =
     h
   )
 
+(** Find the scope of the [varinfo].
+    If [varinfo] is a local or a formal argument of [fundec], then returns [Some fundec].
+    If [varinfo] is a global or a function itself, then returns [None]. *)
 let find_scope_fundec vi = VarinfoH.find (Lazy.force scope_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
 
@@ -465,6 +471,10 @@ let original_names: string VarinfoH.t Lazy.t =
     h
   )
 
+(** Find the original name (in input source code) of the [varinfo].
+    If it was renamed by CIL, then returns the original name before renaming.
+    If it wasn't renamed by CIL, then returns the same name.
+    If it was inserted by CIL (or Goblint), then returns [None]. *)
 let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
 

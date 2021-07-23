@@ -60,6 +60,7 @@ let location (node: t) =
   | Function fd -> fd.svar.vdecl
   | FunctionEntry fd -> fd.svar.vdecl
 
+(** Find [fundec] which the node is in. *)
 let find_fundec (node: t) =
   match node with
   | Statement stmt -> Cilfacade.find_stmt_fundec stmt
