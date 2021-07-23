@@ -64,8 +64,6 @@ struct
     | MyCFG.Statement s     -> string_of_int s.sid
     | MyCFG.Function f      -> "ret" ^ string_of_int f.svar.vid
     | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.svar.vid
-
-  let context () _ = Pretty.nil
   let node n = n
 end
 
@@ -101,8 +99,6 @@ struct
     BatPrintf.fprintf f "</context>\n"
 
   let var_id (n,_) = Var.var_id n
-
-  let context () (_,c) = LD.pretty () c
   let node (n,_) = n
 end
 exception Deadcode
