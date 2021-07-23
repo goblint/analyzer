@@ -16,7 +16,6 @@ sig
   include Hashtbl.HashedType
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
-  val category : t -> int
 
   val printXml : 'a BatInnerIO.output -> t -> unit
   val var_id   : t -> string
@@ -28,11 +27,6 @@ module Var =
 struct
   type t = MyCFG.node [@@deriving eq, ord]
   let relift x = x
-
-  let category = function
-    | MyCFG.Statement     s -> 1
-    | MyCFG.Function      f -> 2
-    | MyCFG.FunctionEntry f -> 3
 
   let hash x =
     match x with
@@ -81,11 +75,6 @@ module VarF (LD: Printable.S) =
 struct
   type t = MyCFG.node * LD.t [@@deriving eq, ord]
   let relift (n,x) = n, LD.relift x
-
-  let category = function
-    | (MyCFG.Statement     s,_) -> 1
-    | (MyCFG.Function      f,_) -> 2
-    | (MyCFG.FunctionEntry f,_) -> 3
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
   let hash x =

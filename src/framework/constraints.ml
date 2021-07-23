@@ -775,10 +775,6 @@ struct
     | `L a -> LV.hash a
     | `G a -> 113 * GV.hash a
 
-  let category = function
-    | `L a -> LV.category a
-    | `G _ -> -1
-
   let pretty_trace () = function
     | `L a -> LV.pretty_trace () a
     | `G a -> GV.pretty_trace () a
