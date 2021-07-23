@@ -23,11 +23,11 @@ struct
   module Ctx = IntDomain.Flattened
   (* set of predecessor nodes *)
   module Pred = struct
-    include SetDomain.Make (Basetype.ProgLocation)
+    include SetDomain.Make (Basetype.ExtractLocation)
     let of_loc = singleton
     let of_node = of_loc % MyCFG.getLoc
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.show
+    let string_of_elt = Basetype.ExtractLocation.show
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D

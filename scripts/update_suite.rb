@@ -378,7 +378,7 @@ File.open(theresultfile, "w") do |f|
     lines = IO.readlines(File.join(testresults, warnfile))
     lines.each do |l|
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
-      next unless l =~ /(.*)\(.*\:(.*)\)/
+      next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?\)/
       obj,i = $1,$2.to_i
 
       ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]

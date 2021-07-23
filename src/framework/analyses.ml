@@ -16,12 +16,9 @@ sig
   include Hashtbl.HashedType
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
-  val category : t -> int
 
   val printXml : 'a BatInnerIO.output -> t -> unit
   val var_id   : t -> string
-  val file_name : t -> string
-  val line_nr   : t -> int
   val node      : t -> MyCFG.node
   val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
 end
@@ -30,11 +27,6 @@ module Var =
 struct
   type t = MyCFG.node [@@deriving eq, ord]
   let relift x = x
-
-  let category = function
-    | MyCFG.Statement     s -> 1
-    | MyCFG.Function      f -> 2
-    | MyCFG.FunctionEntry f -> 3
 
   let hash x =
     match x with
@@ -50,12 +42,7 @@ struct
     | MyCFG.Function      f -> dprintf "call of %s" f.svar.vname
     | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.svar.vname
 
-  let pretty_trace () x =  dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
-
-  let kind = function
-    | MyCFG.Function f                         -> `ExitOfProc f
-    | MyCFG.Statement {skind = Instr [Call _]; _} -> `ProcCall
-    | _ -> `Other
+  let pretty_trace () x =  dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
 
   let printXml f n =
     let id ch n =
@@ -65,18 +52,13 @@ struct
       | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.svar.vid
     in
     let l = MyCFG.getLoc n in
-    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
+    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte l.column
 
   let var_id n =
     match n with
     | MyCFG.Statement s     -> string_of_int s.sid
     | MyCFG.Function f      -> "ret" ^ string_of_int f.svar.vid
     | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.svar.vid
-
-  let line_nr n = (MyCFG.getLoc n).line
-  let file_name n = (MyCFG.getLoc n).file
-  let description n = sprint 80 (pretty () n)
-  let context () _ = Pretty.nil
   let node n = n
 end
 
@@ -85,11 +67,6 @@ module VarF (LD: Printable.S) =
 struct
   type t = MyCFG.node * LD.t [@@deriving eq, ord]
   let relift (n,x) = n, LD.relift x
-
-  let category = function
-    | (MyCFG.Statement     s,_) -> 1
-    | (MyCFG.Function      f,_) -> 2
-    | (MyCFG.FunctionEntry f,_) -> 3
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
   let hash x =
@@ -107,8 +84,8 @@ struct
     | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.svar.vname
 
   let pretty_trace () (n,c as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c Basetype.ProgLines.pretty (getLocation x)
-    else dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c CilType.Location.pretty (getLocation x)
+    else dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
 
   let printXml f (n,c) =
     Var.printXml f n;
@@ -117,11 +94,6 @@ struct
     BatPrintf.fprintf f "</context>\n"
 
   let var_id (n,_) = Var.var_id n
-
-  let line_nr (n,_) = (MyCFG.getLoc n).line
-  let file_name (n,_) = (MyCFG.getLoc n).file
-  let description (n,_) = sprint 80 (Var.pretty () n)
-  let context () (_,c) = LD.pretty () c
   let node (n,_) = n
 end
 exception Deadcode
@@ -154,6 +126,23 @@ struct
 end
 
 
+module ResultNode: Printable.S with type t = MyCFG.node =
+struct
+  include Printable.Std
+
+  include Node.Node
+
+  let name () = "resultnode"
+
+  let show a =
+    let x = Tracing.getLoc a in
+    let f = MyCFG.getFun a in
+    CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
+  let pretty () x = text (show x)
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
 
 module type ResultConf =
 sig
@@ -162,7 +151,7 @@ end
 
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
-  include Hash.Printable (Basetype.ProgLinesFun) (Range)
+  include Hash.Printable (ResultNode) (Range)
   include C
 
   let printXml f xs =
@@ -171,8 +160,9 @@ struct
       | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
       | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
     in
-    let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
+    let print_one n v =
+      let loc = Tracing.getLoc n in
+      BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" print_id n loc.file loc.line loc.byte loc.column;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
     iter print_one xs
@@ -183,14 +173,15 @@ struct
       | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
       | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
     in
-    let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
+    let print_one n v =
+      let loc = Tracing.getLoc n in
+      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"column\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte loc.column (Yojson.Safe.to_string (Range.to_yojson v))
     in
     iter print_one xs
 
   let printXmlWarning f () =
     let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line (GU.escape m)
+      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
     in
     let one_w f = function
       | `text (m,l)  -> one_text f (m,l)
@@ -202,7 +193,7 @@ struct
 
   let printXmlGlobals f () =
     let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
     in
     let one_w f = function
       | `text (m,l)  -> one_text f (m,l)
@@ -222,7 +213,7 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
@@ -274,7 +265,7 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
@@ -319,23 +310,6 @@ struct
        Printf.printf "Done in %fs!\n" t1 *)
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
-end
-
-module ComposeResults (R1: Printable.S) (R2: Printable.S) (C: ResultConf) =
-struct
-  module R = Printable.Either (R1) (R2)
-  module H1 = Hash.Printable (Basetype.ProgLinesFun) (R1)
-  module H2 = Hash.Printable (Basetype.ProgLinesFun) (R2)
-
-  include Result (R) (C)
-
-  let merge h1 h2 =
-    let hash = create 113 in
-    let f k v = add hash k (`Left v) in
-    let g k v = add hash k (`Right v) in
-    H1.iter f h1;
-    H2.iter g h2;
-    hash
 end
 
 

@@ -775,10 +775,6 @@ struct
     | `L a -> LV.hash a
     | `G a -> 113 * GV.hash a
 
-  let category = function
-    | `L a -> LV.category a
-    | `G _ -> -1
-
   let pretty_trace () = function
     | `L a -> LV.pretty_trace () a
     | `G a -> GV.pretty_trace () a
@@ -790,14 +786,6 @@ struct
   let var_id = function
     | `L a -> LV.var_id a
     | `G a -> GV.var_id a
-
-  let line_nr = function
-    | `L a -> LV.line_nr a
-    | `G a -> GV.line_nr a
-
-  let file_name = function
-    | `L a -> LV.file_name a
-    | `G a -> GV.file_name a
 
   let node = function
     | `L a -> LV.node a
@@ -1126,11 +1114,11 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2));
           incr le
         end else if b2 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2));
           incr gr
         end else
           incr uk
@@ -1158,11 +1146,11 @@ struct
           f_eq ()
         else if b1 then begin
           (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2)); *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
           f_le ()
         end else if b2 then begin
           (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2)); *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
           f_gr ()
         end else
           f_uk ()
@@ -1206,20 +1194,20 @@ struct
     (if should_verify then Goblintutil.verified := Some true);
     let complain_l (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
-                LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
+      ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
+                LVar.pretty_trace v D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
     in
     let complain_sidel v1 (v2:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\nOrigin: %a (%s:%d)\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]"
-      LVar.pretty_trace v2 (LVar.file_name v2) (LVar.line_nr v2)
-      LVar.pretty_trace v1 (LVar.file_name v1) (LVar.line_nr v1)
+      ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]"
+      LVar.pretty_trace v2
+      LVar.pretty_trace v1
       D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
     in
     let complain_sideg v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
-                GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v)
+      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
+                GVar.pretty_trace g LVar.pretty_trace v
                 G.pretty lhs G.pretty rhs
                 G.pretty_diff (rhs,lhs))
     in
