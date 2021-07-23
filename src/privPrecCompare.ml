@@ -78,7 +78,7 @@ let compare_dumps {name = name1; lvh = lvh1} {name = name2; lvh = lvh2} =
       match c with
       | Comparison.Equal -> ()
       | _ ->
-        ignore (Pretty.printf "%a %a: %t\n" d_loc l d_varinfo x (fun () -> msg))
+        ignore (Pretty.printf "%a %a: %t\n" CilType.Location.pretty l d_varinfo x (fun () -> msg))
     ) compared;
   let c = LVH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.Equal in
   let (m, l) = Comparison.counts c in

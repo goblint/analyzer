@@ -1126,11 +1126,11 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2));
           incr le
         end else if b2 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2));
           incr gr
         end else
           incr uk
@@ -1158,11 +1158,11 @@ struct
           f_eq ()
         else if b1 then begin
           (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2)); *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
           f_le ()
         end else if b2 then begin
           (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k d_loc (getLoc k) D.pretty_diff (v1,v2)); *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
           f_gr ()
         end else
           f_uk ()
