@@ -20,7 +20,6 @@ sig
 
   val printXml : 'a BatInnerIO.output -> t -> unit
   val var_id   : t -> string
-  val file_name : t -> string
   val node      : t -> MyCFG.node
   val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
 end
@@ -72,7 +71,6 @@ struct
     | MyCFG.Function f      -> "ret" ^ string_of_int f.svar.vid
     | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.svar.vid
 
-  let file_name n = (MyCFG.getLoc n).file
   let description n = sprint 80 (pretty () n)
   let context () _ = Pretty.nil
   let node n = n
@@ -116,7 +114,6 @@ struct
 
   let var_id (n,_) = Var.var_id n
 
-  let file_name (n,_) = (MyCFG.getLoc n).file
   let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
   let node (n,_) = n
