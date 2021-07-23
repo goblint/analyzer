@@ -52,6 +52,8 @@ struct
   let is_top _ = true
   let bot () = ()
   let is_bot _ = true
+
+  let pretty_diff () _ = Pretty.text "UnitConf: impossible"
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -480,6 +482,7 @@ struct
     | (`Lifted x, `Lifted y) -> Base.leq x y
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    (* TODO: delegate to base like LiftTop *)
     if leq x y then Pretty.text "No Changes" else
       Pretty.dprintf "%a instead of %a" pretty x pretty y
 
@@ -619,6 +622,9 @@ struct
   let widen = join
   let meet = List.map2 Base.meet
   let narrow = meet
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
 module Chain (P: Printable.ChainParams) =

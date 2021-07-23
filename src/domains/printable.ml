@@ -65,7 +65,6 @@ struct
   let pretty () _ = text "Output not supported"
   let show _ = "Output not supported"
   let name () = "blank"
-  let pretty_diff () (x,y) = dprintf "Unsupported"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
 end
 
@@ -83,8 +82,6 @@ module PrintSimple (P: sig
   end) =
 struct
   let pretty () x = text (P.show x)
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
   let to_yojson x = `String (P.show x)
 end
@@ -99,8 +96,6 @@ struct
   let pretty () _ = text N.name
   let show _ = N.name
   let name () = "Unit"
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
   let to_yojson () = `String N.name
   let arbitrary () = QCheck.unit
@@ -223,7 +218,6 @@ struct
     | `Top -> text top_name
 
   let name () = "lifted " ^ Base.name ()
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
     | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.bot_name)
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.top_name)
@@ -312,7 +306,6 @@ struct
     | `Top -> top_name
 
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
     | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.bot_name
     | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
@@ -409,7 +402,6 @@ struct
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z) ]
 
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let invariant c (x, y, z) = Invariant.(Base1.invariant c x && Base2.invariant c y && Base3.invariant c z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
@@ -428,8 +420,6 @@ struct
   let pretty () x = text (show x)
 
   let name () = Base.name () ^ " list"
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f xs =
     let rec loop n = function
       | [] -> ()
@@ -484,7 +474,6 @@ struct
     | `Bot -> text ("bot of " ^ (Base.name ()))
 
   let name () = "bottom or " ^ Base.name ()
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Lifted n -> Base.printXml f n
@@ -546,8 +535,6 @@ struct
   let pretty () n = text n
   let show n = n
   let name () = "String"
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
 end
 

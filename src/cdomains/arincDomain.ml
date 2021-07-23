@@ -69,4 +69,7 @@ struct
   let widen = join
   let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Pred.meet Ctx.meet
   let narrow = meet
+
+  let pretty_diff () (x,y) =
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
