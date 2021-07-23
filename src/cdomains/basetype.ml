@@ -14,7 +14,6 @@ struct
   let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
   let pretty () x = text (show x)
   let name () = "proglines"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
@@ -35,7 +34,6 @@ struct
   let show x = show x
   let pretty () x = text (show x)
   let name () = "proglines_byte"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
@@ -57,7 +55,6 @@ struct
   let show (x,a,f) = ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
   let name () = "proglinesfun"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
@@ -81,7 +78,6 @@ struct
     | x when x.vdecl.line = -4 -> Context
     | _ -> Local
   let name () = "variables"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let category _ = -1
   let line_nr a = a.vdecl.line
   let file_name a = a.vdecl.file
@@ -105,7 +101,6 @@ struct
   let show x = "\"" ^ x ^ "\""
   let pretty () x = text (show x)
   let name () = "raw strings"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
@@ -200,8 +195,6 @@ struct
     | BinOp (_, e1, e2, _) -> (get_vars e1)@(get_vars e2)
     | Lval (Var v, _) -> [v]
     | Lval (Mem e',_) -> (get_vars e')
-
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilStmt: Printable.S with type t = stmt =
@@ -216,7 +209,6 @@ struct
     | _ -> dn_stmt () x
 
   let name () = "expressions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
@@ -225,7 +217,6 @@ struct
   include CilType.Varinfo
   let copy x = x
   let name () = "functions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilFundec =
@@ -234,7 +225,6 @@ struct
   let copy x = x
   let name () = "function decs"
   let dummy = dummyFunDec
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilField =
@@ -244,7 +234,6 @@ struct
   let copy x = x
 
   let name () = "field"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module FieldVariables =
@@ -291,7 +280,6 @@ struct
   let to_group x = Variables.to_group (get_var x)
 
   let name () = "variables and fields"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
@@ -300,5 +288,4 @@ struct
   include CilType.Typ
 
   let name () = "types"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

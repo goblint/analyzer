@@ -29,8 +29,6 @@ struct
   let show x = x
   let pretty () x = text (show x)
   let name () = "strings"
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
       (XmlUtil.escape (show x))
