@@ -102,11 +102,12 @@ let printtrace sys d: unit =
 let gtrace always f sys var ?loc do_subsys fmt =
   let cond =
     (Strs.mem sys !activated || always && Strs.mem sys !trace_sys) &&
+    (* TODO: allow file, column in tracelocs? *)
     match var,loc with
     | Some s, Some l -> (!tracevars = [] || List.mem s !tracevars) &&
-                        (!tracelocs = [] || List.mem l !tracelocs)
+                        (!tracelocs = [] || List.mem l.line !tracelocs)
     | Some s, None   -> (!tracevars = [] || List.mem s !tracevars)
-    | None  , Some l -> (!tracelocs = [] || List.mem l !tracelocs)
+    | None  , Some l -> (!tracelocs = [] || List.mem l.line !tracelocs)
     | _ -> true
   in
   if cond then begin
@@ -129,7 +130,7 @@ let tracel sys ?var fmt =
   let docloc sys doc =
     printtrace sys (dprintf "(%a)@?" CilType.Location.pretty loc ++ indent 2 doc);
   in
-  gtrace true docloc sys var ~loc:loc.line ignore fmt
+  gtrace true docloc sys var ~loc ignore fmt
 
 let tracei (sys:string) ?var ?(subsys=[]) fmt =
   let f sys d = printtrace sys d; traceIndent () in
@@ -151,4 +152,4 @@ let traceli sys ?var ?(subsys=[]) fmt =
     printtrace sys (dprintf "(%a)" CilType.Location.pretty loc ++ indent 2 doc);
     traceIndent ()
   in
-  gtrace true docloc sys var ~loc:loc.line g fmt
+  gtrace true docloc sys var ~loc g fmt
