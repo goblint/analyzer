@@ -28,11 +28,7 @@ struct
   type t = Node.t [@@deriving eq, ord]
   let relift x = x
 
-  let hash x =
-    match x with
-    | MyCFG.Statement     s -> Hashtbl.hash (s.sid, 0)
-    | MyCFG.Function      f -> Hashtbl.hash (f.svar.vid, 1)
-    | MyCFG.FunctionEntry f -> Hashtbl.hash (f.svar.vid, 2)
+  let hash = Node.hash
 
   let getLocation n = Node.location n
 
@@ -52,12 +48,7 @@ struct
   type t = Node.t * LD.t [@@deriving eq, ord]
   let relift (n,x) = n, LD.relift x
 
-  let hashmul x y = if x=0 then y else if y=0 then x else x*y
-  let hash x =
-    match x with
-    | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
-    | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.svar.vid*19)
-    | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.svar.vid*23)
+  let hash (n, c) = Hashtbl.hash (Node.hash n, LD.hash c)
 
   let getLocation (n,d) = Node.location n
 

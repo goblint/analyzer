@@ -48,11 +48,10 @@ let show_cfg = function
   | FunctionEntry fd -> fd.svar.vname ^ "()"
 
 
-let hash x =
-  match x with
-  | Statement s     -> s.sid * 17
-  | Function f      -> f.svar.vid
-  | FunctionEntry f -> -f.svar.vid
+let hash = function
+  | Statement   stmt -> Hashtbl.hash (CilType.Stmt.hash stmt, 0)
+  | Function      fd -> Hashtbl.hash (CilType.Fundec.hash fd, 1)
+  | FunctionEntry fd -> Hashtbl.hash (CilType.Fundec.hash fd, 2)
 
 let location (node: t) =
   match node with
