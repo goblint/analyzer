@@ -141,7 +141,7 @@ struct
   let warning_id = ref 1
   let writeXmlWarnings () =
     let one_text f (m,l) =
-      fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+      fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
     in
     let one_w f = function
       | `text (m,l)  -> one_text f (m,l)

@@ -65,7 +65,7 @@ struct
       | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.svar.vid
     in
     let l = MyCFG.getLoc n in
-    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
+    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte l.column
 
   let var_id n =
     match n with
@@ -165,7 +165,7 @@ struct
   let show a =
     let x = Tracing.getLoc a in
     let f = MyCFG.getFun a in
-    (if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??") ^ "(" ^ f.svar.vname ^ ")"
+    CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
@@ -190,7 +190,7 @@ struct
     in
     let print_one n v =
       let loc = Tracing.getLoc n in
-      BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
+      BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" print_id n loc.file loc.line loc.byte loc.column;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
     iter print_one xs
@@ -203,13 +203,13 @@ struct
     in
     let print_one n v =
       let loc = Tracing.getLoc n in
-      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
+      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"column\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte loc.column (Yojson.Safe.to_string (Range.to_yojson v))
     in
     iter print_one xs
 
   let printXmlWarning f () =
     let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line (GU.escape m)
+      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
     in
     let one_w f = function
       | `text (m,l)  -> one_text f (m,l)
@@ -221,7 +221,7 @@ struct
 
   let printXmlGlobals f () =
     let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
     in
     let one_w f = function
       | `text (m,l)  -> one_text f (m,l)
