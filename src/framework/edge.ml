@@ -34,7 +34,7 @@ type t =
 [@@deriving to_yojson]
 
 
-let pretty () = function
+let pretty_plain () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
   | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars
   | Proc (Some r,f,ars) -> dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (d_list ", " d_exp) ars

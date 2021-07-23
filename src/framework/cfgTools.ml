@@ -60,8 +60,8 @@ let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
 
 let rec pretty_edges () = function
   | [] -> Pretty.dprintf ""
-  | [_,x] -> Edge.pretty () x
-  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty x pretty_edges xs
+  | [_,x] -> Edge.pretty_plain () x
+  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
 
 
 let createCFG (file: file) =

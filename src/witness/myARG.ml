@@ -27,7 +27,7 @@ struct
 
   let embed e = e
   let cfgedge e = Some e
-  let to_string e = Pretty.sprint 80 (Edge.pretty () e)
+  let to_string e = Pretty.sprint 80 (Edge.pretty_plain () e)
 end
 
 type inline_edge =
@@ -37,7 +37,7 @@ type inline_edge =
   [@@deriving to_yojson]
 
 let pretty_inline_edge () = function
-  | CFGEdge e -> Edge.pretty () e
+  | CFGEdge e -> Edge.pretty_plain () e
   | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
   | InlineReturn None -> Pretty.dprintf "InlineReturn"
   | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
