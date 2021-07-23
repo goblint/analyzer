@@ -52,3 +52,8 @@ let show_cfg = function
   | Statement stmt   -> string_of_int stmt.sid (* doesn't use this but defaults to no label and uses ID from show_id instead *)
   | Function fd      -> "return of " ^ fd.svar.vname ^ "()"
   | FunctionEntry fd -> fd.svar.vname ^ "()"
+
+let pretty_trace () = function
+  | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
+  | Function      fd -> dprintf "call of %s" fd.svar.vname
+  | FunctionEntry fd -> dprintf "entry state of %s" fd.svar.vname

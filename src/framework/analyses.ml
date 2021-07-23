@@ -36,13 +36,7 @@ struct
 
   let getLocation n = Node.location n
 
-  let pretty () x =
-    match x with
-    | MyCFG.Statement     s -> dprintf "node %d \"%a\"" s.sid Basetype.CilStmt.pretty s
-    | MyCFG.Function      f -> dprintf "call of %s" f.svar.vname
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.svar.vname
-
-  let pretty_trace () x =  dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
+  let pretty_trace () x =  dprintf "%a on %a" Node.pretty_trace x CilType.Location.pretty (getLocation x)
 
   let printXml f n =
     let l = Node.location n in
@@ -67,15 +61,9 @@ struct
 
   let getLocation (n,d) = Node.location n
 
-  let pretty () x =
-    match x with
-    | (MyCFG.Statement     s,d) -> dprintf "node %d \"%a\"" s.sid Basetype.CilStmt.pretty s
-    | (MyCFG.Function      f,d) -> dprintf "call of %s" f.svar.vname
-    | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.svar.vname
-
-  let pretty_trace () (n,c as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c CilType.Location.pretty (getLocation x)
-    else dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
+  let pretty_trace () ((n,c) as x) =
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
+    else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
 
   let printXml f (n,c) =
     Var.printXml f n;

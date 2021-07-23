@@ -161,11 +161,7 @@ struct
   include CilType.Stmt
   let copy x = x
   let show x = "<stmt>"
-  let pretty () x =
-    match x.skind with
-    | Instr (y::ys) -> dn_instr () y
-    | If (exp,_,_,_) -> dn_exp () exp
-    | _ -> dn_stmt () x
+  let pretty = Cilfacade.stmt_pretty_short
 
   let name () = "expressions"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

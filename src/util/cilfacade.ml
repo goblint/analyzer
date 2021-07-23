@@ -466,3 +466,10 @@ let original_names: string VarinfoH.t Lazy.t =
   )
 
 let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+let stmt_pretty_short () x =
+  match x.skind with
+  | Instr (y::ys) -> dn_instr () y
+  | If (exp,_,_,_) -> dn_exp () exp
+  | _ -> dn_stmt () x

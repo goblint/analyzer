@@ -17,6 +17,7 @@ struct
     | Statement stmt  -> string_of_int stmt.sid
     | Function f      -> "return of " ^ f.svar.vname ^ "()"
     | FunctionEntry f -> f.svar.vname ^ "()"
+  let pretty = Node.pretty_trace
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
   let invariant _ _ = Invariant.none
