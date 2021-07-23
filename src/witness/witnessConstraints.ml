@@ -93,6 +93,8 @@ struct
     let is_top _ = failwith "VIE is_top"
     let bot () = failwith "VIE bot"
     let is_bot _ = failwith "VIE is_bot"
+
+    let pretty_diff () _ = failwith "VIE pretty_diff"
   end
   (* Bot is needed for Hoare widen *)
   (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)

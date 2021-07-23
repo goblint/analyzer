@@ -13,7 +13,6 @@ sig
   val compare: t -> t -> int
   val show: t -> string
   val pretty: unit -> t -> doc
-  val pretty_diff: unit -> (t * t) -> Pretty.doc
   (* These two lets us reuse the short function, and allows some overriding
    * possibilities. *)
   val printXml : 'a BatInnerIO.output -> t -> unit
@@ -142,7 +141,6 @@ struct
   let show = lift_f Base.show
   let to_yojson = lift_f (Base.to_yojson)
   let pretty () = lift_f (Base.pretty ())
-  let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
 
   let invariant c = lift_f (Base.invariant c)
@@ -190,7 +188,6 @@ struct
 
   let pretty () = lift_f (M.pretty ())
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
   let printXml f = lift_f (M.printXml f)
   let to_yojson = lift_f (M.to_yojson)
 
@@ -276,11 +273,6 @@ struct
     | `Right n ->  Base2.show n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
-  let pretty_diff () (x,y) =
-    match (x,y) with
-    | `Left x, `Left y ->  Base1.pretty_diff () (x,y)
-    | `Right x, `Right y ->  Base2.pretty_diff () (x,y)
-    | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f = function
     | `Left x  -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
@@ -376,12 +368,6 @@ struct
   let to_yojson (x, y) =
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y) ]
 
-  let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc =
-    if Base1.equal x1 y1 then
-      Base2.pretty_diff () (x2,y2)
-    else
-      Base1.pretty_diff () (x1,y1)
-
   let invariant c (x, y) = Invariant.(Base1.invariant c x && Base2.invariant c y)
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
 
@@ -420,7 +406,7 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z
 
   let to_yojson (x, y, z) =
-    `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z) ]  
+    `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z) ]
 
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -469,8 +455,6 @@ struct
   let show x = P.names x
   let pretty () x = text (show x)
   let hash x = x-5284
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
   let to_yojson x = `String (P.names x)
 
@@ -532,10 +516,6 @@ struct
     | `Top -> text ("top of " ^ (Base.name ()))
 
   let name () = "top or " ^ Base.name ()
-  let pretty_diff () (x,y) =
-    match (x,y) with
-    | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
-    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f = function
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"

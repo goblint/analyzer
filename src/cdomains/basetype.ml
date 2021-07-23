@@ -124,7 +124,6 @@ struct
   let show (x:t) =  if x then "true" else "false"
   let pretty () x = text (show x)
   let name () = "raw bools"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 end
 
