@@ -75,6 +75,8 @@ struct
       let live_lines = ref StringMap.empty in
       let dead_lines = ref StringMap.empty in
       let add_one n v =
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
         let l = UpdateCil.getLoc n in
         let f = Node.find_fundec n in
         let add_fun  = BatISet.add l.line in

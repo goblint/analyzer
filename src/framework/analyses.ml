@@ -125,6 +125,8 @@ struct
   let name () = "resultnode"
 
   let show a =
+    (* Not using Node.location here to have updated locations in incremental analysis.
+       See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
     let x = UpdateCil.getLoc a in
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
@@ -146,6 +148,8 @@ struct
 
   let printXml f xs =
     let print_one n v =
+      (* Not using Node.location here to have updated locations in incremental analysis.
+         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
       let loc = UpdateCil.getLoc n in
       BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
@@ -154,6 +158,8 @@ struct
 
   let printJson f xs =
     let print_one n v =
+      (* Not using Node.location here to have updated locations in incremental analysis.
+         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
       let loc = UpdateCil.getLoc n in
       BatPrintf.fprintf f "{\n\"id\": \"%s\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"column\": \"%d\", \"states\": %s\n},\n" (Node.show_id n) loc.file loc.line loc.byte loc.column (Yojson.Safe.to_string (Range.to_yojson v))
     in
