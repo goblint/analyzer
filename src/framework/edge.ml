@@ -34,6 +34,19 @@ type t =
 [@@deriving to_yojson]
 
 
+let pretty () = function
+  | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
+  | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
+  | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
+  | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
+  | Entry (f) -> Pretty.text "(body)"
+  | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
+  | Ret (None,f) -> Pretty.dprintf "return"
+  | ASM (_,_,_) -> Pretty.text "ASM ..."
+  | Skip -> Pretty.text "skip"
+  | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
+  | SelfLoop -> Pretty.text "SelfLoop"
+
 let pretty_plain () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
   | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars

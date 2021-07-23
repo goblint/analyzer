@@ -352,21 +352,8 @@ module CfgPrinters (ExtraNodeStyles: ExtraNodeStyles) =
 struct
   let p_node () n = text (Node.show_id n)
 
-  let p_edge () = function
-    | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
-    | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
-    | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
-    | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
-    | Entry (f) -> Pretty.text "(body)"
-    | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
-    | Ret (None,f) -> Pretty.dprintf "return"
-    | ASM (_,_,_) -> Pretty.text "ASM ..."
-    | Skip -> Pretty.text "skip"
-    | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
-    | SelfLoop -> Pretty.text "SelfLoop"
-
   (* escape string in label, otherwise dot might fail *)
-  let p_edge () x = Pretty.text (String.escaped (Pretty.sprint ~width:max_int (p_edge () x)))
+  let p_edge () x = Pretty.text (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
 
   let rec p_edges () = function
     | [] -> Pretty.dprintf ""
