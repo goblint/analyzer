@@ -791,10 +791,6 @@ struct
     | `L a -> LV.var_id a
     | `G a -> GV.var_id a
 
-  let line_nr = function
-    | `L a -> LV.line_nr a
-    | `G a -> GV.line_nr a
-
   let file_name = function
     | `L a -> LV.file_name a
     | `G a -> GV.file_name a

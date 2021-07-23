@@ -47,7 +47,6 @@ struct
   let var_id (c,_) = B.var_id c
   let printXml f (c,_) = B.printXml f c
   let file_name (c,_) = B.file_name c
-  let line_nr (c,_) = B.line_nr c
   let node (c,_) = B.node c
 end
 
