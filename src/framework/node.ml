@@ -47,3 +47,8 @@ let show_id = function
   | Statement stmt   -> string_of_int stmt.sid
   | Function fd      -> "ret" ^ string_of_int fd.svar.vid
   | FunctionEntry fd -> "fun" ^ string_of_int fd.svar.vid
+
+let show_cfg = function
+  | Statement stmt   -> string_of_int stmt.sid (* doesn't use this but defaults to no label and uses ID from show_id instead *)
+  | Function fd      -> "return of " ^ fd.svar.vname ^ "()"
+  | FunctionEntry fd -> fd.svar.vname ^ "()"

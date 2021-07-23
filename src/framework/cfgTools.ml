@@ -364,14 +364,17 @@ struct
     ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges)
 
   let printNodeStyle out (n:node) =
-    let kind_styles =
-      match n with
-      | Statement {skind=If (_,_,_,_); _}  -> ["shape=diamond"]
-      | Statement stmt  -> []
-      | Function f      -> ["label =\"return of "^f.svar.vname^"()\""; "shape=box"]
-      | FunctionEntry f -> ["label =\""^f.svar.vname^"()\""; "shape=box"]
+    let label = match n with
+      | Statement _ -> [] (* use default label *)
+      | _ -> ["label=\"" ^ String.escaped (Node.show_cfg n) ^ "\""]
     in
-    let styles = String.concat "," (kind_styles @ ExtraNodeStyles.extraNodeStyles n) in
+    let shape = match n with
+      | Statement {skind=If (_,_,_,_); _}  -> ["shape=diamond"]
+      | Statement _     -> [] (* use default shape *)
+      | Function _
+      | FunctionEntry _ -> ["shape=box"]
+    in
+    let styles = String.concat "," (label @ shape @ ExtraNodeStyles.extraNodeStyles n) in
     ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node n styles)
 end
 
