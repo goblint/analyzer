@@ -61,7 +61,7 @@ struct
   let get_heap_var loc =
     try Hashtbl.find heap_hash loc
     with Not_found ->
-      let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
+      let name = "(alloc@" ^ CilType.Location.show loc ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       Hashtbl.add heap_hash loc newvar;
       Hashtbl.add heap_vars newvar.vid ();
