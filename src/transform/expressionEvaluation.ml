@@ -153,7 +153,7 @@ module ExpEval : Transform.S =
               Ok query
 
     let string_of_location (location : Cil.location) =
-      location.file ^ ":" ^ (location.line |> string_of_int) ^ " [" ^ (location.byte |> string_of_int) ^ "]"
+      CilType.Location.show location ^ " [" ^ (location.byte |> string_of_int) ^ "]"
 
     let file_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.file l'.file
     let byte_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.byte l'.byte

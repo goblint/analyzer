@@ -118,10 +118,13 @@ let d_acct () = function
 
 let file_re = Str.regexp "\\(.*/\\|\\)\\([^/]*\\)"
 let d_loc () loc =
-  if Str.string_match file_re loc.file 0 then
-    dprintf "%s:%d" (Str.matched_group 2 loc.file) loc.line
-  else
-    dprintf "%s:%d" loc.file loc.line
+  let loc =
+    if Str.string_match file_re loc.file 0 then
+      {loc with file = Str.matched_group 2 loc.file}
+    else
+      loc
+  in
+  CilType.Location.pretty () loc
 
 let d_memo () (t, lv) =
   match lv with
@@ -570,13 +573,14 @@ let print_accesses () =
   in
   TypeHash.iter f accs
 
+(* TODO: this races xml output is unused, remove? *)
 let print_accesses_xml () =
   let allglobs = get_bool "allglobs" in
   let g ls (acs,_) =
     let h (conf,w,loc,e,lp) =
       let atyp = if w then "write" else "read" in
       BatPrintf.printf "  <access type=\"%s\" loc=\"%s\" conf=\"%d\">\n"
-        atyp (Basetype.ProgLines.show loc) conf;
+        atyp (CilType.Location.show loc) conf;
 
       let d_lp f (t,id) = BatPrintf.fprintf f "type=\"%s\" id=\"%s\"" t id in
 

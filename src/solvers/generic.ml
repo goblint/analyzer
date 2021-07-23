@@ -42,15 +42,12 @@ struct
     | 0 -> B.compare u1 v1
     | n -> n
   let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1 (* cannot derive, compares snd first for efficiency *)
-  let category (u,_) = B.category u
   let hash (u,v) = B.hash u + 131233 * v
   let pretty_trace () (u,v:t) =
     Pretty.dprintf "(%a,%d)" B.pretty_trace u v
 
   let var_id (c,_) = B.var_id c
   let printXml f (c,_) = B.printXml f c
-  let file_name (c,_) = B.file_name c
-  let line_nr (c,_) = B.line_nr c
   let node (c,_) = B.node c
 end
 
@@ -144,7 +141,7 @@ struct
   let warning_id = ref 1
   let writeXmlWarnings () =
     let one_text f (m,l) =
-      fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+      fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
     in
     let one_w f = function
       | `text (m,l)  -> one_text f (m,l)
@@ -344,7 +341,7 @@ struct
     (* print_endline "# Generic solver stats"; *)
     Printf.printf "runtime: %s\n" (string_of_time ());
     Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
-    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
+    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();
