@@ -339,17 +339,21 @@ let minimizeCFG (fw,bw) =
 
 module type CfgPrinters =
 sig
+  val defaultNodeStyles: string list
   val printNodeStyle: out_channel -> node -> unit
   val printEdgeStyle: out_channel -> node -> (edges * node) -> unit
 end
 
-module type ExtraNodeStyles =
+module type NodeStyles =
 sig
+  val defaultNodeStyles: string list
   val extraNodeStyles: node -> string list
 end
 
-module CfgPrinters (ExtraNodeStyles: ExtraNodeStyles) =
+module CfgPrinters (NodeStyles: NodeStyles) =
 struct
+  include NodeStyles
+
   let p_node () n = text (Node.show_id n)
 
   (* escape string in label, otherwise dot might fail *)
@@ -374,13 +378,14 @@ struct
       | Function _
       | FunctionEntry _ -> ["shape=box"]
     in
-    let styles = String.concat "," (label @ shape @ ExtraNodeStyles.extraNodeStyles n) in
+    let styles = String.concat "," (label @ shape @ extraNodeStyles n) in
     ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node n styles)
 end
 
 let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
   let node_table = NH.create 113 in
   Printf.fprintf out "digraph cfg {\n";
+  Printf.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
     CfgPrinters.printEdgeStyle out toNode (edges, fromNode);
     NH.replace node_table toNode ();
@@ -395,6 +400,7 @@ let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
 let fprint_hash_dot cfg  =
   let module NoExtraNodeStyles =
   struct
+    let defaultNodeStyles = []
     let extraNodeStyles node = []
   end
   in
@@ -440,10 +446,13 @@ let iter_fd_edges (module Cfg : CfgBackward) fd =
 let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let module HtmlExtraNodeStyles =
   struct
+    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* \N is graphviz special for node ID *)
+
     let extraNodeStyles n =
-      let liveness = if live n then "fillcolor=white" else "fillcolor=orange" in
-      (* \N is graphviz special for node ID *)
-      ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; liveness]
+      if live n then
+        []
+      else
+        ["fillcolor=orange"]
   end
   in
   let iter_edges = iter_fd_edges (module Cfg) fd in
