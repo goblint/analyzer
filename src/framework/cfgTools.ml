@@ -352,13 +352,6 @@ module CfgPrinters (ExtraNodeStyles: ExtraNodeStyles) =
 struct
   let p_node () n = text (Node.show_id n)
 
-  (* TODO: why escape these individually instead of escaping the entire label? *)
-  let dn_exp () e =
-    text (XmlUtil.escape (sprint 800 (dn_exp () e)))
-
-  let dn_lval () l =
-    text (XmlUtil.escape (sprint 800 (dn_lval () l)))
-
   let p_edge () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
     | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
@@ -373,8 +366,7 @@ struct
     | SelfLoop -> Pretty.text "SelfLoop"
 
   (* escape string in label, otherwise dot might fail *)
-  (* Weirdly, this actually causes xdot to fail with \v in string literals. *)
-  (* let p_edge_escaped () x = Pretty.text (String.escaped (Pretty.sprint ~width:0 (Pretty.dprintf "%a" p_edge x))) in *)
+  let p_edge () x = Pretty.text (String.escaped (Pretty.sprint ~width:max_int (p_edge () x)))
 
   let rec p_edges () = function
     | [] -> Pretty.dprintf ""
