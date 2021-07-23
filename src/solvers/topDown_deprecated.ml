@@ -240,16 +240,16 @@ module TD3 =
       let add_set x y d = HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty)); HPM.add rho' (x,y) d; HM.add sidevs y () in
       let is_side x = HM.mem set x in
       let make_wpoint x =
-        if tracing then trace "sol2" "make_wpoint %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if tracing then trace "sol2" "make_wpoint %a\n" S.Var.pretty_trace x;
         HM.replace wpoint x ()
       in
       let rec destabilize x =
-        if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let t = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) t
       and solve x =
-        if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
+        if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then begin
           HM.replace called x ();
           let wpx = HM.mem wpoint x in
@@ -265,14 +265,14 @@ module TD3 =
           if not (S.Dom.equal old tmp) then begin
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
-            if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x wpx (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old;
+            if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) is %a. Old value was %a\n" S.Var.pretty_trace x wpx (is_side x) S.Dom.pretty tmp S.Dom.pretty old;
             HM.replace rho x tmp;
             destabilize x;
             (solve[@tailcall]) x;
           end;
         end;
       and eq x get set =
-        if tracing then trace "sol2" "eq %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
@@ -287,7 +287,7 @@ module TD3 =
           in
           f get sidef
       and eval x y =
-        if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
+        if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
         if not (HM.mem rho y) then init y;
         if HM.mem called y then make_wpoint y else if neg is_side y then solve y;
@@ -296,11 +296,11 @@ module TD3 =
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
         let d = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w) in
-        if tracing then trace "sol2" "sides %a on %i ## %a\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Dom.pretty d;
+        if tracing then trace "sol2" "sides %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d;
         d
       and side x y d =
         if S.Dom.is_bot d then () else
-        if tracing then trace "sol2" "side %a on %i ## %a on %i (wpx: %b) ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem wpoint y) S.Dom.pretty d;
+        if tracing then trace "sol2" "side %a ## %a (wpx: %b) ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y (HM.mem wpoint y) S.Dom.pretty d;
         if not (HM.mem rho y) then begin
           init y;
           add_set x y d;
@@ -317,7 +317,7 @@ module TD3 =
           end
         end
       and init x =
-        if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
         if not (HM.mem rho x) then begin
           new_var_event x;
           HM.replace rho  x (S.Dom.bot ());
@@ -326,7 +326,7 @@ module TD3 =
       in
 
       let set_start (x,d) =
-        if tracing then trace "sol2" "set_start %a on %i ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Dom.pretty d;
+        if tracing then trace "sol2" "set_start %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
         add_set x x d;
         solve x

@@ -19,12 +19,12 @@ module PrE = IntDomain.Flattened
 module Ctx = IntDomain.Flattened
 (* predecessor nodes *)
 module Pred = struct
-  module Base = Basetype.ProgLocation
+  module Base = Basetype.ExtractLocation
   include SetDomain.Make (Base)
   let of_loc = singleton
   let of_node = of_loc % MyCFG.getLoc
   let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-  let string_of_elt = Basetype.ProgLocation.show
+  let string_of_elt = Basetype.ExtractLocation.show
 end
 
 (* define record type here so that fields are accessable outside of D *)

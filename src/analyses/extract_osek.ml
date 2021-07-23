@@ -23,10 +23,10 @@ struct
   module Ctx = IntDomain.Flattened
   (* set of predecessor nodes *)
   module Pred = struct
-    include SetDomain.Make (Basetype.ProgLocation)
+    include SetDomain.Make (Basetype.ExtractLocation)
     let of_node = singleton % MyCFG.getLoc
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.show
+    let string_of_elt = Basetype.ExtractLocation.show
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D
@@ -106,7 +106,7 @@ struct
         "Fun_"^fname^":"
     in
     (* build adjacency matrix for all nodes of this process *)
-    let module HashtblN = Hashtbl.Make (Basetype.ProgLocation) in
+    let module HashtblN = Hashtbl.Make (Basetype.ExtractLocation) in
     let a2bs = HashtblN.create 97 in
     Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
     let nodes = HashtblN.keys a2bs |> List.of_enum in

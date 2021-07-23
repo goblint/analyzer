@@ -271,7 +271,7 @@ let createCFG (file: file) =
            * so the Eclipse plug-in can know what function a given result
            * belongs to. *)
           Hashtbl.add stmt_fundec_map stmt.sid fd;
-          if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (get_stmtLoc stmt.skind);
+          if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid CilType.Location.pretty (get_stmtLoc stmt.skind);
 
           let real_succs () = List.map (find_real_stmt ~parent:stmt) stmt.succs in
 

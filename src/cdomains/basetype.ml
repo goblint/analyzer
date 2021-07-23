@@ -2,62 +2,20 @@ module GU = Goblintutil
 open Cil
 open Pretty
 
-module ProgLines : Printable.S with type t = location =
-struct
-  include Printable.Std
-  type t = location
-  let copy x = x
-  let equal x y =
-    x.line = y.line && x.file = y.file (* ignores byte field *)
-  let compare x y = compare (x.file, x.line) (y.file, y.line) (* ignores byte field *)
-  let hash x = Hashtbl.hash (x.line, x.file)
-  let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
-  let pretty () x = text (show x)
-  let name () = "proglines"
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-end
 
-module ProgLocation : Printable.S with type t = location =
+(** Location with special alphanumeric output for extraction. *)
+module ExtractLocation : Printable.S with type t = location =
 struct
-  include Printable.Std (* for default invariant, tag, ... *)
+  include CilType.Location
 
-  open Pretty
-  type t = location
-  let equal = (=)
-  let compare = compare
-  let hash = Hashtbl.hash
-  (* let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S" *)
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let show x = show x
   let pretty () x = text (show x)
-  let name () = "proglines_byte"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
 
-module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
-struct
-  include Printable.Std
-  type t = location * MyCFG.node * fundec
-  let copy x = x
-  let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b (* ignores fundec component *)
-  let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x (* ignores fundec component *)
-  let hash (x,a,f) = ProgLines.hash x * MyCFG.Node.hash a (* ignores fundec component *)
-  let pretty_node () (l,x) =
-    match x with
-    | MyCFG.Statement     s -> dprintf "statement \"%a\" at %a" dn_stmt s ProgLines.pretty l
-    | MyCFG.Function      f -> dprintf "result of %s at %a" f.svar.vname ProgLines.pretty l
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.svar.vname ProgLines.pretty l
-
-  let show (x,a,f) = ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty () x = text (show x)
-  let name () = "proglinesfun"
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-end
 
 module Variables =
 struct
@@ -67,7 +25,7 @@ struct
   let copy x = x
   let show x = GU.demangle x.vname
   let pretty () x = Pretty.text (show x)
-  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
+  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
   let get_location x = x.vdecl
   type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
@@ -78,11 +36,6 @@ struct
     | x when x.vdecl.line = -4 -> Context
     | _ -> Local
   let name () = "variables"
-  let category _ = -1
-  let line_nr a = a.vdecl.line
-  let file_name a = a.vdecl.file
-  let description n = sprint 80 (pretty_trace () n)
-  let context () _ = Pretty.nil
   let loopSep _ = true
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let var_id _ = "globals"
@@ -256,7 +209,7 @@ struct
 
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = let name = show x in
-    Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
+    Pretty.dprintf "%s on %a" name CilType.Location.pretty (get_var x).vdecl
 
   let get_location x = (get_var x).vdecl
   let to_group x = Variables.to_group (get_var x)
