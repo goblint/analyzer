@@ -341,7 +341,7 @@ struct
     (* print_endline "# Generic solver stats"; *)
     Printf.printf "runtime: %s\n" (string_of_time ());
     Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
-    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
+    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();

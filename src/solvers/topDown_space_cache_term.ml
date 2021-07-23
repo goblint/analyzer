@@ -162,7 +162,7 @@ module WP =
             let d1 = HM.find rho x in
             let d2 = eq x in
             if not (S.Dom.leq d2 d1) then
-              ignore @@ Pretty.printf "Fixpoint not reached in restore step at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x (S.Var.file_name x) (S.Var.line_nr x) S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
+              ignore @@ Pretty.printf "Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
             d1
           ) else (
             let d = eq x in
