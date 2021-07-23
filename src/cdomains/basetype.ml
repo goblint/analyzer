@@ -212,28 +212,10 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
-module CilFun: Printable.S with type t = varinfo =
-struct
-  include CilType.Varinfo
-  let copy x = x
-  let name () = "functions"
-end
-
-module CilFundec =
-struct
-  include CilType.Fundec
-  let copy x = x
-  let name () = "function decs"
-  let dummy = dummyFunDec
-end
-
 module CilField =
 struct
   include Printable.Std (* for default MapDomain.Groupable *)
   include CilType.Fieldinfo
-  let copy x = x
-
-  let name () = "field"
 end
 
 module FieldVariables =
@@ -281,11 +263,4 @@ struct
 
   let name () = "variables and fields"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-end
-
-module CilType =
-struct
-  include CilType.Typ
-
-  let name () = "types"
 end

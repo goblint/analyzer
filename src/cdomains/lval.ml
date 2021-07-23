@@ -364,7 +364,7 @@ end
 
 module Fields =
 struct
-  module F = Basetype.CilField
+  module F = CilType.Fieldinfo
   module I = Basetype.CilExp
   module FI = Printable.Either (F) (I)
   include Printable.Liszt (FI)

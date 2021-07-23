@@ -216,7 +216,7 @@ module Acc_typHashable
 struct
   type t = acc_typ [@@deriving eq]
   let hash = function
-    | `Type t -> Basetype.CilType.hash t
+    | `Type t -> CilType.Typ.hash t
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 end
 module TypeHash = HtF (Acc_typHashable)

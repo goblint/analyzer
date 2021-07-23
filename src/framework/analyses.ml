@@ -520,7 +520,7 @@ module type GenericGlobSolver =
 module ResultType2 (S:Spec) =
 struct
   open S
-  include Printable.Prod3 (C) (D) (Basetype.CilFundec)
+  include Printable.Prod3 (C) (D) (CilType.Fundec)
   let show (es,x,f:t) = call_descr f es
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
