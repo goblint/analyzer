@@ -21,6 +21,7 @@ sig
   val widen: t -> t -> t
   val narrow: t -> t -> t
 
+  (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
   val pretty_diff: unit -> (t * t) -> Pretty.doc
 end
 
