@@ -44,11 +44,6 @@ struct
 
   let pretty_trace () x =  dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
 
-  let kind = function
-    | MyCFG.Function f                         -> `ExitOfProc f
-    | MyCFG.Statement {skind = Instr [Call _]; _} -> `ProcCall
-    | _ -> `Other
-
   let printXml f n =
     let id ch n =
       match n with
