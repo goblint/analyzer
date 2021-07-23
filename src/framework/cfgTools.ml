@@ -26,9 +26,9 @@ let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
   (* DFS *)
   let rec iter_node path_visited_nodes node =
     if NS.mem node path_visited_nodes then
-      NH.add loop_heads node ()
+      NH.replace loop_heads node ()
     else if not (NH.mem global_visited_nodes node) then begin
-      NH.add global_visited_nodes node ();
+      NH.replace global_visited_nodes node ();
       let new_path_visited_nodes = NS.add node path_visited_nodes in
       List.iter (fun (_, to_node) ->
           iter_node new_path_visited_nodes to_node
@@ -285,6 +285,7 @@ let createCFG (file: file) =
         let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd) in
         NH.iter (fun node () ->
             if not (NH.mem reachable_return node) then (
+              if Messages.tracing then Messages.tracei "cfg" "unreachable loop head %a\n" pretty_short_node node;
               let targets = match NH.find_all loop_head_neg1 node with
                 | [] -> [Lazy.force pseudo_return]
                 | targets -> targets
@@ -292,7 +293,8 @@ let createCFG (file: file) =
               (* single loop head may have multiple neg1-s, e.g. test 03/22 *)
               List.iter (fun target ->
                   addEdge_fromLoc node (Test (one, false)) target
-                ) targets
+                ) targets;
+              if Messages.tracing then Messages.traceu "cfg" "unreachable loop head %a\n" pretty_short_node node
             )
           ) loop_heads;
 
