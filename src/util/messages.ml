@@ -19,7 +19,7 @@ let push_warning w =
 
 let track m =
   let loc = !Tracing.current_loc in
-  Printf.fprintf !warn_out "Track (%s:%d); %s\n" loc.file loc.line m
+  Printf.fprintf !warn_out "Track (%s); %s\n" (CilType.Location.show loc) m
 
 (*Warning files*)
 let warn_race = ref stdout
@@ -69,15 +69,15 @@ let print_msg msg loc =
 let print_err msg loc =
   push_warning (`text (msg, loc));
   if get_bool "gccwarn" then
-    Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
+    Printf.printf "%s: error: %s\n" (CilType.Location.show loc) msg
   else
-    Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
+    Printf.fprintf !warn_out "%s (%s)\n%!" msg (CilType.Location.show loc)
 
 
 let print_group group_name errors =
   (* Add warnings to global warning list *)
   push_warning (`group (group_name, errors));
-  let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
+  let f (msg,loc): doc = Pretty.dprintf "%s (%a)" msg CilType.Location.pretty loc in
   if (get_bool "ana.osek.warnfiles") then begin
     match (String.sub group_name 0 6) with
     | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)

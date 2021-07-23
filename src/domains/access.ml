@@ -118,10 +118,13 @@ let d_acct () = function
 
 let file_re = Str.regexp "\\(.*/\\|\\)\\([^/]*\\)"
 let d_loc () loc =
-  if Str.string_match file_re loc.file 0 then
-    dprintf "%s:%d" (Str.matched_group 2 loc.file) loc.line
-  else
-    dprintf "%s:%d" loc.file loc.line
+  let loc =
+    if Str.string_match file_re loc.file 0 then
+      {loc with file = Str.matched_group 2 loc.file}
+    else
+      loc
+  in
+  CilType.Location.pretty () loc
 
 let d_memo () (t, lv) =
   match lv with
