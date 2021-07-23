@@ -11,12 +11,7 @@ struct
   let pretty_diff () (x,y) = dprintf "Unsupported"
   (* let short n x = Pretty.sprint n (pretty () x) *)
   (* let short _ x = var_id x *)
-  let show x =
-    let open MyCFG in
-    match x with
-    | Statement stmt  -> string_of_int stmt.sid
-    | Function f      -> "return of " ^ f.svar.vname ^ "()"
-    | FunctionEntry f -> f.svar.vname ^ "()"
+  let show = Node.show_cfg
   let pretty = Node.pretty_trace
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
