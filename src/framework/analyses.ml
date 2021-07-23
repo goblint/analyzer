@@ -65,7 +65,6 @@ struct
     | MyCFG.Function f      -> "ret" ^ string_of_int f.svar.vid
     | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.svar.vid
 
-  let description n = sprint 80 (pretty () n)
   let context () _ = Pretty.nil
   let node n = n
 end
@@ -103,7 +102,6 @@ struct
 
   let var_id (n,_) = Var.var_id n
 
-  let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
   let node (n,_) = n
 end
