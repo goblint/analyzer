@@ -46,15 +46,3 @@ let pretty () = function
   | Skip -> text "Skip"
   | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
   | SelfLoop -> text "SelfLoop"
-
-(* TODO: unused *)
-let pretty_kind () = function
-  | Assign (lv,rv) -> dprintf "Assign"
-  | Proc (_  ,f,ars) -> dprintf "Proc"
-  | Entry f -> dprintf "Entry %s" f.svar.vname
-  | Ret (r,fd) -> dprintf "Ret"
-  | Test (p,b) -> dprintf "Test"
-  | ASM _ -> text "ASM"
-  | Skip -> text "Skip"
-  | VDecl _ -> text "VDecl"
-  | SelfLoop -> text "SelfLoop"
