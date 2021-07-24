@@ -10,11 +10,8 @@ let getLoc (node: Node.t) =
   (* In case this belongs to a changed function, we will find the true location in the map*)
   try
     NodeMap.find !location_map node
-  with e ->
-    match node with
-    | Statement stmt -> get_stmtLoc stmt.skind
-    | Function fv -> fv.svar.vdecl
-    | FunctionEntry fv -> fv.svar.vdecl
+  with Not_found ->
+    Node.location node
 
 let store_node_location (n: Node.t) (l: location): unit =
   NodeMap.add !location_map n l
