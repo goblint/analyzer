@@ -487,8 +487,9 @@ let stmt_pretty_short () x =
 
 let get_labelLoc = function
   | Label (_, loc, _) -> loc
-  (* TODO: other cases *)
-  | _ -> Cil.locUnknown
+  | Case (_, loc) -> loc
+  | CaseRange (_, _, loc) -> loc
+  | Default loc -> loc
 
 let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
 
