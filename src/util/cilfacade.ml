@@ -129,7 +129,10 @@ class addConstructors cons = object
   method! vfunc fd =
     if List.mem fd.svar.vname (List.map string (get_list "mainfun")) then begin
       if get_bool "dbg.verbose" then ignore (Pretty.printf "Adding constructors to: %s\n" fd.svar.vname);
-      let loc = try get_stmtLoc (List.hd fd.sbody.bstmts) with Failure _ -> locUnknown in (* TODO: what fails? *)
+      let loc = match fd.sbody.bstmts with
+        | s :: _ -> get_stmtLoc s
+        | [] -> locUnknown
+      in
       let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
       let call_cons = List.map f cons1 in
       let body = mkBlock (call_cons @ fd.sbody.bstmts) in
