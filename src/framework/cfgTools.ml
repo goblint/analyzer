@@ -187,7 +187,8 @@ let createCFG (file: file) =
               | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
               | [succ] ->
                 if CilType.Stmt.equal succ stmt then (* self-loop *)
-                  addEdge (Statement stmt) (Cil.locUnknown, Skip) (Statement succ) (* TODO: better loc from somewhere? *)
+                  let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Instr [] itself doesn't have one *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
@@ -285,7 +286,7 @@ let createCFG (file: file) =
         let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd) in
         NH.iter (fun node () ->
             if not (NH.mem reachable_return node) then (
-              if Messages.tracing then Messages.tracei "cfg" "unreachable loop head %a\n" pretty_short_node node;
+              if Messages.tracing then Messages.tracei "cfg" "unreachable loop head %a\n" Node.pretty_plain_short node;
               let targets = match NH.find_all loop_head_neg1 node with
                 | [] -> [Lazy.force pseudo_return]
                 | targets -> targets
@@ -294,7 +295,7 @@ let createCFG (file: file) =
               List.iter (fun target ->
                   addEdge_fromLoc node (Test (one, false)) target
                 ) targets;
-              if Messages.tracing then Messages.traceu "cfg" "unreachable loop head %a\n" pretty_short_node node
+              if Messages.tracing then Messages.traceu "cfg" "unreachable loop head %a\n" Node.pretty_plain_short node
             )
           ) loop_heads;
 

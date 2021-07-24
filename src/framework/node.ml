@@ -55,7 +55,7 @@ let hash = function
 
 let location (node: t) =
   match node with
-  | Statement stmt -> get_stmtLoc stmt.skind
+  | Statement stmt -> Cilfacade.get_stmtLoc stmt
   | Function fd -> fd.svar.vdecl
   | FunctionEntry fd -> fd.svar.vdecl
 

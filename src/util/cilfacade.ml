@@ -483,3 +483,17 @@ let stmt_pretty_short () x =
   | Instr (y::ys) -> dn_instr () y
   | If (exp,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
+
+
+let get_labelLoc = function
+  | Label (_, loc, _) -> loc
+  (* TODO: other cases *)
+  | _ -> Cil.locUnknown
+
+let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
+
+let get_stmtLoc stmt =
+  match stmt.skind with
+  | Instr [] -> get_labelLoc (List.hd stmt.labels) (* TODO: multiple labels *)
+  (* TODO: empty block *)
+  | _ -> get_stmtkindLoc stmt.skind
