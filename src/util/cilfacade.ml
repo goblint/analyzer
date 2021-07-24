@@ -504,6 +504,8 @@ let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this funct
 
 let get_stmtLoc stmt =
   match stmt.skind with
-  | Instr [] -> get_labelsLoc stmt.labels
-  (* TODO: empty block *)
+  (* Cil.get_stmtLoc returns Cil.locUnknown in these cases, so try labels instead *)
+  | Instr []
+  | Block {bstmts = []; _} ->
+    get_labelsLoc stmt.labels
   | _ -> get_stmtkindLoc stmt.skind
