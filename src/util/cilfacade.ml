@@ -491,10 +491,19 @@ let get_labelLoc = function
   | CaseRange (_, _, loc) -> loc
   | Default loc -> loc
 
+let rec get_labelsLoc = function
+  | [] -> Cil.locUnknown
+  | label :: labels ->
+    let loc = get_labelLoc label in
+    if CilType.Location.equal loc Cil.locUnknown then
+      get_labelsLoc labels (* maybe another label has known location *)
+    else
+      loc
+
 let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
 
 let get_stmtLoc stmt =
   match stmt.skind with
-  | Instr [] -> get_labelLoc (List.hd stmt.labels) (* TODO: multiple labels *)
+  | Instr [] -> get_labelsLoc stmt.labels
   (* TODO: empty block *)
   | _ -> get_stmtkindLoc stmt.skind
