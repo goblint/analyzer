@@ -25,7 +25,7 @@ let pretty_plain () = function
 (* TODO: remove this? *)
 (** Pretty node plainly with stmt location. *)
 let pretty_plain_short () = function
-  | Statement s -> text "Statement @ " ++ CilType.Location.pretty () (get_stmtLoc s.skind)
+  | Statement s -> text "Statement @ " ++ CilType.Location.pretty () (Cilfacade.get_stmtLoc s)
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 

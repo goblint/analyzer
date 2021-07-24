@@ -172,7 +172,7 @@ let createCFG (file: file) =
         let loop_head_neg1 = NH.create 3 in
         (* So for each statement in the function body, we do the following: *)
         let handle stmt =
-          if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (get_stmtLoc stmt.skind);
+          if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (Cilfacade.get_stmtLoc stmt);
 
           let real_succs () = List.map (find_real_stmt ~parent:stmt) stmt.succs in
 

@@ -606,7 +606,7 @@ end
 let compute_cfg file =
   let cfgF, cfgB = CfgTools.getCFG file in
   let cfgB' = function
-    | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
+    | MyCFG.Statement s as n -> ([Cilfacade.get_stmtLoc s,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in

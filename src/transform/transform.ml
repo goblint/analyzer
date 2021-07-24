@@ -17,7 +17,7 @@ module PartialEval = struct
   class visitor ask = object
     inherit nopCilVisitor
     method! vstmt s =
-      loc := get_stmtLoc s.skind;
+      loc := Cilfacade.get_stmtLoc s;
       (* ignore @@ Pretty.printf "Set loc at stmt %a to %a\n" d_stmt s CilType.Location.pretty !loc; *)
       DoChildren
     method! vexpr e =
