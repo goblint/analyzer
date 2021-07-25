@@ -542,6 +542,7 @@ struct
           if Ints_t.compare l u <= 0 then
             Some (l, u)
           else
+            (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
             top_of ik
       else if should_ignore_overflow then
         let tl, tu = BatOption.get @@ top_of ik in
