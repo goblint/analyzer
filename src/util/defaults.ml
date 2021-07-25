@@ -121,7 +121,6 @@ let _ = ()
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: (int64 * int64) option."
       ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
       ; reg Analyses "ana.int.congruence"  "false" "Use IntDomain.Congruence: (c, m) option, meaning congruent to c modulo m"
-      ; reg Analyses "ana.int.congruence_no_overflow" "false" "Assume that no overflows occur in congruence operations"
       ; reg Analyses "ana.int.refinement"   "'never'" "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'"
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
@@ -148,6 +147,8 @@ let _ = ()
       ; reg Semantics "sem.unknown_function.spawn" "true"  "Unknown function call spawns reachable functions"
       ; reg Semantics "sem.unknown_function.invalidate.globals" "true"  "Unknown function call invalidates all globals"
       ; reg Semantics "sem.builtin_unreachable.dead_code" "false"  "__builtin_unreachable is assumed to be dead code"
+      ; reg Semantics "sem.int.signed_overflow" "'assume_top'" "How to handle overflows of signed types. Values: 'assume_top' (default): Assume signed overflow results in a top value; 'assume_none': Assume program is free of signed overflows;  'assume_wraparound': Assume signed types wrap-around and two's complement representation of signed integers"
+
 
 (* {4 category [Transformations]} *)
 let _ = ()
