@@ -1172,6 +1172,28 @@ struct
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* FIXME: poly compare? *)
 
+  let max_of_range r = Size.max_from_bit_range (R.maximal r)
+  let min_of_range r = Size.min_from_bit_range (R.minimal r)
+
+  let maximal = function
+    | `Definite x -> Some x
+    | `Excluded (s,r) -> max_of_range r
+    | `Bot -> None
+
+  let minimal = function
+    | `Definite x -> Some x
+    | `Excluded (s,r) -> min_of_range r
+    | `Bot -> None
+
+  let in_range r i =
+    match min_of_range r with
+    | None when BI.compare i BI.zero < 0 -> true
+    | Some l when BI.compare i BI.zero < 0  -> BI.compare l i <= 0
+    | _ ->
+      match max_of_range r with
+      | None -> true
+      | Some u -> i <= u
+
   let is_top x = x = top ()
 
   let equal_to i = function
@@ -1204,6 +1226,7 @@ struct
      *)
     let norm ik v =
       let should_wrap ik = not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" in
+      let should_ignore_overflow ik = Cil.isSigned ik && GobConfig.get_string "sem.int.signed_overflow" = "assume_none" in
       match v with
       | `Excluded (s, r) ->
         let possibly_overflowed = not (R.leq r (size ik)) in
@@ -1211,8 +1234,15 @@ struct
         if not possibly_overflowed then (
           v
         )
+        (* Else, if an overflow might have occurred but we should just ignore it *)
+        else if should_ignore_overflow ik then (
+          let r = size ik in
+          (* filter out excluded elements that are not in the range *)
+          let mapped_excl = S.filter (in_range r) s in
+          `Excluded (mapped_excl, r)
+        )
         (* Else, if an overflow occurred that we should not treat with wrap-around, go to top *)
-        else if not (should_wrap ik) then(
+        else if not (should_wrap ik) then (
           top_of ik
         ) else (
           (* Else an overflow occurred that we should treat with wrap-around *)
@@ -1226,34 +1256,18 @@ struct
         (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
         if should_wrap ik then (
           cast_to ik v
-        ) else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
+        )
+        else if BigInt.compare min x <= 0 && BigInt.compare x max <= 0 then (
           v
-        ) else (
+        )
+        else if should_ignore_overflow ik then (
+          M.warn "DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot";
+          `Bot
+        )
+        else (
           top_of ik
         )
       | `Bot -> `Bot
-
-  let max_of_range r = Size.max_from_bit_range (R.maximal r)
-  let min_of_range r = Size.min_from_bit_range (R.minimal r)
-
-  let maximal = function
-    | `Definite x -> Some x
-    | `Excluded (s,r) -> max_of_range r
-    | `Bot -> None
-
-  let minimal = function
-    | `Definite x -> Some x
-    | `Excluded (s,r) -> min_of_range r
-    | `Bot -> None
-
-  let in_range r i =
-    match min_of_range r with
-    | None when BI.compare i BI.zero < 0 -> true
-    | Some l when BI.compare i BI.zero < 0  -> BI.compare l i <= 0
-    | _ ->
-      match max_of_range r with
-      | None -> true
-      | Some u -> i <= u
 
   let leq x y = match (x,y) with
     (* `Bot <= x is always true *)
