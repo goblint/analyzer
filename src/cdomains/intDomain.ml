@@ -524,7 +524,31 @@ struct
 
   let norm ik = function None -> None | Some (x,y) ->
     if Ints_t.compare x y > 0 then None
-    else if Ints_t.compare (min_int ik) x > 0 || Ints_t.compare (max_int ik) y < 0 then (set_overflow_flag ik; top_of ik)
+    else if Ints_t.compare (min_int ik) x > 0 || Ints_t.compare (max_int ik) y < 0 then (
+      let should_wrap = not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" in
+      let should_ignore_overflow = Cil.isSigned ik && GobConfig.get_string "sem.int.signed_overflow" = "assume_none" in
+      set_overflow_flag ik;
+      if should_wrap then
+        (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the AP interval *)
+        (* will not safely contain the minimal and maximal elements after the cast *)
+        let abs x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
+        let diff = abs (Ints_t.sub (max_int ik) (min_int ik)) in
+        let resdiff = abs (Ints_t.sub y x) in
+        if Ints_t.compare resdiff diff > 0 then
+          top_of ik
+        else
+          let l = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint x) in
+          let u = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint y) in
+          if Ints_t.compare l u <= 0 then
+            Some (l, u)
+          else
+            top_of ik
+      else if should_ignore_overflow then
+        let tl, tu = BatOption.get @@ top_of ik in
+        Some (max tl x, min tu y)
+      else
+        top_of ik
+    )
     else Some (x,y)
 
   let leq (x:t) (y:t) =
