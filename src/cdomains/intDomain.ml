@@ -2277,7 +2277,7 @@ struct
     match x, y with
     | None, None -> bot()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some(c2, m2) -> (if m2 =: Ints_t.zero then (if (c2 |: m1) && (c2 |: c1) then zero else normalize(Some(c1, (gcd m1 c2))))
+    | Some (c1, m1), Some(c2, m2) -> (if m2 =: Ints_t.zero then (if (c2 |: m1) then Some(c1 %: c2,Ints_t.zero) else normalize(Some(c1, (gcd m1 c2))))
         else normalize (Some(c1, gcd m1 (gcd c2 m2))))
 
   let rem ik x y = let res = rem ik x y in
