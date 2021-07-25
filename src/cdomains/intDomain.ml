@@ -1203,7 +1203,7 @@ struct
      * r might be larger than the possible range of this type; the range of the returned `Excluded set will be within the bounds of the ikind.
      *)
     let norm ik v =
-      let should_wrap ik = not (Cil.isSigned ik) || GobConfig.get_bool "ana.int.wrap_on_signed_overflow" in
+      let should_wrap ik = not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" in
       match v with
       | `Excluded (s, r) ->
         let possibly_overflowed = not (R.leq r (size ik)) in
