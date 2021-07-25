@@ -1,4 +1,4 @@
-// PARAMS: --disable ana.int.def_exc --enable ana.int.intervals
+// PARAM: --disable ana.int.def_exc --enable ana.int.interval
 #include "assert.h"
 int main() {
     int x = -1;
