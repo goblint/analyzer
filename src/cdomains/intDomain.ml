@@ -525,10 +525,8 @@ struct
   let norm ik = function None -> None | Some (x,y) ->
     if Ints_t.compare x y > 0 then None
     else if Ints_t.compare (min_int ik) x > 0 || Ints_t.compare (max_int ik) y < 0 then (
-      let should_wrap = not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" in
-      let should_ignore_overflow = Cil.isSigned ik && GobConfig.get_string "sem.int.signed_overflow" = "assume_none" in
       set_overflow_flag ik;
-      if should_wrap then
+      if should_wrap ik then
         (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the AP interval *)
         (* will not safely contain the minimal and maximal elements after the cast *)
         let abs x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
@@ -544,7 +542,7 @@ struct
           else
             (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
             top_of ik
-      else if should_ignore_overflow then
+      else if should_ignore_overflow ik then
         let tl, tu = BatOption.get @@ top_of ik in
         Some (max tl x, min tu y)
       else
@@ -1250,8 +1248,6 @@ struct
      * r might be larger than the possible range of this type; the range of the returned `Excluded set will be within the bounds of the ikind.
      *)
     let norm ik v =
-      let should_wrap ik = not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" in
-      let should_ignore_overflow ik = Cil.isSigned ik && GobConfig.get_string "sem.int.signed_overflow" = "assume_none" in
       match v with
       | `Excluded (s, r) ->
         let possibly_overflowed = not (R.leq r (size ik)) in
@@ -1709,8 +1705,6 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (x, r) -> 31 * R.hash r + 37  * ISet.hash x
 
   let norm ikind v =
-    let should_wrap ik = not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" in
-    let should_ignore_overflow ik = Cil.isSigned ik && GobConfig.get_string "sem.int.signed_overflow" = "assume_none" in
     let min, max = min_int ikind, max_int ikind in
     (* Whether the value v lies within the values of the specified ikind. *)
     let value_in_ikind v =

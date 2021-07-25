@@ -84,6 +84,14 @@ sig
 
   (** Add a schema to the conf*)
   val addenum_sch: jvalue -> unit
+
+  (** Whether for a given ikind, we should compute with wrap-around arithmetic.
+    *  Always for unsigned types, for signed types if 'sem.int.signed_overflow' is 'assume_wraparound'  *)
+  val should_wrap: Cil.ikind -> bool
+
+  (** Whether for a given ikind, we should assume there are no overflows.
+    * Always false for unsigned types, true for signed types if 'sem.int.signed_overflow' is 'assume_none'  *)
+  val should_ignore_overflow: Cil.ikind -> bool
 end
 
 (** The implementation of the [gobConfig] module. *)
@@ -361,6 +369,10 @@ struct
     | _ ->
       eprintf "Cannot drop index %d in array %s:\n%t\n\n" i st print;
       failwith "drop_index"
+
+  let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflow" = "assume_wraparound"
+
+  let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 end
 
 include Impl
