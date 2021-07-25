@@ -1684,6 +1684,8 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (x, r) -> 31 * R.hash r + 37  * ISet.hash x
 
   let norm ikind v =
+    let should_wrap ik = not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" in
+    let should_ignore_overflow ik = Cil.isSigned ik && GobConfig.get_string "sem.int.signed_overflow" = "assume_none" in
     let min, max = min_int ikind, max_int ikind in
     (* Whether the value v lies within the values of the specified ikind. *)
     let value_in_ikind v =
@@ -1695,8 +1697,21 @@ module Enums : S with type int_t = BigInt.t = struct
     in
     match v with
     | Inc xs when ISet.for_all value_in_ikind xs -> v
+    | Inc xs ->
+      if should_wrap ikind then
+        Inc (ISet.map (BigInt.cast_to ikind) xs)
+      else if should_ignore_overflow ikind then
+        Inc (ISet.filter value_in_ikind xs)
+      else
+        top_of ikind
     | Exc (xs, r) when ISet.for_all value_in_ikind xs && range_in_ikind r -> v
-    | _ -> top_of ikind
+    | Exc (xs, r) ->
+      if should_wrap ikind then
+        Exc (ISet.map (BigInt.cast_to ikind) xs, size ikind)
+      else if should_ignore_overflow ikind then
+        Exc (ISet.filter value_in_ikind xs, size ikind)
+      else
+        top_of ikind
 
   let equal_to i = function
     | Inc x ->
