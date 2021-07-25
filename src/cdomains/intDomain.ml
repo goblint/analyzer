@@ -111,6 +111,7 @@ sig
   val of_int: int_t -> t
   val of_bool: bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -136,6 +137,7 @@ sig
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
 
@@ -154,6 +156,7 @@ sig
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
 
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
@@ -221,6 +224,11 @@ struct
   let of_interval ik (l, u) =
     try
       Old.of_interval ik (BI.to_int64 l, BI.to_int64 u)
+    with
+      Failure _ -> top_of ik
+  let of_congruence ik (c, m) =
+    try
+      Old.of_congruence ik (BI.to_int64 c, BI.to_int64 m)
     with
       Failure _ -> top_of ik
 
@@ -319,6 +327,7 @@ struct
   let is_excl_list x = I.is_excl_list x.v
   let to_incl_list x = I.to_incl_list x.v
   let of_interval ikind (lb,ub) = {v = I.of_interval ikind (lb,ub); ikind}
+  let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
   let starting ikind i = {v = I.starting ikind i; ikind}
   let ending ikind i = {v = I.ending ikind i; ikind}
   let maximal x = I.maximal x.v
@@ -460,6 +469,7 @@ module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
   let is_excl_list    x = false
   let to_incl_list    x = None
   let of_interval  ik x = top_of ik
+  let of_congruence ik x = top_of ik
   let starting     ik x = top_of ik
   let ending       ik x = top_of ik
   let maximal         x = None
@@ -985,6 +995,7 @@ struct
   let is_excl_list x = false
   let to_incl_list x = None
   let of_interval ik x = top_of ik
+  let of_congruence ik x = top_of ik
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
   let maximal      x = None
@@ -2092,6 +2103,8 @@ struct
 
   let ending = starting
 
+  let of_congruence ik (c,m) = normalize @@ Some(c,m)
+
   let maximal t = match t with
     | Some (x, y) when y =: Ints_t.zero -> Some x
     | _ -> None
@@ -2458,7 +2471,7 @@ module IntDomTupleImpl = struct
   let starting ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.starting ik }
   let ending ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.ending ik }
   let of_interval ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ik }
-
+  let of_congruence ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_congruence ik }
 
   let refine_with_congruence ik ((a, b, c, d) : t) (cong : (int_t * int_t) option) : t=
     let opt f a =
