@@ -55,7 +55,7 @@ void sequential_both()
     assert(1);
 
   while (1)
-    assert(1);
+    assert(1); // NOWARN (unreachable)
 }
 
 void branch_one()
