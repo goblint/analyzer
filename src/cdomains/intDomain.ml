@@ -1976,7 +1976,16 @@ struct
   let normalize x =
     match x with
     | None -> None
-    | Some (c, m) -> if m =: Ints_t.zero then Some (c, m) else Some (c %: (abs m), (abs m))
+    | Some (c, m) ->
+      if m =: Ints_t.zero then
+        Some (c, m)
+      else
+        let m' = abs m in
+        let c' = c %: m' in
+        if c' <: Ints_t.zero then
+          Some (c' +: m', m')
+        else
+          Some (c' %: m', m')
 
   let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
 

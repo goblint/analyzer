@@ -21,6 +21,9 @@ sig
   val sub : t -> t -> t
   val mul : t -> t -> t
   val div : t -> t -> t
+
+  (* This should be the remainder, not the Euclidian Modulus *)
+  (* -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4 *)
   val rem : t -> t -> t
 
   (* Bitwise *)
@@ -192,10 +195,14 @@ struct
   let mul = Big_int_Z.mult_big_int
 
   (* If the first operand of a div is negative, Zarith rounds the result away from zero.
-    We thus always transform this into a divison with a non-negative first operand.
+     We thus always transform this into a division with a non-negative first operand.
   *)
   let div a b = if Big_int_Z.lt_big_int a zero then Big_int_Z.minus_big_int (Big_int_Z.div_big_int (Big_int_Z.minus_big_int a) b) else Big_int_Z.div_big_int a b
-  let rem = Big_int_Z.mod_big_int
+
+  (* Big_int_Z.mod_big_int computes the Euclidian Modulus, but what we want here is the remainder, as returned by mod on ints
+     -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4
+  *)
+  let rem a b = Big_int_Z.sub_big_int a (mul b (div a b))
 
   let compare = Big_int_Z.compare_big_int
   let equal = Big_int_Z.eq_big_int
