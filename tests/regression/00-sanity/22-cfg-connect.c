@@ -42,7 +42,7 @@ void single()
 void sequential_last()
 {
   int i = 0;
-  while (i < 0)
+  while (i < 10)
     i++;
 
   while (1)
@@ -65,7 +65,7 @@ void branch_one()
   if (r)
   {
     int i = 0;
-    while (i < 0)
+    while (i < 10)
       i++;
   }
   else
@@ -95,7 +95,7 @@ void nested_outer()
   while (1)
   {
     int i = 0;
-    while (i < 0)
+    while (i < 10)
       i++;
   }
 }
@@ -103,7 +103,7 @@ void nested_outer()
 void nested_inner()
 {
   int i = 0;
-  while (i < 0)
+  while (i < 10)
   {
     while (1)
       assert(1);
