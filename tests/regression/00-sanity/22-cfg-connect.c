@@ -51,12 +51,11 @@ void sequential_last()
 
 void sequential_both()
 {
-  // TODO: fix crash
-  // while (1)
-  //   assert(1);
+  while (1)
+    assert(1);
 
-  // while (1)
-  //   assert(1);
+  while (1)
+    assert(1);
 }
 
 void branch_one()

@@ -387,7 +387,10 @@ let createCFG (file: file) =
                   | targets -> targets
                 in
                 List.iter (fun (fromNode, toNode) ->
-                    addEdge_fromLoc fromNode (Test (one, false)) toNode
+                    addEdge_fromLoc fromNode (Test (one, false)) toNode;
+                    match NH.find_option node_scc toNode with
+                    | Some toNode_scc -> iter_scc toNode_scc
+                    | None -> () (* pseudo return, wasn't in scc, but is fine *)
                   ) targets
               )
             )
