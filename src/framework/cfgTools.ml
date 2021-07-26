@@ -58,6 +58,12 @@ let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
   reachable
 
 
+type scc = {
+  nodes: unit NH.t;
+  next: (edges * node) list NH.t;
+  prev: (edges * node) list NH.t;
+}
+
 let scc cfgF cfgB nodes: unit =
   let dfs1 () =
     let visited = NH.create 100 in
@@ -83,29 +89,26 @@ let scc cfgF cfgB nodes: unit =
 
   let dfs2 finished_rev =
     let visited = NH.create 100 in
-    let visited_scc = NH.create 25 in
 
-    let rec dfs_inner node scc =
+    let rec dfs_inner node (scc: scc): unit =
       NH.replace visited node ();
-      NH.replace visited_scc node ();
+      NH.replace scc.nodes node ();
       let out_node = node in
-      node :: List.fold_left (fun scc (_, node) ->
+      List.iter (fun (_, node) ->
           if not (NH.mem visited node) then
             dfs_inner node scc
-          else (
-            if not (NH.mem visited_scc node) then (
-              if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id node) (Node.show_id out_node)
-            );
-            scc
+          else if not (NH.mem scc.nodes node) then (
+            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id node) (Node.show_id out_node)
           )
-        ) scc (NH.find_all cfgB node) (* backwards! *)
+        ) (NH.find_all cfgB node) (* backwards! *)
     in
 
     List.fold_left (fun sccs node ->
         (* if Messages.tracing then Messages.trace "cfg" "dfs2 %s\n" (Node.show_id node); *)
-        NH.clear visited_scc;
         if not (NH.mem visited node) then
-          dfs_inner node [] :: sccs
+          let scc = {nodes = NH.create 25; next = NH.create 5; prev = NH.create 5} in
+          dfs_inner node scc;
+          scc :: sccs
         else
           sccs
       ) [] finished_rev
@@ -114,6 +117,7 @@ let scc cfgF cfgB nodes: unit =
   let sccs = dfs2 finished_rev in
   if Messages.tracing then (
     List.iter (fun scc ->
+        let scc = scc.nodes |> NH.keys |> BatList.of_enum in
         Messages.trace "cfg" "SCC: %a\n" (d_list " " (fun () node -> text (Node.show_id node))) scc
       ) sccs
   );
