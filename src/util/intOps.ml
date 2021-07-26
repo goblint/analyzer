@@ -21,6 +21,9 @@ sig
   val sub : t -> t -> t
   val mul : t -> t -> t
   val div : t -> t -> t
+
+  (* This should be the remainder, not the Euclidian Modulus *)
+  (* -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4 *)
   val rem : t -> t -> t
 
   (* Bitwise *)
