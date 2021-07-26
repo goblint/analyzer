@@ -73,8 +73,8 @@ let createCFG (file: file) =
     if Messages.tracing then
       Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
         pretty_edges edges
-        Node.pretty_plain_short fromNode
-        Node.pretty_plain_short toNode;
+        Node.pretty_trace fromNode
+        Node.pretty_trace toNode;
     H.add cfgB toNode (edges,fromNode);
     H.add cfgF fromNode (edges,toNode);
     Messages.trace "cfg" "done\n\n"
@@ -286,7 +286,7 @@ let createCFG (file: file) =
         let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd) in
         NH.iter (fun node () ->
             if not (NH.mem reachable_return node) then (
-              if Messages.tracing then Messages.tracei "cfg" "unreachable loop head %a\n" Node.pretty_plain_short node;
+              if Messages.tracing then Messages.tracei "cfg" "unreachable loop head %a\n" Node.pretty_trace node;
               let targets = match NH.find_all loop_head_neg1 node with
                 | [] -> [Lazy.force pseudo_return]
                 | targets -> targets
@@ -295,7 +295,7 @@ let createCFG (file: file) =
               List.iter (fun target ->
                   addEdge_fromLoc node (Test (one, false)) target
                 ) targets;
-              if Messages.tracing then Messages.traceu "cfg" "unreachable loop head %a\n" Node.pretty_plain_short node
+              if Messages.tracing then Messages.traceu "cfg" "unreachable loop head %a\n" Node.pretty_trace node
             )
           ) loop_heads;
 
