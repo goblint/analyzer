@@ -137,6 +137,8 @@ let rec pretty_edges () = function
   | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
 
 
+let node_scc_global = NH.create 113
+
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
@@ -362,6 +364,7 @@ let createCFG (file: file) =
         in
         fd_nodes := List.sort_uniq Node.compare !fd_nodes;
         let (sccs, node_scc) = scc cfgF cfgB !fd_nodes in
+        NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
         let visited_scc = ref [] in (* TODO: Hashtbl *)
         let rec iter_scc scc =
           if not (List.memq scc !visited_scc) then (
@@ -516,6 +519,24 @@ let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
   in
   iter_edges printEdge;
   NH.iter (fun node _ -> CfgPrinters.printNodeStyle out node) node_table;
+
+  if get_bool "dbg.cfg.loop-clusters" then (
+    let node_scc_done = NH.create 113 in
+    NH.iter (fun node _ ->
+        if not (NH.mem node_scc_done node) then (
+          match NH.find_option node_scc_global node with
+          | Some scc when NH.length scc.nodes > 1 ->
+            Printf.fprintf out "\tsubgraph cluster {\n\t\t";
+            NH.iter (fun node _ ->
+                NH.replace node_scc_done node ();
+                Printf.fprintf out ("%s; ") (Node.show_id node)
+              ) scc.nodes;
+            Printf.fprintf out "\n\t}\n";
+          | _ -> ()
+        )
+      ) node_table
+  );
+
   Printf.fprintf out "}\n";
   flush out;
   close_out_noerr out
