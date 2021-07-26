@@ -6,7 +6,7 @@ let this_name = "llvm_cbe_this"
 
 module GU = Goblintutil
 module Var = Basetype.Variables
-module Field = Basetype.CilField
+module Field = CilType.Fieldinfo
 
 let fields : (string, string list) Hashtbl.t = Hashtbl.create 111
 
@@ -99,7 +99,7 @@ module FieldSet = SetDomain.ToppedSet (PrettyField) (struct let topname = "all f
 
 module FuncName =
 struct
-  include Lattice.Flat (Basetype.CilFundec) (struct let bot_name = "Error"
+  include Lattice.Flat (CilType.Fundec) (struct let bot_name = "Error"
       let top_name = "Any function" end)
 
   let to_fun_name (x:fundec) = `Lifted x

@@ -125,9 +125,7 @@ struct
     if leq x y then dprintf "%s: These are fine!" (name ()) else
     if is_bot y then dprintf "%s: %a instead of bot" (name ()) pretty x else begin
       let evil = choose (diff x y) in
-      let other = choose y in
-      Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y
-        Base.pretty_diff (evil,other)
+      Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y Base.pretty evil
     end
   let printXml f xs =
     BatPrintf.fprintf f "<value>\n<set>\n";

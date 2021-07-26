@@ -12,7 +12,6 @@ struct
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
   let pretty () x = text (show x)
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
@@ -37,7 +36,6 @@ struct
     | x when x.vdecl.line = -4 -> Context
     | _ -> Local
   let name () = "variables"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let loopSep _ = true
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let var_id _ = "globals"
@@ -56,7 +54,6 @@ struct
   let show x = "\"" ^ x ^ "\""
   let pretty () x = text (show x)
   let name () = "raw strings"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
@@ -75,7 +72,6 @@ struct
   let show (x:t) =  if x then "true" else "false"
   let pretty () x = text (show x)
   let name () = "raw bools"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 end
 
@@ -152,8 +148,6 @@ struct
     | BinOp (_, e1, e2, _) -> (get_vars e1)@(get_vars e2)
     | Lval (Var v, _) -> [v]
     | Lval (Mem e',_) -> (get_vars e')
-
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilStmt: Printable.S with type t = stmt =
@@ -164,35 +158,13 @@ struct
   let pretty = Cilfacade.stmt_pretty_short
 
   let name () = "expressions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-end
-
-module CilFun: Printable.S with type t = varinfo =
-struct
-  include CilType.Varinfo
-  let copy x = x
-  let name () = "functions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-end
-
-module CilFundec =
-struct
-  include CilType.Fundec
-  let copy x = x
-  let name () = "function decs"
-  let dummy = dummyFunDec
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilField =
 struct
   include Printable.Std (* for default MapDomain.Groupable *)
   include CilType.Fieldinfo
-  let copy x = x
-
-  let name () = "field"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module FieldVariables =
@@ -239,14 +211,5 @@ struct
   let to_group x = Variables.to_group (get_var x)
 
   let name () = "variables and fields"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-end
-
-module CilType =
-struct
-  include CilType.Typ
-
-  let name () = "types"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

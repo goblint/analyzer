@@ -29,8 +29,6 @@ struct
   let show x = x
   let pretty () x = text (show x)
   let name () = "strings"
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
       (XmlUtil.escape (show x))
@@ -221,7 +219,7 @@ module Acc_typHashable
 struct
   type t = acc_typ [@@deriving eq]
   let hash = function
-    | `Type t -> Basetype.CilType.hash t
+    | `Type t -> CilType.Typ.hash t
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 end
 module TypeHash = HtF (Acc_typHashable)

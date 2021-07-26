@@ -8,7 +8,6 @@ struct
   include Var
   let to_yojson = Node.to_yojson
 
-  let pretty_diff () (x,y) = dprintf "Unsupported"
   (* let short n x = Pretty.sprint n (pretty () x) *)
   (* let short _ x = var_id x *)
   let show = Node.show_cfg
@@ -89,6 +88,8 @@ struct
     let is_top _ = failwith "VIE is_top"
     let bot () = failwith "VIE bot"
     let is_bot _ = failwith "VIE is_bot"
+
+    let pretty_diff () _ = failwith "VIE pretty_diff"
   end
   (* Bot is needed for Hoare widen *)
   (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
