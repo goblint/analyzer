@@ -60,8 +60,8 @@ let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
 
 type scc = {
   nodes: unit NH.t;
-  next: (edges * node) list NH.t;
-  prev: (edges * node) list NH.t;
+  next: (edges * node) NH.t;
+  prev: (edges * node) NH.t;
 }
 
 let scc cfgF cfgB nodes: unit =
@@ -88,37 +88,44 @@ let scc cfgF cfgB nodes: unit =
   let finished_rev = dfs1 () in
 
   let dfs2 finished_rev =
-    let visited = NH.create 100 in
+    let node_scc = NH.create 100 in
 
     let rec dfs_inner node (scc: scc): unit =
-      NH.replace visited node ();
+      NH.replace node_scc node scc;
       NH.replace scc.nodes node ();
       let out_node = node in
-      List.iter (fun (_, node) ->
-          if not (NH.mem visited node) then
+      List.iter (fun (edges, node) ->
+          if not (NH.mem node_scc node) then
             dfs_inner node scc
           else if not (NH.mem scc.nodes node) then (
-            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id node) (Node.show_id out_node)
+            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id node) (Node.show_id out_node);
+            NH.add scc.prev out_node (edges, node);
+            NH.add (NH.find node_scc node).next node (edges, out_node);
           )
         ) (NH.find_all cfgB node) (* backwards! *)
     in
 
-    List.fold_left (fun sccs node ->
+    let sccs = List.fold_left (fun sccs node ->
         (* if Messages.tracing then Messages.trace "cfg" "dfs2 %s\n" (Node.show_id node); *)
-        if not (NH.mem visited node) then
+        if not (NH.mem node_scc node) then
           let scc = {nodes = NH.create 25; next = NH.create 5; prev = NH.create 5} in
           dfs_inner node scc;
           scc :: sccs
         else
           sccs
       ) [] finished_rev
+    in
+    (sccs, node_scc)
   in
 
-  let sccs = dfs2 finished_rev in
+  let (sccs, node_scc) = dfs2 finished_rev in
   if Messages.tracing then (
     List.iter (fun scc ->
-        let scc = scc.nodes |> NH.keys |> BatList.of_enum in
-        Messages.trace "cfg" "SCC: %a\n" (d_list " " (fun () node -> text (Node.show_id node))) scc
+        let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
+        Messages.trace "cfg" "SCC: %a\n" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
+        NH.iter (fun node _ ->
+            Messages.trace "cfg" "SCC entry: %s\n" (Node.show_id node)
+          ) scc.prev
       ) sccs
   );
 
