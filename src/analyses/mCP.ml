@@ -129,8 +129,6 @@ struct
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
 
-  let pretty_diff () (x,y) = text "Please override me!"
-
   let printXml f xs =
     let print_one a n (module S : Printable.S) x : unit =
       BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);

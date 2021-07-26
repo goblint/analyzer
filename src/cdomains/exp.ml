@@ -7,8 +7,6 @@ struct
 
   let name () = "Cil expressions"
 
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
   (* TODO: what does interesting mean? *)
   let rec interesting x =
     match x with
@@ -245,7 +243,6 @@ struct
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
   let show (x,y,z) = sprint ~width:max_int (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   type ee = EVar of varinfo
           | EAddr

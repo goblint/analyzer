@@ -10,8 +10,6 @@ end
 module Std =
 struct
   include Printable.Std
-
-  let pretty_diff () (_, _) = nil
 end
 
 module Location: S with type t = location =

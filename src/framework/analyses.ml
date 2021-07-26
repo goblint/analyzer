@@ -110,7 +110,6 @@ struct
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
@@ -451,7 +450,7 @@ module type GenericGlobSolver =
 module ResultType2 (S:Spec) =
 struct
   open S
-  include Printable.Prod3 (C) (D) (Basetype.CilFundec)
+  include Printable.Prod3 (C) (D) (CilType.Fundec)
   let show (es,x,f:t) = call_descr f es
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
