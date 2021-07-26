@@ -4,13 +4,9 @@
 
 open Pretty
 open Cil
-open Node
 
 module Strs = Set.Make (String)
-module NodeMap = Hashtbl.Make(Node)
 
-let location_map = ref (NodeMap.create 103: location NodeMap.t)
-let current_node = ref (None: node option)
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
@@ -19,15 +15,6 @@ let active_dep = Hashtbl.create 9
 let tracevars = ref ([]: string list)
 let tracelocs = ref ([]: int list)
 
-let getLoc (node: node) =
-  (* In case this belongs to a changed function, we will find the true location in the map*)
-  try
-    NodeMap.find !location_map node
-  with e ->
-    match node with
-    | Statement stmt -> get_stmtLoc stmt.skind
-    | Function fv -> fv.svar.vdecl
-    | FunctionEntry fv -> fv.svar.vdecl
 
 let addsystem sys = trace_sys := Strs.add sys !trace_sys
 let activate (sys:string) (subsys: string list): unit =

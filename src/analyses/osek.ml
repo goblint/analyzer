@@ -714,7 +714,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
 
   let activate_task ctx (task_name : string) : unit =
-    let task = Cilfacade.getFun task_name in
+    let task = Cilfacade.find_name_fundec task_name in
     ctx.spawn None task.svar []
 
   (* transfer functions *)
