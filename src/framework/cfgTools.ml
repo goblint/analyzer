@@ -306,7 +306,7 @@ let createCFG (file: file) =
                Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
                An extra Neg(1) edge is added in such case. *)
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
-            begin match find_real_stmt ~parent:stmt ~not_found:true brk with
+            begin match find_real_stmt ~not_found:true brk with (* don't specify stmt as parent because if find_real_stmt finds cycle, it should not return the Loop statement *)
               | break_stmt ->
                 (* break statement is what follows the (constant true) Loop *)
                 (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
