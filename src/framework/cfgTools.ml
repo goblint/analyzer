@@ -64,7 +64,7 @@ type scc = {
   prev: (edges * node) NH.t;
 }
 
-let scc cfgF cfgB nodes: unit =
+let scc cfgF cfgB nodes =
   let dfs1 () =
     let visited = NH.create 100 in
 
@@ -118,7 +118,7 @@ let scc cfgF cfgB nodes: unit =
     (sccs, node_scc)
   in
 
-  let (sccs, node_scc) = dfs2 finished_rev in
+  let (sccs, node_scc) as r = dfs2 finished_rev in
   if Messages.tracing then (
     List.iter (fun scc ->
         let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
@@ -129,7 +129,7 @@ let scc cfgF cfgB nodes: unit =
       ) sccs
   );
 
-  ()
+  r
 
 let rec pretty_edges () = function
   | [] -> Pretty.dprintf ""
@@ -361,8 +361,45 @@ let createCFG (file: file) =
         end
         in
         fd_nodes := List.sort_uniq Node.compare !fd_nodes;
-        scc cfgF cfgB !fd_nodes;
-        let loop_heads = find_loop_heads_fun (module TmpCfg) fd in
+        let (sccs, node_scc) = scc cfgF cfgB !fd_nodes in
+        let visited_scc = ref [] in (* TODO: Hashtbl *)
+        let rec iter_scc scc =
+          if not (List.memq scc !visited_scc) then (
+            visited_scc := scc :: !visited_scc;
+            if NH.is_empty scc.next then (
+              if not (NH.mem scc.nodes (Function fd)) then (
+                let targets =
+                  NH.keys scc.nodes
+                  |> BatEnum.concat_map (fun fromNode ->
+                      NH.find_all loop_head_neg1 fromNode
+                      |> BatList.enum
+                      |> BatEnum.filter (fun toNode ->
+                          not (NH.mem scc.nodes toNode)
+                        )
+                      |> BatEnum.map (fun toNode ->
+                          (fromNode, toNode)
+                        )
+                    )
+                  |> BatList.of_enum
+                in
+                let targets = match targets with
+                  | [] -> [(NH.keys scc.nodes |> BatEnum.get_exn, Lazy.force pseudo_return)]
+                  | targets -> targets
+                in
+                List.iter (fun (fromNode, toNode) ->
+                    addEdge_fromLoc fromNode (Test (one, false)) toNode
+                  ) targets
+              )
+            )
+            else
+              NH.iter (fun _ (_, toNode) ->
+                  iter_scc (NH.find node_scc toNode)
+                ) scc.next
+          )
+        in
+        iter_scc (NH.find node_scc (FunctionEntry fd));
+
+        (* let loop_heads = find_loop_heads_fun (module TmpCfg) fd in
         let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd) in
         NH.iter (fun node () ->
             if not (NH.mem reachable_return node) then (
@@ -377,7 +414,7 @@ let createCFG (file: file) =
                 ) targets;
               if Messages.tracing then Messages.traceu "cfg" "unreachable loop head %a\n" Node.pretty_trace node
             )
-          ) loop_heads;
+          ) loop_heads; *)
 
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
