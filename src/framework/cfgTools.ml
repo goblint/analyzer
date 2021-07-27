@@ -151,7 +151,7 @@ let createCFG (file: file) =
   let cfgB = H.create 113 in
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
-  let fd_nodes = ref [] in
+  let fd_nodes = NH.create 113 in
 
   let addEdges fromNode edges toNode =
     if Messages.tracing then
@@ -159,7 +159,8 @@ let createCFG (file: file) =
         pretty_edges edges
         Node.pretty_trace fromNode
         Node.pretty_trace toNode;
-    fd_nodes := fromNode :: toNode :: !fd_nodes;
+    NH.replace fd_nodes fromNode ();
+    NH.replace fd_nodes toNode ();
     H.add cfgB toNode (edges,fromNode);
     H.add cfgF fromNode (edges,toNode);
     Messages.trace "cfg" "done\n\n"
@@ -235,7 +236,7 @@ let createCFG (file: file) =
         if get_bool "dbg.cilcfgdot" then
           Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
 
-        fd_nodes := [];
+        NH.clear fd_nodes;
 
         (* Walk through the parameters and pre-process them a bit... *)
         do_the_params fd;
@@ -369,8 +370,7 @@ let createCFG (file: file) =
           let prev = H.find_all cfgB
         end
         in
-        fd_nodes := List.sort_uniq Node.compare !fd_nodes;
-        let (sccs, node_scc) = scc (module TmpCfg) !fd_nodes in
+        let (sccs, node_scc) = scc (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
         NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
         let module SH = Hashtbl.Make (SCC) in
         let visited_scc = SH.create 13 in
