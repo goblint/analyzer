@@ -33,9 +33,9 @@ jobs:
           key: opam-ocp-indent-${{ runner.os }}-${{ matrix.ocaml-compiler }}
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v1
         with:
-          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          ocaml-version: ${{ matrix.ocaml-compiler }}
 
       - name: Install ocp-indent
         run: opam install -y ocp-indent
