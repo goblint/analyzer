@@ -492,7 +492,7 @@ struct
     match v with
     | _ when v.vglob -> `Global
     | _ when v.vdecl.line = -1 -> `Temp
-    | _ when v.vdecl.line = -3 -> `Parameter
+    | _ when Cilfacade.is_varinfo_formal v -> `Parameter
     | _ -> `Local
 
   let rec short_offs (o: (fieldinfo, exp) offs) a =

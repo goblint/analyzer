@@ -461,6 +461,11 @@ let varinfo_roles: varinfo_role VarinfoH.t Lazy.t =
 (** Find the role of the [varinfo]. *)
 let find_varinfo_role vi = VarinfoH.find (Lazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
+let is_varinfo_formal vi =
+  match find_varinfo_role vi with
+  | Formal _ -> true
+  | _ -> false
+
 
 (** Find the scope of the [varinfo].
     If [varinfo] is a local or a formal argument of [fundec], then returns [Some fundec].

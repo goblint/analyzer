@@ -29,7 +29,7 @@ struct
   let is_local_and_not_pointed_to v =
     (not (v.vglob ||
          v.vdecl.line = -1 || (* TODO: Why?  CIL says:The line number. -1 means "do not know"	*)
-         v.vdecl.line = -3))
+         Cilfacade.is_varinfo_formal v))
     && (not v.vaddrof)  (* to avoid handling pointers, only vars whose address is never taken (i.e. can not be pointed to) *)
     && (Cil.isIntegralType v.vtype)
 

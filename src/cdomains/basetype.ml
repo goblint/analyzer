@@ -32,7 +32,7 @@ struct
   let to_group = Option.some % function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp
-    | x when x.vdecl.line = -3 -> Parameter
+    | x when Cilfacade.is_varinfo_formal x -> Parameter
     | _ -> Local
   let name () = "variables"
   let loopSep _ = true

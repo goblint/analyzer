@@ -7,16 +7,6 @@ module H = NodeH
 module NH = NodeH
 
 
-(* TODO: remove variable grouping via magic location changes *)
-let do_the_params (fd: fundec) =
-  (* This function used to create extra variables, but now it just sets the
-   * vdecl to -3, lovely... *)
-  let create_extra_var (p: varinfo): unit =
-    p.vdecl <- {p.vdecl with line = -3 }
-  in
-  List.iter create_extra_var fd.sformals
-
-
 (* TODO: refactor duplication with find_loop_heads *)
 module NS = Set.Make (Node)
 let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
@@ -150,8 +140,6 @@ let createCFG (file: file) =
         if get_bool "dbg.cilcfgdot" then
           Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
 
-        (* Walk through the parameters and pre-process them a bit... *)
-        do_the_params fd;
         (* Find the first statement in the function *)
         let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
         (* Add the entry edge to that node *)
