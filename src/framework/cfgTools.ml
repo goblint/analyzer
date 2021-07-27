@@ -421,23 +421,6 @@ let createCFG (file: file) =
         in
         iter_scc (NH.find node_scc (FunctionEntry fd));
 
-        (* let loop_heads = find_loop_heads_fun (module TmpCfg) fd in
-        let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd) in
-        NH.iter (fun node () ->
-            if not (NH.mem reachable_return node) then (
-              if Messages.tracing then Messages.tracei "cfg" "unreachable loop head %a\n" Node.pretty_trace node;
-              let targets = match NH.find_all loop_head_neg1 node with
-                | [] -> [Lazy.force pseudo_return]
-                | targets -> targets
-              in
-              (* single loop head may have multiple neg1-s, e.g. test 03/22 *)
-              List.iter (fun target ->
-                  addEdge_fromLoc node (Test (one, false)) target
-                ) targets;
-              if Messages.tracing then Messages.traceu "cfg" "unreachable loop head %a\n" Node.pretty_trace node
-            )
-          ) loop_heads; *)
-
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
