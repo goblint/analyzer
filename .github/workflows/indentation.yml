@@ -19,7 +19,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      # reuse tests.yml or depend on it? https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-using-an-action-in-the-same-repository-as-the-workflow
+      # reuse tests.yml or depend on it to not have to setup OCaml? https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-using-an-action-in-the-same-repository-as-the-workflow
+
+      # rely on cache for now
+      - name: Cache opam switch # https://github.com/marketplace/actions/cache
+        uses: actions/cache@v2
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: |
+            ~/.opam
+            _opam
+          # An explicit key for restoring and saving the cache
+          key: opam-ocp-indent-${{ runner.os }}-${{ runner.ocaml-compiler }}
+
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
         with:
