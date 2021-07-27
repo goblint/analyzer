@@ -58,15 +58,13 @@ let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
   reachable
 
 
-type scc = {
-  nodes: unit NH.t;
-  next: (edges * node) NH.t;
-  prev: (edges * node) NH.t;
-}
-
 module SCC =
 struct
-  type t = scc
+  type t = {
+    nodes: unit NH.t;
+    next: (edges * node) NH.t;
+    prev: (edges * node) NH.t;
+  }
   let equal = (==)
   let hash = Hashtbl.hash
 end
@@ -94,6 +92,7 @@ let scc (module Cfg: CfgBidir) nodes =
       ) [] nodes
   in
 
+  let open SCC in (* open for SCC.t constructors *)
   let (sccs, node_scc) as r =
     (* second DFS to construct SCCs on transpose graph *)
     let node_scc = NH.create 100 in (* like visited, but values are assigned SCCs *)
