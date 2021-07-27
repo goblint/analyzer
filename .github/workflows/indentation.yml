@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
 
       # reuse tests.yml or depend on it? https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-using-an-action-in-the-same-repository-as-the-workflow
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
