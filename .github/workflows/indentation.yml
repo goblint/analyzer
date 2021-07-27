@@ -28,5 +28,5 @@ jobs:
       - name: Install ocp-indent
         run: opam install -y ocp-indent
 
-      - name: Run pre-commit hook
-        run: git reset --soft HEAD~ && ./scripts/hooks/pre-commit
+      - name: Run pre-commit hook on changes since last push
+        run: git reset --soft ${{ github.event.push.before }} && ./scripts/hooks/pre-commit
