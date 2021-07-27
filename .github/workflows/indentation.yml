@@ -9,7 +9,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - 4.12.x
+          - 4.12.0 # setup-ocaml@v1 does not support 4.12.x for ocaml-version
 
     runs-on: ${{ matrix.os }}
 
@@ -35,7 +35,7 @@ jobs:
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v1
         with:
-          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          ocaml-version: ${{ matrix.ocaml-compiler }}
 
       - name: Install ocp-indent
         run: opam install -y ocp-indent
