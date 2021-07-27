@@ -71,7 +71,7 @@ struct
   let hash = Hashtbl.hash
 end
 
-let scc cfgF cfgB nodes =
+let scc (module Cfg: CfgBidir) nodes =
   let dfs1 () =
     let visited = NH.create 100 in
 
@@ -80,7 +80,7 @@ let scc cfgF cfgB nodes =
         NH.replace visited node ();
         node :: List.fold_left (fun finished_rev (_, node) ->
             dfs_inner node finished_rev
-          ) finished_rev (NH.find_all cfgF node)
+          ) finished_rev (Cfg.next node)
       )
       else
         finished_rev
@@ -109,7 +109,7 @@ let scc cfgF cfgB nodes =
             NH.add scc.prev out_node (edges, node);
             NH.add (NH.find node_scc node).next node (edges, out_node);
           )
-        ) (NH.find_all cfgB node) (* backwards! *)
+        ) (Cfg.prev node) (* backwards! *)
     in
 
     let sccs = List.fold_left (fun sccs node ->
@@ -370,7 +370,7 @@ let createCFG (file: file) =
         end
         in
         fd_nodes := List.sort_uniq Node.compare !fd_nodes;
-        let (sccs, node_scc) = scc cfgF cfgB !fd_nodes in
+        let (sccs, node_scc) = scc (module TmpCfg) !fd_nodes in
         NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
         let module SH = Hashtbl.Make (SCC) in
         let visited_scc = SH.create 13 in
