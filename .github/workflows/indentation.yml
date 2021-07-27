@@ -1,0 +1,30 @@
+name: indentation
+
+on: [ push, pull_request]
+
+jobs:
+  indentation:
+    strategy: # remove?
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.12.x
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # reuse tests.yml or depend on it? https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-using-an-action-in-the-same-repository-as-the-workflow
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install ocp-indent
+        run: opam install -y ocp-indent
+
+      - name: Run pre-commit hook
+        run: git reset --soft HEAD~ && ./scripts/hooks/pre-commit
