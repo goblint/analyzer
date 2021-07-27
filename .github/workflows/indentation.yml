@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       # reuse tests.yml or depend on it? https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-using-an-action-in-the-same-repository-as-the-workflow
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
@@ -29,4 +29,4 @@ jobs:
         run: opam install -y ocp-indent
 
       - name: Run pre-commit hook on changes since last push
-        run: git reset --soft ${{ github.event.push.before }} && ./scripts/hooks/pre-commit
+        run: git reset --soft ${{ github.event.before }} && ./scripts/hooks/pre-commit
