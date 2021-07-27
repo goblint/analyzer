@@ -756,18 +756,23 @@ struct
     match v with
     | FunctionEntry _ when full_context ->
       [fun _ _ _ _ -> S.val_of c]
+    | FunctionEntry _ ->
+      []
     | _ ->
-      begin match NodeH.find_option CfgTools.node_scc_global v with
-        | Some scc when NodeH.mem scc.prev v ->
-          List.map (fun (e, u) getl ->
-              (* TODO: don't repeat this check for every prev, bring joining here *)
-              if List.for_all (fun (e, u) -> S.D.is_bot (getl (u, c))) (NodeH.find_all scc.prev v) then
-                fun _ _ _ -> S.D.bot ()
-              else
-                tf (v,c) (e, u) getl
-            ) (Cfg.prev v)
-        | _ -> List.map (tf (v,c)) (Cfg.prev v)
-      end
+      let tf getl sidel getg sideg =
+        let xs =
+          match NodeH.find_option CfgTools.node_scc_global v with
+          | Some scc when NodeH.mem scc.prev v ->
+            let ys = List.map (fun (e, u) -> tf (v,c) (e, u) getl sidel getg sideg) (NodeH.find_all scc.prev v) in
+            if List.for_all S.D.is_bot ys then
+              []
+            else
+              List.map (fun (e, u) -> tf (v,c) (e, u) getl sidel getg sideg) (Cfg.prev v)
+          | _ -> List.map (fun (e, u) -> tf (v,c) (e, u) getl sidel getg sideg) (Cfg.prev v)
+        in
+        List.fold_left S.D.join (S.D.bot ()) xs
+      in
+      [tf]
 end
 
 (** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
