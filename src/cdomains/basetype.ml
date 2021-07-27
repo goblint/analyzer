@@ -27,13 +27,12 @@ struct
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
   let get_location x = x.vdecl
-  type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
+  type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
   let to_group = Option.some % function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp
     | x when x.vdecl.line = -3 -> Parameter
-    | x when x.vdecl.line = -4 -> Context
     | _ -> Local
   let name () = "variables"
   let loopSep _ = true
