@@ -29,7 +29,7 @@ jobs:
           path: |
             ~/.opam
             _opam
-          # An explicit key for restoring and saving the cache
+          # Key for restoring and saving the cache
           key: opam-ocp-indent-${{ runner.os }}-${{ matrix.ocaml-compiler }}
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
