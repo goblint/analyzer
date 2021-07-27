@@ -64,6 +64,13 @@ type scc = {
   prev: (edges * node) NH.t;
 }
 
+module SCC =
+struct
+  type t = scc
+  let equal = (==)
+  let hash = Hashtbl.hash
+end
+
 let scc cfgF cfgB nodes =
   let dfs1 () =
     let visited = NH.create 100 in
@@ -365,10 +372,11 @@ let createCFG (file: file) =
         fd_nodes := List.sort_uniq Node.compare !fd_nodes;
         let (sccs, node_scc) = scc cfgF cfgB !fd_nodes in
         NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
-        let visited_scc = ref [] in (* TODO: Hashtbl *)
+        let module SH = Hashtbl.Make (SCC) in
+        let visited_scc = SH.create 13 in
         let rec iter_scc scc =
-          if not (List.memq scc !visited_scc) then (
-            visited_scc := scc :: !visited_scc;
+          if not (SH.mem visited_scc scc) then (
+            SH.replace visited_scc scc ();
             if NH.is_empty scc.next then (
               if not (NH.mem scc.nodes (Function fd)) then (
                 let targets =
