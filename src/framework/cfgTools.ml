@@ -58,18 +58,22 @@ let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
   reachable
 
 
+(** Strongly connected component. *)
 module SCC =
 struct
   type t = {
-    nodes: unit NH.t;
-    next: (edges * node) NH.t;
-    prev: (edges * node) NH.t;
+    nodes: unit NH.t; (** Set of nodes in SCC, mutated during [computeSCCs]. *)
+    next: (edges * node) NH.t; (** Successor edges from this SCC to another SCC, mutated during [computeSCCs]. *)
+    prev: (edges * node) NH.t; (** Predecessor edges from another SCC to this SCC, mutated during [computeSCCs]. *)
   }
+  (* Identity by physical equality. *)
   let equal = (==)
   let hash = Hashtbl.hash
 end
 
-let scc (module Cfg: CfgBidir) nodes =
+(** Compute strongly connected components (SCCs) of [nodes] in [Cfg].
+    Returns list of SCCs and a mapping from nodes to those SCCs. *)
+let computeSCCs (module Cfg: CfgBidir) nodes =
   (* Kosaraju's algorithm *)
   let finished_rev =
     (* first DFS to construct list of nodes in reverse finished order *)
@@ -374,7 +378,7 @@ let createCFG (file: file) =
           let prev = H.find_all cfgB
         end
         in
-        let (sccs, node_scc) = scc (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
+        let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
         NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
         let module SH = Hashtbl.Make (SCC) in
         let visited_scc = SH.create 13 in
