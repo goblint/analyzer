@@ -72,50 +72,57 @@ struct
 end
 
 let scc (module Cfg: CfgBidir) nodes =
-  let dfs1 () =
+  (* Kosaraju's algorithm *)
+  let finished_rev =
+    (* first DFS to construct list of nodes in reverse finished order *)
     let visited = NH.create 100 in
 
     let rec dfs_inner node finished_rev =
       if not (NH.mem visited node) then (
         NH.replace visited node ();
-        node :: List.fold_left (fun finished_rev (_, node) ->
-            dfs_inner node finished_rev
+        node :: List.fold_left (fun finished_rev (_, next_node) ->
+            dfs_inner next_node finished_rev
           ) finished_rev (Cfg.next node)
       )
       else
         finished_rev
     in
 
+    (* outer DFS loop over unconnected components *)
     List.fold_left (fun finished_rev node ->
-        (* if Messages.tracing then Messages.trace "cfg" "dfs1 %s\n" (Node.show_id node); *)
         dfs_inner node finished_rev
       ) [] nodes
   in
 
-  let finished_rev = dfs1 () in
+  let (sccs, node_scc) as r =
+    (* second DFS to construct SCCs on transpose graph *)
+    let node_scc = NH.create 100 in (* like visited, but values are assigned SCCs *)
 
-  let dfs2 finished_rev =
-    let node_scc = NH.create 100 in
-
-    let rec dfs_inner node (scc: scc): unit =
+    let rec dfs_inner node scc =
+      (* assumes: not (NH.mem node_scc node) *)
       NH.replace node_scc node scc;
       NH.replace scc.nodes node ();
-      let out_node = node in
-      List.iter (fun (edges, node) ->
-          if not (NH.mem node_scc node) then
-            dfs_inner node scc
-          else if not (NH.mem scc.nodes node) then (
-            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id node) (Node.show_id out_node);
-            NH.add scc.prev out_node (edges, node);
-            NH.add (NH.find node_scc node).next node (edges, out_node);
+      List.iter (fun (edges, prev_node) ->
+          if not (NH.mem node_scc prev_node) then
+            dfs_inner prev_node scc
+          else if not (NH.mem scc.nodes prev_node) then (
+            (* prev_node has been visited, but not in current SCC, therefore is backwards edge to predecessor scc *)
+            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id prev_node) (Node.show_id node);
+            NH.add scc.prev node (edges, prev_node);
+            NH.add (NH.find node_scc prev_node).next prev_node (edges, node);
           )
-        ) (Cfg.prev node) (* backwards! *)
+        ) (Cfg.prev node) (* implicitly transpose graph by moving backwards *)
     in
 
+    (* outer DFS loop over unconnected components *)
     let sccs = List.fold_left (fun sccs node ->
-        (* if Messages.tracing then Messages.trace "cfg" "dfs2 %s\n" (Node.show_id node); *)
         if not (NH.mem node_scc node) then
-          let scc = {nodes = NH.create 25; next = NH.create 5; prev = NH.create 5} in
+          let scc = {
+              nodes = NH.create 25;
+              next = NH.create 5;
+              prev = NH.create 5
+            }
+          in
           dfs_inner node scc;
           scc :: sccs
         else
@@ -125,7 +132,6 @@ let scc (module Cfg: CfgBidir) nodes =
     (sccs, node_scc)
   in
 
-  let (sccs, node_scc) as r = dfs2 finished_rev in
   if Messages.tracing then (
     List.iter (fun scc ->
         let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
@@ -135,7 +141,6 @@ let scc (module Cfg: CfgBidir) nodes =
           ) scc.prev
       ) sccs
   );
-
   r
 
 let rec pretty_edges () = function
