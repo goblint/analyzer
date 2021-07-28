@@ -111,6 +111,7 @@ sig
   val of_int: int_t -> t
   val of_bool: bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -136,6 +137,7 @@ sig
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
 
@@ -154,6 +156,7 @@ sig
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
 
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
@@ -221,6 +224,11 @@ struct
   let of_interval ik (l, u) =
     try
       Old.of_interval ik (BI.to_int64 l, BI.to_int64 u)
+    with
+      Failure _ -> top_of ik
+  let of_congruence ik (c, m) =
+    try
+      Old.of_congruence ik (BI.to_int64 c, BI.to_int64 m)
     with
       Failure _ -> top_of ik
 
@@ -319,6 +327,7 @@ struct
   let is_excl_list x = I.is_excl_list x.v
   let to_incl_list x = I.to_incl_list x.v
   let of_interval ikind (lb,ub) = {v = I.of_interval ikind (lb,ub); ikind}
+  let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
   let starting ikind i = {v = I.starting ikind i; ikind}
   let ending ikind i = {v = I.ending ikind i; ikind}
   let maximal x = I.maximal x.v
@@ -460,6 +469,7 @@ module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
   let is_excl_list    x = false
   let to_incl_list    x = None
   let of_interval  ik x = top_of ik
+  let of_congruence ik x = top_of ik
   let starting     ik x = top_of ik
   let ending       ik x = top_of ik
   let maximal         x = None
@@ -805,12 +815,6 @@ struct
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
   let relift x = x
 
-  let abs x =
-    if Ints_t.compare x Ints_t.zero < 0 then
-      Ints_t.neg x
-    else
-      x
-
   let modulo n k =
     let result = Ints_t.rem n k in
     if Ints_t.compare result Ints_t.zero >= 0 then result
@@ -823,10 +827,12 @@ struct
       else if Ints_t.equal m Ints_t.zero then
         Some (c, c)
       else
-        let rcx = if Ints_t.equal x (min_int ik) then x else
-            Ints_t.add x (modulo (Ints_t.sub c x) (abs(m))) in
-        let lcy = if Ints_t.equal y (max_int ik) then y else
-            Ints_t.sub y (modulo (Ints_t.sub y c) (abs(m))) in
+        let rcx =
+          if Ints_t.equal x (min_int ik) then x else
+            Ints_t.add x (modulo (Ints_t.sub c x) (Ints_t.abs m)) in
+        let lcy =
+          if Ints_t.equal y (max_int ik) then y else
+            Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
         if Ints_t.compare rcx lcy > 0 then None
         else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx)
         else norm ik @@ Some (rcx, lcy)
@@ -985,6 +991,7 @@ struct
   let is_excl_list x = false
   let to_incl_list x = None
   let of_interval ik x = top_of ik
+  let of_congruence ik x = top_of ik
   let starting     ikind x = top_of ikind
   let ending       ikind x = top_of ikind
   let maximal      x = None
@@ -1965,14 +1972,6 @@ struct
   let ( |: ) a b =
     if a =: Ints_t.zero then false else (b %: a) =: Ints_t.zero
 
-  let rec gcd x y =
-    if y =: Ints_t.zero then x else gcd y (x %: y)
-  let abs x =
-    if x <: Ints_t.zero then
-      Ints_t.neg x
-    else
-      x
-
   let normalize x =
     match x with
     | None -> None
@@ -1980,7 +1979,7 @@ struct
       if m =: Ints_t.zero then
         Some (c, m)
       else
-        let m' = abs m in
+        let m' = Ints_t.abs m in
         let c' = c %: m' in
         if c' <: Ints_t.zero then
           Some (c' +: m', m')
@@ -2024,7 +2023,7 @@ struct
     | Some _, None -> false
     | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero && m1 =: Ints_t.zero -> c1 =: c2
     | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero -> c1 =: c2 && m1 =: Ints_t.zero
-    | Some (c1,m1), Some (c2,m2) -> m2 |: (gcd (c1 -: c2) m1)
+    | Some (c1,m1), Some (c2,m2) -> m2 |: (Ints_t.gcd (c1 -: c2) m1)
      (* Typo in original equation of P. Granger (m2 instead of m1): gcd (c1 -: c2) m2
      Reference: https://doi.org/10.1080/00207168908803778 Page 171 corollary 3.3*)
 
@@ -2037,7 +2036,7 @@ struct
     match x, y with
     | None, z | z, None -> z
     | Some (c1,m1), Some (c2,m2) ->
-      let m3 = gcd m1 (gcd m2 (c1 -: c2)) in
+      let m3 = Ints_t.gcd m1 (Ints_t.gcd m2 (c1 -: c2)) in
       normalize (Some (c1, m3))
 
   let join ik (x:t) y =
@@ -2062,7 +2061,7 @@ struct
     | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero -> if c1 =: c2 then Some (c1, Ints_t.zero) else None
     | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero -> simple_case c1 c2 m2
     | Some (c1, m1), Some (c2, m2) when m2 =: Ints_t.zero -> simple_case c2 c1 m1
-    | Some (c1, m1), Some (c2, m2) when (gcd m1 m2) |: (c1 -: c2) ->
+    | Some (c1, m1), Some (c2, m2) when (Ints_t.gcd m1 m2) |: (c1 -: c2) ->
       let (c, m) = congruence_series m1 (c2 -: c1 ) m2 in
       normalize (Some(c1 +: (m1 *: (m /: c)), m1 *: (m2 /: c)))
     | _  -> None
@@ -2091,6 +2090,8 @@ struct
   let starting ik n = top()
 
   let ending = starting
+
+  let of_congruence ik (c,m) = normalize @@ Some(c,m)
 
   let maximal t = match t with
     | Some (x, y) when y =: Ints_t.zero -> Some x
@@ -2175,7 +2176,7 @@ struct
   let shift_left ik x y =
     (* Naive primality test *)
     let is_prime n =
-      let n = abs n in
+      let n = Ints_t.abs n in
       let rec is_prime' d =
         (d *: d >: n) || ((not ((n %: d) =: Ints_t.zero)) && (is_prime' [@tailcall]) (d +: Ints_t.one))
       in
@@ -2192,9 +2193,9 @@ struct
       else
         let x = (Ints_t.bitand (max_int ik) (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
         if is_prime (m' +: Ints_t.one) then
-          Some (x *: c, gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
+          Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
         else
-          Some (x *: c, gcd (x *: m) (c *: x))
+          Some (x *: c, Ints_t.gcd (x *: m) (c *: x))
 
   let shift_left ik x y =
     let res = shift_left ik x y in
@@ -2205,9 +2206,9 @@ struct
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None ->
-       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) when no_ov ->
-       Some (c1 *: c2, gcd (c1 *: m2) (gcd (m1 *: c2) (m1 *: m2)))
+      Some (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
        Some((c1 *: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
@@ -2229,7 +2230,7 @@ struct
     | None, None -> bot ()
     | None, _ | _, None ->
        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize (Some (c1 +: c2, gcd m1 m2))
+    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize (Some (c1 +: c2, Ints_t.gcd m1 m2))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
        Some((c1 +: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
@@ -2277,8 +2278,14 @@ struct
     match x, y with
     | None, None -> bot()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some(c2, m2) -> (if m2 =: Ints_t.zero then (if (c2 |: m1) && (c2 |: c1) then zero else normalize(Some(c1, (gcd m1 c2))))
-        else normalize (Some(c1, gcd m1 (gcd c2 m2))))
+    | Some (c1, m1), Some(c2, m2) ->
+      if m2 =: Ints_t.zero then
+        if (c2 |: m1) then
+          Some(c1 %: c2,Ints_t.zero)
+        else
+          normalize (Some(c1, (Ints_t.gcd m1 c2)))
+      else
+        normalize (Some(c1, Ints_t.gcd m1 (Ints_t.gcd c2 m2)))
 
   let rem ik x y = let res = rem ik x y in
     if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pretty x pretty y pretty res;
@@ -2379,14 +2386,14 @@ struct
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
-       if m =: Ints_t.zero then
-         if (c <: x || c >: y) then None else Some (c, Ints_t.zero)
-       else
-         let rcx = x +: ((c -: x) %: abs(m)) in
-         let lcy = y -: ((y -: c) %: abs(m)) in
-         if rcx >: lcy then None
-         else if rcx =: lcy then Some (rcx, Ints_t.zero)
-         else cong
+      if m =: Ints_t.zero then
+        if (c <: x || c >: y) then None else Some (c, Ints_t.zero)
+      else
+        let rcx = x +: ((c -: x) %: Ints_t.abs m) in
+        let lcy = y -: ((y -: c) %: Ints_t.abs m) in
+        if rcx >: lcy then None
+        else if rcx =: lcy then Some (rcx, Ints_t.zero)
+        else cong
     | _ -> None
 
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t) option) : t =
@@ -2458,7 +2465,7 @@ module IntDomTupleImpl = struct
   let starting ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.starting ik }
   let ending ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.ending ik }
   let of_interval ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ik }
-
+  let of_congruence ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_congruence ik }
 
   let refine_with_congruence ik ((a, b, c, d) : t) (cong : (int_t * int_t) option) : t=
     let opt f a =
