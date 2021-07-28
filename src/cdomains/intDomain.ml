@@ -1972,9 +1972,6 @@ struct
   let ( |: ) a b =
     if a =: Ints_t.zero then false else (b %: a) =: Ints_t.zero
 
-  let rec gcd x y =
-    if y =: Ints_t.zero then x else gcd y (x %: y)
-
   let normalize x =
     match x with
     | None -> None
@@ -2026,7 +2023,7 @@ struct
     | Some _, None -> false
     | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero && m1 =: Ints_t.zero -> c1 =: c2
     | Some (c1,m1), Some (c2,m2) when m2 =: Ints_t.zero -> c1 =: c2 && m1 =: Ints_t.zero
-    | Some (c1,m1), Some (c2,m2) -> m2 |: (gcd (c1 -: c2) m1)
+    | Some (c1,m1), Some (c2,m2) -> m2 |: (Ints_t.gcd (c1 -: c2) m1)
      (* Typo in original equation of P. Granger (m2 instead of m1): gcd (c1 -: c2) m2
      Reference: https://doi.org/10.1080/00207168908803778 Page 171 corollary 3.3*)
 
@@ -2039,7 +2036,7 @@ struct
     match x, y with
     | None, z | z, None -> z
     | Some (c1,m1), Some (c2,m2) ->
-      let m3 = gcd m1 (gcd m2 (c1 -: c2)) in
+      let m3 = Ints_t.gcd m1 (Ints_t.gcd m2 (c1 -: c2)) in
       normalize (Some (c1, m3))
 
   let join ik (x:t) y =
@@ -2064,7 +2061,7 @@ struct
     | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero -> if c1 =: c2 then Some (c1, Ints_t.zero) else None
     | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero -> simple_case c1 c2 m2
     | Some (c1, m1), Some (c2, m2) when m2 =: Ints_t.zero -> simple_case c2 c1 m1
-    | Some (c1, m1), Some (c2, m2) when (gcd m1 m2) |: (c1 -: c2) ->
+    | Some (c1, m1), Some (c2, m2) when (Ints_t.gcd m1 m2) |: (c1 -: c2) ->
       let (c, m) = congruence_series m1 (c2 -: c1 ) m2 in
       normalize (Some(c1 +: (m1 *: (m /: c)), m1 *: (m2 /: c)))
     | _  -> None
@@ -2196,9 +2193,9 @@ struct
       else
         let x = (Ints_t.bitand (max_int ik) (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
         if is_prime (m' +: Ints_t.one) then
-          Some (x *: c, gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
+          Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
         else
-          Some (x *: c, gcd (x *: m) (c *: x))
+          Some (x *: c, Ints_t.gcd (x *: m) (c *: x))
 
   let shift_left ik x y =
     let res = shift_left ik x y in
@@ -2209,9 +2206,9 @@ struct
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None ->
-       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) when no_ov ->
-       Some (c1 *: c2, gcd (c1 *: m2) (gcd (m1 *: c2) (m1 *: m2)))
+      Some (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
        Some((c1 *: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
@@ -2233,7 +2230,7 @@ struct
     | None, None -> bot ()
     | None, _ | _, None ->
        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize (Some (c1 +: c2, gcd m1 m2))
+    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize (Some (c1 +: c2, Ints_t.gcd m1 m2))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
        Some((c1 +: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
@@ -2281,8 +2278,14 @@ struct
     match x, y with
     | None, None -> bot()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some(c2, m2) -> (if m2 =: Ints_t.zero then (if (c2 |: m1) then Some(c1 %: c2,Ints_t.zero) else normalize(Some(c1, (gcd m1 c2))))
-        else normalize (Some(c1, gcd m1 (gcd c2 m2))))
+    | Some (c1, m1), Some(c2, m2) ->
+      if m2 =: Ints_t.zero then
+        if (c2 |: m1) then
+          Some(c1 %: c2,Ints_t.zero)
+        else
+          normalize (Some(c1, (Ints_t.gcd m1 c2)))
+      else
+        normalize (Some(c1, Ints_t.gcd m1 (Ints_t.gcd c2 m2)))
 
   let rem ik x y = let res = rem ik x y in
     if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pretty x pretty y pretty res;

@@ -23,6 +23,7 @@ sig
   val mul : t -> t -> t
   val div : t -> t -> t
   val rem : t -> t -> t
+  val gcd : t-> t -> t
 
   (* Bitwise *)
   val shift_left : t -> int -> t
@@ -79,6 +80,9 @@ struct
   let mul a b = a * b
   let div = (/)
   let rem = (mod)
+  let gcd x y =
+    let rec gcd' x y = if y = 0 then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = (lsl)
   let shift_right = (lsr)
@@ -117,6 +121,9 @@ struct
   let mul = Int32.mul
   let div = Int32.div
   let rem = Int32.rem
+  let gcd x y =
+    let rec gcd' x y = if y = zero then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = Int32.shift_left
   let shift_right = Int32.shift_right_logical
@@ -157,6 +164,9 @@ struct
   let mul = Int64.mul
   let div = Int64.div
   let rem = Int64.rem
+  let gcd x y =
+    let rec gcd' x y = if y = zero then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = Int64.shift_left
   let shift_right = Int64.shift_right_logical
@@ -206,6 +216,7 @@ struct
   *)
   let rem a b = Big_int_Z.sub_big_int a (mul b (div a b))
 
+  let gcd x y = abs @@ Big_int_Z.gcd_big_int x y
   let compare = Big_int_Z.compare_big_int
   let equal = Big_int_Z.eq_big_int
 
