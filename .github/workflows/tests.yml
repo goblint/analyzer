@@ -26,16 +26,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Cache # https://github.com/marketplace/actions/cache
-        uses: actions/cache@v2
-        with:
-          # A list of files, directories, and wildcard patterns to cache and restore
-          path: |
-            ~/.opam
-            _opam
-          # An explicit key for restoring and saving the cache
-          key: opam-${{ runner.os }}-${{ matrix.ocaml-compiler }}-${{ hashFiles('goblint.opam.locked') }}
-
       - name: Setup OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
         with:
