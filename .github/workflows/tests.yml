@@ -44,8 +44,11 @@ jobs:
       # Split build and tests into separate jobs and let build job upload the goblint binary as an artifact?
       # https://help.github.com/en/actions/configuring-and-managing-workflows/persisting-workflow-data-using-artifacts#passing-data-between-jobs-in-a-workflow
 
-      - name: Install dependencies
+      - name: Install opam dependencies
         run: opam install . --deps-only --locked
+
+      - name: Install system dependencies
+        run: opam depext
 
       - name: Build
         run: ./make.sh nat
