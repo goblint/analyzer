@@ -815,12 +815,6 @@ struct
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (of_interval ik) pair_arb)
   let relift x = x
 
-  let abs x =
-    if Ints_t.compare x Ints_t.zero < 0 then
-      Ints_t.neg x
-    else
-      x
-
   let modulo n k =
     let result = Ints_t.rem n k in
     if Ints_t.compare result Ints_t.zero >= 0 then result
@@ -833,10 +827,12 @@ struct
       else if Ints_t.equal m Ints_t.zero then
         Some (c, c)
       else
-        let rcx = if Ints_t.equal x (min_int ik) then x else
-            Ints_t.add x (modulo (Ints_t.sub c x) (abs(m))) in
-        let lcy = if Ints_t.equal y (max_int ik) then y else
-            Ints_t.sub y (modulo (Ints_t.sub y c) (abs(m))) in
+        let rcx =
+          if Ints_t.equal x (min_int ik) then x else
+            Ints_t.add x (modulo (Ints_t.sub c x) (Ints_t.abs m)) in
+        let lcy =
+          if Ints_t.equal y (max_int ik) then y else
+            Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
         if Ints_t.compare rcx lcy > 0 then None
         else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx)
         else norm ik @@ Some (rcx, lcy)
@@ -1978,11 +1974,6 @@ struct
 
   let rec gcd x y =
     if y =: Ints_t.zero then x else gcd y (x %: y)
-  let abs x =
-    if x <: Ints_t.zero then
-      Ints_t.neg x
-    else
-      x
 
   let normalize x =
     match x with
@@ -1991,7 +1982,7 @@ struct
       if m =: Ints_t.zero then
         Some (c, m)
       else
-        let m' = abs m in
+        let m' = Ints_t.abs m in
         let c' = c %: m' in
         if c' <: Ints_t.zero then
           Some (c' +: m', m')
@@ -2188,7 +2179,7 @@ struct
   let shift_left ik x y =
     (* Naive primality test *)
     let is_prime n =
-      let n = abs n in
+      let n = Ints_t.abs n in
       let rec is_prime' d =
         (d *: d >: n) || ((not ((n %: d) =: Ints_t.zero)) && (is_prime' [@tailcall]) (d +: Ints_t.one))
       in
@@ -2392,14 +2383,14 @@ struct
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
-       if m =: Ints_t.zero then
-         if (c <: x || c >: y) then None else Some (c, Ints_t.zero)
-       else
-         let rcx = x +: ((c -: x) %: abs(m)) in
-         let lcy = y -: ((y -: c) %: abs(m)) in
-         if rcx >: lcy then None
-         else if rcx =: lcy then Some (rcx, Ints_t.zero)
-         else cong
+      if m =: Ints_t.zero then
+        if (c <: x || c >: y) then None else Some (c, Ints_t.zero)
+      else
+        let rcx = x +: ((c -: x) %: Ints_t.abs m) in
+        let lcy = y -: ((y -: c) %: Ints_t.abs m) in
+        if rcx >: lcy then None
+        else if rcx =: lcy then Some (rcx, Ints_t.zero)
+        else cong
     | _ -> None
 
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t) option) : t =

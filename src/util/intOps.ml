@@ -17,6 +17,7 @@ sig
 
   (* Arithmetic *)
   val neg : t -> t
+  val abs : t -> t
   val add : t -> t -> t
   val sub : t -> t -> t
   val mul : t -> t -> t
@@ -72,6 +73,7 @@ struct
   let upper_bound = Some max_int
 
   let neg x = (- x)
+  let abs = abs
   let add = (+)
   let sub = (-)
   let mul a b = a * b
@@ -109,6 +111,7 @@ struct
   let upper_bound = Some Int32.max_int
 
   let neg = Int32.neg
+  let abs = Int32.abs
   let add = Int32.add
   let sub = Int32.sub
   let mul = Int32.mul
@@ -148,6 +151,7 @@ struct
   let upper_bound = Some Int64.max_int
 
   let neg = Int64.neg
+  let abs = Int64.abs
   let add = Int64.add
   let sub = Int64.sub
   let mul = Int64.mul
@@ -187,6 +191,7 @@ struct
   let lower_bound = None
 
   let neg = Big_int_Z.minus_big_int
+  let abs = Big_int_Z.abs_big_int
   let add = Big_int_Z.add_big_int
   let sub = Big_int_Z.sub_big_int
   let mul = Big_int_Z.mult_big_int
