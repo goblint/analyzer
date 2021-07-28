@@ -34,7 +34,7 @@ jobs:
             ~/.opam
             _opam
           # An explicit key for restoring and saving the cache
-          key: opam-${{ runner.os }}-${{ matrix.ocaml-compiler }}-${{ hashFiles('goblint.opam.locked') }}
+          key: opam-${{ runner.os }}-${{ matrix.ocaml-version }}-${{ hashFiles('goblint.opam.locked') }}
 
       - name: Setup OCaml ${{ matrix.ocaml-version }}
         uses: ocaml/setup-ocaml@v1
