@@ -2637,7 +2637,7 @@ module IntDomTupleImpl = struct
     ); !dt
 
   let no_overflow ik r =
-    if Cil.isSigned ik  && GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then true
+    if GobConfig.should_ignore_overflow ik then true
     else let ika, ikb = Size.range_big_int ik in
       match I2.minimal r, I2.maximal r with
       | Some ra, Some rb -> BI.compare ika ra < 0 || BI.compare rb ikb < 0
@@ -2648,7 +2648,7 @@ module IntDomTupleImpl = struct
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1 (module I2)) b in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> Cil.isSigned ik  && GobConfig.get_string "sem.int.signed_overflow" = "assume_none"
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.should_ignore_overflow ik
     in refine ik
     ( map (r.f1 (module I1)) a
     , intv
@@ -2659,7 +2659,7 @@ module IntDomTupleImpl = struct
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
     let intv = opt_map2 (r.f2 (module I2)) xb yb in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> Cil.isSigned ik  && GobConfig.get_string "sem.int.signed_overflow" = "assume_none"
+      match intv with Some i -> no_overflow ik i | _ -> GobConfig.should_ignore_overflow ik
     in
     refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
