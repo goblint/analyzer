@@ -14,6 +14,14 @@ exception Unknown
 exception Error
 exception ArithmeticOnIntegerBot of string
 
+(** Whether for a given ikind, we should compute with wrap-around arithmetic.
+  *  Always for unsigned types, for signed types if 'sem.int.signed_overflow' is 'assume_wraparound'  *)
+let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflow" = "assume_wraparound"
+
+(** Whether for a given ikind, we should assume there are no overflows.
+  * Always false for unsigned types, true for signed types if 'sem.int.signed_overflow' is 'assume_none'  *)
+let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
+
 module type Arith =
 sig
   type t
@@ -2637,7 +2645,7 @@ module IntDomTupleImpl = struct
     ); !dt
 
   let no_overflow ik r =
-    if GobConfig.should_ignore_overflow ik then true
+    if should_ignore_overflow ik then true
     else let ika, ikb = Size.range_big_int ik in
       match I2.minimal r, I2.maximal r with
       | Some ra, Some rb -> BI.compare ika ra < 0 || BI.compare rb ikb < 0
@@ -2648,7 +2656,7 @@ module IntDomTupleImpl = struct
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1 (module I2)) b in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> GobConfig.should_ignore_overflow ik
+      match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik
     in refine ik
     ( map (r.f1 (module I1)) a
     , intv
@@ -2659,7 +2667,7 @@ module IntDomTupleImpl = struct
   let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
     let intv = opt_map2 (r.f2 (module I2)) xb yb in
     let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> GobConfig.should_ignore_overflow ik
+      match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik
     in
     refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
