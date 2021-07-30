@@ -52,7 +52,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
     List.iter (fun (lo, o_f) -> lo.vid <- o_f.vid) (List.combine f.sformals old_f.sformals);
     List.iter (fun (s, o_s) -> s.sid <- o_s.sid) (List.combine f.sallstmts old_f.sallstmts);
-    List.iter (fun s -> store_node_location (Statement s) (get_stmtLoc s.skind)) f.sallstmts;
+    List.iter (fun s -> store_node_location (Statement s) (Cilfacade.get_stmtLoc s)) f.sallstmts;
 
     store_node_location (Function f) f.svar.vdecl;
     store_node_location (FunctionEntry f) f.svar.vdecl;

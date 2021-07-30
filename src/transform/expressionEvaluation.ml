@@ -66,7 +66,7 @@ module ExpEval : Transform.S =
             |> List.map (fun (f : Cil.fundec) -> f.sallstmts |> List.map (fun s -> f, s))
             |> List.flatten
             (* Add locations *)
-            |> List.map (fun (f, (s : Cil.stmt)) -> (Cil.get_stmtLoc s.skind, f, s))
+            |> List.map (fun (f, (s : Cil.stmt)) -> (Cilfacade.get_stmtLoc s, f, s))
             (* Filter artificial ones by impossible location *)
             |> List.filter (fun ((l : Cil.location), _, _) -> l.line >= 0)
             (* Create hash table *)
@@ -105,7 +105,7 @@ module ExpEval : Transform.S =
                         fun (s : Cil.stmt) ->
                           succeeding_statement := Some s;
                           (* Evaluate at (directly before) a succeeding location *)
-                          Some(self#try_ask (Cil.get_stmtLoc s.skind) expression)
+                          Some(self#try_ask (Cilfacade.get_stmtLoc s) expression)
                       end
                       statement.succs
                     with Not_found -> None

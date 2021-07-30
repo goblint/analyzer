@@ -7,6 +7,31 @@ module E = Errormsg
 module GU = Goblintutil
 
 
+let get_labelLoc = function
+  | Label (_, loc, _) -> loc
+  | Case (_, loc) -> loc
+  | CaseRange (_, _, loc) -> loc
+  | Default loc -> loc
+
+let rec get_labelsLoc = function
+  | [] -> Cil.locUnknown
+  | label :: labels ->
+    let loc = get_labelLoc label in
+    if CilType.Location.equal loc Cil.locUnknown then
+      get_labelsLoc labels (* maybe another label has known location *)
+    else
+      loc
+
+let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
+
+let get_stmtLoc stmt =
+  match stmt.skind with
+  (* Cil.get_stmtLoc returns Cil.locUnknown in these cases, so try labels instead *)
+  | Instr []
+  | Block {bstmts = []; _} ->
+    get_labelsLoc stmt.labels
+  | _ -> get_stmtkindLoc stmt.skind
+
 
 let init () =
   initCIL ();
@@ -104,7 +129,10 @@ class addConstructors cons = object
   method! vfunc fd =
     if List.mem fd.svar.vname (List.map string (get_list "mainfun")) then begin
       if get_bool "dbg.verbose" then ignore (Pretty.printf "Adding constructors to: %s\n" fd.svar.vname);
-      let loc = try get_stmtLoc (List.hd fd.sbody.bstmts).skind with Failure _ -> locUnknown in
+      let loc = match fd.sbody.bstmts with
+        | s :: _ -> get_stmtLoc s
+        | [] -> locUnknown
+      in
       let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
       let call_cons = List.map f cons1 in
       let body = mkBlock (call_cons @ fd.sbody.bstmts) in
