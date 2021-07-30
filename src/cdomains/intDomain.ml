@@ -527,8 +527,8 @@ struct
     else if Ints_t.compare (min_int ik) x > 0 || Ints_t.compare (max_int ik) y < 0 then (
       set_overflow_flag ik;
       if should_wrap ik then
-        (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the AP interval *)
-        (* will not safely contain the minimal and maximal elements after the cast *)
+        (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
+        (* on Z will not safely contain the minimal and maximal elements after the cast *)
         let abs x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
         let diff = abs (Ints_t.sub (max_int ik) (min_int ik)) in
         let resdiff = abs (Ints_t.sub y x) in
