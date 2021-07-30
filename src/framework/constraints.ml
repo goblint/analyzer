@@ -291,11 +291,11 @@ struct
     limit := get_int "dbg.limit.widen";
     S.init ()
 
-  module H = MyCFG.H
+  module H = MyCFG.NodeH
   let h = H.create 13
   let incr k =
     H.modify_def 1 k (fun v ->
-        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint MyCFG.pretty_short_node (Option.get !MyCFG.current_node));
+        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint Node.pretty_plain_short (Option.get !MyCFG.current_node));
         v+1
       ) h;
   module D = struct
@@ -555,7 +555,7 @@ struct
       let ds = S.threadenter ctx lval f args in
       List.iter (fun d ->
           spawns := (lval, f, args, d) :: !spawns;
-          match Cilfacade.getdec f with
+          match Cilfacade.find_varinfo_fundec f with
           | fd ->
             let c = S.context d in
             if not full_context then sidel (FunctionEntry fd, c) d;
@@ -693,7 +693,7 @@ struct
         Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
-      match Cilfacade.getdec f with
+      match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
         M.warn_each ("Using special for defined function " ^ f.vname);
         tf_special_call ctx lv f args
@@ -741,7 +741,7 @@ struct
 
   let tf (v,c) (edges, u) getl sidel getg sideg =
     let pval = getl (u,c) in
-    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (getLoc v,[]) in
+    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
     List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg u) edges) locs
 
   let tf (v,c) (e,u) getl sidel getg sideg =
@@ -1075,7 +1075,7 @@ module Compare
 struct
   open S
 
-  module PP = Hashtbl.Make (MyCFG.Node)
+  module PP = Hashtbl.Make (Node)
 
   let compare_globals g1 g2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
@@ -1114,11 +1114,11 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr le
         end else if b2 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr gr
         end else
           incr uk

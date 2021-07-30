@@ -292,7 +292,7 @@ let do_stats () =
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
-  let module L = Printable.Liszt (Basetype.CilFundec) in
+  let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST

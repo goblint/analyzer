@@ -1,0 +1,19 @@
+name: indentation
+
+on: [ push, pull_request]
+
+jobs:
+  indentation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install ocp-indent
+        run: sudo apt install ocp-indent
+
+      - name: Run pre-commit hook on changes since last push
+        run: git reset --soft ${{ github.event.before }} && ./scripts/hooks/pre-commit

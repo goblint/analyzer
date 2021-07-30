@@ -142,18 +142,6 @@ let callConstructors ast =
   visitCilFileSameGlobals (new addConstructors constructors) ast;
   ast
 
-exception Found of fundec
-let getFun fun_name =
-  try
-    iterGlobals !current_file (fun glob ->
-        match glob with
-        | GFun({svar={vname=vn; _}; _} as def,_) when vn = fun_name -> raise (Found def)
-        | _ -> ()
-      );
-    failwith ("Function "^ fun_name ^ " not found!")
-  with
-  | Found def -> def
-
 let in_section check attr_list =
   let f attr = match attr with
     | Attr ("section", [AStr str]) -> check str
@@ -207,24 +195,6 @@ let getFuns fileAST : startfuns =
   in
   foldGlobals fileAST f ([],[],[])
 
-let dec_table_ok = ref false
-let dec_table = Hashtbl.create 111
-let dec_make () : unit =
-  dec_table_ok := true ;
-  Hashtbl.clear dec_table;
-  iterGlobals !current_file (fun glob ->
-      match glob with
-      | GFun({svar={vid=vid; _}; _} as def,_) -> Hashtbl.add dec_table vid def
-      | _ -> ()
-    )
-
-let rec getdec fv =
-  if !dec_table_ok then
-    Hashtbl.find dec_table fv.vid
-  else begin
-    dec_make ();
-    getdec fv
-  end
 
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
@@ -410,3 +380,128 @@ let countLoc fn =
   let res = Hashtbl.length locs in
   Hashtbl.clear locs;
   res
+
+
+
+module StmtH = Hashtbl.Make (CilType.Stmt)
+
+let stmt_fundecs: fundec StmtH.t Lazy.t =
+  lazy (
+    let h = StmtH.create 113 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          List.iter (fun stmt ->
+              StmtH.replace h stmt fd
+            ) fd.sallstmts
+        | _ -> ()
+      );
+    h
+  )
+
+(** Find [fundec] which the [stmt] is in. *)
+let find_stmt_fundec stmt = StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+
+
+module VarinfoH = Hashtbl.Make (CilType.Varinfo)
+
+let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
+  lazy (
+    let h = VarinfoH.create 111 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          VarinfoH.replace h fd.svar fd
+        | _ -> ()
+      );
+    h
+  )
+
+(** Find [fundec] by the function's [varinfo] (has the function name and type). *)
+let find_varinfo_fundec vi = VarinfoH.find (Lazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+module StringH = Hashtbl.Make (Printable.Strings)
+
+let name_fundecs: fundec StringH.t Lazy.t =
+  lazy (
+    let h = StringH.create 111 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          StringH.replace h fd.svar.vname fd
+        | _ -> ()
+      );
+    h
+  )
+
+(** Find [fundec] by the function's name. *)
+let find_name_fundec name = StringH.find (Lazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
+
+
+type varinfo_role =
+  | Formal of fundec
+  | Local of fundec
+  | Function
+  | Global
+
+let varinfo_roles: varinfo_role VarinfoH.t Lazy.t =
+  lazy (
+    let h = VarinfoH.create 113 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
+          List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
+          List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
+        | GVar (vi, _, _)
+        | GVarDecl (vi, _) ->
+          VarinfoH.replace h vi Global
+        | _ -> ()
+      );
+    h
+  )
+
+(** Find the role of the [varinfo]. *)
+let find_varinfo_role vi = VarinfoH.find (Lazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+let is_varinfo_formal vi =
+  match find_varinfo_role vi with
+  | Formal _ -> true
+  | _ -> false
+
+
+(** Find the scope of the [varinfo].
+    If [varinfo] is a local or a formal argument of [fundec], then returns [Some fundec].
+    If [varinfo] is a global or a function itself, then returns [None]. *)
+let find_scope_fundec vi =
+  match find_varinfo_role vi with
+  | Formal fd
+  | Local fd ->
+    Some fd
+  | Function
+  | Global ->
+    None
+
+
+let original_names: string VarinfoH.t Lazy.t =
+  (* only invert environment map when necessary (e.g. witnesses) *)
+  lazy (
+    let h = VarinfoH.create 113 in
+    Hashtbl.iter (fun original_name (envdata, _) ->
+        match envdata with
+        | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
+          VarinfoH.replace h vi original_name
+        | _ -> ()
+      ) Cabs2cil.environment;
+    h
+  )
+
+(** Find the original name (in input source code) of the [varinfo].
+    If it was renamed by CIL, then returns the original name before renaming.
+    If it wasn't renamed by CIL, then returns the same name.
+    If it was inserted by CIL (or Goblint), then returns [None]. *)
+let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+let stmt_pretty_short () x =
+  match x.skind with
+  | Instr (y::ys) -> dn_instr () y
+  | If (exp,_,_,_) -> dn_exp () exp
+  | _ -> dn_stmt () x

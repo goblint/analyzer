@@ -17,11 +17,16 @@ sig
 
   (* Arithmetic *)
   val neg : t -> t
+  val abs : t -> t
   val add : t -> t -> t
   val sub : t -> t -> t
   val mul : t -> t -> t
   val div : t -> t -> t
+
+  (* This should be the remainder, not the Euclidian Modulus *)
+  (* -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4 *)
   val rem : t -> t -> t
+  val gcd : t-> t -> t
 
   (* Bitwise *)
   val shift_left : t -> int -> t
@@ -72,11 +77,15 @@ struct
   let upper_bound = Some max_int
 
   let neg x = (- x)
+  let abs = abs
   let add = (+)
   let sub = (-)
   let mul a b = a * b
   let div = (/)
   let rem = (mod)
+  let gcd x y =
+    let rec gcd' x y = if y = 0 then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = (lsl)
   let shift_right = (lsr)
@@ -109,11 +118,15 @@ struct
   let upper_bound = Some Int32.max_int
 
   let neg = Int32.neg
+  let abs = Int32.abs
   let add = Int32.add
   let sub = Int32.sub
   let mul = Int32.mul
   let div = Int32.div
   let rem = Int32.rem
+  let gcd x y =
+    let rec gcd' x y = if y = zero then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = Int32.shift_left
   let shift_right = Int32.shift_right_logical
@@ -148,11 +161,15 @@ struct
   let upper_bound = Some Int64.max_int
 
   let neg = Int64.neg
+  let abs = Int64.abs
   let add = Int64.add
   let sub = Int64.sub
   let mul = Int64.mul
   let div = Int64.div
   let rem = Int64.rem
+  let gcd x y =
+    let rec gcd' x y = if y = zero then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = Int64.shift_left
   let shift_right = Int64.shift_right_logical
@@ -187,6 +204,7 @@ struct
   let lower_bound = None
 
   let neg = Big_int_Z.minus_big_int
+  let abs = Big_int_Z.abs_big_int
   let add = Big_int_Z.add_big_int
   let sub = Big_int_Z.sub_big_int
   let mul = Big_int_Z.mult_big_int
@@ -201,6 +219,7 @@ struct
   *)
   let rem a b = Big_int_Z.sub_big_int a (mul b (div a b))
 
+  let gcd x y = abs @@ Big_int_Z.gcd_big_int x y
   let compare = Big_int_Z.compare_big_int
   let equal = Big_int_Z.eq_big_int
 

@@ -1453,7 +1453,15 @@ struct
             ID.meet a' (ID.sub (ID.mul (ID.div a b) b) c)
           else a'
         in
-        meet_bin a'' b'
+        let a''' =
+          (* if both b and c are definite, we can get a precise value in the congruence domain *)
+          if ID.is_int b && ID.is_int c then
+            (* a%b == c  -> a: c+bℤ *)
+            let t = ID.of_congruence ikind ((BatOption.get @@ ID.to_int c), (BatOption.get @@ ID.to_int b)) in
+            ID.meet a'' t
+          else a''
+        in
+        meet_bin a''' b'
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
@@ -1870,7 +1878,7 @@ struct
     let create_thread lval arg v =
       try
         (* try to get function declaration *)
-        let fd = Cilfacade.getdec v in
+        let fd = Cilfacade.find_varinfo_fundec v in
         let args =
           match arg with
           | Some x -> [x]
@@ -2236,7 +2244,7 @@ struct
     Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
-    match Cilfacade.getdec f with
+    match Cilfacade.find_varinfo_fundec f with
     | fd ->
       [make_entry ~thread:true ctx fd args]
     | exception Not_found ->

@@ -18,7 +18,6 @@ struct
   let show x = (Ad.show x.addr) ^ "@" ^ (CilType.Location.show x.loc)
   let pretty () x = Ad.pretty () x.addr ++ text "@" ++ CilType.Location.pretty () x.loc
   let printXml c x = Ad.printXml c x.addr
-  let pretty_diff () (x,y) = Ad.pretty_diff () (x.addr,y.addr)
   let to_yojson x = `String (show x)
 end
 

@@ -25,67 +25,36 @@ end
 
 module Var =
 struct
-  type t = MyCFG.node [@@deriving eq, ord]
+  type t = Node.t [@@deriving eq, ord]
   let relift x = x
 
-  let hash x =
-    match x with
-    | MyCFG.Statement     s -> Hashtbl.hash (s.sid, 0)
-    | MyCFG.Function      f -> Hashtbl.hash (f.svar.vid, 1)
-    | MyCFG.FunctionEntry f -> Hashtbl.hash (f.svar.vid, 2)
+  let hash = Node.hash
 
-  let getLocation n = MyCFG.getLoc n
+  let getLocation n = Node.location n
 
-  let pretty () x =
-    match x with
-    | MyCFG.Statement     s -> dprintf "node %d \"%a\"" s.sid Basetype.CilStmt.pretty s
-    | MyCFG.Function      f -> dprintf "call of %s" f.svar.vname
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.svar.vname
-
-  let pretty_trace () x =  dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
+  let pretty_trace () x =  dprintf "%a on %a" Node.pretty_trace x CilType.Location.pretty (getLocation x)
 
   let printXml f n =
-    let id ch n =
-      match n with
-      | MyCFG.Statement s     -> BatPrintf.fprintf ch "%d" s.sid
-      | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.svar.vid
-      | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.svar.vid
-    in
-    let l = MyCFG.getLoc n in
-    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte l.column
+    let l = Node.location n in
+    BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) l.file (Node.find_fundec n).svar.vname l.line l.byte l.column
 
-  let var_id n =
-    match n with
-    | MyCFG.Statement s     -> string_of_int s.sid
-    | MyCFG.Function f      -> "ret" ^ string_of_int f.svar.vid
-    | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.svar.vid
+  let var_id = Node.show_id
   let node n = n
 end
 
 
 module VarF (LD: Printable.S) =
 struct
-  type t = MyCFG.node * LD.t [@@deriving eq, ord]
+  type t = Node.t * LD.t [@@deriving eq, ord]
   let relift (n,x) = n, LD.relift x
 
-  let hashmul x y = if x=0 then y else if y=0 then x else x*y
-  let hash x =
-    match x with
-    | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
-    | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.svar.vid*19)
-    | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.svar.vid*23)
+  let hash (n, c) = Hashtbl.hash (Node.hash n, LD.hash c)
 
-  let getLocation (n,d) = MyCFG.getLoc n
+  let getLocation (n,d) = Node.location n
 
-  let pretty () x =
-    match x with
-    | (MyCFG.Statement     s,d) -> dprintf "node %d \"%a\"" s.sid Basetype.CilStmt.pretty s
-    | (MyCFG.Function      f,d) -> dprintf "call of %s" f.svar.vname
-    | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.svar.vname
-
-  let pretty_trace () (n,c as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" pretty x LD.pretty c CilType.Location.pretty (getLocation x)
-    else dprintf "%a on %a" pretty x CilType.Location.pretty (getLocation x)
+  let pretty_trace () ((n,c) as x) =
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
+    else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
 
   let printXml f (n,c) =
     Var.printXml f n;
@@ -130,16 +99,17 @@ module ResultNode: Printable.S with type t = MyCFG.node =
 struct
   include Printable.Std
 
-  include Node.Node
+  include Node
 
   let name () = "resultnode"
 
   let show a =
-    let x = Tracing.getLoc a in
-    let f = MyCFG.getFun a in
+    (* Not using Node.location here to have updated locations in incremental analysis.
+       See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+    let x = UpdateCil.getLoc a in
+    let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
   let pretty () x = text (show x)
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
@@ -155,27 +125,21 @@ struct
   include C
 
   let printXml f xs =
-    let print_id f = function
-      | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
-      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
-    in
     let print_one n v =
-      let loc = Tracing.getLoc n in
-      BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" print_id n loc.file loc.line loc.byte loc.column;
+      (* Not using Node.location here to have updated locations in incremental analysis.
+         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+      let loc = UpdateCil.getLoc n in
+      BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
     iter print_one xs
 
   let printJson f xs =
-    let print_id f = function
-      | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
-      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
-    in
     let print_one n v =
-      let loc = Tracing.getLoc n in
-      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"column\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte loc.column (Yojson.Safe.to_string (Range.to_yojson v))
+      (* Not using Node.location here to have updated locations in incremental analysis.
+         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+      let loc = UpdateCil.getLoc n in
+      BatPrintf.fprintf f "{\n\"id\": \"%s\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"column\": \"%d\", \"states\": %s\n},\n" (Node.show_id n) loc.file loc.line loc.byte loc.column (Yojson.Safe.to_string (Range.to_yojson v))
     in
     iter print_one xs
 
@@ -213,16 +177,12 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
         );
-      let p_node f = function
-        | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-        | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.svar.vid
-        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.svar.vid
-      in
+      let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
       let p_nodes f xs =
         List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
       in
@@ -265,7 +225,7 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
@@ -274,11 +234,7 @@ struct
       let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
       (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
       (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
-      let p_node f = function
-        | MyCFG.Statement stmt  -> fprintf f "\"%d\"" stmt.sid
-        | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.svar.vid
-        | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.svar.vid
-      in
+      let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
       let p_fun f x = fprintf f "{\n  \"name\": \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
       (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
@@ -494,7 +450,7 @@ module type GenericGlobSolver =
 module ResultType2 (S:Spec) =
 struct
   open S
-  include Printable.Prod3 (C) (D) (Basetype.CilFundec)
+  include Printable.Prod3 (C) (D) (CilType.Fundec)
   let show (es,x,f:t) = call_descr f es
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
