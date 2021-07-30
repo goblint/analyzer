@@ -30,6 +30,10 @@
       (apron -> octApron.apron.ml)
       (-> octApron.no-apron.ml)
     )
+    (select octApronPriv.ml from
+      (apron -> octApronPriv.apron.ml)
+      (-> octApronPriv.no-apron.ml)
+    )
   )
   (preprocess
     (staged_pps ppx_deriving.std ppx_deriving_yojson

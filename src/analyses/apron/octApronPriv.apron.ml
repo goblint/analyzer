@@ -166,11 +166,11 @@ struct
         let oct_unprot = AD.add_vars oct [g_unprot_var] in
         let oct_unprot = AD.assign_var oct_unprot x_var g_unprot_var in
         (* let oct_unprot' = AD.join oct_local oct_unprot in
-        (* unlock *)
-        let oct_unprot' = AD.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
-        (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
-        (* TODO: why removing g_unprot_var? *)
-        oct_unprot' *)
+           (* unlock *)
+           let oct_unprot' = AD.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
+           (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
+           (* TODO: why removing g_unprot_var? *)
+           oct_unprot' *)
         AD.join oct_local oct_unprot
       )
       else (
@@ -199,10 +199,10 @@ struct
     sideg (global_varinfo ()) oct_side;
     let st' =
       (* if is_unprotected ask g then
-        st (* add, assign, remove gives original local state *)
-      else
-        (* restricting g#unprot-s out from oct' gives oct_local *)
-        {oct = oct_local; priv = (P.add g p, W.add g w)} *)
+         st (* add, assign, remove gives original local state *)
+         else
+         (* restricting g#unprot-s out from oct' gives oct_local *)
+         {oct = oct_local; priv = (P.add g p, W.add g w)} *)
       if is_unprotected ask g then
         {st with oct = restrict_local (is_unprotected ask) oct' (W.singleton g)}
       else (
@@ -232,11 +232,11 @@ struct
       |> List.map (fun omega ->
           (* list globals where omega is true *)
           List.fold_left2 (fun acc g omega_g ->
-            if omega_g then
-              g :: acc
-            else
-              acc
-          ) certain choice omega
+              if omega_g then
+                g :: acc
+              else
+                acc
+            ) certain choice omega
         )
     in
     let oct_side = List.fold_left (fun acc omega ->
@@ -472,12 +472,12 @@ struct
       (* TODO: avoid *)
       let vars =
         foldGlobals !Cilfacade.current_file (fun acc global ->
-          match global with
-          | GVar (vi, _, _) ->
-            vi :: acc
+            match global with
+            | GVar (vi, _, _) ->
+              vi :: acc
             (* TODO: what about GVarDecl? *)
-          | _ -> acc
-        ) []
+            | _ -> acc
+          ) []
       in
       let to_keep = List.map (fun v -> Var.of_string v.vname) vars in
       AD.keep_vars oct to_keep
@@ -657,12 +657,12 @@ let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
       (val match get_string "exp.octapron.privatization" with
-        | "dummy" -> (module Dummy: S)
-        | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
-        | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
-        | "mutex-meet" -> (module PerMutexMeetPriv)
-        (* | "write" -> (module WriteCenteredPriv) *)
-        | _ -> failwith "exp.octapron.privatization: illegal value"
+         | "dummy" -> (module Dummy: S)
+         | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
+         | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
+         | "mutex-meet" -> (module PerMutexMeetPriv)
+         (* | "write" -> (module WriteCenteredPriv) *)
+         | _ -> failwith "exp.octapron.privatization: illegal value"
       )
     in
     let module Priv = TracingPriv (Priv) in
