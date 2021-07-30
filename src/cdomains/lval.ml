@@ -264,7 +264,6 @@ struct
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
   let pretty () x = Pretty.text (show x)
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   (* TODO: seems to be unused *)
   let to_exp (f:idx -> exp) x =
@@ -336,6 +335,8 @@ struct
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
+
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Stateless (Idx: Printable.S) =
@@ -356,8 +357,6 @@ struct
     (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
 
   let pretty () x = Pretty.text (show x)
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
@@ -365,7 +364,7 @@ end
 
 module Fields =
 struct
-  module F = Basetype.CilField
+  module F = CilType.Fieldinfo
   module I = Basetype.CilExp
   module FI = Printable.Either (F) (I)
   include Printable.Liszt (FI)
@@ -475,6 +474,9 @@ struct
     | [] -> true
     | `Left _ :: xs -> real_region xs typ
     | `Right i :: _ -> false
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
 
@@ -490,8 +492,7 @@ struct
     match v with
     | _ when v.vglob -> `Global
     | _ when v.vdecl.line = -1 -> `Temp
-    | _ when v.vdecl.line = -3 -> `Parameter
-    | _ when v.vdecl.line = -4 -> `Context
+    | _ when Cilfacade.is_varinfo_formal v -> `Parameter
     | _ -> `Local
 
   let rec short_offs (o: (fieldinfo, exp) offs) a =
@@ -525,7 +526,6 @@ struct
   let show (v,o) = short_offs o (GU.demangle v.vname)
 
   let pretty () x = text (show x)
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)

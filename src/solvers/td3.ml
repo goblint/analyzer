@@ -219,8 +219,8 @@ module WP =
           (* TODO: The following two don't check if a vs got destabilized which may be a problem. *)
           | "unstable_self" -> (* TODO test/remove. Side to y destabilized itself via some infl-cycle. The above add_infl is only required for this option. Check for which examples this is problematic! *)
             wpoint_if @@ not (HM.mem stable y)
-          | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. *)
-            wpoint_if @@ exists_key (neg (HM.mem stable)) called
+          | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. Expensive! *)
+            wpoint_if @@ exists_key (neg (HM.mem stable)) called (* this is very expensive since it folds over called! see https://github.com/goblint/analyzer/issues/265#issuecomment-880748636 *)
           | x -> failwith ("Unknown value '" ^ x ^ "' for option exp.solver.td3.side_widen!")
         )
       and init x =
@@ -272,20 +272,22 @@ module WP =
         in
         let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.increment.changes.changed in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
-        let obsolete = Set.union (Set.of_list (List.map (fun a -> "ret" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs))
-                                 (Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs)) in
+        (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
+        let obsolete = Set.union (Set.of_list (List.map (fun a -> Node.show_id (Function a))  obsolete_funs))
+                                 (Set.of_list (List.map (fun a -> Node.show_id (FunctionEntry a))  obsolete_funs)) in
 
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         (* Actually destabilize all nodes contained in changed functions. TODO only destabilize fun_... nodes *)
-        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable;
+        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable; (* TODO: don't use string-based nodes *)
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
+        (* TODO: don't use string-based nodes, make marked_for_deletion of type unit (Hashtbl.Make (Node)).t *)
         let add_nodes_of_fun (functions: fundec list) (nodes)=
           let add_stmts (f: fundec) =
-            List.iter (fun s -> Hashtbl.replace nodes (string_of_int s.sid) ()) (f.sallstmts)
+            List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
           in
-          List.iter (fun f -> Hashtbl.replace nodes ("fun"^(string_of_int f.svar.vid)) (); Hashtbl.replace nodes ("ret"^(string_of_int f.svar.vid)) (); add_stmts f) functions;
+          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f) functions;
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
@@ -293,7 +295,7 @@ module WP =
         add_nodes_of_fun removed_funs marked_for_deletion;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in
+        let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in (* TODO: don't use string-based nodes *)
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;

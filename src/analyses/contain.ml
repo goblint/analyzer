@@ -536,7 +536,7 @@ struct
                 if not (ignore_this ctx.local ctx.global) then
                   begin
 
-                    let res = List.fold_left (fun y x -> try ignore(Cilfacade.getdec x);x::y with _ -> y) [] vars in
+                    let res = List.fold_left (fun y x -> try ignore(Cilfacade.find_varinfo_fundec x);x::y with _ -> y) [] vars in
                     begin
                       if List.length res = 0 then
                         begin
@@ -689,7 +689,7 @@ struct
     (*D.report("ENTER ZERO : "^f.vname);*)
     (*D.report("ENTER_FN : "^f.vname);*)
     (*if D.is_top ctx.local then failwith "ARGH!";*)
-    (*print_progress (Cilfacade.getdec f);*)
+    (*print_progress (Cilfacade.find_varinfo_fundec f);*)
     if danger_bot ctx then [ctx.local, ctx.local] else
     if not ((get_bool "ana.cont.localclass")) && is_ext f.vname ctx.global then
       begin

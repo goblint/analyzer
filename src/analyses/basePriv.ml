@@ -259,7 +259,7 @@ struct
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
-    ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x d_loc !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
+    ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
     r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
@@ -1418,7 +1418,7 @@ struct
   let dump () =
     let f = open_out_bin (get_string "exp.priv-prec-dump") in
     (* LVH.iter (fun (l, x) v ->
-        ignore (Pretty.printf "%a %a = %a\n" d_loc l d_varinfo x VD.pretty v)
+        ignore (Pretty.printf "%a %a = %a\n" CilType.Location.pretty l d_varinfo x VD.pretty v)
       ) lvh; *)
     Marshal.output f {name = get_string "exp.privatization"; lvh};
     close_out_noerr f

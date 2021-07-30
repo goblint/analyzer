@@ -1,5 +1,5 @@
 name: build and run tests
-# https://github.com/avsm/setup-ocaml
+# https://github.com/ocaml/setup-ocaml
 
 on:
   - push
@@ -14,9 +14,9 @@ jobs:
           - macos-latest
           - ubuntu-latest
           # - windows-latest
-        ocaml-version:
+        ocaml-compiler:
           - 4.12.0
-          - 4.07.1
+          # - 4.07.1
           # - 4.09.1
           # - 4.08.1
 
@@ -26,26 +26,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Cache # https://github.com/marketplace/actions/cache
-        uses: actions/cache@v2.0.0
+      - name: Setup OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          # otherwise setup-ocaml pins non-locked dependencies
+          # https://github.com/ocaml/setup-ocaml/issues/166
+          OPAMLOCKED: locked
+        uses: ocaml/setup-ocaml@v2
         with:
-          # A list of files, directories, and wildcard patterns to cache and restore
-          path: |
-            ~/.opam
-            _opam
-          # An explicit key for restoring and saving the cache
-          key: ${{ runner.os }}-new-${{ hashFiles('goblint.opam.locked') }}
-
-      - name: Setup OCaml ${{ matrix.ocaml-version }}
-        uses: avsm/setup-ocaml@v1
-        with:
-          ocaml-version: ${{ matrix.ocaml-version }}
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       # Split build and tests into separate jobs and let build job upload the goblint binary as an artifact?
       # https://help.github.com/en/actions/configuring-and-managing-workflows/persisting-workflow-data-using-artifacts#passing-data-between-jobs-in-a-workflow
 
-      - name: Setup goblint (dependencies, build)
-        run: bash -x scripts/travis-ci.sh
+      - name: Install opam dependencies
+        run: opam install . --deps-only --locked
+
+      - name: Build
+        run: ./make.sh nat
 
       - name: Run regression tests
         run: ./make.sh headers testci

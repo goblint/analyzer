@@ -16,8 +16,8 @@ int main() {
   b = 2;
 
   assert(a == 1);
-  if (*x != 0) { // TODO: invariant makes less precise!
-    assert(a == 1); // TODO
+  if (*x != 0) { // invariant shouldn't make less precise!
+    assert(a == 1);
   }
   return 0;
 }

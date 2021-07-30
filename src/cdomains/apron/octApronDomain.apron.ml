@@ -613,6 +613,9 @@ struct
       Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
       (* TODO: warn if different environments? *)
     )
+
+  let pretty_diff () (x, y) =
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module D = DWithOps (DLift)
@@ -752,6 +755,9 @@ struct
 
   (* TODO: better narrow *)
   let narrow x y = x
+
+  let pretty_diff () (x, y) =
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module D2 = DWithOps (DHetero)

@@ -467,7 +467,7 @@ struct
   let restrict_globals oct =
     match !MyCFG.current_node with
     | Some node ->
-      let fd = MyCFG.getFun node in
+      let fd = Node.find_fundec node in
       if M.tracing then M.trace "apronpriv" "restrict_globals %s\n" fd.svar.vname;
       (* TODO: avoid *)
       let vars =

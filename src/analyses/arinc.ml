@@ -119,7 +119,7 @@ struct
     let d = ctx.local in
     let node = Option.get !MyCFG.current_node in
     (* determine if we are at the root of a process or in some called function *)
-    let fundec = MyCFG.getFun node in
+    let fundec = Node.find_fundec node in
     let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname^". State: " ^ D.show d in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
     let procid = Process, pname in
@@ -127,7 +127,7 @@ struct
     let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx d.ctx fundec.svar in
     { d; node; fundec; pname; procid; id }
   let add_edges ?r ?dst ?d env action =
-    Pred.iter (fun node -> ArincUtil.add_edge env.id (node, action, r, MyCFG.getLoc (dst |? env.node))) (d |? env.d).pred
+    Pred.iter (fun node -> ArincUtil.add_edge env.id (node, action, r, Node.location (dst |? env.node))) (d |? env.d).pred
   let add_actions env xs =
     (* add edges for all predecessor nodes (from pred. node to env.node) *)
     List.iter (fun (action,r) -> match r with Some r -> add_edges ~r env action | None -> add_edges env action) xs;

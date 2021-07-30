@@ -120,6 +120,9 @@ let _ = ()
       ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: (int64 * int64) option."
       ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
+      ; reg Analyses "ana.int.congruence"  "false" "Use IntDomain.Congruence: (c, m) option, meaning congruent to c modulo m"
+      ; reg Analyses "ana.int.congruence_no_overflow" "false" "Assume that no overflows occur in congruence operations"
+      ; reg Analyses "ana.int.refinement"   "'never'" "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'"
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
       ; reg Analyses "ana.pml.debug"       "true"  "Insert extra assertions into Promela code for debugging."
@@ -229,6 +232,7 @@ let _ = ()
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
       ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
+      ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
 
 let default_schema = "\
 { 'id'              : 'root'

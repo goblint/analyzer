@@ -42,8 +42,11 @@ ocamlprof.dump
 arinc
 
 .vscode
+.idea
 _opam/
 cfgs/
+cfg.dot
+cilcfg.*.dot
 
 *.graphml
 goblint.bc.js
@@ -55,3 +58,9 @@ sv-comp/goblint.zip
 
 privPrecCompare*
 tests/regression/*/run
+
+# csmith
+runtime/*
+
+# perf
+perf.data*
