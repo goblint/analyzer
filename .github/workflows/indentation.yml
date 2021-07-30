@@ -41,4 +41,4 @@ jobs:
         run: opam install -y ocp-indent
 
       - name: Run pre-commit hook on changes since last push
-        run: git reset --soft ${{ github.event.before }} && ./scripts/hooks/pre-commit
+        run: git reset --soft ${{ github.event.before }} && eval $(opam env) && ./scripts/hooks/pre-commit
