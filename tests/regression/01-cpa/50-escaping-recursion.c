@@ -6,6 +6,11 @@ int rec(int i,int* ptr) {
         rec(5,&x);
         // Recursive call may have modified x
         assert(x == 17); //UNKNOWN!
+
+        // If we analyse this with int contexts, there is no other x that is reachable, so this
+        // update is strong
+        x = 17;
+        assert(x == 17);
     } else {
         x = 31;
 
@@ -21,6 +26,10 @@ int rec(int i,int* ptr) {
         *ptr = 12;
         assert(*ptr == 12); //UNKNOWN!
         assert(x == 12); //UNKNOWN!
+
+        // Another copy of x is reachable, so we are conservative and do a weak update
+        x = 31;
+        assert(x == 31); // UNKNOWN
     }
     return 0;
 }

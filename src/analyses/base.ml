@@ -1069,7 +1069,10 @@ struct
       in
       let update_offset old_value =
         let new_value = VD.update_offset a old_value offs value lval_raw ((Var x), cil_offset) t in
-        if invariant then
+        let (v,w) = st.cpa in
+        if CPA.WeakUpdates.mem x w then
+          VD.join old_value new_value
+        else if invariant then
           (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
           VD.meet old_value new_value
         else
@@ -1765,7 +1768,8 @@ struct
       (* TODO: move into sync `Init *)
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | _ ->
-      let locals = (fundec.sformals @ fundec.slocals) in
+      let (cpa',w) = st.cpa in
+      let locals = List.filter (fun v -> not (CPA.WeakUpdates.mem v w)) (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_paritioning (Analyses.ask_of_ctx ctx) ctx.local locals in
       let nst: store = rem_many (Analyses.ask_of_ctx ctx) nst_part locals in
       match exp with
@@ -1865,7 +1869,10 @@ struct
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
-    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    let reachable_other_copies = List.filter (fun v -> try (match Cilfacade.find_scope_fundec v with | Some fdec -> fdec.svar.vid = fundec.svar.vid |_ -> false) with _ -> false) reachable in
+    let (nv, w) = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    let w' = (CPA.WeakUpdates.of_list reachable_other_copies) in
+    let new_cpa = (nv,CPA.WeakUpdates.join w w') in
     {st' with cpa = new_cpa}
 
   let enter ctx lval fn args : (D.t * D.t) list =
@@ -2211,7 +2218,8 @@ struct
         (* Remove the return value as this is dealt with separately. *)
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
         let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
-        let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+        let (l,w) = cpa_local in
+        let cpa' = (CPA.fold CPA.M.add cpa_noreturn l,w)  in (* add cpa_noreturn to cpa_local *)
         { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in

@@ -9,18 +9,19 @@ struct
   module M =
   struct
     include MapDomain.LiftTop (VD) (MapDomain.HashCached (MapDomain.MapBot (Basetype.Variables) (VD)))
-    let name () = "value domain"
+    let name () = "inner value domain"
   end
 
-  include M
+  module WeakUpdates = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All variables weak" end)
+  include Lattice.Prod (M) (WeakUpdates)
 
-  let invariant (c:Invariant.context) (m:t) =
+  let invariant (c:Invariant.context) ((m,w):t) =
     (* VS is used to detect and break cycles in deref_invariant calls *)
     let module VS = Set.Make (Basetype.Variables) in
     let rec context vs = {c with
         deref_invariant=(fun vi offset lval ->
-          let v = find vi m in
-          key_invariant_lval vi offset lval v vs
+                          let v = M.find vi m in
+                          key_invariant_lval vi offset lval v vs
         )
       }
     and key_invariant_lval k offset lval v vs =
@@ -34,8 +35,7 @@ struct
 
     let key_invariant k v =
       key_invariant_lval k NoOffset (var k) v VS.empty in
-
-    fold (fun k v a ->
+    M.fold (fun k v a ->
         let i =
           if not (InvariantCil.var_is_heap k) then
             key_invariant k v
@@ -44,6 +44,22 @@ struct
         in
         Invariant.(a && i)
       ) m Invariant.none
+
+  let find v (m,w) = M.find v m
+  let find_opt v (m,w) = M.find_opt v m
+  let singleton x v = M.singleton x v, WeakUpdates.bot ()
+  let map fn (m,w) = (M.map fn m,w)
+  let mapi fn (m,w) = (M.mapi fn m,w)
+  let filter fn (m,w) = (M.filter fn m,w)
+  let add var v (m,w) = (M.add var v m,w)
+  let add_list l (m,w) = (M.add_list l m,w)
+  let add_list_fun l fn (m,w) = (M.add_list_fun l fn m,w)
+  let remove v (m,w) = (M.remove v m, w)
+  let mem v (m,w) = M.mem v m
+  let fold (fn) (m, w) a = M.fold fn m a
+  let iter fn (m,w) = M.iter fn m
+
+  let long_map2 fn (m1,w1) (m2,w2) = M.long_map2 fn m1 m2, w1
 end
 
 
@@ -153,15 +169,15 @@ struct
   let (%) = Batteries.(%)
   let eval_exp x = Option.map BI.to_int64 % (ExpEval.eval_exp x)
   let join (one:t) (two:t): t =
-    let cpa_join = CPA.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) in
+    let cpa_join (l1,r1) (l2,r2) = (CPA.M.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) l1 l2, CPA.WeakUpdates.join r1 r2) in
     op_scheme cpa_join PartDeps.join PrivD.join one two
 
   let leq one two =
-    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) in
+    let cpa_leq (l1,r1) (l2,r2) = CPA.M.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) l1 l2 && CPA.WeakUpdates.leq r1 r2 in
     cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && PrivD.leq one.priv two.priv
 
   let widen one two: t =
-    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) in
+    let cpa_widen (l1,r1) (l2,r2) = (CPA.M.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) l1 l2, CPA.WeakUpdates.join r1 r2) in
     op_scheme cpa_widen PartDeps.widen PrivD.widen one two
 end
 
@@ -174,7 +190,7 @@ module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
     match e with
     | Lval (Var v, NoOffset) ->
       begin
-        match CPA.find v r.cpa with
+        match CPA.M.find v (fst r.cpa) with
         | `Int i -> ValueDomain.ID.to_int i
         | _ -> None
       end
