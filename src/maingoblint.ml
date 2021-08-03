@@ -175,6 +175,9 @@ let preprocess_files () =
   (* Preprocessor flags *)
   let cppflags = ref (get_string "cppflags") in
 
+  if Config.mach = "arm64" then
+    cppflags := !cppflags ^ "-include " ^ Filename.concat exe_dir "includes/arm64.h";
+
   (* the base include directory *)
   let include_dir =
     let incl1 = Filename.concat exe_dir "includes" in

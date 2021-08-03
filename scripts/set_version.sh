@@ -15,6 +15,7 @@ if [ ! -f src/config.ml ]; then
     echo "let tracking = false"
     echo "let experimental = false"
     echo "let cpp = \"cpp\""
+    echo "let mach = \"$(uname -m)\""
   } >> src/config.ml
 fi
 
