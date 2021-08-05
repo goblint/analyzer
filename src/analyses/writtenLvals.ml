@@ -3,19 +3,19 @@ open Prelude.Ana
 open Analyses
 
 module Q = Queries
-
+module VD = ValueDomain.Compound
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "writtenLvals"
   module D = Lattice.Unit
-  module G = Q.LS
+  module LS = Q.LS
+  module G = MapDomain.MapBot (Lval.CilLval) (VD)
   module C = Lattice.Unit
-
   let val_of _ = ()
 
-  let side_to_f ctx side =
+  let side_to_f ctx (side: G.t) =
     let get_current_fun () = Option.map MyCFG.getFun !MyCFG.current_node in
     let f = get_current_fun () in
     match f with
@@ -26,13 +26,13 @@ struct
   (* Returns the set of argument and global vars within the set of lvalues *)
   let filter_outer_vars ctx (s: Q.LS.t): Q.LS.t = Q.LS.filter (fun (v,offset) -> v.vglob && not (is_allocated_var ctx v)) s
 
-  let add_written_lval ctx (lval:lval): unit =
+  let add_written_lval ctx (lval:lval) (v: VD.t): unit =
     (* If we write to a top address, we warn here *)
     let query_may_point_to_handle_top e = match ctx.ask (Q.MayPointTo e) with
-      | `Top -> M.warn @@ "Write to top address occurs in expression " ^ (Pretty.sprint ~width:100 (Cil.d_exp () e)) ^ "\n"; Q.LS.bot ()
+      | `Top -> M.warn @@ "Write to top address occurs in expression " ^ (Pretty.sprint ~width:100 (Cil.d_exp () e)) ^ "\n"; LS.bot ()
       | s -> s
     in
-    let side = match lval with
+    let written = match lval with
       | Mem e, NoOffset
       | Mem e, Index _ ->
           let may_point_to = query_may_point_to_handle_top e in
@@ -45,25 +45,28 @@ struct
       | Var v, offs ->
         if v.vglob && not (is_allocated_var ctx v) then
           begin
-          let offs = Lval.CilLval.of_ciloffs offs in
-          Q.LS.singleton (v, offs)
+            let offs = Lval.CilLval.of_ciloffs offs in
+            LS.singleton (v, offs)
           end
         else
           begin
             M.tracel "writtenLvals" "Ignoring writte to lval %a\n" Cil.d_lval lval;
-            G.bot ()
+            LS.bot ()
           end
     in
+    let side = LS.fold (fun lv acc -> G.add lv v acc) written (G.empty ()) in
     side_to_f ctx side
 
   let add_written_option_lval ctx (lval: lval option): unit =
+    let v = VD.top () in
     match lval with
-    | Some lval -> add_written_lval ctx lval
+    | Some lval -> add_written_lval ctx lval v
     | None -> ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    add_written_lval ctx lval
+    let v = VD.top () in
+    add_written_lval ctx lval v
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -96,7 +99,7 @@ struct
     in
     (* Filter the written lvals by f to passed heapvars *)
     let written_by_f = ctx.global f in
-    let written_heap_vars_by_f = Q.LS.filter (fun (v, o) -> Set.mem (Cil.typeSig v.vtype) reachable_heap_var_typesigs) written_by_f in
+    let written_heap_vars_by_f = G.filter (fun (v, o) _ -> Set.mem (Cil.typeSig v.vtype) reachable_heap_var_typesigs) written_by_f in
     side_to_f ctx written_heap_vars_by_f
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -105,10 +108,12 @@ struct
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = D.bot ()
-  let exitstate  v = D.top ()
+  let exitstate v = D.top ()
 
   let query ctx (type a) (q: a Q.t): a Q.result = match q with
-    | Q.WrittenLvals f -> (ctx.global f: Q.LS.t)
+    | Q.WrittenLvals f ->
+      let lvals = List.fold (fun acc (lv,_) -> LS.add lv acc) (LS.empty ()) (G.bindings (ctx.global f)) in
+      lvals
     | _ -> Q.Result.top q
 
 end
