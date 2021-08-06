@@ -27,6 +27,10 @@ int rec(int i,int* ptr) {
         assert(*ptr == 12); //UNKNOWN!
         assert(x == 12); //UNKNOWN!
 
+        if(*ptr == 12) {
+            assert(x == 12); //UNKNOWN!
+        }
+
         // Another copy of x is reachable, so we are conservative and do a weak update
         x = 31;
         assert(x == 31); // UNKNOWN

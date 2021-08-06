@@ -109,11 +109,11 @@ struct
 
   let printXml f r =
     let e = XmlUtil.escape in
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n<key>\n%s\n</key>\n%a</map>\n</value>\n"
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a\n<key>\n%s\n</key>\n%a</map>\n</value>\n"
       (e @@ CPA.name ()) CPA.printXml r.cpa
       (e @@ PartDeps.name ()) PartDeps.printXml r.deps
       (e @@ WeakUpdates.name ()) WeakUpdates.printXml r.weak
-      (e @@ (PrivD.name ())) PrivD.printXml r.priv
+      (e @@ PrivD.name ()) PrivD.printXml r.priv
 
   let to_yojson r =
     `Assoc [ (CPA.name (), CPA.to_yojson r.cpa); (PartDeps.name (), PartDeps.to_yojson r.deps); (WeakUpdates.name (), WeakUpdates.to_yojson r.weak); (PrivD.name (), PrivD.to_yojson r.priv) ]
