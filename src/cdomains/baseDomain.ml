@@ -9,13 +9,12 @@ struct
   module M =
   struct
     include MapDomain.LiftTop (VD) (MapDomain.HashCached (MapDomain.MapBot (Basetype.Variables) (VD)))
-    let name () = "inner value domain"
+    let name () = "value domain"
   end
 
-  module WeakUpdates = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All variables weak" end)
-  include Lattice.Prod (M) (WeakUpdates)
+  include M
 
-  let invariant (c:Invariant.context) ((m,w):t) =
+  let invariant (c:Invariant.context) (m:t) =
     (* VS is used to detect and break cycles in deref_invariant calls *)
     let module VS = Set.Make (Basetype.Variables) in
     let rec context vs = {c with
@@ -44,22 +43,6 @@ struct
         in
         Invariant.(a && i)
       ) m Invariant.none
-
-  let find v (m,w) = M.find v m
-  let find_opt v (m,w) = M.find_opt v m
-  let singleton x v = M.singleton x v, WeakUpdates.bot ()
-  let map fn (m,w) = (M.map fn m,w)
-  let mapi fn (m,w) = (M.mapi fn m,w)
-  let filter fn (m,w) = (M.filter fn m,w)
-  let add var v (m,w) = (M.add var v m,w)
-  let add_list l (m,w) = (M.add_list l m,w)
-  let add_list_fun l fn (m,w) = (M.add_list_fun l fn m,w)
-  let remove v (m,w) = (M.remove v m, w)
-  let mem v (m,w) = M.mem v m
-  let fold (fn) (m, w) a = M.fold fn m a
-  let iter fn (m,w) = M.iter fn m
-
-  let long_map2 fn (m1,w1) (m2,w2) = M.long_map2 fn m1 m2, w1
 end
 
 
@@ -78,31 +61,38 @@ struct
   let name () = "array partitioning deps"
 end
 
+module WeakUpdates =
+struct
+  include SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All variables weak" end)
+end
+
 
 type 'a basecomponents_t = {
   cpa: CPA.t;
   deps: PartDeps.t;
+  weak: WeakUpdates.t;
   priv: 'a;
 } [@@deriving eq, ord]
 
 module BaseComponents (PrivD: Lattice.S):
 sig
   include Lattice.S with type t = PrivD.t basecomponents_t
-  val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+  val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
   type t = PrivD.t basecomponents_t [@@deriving eq, ord]
 
   include Printable.Std
   open Pretty
-  let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + PrivD.hash r.priv * 33
+  let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + WeakUpdates.hash r.weak * 51 + PrivD.hash r.priv * 33
 
 
   let show r =
     let first  = CPA.show r.cpa in
     let second  = PartDeps.show r.deps in
-    let third  = PrivD.show r.priv in
-    "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ")"
+    let third  = WeakUpdates.show r.weak in
+    let fourth =  PrivD.show r.priv in
+    "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ", " ^ fourth  ^ ")"
 
   let pretty () r =
     text "(" ++
@@ -110,49 +100,58 @@ struct
     ++ text ", " ++
     PartDeps.pretty () r.deps
     ++ text ", " ++
+    WeakUpdates.pretty () r.weak
+    ++ text ", " ++
     PrivD.pretty () r.priv
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (CPA.name ())) CPA.printXml r.cpa (XmlUtil.escape (PartDeps.name ())) PartDeps.printXml r.deps (XmlUtil.escape (PrivD.name ())) PrivD.printXml r.priv
+    let e = XmlUtil.escape in
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n<key>\n%s\n</key>\n%a</map>\n</value>\n"
+      (e @@ CPA.name ()) CPA.printXml r.cpa
+      (e @@ PartDeps.name ()) PartDeps.printXml r.deps
+      (e @@ WeakUpdates.name ()) WeakUpdates.printXml r.weak
+      (e @@ (PrivD.name ())) PrivD.printXml r.priv
 
   let to_yojson r =
-    `Assoc [ (CPA.name (), CPA.to_yojson r.cpa); (PartDeps.name (), PartDeps.to_yojson r.deps); (PrivD.name (), PrivD.to_yojson r.priv) ]
+    `Assoc [ (CPA.name (), CPA.to_yojson r.cpa); (PartDeps.name (), PartDeps.to_yojson r.deps); (WeakUpdates.name (), WeakUpdates.to_yojson r.weak); (PrivD.name (), PrivD.to_yojson r.priv) ]
 
-  let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ PrivD.name ()
+  let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ WeakUpdates.name ()  ^ " * " ^ PrivD.name ()
 
-  let invariant c {cpa; deps; priv} =
-    Invariant.(CPA.invariant c cpa && PartDeps.invariant c deps && PrivD.invariant c priv)
+  let invariant c {cpa; deps; weak; priv} =
+    Invariant.(CPA.invariant c cpa && PartDeps.invariant c deps && WeakUpdates.invariant c weak && PrivD.invariant c priv)
 
-  let of_tuple(cpa, deps, priv):t = {cpa; deps; priv}
-  let to_tuple r = (r.cpa, r.deps, r.priv)
+  let of_tuple(cpa, deps, weak, priv):t = {cpa; deps; weak; priv}
+  let to_tuple r = (r.cpa, r.deps, r.weak, r.priv)
 
   let arbitrary () =
-    let tr = QCheck.triple (CPA.arbitrary ()) (PartDeps.arbitrary ()) (PrivD.arbitrary ()) in
+    let tr = QCheck.quad (CPA.arbitrary ()) (PartDeps.arbitrary ()) (WeakUpdates.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); priv = PrivD.bot ()}
-  let is_bot {cpa; deps; priv} = CPA.is_bot cpa && PartDeps.is_bot deps && PrivD.is_bot priv
-  let top () = {cpa = CPA.top (); deps = PartDeps.top (); priv = PrivD.bot ()}
-  let is_top {cpa; deps; priv} = CPA.is_top cpa && PartDeps.is_top deps && PrivD.is_top priv
+  let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); weak = WeakUpdates.bot (); priv = PrivD.bot ()}
+  let is_bot {cpa; deps; weak; priv} = CPA.is_bot cpa && PartDeps.is_bot deps && WeakUpdates.is_bot weak && PrivD.is_bot priv
+  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; priv = PrivD.bot ()}
+  let is_top {cpa; deps; weak; priv} = CPA.is_top cpa && PartDeps.is_top deps && WeakUpdates.is_top weak && PrivD.is_top priv
 
-  let leq {cpa=x1; deps=x2; priv=x3 } {cpa=y1; deps=y2; priv=y3} =
-    CPA.leq x1 y1 && PartDeps.leq x2 y2 && PrivD.leq x3 y3
+  let leq {cpa=x1; deps=x2; weak=x3; priv=x4 } {cpa=y1; deps=y2; weak=y3; priv=y4} =
+    CPA.leq x1 y1 && PartDeps.leq x2 y2 && WeakUpdates.leq x3 y3 && PrivD.leq x4 y4
 
-  let pretty_diff () (({cpa=x1; deps=x2; priv=x3}:t),({cpa=y1; deps=y2; priv=y3}:t)): Pretty.doc =
+  let pretty_diff () (({cpa=x1; deps=x2; weak=x3; priv=x4}:t),({cpa=y1; deps=y2; weak=y3; priv=y4}:t)): Pretty.doc =
     if not (CPA.leq x1 y1) then
       CPA.pretty_diff () (x1,y1)
     else if not (PartDeps.leq x2 y2) then
       PartDeps.pretty_diff () (x2,y2)
+    else if not (WeakUpdates.leq x3 y3) then
+      WeakUpdates.pretty_diff () (x3,y3)
     else
-      PrivD.pretty_diff () (x3,y3)
+      PrivD.pretty_diff () (x4,y4)
 
-  let op_scheme op1 op2 op3 {cpa=x1; deps=x2; priv=x3} {cpa=y1; deps=y2; priv=y3}: t =
-    {cpa = op1 x1 y1; deps = op2 x2 y2; priv = op3 x3 y3 }
-  let join = op_scheme CPA.join PartDeps.join PrivD.join
-  let meet = op_scheme CPA.meet PartDeps.meet PrivD.meet
-  let widen = op_scheme CPA.widen PartDeps.widen PrivD.widen
-  let narrow = op_scheme CPA.narrow PartDeps.narrow PrivD.narrow
+  let op_scheme op1 op2 op3 op4 {cpa=x1; deps=x2; weak=x3; priv=x4} {cpa=y1; deps=y2; weak=y3; priv=y4}: t =
+    {cpa = op1 x1 y1; deps = op2 x2 y2; weak = op3 x3 y3; priv = op4 x4 y4 }
+  let join = op_scheme CPA.join PartDeps.join WeakUpdates.join PrivD.join
+  let meet = op_scheme CPA.meet PartDeps.meet WeakUpdates.meet PrivD.meet
+  let widen = op_scheme CPA.widen PartDeps.widen WeakUpdates.widen PrivD.widen
+  let narrow = op_scheme CPA.narrow PartDeps.narrow WeakUpdates.narrow PrivD.narrow
 end
 
 module type ExpEvaluator =
@@ -169,16 +168,16 @@ struct
   let (%) = Batteries.(%)
   let eval_exp x = Option.map BI.to_int64 % (ExpEval.eval_exp x)
   let join (one:t) (two:t): t =
-    let cpa_join (l1,r1) (l2,r2) = (CPA.M.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) l1 l2, CPA.WeakUpdates.join r1 r2) in
-    op_scheme cpa_join PartDeps.join PrivD.join one two
+    let cpa_join = CPA.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) in
+    op_scheme cpa_join PartDeps.join WeakUpdates.join PrivD.join one two
 
   let leq one two =
-    let cpa_leq (l1,r1) (l2,r2) = CPA.M.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) l1 l2 && CPA.WeakUpdates.leq r1 r2 in
-    cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && PrivD.leq one.priv two.priv
+    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) in
+    cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && WeakUpdates.leq one.weak two.weak && PrivD.leq one.priv two.priv
 
   let widen one two: t =
-    let cpa_widen (l1,r1) (l2,r2) = (CPA.M.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) l1 l2, CPA.WeakUpdates.join r1 r2) in
-    op_scheme cpa_widen PartDeps.widen PrivD.widen one two
+    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) in
+    op_scheme cpa_widen PartDeps.widen WeakUpdates.widen PrivD.widen one two
 end
 
 
@@ -190,7 +189,7 @@ module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
     match e with
     | Lval (Var v, NoOffset) ->
       begin
-        match CPA.M.find v (fst r.cpa) with
+        match CPA.find v r.cpa with
         | `Int i -> ValueDomain.ID.to_int i
         | _ -> None
       end
