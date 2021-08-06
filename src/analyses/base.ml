@@ -2227,8 +2227,8 @@ struct
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
         else VD.top ()
       in
-      let st = add_globals st fun_st in
-      let st = { st with weak = st.weak } in (* keep weak from caller *)
+      let nst = add_globals st fun_st in
+      let st = { nst with weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
