@@ -1868,8 +1868,10 @@ struct
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
-    let reachable_other_copies = List.filter (fun v -> try (match Cilfacade.find_scope_fundec v with | Some fdec -> fdec.svar.vid = fundec.svar.vid |_ -> false) with _ -> false) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
+    let reachable_other_copies = List.filter (fun v -> try (match Cilfacade.find_scope_fundec v with | Some fdec -> fdec.svar.vid = fundec.svar.vid |_ -> false) with _ -> false) reachable in
+    (* Add to the set of weakly updated variables *)
     let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
     {st' with cpa = new_cpa; weak = new_weak}
 
@@ -2217,7 +2219,7 @@ struct
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
         let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
         let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
-        { fun_st with cpa = cpa'; weak = st.weak }
+        { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
       let return_val =
@@ -2226,6 +2228,7 @@ struct
         else VD.top ()
       in
       let st = add_globals st fun_st in
+      let st = { st with weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val

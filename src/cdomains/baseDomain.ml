@@ -61,6 +61,8 @@ struct
   let name () = "array partitioning deps"
 end
 
+(** Maintains a set of local variables that need to be weakly updated, because multiple reachbale copies of them may *)
+(* exist on the call stack *)
 module WeakUpdates =
 struct
   include SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All variables weak" end)
