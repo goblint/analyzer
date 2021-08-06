@@ -17,11 +17,16 @@ sig
 
   (* Arithmetic *)
   val neg : t -> t
+  val abs : t -> t
   val add : t -> t -> t
   val sub : t -> t -> t
   val mul : t -> t -> t
   val div : t -> t -> t
+
+  (* This should be the remainder, not the Euclidian Modulus *)
+  (* -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4 *)
   val rem : t -> t -> t
+  val gcd : t-> t -> t
 
   (* Bitwise *)
   val shift_left : t -> int -> t
@@ -50,7 +55,8 @@ end
 module type IntOps =
 sig
   include IntOpsBase
-  (* Logical *)
+  (* Logical: These are intended to be the logical operations in the C sense!   *)
+  (* Int64 calls its bit-wise operations e.g. logand, we call those e.g. bitand *)
   val logand : t -> t -> t
   val logor : t -> t -> t
   val logxor : t -> t -> t
@@ -71,11 +77,15 @@ struct
   let upper_bound = Some max_int
 
   let neg x = (- x)
+  let abs = abs
   let add = (+)
   let sub = (-)
   let mul a b = a * b
   let div = (/)
   let rem = (mod)
+  let gcd x y =
+    let rec gcd' x y = if y = 0 then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = (lsl)
   let shift_right = (lsr)
@@ -108,19 +118,23 @@ struct
   let upper_bound = Some Int32.max_int
 
   let neg = Int32.neg
+  let abs = Int32.abs
   let add = Int32.add
   let sub = Int32.sub
   let mul = Int32.mul
   let div = Int32.div
   let rem = Int32.rem
+  let gcd x y =
+    let rec gcd' x y = if y = zero then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = Int32.shift_left
   let shift_right = Int32.shift_right_logical
-  let bitand = Int32.logand
-  let bitor = Int32.logor
-  let bitxor = Int32.logxor
+  let bitand = Int32.logand (* Int32 calls bitwise operations 'log' *)
+  let bitor = Int32.logor (* Int32 calls bitwise operations 'log' *)
+  let bitxor = Int32.logxor (* Int32 calls bitwise operations 'log' *)
 
-  let bitnot = Int32.lognot
+  let bitnot = Int32.lognot (* Int32 calls bitwise operations 'log' *)
 
   let compare = Int32.compare
   let equal = Int32.equal
@@ -147,19 +161,23 @@ struct
   let upper_bound = Some Int64.max_int
 
   let neg = Int64.neg
+  let abs = Int64.abs
   let add = Int64.add
   let sub = Int64.sub
   let mul = Int64.mul
   let div = Int64.div
   let rem = Int64.rem
+  let gcd x y =
+    let rec gcd' x y = if y = zero then x else gcd' y (rem x y) in
+    abs @@ gcd' x y
 
   let shift_left = Int64.shift_left
   let shift_right = Int64.shift_right_logical
-  let bitand = Int64.logand
-  let bitor = Int64.logor
-  let bitxor = Int64.logxor
+  let bitand = Int64.logand (* Int64 calls bitwise operations 'log' *)
+  let bitor = Int64.logor (* Int64 calls bitwise operations 'log' *)
+  let bitxor = Int64.logxor (* Int64 calls bitwise operations 'log' *)
 
-  let bitnot = Int64.lognot
+  let bitnot = Int64.lognot (* Int64 calls bitwise operations 'log' *)
 
   let compare = Int64.compare
   let equal = Int64.equal
@@ -186,16 +204,22 @@ struct
   let lower_bound = None
 
   let neg = Big_int_Z.minus_big_int
+  let abs = Big_int_Z.abs_big_int
   let add = Big_int_Z.add_big_int
   let sub = Big_int_Z.sub_big_int
   let mul = Big_int_Z.mult_big_int
 
   (* If the first operand of a div is negative, Zarith rounds the result away from zero.
-    We thus always transform this into a divison with a non-negative first operand.
+     We thus always transform this into a division with a non-negative first operand.
   *)
   let div a b = if Big_int_Z.lt_big_int a zero then Big_int_Z.minus_big_int (Big_int_Z.div_big_int (Big_int_Z.minus_big_int a) b) else Big_int_Z.div_big_int a b
-  let rem = Big_int_Z.mod_big_int
 
+  (* Big_int_Z.mod_big_int computes the Euclidian Modulus, but what we want here is the remainder, as returned by mod on ints
+     -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4
+  *)
+  let rem a b = Big_int_Z.sub_big_int a (mul b (div a b))
+
+  let gcd x y = abs @@ Big_int_Z.gcd_big_int x y
   let compare = Big_int_Z.compare_big_int
   let equal = Big_int_Z.eq_big_int
 
@@ -232,6 +256,8 @@ struct
   let pred x = sub x one
   let of_bool x = if x then one else zero
   let to_bool x = x <> zero
+
+  (* These are logical operations in the C sense! *)
   let log_op op a b = of_bool @@ op (to_bool a) (to_bool b)
   let lognot x = of_bool (x = zero)
   let logand = log_op (&&)

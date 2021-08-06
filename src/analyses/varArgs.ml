@@ -29,14 +29,14 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
-    let current_fun = (MyCFG.getFun ctx.node).svar in
+    let current_fun = (Node.find_fundec ctx.node).svar in
     (if f.vname = builtin_va_arg_str then
       if List.length args <> 3 then
         M.warn @@ "Unexpected number of arguments to " ^ builtin_va_arg_str ^ ". Length was:" ^ (string_of_int (List.length args))

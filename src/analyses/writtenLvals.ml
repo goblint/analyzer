@@ -16,7 +16,7 @@ struct
   let val_of _ = ()
 
   let side_to_f ctx (side: G.t) =
-    let get_current_fun () = Option.map MyCFG.getFun !MyCFG.current_node in
+    let get_current_fun () = Option.map Node.find_fundec !MyCFG.current_node in
     let f = get_current_fun () in
     match f with
     | Some f -> ctx.sideg f.svar side
@@ -77,10 +77,10 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* We have a call: [lval =] f(e1,...,ek) *)
     (* Set the lval to written, if any. *)
     add_written_option_lval ctx lval;
@@ -98,7 +98,7 @@ struct
       | `Top -> failwith "This should not happen!"
     in
     (* Filter the written lvals by f to passed heapvars *)
-    let written_by_f = ctx.global f in
+    let written_by_f = ctx.global f.svar in
     let written_heap_vars_by_f = G.filter (fun (v, o) _ -> Set.mem (Cil.typeSig v.vtype) reachable_heap_var_typesigs) written_by_f in
     side_to_f ctx written_heap_vars_by_f
 

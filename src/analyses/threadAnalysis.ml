@@ -28,8 +28,8 @@ struct
       | _ -> ()
     end;
     ctx.local
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = au
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
@@ -121,8 +121,8 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
   let body ctx (f:fundec) : D.t =  ctx.local
   let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = ctx.local
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = ctx.local
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ctx.local
 
   let main = D.singleton "main"
@@ -130,7 +130,7 @@ struct
   let exitstate  v = D.top ()
 
   let threadenter ctx lval f args =
-    let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
+    let location x = let l = !Tracing.current_loc in CilType.Location.show l ^ ":" ^ x.vname in
     [D.singleton (location f)]
 
   let threadspawn ctx lval f args fctx = ctx.local

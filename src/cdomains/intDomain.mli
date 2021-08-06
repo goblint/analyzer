@@ -188,13 +188,16 @@ sig
     * returns [true], the above [to_bool] should return a real value. *)
 
   val to_excl_list: t -> int_t list option
-  (* Gives a list representation of the excluded values if possible. *)
+  (** Gives a list representation of the excluded values if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
-  (* Creates a exclusion set from a given list of integers. *)
+  (** Creates an exclusion set from a given list of integers. *)
 
   val is_excl_list: t -> bool
-  (* Checks if the element is an exclusion set. *)
+  (** Checks if the element is an exclusion set. *)
+
+  val to_incl_list: t -> int_t list option
+  (** Gives a list representation of the included values if possible. *)
 
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
@@ -211,7 +214,7 @@ end
 
 module type IkindUnawareS =
 sig
-  include B with type int_t = int64
+  include B
   include Arith with type t:= t
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
@@ -223,6 +226,8 @@ sig
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
   val of_interval: Cil.ikind -> int_t * int_t -> t
+
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -231,6 +236,15 @@ module type S =
 sig
   include B
   include ArithIkind with type t:= t
+
+  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
+  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+  (** @param no_ov If true, assume no overflow can occur. *)
+
   val join: Cil.ikind -> t ->  t -> t
   val meet: Cil.ikind -> t -> t -> t
   val narrow: Cil.ikind -> t -> t -> t
@@ -245,12 +259,18 @@ sig
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
   val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
+
+  val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
-module OldDomainFacade (Old : IkindUnawareS) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
+module OldDomainFacade (Old : IkindUnawareS with type int_t = int64) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
 (** Facade for IntDomain implementations that do not implement the interface where arithmetic functions take an ikind parameter. *)
 
 module type Y =
@@ -266,6 +286,8 @@ sig
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
   val of_interval: Cil.ikind -> int_t * int_t -> t
+
+  val of_congruence: Cil.ikind -> int_t * int_t -> t
 
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
@@ -300,7 +322,7 @@ val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
 module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
-  val range           : Cil.ikind -> int64 * int64 
+  val range           : Cil.ikind -> int64 * int64
   val range_big_int   : Cil.ikind -> Z.t * Z.t
   val bits            : Cil.ikind -> int * int
 end
@@ -319,20 +341,23 @@ exception Error
 exception IncompatibleIKinds of string
 
 (** {b Predefined domains} *)
-
-module Integers : IkindUnawareS with type t = int64
+module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t
 (** The integers with their natural orderings. Calling [top] and [bot] will
   * raise exceptions. *)
 
-module FlatPureIntegers : IkindUnawareS with type t = int64
+module FlatPureIntegers: IkindUnawareS with type t = IntOps.Int64Ops.t and type int_t = IntOps.Int64Ops.t
 (** The integers with flattened orderings. Calling [top] and [bot] or [join]ing
     or [meet]ing inequal elements will raise exceptions. *)
 
-module Flattened : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot]
+module Flattened : IkindUnawareS with type t = [`Top | `Lifted of IntOps.Int64Ops.t | `Bot] and type int_t = IntOps.Int64Ops.t
 (** This is the typical flattened integer domain used in Kildall's constant
   * propagation. *)
 
-module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot]
+module FlattenedBI : IkindUnawareS with type t = [`Top | `Lifted of IntOps.BigIntOps.t | `Bot] and type int_t = IntOps.BigIntOps.t
+(** This is the typical flattened integer domain used in Kildall's constant
+  * propagation, using Big_int instead of int64. *)
+
+module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and type int_t = int64
 (** Artificially bounded integers in their natural ordering. *)
 
 module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
@@ -342,22 +367,25 @@ module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) op
 module BigInt : Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
+
+module Congruence : S with type int_t = IntOps.BigIntOps.t
+
 module DefExc : S with type int_t = IntOps.BigIntOps.t
 (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
   * Good for analysing branches. *)
 
 (** {b Domain constructors} *)
 
-module Flat (Base: IkindUnawareS): IkindUnawareS
+module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
 (** Creates a flat value domain, where all ordering is lost. Arithmetic
   * operations are lifted such that only lifted values can be evaluated
   * otherwise the top/bot is simply propagated with bot taking precedence over
   * top. *)
 
-module Lift (Base: IkindUnawareS): IkindUnawareS
+module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
 (** Just like {!Value.Flat} except the order is preserved. *)
 
-module Reverse (Base: IkindUnawareS): IkindUnawareS
+module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and type int_t = Base.int_t
 (** Reverses bot, top, leq, join, meet *)
 
 (* module Interval : S *)

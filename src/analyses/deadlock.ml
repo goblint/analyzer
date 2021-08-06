@@ -28,9 +28,9 @@ struct
     if !Goblintutil.in_verifying_stage then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.show e.addr) (ValueDomain.Addr.show newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
+            let msg = (sprintf "Deadlock warning: Locking order %s, %s at %s, %s violates order at %s, %s." (ValueDomain.Addr.show e.addr) (ValueDomain.Addr.show newLock.addr) (CilType.Location.show e.loc) (CilType.Location.show newLock.loc) (CilType.Location.show b.loc) (CilType.Location.show a.loc)) in
             Messages.report msg;
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.show newLock.addr) (ValueDomain.Addr.show e.addr) b.loc.line a.loc.line e.loc.line newLock.loc.line) in
+            let msg = (sprintf "Deadlock warning: Locking order %s, %s at %s, %s violates order at %s, %s." (ValueDomain.Addr.show newLock.addr) (ValueDomain.Addr.show e.addr) (CilType.Location.show b.loc) (CilType.Location.show a.loc) (CilType.Location.show e.loc) (CilType.Location.show newLock.loc)) in
             Messages.report ~loc:a.loc msg;
           )
           else () ) !forbiddenList ) lockList;
@@ -76,11 +76,11 @@ struct
     ctx.local
 
   (* Calls/Enters a function *)
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [D.bot (),ctx.local]
 
   (* Leaves a function *)
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)

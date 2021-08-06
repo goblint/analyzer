@@ -43,11 +43,11 @@ struct
   let side_effect_casts ctx (g: G.t) =
     if not (G.is_bot g) then begin
       try
-        let current_fun = MyCFG.getFun ctx.node in
+        let current_fun = Node.find_fundec ctx.node in
         (* Side effect to the function *)
         ctx.sideg current_fun.svar g
       with e ->
-        M.warn @@ "Warning: TypeCasts " ^ (G.show g) ^ " at node " ^ (Pretty.sprint ~width: 80 (MyCFG.pretty_node () ctx.node)) ^ " cannot be associated to a function." ;
+        M.warn @@ "Warning: TypeCasts " ^ (G.show g) ^ " at node " ^ (Pretty.sprint ~width: 80 (Node.pretty_plain () ctx.node)) ^ " cannot be associated to a function." ;
     end
 
   let side_effect_casts_lv ctx (lv: lval) =
@@ -71,11 +71,11 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* TODO: Side effect? *)
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     List.iter (side_effect_casts_exp ctx) args;
     ignore @@ BatOption.map (side_effect_casts_lv ctx) lval;
     au

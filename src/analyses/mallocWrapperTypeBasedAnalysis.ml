@@ -26,11 +26,11 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : D.t = ()
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let calleectx = () in
     [(ctx.local, calleectx)]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t = ()
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ()
 
@@ -75,7 +75,7 @@ struct
     | Q.ArgVarTyp t ->
       `Lifted (get_arg_var t)
     | Q.HeapVar ->
-      let fn = (MyCFG.getFun ctx.node).svar in
+      let fn = (Node.find_fundec ctx.node).svar in
       let rval =
         match ctx.node with
           | Node.Statement s -> (match s.skind with

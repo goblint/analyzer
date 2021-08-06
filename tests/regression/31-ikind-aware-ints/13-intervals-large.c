@@ -9,8 +9,7 @@ int main(){
     if(x > 18446744073709551612ull){
         a = 1;
     }
-    // The following line should succeed, but is unknown for now
-    assert(a); // UNKNOWN
+    assert(a);
 
     unsigned long long y = x + 4;
     // Unsigned overflow -- The following assertion should succeed, but is unknown for now

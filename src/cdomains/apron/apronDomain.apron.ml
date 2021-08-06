@@ -397,7 +397,7 @@ struct
     | Some infimum, Some supremum ->
       begin
         if (supremum = infimum) then
-          (Some infimum)
+          (Some (IntOps.BigIntOps.of_int64 infimum))
         else None
       end
     | _ -> None

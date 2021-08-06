@@ -19,11 +19,12 @@ module PrE = IntDomain.Flattened
 module Ctx = IntDomain.Flattened
 (* predecessor nodes *)
 module Pred = struct
-  module Base = Basetype.ProgLocation
+  module Base = Basetype.ExtractLocation
   include SetDomain.Make (Base)
-  let of_node = singleton % MyCFG.getLoc
+  let of_loc = singleton
+  let of_node = of_loc % Node.location
   let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-  let string_of_elt = Basetype.ProgLocation.show
+  let string_of_elt = Basetype.ExtractLocation.show
 end
 
 (* define record type here so that fields are accessable outside of D *)
@@ -68,4 +69,7 @@ struct
   let widen = join
   let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Pred.meet Ctx.meet
   let narrow = meet
+
+  let pretty_diff () (x,y) =
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

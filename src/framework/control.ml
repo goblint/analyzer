@@ -67,14 +67,18 @@ struct
     (* print out information about dead code *)
     let print_dead_code (xs:Result.t) uncalled_fn_loc =
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
-      let module NH = Hashtbl.Make (MyCFG.Node) in
+      let module NH = Hashtbl.Make (Node) in
       let live_nodes : unit NH.t = NH.create 10 in
       let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
       let module StringMap = BatMap.Make (String) in
       let open BatPrintf in
       let live_lines = ref StringMap.empty in
       let dead_lines = ref StringMap.empty in
-      let add_one (l,n,f) v =
+      let add_one n v =
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+        let l = UpdateCil.getLoc n in
+        let f = Node.find_fundec n in
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
         let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
@@ -133,12 +137,12 @@ struct
       let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
           match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-          | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
-          | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) d_loc loc)
+          | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp CilType.Location.pretty loc)
+          | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) CilType.Location.pretty loc)
           | _ -> ()
       in
       if get_bool "dbg.print_dead_code" then (
-        let by_fst (a,_) (b,_) = compare a b in
+        let by_fst (a,_) (b,_) = Stdlib.compare a b in
         Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
         Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
         Deadcode.Locmap.clear Deadcode.dead_branches_then;
@@ -154,20 +158,22 @@ struct
 
       (* Adding the state at each system variable to the final result *)
       let add_local_var (n,es) state =
-        let loc = Tracing.getLoc n in
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+        let loc = UpdateCil.getLoc n in
         if loc <> locUnknown then try
-            let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
-            if Result.mem res p then
+            let fundec = Node.find_fundec n in
+            if Result.mem res n then
               (* If this source location has been added before, we look it up
                * and add another node to it information to it. *)
-              let prev = Result.find res p in
-              Result.replace res p (LT.add (es,state,fundec) prev)
+              let prev = Result.find res n in
+              Result.replace res n (LT.add (es,state,fundec) prev)
             else
-              Result.add res p (LT.singleton (es,state,fundec))
+              Result.add res n (LT.singleton (es,state,fundec))
           (* If the function is not defined, and yet has been included to the
            * analysis result, we generate a warning. *)
           with Not_found ->
-            Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint MyCFG.pretty_node n)
+            Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint Node.pretty_plain n)
       in
       LHT.iter add_local_var h;
       res
@@ -232,12 +238,12 @@ struct
         ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         }
       in
-      let edges = MyCFG.getGlobalInits file in
+      let edges = CfgTools.getGlobalInits file in
       if (get_bool "dbg.verbose") then print_endline ("Executing "^string_of_int (List.length edges)^" assigns.");
       let funs = ref [] in
       (*let count = ref 0 in*)
-      let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t =
-        if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
+      let transfer_func (st : Spec.D.t) (loc, edge) : Spec.D.t =
+        if M.tracing then M.trace "con" "Initializer %a\n" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
         Tracing.current_loc := loc;
@@ -250,7 +256,7 @@ struct
           (match lval, exp with
             | (Var v,o), (AddrOf (Var f,NoOffset))
               when v.vstorage <> Static && isFunctionType f.vtype ->
-              (try funs := Cilfacade.getdec f :: !funs with Not_found -> ())
+              (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
             | _ -> ()
           );
           Spec.assign {ctx with local = st} lval exp
@@ -296,7 +302,7 @@ struct
     in
 
     let startstate, more_funs =
-      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
+      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (CfgTools.numGlobals file)^" globals.");
       Stats.time "global_inits" do_global_inits file
     in
 
@@ -323,15 +329,15 @@ struct
         }
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
-      let ents = Spec.enter ctx None fd.svar args in
-      List.map (fun (_,s) -> fd.svar, s) ents
+      let ents = Spec.enter ctx None fd args in
+      List.map (fun (_,s) -> fd, s) ents
     in
 
     (try MyCFG.dummy_func.svar.vdecl <- (List.hd otherfuns).svar.vdecl with Failure _ -> ());
 
     let startvars =
       if startfuns = []
-      then [[MyCFG.dummy_func.svar, startstate]]
+      then [[MyCFG.dummy_func, startstate]]
       else
         let morph f = Spec.morphstate f startstate in
         List.map (enter_with morph) startfuns
@@ -383,23 +389,24 @@ struct
 
     let solve_and_postprocess () =
       (* handle save_run/load_run *)
-      let append_opt opt file = let o = get_string opt in if o = "" then "" else o ^ Filename.dir_sep ^ file in
       let solver_file = "solver.marshalled" in
-      let save_run = append_opt "save_run" solver_file in
-      let load_run = append_opt "load_run" solver_file in
+      let load_run = get_string "load_run" in
       let compare_runs = get_string_list "compare_runs" in
+      let gobview = get_bool "gobview" in
+      let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
       let lh, gh = if load_run <> "" then (
+          let solver = Filename.concat load_run solver_file in
           if get_bool "dbg.verbose" then
-            print_endline ("Loading the solver result of a saved run from " ^ load_run);
-            let lh,gh = Serialize.unmarshal load_run in
-            if get_bool "ana.opt.hashcons" then (
-              let lh' = LHT.create (LHT.length lh) in
-              let gh' = GHT.create (GHT.length gh) in
-              LHT.iter (fun k v -> let k' = EQSys.LVar.relift k in let v' = EQSys.D.join (EQSys.D.bot ()) v in LHT.replace lh' k' v') lh;
-              GHT.iter (fun k v -> let k' = EQSys.GVar.relift k in let v' = EQSys.G.join (EQSys.G.bot ()) v in GHT.replace gh' k' v') gh;
-              lh', gh'
-            ) else lh,gh
+            print_endline ("Loading the solver result of a saved run from " ^ solver);
+          let lh,gh = Serialize.unmarshal solver in
+          if get_bool "ana.opt.hashcons" then (
+            let lh' = LHT.create (LHT.length lh) in
+            let gh' = GHT.create (GHT.length gh) in
+            LHT.iter (fun k v -> let k' = EQSys.LVar.relift k in let v' = EQSys.D.join (EQSys.D.bot ()) v in LHT.replace lh' k' v') lh;
+            GHT.iter (fun k v -> let k' = EQSys.GVar.relift k in let v' = EQSys.G.join (EQSys.G.bot ()) v in GHT.replace gh' k' v') gh;
+            lh', gh'
+          ) else lh,gh
         ) else if compare_runs <> [] then (
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
@@ -411,19 +418,22 @@ struct
         ) else (
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
-          if get_string "warn" = "early" then Goblintutil.should_warn := true;
+          Goblintutil.should_warn := get_string "warn" = "early" || gobview;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
-            let analyses = append_opt "save_run" "analyses.marshalled" in
-            let config = append_opt "save_run" "config.json" in
-            let meta = append_opt "save_run" "meta.json" in
-            let solver_stats = append_opt "save_run" "solver_stats.csv" in (* see Generic.SolverStats... *)
+            let solver = Filename.concat save_run solver_file in
+            let analyses = Filename.concat save_run "analyses.marshalled" in
+            let config = Filename.concat save_run "config.json" in
+            let meta = Filename.concat save_run "meta.json" in
+            let solver_stats = Filename.concat save_run "solver_stats.csv" in (* see Generic.SolverStats... *)
+            let cil = Filename.concat save_run "cil.marshalled" in
+            let warnings = Filename.concat save_run "warnings.marshalled" in
+            let stats = Filename.concat save_run "stats.marshalled" in
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ save_run ^ ", the analysis table to " ^ analyses ^ ", the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
+              print_endline ("Saving the solver result to " ^ solver ^ ", the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
-            ignore @@ GU.create_dir (get_string "save_run"); (* ensure the directory exists *)
-            Serialize.marshal (lh, gh) save_run;
-            Serialize.marshal !MCP.analyses_table analyses;
+            ignore @@ GU.create_dir (save_run); (* ensure the directory exists *)
+            Serialize.marshal (lh, gh) solver;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
@@ -432,6 +442,15 @@ struct
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
             Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json; (* the above is compact, this is pretty-printed *)
+            if gobview then (
+              if get_bool "dbg.verbose" then (
+                print_endline ("Saving the analysis table to " ^ analyses ^ ", the CIL state to " ^ cil ^ ", the warning table to " ^ warnings ^ ", and the runtime stats to " ^ stats);
+              );
+              Serialize.marshal !MCP.analyses_table analyses;
+              Serialize.marshal (file, Cabs2cil.environment) cil;
+              Serialize.marshal !Messages.warning_table warnings;
+              Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
+            );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
           lh, gh
@@ -461,8 +480,8 @@ struct
 
       let out = M.get_out "uncalled" Legacy.stdout in
       let insrt k _ s = match k with
-        | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-        | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+        | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
+        | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
         | _ -> s
       in
       (* set of ids of called functions *)
@@ -478,7 +497,7 @@ struct
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "dbg.uncalled" then (
               let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int cnt  ^ "LoC" in
-              ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+              ignore (Pretty.fprintf out "%s (%a)\n" msg CilType.Location.pretty loc)
             )
         | _ -> ()
       in
@@ -498,7 +517,7 @@ struct
         (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =
           let open Batteries in let open Enum in
-          let e = LHT.enum lh |> map (Tuple2.map1 (MyCFG.getLoc % fst)) in (* drop context from key and get location from node *)
+          let e = LHT.enum lh |> map (Tuple2.map1 (Node.location % fst)) in (* drop context from key and get location from node *)
           let h = Hashtbl.create (if fast_count e then count e else 123) in
           iter (fun (k,v) ->
             (* join values for the same location *)
@@ -535,7 +554,7 @@ struct
       lh, gh
     in
 
-    MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
+    Generic.write_cfgs := CfgTools.dead_code_cfg file (module Cfg:CfgBidir);
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
@@ -561,7 +580,7 @@ struct
       WResult.write lh gh entrystates;
 
     if get_bool "exp.cfgdot" then
-      MyCFG.dead_code_cfg file (module Cfg : CfgBidir) liveness;
+      CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
     Spec.finalize ();
 
@@ -585,9 +604,9 @@ struct
 end
 
 let compute_cfg file =
-  let cfgF, cfgB = MyCFG.getCFG file in
+  let cfgF, cfgB = CfgTools.getCFG file in
   let cfgB' = function
-    | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
+    | MyCFG.Statement s as n -> ([Cilfacade.get_stmtLoc s,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in

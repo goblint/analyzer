@@ -8,7 +8,7 @@ let find_main_entry entrystates =
     entrystates
     |> List.map fst
     |> List.partition (function
-        | FunctionEntry f, _ -> f.vname = "main"
+        | FunctionEntry f, _ -> f.svar.vname = "main"
         | _, _ -> false
       )
   in
@@ -25,9 +25,9 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
   (* DFS *)
   let rec iter_node path_visited_nodes node =
     if NS.mem node path_visited_nodes then
-      NH.add loop_heads node ()
+      NH.replace loop_heads node ()
     else if not (NH.mem global_visited_nodes node) then begin
-      NH.add global_visited_nodes node ();
+      NH.replace global_visited_nodes node ();
       let new_path_visited_nodes = NS.add node path_visited_nodes in
       List.iter (fun (_, to_node) ->
           iter_node new_path_visited_nodes to_node
@@ -37,7 +37,7 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
 
   Cil.iterGlobals file (function
       | GFun (fd, _) ->
-        let entry_node = FunctionEntry fd.svar in
+        let entry_node = FunctionEntry fd in
         iter_node NS.empty entry_node
       | _ -> ()
     );
