@@ -66,6 +66,7 @@ end
 module WeakUpdates =
 struct
   include SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All variables weak" end)
+  let name () = "Vars with Weak Update"
 end
 
 
