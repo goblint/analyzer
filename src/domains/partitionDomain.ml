@@ -1,7 +1,5 @@
 (** Partitioning domains. *)
 
-module GU = Goblintutil
-
 module type Collapse = sig
   include Printable.S
   val collapse: t -> t -> bool
