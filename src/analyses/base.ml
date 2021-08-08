@@ -127,7 +127,7 @@ struct
     | b -> (fun x y -> (ID.top_of result_ik))
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -208,7 +208,28 @@ struct
      * bother to find the result in most cases, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
         let ik = Cilfacade.get_ikind t in
-        let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.Addr.equal (AD.choose x) (AD.choose y)) else None in
+        let eq x y =
+          if AD.is_definite x && AD.is_definite y then
+            let ax = AD.choose x in
+            let ay = AD.choose y in
+            if AD.Addr.equal ax ay then
+              let v = AD.Addr.to_var ax in
+              if v = [] then
+                Some true
+              else (
+                (* If the address id definite, it should be one or no variables *)
+                assert (List.length v = 1);
+                if WeakUpdates.mem (List.hd v) st.weak then
+                  None
+                else
+                  Some true
+              )
+            else
+              (* If they are unequal, it does not matter if the underlying var represents multiple concrete vars or not *)
+              Some false
+          else
+            None
+        in
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
         | MinusPP ->
@@ -715,13 +736,13 @@ struct
         else
           let a1 = eval_rv a gs st c1 in
           let a2 = eval_rv a gs st c2 in
-          evalbinop op t1 a1 t2 a2 typ
+          evalbinop st op t1 a1 t2 a2 typ
       | BinOp (op,arg1,arg2,typ) ->
         let a1 = eval_rv a gs st arg1 in
         let a2 = eval_rv a gs st arg2 in
         let t1 = Cilfacade.typeOf arg1 in
         let t2 = Cilfacade.typeOf arg2 in
-        evalbinop op t1 a1 t2 a2 typ
+        evalbinop st op t1 a1 t2 a2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
