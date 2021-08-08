@@ -31,6 +31,9 @@ int rec(int i,int* ptr) {
             assert(x == 12); //UNKNOWN!
         }
 
+        // ptr may still point to the outer instance
+        assert(ptr == &x); //UNKNOWN!
+
         // Another copy of x is reachable, so we are conservative and do a weak update
         x = 31;
         assert(x == 31); // UNKNOWN
