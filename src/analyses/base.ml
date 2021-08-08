@@ -1028,6 +1028,7 @@ struct
           end
         | _ -> true
       end
+    | Q.MayBeMultiple v -> WeakUpdates.mem v ctx.local.weak
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

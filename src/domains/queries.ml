@@ -92,6 +92,7 @@ type _ t =
   | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
+  | MayBeMultiple: varinfo -> MayBool.t t
 
 type 'a result = 'a
 
@@ -139,6 +140,7 @@ struct
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
+    | MayBeMultiple _ -> (module MayBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -185,6 +187,7 @@ struct
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> PartAccessResult.top ()
+    | MayBeMultiple _ -> MayBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -229,6 +232,7 @@ struct
       | Any (MayBeLess _) -> 28
       | Any HeapVar -> 29
       | Any (IsHeapVar _) -> 30
+      | Any (MayBeMultiple _) -> 31
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -261,6 +265,7 @@ struct
       | Any (MayBeLess (e1, e2)), Any (MayBeEqual (e3, e4)) ->
         [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
+      | Any (MayBeMultiple v1), Any (MayBeMultiple v2) -> CilType.Varinfo.compare v1 v2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end

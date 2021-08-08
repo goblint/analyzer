@@ -353,7 +353,8 @@ struct
     | UnOp _
     | BinOp _ -> None
     | Const _ -> Some false
-    | Lval (Var v,_) -> Some v.vglob
+    | Lval (Var v,_) ->
+      Some (v.vglob || ask.f (Queries.MayBeMultiple v))
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointTo e) with
         | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
@@ -361,8 +362,10 @@ struct
         | _ -> Some true
       end
     | CastE (t,e) -> is_global_var ask e
-    | AddrOf lval -> Some false
-    | StartOf lval -> Some false
+    | AddrOf (Var v,_) -> Some (ask.f (Queries.MayBeMultiple v)) (* Taking an address of a global is fine*)
+    | AddrOf lv -> Some false (* TODO: sound?! *)
+    | StartOf (Var v,_) ->  Some (ask.f (Queries.MayBeMultiple v)) (* Taking an address of a global is fine*)
+    | StartOf lv -> Some false (* TODO: sound?! *)
     | Question _ -> failwith "Logical operations should be compiled away by CIL."
     | _ -> failwith "Unmatched pattern."
 
