@@ -525,8 +525,8 @@ struct
     else
       match eval_interval_expr d e with
       | (Some min, Some max) -> ID.of_interval ik (min, max)
-      | (Some min, None) -> ID.starting ik min
-      | (None, Some max) -> ID.ending ik max
+      | (Some min, None) -> if GobConfig.get_bool "ana.octapron.no_signed_overflow" && Cil.isSigned ik then ID.starting ik min else ID.top ()
+      | (None, Some max) -> if GobConfig.get_bool "ana.octapron.no_signed_overflow" && Cil.isSigned ik then ID.ending ik max else ID.top ()
       | (None, None) -> ID.top ()
 
 
