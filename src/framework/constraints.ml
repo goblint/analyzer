@@ -381,7 +381,7 @@ struct
 end
 
 
-(* widening on contexts, keeps contexts for calls only in D (needs exp.full-context to be false to work) *)
+(* widening on contexts, keeps contexts for calls only in D (needs exp.side-entries to work) *)
 module WidenContextLifterSide (S:Spec)
 =
 struct
@@ -519,7 +519,7 @@ struct
   module D = S.D
   module G = S.G
 
-  let full_context = get_bool "exp.full-context"
+  let side_entries = get_bool "exp.side-entries"
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
 
@@ -558,7 +558,7 @@ struct
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
             let c = S.context d in
-            if not full_context then sidel (FunctionEntry fd, c) d;
+            if side_entries then sidel (FunctionEntry fd, c) d;
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
@@ -668,7 +668,7 @@ struct
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
-    let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
+    let _     = if side_entries then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     if M.tracing then M.traceli "combine" "combining\n";
@@ -754,7 +754,7 @@ struct
 
   let system (v,c) =
     match v with
-    | FunctionEntry _ when full_context ->
+    | FunctionEntry _ when not side_entries ->
       [fun _ _ _ _ -> S.val_of c]
     | _ -> List.map (tf (v,c)) (Cfg.prev v)
 end

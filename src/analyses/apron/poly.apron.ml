@@ -17,7 +17,7 @@ struct
   module C = D
 
   let val_of x = x
-  let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
+  let context x = if GobConfig.get_bool "exp.side-entries" then D.bot () else x
 
   let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = ctx.local

@@ -21,7 +21,7 @@ struct
   let should_join = Priv.should_join
 
   let val_of x = x
-  let context x = if GobConfig.get_bool "exp.full-context" then x else D.bot ()
+  let context x = if GobConfig.get_bool "exp.side-entries" then D.bot () else x
 
 
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
