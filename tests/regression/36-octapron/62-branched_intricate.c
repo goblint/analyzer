@@ -1,5 +1,5 @@
-// SKIP PARAM: --sets ana.activated[+] octApron --enable ana.int.interval --sets exp.octapron.privatization mutex-meet
-#include <pthread.h>
+// SKIP PARAM: --sets ana.activated[+] octApron --enable ana.int.interval
+#include<pthread.h>
 int global = 0;
 
 void *t_fun(void *arg)
