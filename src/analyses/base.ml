@@ -1892,7 +1892,7 @@ struct
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
-    let reachable_other_copies = List.filter (fun v -> try (match Cilfacade.find_scope_fundec v with | Some fdec -> fdec.svar.vid = fundec.svar.vid |_ -> false) with _ -> false) reachable in
+    let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with | Some fdec_var -> fdec_var.svar.vid = fundec.svar.vid |_ -> false) reachable in
     (* Add to the set of weakly updated variables *)
     let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
     {st' with cpa = new_cpa; weak = new_weak}
