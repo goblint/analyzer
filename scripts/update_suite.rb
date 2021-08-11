@@ -117,6 +117,7 @@ end
 
 #processing the file information
 projects = []
+project_ids = Set.new
 regs = Dir.open(testfiles)
 regs.sort.each do |d|
   next if File.basename(d)[0] == ?.
@@ -132,6 +133,10 @@ regs.sort.each do |d|
     next if f =~ /goblin_temp/
     next unless f =~ /^[0-9]+-.*\.c$/
     id = gid + "/" + f[0..1]
+    if project_ids.member?(id) then
+      puts "Duplicate test ID #{id}"
+      exit 1
+    end
     testname = f[3..-3]
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
@@ -184,6 +189,7 @@ regs.sort.each do |d|
     params << " --set dbg.debug true" if debug
     p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true)
     projects << p
+    project_ids << id
   end
 end
 
