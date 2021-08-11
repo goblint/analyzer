@@ -243,6 +243,15 @@ let createCFG (file: file) =
             if CilType.Stmt.equal !target_ref stmt then
               addEdge (Statement stmt) (loc, Skip) (Statement !target_ref)
 
+          | Block {bstmts = []; _} ->
+            (* TODO: comment *)
+            begin match stmt.succs with
+              | [{skind = Goto (target_ref, loc); _}] ->
+                if CilType.Stmt.equal !target_ref stmt then
+                  addEdge (Statement stmt) (loc, Skip) (Statement !target_ref)
+              | _ -> ()
+            end
+
           | Block _ ->
             (* Nothing to do for Blocks, find_real_stmt skips over these. *)
             ()
