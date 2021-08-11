@@ -26,37 +26,6 @@ struct
 end
 
 
-(** Convert a an [IneqConstrSys] into an equation system. *)
-(* TODO: remove, unneeded? *)
-module NormalSysConverter (S:IneqConstrSys)
-  : sig include EqConstrSys val conv : S.v -> (S.v * int) end
-  with type v = S.v * int
-   and type d = S.d
-   and module Var = ExtendInt (S.Var)
-   and module Dom = S.Dom
-=
-struct
-  type v = S.v * int
-  type d = S.d
-
-  module Var = ExtendInt (S.Var)
-  module Dom = S.Dom
-
-  let increment = S.increment
-
-  let box (x,n) = S.box x
-
-  let conv x = (x,-1)
-
-  let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option =
-    match S.system x with
-    | None           -> None
-    | Some f when n=0 -> Some (fun get set -> f (get % conv) (set % conv))
-    | Some f when n=(-1) -> Some (fun get set -> get (x,0)) (* TODO: why this indirection? *)
-    | Some f -> None
-end
-
-
 
 module SolverInteractiveWGlob
     (S:Analyses.GlobConstrSys)

@@ -854,47 +854,6 @@ struct
 end
 
 
-(** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
-(* TODO: unused *)
-module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
-  : GenericGlobSolver
-  = functor (S:GlobConstrSys) ->
-    functor (LH:Hash.H with type key=S.LVar.t) ->
-    functor (GH:Hash.H with type key=S.GVar.t) ->
-    struct
-      module IneqSys = IneqConstrSysFromGlobConstrSys (S)
-      module EqSys = Generic.NormalSysConverter (IneqSys)
-
-      module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
-      module Sol' = Sol (EqSys) (VH)
-
-      let getR v = function
-        | `Left x -> x
-        | `Right x ->
-          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
-          undefined ()
-
-      let getL v = function
-        | `Right x -> x
-        | `Left x ->
-          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
-          undefined ()
-
-      let solve ls gs l =
-        let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls
-                 @ List.map (fun (x,v) -> EqSys.conv (`G x), `Left  v) gs in
-        let sv = List.map (fun x -> EqSys.conv (`L x)) l in
-        let hm = Sol'.solve EqSys.box vs sv in
-        let l' = LH.create 113 in
-        let g' = GH.create 113 in
-        let split_vars = function
-          | (`L x,_) -> fun y -> LH.replace l' x (getL x y)
-          | (`G x,_) -> fun y -> GH.replace g' x (getR x y)
-        in
-        VH.iter split_vars hm;
-        (l', g')
-    end
-
 (** Transforms a [GenericIneqBoxSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
   : GenericGlobSolver
