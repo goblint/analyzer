@@ -1,7 +1,8 @@
 # SAS '21 Artifact Description
+This is the artifact description for our SAS '21 paper "Improving Thread-Modular Abstract Interpretation".
+The artifact is available from Zenodo [here](https://doi.org/10.5281/zenodo.5148607).
 
 The artifact is a VirtualBox Image based on Ubuntu 20.04.1. The login is `goblint:goblint`.
-
 ## Validation
 
 ### Step by Step Instructions

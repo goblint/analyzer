@@ -7,16 +7,6 @@ module H = NodeH
 module NH = NodeH
 
 
-(* TODO: remove variable grouping via magic location changes *)
-let do_the_params (fd: fundec) =
-  (* This function used to create extra variables, but now it just sets the
-   * vdecl to -3, lovely... *)
-  let create_extra_var (p: varinfo): unit =
-    p.vdecl <- {p.vdecl with line = -3 }
-  in
-  List.iter create_extra_var fd.sformals
-
-
 (* TODO: refactor duplication with find_loop_heads *)
 module NS = Set.Make (Node)
 let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
@@ -246,8 +236,6 @@ let createCFG (file: file) =
 
         NH.clear fd_nodes;
 
-        (* Walk through the parameters and pre-process them a bit... *)
-        do_the_params fd;
         (* Find the first statement in the function *)
         let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
         (* Add the entry edge to that node *)
@@ -345,14 +333,34 @@ let createCFG (file: file) =
           | Return (exp, loc) ->
             addEdge (Statement stmt) (loc, Ret (exp, fd)) (Function fd)
 
-          | Goto (target_ref, loc) ->
+          | Goto (_, loc) ->
             (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
-            if CilType.Stmt.equal !target_ref stmt then
-              addEdge (Statement stmt) (loc, Skip) (Statement !target_ref)
+            (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
+            (* stmt.succs for Goto just contains the target ref. *)
+            begin match real_succs () with
+              | [] -> failwith "MyCFG.createCFG: 0 Goto succ" (* target ref is always succ *)
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 Goto succ"
+            end
 
-          | Block _ ->
-            (* Nothing to do for Blocks, find_real_stmt skips over these. *)
+          | Block {bstmts = []; _} ->
+            (* Blocks are generally unnecessary and unwanted because find_real_stmt skips over these. *)
+            (* CIL inserts empty Blocks before empty goto-loops which contain a semicolon, so a Skip self-loop must be added to not lose the loop. *)
+            (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
+            begin match real_succs () with
+              | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Block [] itself doesn't have one *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 Block [] succ"
+            end
+
+          | Block _ -> (* non-empty Block *)
+            (* Nothing to do, find_real_stmt skips over these. *)
             ()
 
           | Continue _
@@ -429,7 +437,7 @@ let createCFG (file: file) =
         let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
-          failwith "MyCFG.createCFG: FunctionEntry not connected to Function (return)"
+          failwith ("MyCFG.createCFG: FunctionEntry not connected to Function (return) in " ^ fd.svar.vname)
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";

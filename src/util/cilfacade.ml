@@ -410,6 +410,11 @@ let countLoc fn =
   res
 
 
+let fundec_return_type f =
+  match f.svar.vtype with
+  | TFun (return_type, _, _, _) -> return_type
+  | _ -> failwith "fundec_return_type: not TFun"
+
 
 module StmtH = Hashtbl.Make (CilType.Stmt)
 
@@ -464,26 +469,48 @@ let name_fundecs: fundec StringH.t Lazy.t =
 let find_name_fundec name = StringH.find (Lazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
 
 
-let scope_fundecs: fundec option VarinfoH.t Lazy.t =
+type varinfo_role =
+  | Formal of fundec
+  | Local of fundec
+  | Function
+  | Global
+
+let varinfo_roles: varinfo_role VarinfoH.t Lazy.t =
   lazy (
     let h = VarinfoH.create 113 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
-          VarinfoH.replace h fd.svar None; (* function itself can be used as a variable (function pointer) *)
-          List.iter (fun vi -> VarinfoH.replace h vi (Some fd)) fd.sformals;
-          List.iter (fun vi -> VarinfoH.replace h vi (Some fd)) fd.slocals
+          VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
+          List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
+          List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
         | GVar (vi, _, _)
         | GVarDecl (vi, _) ->
-          VarinfoH.replace h vi None
+          VarinfoH.replace h vi Global
         | _ -> ()
       );
     h
   )
 
+(** Find the role of the [varinfo]. *)
+let find_varinfo_role vi = VarinfoH.find (Lazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+let is_varinfo_formal vi =
+  match find_varinfo_role vi with
+  | Formal _ -> true
+  | _ -> false
+
+
 (** Find the scope of the [varinfo].
     If [varinfo] is a local or a formal argument of [fundec], then returns [Some fundec].
     If [varinfo] is a global or a function itself, then returns [None]. *)
-let find_scope_fundec vi = VarinfoH.find (Lazy.force scope_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
+let find_scope_fundec vi =
+  match find_varinfo_role vi with
+  | Formal fd
+  | Local fd ->
+    Some fd
+  | Function
+  | Global ->
+    None
 
 
 let original_names: string VarinfoH.t Lazy.t =

@@ -29,8 +29,7 @@ struct
   let is_local_and_not_pointed_to v =
     (not (v.vglob ||
          v.vdecl.line = -1 || (* TODO: Why?  CIL says:The line number. -1 means "do not know"	*)
-         v.vdecl.line = -3 ||
-         v.vdecl.line = -4))
+         Cilfacade.is_varinfo_formal v))
     && (not v.vaddrof)  (* to avoid handling pointers, only vars whose address is never taken (i.e. can not be pointed to) *)
     && (Cil.isIntegralType v.vtype)
 
@@ -364,6 +363,7 @@ struct
       if INV.is_int inv
       then INV.to_int inv |> Option.get |> Queries.ID.of_int (Cilfacade.get_ikind_exp exp)
       else Queries.Result.top q
+    (* TODO: support interval return based on removed InInterval in commit 8c4d6f261f7b007c19e6464419a43ea195d56a6c *)
     | _ -> Queries.Result.top q
 
   let threadspawn ctx lval f args fctx = ctx.local
