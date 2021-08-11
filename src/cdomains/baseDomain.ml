@@ -19,7 +19,7 @@ struct
     let module VS = Set.Make (Basetype.Variables) in
     let rec context vs = {c with
         deref_invariant=(fun vi offset lval ->
-                          let v = M.find vi m in
+                          let v = find vi m in
                           key_invariant_lval vi offset lval v vs
         )
       }
@@ -34,7 +34,7 @@ struct
 
     let key_invariant k v =
       key_invariant_lval k NoOffset (var k) v VS.empty in
-    M.fold (fun k v a ->
+    fold (fun k v a ->
         let i =
           if not (InvariantCil.var_is_heap k) then
             key_invariant k v
