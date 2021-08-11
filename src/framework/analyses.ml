@@ -413,7 +413,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   val increment : increment_data
-  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
+  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
 end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)

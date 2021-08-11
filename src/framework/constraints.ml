@@ -755,9 +755,9 @@ struct
   let system (v,c) =
     match v with
     | FunctionEntry _ when full_context ->
-      [fun _ _ _ _ -> S.val_of c]
+      Some (fun _ _ _ _ -> S.val_of c)
     | FunctionEntry _ ->
-      []
+      None
     | _ ->
       let tf getl sidel getg sideg =
         let xs =
@@ -772,7 +772,7 @@ struct
         in
         List.fold_left S.D.join (S.D.bot ()) xs
       in
-      [tf]
+      Some tf
 end
 
 (** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
@@ -850,7 +850,10 @@ struct
 
   let system = function
     | `G _ -> []
-    | `L x -> List.map conv (S.system x)
+    | `L x ->
+      match S.system x with
+      | Some f -> [conv f]
+      | None -> []
 end
 
 
@@ -1251,7 +1254,7 @@ struct
           complain_l v d' d
       in
       let rhs = system v in
-      List.iter verify_constraint rhs
+      Option.may verify_constraint rhs
     in
     LH.iter verify_var sigma;
     Goblintutil.in_verifying_stage := false
@@ -1271,7 +1274,7 @@ struct
     let rec one_lvar x =
       if not (LH.mem reachablel x) then begin
         LH.replace reachablel x ();
-        List.iter one_constraint (system x)
+        Option.may one_constraint (system x)
       end
     and one_constraint rhs =
       let getl y =
