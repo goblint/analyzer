@@ -28,6 +28,12 @@ int main()
     case 7:
       f_empty_while_loop_prefix();
       break;
+    case 8:
+      f_empty_goto_loop_semicolon();
+      break;
+    case 9:
+      f_empty_while_loop_semicolon();
+      break;
   }
 
   return 0;
@@ -102,4 +108,19 @@ void f_empty_while_loop_prefix()
   prefix();
 
   while (1) {}
+}
+
+void f_empty_goto_loop_semicolon()
+{
+f_empty_goto_loop_semicolon_label:
+  ; // this semicolon makes a difference!
+  // CIL now puts the Goto into a Block and they are in a mutual successor loop
+  goto f_empty_goto_loop_semicolon_label;
+}
+
+void f_empty_while_loop_semicolon()
+{
+  while (1) {
+    ; // this semicolon doesn't make a difference
+  }
 }
