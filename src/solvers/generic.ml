@@ -5,30 +5,6 @@ open Analyses
 let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 
-(** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
-(* TODO: remove, because now useless *)
-module SimpleSysConverter (S:IneqConstrSys)
-  : sig include EqConstrSys val conv : S.v -> S.v end
-  with type v = S.v
-   and type d = S.d
-   and module Var = S.Var
-   and module Dom = S.Dom
-=
-struct
-  type v = S.v
-  type d = S.d
-
-  module Var = S.Var
-  module Dom = S.Dom
-
-  let increment = S.increment
-
-  let box = S.box
-
-  let conv x = x
-
-  let system x = S.system x
-end
 
 (* move this to some other place! *)
 module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =

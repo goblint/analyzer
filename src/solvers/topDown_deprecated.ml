@@ -383,4 +383,4 @@ module TD3 =
 
 module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (TD2)
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromIneqSolver (SLR.JoinContr (TD3)) : Analyses.GenericGlobSolver));
+  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromIneqSolver (TD3) : Analyses.GenericGlobSolver));
