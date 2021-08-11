@@ -136,7 +136,10 @@ struct
 
   let branch ctx e b =
     let st = ctx.local in
-    let res = AD.assert_inv st.oct e (not b) in
+    let res = read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
+        AD.assert_inv oct' e' (not b)
+      )
+    in
     if AD.is_bot_env res then raise Deadcode;
     {st with oct = res}
 
