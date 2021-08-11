@@ -136,7 +136,8 @@ struct
 
   let branch ctx e b =
     let st = ctx.local in
-    let res = read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
+    let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
+        (* not an assign, but must remove g#in-s still *)
         AD.assert_inv oct' e' (not b)
       )
     in
