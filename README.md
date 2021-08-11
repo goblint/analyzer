@@ -1,5 +1,6 @@
 # goblint
-![Build status](https://github.com/goblint/analyzer/workflows/build%20and%20run%20tests/badge.svg)
+[![locked workflow status](https://github.com/goblint/analyzer/actions/workflows/locked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/locked.yml)
+[![unlocked workflow status](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml)
 [![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
 [![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
 
