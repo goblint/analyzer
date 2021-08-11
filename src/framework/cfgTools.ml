@@ -240,15 +240,19 @@ let createCFG (file: file) =
           | Goto (target_ref, loc) ->
             (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
-            if CilType.Stmt.equal !target_ref stmt then
-              addEdge (Statement stmt) (loc, Skip) (Statement !target_ref)
+            begin match real_succs () with
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> ()
+            end
 
           | Block {bstmts = []; _} ->
             (* TODO: comment *)
-            begin match stmt.succs with
-              | [{skind = Goto (target_ref, loc); _}] ->
-                if CilType.Stmt.equal !target_ref stmt then
-                  addEdge (Statement stmt) (loc, Skip) (Statement !target_ref)
+            begin match real_succs () with
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then
+                  addEdge_fromLoc (Statement stmt) Skip (Statement succ)
               | _ -> ()
             end
 
