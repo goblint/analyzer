@@ -159,7 +159,15 @@ struct
     in
     let arg_vars = List.map fst arg_assigns in
     let new_oct = AD.add_vars st.oct arg_vars in
-    AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *)
+    (* AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
+    (* TODO: parallel version of assign_from_globals_wrapper? *)
+    let ask = Analyses.ask_of_ctx ctx in
+    let new_oct = List.fold_left (fun new_oct (var, e) ->
+        assign_from_globals_wrapper ask ctx.global {st with oct = new_oct} e (fun oct' e' ->
+            AD.assign_exp oct' var e'
+          )
+      ) new_oct arg_assigns
+    in
     AD.remove_filter_with new_oct (fun var ->
         match V.find_metadata var with
         | Some Local -> true (* remove caller locals *)
@@ -213,7 +221,16 @@ struct
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
-    AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *)
+    (* AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
+    (* TODO: parallel version of assign_from_globals_wrapper? *)
+    let ask = Analyses.ask_of_ctx ctx in
+    let new_fun_oct = List.fold_left (fun new_fun_oct (var, e) ->
+        assign_from_globals_wrapper ask ctx.global {st with oct = new_fun_oct} e (fun oct' e' ->
+            (* not an assign, but still works? *)
+            AD.substitute_exp oct' var e'
+          )
+      ) new_fun_oct arg_substitutes
+    in
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_oct arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_oct adds them back with proper constraints *)

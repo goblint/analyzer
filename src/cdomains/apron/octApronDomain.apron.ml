@@ -324,12 +324,16 @@ struct
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
   let substitute_exp_with nd v e =
-    (* TODO: non-_with version? *)
     match Convert.texpr1_of_cil_exp (A.env nd) e with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
       forget_vars_with nd [v]
+
+  let substitute_exp d v e =
+    let nd = copy d in
+    substitute_exp_with nd v e;
+    nd
 
   let substitute_exp_parallel_with nd ves =
     (* TODO: non-_with version? *)
