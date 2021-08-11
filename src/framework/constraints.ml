@@ -760,17 +760,24 @@ struct
       []
     | _ ->
       let tf getl sidel getg sideg =
-        let xs =
-          match NodeH.find_option CfgTools.node_scc_global v with
-          | Some scc when NodeH.mem scc.prev v ->
-            let ys = List.map (fun (e, u) -> tf (v,c) (e, u) getl sidel getg sideg) (NodeH.find_all scc.prev v) in
-            if List.for_all S.D.is_bot ys then
-              []
-            else
-              List.map (fun (e, u) -> tf (v,c) (e, u) getl sidel getg sideg) (Cfg.prev v)
-          | _ -> List.map (fun (e, u) -> tf (v,c) (e, u) getl sidel getg sideg) (Cfg.prev v)
-        in
-        List.fold_left S.D.join (S.D.bot ()) xs
+        let tf' eu = tf (v,c) eu getl sidel getg sideg in
+
+        match NodeH.find_option CfgTools.node_scc_global v with
+        | Some scc when NodeH.mem scc.prev v ->
+          let stricts = NodeH.find_all scc.prev v in
+          let xs_stricts = List.map tf' stricts in
+          if List.for_all S.D.is_bot xs_stricts then
+            S.D.bot ()
+          else
+            let xs_strict = List.fold_left S.D.join (S.D.bot ()) xs_stricts in
+            let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
+            let is_strict eu = List.exists (equal eu) stricts in
+            let non_stricts = List.filter (neg is_strict) (Cfg.prev v) in
+            let xs_non_stricts = List.map tf' non_stricts in
+            List.fold_left S.D.join xs_strict xs_non_stricts
+        | _ ->
+          let xs = List.map tf' (Cfg.prev v) in
+          List.fold_left S.D.join (S.D.bot ()) xs
       in
       [tf]
 end
