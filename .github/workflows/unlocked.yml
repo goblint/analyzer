@@ -1,7 +1,6 @@
 name: unlocked
 
 on:
-  push: # TODO: remove
   pull_request:
   workflow_dispatch:
 
