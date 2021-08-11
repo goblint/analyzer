@@ -6,26 +6,6 @@ let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 
 
-(* move this to some other place! *)
-module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
-struct
-  type t = B.t * int
-  let relift x = x
-  let compare ((u1,u2):t) (v1,v2) =
-    match Stdlib.compare u2 v2 with (* cannot derive, compares snd first for efficiency *)
-    | 0 -> B.compare u1 v1
-    | n -> n
-  let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1 (* cannot derive, compares snd first for efficiency *)
-  let hash (u,v) = B.hash u + 131233 * v
-  let pretty_trace () (u,v:t) =
-    Pretty.dprintf "(%a,%d)" B.pretty_trace u v
-
-  let var_id (c,_) = B.var_id c
-  let printXml f (c,_) = B.printXml f c
-  let node (c,_) = B.node c
-end
-
-
 
 module SolverInteractiveWGlob
     (S:Analyses.GlobConstrSys)
