@@ -54,3 +54,9 @@ jobs:
       - name: Test octApron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group octapron -s
+
+      - name: Build domaintest
+        run: ./make.sh domaintest
+
+      - name: Test domains
+        run: ./goblint.domaintest # could be made long
