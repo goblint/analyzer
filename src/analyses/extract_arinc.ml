@@ -23,11 +23,11 @@ struct
   module Ctx = IntDomain.Flattened
   (* set of predecessor nodes *)
   module Pred = struct
-    include SetDomain.Make (Basetype.ProgLocation)
+    include SetDomain.Make (Basetype.ExtractLocation)
     let of_loc = singleton
-    let of_node = of_loc % MyCFG.getLoc
+    let of_node = of_loc % Node.location
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.show
+    let string_of_elt = Basetype.ExtractLocation.show
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D
@@ -291,13 +291,13 @@ struct
             Some [string_of_int i]
         in
         let node = Option.get !MyCFG.current_node in
-        let fundec = MyCFG.getFun node in
+        let fundec = Node.find_fundec node in
         let id = pname, fundec.svar.vname in
         let extract_fun ?(info_args=[]) args =
           let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
           let action = fname^"("^String.concat ", " args^");"^comment in
           print_endline @@ "EXTRACT in "^pname^": "^action;
-          Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
+          Pred.iter (fun pred -> add_edge id (pred, Sys action, Node.location node)) pred;
           pid, ctx_hash, Pred.of_node node
         in
         match fname, arglist with (* first some special cases *)

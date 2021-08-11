@@ -19,7 +19,7 @@
       (-> apronDomain.no-apron.ml)
     )
     (select octApronDomain.ml from
-      (apron apron.octD -> octApronDomain.apron.ml)
+      (apron apron.octMPQ -> octApronDomain.apron.ml)
       (-> octApronDomain.no-apron.ml)
     )
     (select poly.ml from
@@ -29,6 +29,10 @@
     (select octApron.ml from
       (apron -> octApron.apron.ml)
       (-> octApron.no-apron.ml)
+    )
+    (select octApronPriv.ml from
+      (apron -> octApronPriv.apron.ml)
+      (-> octApronPriv.no-apron.ml)
     )
   )
   (preprocess

@@ -598,7 +598,7 @@ module MapOctagon : S
       let add_constraints (sign, var2, const) =
         let index2 = try (Hashtbl.find vars var2) * 2
           with Not_found ->
-          raise (Invalid_argument ("Not found var:" ^ var2.vname ^ "@" ^ var2.vdecl.file ^ ":" ^ (string_of_int var2.vdecl.line)))
+          raise (Invalid_argument ("Not found var:" ^ var2.vname ^ "@" ^ CilType.Location.show var2.vdecl))
         in
         let upper = OPT.default max_int (INV.maximal const) in
         let lower = OPT.default min_int (INV.minimal const) in

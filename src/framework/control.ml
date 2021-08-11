@@ -67,14 +67,18 @@ struct
     (* print out information about dead code *)
     let print_dead_code (xs:Result.t) uncalled_fn_loc =
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
-      let module NH = Hashtbl.Make (MyCFG.Node) in
+      let module NH = Hashtbl.Make (Node) in
       let live_nodes : unit NH.t = NH.create 10 in
       let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
       let module StringMap = BatMap.Make (String) in
       let open BatPrintf in
       let live_lines = ref StringMap.empty in
       let dead_lines = ref StringMap.empty in
-      let add_one (l,n,f) v =
+      let add_one n v =
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+        let l = UpdateCil.getLoc n in
+        let f = Node.find_fundec n in
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
         let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
@@ -133,12 +137,12 @@ struct
       let report tv (loc, dead) =
         if Deadcode.Locmap.mem dead_locations loc then
           match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-          | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
-          | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) d_loc loc)
+          | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp CilType.Location.pretty loc)
+          | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) CilType.Location.pretty loc)
           | _ -> ()
       in
       if get_bool "dbg.print_dead_code" then (
-        let by_fst (a,_) (b,_) = compare a b in
+        let by_fst (a,_) (b,_) = Stdlib.compare a b in
         Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
         Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
         Deadcode.Locmap.clear Deadcode.dead_branches_then;
@@ -154,20 +158,22 @@ struct
 
       (* Adding the state at each system variable to the final result *)
       let add_local_var (n,es) state =
-        let loc = Tracing.getLoc n in
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+        let loc = UpdateCil.getLoc n in
         if loc <> locUnknown then try
-            let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
-            if Result.mem res p then
+            let fundec = Node.find_fundec n in
+            if Result.mem res n then
               (* If this source location has been added before, we look it up
                * and add another node to it information to it. *)
-              let prev = Result.find res p in
-              Result.replace res p (LT.add (es,state,fundec) prev)
+              let prev = Result.find res n in
+              Result.replace res n (LT.add (es,state,fundec) prev)
             else
-              Result.add res p (LT.singleton (es,state,fundec))
+              Result.add res n (LT.singleton (es,state,fundec))
           (* If the function is not defined, and yet has been included to the
            * analysis result, we generate a warning. *)
           with Not_found ->
-            Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint MyCFG.pretty_node n)
+            Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint Node.pretty_plain n)
       in
       LHT.iter add_local_var h;
       res
@@ -232,12 +238,12 @@ struct
         ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         }
       in
-      let edges = MyCFG.getGlobalInits file in
+      let edges = CfgTools.getGlobalInits file in
       if (get_bool "dbg.verbose") then print_endline ("Executing "^string_of_int (List.length edges)^" assigns.");
       let funs = ref [] in
       (*let count = ref 0 in*)
-      let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t =
-        if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
+      let transfer_func (st : Spec.D.t) (loc, edge) : Spec.D.t =
+        if M.tracing then M.trace "con" "Initializer %a\n" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
         Tracing.current_loc := loc;
@@ -250,7 +256,7 @@ struct
           (match lval, exp with
             | (Var v,o), (AddrOf (Var f,NoOffset))
               when v.vstorage <> Static && isFunctionType f.vtype ->
-              (try funs := Cilfacade.getdec f :: !funs with Not_found -> ())
+              (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
             | _ -> ()
           );
           Spec.assign {ctx with local = st} lval exp
@@ -296,7 +302,7 @@ struct
     in
 
     let startstate, more_funs =
-      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
+      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (CfgTools.numGlobals file)^" globals.");
       Stats.time "global_inits" do_global_inits file
     in
 
@@ -491,7 +497,7 @@ struct
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "dbg.uncalled" then (
               let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int cnt  ^ "LoC" in
-              ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+              ignore (Pretty.fprintf out "%s (%a)\n" msg CilType.Location.pretty loc)
             )
         | _ -> ()
       in
@@ -511,7 +517,7 @@ struct
         (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =
           let open Batteries in let open Enum in
-          let e = LHT.enum lh |> map (Tuple2.map1 (MyCFG.getLoc % fst)) in (* drop context from key and get location from node *)
+          let e = LHT.enum lh |> map (Tuple2.map1 (Node.location % fst)) in (* drop context from key and get location from node *)
           let h = Hashtbl.create (if fast_count e then count e else 123) in
           iter (fun (k,v) ->
             (* join values for the same location *)
@@ -548,7 +554,7 @@ struct
       lh, gh
     in
 
-    MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
+    Generic.write_cfgs := CfgTools.dead_code_cfg file (module Cfg:CfgBidir);
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
@@ -574,7 +580,7 @@ struct
       WResult.write lh gh entrystates;
 
     if get_bool "exp.cfgdot" then
-      MyCFG.dead_code_cfg file (module Cfg : CfgBidir) liveness;
+      CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
     Spec.finalize ();
 
@@ -598,9 +604,9 @@ struct
 end
 
 let compute_cfg file =
-  let cfgF, cfgB = MyCFG.getCFG file in
+  let cfgF, cfgB = CfgTools.getCFG file in
   let cfgB' = function
-    | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
+    | MyCFG.Statement s as n -> ([Cilfacade.get_stmtLoc s,MyCFG.SelfLoop], n) :: cfgB n
     | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
