@@ -849,11 +849,8 @@ struct
     |> le
 
   let system = function
-    | `G _ -> []
-    | `L x ->
-      match S.system x with
-      | Some f -> [conv f]
-      | None -> []
+    | `G _ -> None
+    | `L x -> Option.map conv (S.system x)
 end
 
 

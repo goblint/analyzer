@@ -6,6 +6,7 @@ let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 
 (** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
+(* TODO: remove, because now useless *)
 module SimpleSysConverter (S:IneqConstrSys)
   : sig include EqConstrSys val conv : S.v -> S.v end
   with type v = S.v
@@ -26,10 +27,7 @@ struct
 
   let conv x = x
 
-  let system x =
-    match S.system x with
-    | [] -> None
-    | r::rs -> Some (fun get set -> List.fold_left (fun d r' -> Dom.join d (r' get set)) (r get set) rs)
+  let system x = S.system x
 end
 
 (* move this to some other place! *)
@@ -53,6 +51,7 @@ end
 
 
 (** Convert a an [IneqConstrSys] into an equation system. *)
+(* TODO: remove, unneeded? *)
 module NormalSysConverter (S:IneqConstrSys)
   : sig include EqConstrSys val conv : S.v -> (S.v * int) end
   with type v = S.v * int
@@ -74,22 +73,11 @@ struct
   let conv x = (x,-1)
 
   let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option =
-    let fold_left1 f xs =
-      match xs with
-      | [] -> failwith "You promised!!!"
-      | x::xs -> List.fold_left f x xs
-    in
     match S.system x with
-    | []           -> None
-    | [f] when n=0 -> Some (fun get set -> f (get % conv) (set % conv))
-    | xs when n=(-1) ->
-      let compute get set =
-        fold_left1 Dom.join (List.mapi (fun n _ -> get (x,n)) xs)
-      in
-      Some compute
-    | xs ->
-      try Some (fun get set -> List.at xs n (get % conv) (set % conv))
-      with Invalid_argument _ -> None
+    | None           -> None
+    | Some f when n=0 -> Some (fun get set -> f (get % conv) (set % conv))
+    | Some f when n=(-1) -> Some (fun get set -> get (x,0)) (* TODO: why this indirection? *)
+    | Some f -> None
 end
 
 
