@@ -22,6 +22,12 @@ int main()
     case 5:
       f_nonempty_while_loop();
       break;
+    case 6:
+      f_empty_goto_loop_prefix();
+      break;
+    case 7:
+      f_empty_while_loop_prefix();
+      break;
   }
 
   return 0;
@@ -76,4 +82,24 @@ void f_nonempty_while_loop()
   {
     body();
   }
+}
+
+void prefix()
+{
+
+}
+
+void f_empty_goto_loop_prefix()
+{
+  prefix();
+
+f_empty_goto_loop_prefix_label:
+  goto f_empty_goto_loop_prefix_label;
+}
+
+void f_empty_while_loop_prefix()
+{
+  prefix();
+
+  while (1) {}
 }
