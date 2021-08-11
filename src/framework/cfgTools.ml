@@ -7,16 +7,6 @@ module H = NodeH
 module NH = NodeH
 
 
-(* TODO: remove variable grouping via magic location changes *)
-let do_the_params (fd: fundec) =
-  (* This function used to create extra variables, but now it just sets the
-   * vdecl to -3, lovely... *)
-  let create_extra_var (p: varinfo): unit =
-    p.vdecl <- {p.vdecl with line = -3 }
-  in
-  List.iter create_extra_var fd.sformals
-
-
 (* TODO: refactor duplication with find_loop_heads *)
 module NS = Set.Make (Node)
 let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
@@ -58,57 +48,74 @@ let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
   reachable
 
 
-type scc = {
-  nodes: unit NH.t;
-  next: (edges * node) NH.t;
-  prev: (edges * node) NH.t;
-}
+(** Strongly connected component. *)
+module SCC =
+struct
+  type t = {
+    nodes: unit NH.t; (** Set of nodes in SCC, mutated during [computeSCCs]. *)
+    next: (edges * node) NH.t; (** Successor edges from this SCC to another SCC, mutated during [computeSCCs]. *)
+    prev: (edges * node) NH.t; (** Predecessor edges from another SCC to this SCC, mutated during [computeSCCs]. *)
+  }
+  (* Identity by physical equality. *)
+  let equal = (==)
+  let hash = Hashtbl.hash
+end
 
-let scc cfgF cfgB nodes =
-  let dfs1 () =
+(** Compute strongly connected components (SCCs) of [nodes] in [Cfg].
+    Returns list of SCCs and a mapping from nodes to those SCCs. *)
+let computeSCCs (module Cfg: CfgBidir) nodes =
+  (* Kosaraju's algorithm *)
+  let finished_rev =
+    (* first DFS to construct list of nodes in reverse finished order *)
     let visited = NH.create 100 in
 
     let rec dfs_inner node finished_rev =
       if not (NH.mem visited node) then (
         NH.replace visited node ();
-        node :: List.fold_left (fun finished_rev (_, node) ->
-            dfs_inner node finished_rev
-          ) finished_rev (NH.find_all cfgF node)
+        node :: List.fold_left (fun finished_rev (_, next_node) ->
+            dfs_inner next_node finished_rev
+          ) finished_rev (Cfg.next node)
       )
       else
         finished_rev
     in
 
+    (* outer DFS loop over unconnected components *)
     List.fold_left (fun finished_rev node ->
-        (* if Messages.tracing then Messages.trace "cfg" "dfs1 %s\n" (Node.show_id node); *)
         dfs_inner node finished_rev
       ) [] nodes
   in
 
-  let finished_rev = dfs1 () in
+  let open SCC in (* open for SCC.t constructors *)
+  let (sccs, node_scc) as r =
+    (* second DFS to construct SCCs on transpose graph *)
+    let node_scc = NH.create 100 in (* like visited, but values are assigned SCCs *)
 
-  let dfs2 finished_rev =
-    let node_scc = NH.create 100 in
-
-    let rec dfs_inner node (scc: scc): unit =
+    let rec dfs_inner node scc =
+      (* assumes: not (NH.mem node_scc node) *)
       NH.replace node_scc node scc;
       NH.replace scc.nodes node ();
-      let out_node = node in
-      List.iter (fun (edges, node) ->
-          if not (NH.mem node_scc node) then
-            dfs_inner node scc
-          else if not (NH.mem scc.nodes node) then (
-            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id node) (Node.show_id out_node);
-            NH.add scc.prev out_node (edges, node);
-            NH.add (NH.find node_scc node).next node (edges, out_node);
+      List.iter (fun (edges, prev_node) ->
+          if not (NH.mem node_scc prev_node) then
+            dfs_inner prev_node scc
+          else if not (NH.mem scc.nodes prev_node) then (
+            (* prev_node has been visited, but not in current SCC, therefore is backwards edge to predecessor scc *)
+            if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id prev_node) (Node.show_id node);
+            NH.add scc.prev node (edges, prev_node);
+            NH.add (NH.find node_scc prev_node).next prev_node (edges, node);
           )
-        ) (NH.find_all cfgB node) (* backwards! *)
+        ) (Cfg.prev node) (* implicitly transpose graph by moving backwards *)
     in
 
+    (* outer DFS loop over unconnected components *)
     let sccs = List.fold_left (fun sccs node ->
-        (* if Messages.tracing then Messages.trace "cfg" "dfs2 %s\n" (Node.show_id node); *)
         if not (NH.mem node_scc node) then
-          let scc = {nodes = NH.create 25; next = NH.create 5; prev = NH.create 5} in
+          let scc = {
+              nodes = NH.create 25;
+              next = NH.create 5;
+              prev = NH.create 5
+            }
+          in
           dfs_inner node scc;
           scc :: sccs
         else
@@ -118,7 +125,6 @@ let scc cfgF cfgB nodes =
     (sccs, node_scc)
   in
 
-  let (sccs, node_scc) as r = dfs2 finished_rev in
   if Messages.tracing then (
     List.iter (fun scc ->
         let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
@@ -128,7 +134,6 @@ let scc cfgF cfgB nodes =
           ) scc.prev
       ) sccs
   );
-
   r
 
 let rec pretty_edges () = function
@@ -144,7 +149,7 @@ let createCFG (file: file) =
   let cfgB = H.create 113 in
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
-  let fd_nodes = ref [] in
+  let fd_nodes = NH.create 113 in
 
   let addEdges fromNode edges toNode =
     if Messages.tracing then
@@ -152,7 +157,8 @@ let createCFG (file: file) =
         pretty_edges edges
         Node.pretty_trace fromNode
         Node.pretty_trace toNode;
-    fd_nodes := fromNode :: toNode :: !fd_nodes;
+    NH.replace fd_nodes fromNode ();
+    NH.replace fd_nodes toNode ();
     H.add cfgB toNode (edges,fromNode);
     H.add cfgF fromNode (edges,toNode);
     Messages.trace "cfg" "done\n\n"
@@ -228,10 +234,8 @@ let createCFG (file: file) =
         if get_bool "dbg.cilcfgdot" then
           Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
 
-        fd_nodes := [];
+        NH.clear fd_nodes;
 
-        (* Walk through the parameters and pre-process them a bit... *)
-        do_the_params fd;
         (* Find the first statement in the function *)
         let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
         (* Add the entry edge to that node *)
@@ -329,14 +333,34 @@ let createCFG (file: file) =
           | Return (exp, loc) ->
             addEdge (Statement stmt) (loc, Ret (exp, fd)) (Function fd)
 
-          | Goto (target_ref, loc) ->
+          | Goto (_, loc) ->
             (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
-            if CilType.Stmt.equal !target_ref stmt then
-              addEdge (Statement stmt) (loc, Skip) (Statement !target_ref)
+            (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
+            (* stmt.succs for Goto just contains the target ref. *)
+            begin match real_succs () with
+              | [] -> failwith "MyCFG.createCFG: 0 Goto succ" (* target ref is always succ *)
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 Goto succ"
+            end
 
-          | Block _ ->
-            (* Nothing to do for Blocks, find_real_stmt skips over these. *)
+          | Block {bstmts = []; _} ->
+            (* Blocks are generally unnecessary and unwanted because find_real_stmt skips over these. *)
+            (* CIL inserts empty Blocks before empty goto-loops which contain a semicolon, so a Skip self-loop must be added to not lose the loop. *)
+            (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
+            begin match real_succs () with
+              | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Block [] itself doesn't have one *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 Block [] succ"
+            end
+
+          | Block _ -> (* non-empty Block *)
+            (* Nothing to do, find_real_stmt skips over these. *)
             ()
 
           | Continue _
@@ -362,22 +386,26 @@ let createCFG (file: file) =
           let prev = H.find_all cfgB
         end
         in
-        fd_nodes := List.sort_uniq Node.compare !fd_nodes;
-        let (sccs, node_scc) = scc cfgF cfgB !fd_nodes in
+        let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
         NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
-        let visited_scc = ref [] in (* TODO: Hashtbl *)
+
+        (* DFS over SCCs starting from FunctionEntry SCC *)
+        let module SH = Hashtbl.Make (SCC) in
+        let visited_scc = SH.create 13 in
         let rec iter_scc scc =
-          if not (List.memq scc !visited_scc) then (
-            visited_scc := scc :: !visited_scc;
+          if not (SH.mem visited_scc scc) then (
+            SH.replace visited_scc scc ();
             if NH.is_empty scc.next then (
               if not (NH.mem scc.nodes (Function fd)) then (
+                (* scc has no successors but also doesn't contain return node, requires additional connections *)
+                (* find connection candidates from loops *)
                 let targets =
                   NH.keys scc.nodes
                   |> BatEnum.concat_map (fun fromNode ->
                       NH.find_all loop_head_neg1 fromNode
                       |> BatList.enum
                       |> BatEnum.filter (fun toNode ->
-                          not (NH.mem scc.nodes toNode)
+                          not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
                         )
                       |> BatEnum.map (fun toNode ->
                           (fromNode, toNode)
@@ -386,13 +414,13 @@ let createCFG (file: file) =
                   |> BatList.of_enum
                 in
                 let targets = match targets with
-                  | [] -> [(NH.keys scc.nodes |> BatEnum.get_exn, Lazy.force pseudo_return)]
+                  | [] -> [(NH.keys scc.nodes |> BatEnum.get_exn, Lazy.force pseudo_return)] (* default to pseudo return if no suitable candidates *)
                   | targets -> targets
                 in
                 List.iter (fun (fromNode, toNode) ->
                     addEdge_fromLoc fromNode (Test (one, false)) toNode;
                     match NH.find_option node_scc toNode with
-                    | Some toNode_scc -> iter_scc toNode_scc
+                    | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
                     | None -> () (* pseudo return, wasn't in scc, but is fine *)
                   ) targets
               )
@@ -405,27 +433,11 @@ let createCFG (file: file) =
         in
         iter_scc (NH.find node_scc (FunctionEntry fd));
 
-        (* let loop_heads = find_loop_heads_fun (module TmpCfg) fd in
-        let reachable_return = find_backwards_reachable (module TmpCfg) (Function fd) in
-        NH.iter (fun node () ->
-            if not (NH.mem reachable_return node) then (
-              if Messages.tracing then Messages.tracei "cfg" "unreachable loop head %a\n" Node.pretty_trace node;
-              let targets = match NH.find_all loop_head_neg1 node with
-                | [] -> [Lazy.force pseudo_return]
-                | targets -> targets
-              in
-              (* single loop head may have multiple neg1-s, e.g. test 03/22 *)
-              List.iter (fun target ->
-                  addEdge_fromLoc node (Test (one, false)) target
-                ) targets;
-              if Messages.tracing then Messages.traceu "cfg" "unreachable loop head %a\n" Node.pretty_trace node
-            )
-          ) loop_heads; *)
-
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
+        (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
-          failwith "MyCFG.createCFG: FunctionEntry not connected to Function (return)"
+          failwith ("MyCFG.createCFG: FunctionEntry not connected to Function (return) in " ^ fd.svar.vname)
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";

@@ -1453,7 +1453,15 @@ struct
             ID.meet a' (ID.sub (ID.mul (ID.div a b) b) c)
           else a'
         in
-        meet_bin a'' b'
+        let a''' =
+          (* if both b and c are definite, we can get a precise value in the congruence domain *)
+          if ID.is_int b && ID.is_int c then
+            (* a%b == c  -> a: c+bℤ *)
+            let t = ID.of_congruence ikind ((BatOption.get @@ ID.to_int c), (BatOption.get @@ ID.to_int b)) in
+            ID.meet a'' t
+          else a''
+        in
+        meet_bin a''' b'
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
@@ -1763,10 +1771,9 @@ struct
       match exp with
       | None -> nst
       | Some exp ->
-        let t_override = match fundec.svar.vtype with
-          | TFun(TVoid _, _, _, _) -> M.warn "Returning a value from a void function"; assert false
-          | TFun(ret, _, _, _) -> ret
-          | _ -> assert false
+        let t_override = match Cilfacade.fundec_return_type fundec with
+          | TVoid _ -> M.warn "Returning a value from a void function"; assert false
+          | ret -> ret
         in
         (* Evaluate exp and cast the resulting value to the void-pointer-type.
         Casting to the right type here avoids precision loss on joins. *)

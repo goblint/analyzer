@@ -219,8 +219,8 @@ module WP =
           (* TODO: The following two don't check if a vs got destabilized which may be a problem. *)
           | "unstable_self" -> (* TODO test/remove. Side to y destabilized itself via some infl-cycle. The above add_infl is only required for this option. Check for which examples this is problematic! *)
             wpoint_if @@ not (HM.mem stable y)
-          | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. *)
-            wpoint_if @@ exists_key (neg (HM.mem stable)) called
+          | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. Expensive! *)
+            wpoint_if @@ exists_key (neg (HM.mem stable)) called (* this is very expensive since it folds over called! see https://github.com/goblint/analyzer/issues/265#issuecomment-880748636 *)
           | x -> failwith ("Unknown value '" ^ x ^ "' for option exp.solver.td3.side_widen!")
         )
       and init x =
