@@ -237,27 +237,34 @@ let createCFG (file: file) =
           | Return (exp, loc) ->
             addEdge (Statement stmt) (loc, Ret (exp, fd)) (Function fd)
 
-          | Goto (target_ref, loc) ->
+          | Goto (_, loc) ->
             (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
+            (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
+            (* stmt.succs for Goto just contains the target ref. *)
             begin match real_succs () with
+              | [] -> failwith "MyCFG.createCFG: 0 Goto succ" (* target ref is always succ *)
               | [succ] ->
-                if CilType.Stmt.equal succ stmt then
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
                   addEdge (Statement stmt) (loc, Skip) (Statement succ)
-              | _ -> ()
+              | _ -> failwith "MyCFG.createCFG: >1 Goto succ"
             end
 
           | Block {bstmts = []; _} ->
-            (* TODO: comment *)
+            (* Blocks are generally unnecessary and unwanted because find_real_stmt skips over these. *)
+            (* CIL inserts empty Blocks before empty goto-loops which contain a semicolon, so a Skip self-loop must be added to not lose the loop. *)
+            (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
             begin match real_succs () with
+              | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
               | [succ] ->
-                if CilType.Stmt.equal succ stmt then
-                  addEdge_fromLoc (Statement stmt) Skip (Statement succ)
-              | _ -> ()
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Block [] itself doesn't have one *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 Block [] succ"
             end
 
-          | Block _ ->
-            (* Nothing to do for Blocks, find_real_stmt skips over these. *)
+          | Block _ -> (* non-empty Block *)
+            (* Nothing to do, find_real_stmt skips over these. *)
             ()
 
           | Continue _
