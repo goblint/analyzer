@@ -65,7 +65,7 @@ module TD2 =
         let rec one_var x =
           if not (HM.mem reachable x) then begin
             HM.replace reachable x ();
-            List.iter one_constaint (system x)
+            Option.may one_constaint (system x)
           end
         and one_constaint f =
           ignore (f (fun x -> one_var x; hm_find_default sigma x (Dom.bot ())) (fun x _ -> one_var x))
@@ -96,7 +96,7 @@ module TD2 =
             (Dom.join d_in d, d_back,rhsn+1)
           end
         in
-        let d_in, d_back,_ = List.fold_left join_apply (Dom.bot (), side, 0) (system x) in
+        let d_in, d_back,_ = List.fold_left join_apply (Dom.bot (), side, 0) (Stdlib.Option.to_list (system x)) in
         if Dom.is_bot d_back then d_in else  begin
           HM.replace infl x (VS.add x (hm_find_default infl x VS.empty));
           Dom.join d_in (box x old d_back)
@@ -383,4 +383,4 @@ module TD3 =
 
 module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (TD2)
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromIneqSolver (SLR.JoinContr (TD3)) : Analyses.GenericGlobSolver));
+  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromIneqSolver (TD3) : Analyses.GenericGlobSolver));

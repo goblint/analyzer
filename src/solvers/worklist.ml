@@ -61,5 +61,5 @@ module Make =
 
 
 let _ =
-  let module S = GlobSolverFromIneqSolver (SLR.JoinContr (Make)) in
+  let module S = GlobSolverFromIneqSolver (Make) in
   Selector.add_solver ("WL",  (module S : GenericGlobSolver));

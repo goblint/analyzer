@@ -52,7 +52,7 @@ struct
         else begin
           new_var_event x;
           LH.add sigma x (D.bot ());
-          fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system x) ([],0))
+          fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (Option.to_list (system x)) ([],0))
         end
       in
       if rhsides=[] then () else begin
@@ -127,7 +127,7 @@ struct
       incr Goblintutil.vars;
       LH.add sigma v d;
       update_var_event_local sigma theta v (D.bot ()) d;
-      let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system v) ([],0)) in
+      let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (Option.to_list (system v)) ([],0)) in
       LH.add todo v edges;
       workset := v :: !workset
     in
