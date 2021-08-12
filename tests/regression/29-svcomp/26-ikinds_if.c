@@ -1,4 +1,5 @@
-// PARAM: --conf=./conf/svcomp21.json  --sets ana.specification ./tests/sv-comp/unreach-call-__VERIFIER_error.prp
+// SKIP PARAM: --conf=./conf/svcomp21.json  --sets ana.specification ./tests/sv-comp/unreach-call-__VERIFIER_error.prp
+// TODO: specific parameters instead of SV-COMP
 #include<stdlib.h>
 
 static long sound_ioctl(unsigned int cmd , unsigned long arg )
