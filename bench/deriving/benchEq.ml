@@ -10,6 +10,36 @@ let () =
 
   let equal_manual_module ((x1: int), (y1: string)) ((x2: int), (y2: string)) = Int.equal x1 x2 && String.equal y1 y2 in
   let equal_deriving_module = [%eq: Int.t * String.t] in
+  let equal_deriving_module_expand =
+    let __1 () = String.equal
+    and __0 () = Int.equal in
+    ((let open! ((Ppx_deriving_runtime)[@ocaml.warning "-A"]) in
+      fun (lhs0, lhs1) ->
+        fun (rhs0, rhs1) ->
+          ((fun x -> (__0 ()) x) lhs0 rhs0) &&
+            ((fun x -> (__1 ()) x) lhs1 rhs1))
+    [@ocaml.warning "-A"])
+  in
+  let equal_deriving_module_expand_simpl1 =
+    let __1 () = String.equal
+    and __0 () = Int.equal in
+    ((let open! ((Ppx_deriving_runtime)[@ocaml.warning "-A"]) in
+      fun (lhs0, lhs1) ->
+        fun (rhs0, rhs1) ->
+          ((__0 ()) lhs0 rhs0) && (* removed eta expansion: https://github.com/ocaml-ppx/ppx_deriving/pull/55 *)
+            ((__1 ()) lhs1 rhs1))
+    [@ocaml.warning "-A"])
+  in
+  let equal_deriving_module_expand_simpl2 =
+    let __1 = String.equal
+    and __0 = Int.equal in
+    ((let open! ((Ppx_deriving_runtime)[@ocaml.warning "-A"]) in
+      fun (lhs0, lhs1) ->
+        fun (rhs0, rhs1) ->
+          (__0 lhs0 rhs0) && (* removed quote () arg: https://github.com/ocaml-ppx/ppx_deriving/issues/57 *)
+            (__1 lhs1 rhs1))
+    [@ocaml.warning "-A"])
+  in
 
   register (
     "pair" @>>> [
@@ -20,6 +50,9 @@ let () =
               ("deriving_primitive", Batteries.uncurry equal_deriving_primitive, args);
               ("manual_module", Batteries.uncurry equal_manual_module, args);
               ("deriving_module", Batteries.uncurry equal_deriving_module, args);
+              ("deriving_module_expand", Batteries.uncurry equal_deriving_module_expand, args);
+              ("equal_deriving_module_expand_simpl1", Batteries.uncurry equal_deriving_module_expand_simpl1, args);
+              ("equal_deriving_module_expand_simpl2", Batteries.uncurry equal_deriving_module_expand_simpl2, args);
             ]
           );
         "fst" @> lazy (
@@ -29,6 +62,9 @@ let () =
               ("deriving_primitive", Batteries.uncurry equal_deriving_primitive, args);
               ("manual_module", Batteries.uncurry equal_manual_module, args);
               ("deriving_module", Batteries.uncurry equal_deriving_module, args);
+              ("deriving_module_expand", Batteries.uncurry equal_deriving_module_expand, args);
+              ("equal_deriving_module_expand_simpl1", Batteries.uncurry equal_deriving_module_expand_simpl1, args);
+              ("equal_deriving_module_expand_simpl2", Batteries.uncurry equal_deriving_module_expand_simpl2, args);
             ]
           );
       ]
