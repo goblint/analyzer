@@ -68,6 +68,7 @@ build: [
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 pin-depends: [
   [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#208d2a2f9e51a42ee0a036f4587624ac7ac23ccb" ]
+  [ "ppx_deriving.5.2.1" "git+https://github.com/sim642/ppx_deriving.git#optimize-fwd" ]
 ]
 name: "goblint"
 version: "dev"
