@@ -80,12 +80,12 @@ end
 module SimpleThreadDomain = struct
 
   include Lattice.ProdSimple (Simple) (ThreadLifted)
-  let is_multi (x,_) = x > 0
-  let is_bad   (x,_) = x > 1
+  let is_multi (x,_) = Simple.is_multi x
+  let is_bad   (x,_) = Simple.is_bad x
 
   let show (x,y) =
     let tid = ThreadLifted.show y in
-    if x > 1 then tid else tid ^ "!" (* ! means unique *)
+    if Simple.is_bad x then tid else tid ^ "!" (* ! means unique *)
   let pretty () x = Pretty.text (show x)
 end
 
