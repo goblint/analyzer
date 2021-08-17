@@ -4,7 +4,7 @@ open Analyses
 
 module Q = Queries
 module VD = ValueDomain.Compound
-module Spec : Analyses.MCPSpec =
+module Spec (B: Analyses.MCPSpec) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -117,6 +117,3 @@ struct
     | _ -> Q.Result.top q
 
 end
-
-let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
