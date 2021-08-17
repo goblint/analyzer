@@ -29,13 +29,13 @@ struct
   let name () = "threadid"
 
   let startstate v = ThreadLifted.bot ()
-  let exitstate  v = `Lifted (Thread.start_thread v)
+  let exitstate  v = `Lifted (Thread.spawn_thread v)
 
-  let morphstate v _ = `Lifted (Thread.start_thread v)
+  let morphstate v _ = `Lifted (Thread.spawn_thread v)
 
   let create_tid v =
     let loc = !Tracing.current_loc in
-    `Lifted (Thread.spawn_thread loc v)
+    `Lifted (Thread.spawn_thread ~loc v)
 
   let body ctx f = ctx.local
 
