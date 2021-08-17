@@ -34,7 +34,6 @@ struct
     struct
       type t' = t
       let show = show
-      let name = name
     end
     )
 

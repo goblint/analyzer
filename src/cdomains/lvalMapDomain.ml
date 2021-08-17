@@ -117,7 +117,6 @@ struct
   let show x = string_of x
   include Printable.PrintSimple (struct
       type t' = t
-      let name () = Impl.name
       let show = show
     end)
   (* constructing & manipulation *)

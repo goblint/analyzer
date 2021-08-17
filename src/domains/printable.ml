@@ -78,7 +78,6 @@ end
 module PrintSimple (P: sig
     type t'
     val show: t' -> string
-    val name: unit -> string
   end) =
 struct
   let pretty () x = text (P.show x)
