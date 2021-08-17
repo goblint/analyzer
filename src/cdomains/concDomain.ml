@@ -82,22 +82,11 @@ module SimpleThreadDomain = struct
   include Lattice.ProdSimple (Simple) (ThreadLifted)
   let is_multi (x,_) = x > 0
   let is_bad   (x,_) = x > 1
-  let get_multi () = (2, ThreadLifted.top ())
-  let make_main (x,y) = (Simple.join 1 x, y)
-  let spawn_thread l v = (2, `Lifted (Thread.spawn_thread l v))
-  let start_single v : t = (0, `Lifted (Thread.start_thread v))
-  let start_main   v : t = (2, `Lifted (Thread.start_thread v))
-  let start_multi  v : t = (2, `Lifted (Thread.start_thread v))
-
 
   let show (x,y) =
     let tid = ThreadLifted.show y in
     if x > 1 then tid else tid ^ "!" (* ! means unique *)
   let pretty () x = Pretty.text (show x)
-  let same_tid x y =
-    match x,y with
-    | (_, `Lifted x), (_, `Lifted y) -> Thread.equal x y
-    | _ -> false
 end
 
 module ThreadSet = SetDomain.ToppedSet (Thread) (struct let topname = "All Threads" end)
