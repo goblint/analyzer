@@ -14,28 +14,22 @@ end
 (** Type to represent an abstract thread ID. *)
 module FunLoc: S =
 struct
-  include Basetype.Variables
+  module M = Printable.Prod (CilType.Varinfo) (Printable.Option (CilType.Location) (struct let name = "no location" end))
+  include M
 
-  let thread_hash = Hashtbl.create 113
+  let start_thread v: t = (v, `Right ())
+  let spawn_thread _ l v: t = (v, `Left l)
 
-  let get_thread_var (f: varinfo) loc =
-    try Hashtbl.find thread_hash (f,loc)
-    with Not_found ->
-      let name =
-        match loc with
-        | None -> f.vname
-        | Some l -> f.vname ^ "@" ^ CilType.Location.show l
-      in
-      let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      Hashtbl.add thread_hash (f,loc) newvar;
-      newvar
+  let to_varinfo: t -> varinfo =
+    let module RichVarinfoM = RichVarinfo.Make (M) in
+    let name = function
+      | (f, `Left l) -> f.vname ^ "@" ^ CilType.Location.show l
+      | (f, `Right ()) -> f.vname
+    in
+    RichVarinfoM.map ~name ~size:113
 
-  let start_thread v: t = get_thread_var v None
-  let spawn_thread _ l v: t = get_thread_var v (Some l)
-
-  let to_varinfo x = x
   let is_main = function
-    | {vname = "main"; _} -> true
+    | ({vname = "main"; _}, `Right ()) -> true
     | _ -> false
 end
 

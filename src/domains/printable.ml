@@ -276,7 +276,7 @@ struct
     | `Right x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
 end
 
-module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
+module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N)) (* TODO: type t = Base.t option *)
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
