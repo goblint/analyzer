@@ -39,7 +39,7 @@ struct
       let loc = !Tracing.current_loc in
       `Lifted (Thread.spawn_thread current loc v)
     | _ ->
-      failwith "ThreadId.create_tid"
+      `Lifted (Thread.start_thread v)
 
   let body ctx f = ctx.local
 
