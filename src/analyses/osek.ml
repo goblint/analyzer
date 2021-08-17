@@ -42,7 +42,8 @@ let is_ignorable lval =
   * thread ID, and otherwise goes to top. *)
 module Flag =
 struct
-  open ConcDomain
+  module Simple = ThreadFlagDomain.Simple
+  module ThreadLifted = ConcDomain.ThreadLifted
 
   include Lattice.ProdSimple (Simple) (ThreadLifted)
   let name () = "flag domain"

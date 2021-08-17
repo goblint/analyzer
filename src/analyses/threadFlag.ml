@@ -15,7 +15,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Flag = ConcDomain.Simple
+  module Flag = ThreadFlagDomain.Simple
   module D = Flag
   module C = Flag
   module G = Lattice.Unit
