@@ -32,9 +32,8 @@ struct
 
   include Printable.PrintSimple (
     struct
-      type t' = t
+      type nonrec t = t
       let show = show
-      let name = name
     end
     )
 

@@ -27,8 +27,7 @@ struct
 
   module P =
   struct
-    type t' = t
-    let name = name
+    type nonrec t = t
     let show = show
   end
   include Printable.StdPolyCompare
