@@ -74,20 +74,6 @@ struct
   let name () = "Thread"
 end
 
-(** The basic thread domain that distinguishes singlethreaded mode, a single
-  * thread ID, and otherwise goes to top. *)
-(* Only OSEK uses this anymore. *)
-module SimpleThreadDomain = struct
-
-  include Lattice.ProdSimple (Simple) (ThreadLifted)
-  let is_multi (x,_) = Simple.is_multi x
-  let is_bad   (x,_) = Simple.is_bad x
-
-  let show (x,y) =
-    let tid = ThreadLifted.show y in
-    if Simple.is_bad x then tid else tid ^ "!" (* ! means unique *)
-  let pretty () x = Pretty.text (show x)
-end
 
 module ThreadSet = SetDomain.ToppedSet (Thread) (struct let topname = "All Threads" end)
 

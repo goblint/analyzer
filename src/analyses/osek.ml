@@ -38,10 +38,22 @@ let is_ignorable lval =
   with Cilfacade.TypeOfError _ -> false
 
 
+(** The basic thread domain that distinguishes singlethreaded mode, a single
+  * thread ID, and otherwise goes to top. *)
 module Flag =
 struct
-  include ConcDomain.SimpleThreadDomain
+  open ConcDomain
+
+  include Lattice.ProdSimple (Simple) (ThreadLifted)
   let name () = "flag domain"
+
+  let is_multi (x,_) = Simple.is_multi x
+  let is_bad   (x,_) = Simple.is_bad x
+
+  let show (x,y) =
+    let tid = ThreadLifted.show y in
+    if Simple.is_bad x then tid else tid ^ "!" (* ! means unique *)
+  let pretty () x = Pretty.text (show x)
 end
 
 let get_flag (state: (string * Obj.t) list) : Flag.t =
