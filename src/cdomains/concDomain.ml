@@ -8,7 +8,6 @@ sig
   val get_single: unit -> t
   val get_multi: unit -> t
   val get_main:  unit -> t
-  val switch: t -> t -> bool
 end
 
 module Trivial = struct
@@ -23,7 +22,6 @@ module Trivial = struct
   let get_single () = false
   let get_multi () = true
   let get_main  () = true
-  let switch x y = x <> y
 end
 
 module Simple = struct
@@ -41,11 +39,6 @@ module Simple = struct
   let get_multi () = 2
   let get_main  () = 1
   let get_single () = 0
-  let switch x y = match x,y with
-    | 0,0 -> false
-    | 0,_ -> true
-    | _,0 -> true
-    | _   -> false
   let name () = "MT mode"
 end
 
@@ -95,7 +88,6 @@ module SimpleThreadDomain = struct
   let start_single v : t = (0, `Lifted (Thread.start_thread v))
   let start_main   v : t = (2, `Lifted (Thread.start_thread v))
   let start_multi  v : t = (2, `Lifted (Thread.start_thread v))
-  let switch (x,z) (y,_) = (Simple.switch x y, z)
 
 
   let show (x,y) =
