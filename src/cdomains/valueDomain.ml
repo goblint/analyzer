@@ -68,11 +68,7 @@ struct
   let invariant c (v, _, _) = Value.invariant c v
 end
 
-module Threads =
-struct
-  include SetDomain.ToppedSet (ThreadIdDomain.Thread) (struct let topname = "All threads" end)
-  let name () = "thread"
-end
+module Threads = ConcDomain.ThreadSet
 
 module rec Compound: S with type t = [
     | `Top
