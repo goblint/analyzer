@@ -31,22 +31,6 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
-  (* Helper function to convert query-offsets to valuedomain-offsets *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
-  let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a.f (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a)
-                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | _ -> []
-
   let rec is_not_unique ctx tid =
     let (rep, parents, _) = ctx.global tid in
     let n = TS.cardinal parents in
