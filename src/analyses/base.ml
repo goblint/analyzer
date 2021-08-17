@@ -375,6 +375,7 @@ struct
     | `List e -> reachable_from_value ask gs st (`Address (ValueDomain.Lists.entry_rand e)) t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
+    | `Thread _ -> empty (* TODO: is this right? *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
@@ -519,6 +520,7 @@ struct
           in
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
         | `Int _ -> (empty, TS.bot (), false)
+        | `Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
       reachable_from_value (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)
     in
@@ -1225,6 +1227,7 @@ struct
     | `Array n ->  ValueDomain.CArrays.is_bot n
     | `Blob n ->  ValueDomain.Blobs.is_bot n
     | `List n ->  ValueDomain.Lists.is_bot n
+    | `Thread n -> ValueDomain.Threads.is_bot n
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
     | `Top -> false
 
