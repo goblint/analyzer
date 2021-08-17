@@ -6,8 +6,8 @@ module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
 
-module Thread = ConcDomain.Thread
-module ThreadLifted = ConcDomain.ThreadLifted
+module Thread = ThreadIdDomain.Thread
+module ThreadLifted = ThreadIdDomain.ThreadLifted
 
 let get_current (ask: Queries.ask): ThreadLifted.t =
   ask.f Queries.CurrentThreadId

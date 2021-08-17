@@ -3,7 +3,7 @@
 open Prelude.Ana
 open Analyses
 
-module T  = ConcDomain.Thread
+module T  = ThreadIdDomain.Thread
 module TS = ConcDomain.ThreadSet
 
 module Spec =

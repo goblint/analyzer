@@ -657,7 +657,7 @@ struct
   include MineNaivePrivBase
   open Locksets
 
-  module Thread = ConcDomain.Thread
+  module Thread = ThreadIdDomain.Thread
   module ThreadMap = MapDomain.MapBot (Thread) (VD)
 
   (* weak: G -> (2^M -> (T -> D)) *)
