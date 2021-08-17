@@ -39,7 +39,7 @@ struct
   (* printing *)
   let show x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; pred=%s; ctx=%s }" (Pid.show x.pid) (Pri.show x.pri) (Per.show x.per) (Cap.show x.cap) (Pmo.show x.pmo) (PrE.show x.pre) (Pretty.sprint 200 (Pred.pretty () x.pred)) (Ctx.show x.ctx)
   include Printable.PrintSimple (struct
-      type t' = t
+      type nonrec t = t
       let show = show
     end)
   (* Printable.S *)

@@ -32,7 +32,7 @@ struct
 
   include Printable.PrintSimple (
     struct
-      type t' = t
+      type nonrec t = t
       let show = show
     end
     )

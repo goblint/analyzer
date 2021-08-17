@@ -75,10 +75,13 @@ struct
   let compare = compare (* Careful, does not terminate on cyclic data *)
 end
 
-module PrintSimple (P: sig
-    type t'
-    val show: t' -> string
-  end) =
+module type Showable =
+sig
+  type t
+  val show: t -> string
+end
+
+module PrintSimple (P: Showable) =
 struct
   let pretty () x = text (P.show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
