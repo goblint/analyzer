@@ -910,6 +910,12 @@ struct
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
+    | Q.EvalThread e -> begin
+      match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | `Thread a -> a
+        | `Bot -> Queries.Result.bot q (* TODO: remove *)
+        | _ -> Queries.Result.top q
+      end
     | Q.ReachableFrom e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Queries.Result.top q
