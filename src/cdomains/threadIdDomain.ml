@@ -17,19 +17,19 @@ struct
   module M = Printable.Prod (CilType.Varinfo) (Printable.Option (CilType.Location) (struct let name = "no location" end))
   include M
 
-  let start_thread v: t = (v, `Right ())
-  let spawn_thread _ l v: t = (v, `Left l)
+  let start_thread v: t = (v, None)
+  let spawn_thread _ l v: t = (v, Some l)
 
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in
     let name = function
-      | (f, `Left l) -> f.vname ^ "@" ^ CilType.Location.show l
-      | (f, `Right ()) -> f.vname
+      | (f, Some l) -> f.vname ^ "@" ^ CilType.Location.show l
+      | (f, None) -> f.vname
     in
     RichVarinfoM.map ~name ~size:113
 
   let is_main = function
-    | ({vname = "main"; _}, `Right ()) -> true
+    | ({vname = "main"; _}, None) -> true
     | _ -> false
 end
 
