@@ -33,9 +33,13 @@ struct
 
   let morphstate v _ = `Lifted (Thread.start_thread v)
 
-  let create_tid v =
-    let loc = !Tracing.current_loc in
-    `Lifted (Thread.spawn_thread loc v)
+  let create_tid current v =
+    match current with
+    | `Lifted current ->
+      let loc = !Tracing.current_loc in
+      `Lifted (Thread.spawn_thread current loc v)
+    | _ ->
+      failwith "ThreadId.create_tid"
 
   let body ctx f = ctx.local
 
@@ -80,7 +84,7 @@ struct
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
-    [create_tid f]
+    [create_tid ctx.local f]
 
   let threadspawn ctx lval f args fctx =
     ctx.local

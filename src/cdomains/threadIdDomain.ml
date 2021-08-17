@@ -6,7 +6,7 @@ sig
   include MapDomain.Groupable with type t := t
 
   val start_thread: varinfo -> t
-  val spawn_thread: location -> varinfo -> t
+  val spawn_thread: t -> location -> varinfo -> t
 end
 
 (** Type to represent an abstract thread ID. *)
@@ -29,7 +29,7 @@ struct
       newvar
 
   let start_thread v: t = get_thread_var v None
-  let spawn_thread l v: t = get_thread_var v (Some l)
+  let spawn_thread _ l v: t = get_thread_var v (Some l)
 end
 
 module ThreadLiftNames = struct
