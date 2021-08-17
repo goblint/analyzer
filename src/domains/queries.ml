@@ -75,7 +75,7 @@ type _ t =
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
-  | CurrentThreadId: VI.t t
+  | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
@@ -132,7 +132,7 @@ struct
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
     | BlobSize _ -> (module ID)
-    | CurrentThreadId -> (module VI)
+    | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
     | EvalStr _ -> (module SD)
     | PrintFullState -> (module Unit)
@@ -178,7 +178,7 @@ struct
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
     | BlobSize _ -> ID.top ()
-    | CurrentThreadId -> VI.top ()
+    | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
     | EvalStr _ -> SD.top ()
     | PrintFullState -> Unit.top ()

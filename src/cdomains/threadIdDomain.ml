@@ -1,7 +1,17 @@
 open Cil
 
+module type S =
+sig
+  include Printable.S with type t = varinfo (* TODO: remove varinfo constraint *)
+  include MapDomain.Groupable with type t := t
+
+  val start_thread: varinfo -> t
+  val spawn_thread: location -> varinfo -> t
+end
+
 (** Type to represent an abstract thread ID. *)
-module Thread = struct
+module FunLoc: S =
+struct
   include Basetype.Variables
 
   let thread_hash = Hashtbl.create 113
@@ -26,8 +36,11 @@ module ThreadLiftNames = struct
   let bot_name = "Bot Threads"
   let top_name = "Top Threads"
 end
-module ThreadLifted =
+module Lift (Thread: S) =
 struct
   include Lattice.Flat (Thread) (ThreadLiftNames)
   let name () = "Thread"
 end
+
+module Thread = FunLoc (* TODO: make dynamically switchable? *)
+module ThreadLifted = Lift (Thread)
