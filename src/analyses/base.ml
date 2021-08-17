@@ -1789,7 +1789,7 @@ struct
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp |> VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType in
         let nst: store =
           match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add tid rv nst.cpa}
+          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv nst.cpa}
           | _ -> nst
         in
         set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
@@ -2102,7 +2102,7 @@ struct
           begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
             | `Lifted tid ->
               let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-              let nst = {st with cpa=CPA.add tid rv st.cpa} in
+              let nst = {st with cpa=CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv st.cpa} in
               (* TODO: emit thread return event so other analyses are aware? *)
               publish_all {ctx with local=nst} `Return (* like normal return *)
             | _ -> ()
@@ -2130,7 +2130,7 @@ struct
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
             | `Thread a ->
-              let a = List.fold AD.join (AD.bot ()) (List.map (fun x -> AD.from_var x) (ValueDomain.Threads.elements a)) in
+              let a = List.fold AD.join (AD.bot ()) (List.map (fun x -> AD.from_var (ThreadIdDomain.Thread.to_varinfo x)) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) (get (Analyses.ask_of_ctx ctx) gs st a None)
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]

@@ -2,11 +2,13 @@ open Cil
 
 module type S =
 sig
-  include Printable.S with type t = varinfo (* TODO: remove varinfo constraint *)
+  include Printable.S
   include MapDomain.Groupable with type t := t
 
   val start_thread: varinfo -> t
   val spawn_thread: t -> location -> varinfo -> t
+  val to_varinfo: t -> varinfo
+  val is_main: t -> bool
 end
 
 (** Type to represent an abstract thread ID. *)
@@ -30,6 +32,11 @@ struct
 
   let start_thread v: t = get_thread_var v None
   let spawn_thread _ l v: t = get_thread_var v (Some l)
+
+  let to_varinfo x = x
+  let is_main = function
+    | {vname = "main"; _} -> true
+    | _ -> false
 end
 
 module ThreadLiftNames = struct
