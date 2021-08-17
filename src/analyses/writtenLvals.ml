@@ -9,24 +9,40 @@ struct
   include Analyses.DefaultSpec
 
   let name () = "writtenLvals"
-  module D = Lattice.Unit
+  module D = B.D
   module LS = Q.LS
-  module G = MapDomain.MapBot (Lval.CilLval) (VD)
-  module C = Lattice.Unit
-  let val_of _ = ()
+  module Map = MapDomain.MapBot (Lval.CilLval) (VD)
+  module G = Lattice.Prod (B.G) (Map)
+  module C = B.C
 
-  let side_to_f ctx (side: G.t) =
+  let project_first (f: ('a -> ('b * 'c))) = function x -> fst (f x)
+
+  let project_side sideg = function x -> function v -> sideg x (v, Map.bot ())
+
+  let project_ctx (ctx: (D.t, G.t, C.t) ctx) : (D.t, B.G.t, C.t) ctx =
+    {ctx with global = project_first ctx.global; sideg = project_side ctx.sideg}
+
+  let init = B.init
+  let finalize = B.finalize
+  let call_descr = B.call_descr
+  let vdecl ctx = B.vdecl (project_ctx ctx)
+  let event ctx e fctx = B.event (project_ctx ctx) e (project_ctx fctx)
+  let sync ctx = B.sync (project_ctx ctx)
+  let context = B.context
+  let val_of = B.val_of
+
+  let side_to_f (ctx: ('a, G.t, 'b) ctx) (side: Map.t) =
     let get_current_fun () = Option.map Node.find_fundec !MyCFG.current_node in
     let f = get_current_fun () in
     match f with
-    | Some f -> ctx.sideg f.svar side
+    | Some f -> ctx.sideg f.svar (B.G.bot (), side)
     | None -> ()
 
   let is_allocated_var ctx (v: varinfo) = ctx.ask (Q.IsAllocatedVar v)
   (* Returns the set of argument and global vars within the set of lvalues *)
   let filter_outer_vars ctx (s: Q.LS.t): Q.LS.t = Q.LS.filter (fun (v,offset) -> v.vglob && not (is_allocated_var ctx v)) s
 
-  let add_written_lval ctx (lval:lval) (v: VD.t): unit =
+  let add_written_lval (ctx: ('a, G.t, 'b) ctx) (lval:lval) (v: VD.t): unit =
     (* If we write to a top address, we warn here *)
     let query_may_point_to_handle_top e = match ctx.ask (Q.MayPointTo e) with
       | `Top -> M.warn @@ "Write to top address occurs in expression " ^ (Pretty.sprint ~width:100 (Cil.d_exp () e)) ^ "\n"; LS.bot ()
@@ -54,7 +70,7 @@ struct
             LS.bot ()
           end
     in
-    let side = LS.fold (fun lv acc -> G.add lv v acc) written (G.empty ()) in
+    let side = LS.fold (fun lv acc -> Map.add lv v acc) written (Map.empty ()) in
     side_to_f ctx side
 
   let add_written_option_lval ctx (lval: lval option): unit =
@@ -66,19 +82,20 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let v = VD.top () in
-    add_written_lval ctx lval v
+    add_written_lval ctx lval v;
+    B.assign (project_ctx ctx) lval rval
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+    B.branch (project_ctx ctx) exp tv
 
   let body ctx (f:fundec) : D.t =
-    ctx.local
+    B.body (project_ctx ctx) f
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
+    B.return (project_ctx ctx) exp f
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.bot ()]
+    B.enter (project_ctx ctx) lval f args
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* We have a call: [lval =] f(e1,...,ek) *)
@@ -98,22 +115,25 @@ struct
       | `Top -> failwith "This should not happen!"
     in
     (* Filter the written lvals by f to passed heapvars *)
-    let written_by_f = ctx.global f.svar in
-    let written_heap_vars_by_f = G.filter (fun (v, o) _ -> Set.mem (Cil.typeSig v.vtype) reachable_heap_var_typesigs) written_by_f in
-    side_to_f ctx written_heap_vars_by_f
+    let (b, written_by_f) = ctx.global f.svar in
+    let written_heap_vars_by_f = Map.filter (fun (v, o) _ -> Set.mem (Cil.typeSig v.vtype) reachable_heap_var_typesigs) written_by_f in
+    side_to_f ctx written_heap_vars_by_f;
+    B.combine (project_ctx ctx) lval fexp f args fc au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    add_written_option_lval ctx lval
+    let r = B.special (project_ctx ctx) lval f arglist in
+    add_written_option_lval ctx lval;
+    r
 
-  let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = D.bot ()
-  let exitstate v = D.top ()
+  let startstate = B.startstate
+  let threadenter ctx = B.threadenter (project_ctx ctx)
+  let threadspawn ctx lv v exps fctx = B.threadspawn (project_ctx ctx) lv v exps (project_ctx fctx)
+  let exitstate = B.exitstate
 
   let query ctx (type a) (q: a Q.t): a Q.result = match q with
     | Q.WrittenLvals f ->
-      let lvals = List.fold (fun acc (lv,_) -> LS.add lv acc) (LS.empty ()) (G.bindings (ctx.global f)) in
+      let lvals = List.fold (fun acc (lv,_) -> LS.add lv acc) (LS.empty ()) (Map.bindings (snd (ctx.global f))) in
       lvals
-    | _ -> Q.Result.top q
+    | _ -> B.query (project_ctx ctx) q
 
 end
