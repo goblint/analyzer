@@ -2679,15 +2679,9 @@ struct
       ctx.local
 end
 
-module type MainSpec = sig
-  include MCPSpec
-  include BaseDomain.ExpEvaluator
-  val return_lval: unit -> Cil.lval
-  val return_varinfo: unit -> Cil.varinfo
-  type extra = (varinfo * Offs.t * bool) list
-  val context_cpa: D.t -> BaseDomain.CPA.t
-end
 
+
+open BaseDomain
 let main_module: (module MainSpec) Lazy.t =
   lazy (
     let module Priv = (val BasePriv.get_priv ()) in
@@ -2698,17 +2692,17 @@ let main_module: (module MainSpec) Lazy.t =
       include Main
     end
     in
+    MCP.register_analysis (module WrittenLvals.Spec (Priv.D) (Main) : MCPSpec);
     (module Main)
   )
 
-let get_main (): (module MainSpec) =
+let get_main (): (module BaseDomain.MainSpec) =
   Lazy.force main_module
 
 let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis (module Main : MCPSpec);
-  MCP.register_analysis (module WrittenLvals.Spec (Main) : MCPSpec)
+  MCP.register_analysis (module Main : MCPSpec)
 
 let _ =
   AfterConfig.register after_config;

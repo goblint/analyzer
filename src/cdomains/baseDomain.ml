@@ -180,3 +180,19 @@ module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
       end
     | _ -> None
 end)
+
+module V = Basetype.Variables
+module AD = ValueDomain.AD
+
+module type MainSpec = sig
+  include Analyses.MCPSpec
+  include ExpEvaluator
+  val return_lval: unit -> Cil.lval
+  val return_varinfo: unit -> Cil.varinfo
+  type extra = (varinfo * ValueDomain.Offs.t * bool) list
+  val context_cpa: D.t -> CPA.t
+
+  (* eval_lv and eval_rv are needed in this signature so that the writtenLvals analysis can use them*)
+  val eval_lv: Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
+  val eval_rv: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
+end

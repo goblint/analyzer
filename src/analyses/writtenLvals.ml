@@ -4,7 +4,17 @@ open Analyses
 
 module Q = Queries
 module VD = ValueDomain.Compound
-module Spec (B: Analyses.MCPSpec) : Analyses.MCPSpec =
+module AD = ValueDomain.AD
+module V = Basetype.Variables
+
+type 'a glob_fun = V.t -> 'a
+
+module type PrivType =
+sig
+  type t
+end
+
+module Spec (P: PrivType) (B: BaseDomain.MainSpec with type t = P.t BaseDomain.basecomponents_t) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -70,7 +80,9 @@ struct
             LS.bot ()
           end
     in
-    let side = LS.fold (fun lv acc -> Map.add lv v acc) written (Map.empty ()) in
+    let value = B.eval_rv (Analyses.ask_of_ctx ctx) (project_first ctx.global) ctx.local (Lval lval) in
+
+    let side = LS.fold (fun lv acc -> Map.add lv value acc) written (Map.empty ()) in
     side_to_f ctx side
 
   let add_written_option_lval ctx (lval: lval option): unit =
