@@ -316,13 +316,26 @@ struct
 
   let threadenter ctx lval f args =
     let st = ctx.local in
-    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-       EnterMultithreaded events only execute after threadenter and threadspawn. *)
-    if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
-      ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
-    [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
+    match Cilfacade.find_varinfo_fundec f with
+    | fd ->
+      (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+        Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+        sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+        EnterMultithreaded events only execute after threadenter and threadspawn. *)
+      if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+        ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
+      let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
+      let arg_vars =
+        fd.sformals
+        |> List.filter AD.varinfo_tracked
+        |> List.map V.arg
+      in
+      let new_oct = AD.add_vars st'.oct arg_vars in
+      [{st' with oct = new_oct}]
+    | exception Not_found ->
+      (* Unknown functions *)
+      (* TODO: do something like base? *)
+      failwith "octApron.threadenter: unknown function"
 
   let threadspawn ctx lval f args fctx =
     ctx.local
