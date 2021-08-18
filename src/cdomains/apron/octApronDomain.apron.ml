@@ -463,7 +463,6 @@ struct
   struct
     let type_tracked typ =
       isIntegralType typ
-      && (not (GobConfig.get_bool "ana.octapron.no_uints") || Cil.isSigned (Cilfacade.get_ikind typ))
 
     let varinfo_tracked vi =
       (* no vglob check here, because globals are allowed in octApron, but just have to be handled separately *)
