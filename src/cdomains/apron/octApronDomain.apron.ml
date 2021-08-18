@@ -105,7 +105,7 @@ struct
             Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
           | BinOp (Mod, e1, e2, _) ->
             Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t ->
+          | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
             Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
           | _ ->
             raise Unsupported_CilExp
