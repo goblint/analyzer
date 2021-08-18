@@ -42,18 +42,33 @@ end
 
 module FunLocHistory: S =
 struct
-  module M = Printable.Liszt (FunLoc)
+  module P = Printable.Liszt (FunLoc)
+  module S = SetDomain.Make (FunLoc)
+  module M = Printable.Prod (P) (S)
   include M
 
-  let start_thread v = [(v, None)]
-  let spawn_thread current l v = (v, Some l) :: current (* reversed storage is more efficient *)
+  let start_thread v = ([(v, None)], S.empty ())
+  let spawn_thread current l v =
+    let n = (v, Some l) in
+    let (p, s) = current in
+    if S.mem n s then
+      current
+    else if BatList.mem_cmp FunLoc.compare n p then (
+      let new_loop = n :: BatList.take_while (fun m -> not (FunLoc.equal n m)) p in
+      let new_pref = List.tl (BatList.drop_while (fun m -> not (FunLoc.equal n m)) p) in
+      (new_pref, S.of_list new_loop)
+    )
+    else if S.is_empty s then
+      (n :: p, s) (* reversed storage is more efficient *)
+    else
+      failwith "what now"
 
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in
     RichVarinfoM.map ~name:show ~size:113
 
   let is_main = function
-    | [fl] when FunLoc.is_main fl -> true
+    | ([fl], s) when S.is_empty s && FunLoc.is_main fl -> true
     | _ -> false
 end
 
