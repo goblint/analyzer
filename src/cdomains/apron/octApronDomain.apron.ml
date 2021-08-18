@@ -110,17 +110,18 @@ struct
           | _ ->
             raise Unsupported_CilExp
         in
-        (* TODO: different signed/unsigned behavior? *)
-        let (type_min, type_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind_exp exp) in
-        let bounds = A.bound_texpr Man.mgr d (Texpr1.of_expr env expr) in
-        let min = int_of_scalar bounds.inf in
-        let max = int_of_scalar bounds.sup in
-        begin match min, max with
+        let ik = Cilfacade.get_ikind_exp exp in
+        if not (Cil.isSigned ik && GobConfig.get_bool "ana.octapron.no_signed_overflow") then (
+          let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+          let bounds = A.bound_texpr Man.mgr d (Texpr1.of_expr env expr) in
+          let min = int_of_scalar bounds.inf in
+          let max = int_of_scalar bounds.sup in
+          match min, max with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
           | _ ->
             (* ignore (Pretty.printf "octapron may overflow %a\n" dn_exp exp); *)
             raise Unsupported_CilExp
-        end;
+        );
         expr
     in
     texpr1_expr_of_cil_exp
