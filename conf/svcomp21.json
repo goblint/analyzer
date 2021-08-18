@@ -47,8 +47,12 @@
         "kmalloc_array",
         "kcalloc"
       ]
-    },
-    "unknown_funs_spawn": false
+    }
   },
-  "solver": "td3"
+  "solver": "td3",
+  "sem": {
+    "unknown_function": {
+      "spawn": true
+    }
+  }
 }
