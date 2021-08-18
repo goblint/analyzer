@@ -45,6 +45,19 @@ sig
   val varinfo_tracked: varinfo -> bool
 end
 
+(* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
+module A = Abstract1
+
+let int_of_scalar (scalar: Scalar.t) =
+  if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
+    None
+  else
+    match scalar with
+    | Mpqf scalar when Mpzf.cmp_int (Mpqf.get_den scalar) 1 = 0 -> (* rational must be integer (denominator 1) *)
+      Some (BI.of_string (Mpqf.to_string scalar))
+    | _ ->
+      failwith "int_of_scalar: not integer"
+
 (** Conversion from CIL expressions to Apron. *)
 module Convert (Tracked: Tracked) =
 struct
@@ -59,7 +72,7 @@ struct
     let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
-  let texpr1_expr_of_cil_exp env =
+  let texpr1_expr_of_cil_exp d env =
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
@@ -77,36 +90,52 @@ struct
           | None -> Int64.to_string i
         in
         Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
-      | UnOp (Neg, e, _) ->
-        Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
-      | BinOp (PlusA, e1, e2, _) ->
-        Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-      | BinOp (MinusA, e1, e2, _) ->
-        Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-      | BinOp (Mult, e1, e2, _) ->
-        Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-      | BinOp (Div, e1, e2, _) ->
-        Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
-      | BinOp (Mod, e1, e2, _) ->
-        Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-      | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t ->
-        Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
-      | _ ->
-        raise Unsupported_CilExp
+      | exp ->
+        let expr =
+          match exp with
+          | UnOp (Neg, e, _) ->
+            Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
+          | BinOp (PlusA, e1, e2, _) ->
+            Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+          | BinOp (MinusA, e1, e2, _) ->
+            Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+          | BinOp (Mult, e1, e2, _) ->
+            Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+          | BinOp (Div, e1, e2, _) ->
+            Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
+          | BinOp (Mod, e1, e2, _) ->
+            Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+          | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t ->
+            Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
+          | _ ->
+            raise Unsupported_CilExp
+        in
+        (* TODO: different signed/unsigned behavior? *)
+        let (type_min, type_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind_exp exp) in
+        let bounds = A.bound_texpr Man.mgr d (Texpr1.of_expr env expr) in
+        let min = int_of_scalar bounds.inf in
+        let max = int_of_scalar bounds.sup in
+        begin match min, max with
+          | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
+          | _ ->
+            (* ignore (Pretty.printf "octapron may overflow %a\n" dn_exp exp); *)
+            raise Unsupported_CilExp
+        end;
+        expr
     in
     texpr1_expr_of_cil_exp
 
-  let texpr1_of_cil_exp env e =
+  let texpr1_of_cil_exp d env e =
     let e = Cil.constFold false e in
-    Texpr1.of_expr env (texpr1_expr_of_cil_exp env e)
+    Texpr1.of_expr env (texpr1_expr_of_cil_exp d env e)
 
-  let tcons1_of_cil_exp env e negate =
+  let tcons1_of_cil_exp d env e negate =
     let e = Cil.constFold false e in
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp env e1 in
-        let texpr1_2 = texpr1_expr_of_cil_exp env e2 in
+        let texpr1_1 = texpr1_expr_of_cil_exp d env e1 in
+        let texpr1_2 = texpr1_expr_of_cil_exp d env e2 in
         (* Apron constraints always compare with 0 and only have comparisons one way *)
         begin match r with
           | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)
@@ -136,8 +165,6 @@ struct
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 end
 
-(* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
-module A = Abstract1
 
 (** Convenience operations on A. *)
 module AOps (Tracked: Tracked) =
@@ -249,7 +276,7 @@ struct
     nd
 
   let assign_exp_with nd v e =
-    match Convert.texpr1_of_cil_exp (A.env nd) e with
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e with
     | texpr1 ->
       A.assign_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
@@ -268,7 +295,7 @@ struct
       ves
       |> List.enum
       |> Enum.map (Tuple2.map2 (fun e ->
-          match Convert.texpr1_of_cil_exp env e with
+          match Convert.texpr1_of_cil_exp nd env e with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp -> None
         ))
@@ -325,7 +352,7 @@ struct
 
   let substitute_exp_with nd v e =
     (* TODO: non-_with version? *)
-    match Convert.texpr1_of_cil_exp (A.env nd) e with
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
@@ -339,7 +366,7 @@ struct
       ves
       |> List.enum
       |> Enum.map (Tuple2.map2 (fun e ->
-          match Convert.texpr1_of_cil_exp env e with
+          match Convert.texpr1_of_cil_exp nd env e with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp -> None
         ))
@@ -466,7 +493,7 @@ struct
       let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) in
       join assert_gt assert_lt
     | _ ->
-      begin match Convert.tcons1_of_cil_exp (A.env d) e negate with
+      begin match Convert.tcons1_of_cil_exp d (A.env d) e negate with
         | tcons1 ->
           meet_tcons d tcons1
         | exception Convert.Unsupported_CilExp ->
@@ -492,19 +519,9 @@ struct
     else
       `Top
 
-  let int_of_scalar (scalar: Scalar.t) =
-    if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
-      None
-    else
-      match scalar with
-      | Mpqf scalar when Mpzf.cmp_int (Mpqf.get_den scalar) 1 = 0 -> (* rational must be integer (denominator 1) *)
-        Some (BI.of_string (Mpqf.to_string scalar))
-      | _ ->
-        failwith "int_of_scalar: not integer"
-
   (** Evaluate non-constraint expression as interval. *)
   let eval_interval_expr d e =
-    match Convert.texpr1_of_cil_exp (A.env d) e with
+    match Convert.texpr1_of_cil_exp d (A.env d) e with
     | texpr1 ->
       let bounds = A.bound_texpr Man.mgr d texpr1 in
       let min = int_of_scalar bounds.inf in
@@ -528,32 +545,6 @@ struct
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max
       | (None, None) -> ID.top ()
-
-
-  let assign_var_handling_underflow_overflow oct v e =
-    let ikind = Cilfacade.get_ikind v.vtype in
-    let signed = Cil.isSigned ikind in
-    let new_oct = assign_exp oct (Var.of_string v.vname) e in
-    let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in
-    let check_max =
-      check_assert new_oct (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) in
-    let check_min =
-      check_assert new_oct (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) in
-    if signed then
-      if check_max <> `True || check_min <> `True then
-        if GobConfig.get_bool "ana.octapron.no_signed_overflow" then
-          new_oct
-        else
-          (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
-          top_env (A.env oct)
-      else
-        new_oct
-    else if check_max <> `True || check_min <> `True then
-      (* Unsigned overflows are defined, but for now
-          the variable in question goes to top if there is a possibility of overflow. *)
-      forget_vars oct [Var.of_string v.vname]
-    else
-      new_oct
 end
 
 

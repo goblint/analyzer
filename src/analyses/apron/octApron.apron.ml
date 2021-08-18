@@ -114,6 +114,15 @@ struct
     | _ ->
       st
 
+  let assert_type_bounds oct x =
+    assert (AD.varinfo_tracked x);
+    let ik = Cilfacade.get_ikind x.vtype in
+    let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+    (* TODO: don't go through CIL exp? *)
+    let oct = AD.assert_inv oct (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) false in
+    let oct = AD.assert_inv oct (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) false in
+    oct
+
 
   (* Basic transfer functions. *)
 
@@ -126,7 +135,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st e (fun oct' e' ->
-              AD.assign_var_handling_underflow_overflow oct' v e'
+              AD.assign_exp oct' (V.local v) e'
             )
         )
       in
@@ -170,6 +179,11 @@ struct
     let formals = List.filter AD.varinfo_tracked f.sformals in
     let locals = List.filter AD.varinfo_tracked f.slocals in
     let new_oct = AD.add_vars st.oct (List.map V.local (formals @ locals)) in
+    (* TODO: do this after local_assigns? *)
+    let new_oct = List.fold_left (fun new_oct x ->
+        assert_type_bounds new_oct x
+      ) new_oct (formals @ locals)
+    in
     let local_assigns = List.map (fun x -> (V.local x, V.arg x)) formals in
     AD.assign_var_parallel_with new_oct local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
     {st with oct = new_oct}
@@ -250,7 +264,8 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let invalidate_one st lv =
         assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-            AD.forget_vars st.oct [V.local v]
+            let oct' = AD.forget_vars st.oct [V.local v] in
+            assert_type_bounds oct' v (* re-establish type bounds after forget *)
           )
       in
       let st' = match LibraryFunctions.get_invalidate_action f.vname with
