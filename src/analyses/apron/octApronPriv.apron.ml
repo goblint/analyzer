@@ -437,7 +437,7 @@ struct
     {st with oct = oct_local}
 
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
-    {st with priv = startstate ()}
+    {oct = AD.bot (); priv = startstate ()}
 
   let init () = ()
   let finalize () = ()
