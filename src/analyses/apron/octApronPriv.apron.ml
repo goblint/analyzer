@@ -416,8 +416,27 @@ struct
         | _ ->
           st
       end
+    | `Join ->
+      if (ask.f Q.MustBeSingleThreaded) then
+        st
+      else
+        let oct = st.oct in
+        let g_vars = List.filter (fun var ->
+            match V.find_metadata var with
+            | Some (Global _) -> true
+            | _ -> false
+          ) (AD.vars oct)
+        in
+        let oct_side = AD.keep_vars oct g_vars in
+        sideg (mutex_inits ()) oct_side;
+        let oct_local = AD.remove_filter oct (fun var ->
+            match V.find_metadata var with
+            | Some (Global g) -> is_unprotected ask g
+            | _ -> false
+          )
+        in
+        {st with oct = oct_local}
     | `Normal
-    | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
     | `Thread ->
       st
