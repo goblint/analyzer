@@ -80,10 +80,14 @@ struct
             LS.bot ()
           end
     in
-    let value = B.eval_rv (Analyses.ask_of_ctx ctx) (project_first ctx.global) ctx.local (Lval lval) in
-
-    let side = LS.fold (fun lv acc -> Map.add lv value acc) written (Map.empty ()) in
+    let side = LS.fold (fun lv acc -> Map.add lv v acc) written (Map.empty ()) in
+    if M.tracing then M.tracel "written" "Map has value %a, for lval %a in state %a\n" Map.pretty side Cil.d_lval lval B.D.pretty ctx.local;
     side_to_f ctx side
+
+  let add_written_lval_with_exp (ctx: ('a, G.t, 'b) ctx) (lval:lval) (exp: exp): unit =
+    let value = B.eval_rv (Analyses.ask_of_ctx ctx) (project_first ctx.global) ctx.local exp in
+    if M.tracing then M.tracel "written" "Got value %a, for expression %a in state %a\n" VD.pretty value Cil.d_exp exp B.D.pretty ctx.local;
+    add_written_lval ctx lval value
 
   let add_written_option_lval ctx (lval: lval option): unit =
     let v = VD.top () in
@@ -93,8 +97,8 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let v = VD.top () in
-    add_written_lval ctx lval v;
+    (* let v = VD.top () in *)
+    add_written_lval_with_exp ctx lval rval;
     B.assign (project_ctx ctx) lval rval
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -110,10 +114,13 @@ struct
     B.enter (project_ctx ctx) lval f args
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+    let result_state, return_val = B.combine_get_return (project_ctx ctx) lval fexp f args fc au in
     (* We have a call: [lval =] f(e1,...,ek) *)
     (* Set the lval to written, if any. *)
-    add_written_option_lval ctx lval;
-
+    (match lval, return_val with
+      | Some lval, Some rv -> add_written_lval {ctx with local = result_state} lval rv
+      | Some _, None -> M.warn ~ctx "Could not determine value that was written to lval in assignment of function call."
+      | None, _ -> ());
     (* Find the heapvars that are reachable from the passed arguments *)
     let reachable_heap_vars =
       let reachable_exp exp = ctx.ask (Q.ReachableFrom exp) in
@@ -130,7 +137,7 @@ struct
     let (b, written_by_f) = ctx.global f.svar in
     let written_heap_vars_by_f = Map.filter (fun (v, o) _ -> Set.mem (Cil.typeSig v.vtype) reachable_heap_var_typesigs) written_by_f in
     side_to_f ctx written_heap_vars_by_f;
-    B.combine (project_ctx ctx) lval fexp f args fc au
+    result_state
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let r = B.special (project_ctx ctx) lval f arglist in

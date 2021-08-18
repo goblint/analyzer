@@ -183,6 +183,7 @@ end)
 
 module V = Basetype.Variables
 module AD = ValueDomain.AD
+open Analyses
 
 module type MainSpec = sig
   include Analyses.MCPSpec
@@ -194,5 +195,5 @@ module type MainSpec = sig
 
   (* eval_lv and eval_rv are needed in this signature so that the writtenLvals analysis can use them*)
   val eval_lv: Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
-  val eval_rv: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
+  val eval_rv: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t  val combine_get_return: (D.t, G.t, C.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t -> D.t -> D.t * VD.t option
 end

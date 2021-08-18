@@ -2289,8 +2289,8 @@ struct
     | `Int _ | `Bot | `Top -> true
     | _ -> false
 
-  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
-    let combine_one (st: D.t) (fun_st: D.t) =
+  let combine_get_return ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) :(D.t * VD.t option) =
+    let combine_one (st: D.t) (fun_st: D.t) :(D.t * VD.t option) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
         let writtenLvals = ask.f (Q.WrittenLvals f.svar) in
@@ -2321,11 +2321,11 @@ struct
         else add_globals st fun_st
       in
       match lval with
-      | None      -> st
+      | None      -> st, None
       | Some lval ->
         begin
           let add_return_val r st =
-            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) r
+            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) r, Some r
           in
           if CPA.mem (return_varinfo ()) fun_st.cpa
           then
@@ -2338,14 +2338,18 @@ struct
                 let reachable_addresses = collect_funargs ask ctx.global st args in
                 let reachable_addresses = (collect_funargs ask ctx.global st globals)@reachable_addresses in
                 let (value, new_addresses) = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses in
-                let st = add_return_val value st in
-                integrate_new_addresses ask ctx.global st fun_st reachable_addresses [new_addresses]
+                let st, _ = add_return_val value st in
+                integrate_new_addresses ask ctx.global st fun_st reachable_addresses [new_addresses], Some value
             else
               add_return_val return_val st
           else add_return_val (VD.top ()) st
         end
     in
     Stats.time "Base.combine" (combine_one ctx.local) after
+
+  let combine ctx lval fexp f args fc after =
+    fst (combine_get_return ctx lval fexp f args fc after)
+
   let special_unknown_invalidate ctx ask gs st f args =
     (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ("Unknown function ptr called"));
