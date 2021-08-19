@@ -324,12 +324,16 @@ struct
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
   let substitute_exp_with nd v e =
-    (* TODO: non-_with version? *)
     match Convert.texpr1_of_cil_exp (A.env nd) e with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
       forget_vars_with nd [v]
+
+  let substitute_exp d v e =
+    let nd = copy d in
+    substitute_exp_with nd v e;
+    nd
 
   let substitute_exp_parallel_with nd ves =
     (* TODO: non-_with version? *)
@@ -492,23 +496,43 @@ struct
     else
       `Top
 
-  let int_of_scalar (scalar: Scalar.t) =
+  let int_of_scalar ?round (scalar: Scalar.t) =
     if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
       None
     else
       match scalar with
-      | Mpqf scalar when Mpzf.cmp_int (Mpqf.get_den scalar) 1 = 0 -> (* rational must be integer (denominator 1) *)
-        Some (BI.of_string (Mpqf.to_string scalar))
+      | Mpqf scalar ->
+        let n = Mpqf.get_num scalar in
+        let d = Mpqf.get_den scalar in
+        let z_opt =
+          if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
+            Some n
+          else (
+            (* ignore (Pretty.printf "  apron n d: %s %s\n" (Mpzf.to_string n) (Mpzf.to_string d)); *)
+            begin match round with
+              | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
+              | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
+              | None -> None
+            end
+          )
+        in
+        Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
       | _ ->
-        failwith "int_of_scalar: not integer"
+        failwith ("int_of_scalar: not rational: " ^ Scalar.to_string scalar)
 
   (** Evaluate non-constraint expression as interval. *)
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp (A.env d) e with
     | texpr1 ->
       let bounds = A.bound_texpr Man.mgr d texpr1 in
-      let min = int_of_scalar bounds.inf in
-      let max = int_of_scalar bounds.sup in
+      (* let z_opt_pretty () = function
+        | None -> text "None"
+        | Some z -> text (BI.to_string z)
+      in *)
+      let min = int_of_scalar ~round:`Ceil bounds.inf in
+      (* ignore (Pretty.printf "apron min %a: %a\n" dn_exp e z_opt_pretty min); *)
+      let max = int_of_scalar ~round:`Floor bounds.sup in
+      (* ignore (Pretty.printf "apron max %a: %a\n" dn_exp e z_opt_pretty max); *)
       (min, max)
     | exception Convert.Unsupported_CilExp ->
       (None, None)
