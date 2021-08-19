@@ -305,8 +305,8 @@ struct
 end
 
 
-(* widening on contexts, keeps contexts for calls in context *)
-module WidenContextLifter (S:Spec)
+(* widening on contexts, keeps contexts for calls only in D *)
+module WidenContextLifterSide (S:Spec)
 =
 struct
   module DD =
@@ -315,12 +315,14 @@ struct
     let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
   end
   module M = MapDomain.MapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+
   module D = struct
     include Lattice.Prod (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
   end
   module G = S.G
-  module C = Printable.Prod (S.C) (M)
+  module C = S.C
+
 
   let name () = S.name ()^" with widened contexts"
 
@@ -335,67 +337,10 @@ struct
   let exitstate  = inj S.exitstate
   let morphstate v (d,m) = S.morphstate v d, m
 
-  let val_of (c,m) =
-    Messages.(if tracing then tracel "widen-context" "val_of with context %a\n" S.C.pretty c);
-    S.val_of c, m
-  let context (d,m) =
-    Messages.(if tracing then tracel "widen-context" "context with child domain %a\nand map %a\n" S.D.pretty d M.pretty m);
-    S.context d, m
-  let call_descr f (c,m) = S.call_descr f c
-
-  let conv ctx =
-    { ctx with context = (fun () -> fst (ctx.context ()))
-             ; local = fst ctx.local
-             ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
-    }
-  let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
-
-  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
-  let query ctx       = S.query (conv ctx)
-  let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
-  let intrpt ctx      = lift_fun ctx S.intrpt identity
-  let asm ctx         = lift_fun ctx S.asm    identity
-  let skip ctx        = lift_fun ctx S.skip   identity
-  let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
-
-  let threadenter ctx lval f args = S.threadenter (conv ctx) lval f args |> List.map (fun d -> (d, snd ctx.local))
-  let threadspawn ctx lval f args fctx = lift_fun ctx S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
-
-  let enter ctx r f args =
-    let m = snd ctx.local in
-    let d' v_cur =
-      let v_old = M.find f.svar m in (* S.D.bot () if not found *)
-      let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
-      let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
-      v_new, M.add f.svar v_new m
-    in
-    S.enter (conv ctx) r f args
-    |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
-
-  let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args (fst fc) (fst es))
-end
-
-
-(* widening on contexts, keeps contexts for calls only in D *)
-module WidenContextLifterSide (S:Spec)
-=
-struct
-  module B = WidenContextLifter (S) (* can't just include this since type of ctx and some tf functions are different; TODO some generic functor to lift functions with conv, inj, proj? *)
-  (* include (B : module type of B with module C := B.C) *)
-  include B
-  (* same as WidenContextLifter, but with a different C *)
-  module C = S.C
-
   let val_of = inj S.val_of (* empty map when generating value from context *)
   let context (d,m) = S.context d (* just the child analysis' context *)
   let call_descr = S.call_descr
 
-  (* copied from WidenContextLifter... *)
   let conv ctx =
     { ctx with local = fst ctx.local
              ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
